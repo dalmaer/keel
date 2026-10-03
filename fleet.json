@@ -1,0 +1,7 @@
+[
+  { "repo": "dalmaer/keel", "kind": "node", "role": "managed", "note": "keel itself: it is in its own fleet." },
+  { "repo": "dalmaer/duo", "kind": "web", "role": "managed", "note": "To be adopted (phase 4)." },
+  { "repo": "dalmaer/cajones", "kind": "static", "role": "managed", "note": "To be adopted (phase 4). The project is the repo root, which is ritmo." },
+  { "repo": "dalmaer/ledger", "kind": "web", "role": "managed", "note": "To be adopted (phase 4)." },
+  { "repo": "dglazkov/isocan", "kind": "node", "role": "source", "note": "A source: keel learns from it and pins files from it, and never manages it. Adopting it is Dimitri's decision." }
+]

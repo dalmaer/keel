@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G5
 depends: [4, 11]
-note: "Fleet today: ledger, duo, cajones (dalmaer); isocan (dglazkov) as a source."
-evidence: []
+note: "keel fleet reads five repos in 1.6s and shows the truth: keel current and green, duo/cajones/ledger not adopted, isocan unmoved. Behind and silent are proven on the stub; a real reading waits on phase 4's adoptions."
+evidence: ["evidence/2026-10-02-fleet.md"]
 ---
 
 # One look tells the owner which projects are behind, red, or teaching something
@@ -33,4 +33,8 @@ a nightly page on keel, `docs/fleet/<date>.md`, as part of keel's own night.
 
 ## Next action
 
-Wait for phase 4; meanwhile record the fleet's repos in `fleet.json` by hand.
+After phase 4's adoption PRs merge, run `keel fleet` and check both boxes against real rows.
+
+## Trajectory
+
+- **2026-10-02** — keel is in its own fleet, marked `home`: it learns rather than sends, so its lessons column says so, and its own migrations never go to Needs you. isocan is listed as a source, read and never managed.

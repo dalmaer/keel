@@ -1,0 +1,255 @@
+// keel fleet: one look at every project in fleet.json. gh is stubbed at the
+// boundary the way real gh behaves (lesson 8): `api repos/<r>` prints the repo
+// object; `api repos/<r>/contents/<path>` prints {type: file, encoding: base64,
+// content} with GitHub's line breaks for a file and an array of entries for a
+// directory; a missing path prints GitHub's 404 body on stdout and
+// "gh: Not Found (HTTP 404)" on stderr, exit 1; `run list --json` and
+// `pr list --json` print arrays of the asked fields; `api .../commits?path=`
+// prints commit objects newest first. Fixtures are synthetic (Acme).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { run as runCmd, cleanEnv } from './helpers/run.mjs';
+import { mkdtemp, mkdir, readFile, rm, writeFile, realpath, chmod } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { fleet, healthOf, gateName, parseFleet } from '../lib/fleet.mjs';
+import { lessonFingerprint, parseLessons } from '../lib/lessons.mjs';
+
+const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(KEEL, 'bin', 'keel.mjs');
+const NOW = '2026-10-02T12:00:00.000Z';
+const PIN_FULL = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const HEAD = 'f00dfeed0123456789abcdef0123456789abcdef';
+const MIGRATIONS = [{ id: '0001-acme-one' }, { id: '0002-acme-two' }];
+
+async function scratch(t, prefix) {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+/** A synthetic keel home with a fleet.json and one practice pinned to acme/upstream. */
+async function home(t, fleetList) {
+  const dir = await scratch(t, 'keel-fleet-');
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme Keel', repo: 'acme/keel', keel: 'self', practice: '0.2.0', practices: [] }));
+  await writeFile(join(dir, 'fleet.json'), JSON.stringify(fleetList));
+  await mkdir(join(dir, 'practices/conduct'), { recursive: true });
+  await writeFile(join(dir, 'practices/conduct/practice.json'), JSON.stringify({
+    name: 'conduct', source: { repo: 'acme/upstream', path: 'skills/conduct/SKILL.md', commit: 'a1b2c3d4', license: 'Apache-2.0' }, files: [],
+  }));
+  return dir;
+}
+
+/**
+ * A gh over a JSON state: repos[r] = { default_branch, files: { path: text },
+ * runs: [...], prs: [...], fail?: "stderr line" }, commits["repo:path"] = [sha…].
+ */
+async function stubGh(t, state) {
+  const dir = await scratch(t, 'keel-fleet-gh-');
+  const log = join(dir, 'gh.log'), file = join(dir, 'state.json'), gh = join(dir, 'gh');
+  await writeFile(file, JSON.stringify(state));
+  await writeFile(gh, `#!${process.execPath}
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(argv) + '\\n');
+const s = JSON.parse(fs.readFileSync(${JSON.stringify(file)}, 'utf8'));
+const opt = f => argv[argv.indexOf(f) + 1];
+const notFound = () => {
+  console.log(JSON.stringify({ message: 'Not Found', documentation_url: 'https://docs.github.com/rest', status: '404' }));
+  console.error('gh: Not Found (HTTP 404)'); process.exit(1);
+};
+const repoOf = r => { const x = s.repos[r]; if (x && x.fail) { console.error('gh: ' + x.fail); process.exit(1); } return x; };
+const pick = (rows, fields) => rows.map(x => Object.fromEntries(fields.map(f => [f, x[f] ?? ''])));
+const [a, b] = argv;
+if (a === 'api') {
+  const u = new URL(argv[1], 'https://api.github.com/');
+  let m;
+  if ((m = /^\\/repos\\/([^/]+\\/[^/]+)$/.exec(u.pathname))) {
+    const r = repoOf(m[1]); if (!r) notFound();
+    console.log(JSON.stringify({ full_name: m[1], private: true, default_branch: r.default_branch }));
+  } else if ((m = /^\\/repos\\/([^/]+\\/[^/]+)\\/commits$/.exec(u.pathname))) {
+    const shas = s.commits[m[1] + ':' + u.searchParams.get('path')];
+    if (!shas) { console.log('[]'); process.exit(0); }
+    console.log(JSON.stringify(shas.slice(0, Number(u.searchParams.get('per_page') ?? 30)).map(sha => ({ sha }))));
+  } else if ((m = /^\\/repos\\/([^/]+\\/[^/]+)\\/contents\\/(.+)$/.exec(u.pathname))) {
+    const r = repoOf(m[1]); if (!r) notFound();
+    const path = decodeURIComponent(m[2]);
+    const files = r.files ?? {};
+    if (path in files) {
+      const content = Buffer.from(files[path]).toString('base64').replace(/(.{60})/g, '$1\\n');
+      console.log(JSON.stringify({ type: 'file', name: path.split('/').pop(), path, encoding: 'base64', content }));
+    } else {
+      const kids = Object.keys(files).filter(f => f.startsWith(path + '/')).map(f => f.slice(path.length + 1).split('/')[0]);
+      if (!kids.length) notFound();
+      console.log(JSON.stringify([...new Set(kids)].map(name => ({ name, path: path + '/' + name, type: 'file' }))));
+    }
+  } else notFound();
+} else if (a === 'run' && b === 'list') {
+  const r = repoOf(opt('-R')); if (!r) { console.error('GraphQL: Could not resolve to a Repository'); process.exit(1); }
+  console.log(JSON.stringify(pick((r.runs ?? []).slice(0, Number(opt('--limit'))), opt('--json').split(','))));
+} else if (a === 'pr' && b === 'list') {
+  const r = repoOf(opt('-R')); if (!r) { console.error('GraphQL: Could not resolve to a Repository'); process.exit(1); }
+  console.log(JSON.stringify(pick(r.prs ?? [], opt('--json').split(','))));
+} else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
+`);
+  await chmod(gh, 0o755);
+  return {
+    env: { ...cleanEnv(), KEEL_GH: gh },
+    calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
+  };
+}
+
+const LESSONS = `# Lessons
+
+| # | shape | cost | guard |
+| --- | --- | --- | --- |
+| 1 | **A cache lies.** | Acme lost a day. | A test. |
+| 2 | **A flag is forgotten.** | Acme lost an hour. | A lint. |
+| 3 | **A stub agrees.** | Acme lost a week. | Record real responses. |
+`;
+const cfg = (over = {}) => JSON.stringify({ name: 'Acme', repo: 'acme/behind', practice: '0.1.0', practices: ['base'], migrations: ['0001-acme-one'], ...over });
+const run = (workflowName, conclusion, createdAt, extra = {}) => ({ workflowName, conclusion, createdAt, headBranch: 'main', status: 'completed', ...extra });
+
+/** The fleet the tests read: one of each case. */
+function state() {
+  const sentOne = JSON.stringify({ [lessonFingerprint('acme/behind', parseLessons(LESSONS).rows[0])]: { issue: 'u', at: NOW } });
+  return {
+    repos: {
+      'acme/behind': {
+        default_branch: 'main',
+        files: { '.keel/keel.json': cfg(), 'docs/health/2026-09-25.md': '#', 'docs/health/2026-09-28.md': '#', 'docs/lessons.md': LESSONS, '.keel/sent.json': sentOne },
+        runs: [run('check', '', '2026-10-02T03:00:00Z', { status: 'in_progress' }), run('check', 'failure', '2026-10-01T03:00:00Z'),
+          run('deploy', 'success', '2026-10-01T04:00:00Z'), run('check', 'success', '2026-10-01T05:00:00Z', { headBranch: 'feature' })],
+        prs: [{ number: 1, headRefName: 'keel-night/2026-10-01' }, { number: 2, headRefName: 'keel-night/2026-10-02' }, { number: 3, headRefName: 'person/fix' }],
+      },
+      'acme/fresh': {
+        default_branch: 'trunk',
+        files: { '.keel/keel.json': cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#' },
+        runs: [run('Tests', 'success', '2026-10-01T03:00:00Z', { headBranch: 'trunk' })],
+      },
+      'acme/quiet': { default_branch: 'main', files: { '.keel/keel.json': cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }) }, runs: [] },
+      'acme/plain': { default_branch: 'main', files: { 'README.md': '# plain' }, runs: [run('CI', 'success', '2026-10-01T00:00:00Z')] },
+      'acme/limited': { fail: 'API rate limit exceeded for user ID 1. (HTTP 403)' },
+    },
+    commits: { 'acme/upstream:skills/conduct/SKILL.md': [PIN_FULL] },
+  };
+}
+const LIST = [
+  { repo: 'acme/behind', kind: 'node', role: 'managed' },
+  { repo: 'acme/fresh', kind: 'web', role: 'managed' },
+  { repo: 'acme/quiet', kind: 'static', role: 'managed' },
+  { repo: 'acme/plain', kind: 'other', role: 'managed' },
+  { repo: 'acme/limited', kind: 'node', role: 'managed' },
+  { repo: 'acme/upstream', kind: 'node', role: 'source', note: 'learned from, never managed' },
+];
+const go = (dir, gh) => fleet({ dir }, { env: gh.env, now: NOW, cli: '0.2.0', migrations: MIGRATIONS });
+const rowOf = (r, repo) => r.data.rows.find(x => x.repo === repo);
+const needsOf = (r, repo) => r.data.needs.filter(n => n.repo === repo).map(n => n.why);
+
+test('a project behind: how far, which migrations are possibly pending, red CI from the gate on the default branch', async t => {
+  const r = await go(await home(t, LIST), await stubGh(t, state()));
+  const row = rowOf(r, 'acme/behind');
+  assert.equal(row.adopted, true);
+  assert.equal(row.practice.behind, '0.1.0 → 0.2.0');
+  assert.deepEqual(row.practice.possiblyPending, ['0002-acme-two']);
+  assert.equal(row.ci.workflow, 'check');
+  assert.equal(row.ci.state, 'red', 'the newest completed check on main failed; the running one and the feature branch do not count');
+  assert.equal(row.machinePrs.total, 2);
+  assert.ok(needsOf(r, 'acme/behind').includes('behind: 0.1.0 → 0.2.0; possibly pending: 0002-acme-two (keel update)'));
+  assert.ok(needsOf(r, 'acme/behind').some(w => w.startsWith('red: check failure')));
+  assert.ok(needsOf(r, 'acme/behind').includes('2 open keel-night/ PRs (keel drain keel-night/)'));
+  assert.match(r.text, /acme\/behind\s+yes\s+0\.1\.0 → 0\.2\.0/);
+});
+
+test('a health page older than two days is silent, not healthy; none says so', async t => {
+  const r = await go(await home(t, LIST), await stubGh(t, state()));
+  assert.deepEqual(rowOf(r, 'acme/behind').health, { last: '2026-09-28', age: 4, state: 'silent' });
+  assert.ok(needsOf(r, 'acme/behind').includes('silent: last health page 2026-09-28, 4 days ago'));
+  assert.equal(rowOf(r, 'acme/fresh').health.state, 'fresh');
+  assert.deepEqual(needsOf(r, 'acme/fresh'), [], 'current, green on its own default branch (trunk), fresh: nothing needed');
+  assert.equal(rowOf(r, 'acme/fresh').ci.state, 'green');
+  assert.equal(rowOf(r, 'acme/quiet').health.state, 'none');
+  assert.ok(needsOf(r, 'acme/quiet').includes('no health page'));
+  assert.match(r.text, /acme\/quiet .*no health page/);
+  assert.match(r.text, /acme\/behind .*2026-09-28 silent/);
+  // The boundary: two days is fresh, three is silent.
+  assert.equal(healthOf(['2026-09-30.md'], NOW).state, 'fresh');
+  assert.equal(healthOf(['2026-09-29.md', 'README.md'], NOW).state, 'silent');
+});
+
+test('unsent lessons: rows whose fingerprint is not in .keel/sent.json', async t => {
+  const r = await go(await home(t, LIST), await stubGh(t, state()));
+  assert.deepEqual(rowOf(r, 'acme/behind').lessons, { project: 'acme/behind', rows: 3, unsent: 2 });
+  assert.ok(needsOf(r, 'acme/behind').includes('2 unsent lessons (keel lessons, there)'));
+  assert.equal(rowOf(r, 'acme/quiet').lessons.unsent, 0, 'no lessons.md is nothing to send');
+});
+
+test('unadopted (404 on .keel/keel.json): shown as not adopted, its CI still read', async t => {
+  const r = await go(await home(t, LIST), await stubGh(t, state()));
+  const row = rowOf(r, 'acme/plain');
+  assert.equal(row.adopted, false);
+  assert.equal(row.ci.workflow, 'CI');
+  assert.deepEqual(needsOf(r, 'acme/plain'), ['not adopted']);
+  assert.match(r.text, /acme\/plain\s+no\s+—/);
+});
+
+test('an unreadable repo says why in its row; the others still render', async t => {
+  const r = await go(await home(t, LIST), await stubGh(t, state()));
+  const row = rowOf(r, 'acme/limited');
+  assert.match(row.unreadable, /rate limit/);
+  assert.equal(row.adopted, undefined, 'never shown as anything it could not read');
+  assert.match(r.text, /acme\/limited\s+unreadable: API rate limit exceeded/);
+  assert.ok(needsOf(r, 'acme/limited')[0].startsWith('unreadable:'));
+  assert.equal(r.data.rows.length, LIST.length);
+  assert.equal(r.exitCode, 0);
+});
+
+test('a source repo: unmoved, then moved', async t => {
+  const dir = await home(t, LIST);
+  let r = await go(dir, await stubGh(t, state()));
+  assert.deepEqual(rowOf(r, 'acme/upstream').pins, [{ practice: 'conduct', path: 'skills/conduct/SKILL.md', pinned: 'a1b2c3d4', head: PIN_FULL, moved: false }]);
+  assert.deepEqual(needsOf(r, 'acme/upstream'), []);
+  assert.match(r.text, /acme\/upstream: conduct pins skills\/conduct\/SKILL\.md@a1b2c3d4 — unmoved/);
+  const s = state();
+  s.commits['acme/upstream:skills/conduct/SKILL.md'] = [HEAD, PIN_FULL];
+  r = await go(dir, await stubGh(t, s));
+  assert.equal(rowOf(r, 'acme/upstream').pins[0].moved, true);
+  assert.deepEqual(needsOf(r, 'acme/upstream'), ['conduct: upstream skills/conduct/SKILL.md moved a1b2c3d4 → f00dfeed (keel learn)']);
+});
+
+test('the reads are read-only gh calls, seven per managed repo and one per pin', async t => {
+  const gh = await stubGh(t, state());
+  await go(await home(t, LIST), gh);
+  const calls = await gh.calls();
+  // 7 per managed repo, 1 per pinned source; nothing writes.
+  assert.equal(calls.length, 5 * 7 + 1);
+  assert.ok(calls.every(c => ['api', 'run', 'pr'].includes(c[0]) && !c.includes('-X') && !c.includes('--method')));
+});
+
+test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', async t => {
+  assert.throws(() => parseFleet('[{"repo":"acme","role":"managed"}]'), /owner\/name/);
+  assert.throws(() => parseFleet('[{"repo":"acme/a","role":"boss"}]'), /role/);
+  assert.throws(() => parseFleet('[{"repo":"acme/a","role":"source"},{"repo":"acme/a","role":"source"}]'), /twice/);
+  assert.equal(gateName(['Deploy', 'CI alert', 'check']), 'check');
+  assert.equal(gateName(['Deploy', 'Test and deploy']), 'Test and deploy');
+  assert.equal(gateName(['Deploy', 'Claude']), null);
+
+  const dir = await home(t, LIST);
+  const away = await scratch(t, 'keel-fleet-away-');
+  await mkdir(join(away, '.keel'));
+  await writeFile(join(away, '.keel/keel.json'), cfg());
+  const gh = await stubGh(t, state());
+  const r = runCmd(process.execPath, [BIN, 'fleet', '--json'], { cwd: away, env: gh.env });
+  assert.equal(r.status, 2);
+  assert.match(JSON.parse(r.stdout).error, /fleet runs at home/);
+  const ok = runCmd(process.execPath, [BIN, 'fleet', '--json'], { cwd: dir, env: gh.env });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(ok.stderr, '');
+  const data = JSON.parse(ok.stdout);
+  assert.equal(data.rows.length, LIST.length);
+  const text = runCmd(process.execPath, [BIN, 'fleet'], { cwd: dir, env: gh.env });
+  assert.match(text.stdout, /^repo\s+adopted\s+practice\s+health\s+CI\s+unsent lessons\s+machine PRs$/m);
+  assert.match(text.stdout, /^Needs you:$/m);
+});

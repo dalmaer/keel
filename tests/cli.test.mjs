@@ -105,7 +105,8 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // goal add runs before goal retire, which retires the goal it added.
     // improve bare would run keel's own check from inside it; its --selftest runs on its fixture.
     const added = `G${Math.max(...JSON.parse(await readFile(join(dir, 'docs/goals.json'), 'utf8')).map(g => Number(g.id.slice(1)))) + 1}`;
-    // drain reads GitHub; here a gh with an empty queue, and tests/night.test.mjs covers the rest.
+    // drain and fleet read GitHub; here a gh that prints [], and tests/night.test.mjs and
+    // tests/fleet.test.mjs cover the rest.
     const emptyGh = join(dir, 'empty-gh');
     await writeFile(emptyGh, `#!${process.execPath}\nconsole.log('[]');\n`, { mode: 0o755 });
     const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
@@ -114,7 +115,7 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     for (const name of names()) {
-      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, name === 'drain' ? { ...env, KEEL_GH: emptyGh } : env);
+      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, ['drain', 'fleet'].includes(name) ? { ...env, KEEL_GH: emptyGh } : env);
       assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);

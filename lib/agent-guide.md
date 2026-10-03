@@ -21,6 +21,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`
 - `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
 - `keel drain <prefix>` — one open PR per machine queue: older data PRs merged, the rest superseded; newest only `--gate-passed`; exit 3 until `--yes`
+- `keel fleet` — keel only, read-only: each project in `fleet.json`: practice, health, CI, unsent lessons
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — this text; `<topic>` opens one, `all` prints everything
@@ -39,7 +40,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `install`, `coming`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `fleet`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -373,6 +374,34 @@ The `night` practice's workflows call it: `keel-night.yml` after
 `keel improve --report` opens the night's PR, and `keel-update.yml` to close
 older update PRs (never to merge one: they are not data).
 
+<!-- topic: fleet | every project at once: behind, red, silent, or teaching something -->
+
+`keel fleet` runs on keel only (elsewhere exit 2) and changes nothing. It
+reads `fleet.json` at keel's root, `[{repo, kind, role, note}]`, and asks gh
+about every repo at once.
+
+- `managed`: adopted (`.keel/keel.json` on the default branch; 404 is not
+  adopted), practice against this CLI's (`0.1.0 → 0.2.0` or `current`),
+  migrations not in its `migrations` list ("possibly pending": `applies()`
+  needs the tree), newest `docs/health/<date>.md` (older than two days is
+  silent), CI (the newest completed default-branch run of the workflow named
+  `check`, else `ci`/`test`, else one naming check, test or CI; it says
+  which), lesson rows whose fingerprint is not in `.keel/sent.json`, and
+  open machine PRs by prefix.
+- `source`: each practice pinned to it, and whether its head moved (as
+  `keel learn` checks).
+
+A repo or cell that could not be read says `unreadable: <why>`; it is never
+shown as healthy, and the other rows still render. The table ends in a
+"Needs you" list. Exit 0 whenever the table was drawn.
+
+`--json` → `{ok, root, cli, at, ms, rows: [{repo, role, kind, note,
+unreadable?, branch, adopted, practice: {version, behind, possiblyPending},
+health: {last, age, state}, ci: {state, workflow, conclusion, at}, lessons:
+{project, rows, unsent}, machinePrs: {total, queues}} | {repo, role:
+'source', pins: [{practice, path, pinned, head, moved}]}], needs: [{repo,
+why}]}`. A cell that failed is `{unreadable}`.
+
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
 Keel is a git checkout plus a link; there is no registry and no build step.
@@ -390,5 +419,6 @@ own copy of the practice (its `practices/`), never the project's scripts.
 
 <!-- topic: coming | verbs that are planned and not yet built -->
 
-Not built yet, so not verbs: `fleet`. Do not call
-them; `keel help` lists what exists. The roadmap in keel's `docs/ROADMAP.md` says where each one stands.
+Nothing is planned and unbuilt as a verb right now. A verb not in
+`keel help` does not exist; do not call it. Keel's `docs/ROADMAP.md` says
+what is planned.

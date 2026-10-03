@@ -93,7 +93,7 @@ Keel can show, with numbers across the fleet, whether projects it manages ship m
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [12. One look tells the owner which projects are behind, red, or teaching something](phases/12-the-fleet.md) | planned | 2026-10-02 | [4](phases/04-keel-adopt.md), [11](phases/11-keel-improve.md) | Fleet today: ledger, duo, cajones (dalmaer); isocan (dglazkov) as a source. |
+| [12. One look tells the owner which projects are behind, red, or teaching something](phases/12-the-fleet.md) | partial | 2026-10-02 | [4](phases/04-keel-adopt.md), [11](phases/11-keel-improve.md) | keel fleet reads five repos in 1.6s and shows the truth: keel current and green, duo/cajones/ledger not adopted, isocan unmoved. Behind and silent are proven on the stub; a real reading waits on phase 4's adoptions. |
 | [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md) | planned | 2026-10-02 | [12](phases/12-the-fleet.md) | The question that justifies keel; unanswerable until a fleet has history. |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
