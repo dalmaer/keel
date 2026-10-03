@@ -46,6 +46,18 @@ night. The repo setting is off (`can_approve_pull_request_reviews: false`),
 so a ⚑ the owner hadn't been asked about would have emailed them nightly.
 The builder fixed it to a notice before the push.
 
+## After the owner turned the PR setting on (2026-10-03)
+
+Run: https://github.com/dalmaer/keel/actions/runs/37132491094 (exit 0)
+
+| Step | Observed |
+| --- | --- |
+| Open the PR | https://github.com/dalmaer/keel/pull/1 (`keel night: 2026-10-03`) |
+| Drain | `keel drain keel-night/: 1 open PR, newest #1.` then `#1 keel-night/2026-10-03: merged — the newest: data only, it merges, and the gate passed on its tree` |
+| Verdict | green, with the notice that one measure is outside its bound |
+
+That was the first real night with no person involved: measure, PR, check, merge.
+
 ## Gaps and decision
 
 - Not yet observed:
@@ -53,8 +65,8 @@ The builder fixed it to a notice before the push.
   - a deliberately red night reaching the owner by email;
   - one adopted project's night.
 - ⚑ The owner must:
-  - turn on "Allow GitHub Actions to create and approve pull requests" on
-    keel (and on each project);
+  - ~~turn on "Allow GitHub Actions to create and approve pull requests" on
+    keel~~ (done 2026-10-03), and on each adopted project;
   - set `KEEL_TOKEN` on each adopted project;
   - set `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` for `@claude`;
   - install the Renovate app.

@@ -3,7 +3,7 @@ status: partial
 since: 2026-10-02
 goal: G4
 depends: [6]
-note: "keel-night, keel-update, claude and renovate ship as practices, with keel drain. The first real dispatch on keel measured, pushed its branch and stayed green with a notice (the PR setting is off). Owed: seven nights, a red night, and the owner's settings and secrets."
+note: "The night shift ships as practices with drain. On keel, the full cycle has run for real: measure, PR #1, gate, self-merge. Owed: seven nights, a deliberately red night, and one adopted project's night."
 evidence: ["evidence/2026-10-02-night-shift.md"]
 ---
 
@@ -42,7 +42,7 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 
 ## Next action
 
-⚑ Owner: on dalmaer/keel, Settings → Actions → General → Workflow permissions → "Allow GitHub Actions to create and approve pull requests". Then let seven nights run, and record the queue depth each morning.
+Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
 ## Trajectory
 
