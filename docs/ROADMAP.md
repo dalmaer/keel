@@ -63,7 +63,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [7. A lesson learned in a project reaches keel without anyone copying it](phases/07-lessons-go-home.md) | planned | 2026-10-02 | [5](phases/05-managed-files-and-drift.md) | Every repo's lessons.md already uses the same three columns; the form is settled, the transport is not built. |
+| [7. A lesson learned in a project reaches keel without anyone copying it](phases/07-lessons-go-home.md) | partial | 2026-10-02 | [5](phases/05-managed-files-and-drift.md) | keel lessons gathers lesson rows, drift and practice commits with stable fingerprints and files each once (sent.json plus an exact-fingerprint search); real dry runs on duo and ritmo clones. Filing for real waits on the owner's yes. |
 | [8. Keel turns what it hears into the next practice version, with a person deciding](phases/08-learn-at-home.md) | planned | 2026-10-02 | [6](phases/06-update-and-migrations.md), [7](phases/07-lessons-go-home.md) | The first source is known: isocan's conduct skill, pinned at 7227f325. |
 
 - **7 done when:** `keel lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/keel` labelled `lesson`, and never files the same one twice.
