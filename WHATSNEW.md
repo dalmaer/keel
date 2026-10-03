@@ -5,6 +5,15 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.3.1 — 2026-10-03
+
+An agent working in your project now finds keel on its own.
+
+- **A `keel` skill** at `.agents/skills/keel/SKILL.md` (with a
+  `.claude/skills/keel` link) tells any agent this repo is run with keel,
+  how to install it if it's missing, and to run `keel --agent-help` before
+  anything else. It holds no verb list, so it can't fall behind the CLI.
+
 ## v0.3.0 — 2026-10-03
 
 Your project now runs entirely on its own, and keel can read projects that
