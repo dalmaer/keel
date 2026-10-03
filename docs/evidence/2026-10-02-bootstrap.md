@@ -33,7 +33,15 @@ The tests cover:
 | `ls -la .claude/skills` | A symlink to `.agents/skills/conduct` | `conduct -> ../../.agents/skills/conduct` | One file, many doorways. Doesn't prove Claude Code loads it; that is seen the first time `/conduct` runs |
 | Read isocan's `7227f325` diff against the adapted skill | Every change carried | Present: builders test by file; one full check; point-don't-paste; 600-word caps; `pull --ff-only` then `add -N`; explicit staging; `git show --stat HEAD` | The adaptation is faithful by reading, not by running a conducted phase |
 
+## On GitHub (added after the push)
+
+| Did | Observed |
+| --- | --- |
+| ⚑ `gh repo create dalmaer/keel --private --source . --push` (the owner said "get going") | `* [new branch] HEAD -> main` |
+| `gh run watch 37091903912 --exit-status` | exit 0; `success ae091e0` — https://github.com/dalmaer/keel/actions/runs/37091903912 |
+| `/conduct` invoked in Claude Code | The skill launched from `.claude/skills/conduct`, i.e. through the symlink |
+
 ## Gaps and decision
 
-- ⚑ No GitHub repo exists. `check.yml` has never run, so the phase stays **partial**.
+- Both earlier gaps are closed (above). Supports **built**; lived-in waits on keel running real projects.
 - The conduct skill hasn't conducted a phase yet. Its first real run is phase 1.

@@ -1,9 +1,9 @@
 ---
-status: partial
+status: built
 since: 2026-10-02
 goal: G0
 depends: []
-note: "Phase files, goals, a checked roadmap, lessons, the design and the conduct skill (with isocan's 7227f325 efficiency rules) exist and npm run check passes locally; no GitHub repo or CI run yet."
+note: "The practice is installed on keel by hand and holds: check passes locally and on GitHub Actions, and /conduct loads through the .claude/skills symlink. Not yet rendered from practices (phase 1)."
 evidence: ["evidence/2026-10-02-bootstrap.md"]
 ---
 
@@ -28,8 +28,8 @@ into `practices/` yet — that is phase 1.
 - [x] `npm run next` prints the next phase and its next action.
 - [x] The conduct skill is keel's adaptation of isocan's at `7227f325`, reached through a committed symlink, with its source pinned.
 - [x] `docs/lessons.md` holds the inherited shapes with their provenance, and keel's first own lesson.
-- [ ] ⚑ `dalmaer/keel` exists on GitHub (private) and `main` is pushed.
-- [ ] `check.yml` passes on that push.
+- [x] ⚑ `dalmaer/keel` exists on GitHub (private) and `main` is pushed.
+- [x] `check.yml` passes on that push.
 
 ## Proof
 
@@ -39,8 +39,12 @@ Then `gh run watch` on the push's `check` run, exit 0.
 
 ## Deliberately open
 
-- Public or private. Private until the owner says otherwise; it costs nothing to flip later.
+- Public or private. **Settled 2026-10-02:** private, created on the owner's "get going"; flipping later costs nothing.
 
 ## Next action
 
-Ask the owner for the ⚑ yes to create `dalmaer/keel`, push, and watch `check.yml` go green.
+Live in it: conduct the remaining phases with it, which is what lived-in means here.
+
+## Trajectory
+
+*Nothing — the phase went as planned.*
