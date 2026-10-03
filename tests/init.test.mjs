@@ -15,6 +15,12 @@ import { parsePhase } from '../practices/phases/files/scripts/roadmap.mjs';
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
 const DESCRIPTION = 'Acme Notes keeps meeting notes as plain files. It files each note under the meeting it came from and finds them again by who was there.';
+const SECRETS = [
+  ['KEEL_TOKEN', '.github/workflows/keel-night.yml', 'night'],
+  ['KEEL_TOKEN', '.github/workflows/keel-update.yml', 'night'],
+  ['CLAUDE_CODE_OAUTH_TOKEN', '.github/workflows/claude.yml', 'claude'],
+  ['ANTHROPIC_API_KEY', '.github/workflows/claude.yml', 'claude'],
+];
 
 // A git identity for the commit, and nothing reaching the network.
 const ENV = {
@@ -71,7 +77,7 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.equal(config.tagline, 'Acme Notes keeps meeting notes as plain files.');
   assert.equal(config.kind, 'node');
   assert.equal(config.repo, undefined, 'no repo without --repo or --github');
-  assert.deepEqual(config.practices, ['base', 'agents-md', 'phases', 'evidence', 'lessons', 'conduct', 'ci']);
+  assert.deepEqual(config.practices, ['base', 'agents-md', 'phases', 'evidence', 'lessons', 'conduct', 'ci', 'night', 'claude', 'renovate']);
 
   const goals = JSON.parse(await readFile(join(dir, 'docs', 'goals.json'), 'utf8'));
   assert.equal(goals.length, 1);
@@ -85,7 +91,8 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.match(agents, /Kind: Node CLI/);
   assert.match(agents, /<!-- keel:begin phases -->\n\*\*Status lives/);
   for (const f of ['CLAUDE.md', '.nvmrc', '.gitignore', 'docs/lessons.md', 'docs/ROADMAP.md',
-    '.github/workflows/check.yml', '.agents/skills/conduct/SKILL.md', '.claude/skills/conduct/SKILL.md']) {
+    '.github/workflows/check.yml', '.github/workflows/keel-night.yml', '.github/workflows/keel-update.yml',
+    '.github/workflows/claude.yml', 'renovate.json', '.agents/skills/conduct/SKILL.md', '.claude/skills/conduct/SKILL.md']) {
     await readFile(join(dir, f), 'utf8');
   }
 
@@ -177,7 +184,9 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   assert.equal(out.needs, 'yes');
   assert.equal(out.plan.repo, 'acme/acme-notes');
   assert.ok(out.plan.steps.some(s => s.what === `gh repo create acme/acme-notes --private --source ${dir} --push`));
-  assert.deepEqual(out.plan.secrets, [], 'the ci practice declares no secrets');
+  // The night shift's and claude's secrets, each named with its workflow; none is set.
+  assert.deepEqual(out.plan.secrets.map(s => [s.name, s.workflow, s.practice, s.set]), SECRETS.map(s => [...s, false]));
+  assert.ok(out.plan.secrets.every(s => s.why), 'each says why');
   const calls = await gh.calls();
   assert.ok(!calls.some(c => c[0] === 'repo'), `gh saw: ${JSON.stringify(calls)}`);
   assert.deepEqual(await readdir(root).then(n => n.sort()), ['gh', 'gh.log'], 'not even the directory');
@@ -185,7 +194,7 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   const text = keel(['init', dir, '--description', DESCRIPTION, '--github'], root, { ...ENV, KEEL_GH: gh.bin });
   assert.equal(text.code, 3);
   assert.match(text.out, /needs a yes/);
-  assert.match(text.out, /Secrets needed:\n {2}none/);
+  assert.match(text.out, /Secrets needed:\n {2}KEEL_TOKEN \(\.github\/workflows\/keel-night\.yml\): .* — not set; keel never sets one/);
 });
 
 test('--github --yes inits, then creates the private repo from the directory and pushes', async t => {
@@ -196,7 +205,7 @@ test('--github --yes inits, then creates the private repo from the directory and
   assert.equal(r.code, 0, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.equal(out.github.repo, 'acme/acme-notes');
-  assert.deepEqual(out.github.secrets, []);
+  assert.deepEqual(out.github.secrets.map(s => s.name), SECRETS.map(s => s[0]));
   const calls = await gh.calls();
   assert.deepEqual(calls.find(c => c[0] === 'repo'), ['repo', 'create', 'acme/acme-notes', '--private', '--source', dir, '--push']);
   assert.ok(!calls.some(c => c[0] === 'secret' && c[1] === 'set'), 'never sets a secret');
@@ -212,7 +221,8 @@ test('--repo names the repo without asking gh who you are', async t => {
   const r = keel(['init', 'x', '--description', DESCRIPTION, '--repo', 'acme/elsewhere', '--github', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
   assert.equal(r.code, 3);
   assert.equal(JSON.parse(r.out).plan.repo, 'acme/elsewhere');
-  assert.deepEqual(await gh.calls(), []);
+  assert.ok(!(await gh.calls()).some(c => c[0] === 'api'), 'never asks gh who you are');
+  assert.deepEqual((await gh.calls()).map(c => c.slice(0, 2)), [['secret', 'list']], 'only reads which secrets are set');
 });
 
 test('a missing placeholder is an error only where a template uses it', () => {

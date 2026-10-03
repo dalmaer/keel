@@ -1,0 +1,38 @@
+# renovate
+
+**The failure it prevents.** Dependency PRs that arrive one per package and
+pile up until nobody reads any of them, and the opposite: a major update that
+changes behaviour merging itself.
+
+**The rule.** `renovate.json` is the whole policy, in four lanes, each one
+branch updated in place, so no lane ever holds more than one PR:
+
+- `renovate/patch-minor`, **daily**: every patch and minor bump, npm and
+  Actions alike, in one PR that Renovate merges itself once the checks are
+  green.
+- `renovate/lock-file-maintenance`, **Mondays**: the lockfile refreshed,
+  merged the same way.
+- `renovate/major-weekly`, **Mondays**: every major together, for a person.
+- `renovate/node`, **Mondays**: `.nvmrc` and `@types/node` together, for a
+  person.
+
+Renovate's PRs come from its app, not `GITHUB_TOKEN`, so they do run the
+project's checks: automerge waits on the real suite. Without a check workflow
+(the `ci` practice, or the project's own) there is nothing to wait on, so turn
+`ci` on first. `**/fixtures/**` is ignored: a fixture's `package.json` is an
+input, not a dependency. The Dependency Dashboard issue shows what is pending.
+
+**No timezone.** isocan's config names its owner's timezone; a practice that
+copies it copies a fact about one person. Renovate's default is UTC, so
+"before 6am" is UTC here. A project that wants its own adds `timezone` and
+ejects the file (`keel doctor --fix renovate.json eject`).
+
+**What it needs (⚑).** The Renovate GitHub App, installed on the repo by its
+owner (free; https://github.com/apps/renovate). Nothing runs until it is.
+
+**Its files.** `renovate.json` (managed). `keel adopt` keeps the practice
+local where a project already has a Renovate or Dependabot config.
+
+**Lineage.** Keel phase 10, from isocan's `renovate.json` and its AGENTS.md
+section "Dependencies are Renovate's, in four lanes" (22 Sep 2026), without
+its workspace rule and its timezone.

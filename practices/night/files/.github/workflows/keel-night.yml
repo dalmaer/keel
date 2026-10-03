@@ -1,0 +1,175 @@
+# The night shift (keel practice `night`; managed: keel render rewrites it).
+#
+# Each night: measure the practice (`keel improve --report`), put the dated
+# health page on a branch of its own, open one pull request, and drain the
+# queue so it never holds more than one open `keel-night/` PR. The rules, each
+# paid for once (keel docs/design.md §6, from isocan's "night shift's pull
+# requests"):
+#
+#   - Measure first. Nothing here fixes anything; the page proposes one change.
+#   - A bot writes a pull request, never to main. The only push names
+#     refs/heads/keel-night/<date>.
+#   - One open PR per queue, the newest; `keel drain` enforces it, not a person.
+#   - A merge is checked, not trusted. A GITHUB_TOKEN PR never runs CI, so the
+#     gate that `keel improve` runs here, on this tree, is the check; the
+#     newest PR merges only when it passed and the PR holds nothing but data
+#     (docs/health/, docs/inbox/, docs/INBOX.md, .keel/bounds.json).
+#   - A guard fires into a room someone is in. A broken instrument (improve
+#     exit 2) or a failing gate makes this run red, and GitHub emails. A
+#     measure outside its bound (exit 1) is news: it is on the page, not red.
+#
+# SECRET: KEEL_TOKEN, read access to the keel repo (it is private), to fetch
+# the CLI. Until it exists the run ends green with a notice: an unconfigured
+# repo is not a broken one. On keel itself the run uses its own checkout.
+# Repo setting: Actions must be allowed to create pull requests.
+name: keel-night
+
+on:
+  schedule:
+    # 07:23 UTC, off the hour, so it does not queue behind every other cron.
+    - cron: "23 7 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-night
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  issues: read
+
+jobs:
+  night:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # The whole history: some measures read it.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install
+        run: if [ -f package-lock.json ]; then npm ci; fi
+
+      - name: Get the keel CLI
+        id: keel
+        env:
+          KEEL_TOKEN: ${{ secrets.KEEL_TOKEN }}
+        run: |
+          if node -e "process.exit(JSON.parse(require('fs').readFileSync('.keel/keel.json', 'utf8')).keel === 'self' ? 0 : 1)"; then
+            echo "cli=node $GITHUB_WORKSPACE/bin/keel.mjs" >> "$GITHUB_OUTPUT"
+            echo "self=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$KEEL_TOKEN" ]; then
+            echo "::notice::Skipped: add the KEEL_TOKEN secret (read access to dalmaer/keel) to run the night shift."
+            echo "cli=" >> "$GITHUB_OUTPUT"
+          else
+            GH_TOKEN="$KEEL_TOKEN" gh repo clone dalmaer/keel "$RUNNER_TEMP/keel" -- --quiet
+            echo "cli=node $RUNNER_TEMP/keel/bin/keel.mjs" >> "$GITHUB_OUTPUT"
+          fi
+
+      # On keel only: lesson issues and moved sources become inbox proposals. It
+      # reads and writes files and decides nothing, so it runs before the
+      # measure that counts the inbox.
+      - name: Gather what came home
+        if: steps.keel.outputs.self == 'true'
+        run: ${{ steps.keel.outputs.cli }} learn || echo "::warning::keel learn did not finish; see its output above."
+
+      # Before the drain, so machine_prs counts last night's PR.
+      - name: Measure
+        id: improve
+        if: steps.keel.outputs.cli != ''
+        run: |
+          code=0
+          ${{ steps.keel.outputs.cli }} improve --report --json > "$RUNNER_TEMP/improve.json" || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          node -e '
+            const fs = require("fs");
+            const [file, out, body] = process.argv.slice(1);
+            let r = {};
+            try { r = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+            const gate = (r.measures ?? []).find(m => m.id === "gate");
+            const day = r.date ?? new Date().toISOString().slice(0, 10);
+            fs.appendFileSync(out, `gate=${gate?.state ?? "missing"}\nday=${day}\n`);
+            for (const m of r.measures ?? []) console.log(`${m.id.padEnd(22)} ${String(m.value ?? "-").padStart(6)}  ${m.state.padEnd(8)} ${m.detail}`);
+            if (r.error) console.log(`keel improve: ${r.error}`);
+            fs.writeFileSync(body, [
+              `The night shift measured the practice on ${day}: \`keel improve --report\`.`, "",
+              r.proposal ? `**Proposal (\`${r.proposal.id}\`, ${r.proposal.state}):** ${r.proposal.text}` : "**Proposal:** none; every measure is within its bound.", "",
+              `The page is \`${r.report ?? "docs/health/"}\`. This PR holds data only. keel drain merges it tonight if the gate passed on this tree; otherwise the next night merges it with the series, or supersedes it if it no longer merges.`,
+            ].join("\n"));
+          ' "$RUNNER_TEMP/improve.json" "$GITHUB_OUTPUT" "$RUNNER_TEMP/body.md"
+
+      # Porcelain, never `git diff --quiet`: a file created for the first time
+      # is not in the index, so diff reads it as no change (ledger's audit
+      # agent lost every report to that). The push names its own branch.
+      - name: Open the night's pull request
+        if: steps.keel.outputs.cli != ''
+        env:
+          DAY: ${{ steps.improve.outputs.day }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          BRANCH="keel-night/$DAY"
+          git config user.name "keel-night"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b "$BRANCH"
+          git add -A
+          git commit -q -m "keel night: $DAY"
+          # The branch is this workflow's alone; a re-run the same day replaces
+          # its own reading, so force is safe here and nowhere else.
+          git push --force origin "HEAD:refs/heads/keel-night/$DAY"
+          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            # A repo that has not allowed Actions to open PRs is unconfigured,
+            # not broken: a notice, like a missing secret. Any other failure is red.
+            code=0
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel night: $DAY" --body-file "$RUNNER_TEMP/body.md" 2>&1) || code=$?
+            echo "$out"
+            if [ "$code" != 0 ]; then
+              if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+                echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions → \"Allow GitHub Actions to create and approve pull requests\"."
+              else
+                exit "$code"
+              fi
+            fi
+          fi
+
+      # Older keel-night PRs: merged when they are data and still merge,
+      # closed as superseded (branch kept) otherwise. The newest merges only
+      # after a gate that passed on this tree.
+      - name: Drain the queue
+        if: steps.keel.outputs.cli != ''
+        env:
+          GATE: ${{ steps.improve.outputs.gate }}
+        run: |
+          if [ "$GATE" = ok ]; then
+            ${{ steps.keel.outputs.cli }} drain keel-night/ --yes --gate-passed
+          else
+            ${{ steps.keel.outputs.cli }} drain keel-night/ --yes
+          fi
+
+      - name: Verdict
+        if: always() && steps.keel.outputs.cli != ''
+        env:
+          CODE: ${{ steps.improve.outputs.code }}
+          GATE: ${{ steps.improve.outputs.gate }}
+        run: |
+          if [ "$CODE" = 2 ] || [ -z "$CODE" ]; then
+            echo "::error::An instrument is broken (keel improve exit ${CODE:-none}); the health page says which."
+            exit 1
+          fi
+          if [ "$GATE" != ok ]; then
+            echo "::error::The project's gate did not pass (gate: $GATE)."
+            exit 1
+          fi
+          if [ "$CODE" = 1 ]; then
+            echo "::notice::A measure is outside its bound; it is on the health page and in the PR's proposal."
+          fi

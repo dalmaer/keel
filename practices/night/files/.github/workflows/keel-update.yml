@@ -1,0 +1,102 @@
+# The weekly practice update (keel practice `night`; managed: keel render
+# rewrites it).
+#
+# Each Monday `keel update --yes` brings this project to the practice the
+# newest keel carries: migrations, a re-render and the project's gate, as one
+# commit on keel/update-v<version>, pushed, with a pull request a person
+# reads and merges. Update itself never touches main. Exit codes, mapped:
+#   0  already current, or the PR is open           green
+#   1  refused (the project changed keel's files) or the gate failed after
+#      the update (nothing was kept)                red: someone should look
+#   2  dirty tree, or a project newer than keel     red
+# One open update PR at a time: if this version's PR is already open the run
+# ends green, and `keel drain` closes older update PRs as superseded (their
+# branches kept). The newest is never merged by machinery.
+#
+# SECRET: KEEL_TOKEN, read access to the keel repo (it is private). Until it
+# exists the run ends green with a notice. On keel itself there is nothing to
+# take: its practice is what it ships.
+# Repo setting: Actions must be allowed to create pull requests.
+name: keel-update
+
+on:
+  schedule:
+    # Mondays, 07:41 UTC.
+    - cron: "41 7 * * 1"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install
+        run: if [ -f package-lock.json ]; then npm ci; fi
+
+      - name: Get the keel CLI
+        id: keel
+        env:
+          KEEL_TOKEN: ${{ secrets.KEEL_TOKEN }}
+        run: |
+          if node -e "process.exit(JSON.parse(require('fs').readFileSync('.keel/keel.json', 'utf8')).keel === 'self' ? 0 : 1)"; then
+            echo "::notice::This is keel itself: its practice is cut with keel release, not taken with keel update."
+            echo "cli=" >> "$GITHUB_OUTPUT"
+          elif [ -z "$KEEL_TOKEN" ]; then
+            echo "::notice::Skipped: add the KEEL_TOKEN secret (read access to dalmaer/keel) to take practice updates."
+            echo "cli=" >> "$GITHUB_OUTPUT"
+          else
+            GH_TOKEN="$KEEL_TOKEN" gh repo clone dalmaer/keel "$RUNNER_TEMP/keel" -- --quiet
+            echo "cli=node $RUNNER_TEMP/keel/bin/keel.mjs" >> "$GITHUB_OUTPUT"
+            echo "version=$(node -p "require('$RUNNER_TEMP/keel/package.json').version")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open the update's pull request
+        if: steps.keel.outputs.cli != ''
+        env:
+          BRANCH: keel/update-v${{ steps.keel.outputs.version }}
+        run: |
+          if gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            echo "::notice::$BRANCH is already open; it waits for a person."
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" > /dev/null; then
+            echo "::notice::$BRANCH exists with no open pull request (closed by a person?). Delete the branch to be offered this version again."
+            exit 0
+          fi
+          git config user.name "keel-update"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # A fresh clone is current; --no-self-update spares a fetch it has no
+          # credentials for. update pushes keel/update-v<version> and nothing else.
+          # A repo that has not allowed Actions to open PRs is unconfigured, not
+          # broken: update has pushed the branch; a notice, like a missing
+          # secret. Any other failure is red.
+          code=0
+          out=$(${{ steps.keel.outputs.cli }} update --yes --no-self-update 2>&1) || code=$?
+          echo "$out"
+          if [ "$code" != 0 ]; then
+            if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+              echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions → \"Allow GitHub Actions to create and approve pull requests\"."
+            else
+              exit "$code"
+            fi
+          fi
+
+      - name: Drain older update PRs
+        if: steps.keel.outputs.cli != ''
+        run: ${{ steps.keel.outputs.cli }} drain keel/update-v --yes

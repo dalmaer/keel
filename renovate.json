@@ -1,0 +1,86 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Managed by keel (practice renovate): four lanes, so the queue never holds more than one PR per lane. Why each lane is shaped this way: the practice's README.",
+  "extends": [
+    "config:recommended"
+  ],
+  "ignorePresets": [
+    "group:monorepos",
+    "group:recommended",
+    "workarounds:groupings"
+  ],
+  "schedule": [
+    "before 6am"
+  ],
+  "dependencyDashboard": true,
+  "rangeStrategy": "bump",
+  "labels": [
+    "dependencies"
+  ],
+  "prConcurrentLimit": 4,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/fixtures/**"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ],
+    "automerge": true,
+    "automergeType": "pr"
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "groupName": "patch and minor updates",
+    "groupSlug": "patch-minor",
+    "automerge": true,
+    "automergeType": "pr"
+  },
+  "packageRules": [
+    {
+      "description": "Daily lane: every patch and minor update, npm and Actions alike, in ONE pull request that merges itself when the checks are green.",
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest",
+        "pin"
+      ],
+      "groupName": "patch and minor updates",
+      "groupSlug": "patch-minor",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Weekly lane: majors change behaviour, so they wait for a person, together, once a week.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "groupName": "major updates",
+      "groupSlug": "weekly",
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Node moves on its own, weekly, read by a person: .nvmrc and @types/node together. Last, so it wins over the lanes above.",
+      "matchDepNames": [
+        "node",
+        "@types/node"
+      ],
+      "matchManagers": [
+        "nvm",
+        "npm",
+        "dockerfile"
+      ],
+      "groupName": "Node",
+      "groupSlug": "node",
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "automerge": false,
+      "separateMajorMinor": false
+    }
+  ]
+}

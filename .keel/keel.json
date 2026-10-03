@@ -4,5 +4,5 @@
   "repo": "dalmaer/keel",
   "keel": "self",
   "practice": "0.1.0",
-  "practices": ["base", "agents-md", "phases", "evidence", "lessons", "conduct", "ci"]
+  "practices": ["base", "agents-md", "phases", "evidence", "lessons", "conduct", "ci", "night", "claude", "renovate"]
 }

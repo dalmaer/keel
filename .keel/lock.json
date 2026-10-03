@@ -13,6 +13,18 @@
       "practice": "ci",
       "sha256": "d6b6b4f228fcf9d026d998ea6b2cc33bd872a180c2f26aa882b13445ba9f701d"
     },
+    ".github/workflows/claude.yml": {
+      "practice": "claude",
+      "sha256": "c348958ae7098d83796ed821ec5f5c6fe3bd7e4c5a8af0428ff30494e0a1e7db"
+    },
+    ".github/workflows/keel-night.yml": {
+      "practice": "night",
+      "sha256": "d07bce16f96722d1c2ad2fc2968dae9ff5c59d530939fa4487805f282c0b7721"
+    },
+    ".github/workflows/keel-update.yml": {
+      "practice": "night",
+      "sha256": "2d431516f7dbc53bfc6e2cd0d57c92e4619326a3cce6ce815e26ac98c4c81a79"
+    },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
       "sha256": "8c2da366dd8c2f09c7680320b10f5e0521cd12894b0bc482391e5fafe1ed709a"
@@ -48,6 +60,10 @@
     "docs/templates/phase.md": {
       "practice": "phases",
       "sha256": "5df612acd9e4d8d103a27006fc1805e9ea13f765d91cae3453c80dee1bf23b52"
+    },
+    "renovate.json": {
+      "practice": "renovate",
+      "sha256": "8bdd3dbad7e77d5698c0c541adeeddea7313981f6f111762b961e34f7562c4ef"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",

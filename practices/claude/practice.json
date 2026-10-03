@@ -1,0 +1,12 @@
+{
+  "name": "claude",
+  "summary": "@claude on an issue or PR works on it and opens a pull request; a person merges, and it never pushes main.",
+  "requires": [],
+  "secrets": [
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`); each @claude spends model tokens. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/claude.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/claude.yml" }
+  ],
+  "files": [
+    { "path": ".github/workflows/claude.yml", "from": ".github/workflows/claude.yml", "kind": "managed" }
+  ]
+}

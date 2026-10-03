@@ -74,13 +74,13 @@ test('a dry run changes nothing, for either fixture', async () => {
 
 test('acme-groove: milestones make phases local; its gate is check:all; its workflow keeps ci local', async () => {
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-groove'), dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'on', lessons: 'on', conduct: 'on', ci: 'local' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'on', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'on', renovate: 'on' });
   assert.equal(data.config.check, 'npm run check:all');
   assert.equal(data.config.name, 'acme-groove');
   assert.equal(data.config.tagline, 'A static practice room for Acme\'s hand drum.');
   assert.match(data.config.local.phases, /migrate milestone→goal \(phase 6 migration\)/);
   assert.match(data.config.local.ci, /pages\.yml already runs `npm run check:all`/);
-  assert.deepEqual(data.config.practices, ['base', 'agents-md', 'evidence', 'lessons', 'conduct']);
+  assert.deepEqual(data.config.practices, ['base', 'agents-md', 'evidence', 'lessons', 'conduct', 'night', 'claude', 'renovate']);
   assert.equal(status(data, 'scripts/roadmap.mjs'), 'keep-local');
   assert.equal(status(data, 'tests/roadmap.test.js'), 'keep-local');
   assert.equal(status(data, 'AGENTS.md'), 'keep-local');
@@ -92,7 +92,8 @@ test('acme-groove: milestones make phases local; its gate is check:all; its work
 
 test('acme-fold: phases without goal or evidence stay local; its TS roadmap is its own', async () => {
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-fold'), dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'local', lessons: 'on', conduct: 'on', ci: 'local' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'local', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'local', renovate: 'on' });
+  assert.match(data.config.local.claude, /\.github\/workflows\/claude\.yml is the project's own/, 'its own claude.yml stays');
   assert.equal(data.config.check, 'npm run check');
   assert.equal(data.config.tagline, 'What an app can do on the Acme Fold, in every pose.');
   assert.match(data.config.local.phases, /missing goal/);
@@ -152,7 +153,7 @@ test('adopting acme-groove keeps AGENTS.md\'s bytes, passes its own gate, and a 
   assert.deepEqual(await tree(dir), settled, 're-running adopt changed files');
 });
 
-test('adopting acme-fold writes no phase, evidence or workflow file and keeps its own', async t => {
+test('adopting acme-fold writes no phase, evidence, check or claude file and keeps its own', async t => {
   const dir = await copyFixture(t, 'acme-fold');
   const before = await tree(dir);
   const r = keel(['adopt', dir]);
@@ -161,7 +162,8 @@ test('adopting acme-fold writes no phase, evidence or workflow file and keeps it
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
-  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md']);
+  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.github/workflows/keel-night.yml', '.github/workflows/keel-update.yml', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md', 'renovate.json'],
+    'the night shift and Renovate beside its own workflows; never a second claude.yml or check.yml');
   const gate = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
   assert.ok(testsRan(gate.stdout + gate.stderr) > 0, `the gate ran no tests:\n${gate.stdout}${gate.stderr}`);
@@ -186,7 +188,7 @@ test('a bare project: phases off, so is what needs them; ci on and runs its gate
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-bare', scripts: { check: 'node -e 0' } }));
   const { data } = await adopt({ dir, dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'off', evidence: 'off', lessons: 'on', conduct: 'off', ci: 'on' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'off', evidence: 'off', lessons: 'on', conduct: 'off', ci: 'on', night: 'on', claude: 'on', renovate: 'on' });
   assert.equal(status(data, '.github/workflows/check.yml'), 'create');
 });
 
@@ -204,6 +206,25 @@ test('a managed file or symlink the project has its own version of makes its pra
   assert.equal(status(data, '.claude/skills/conduct'), 'conflict');
   assert.equal(await readFile(join(dir, 'CLAUDE.md'), 'utf8'), 'Acme\'s own pointer.\n');
   assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isDirectory());
+});
+
+test('the night shift\'s practices go local where the project already does the job, and keel\'s own files never count as the project\'s', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-bot', scripts: { check: 'node -e 0' } }));
+  await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+  await writeFile(join(dir, '.github/workflows/assistant.yml'), 'name: assistant\njobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n');
+  await writeFile(join(dir, '.github/dependabot.yml'), 'version: 2\n');
+  const { data } = await adopt({ dir }, { version: VERSION });
+  assert.equal(states(data).claude, 'local');
+  assert.match(data.config.local.claude, /assistant\.yml already runs anthropics\/claude-code-action/);
+  assert.equal(states(data).renovate, 'local');
+  assert.match(data.config.local.renovate, /\.github\/dependabot\.yml/);
+  assert.equal(states(data).night, 'on');
+  assert.deepEqual(data.secrets.map(s => s.name), ['KEEL_TOKEN', 'KEEL_TOKEN'], 'the secrets of the practices switched on');
+  const again = await adopt({ dir }, { version: VERSION });
+  // (The report also lists the AGENTS.md the first run seeded, as kept: not this test's concern.)
+  assert.deepEqual(again.data.written.filter(p => p !== REPORT), [], 'keel-night.yml and keel-update.yml, once written, are not the project\'s workflows');
+  assert.equal(again.data.config.local.ci, data.config.local.ci);
 });
 
 test('appendBlocks keeps every byte and adds the heading once', () => {

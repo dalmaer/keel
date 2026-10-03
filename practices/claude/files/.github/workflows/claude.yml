@@ -1,0 +1,74 @@
+# @claude on an issue or a pull request (keel practice `claude`; managed: keel
+# render rewrites it).
+#
+# Mention @claude in an issue, a comment or a review, or label an issue
+# `claude`, and Claude works on it here with AGENTS.md as its guide. It opens
+# a pull request; a person merges. It never pushes main: its tools allow git
+# to read, stage and commit, not to push, and the action publishes its work on
+# a claude/ branch of its own. The action answers only people with write
+# access to this repo.
+#
+# SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY.
+# Each mention spends model tokens. Until one exists the run ends green with a
+# notice. No model is pinned here: a pinned model is a fact that ages.
+name: claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || github.event.label.name == 'claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Configured?
+        id: configured
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
+            echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for @claude to answer."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.configured.outputs.enabled == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - if: steps.configured.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - if: steps.configured.outputs.enabled == 'true'
+        run: if [ -f package-lock.json ]; then npm ci; fi
+      - if: steps.configured.outputs.enabled == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --allowedTools "Bash(npm run *),Bash(npm test),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Edit,Write,Read,Glob,Grep"

@@ -1,0 +1,9 @@
+{
+  "name": "renovate",
+  "summary": "Dependencies move in Renovate's four lanes: daily patch/minor and Monday lockfile merge themselves on green; majors and Node wait for a person.",
+  "requires": ["base"],
+  "secrets": [],
+  "files": [
+    { "path": "renovate.json", "from": "renovate.json", "kind": "managed" }
+  ]
+}

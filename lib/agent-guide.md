@@ -20,6 +20,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel lessons` — send new lessons, drift and practice commits home as issues, once each; exit 3 until `--yes`
 - `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`
 - `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
+- `keel drain <prefix>` — one open PR per machine queue: older data PRs merged, the rest superseded; newest only `--gate-passed`; exit 3 until `--yes`
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — this text; `<topic>` opens one, `all` prints everything
@@ -38,7 +39,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `install`, `coming`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -90,6 +91,10 @@ stderr as one line beginning `keel:`.
   outcome, link, lesson, migration, checklist, closed}`; with an issue and no
   `--yes`, exit 3 with `needs: "yes", plan: {what, issue, repo, comment}`.
   `learn render` → `{ok, check, path, counts, waiting}`
+- `drain` → `{ok, prefix, repo, newest, actions: [{number, head, createdAt,
+  action, why, done?, error?}]}`; `action` is `merge|close|leave`. Without
+  `--yes` and something to merge or close: exit 3, `needs: "yes"`, nothing
+  done. Exit 1 when a gh call failed (`error` says which).
 - `release` → bare: `{version, tag, tagged, newest}`; with a version:
   `{ok, dryRun, version, from, tag, commit, files, entry, push}`
 - `help` → `{verbs: [{name, usage, summary}], flags}`
@@ -344,6 +349,29 @@ stubbed) and exits 1 unless every one reports `outside`.
 value, state, detail, facts?}], proposal: {id, state, text} | null, report,
 bounds, tightened: [{id, from, to}]}`; `--selftest --json` → `{ok, fixture,
 measures, missed}`.
+
+<!-- topic: drain | the night shift's queue: one open machine PR, the newest -->
+
+`keel drain <prefix>` keeps a machine queue (open PRs whose head branch
+starts with `<prefix>`, e.g. `keel-night/` or `keel/update-v`) at one open
+PR, the newest by creation time. A prefix must contain `/`; a PR from a fork
+is never in a queue, whatever its branch is called; nothing outside the
+prefix is touched.
+
+- Each older PR, oldest first: merged (squash, branch kept) when every file
+  is data (`docs/health/`, `docs/inbox/`, `docs/INBOX.md`,
+  `.keel/bounds.json`) and GitHub says `MERGEABLE`; otherwise closed with a
+  comment naming the newest and saying how to recover it. A merge that fails
+  becomes that close.
+- The newest: merged under the same rule only with `--gate-passed`, which a
+  workflow passes only when the project's gate passed on that tree (a
+  `GITHUB_TOKEN` PR runs no CI). Otherwise left for a person.
+- `UNKNOWN` mergeability is asked once more after a short wait
+  (`KEEL_DRAIN_WAIT_MS`, default 5000), then counts as not mergeable.
+
+The `night` practice's workflows call it: `keel-night.yml` after
+`keel improve --report` opens the night's PR, and `keel-update.yml` to close
+older update PRs (never to merge one: they are not data).
 
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
