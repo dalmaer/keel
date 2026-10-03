@@ -43,6 +43,7 @@ human text is never mixed in. Without it, text goes to stdout and errors to
 stderr as one line beginning `keel:`.
 
 - `status` → `{name, goals: [{id, title, outcome, phases, built, lived}], next}`
+- `status`, `next`, `goal list` exit 2 where `phases` is a local variant.
 - `next` → the phase object (`id, file, title, status, since, goal, depends,
   note, evidence, done, next`) or `null` when nothing is left unbuilt. It is
   the same object `node scripts/roadmap.mjs --json` reports as `next`.
@@ -179,11 +180,13 @@ The order is the rule (design §3):
    re-runs once with `KEEL_SELF_UPDATED=1`). A dirty or diverged checkout is
    said and skipped. `--no-self-update` skips it.
 2. A project on a newer practice than this keel: exit 2, "update keel first".
-   On the same one: "already on practice", nothing changes, exit 0.
+   On the same one with nothing pending: "already on practice", exit 0.
 3. A clean working tree, and nothing of keel's the project changed (doctor's
    `edited`/`both`): otherwise refused. `behind` is what update re-renders.
-4. Migrations (`migrations/NNNN-*.mjs`, `from < to ≤ this version`) return
-   edits in memory; if one throws, nothing is written and it is named.
+4. Migrations (`migrations/NNNN-*.mjs`) not yet recorded in `.keel/keel.json`
+   `migrations` whose `applies()` is true return edits in memory, in id
+   order; if one throws, nothing is written and it is named. Taken ids are
+   recorded. Pending migrations run even on the same practice version.
 5. Edits written, managed files and blocks re-rendered, lock and `practice`
    bumped, roadmap regenerated.
 6. The project's `check` runs. If it fails, every byte update touched is put

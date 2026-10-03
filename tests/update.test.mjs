@@ -89,10 +89,10 @@ async function oldProject(t) {
 }
 
 /** acme-groove, adopted on practice 0.0.0 and committed: phases local, milestones in place. */
-async function groove(t, edit) {
+async function groove(t, edit, version = OLD) {
   const dir = join(await scratch(t), 'acme-groove');
   await cp(GROOVE, dir, { recursive: true });
-  await adopt({ dir }, { version: OLD });
+  await adopt({ dir }, { version });
   if (edit) await edit(dir);
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'add', '-A');
@@ -248,6 +248,7 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
   assert.equal(cfg.local.phases, undefined);
   assert.ok(cfg.local.ci, 'ci stays the project\'s own');
   assert.equal(cfg.practice, TARGET);
+  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal'], 'the migration is recorded as taken');
   assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).scripts.roadmap, 'node scripts/roadmap.mjs', 'the roadmap scripts still run, now keel\'s');
 
   // After it, adopt's survey finds phases on, and the project's own gate passes.
@@ -287,7 +288,7 @@ test('0001 keeps phases local rather than leave a test script that cannot run ke
     pkg.scripts.test = 'vitest run';
     await writeFile(join(d, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
   });
-  const { edits } = await collect(dir, await loadMigrations(), { from: '0.0.0', to: '0.1.0' });
+  const { edits } = await collect(dir, await loadMigrations(), { done: [] });
   assert.equal(edits.has('tests/roadmap.test.js'), false, 'the project\'s roadmap test stays');
   assert.equal(edits.has('scripts/roadmap.mjs'), false);
   const cfg = JSON.parse(edits.get('.keel/keel.json'));
@@ -299,12 +300,12 @@ test('0001 keeps phases local rather than leave a test script that cannot run ke
 test('0001 run directly: applies() is idempotent, up() writes nothing', async t => {
   const dir = await groove(t);
   const before = await treeHash(dir);
-  const { applied, edits } = await collect(dir, await loadMigrations(), { from: '0.0.0', to: '0.1.0' });
+  const { applied, edits } = await collect(dir, await loadMigrations(), { done: [] });
   assert.deepEqual(applied.map(m => m.id), ['0001-milestone-to-goal']);
   assert.equal(edits.get('docs/milestones.json'), null);
   assert.equal(await treeHash(dir), before, 'collecting edits performs none');
   // Over its own edits, it no longer applies.
-  const again = await collect(dir, [{ ...m0001, to: '0.1.0' }, { id: '0002-again', to: '0.1.0', summary: 'x', applies: m0001.applies, up: m0001.up }], { from: '0.0.0', to: '0.1.0' });
+  const again = await collect(dir, [{ ...m0001, to: '0.1.0' }, { id: '0002-again', to: '0.1.0', summary: 'x', applies: m0001.applies, up: m0001.up }], { done: [] });
   assert.deepEqual(again.skipped, ['0002-again']);
 });
 
@@ -402,4 +403,61 @@ test('the migrations keel ships load, each with an id, a version, applies and up
     assert.ok(compareVersions(m.to, '0.0.0') > 0);
     assert.ok(compareVersions(m.to, TARGET) <= 0, `${m.id} is for a version keel has not reached`);
   }
+});
+
+test('a project adopted on the current practice still gets 0001, and keel next says plainly that its phases are local until then', async t => {
+  const dir = await groove(t, null, { cli: TARGET, commit: null, practice: TARGET });
+  assert.equal((await json(join(dir, '.keel/keel.json'))).practice, TARGET, 'adopt stamps the current practice');
+
+  for (const verb of [['next'], ['status'], ['goal', 'list']]) {
+    const r = keel([...verb, '--json'], dir);
+    assert.equal(r.code, 2, verb.join(' '));
+    assert.match(JSON.parse(r.out).error, /^phases is a local variant here: phase files name a milestone.*; use the project's own roadmap \(npm run roadmap\)$/);
+  }
+  assert.doesNotMatch(keel(['next'], dir).err, /invalid metadata line/);
+
+  const r = keel(['update', '--local', '--no-self-update', '--json'], dir);
+  assert.equal(r.code, 0, r.err + r.out);
+  const out = JSON.parse(r.out);
+  assert.equal(out.changed, true);
+  assert.deepEqual(out.migrations.map(m => m.id), ['0001-milestone-to-goal']);
+  const cfg = await json(join(dir, '.keel/keel.json'));
+  assert.ok(cfg.practices.includes('phases'));
+  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal']);
+  const next = keel(['next'], dir);
+  assert.equal(next.code, 0, next.err);
+  assert.match(next.out, /^1\. Fair feedback \[planned\]/);
+
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'keel update');
+  const before = await treeHash(dir);
+  const again = keel(['update', '--local', '--no-self-update', '--json'], dir);
+  assert.equal(again.code, 0, again.err);
+  assert.equal(JSON.parse(again.out).changed, false);
+  assert.equal(await treeHash(dir), before);
+});
+
+test('a recorded migration is not pending again, even if applies() would say yes', async t => {
+  const dir = await groove(t);
+  const all = await loadMigrations();
+  const { applied } = await collect(dir, all, { done: ['0001-milestone-to-goal'] });
+  assert.deepEqual(applied, []);
+});
+
+test('0001 replaces a milestone-shaped phase template, and leaves the project\'s own evidence template and evidence local', async t => {
+  const dir = join(await scratch(t), 'acme-groove');
+  await cp(GROOVE, dir, { recursive: true });
+  await mkdir(join(dir, 'docs/templates'), { recursive: true });
+  await writeFile(join(dir, 'docs/templates/phase.md'), '---\nstatus: planned\nmilestone: M1\n---\n\n# Acme outcome\n');
+  await writeFile(join(dir, 'docs/templates/evidence.md'), '# Acme evidence\n\n- Date:\n');
+  await adopt({ dir }, { version: { cli: TARGET, commit: null, practice: TARGET } });
+  git(dir, 'init', '-q', '-b', 'main'); git(dir, 'add', '-A'); git(dir, 'commit', '-qm', 'adopted');
+  assert.ok((await json(join(dir, '.keel/keel.json'))).local.evidence, 'evidence is local: its template is the project\'s');
+  const r = await run({ dir, local: true });
+  assert.equal(r.exitCode ?? 0, 0, r.text);
+  same(await readFile(join(dir, 'docs/templates/phase.md'), 'utf8'), await template(dir, 'phases', 'docs/templates/phase.md'), 'docs/templates/phase.md');
+  assert.equal(await readFile(join(dir, 'docs/templates/evidence.md'), 'utf8'), '# Acme evidence\n\n- Date:\n');
+  const cfg = await json(join(dir, '.keel/keel.json'));
+  assert.ok(cfg.practices.includes('phases') && !cfg.practices.includes('evidence'));
+  assert.ok(cfg.local.evidence);
 });

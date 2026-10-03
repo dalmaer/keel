@@ -12,7 +12,7 @@
 //     evidence; nothing is invented, and evidence files are never touched;
 //   - if every phase then parses with keel's roadmap, converges the phases
 //     practice: deletes the project's own roadmap script, its roadmap test and
-//     its phase contract (docs/phases/README.md) so render installs keel's,
+//     its phase contract (docs/phases/README.md) and phase template so render installs keel's,
 //     points package.json's roadmap scripts at keel's, appends the block
 //     markers, and moves `phases` (and `evidence`, once no built phase lacks
 //     it) from `local` to `practices` in .keel/keel.json.
@@ -152,7 +152,8 @@ export async function up(project) {
   } else {
     // The project's own roadmap, its test and its phase contract give way to keel's.
     const gone = [];
-    for (const path of [...ROADMAP, ...ROADMAP_TESTS, 'docs/phases/README.md']) {
+    // Its phase template is in the milestone format too (ritmo's says `milestone: M1`).
+    for (const path of [...ROADMAP, ...ROADMAP_TESTS, 'docs/phases/README.md', 'docs/templates/phase.md']) {
       if (await project.exists(path)) { put(path, null); gone.push(path); }
     }
     const pkgText = await project.read('package.json');
@@ -171,7 +172,10 @@ export async function up(project) {
       if (changed) put('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
     }
     const on = ['phases'];
-    if (Object.hasOwn(local, 'evidence') && parsed.every(p => !DONE.includes(p.status) || p.evidence.length)) on.push('evidence');
+    // Evidence converges only when nothing of the project's own stands in keel's way:
+    // its own evidence template is its choice, not part of milestone→goal.
+    if (Object.hasOwn(local, 'evidence') && parsed.every(p => !DONE.includes(p.status) || p.evidence.length)
+        && !(await project.exists('docs/templates/evidence.md'))) on.push('evidence');
     for (const n of on) delete local[n];
     config.practices = [...new Set([...config.practices, ...on])]
       .sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
