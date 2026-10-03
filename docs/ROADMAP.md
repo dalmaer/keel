@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 20 phases lived in; 9 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 21 phases lived in; 9 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
 
@@ -47,7 +47,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-1/4 built or lived-in; 0/4 lived-in.
+1/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -55,11 +55,13 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | keel doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes. |
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | keel update and release work; v0.1.0 is cut; 0001 converged a fresh clone of the real ritmo with no evidence touched and its 60 tests running. The real update PR waits on phase 4's adoption PRs (owner's yes). |
 | [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | partial | 2026-10-03 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | The three isocan adopt bugs are fixed (no invented gate, lessons path from config, project-directory phases read). ledger and isocan clones adopt with additions only and pass their own gates (isocan: 7,593 tests). ledger's phases stay local: 17 built phases owe evidence. The PRs wait on the owner, and on Dimitri. |
+| [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | planned | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | The owner wants keel going and tested on ledger first (3 Oct), then the others. |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
 - **6 done when:** A project on practice version N runs `keel update` and gets one pull request that brings it to N+1 through a migration, passes its check, and is idempotent when run again.
 - **16 done when:** `keel adopt` on fresh copies of ledger and isocan reports their real gate, their real lessons file and their real phases, installs nothing that duplicates something they already have, and each copy's own gate passes afterwards. ledger's adoption is a PR for the owner; isocan's is a PR prepared for Dimitri.
+- **20 done when:** ledger's adoption PR is merged; ledger's own CI is green on it; one real keel-night on ledger has measured it, opened its health PR and drained it; `keel fleet` shows ledger adopted and current; and ledger's CLI never synced or pushed from a keel run.
 
 ## G3 — Lessons come home
 
