@@ -200,10 +200,9 @@ three questions:
 
 ## Deliberately open
 
-- **How the CLI is installed.** The options are `npm i -g github:dalmaer/keel`,
-  a clone at `~/.keel` that `keel` pulls, or a published package. This settles
-  in phase 2. The constraint is that `update` must be able to update the CLI
-  before anything else.
+- **How the CLI is installed.** **Settled 2026-10-02 (phase 2):** a checkout
+  (`gh repo clone dalmaer/keel`, since the repo is private) and `npm install -g`
+  of it. Self-update is a `git pull` of that checkout.
 - **Whether isocan is adopted.** isocan is Dimitri's repo. Keel can *learn*
   from it as a source without managing it. Adopting it is his decision, not keel's.
 - **Stitch Loop and the isocan canvas.** Both are optional practices. They

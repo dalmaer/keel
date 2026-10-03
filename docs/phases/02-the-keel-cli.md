@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-02
 goal: G1
 depends: [1]
-note: "Verb list drafted in design.md; no bin yet."
-evidence: []
+note: "status, next, goal list, render, --agent-help, --version; every verb --json; the surface test reads the registry both ways. Installed from GitHub via gh repo clone + npm i -g with no build."
+evidence: ["evidence/2026-10-02-cli.md"]
 ---
 
 # An agent can drive keel without reading its source
@@ -22,11 +22,11 @@ token budget); the surface test; settle how keel is installed.
 
 ## Acceptance
 
-- [ ] `keel next --json` and `npm run next` agree.
-- [ ] Adding a verb without an agent-guide line fails `npm test`.
-- [ ] The cold start stays under a set size, asserted.
-- [ ] Install works from `main` with no build step, on a machine that has never seen keel.
-- [ ] `keel --version` reports both the CLI version and the practice version it carries.
+- [x] `keel next --json` and `npm run next` agree.
+- [x] Adding a verb without an agent-guide line fails `npm test`.
+- [x] The cold start stays under a set size, asserted.
+- [x] Install works from `main` with no build step, on a machine that has never seen keel.
+- [x] `keel --version` reports both the CLI version and the practice version it carries.
 
 ## Proof
 
@@ -34,8 +34,12 @@ token budget); the surface test; settle how keel is installed.
 
 ## Deliberately open
 
-- Install route: `npm i -g github:dalmaer/keel`, or a `~/.keel` clone that the CLI pulls. The second makes self-update one `git pull` and works offline against a known commit; the first is what people expect. Settle with phase 6's needs in view.
+- Install route. **Settled 2026-10-02:** a checkout of keel (`gh repo clone dalmaer/keel`), then `npm install -g <checkout>` or `npm link`. The global bin is a symlink into the checkout, so self-update (phase 6) is `git -C <checkout> pull --ff-only`, and the CLI's version is a commit. Settled by the install walk in the evidence.
 
 ## Next action
 
-Write the agent guide's cold start first — the verbs as one line each — and make the surface test read it.
+None; phase 3 adds `init` as a registered verb with its guide line.
+
+## Trajectory
+
+- **2026-10-02** — While keel is private, install is `gh repo clone`, not `git clone`. A plain clone on a fresh HOME fails for want of credentials. `init` and `update` must reach keel through `gh` too. Found by the install walk.

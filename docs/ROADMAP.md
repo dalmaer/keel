@@ -3,9 +3,9 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 14 phases lived in; 2 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 14 phases lived in; 3 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
-**Next focus:** [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md). Write the agent guide's cold start first — the verbs as one line each — and make the surface test read it.
+**Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Write the init test against a temp directory first, asserting the tree and the passing check.
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 
@@ -27,11 +27,11 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 
 From an empty directory, keel init produces a repo whose check passes, whose roadmap renders, and that an agent can conduct the same day.
 
-0/3 built or lived-in; 0/3 lived-in.
+1/3 built or lived-in; 0/3 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md) | planned | 2026-10-02 | [1](phases/01-practices-as-modules.md) | Verb list drafted in design.md; no bin yet. |
+| [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | status, next, goal list, render, --agent-help, --version; every verb --json; the surface test reads the registry both ways. Installed from GitHub via gh repo clone + npm i -g with no build. |
 | [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | planned | 2026-10-02 | [2](phases/02-the-keel-cli.md) | The walk is known from isocan's new-project.md and how duo and cajones were started by hand. |
 | [9. A person can say what the project is for, and the work lines up behind it](phases/09-goals.md) | planned | 2026-10-02 | [2](phases/02-the-keel-cli.md) | goals.json and goal-derived progress already work in the roadmap generator; no verbs yet. |
 

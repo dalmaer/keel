@@ -68,7 +68,7 @@ what differs. A render that finds block markers missing refuses to write.
 Keel is a git checkout plus a link; there is no registry and no build step.
 
 ```bash
-git clone https://github.com/dalmaer/keel ~/code/keel   # any path works
+gh repo clone dalmaer/keel ~/code/keel # any path works
 npm install -g ~/code/keel                              # or, in the checkout: npm link
 keel --version
 ```
