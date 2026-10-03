@@ -22,13 +22,13 @@ const ENV = {
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: ENV, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const NOTES = 'Acme projects get a conductor that names their gate.\n';
 
-/** A keel-shaped repo on 0.0.0: package.json, .keel/keel.json ("keel": "self"), a lock, WHATSNEW.md. */
-async function keelLike(t, { self = true } = {}) {
+/** A keel-shaped repo on 0.0.0: package.json, .keel/keel.json ("keel": "self", its gate `check`), a lock, WHATSNEW.md. */
+async function keelLike(t, { self = true, check = 'node -e 0' } = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-release-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, '.keel'));
   await writeFile(join(dir, 'package.json'), '{\n  "name": "keel",\n  "version": "0.0.0",\n  "type": "module"\n}\n');
-  await writeFile(join(dir, '.keel/keel.json'), `{\n  "name": "Acme Keel",\n  ${self ? '"keel": "self",\n  ' : ''}"practice": "0.0.0",\n  "practices": ["base", "phases"]\n}\n`);
+  await writeFile(join(dir, '.keel/keel.json'), `{\n  "name": "Acme Keel",\n  ${self ? '"keel": "self",\n  ' : ''}"check": ${JSON.stringify(check)},\n  "practice": "0.0.0",\n  "practices": ["base", "phases"]\n}\n`);
   await writeFile(join(dir, '.keel/lock.json'), '{\n  "practice": "0.0.0",\n  "files": {}\n}\n');
   await writeFile(join(dir, 'WHATSNEW.md'), WHATSNEW_HEADER);
   git(dir, 'init', '-q', '-b', 'main');
@@ -100,6 +100,38 @@ test('release bumps the version, prepends the entry, commits and tags locally, a
   assert.deepEqual(between(text, '0.0.0', '0.2.0').map(e => e.version), ['0.2.0', '0.1.0']);
   const again = await attempt(release({ root: dir, version: '0.2.0', notes: NOTES }, { env: ENV }));
   assert.equal(again.exitCode, 2);
+});
+
+test('a failing gate: every file back byte for byte, exit 1 naming the check, no commit, no tag', async t => {
+  // The gate fails only on the bumped tree, so it is the release it judged.
+  const gate = 'node -e "process.exit(require(\'./package.json\').version === \'0.0.0\' ? 0 : 7)"';
+  const dir = await keelLike(t, { check: gate });
+  const raw = async () => Promise.all(['package.json', '.keel/keel.json', '.keel/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f))));
+  const before = await raw(), head = git(dir, 'rev-parse', 'HEAD');
+  const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: ENV, date: '2026-10-02' }));
+  assert.equal(r.exitCode, 1, r.text);
+  assert.ok(r.text.includes(`the gate failed on v0.1.0 (\`${gate}\`, exit 7)`), r.text);
+  assert.deepEqual(r.error.check, { command: gate, ok: false, exit: 7 });
+  assert.deepEqual(await raw(), before, 'every file it touched is back, byte for byte');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head, 'no commit');
+  assert.equal(git(dir, 'tag', '--list'), '', 'no tag');
+  assert.equal(git(dir, 'status', '--porcelain'), '');
+  // The CLI says the same and exits 1.
+  const cli = run(process.execPath, [BIN, 'release', '0.1.0', '--notes', '-', '--json'], { cwd: dir, env: ENV, input: NOTES });
+  assert.equal(cli.status, 1, cli.stderr);
+  assert.match(JSON.parse(cli.stdout).error, /the gate failed on v0\.1\.0/);
+  assert.equal(git(dir, 'tag', '--list'), '');
+  assert.deepEqual(await raw(), before);
+});
+
+test('a passing gate runs on the bumped tree, then commits and tags', async t => {
+  const gate = 'node -e "process.exit(require(\'./package.json\').version === \'0.1.0\' ? 0 : 7)"';
+  const dir = await keelLike(t, { check: gate });
+  const r = await release({ root: dir, version: '0.1.0', notes: NOTES }, { env: ENV, date: '2026-10-02' });
+  assert.deepEqual(r.data.check, { command: gate, ok: true });
+  assert.equal(git(dir, 'log', '-1', '--format=%s'), 'release v0.1.0');
+  assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
+  assert.equal(git(dir, 'status', '--porcelain'), '');
 });
 
 test('the CLI: notes from stdin, --json, and bare release reports the version', async t => {

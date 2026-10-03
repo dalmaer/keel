@@ -279,11 +279,19 @@ test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', a
 const GIT_ENV = { GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test', GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test', GIT_CONFIG_NOSYSTEM: '1', KEEL_SELF_UPDATED: '' };
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: { ...cleanEnv(), ...GIT_ENV }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
-/** A keel init project on practice 0.2.0, its origin a local bare repo, and a checkout the stub's clone copies. */
+// The practice version these tests inject as the CLI's. Every fixture version
+// below derives from it, and the spawned CLI gets it through KEEL_FLEET_PRACTICE,
+// so keel's live package version never enters a count.
+const CLI = '0.3.0';
+const BEHIND = (([major, minor]) => `${major}.${minor - 1}.0`)(CLI.split('.').map(Number));
+const UPDATE_BRANCH = `keel/update-v${CLI}`;
+const re = s => new RegExp(s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
+
+/** A keel init project on practice BEHIND, its origin a local bare repo, and a checkout the stub's clone copies. */
 async function remoteProject(t, name) {
   const root = await scratch(t, `keel-fleet-${name}-`);
   const src = join(root, name);
-  await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: '0.2.0', commit: null, practice: '0.2.0' }, env: { ...cleanEnv(), ...GIT_ENV } });
+  await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: BEHIND, commit: null, practice: BEHIND }, env: { ...cleanEnv(), ...GIT_ENV } });
   const origin = join(root, 'origin.git');
   execFileSync('git', ['clone', '-q', '--bare', src, origin], { env: { ...cleanEnv(), ...GIT_ENV } });
   const prepared = join(root, 'prepared');
@@ -294,13 +302,13 @@ async function remoteProject(t, name) {
 async function fleetOfUpdates(t) {
   const notes = await remoteProject(t, 'notes'), ledger = await remoteProject(t, 'ledger');
   const all = (await loadMigrations()).map(m => m.id);
-  const current = JSON.stringify({ name: 'Acme Current', repo: 'acme/current', practice: '0.3.0', practices: ['base'], migrations: all });
+  const current = JSON.stringify({ name: 'Acme Current', repo: 'acme/current', practice: CLI, practices: ['base'], migrations: all });
   const st = {
     repos: {
       'acme/notes': { default_branch: 'main', files: { '.keel/keel.json': notes.config } },
       'acme/ledger': { default_branch: 'main', files: { '.keel/keel.json': ledger.config } },
       'acme/current': { default_branch: 'main', files: { '.keel/keel.json': current } },
-      'acme/waiting': { default_branch: 'main', files: { '.keel/keel.json': notes.config }, prs: [{ number: 9, headRefName: 'keel/update-v0.3.0' }] },
+      'acme/waiting': { default_branch: 'main', files: { '.keel/keel.json': notes.config }, prs: [{ number: 9, headRefName: UPDATE_BRANCH }] },
       'acme/gone': { default_branch: 'main', files: { '.keel/keel.json': notes.config } },
     },
     commits: {},
@@ -312,7 +320,7 @@ async function fleetOfUpdates(t) {
   gh.env = { ...gh.env, ...GIT_ENV };
   return { dir, gh, notes, ledger };
 }
-const updateDeps = gh => ({ env: gh.env, now: NOW, cli: '0.3.0', cliRoot: KEEL, whatsnew: join(KEEL, 'WHATSNEW.md') });
+const updateDeps = (gh, cli = CLI) => ({ env: gh.env, now: NOW, cli, cliRoot: KEEL, whatsnew: join(KEEL, 'WHATSNEW.md') });
 
 test('fleet update without --yes: each project behind or with pending migrations, and the PR it would open; exit 3; nothing cloned', async t => {
   const { dir, gh } = await fleetOfUpdates(t);
@@ -320,19 +328,50 @@ test('fleet update without --yes: each project behind or with pending migrations
   assert.equal(r.exitCode, 3, r.text);
   assert.equal(r.data.needs, 'yes');
   assert.deepEqual(r.data.plans.map(p => [p.repo, p.from, p.to, p.branch, p.open]), [
-    ['acme/notes', '0.2.0', '0.3.0', 'keel/update-v0.3.0', false],
-    ['acme/ledger', '0.2.0', '0.3.0', 'keel/update-v0.3.0', false],
-    ['acme/waiting', '0.2.0', '0.3.0', 'keel/update-v0.3.0', true],
-    ['acme/gone', '0.2.0', '0.3.0', 'keel/update-v0.3.0', false],
+    ['acme/notes', BEHIND, CLI, UPDATE_BRANCH, false],
+    ['acme/ledger', BEHIND, CLI, UPDATE_BRANCH, false],
+    ['acme/waiting', BEHIND, CLI, UPDATE_BRANCH, true],
+    ['acme/gone', BEHIND, CLI, UPDATE_BRANCH, false],
   ], 'acme/current is current with every migration recorded; keel itself is never one');
-  assert.match(r.text, /acme\/notes: "keel update: practice 0\.2\.0 → 0\.3\.0" from keel\/update-v0\.3\.0/);
-  assert.match(r.text, /acme\/waiting: keel\/update-v0\.3\.0 is already open; it waits for a person/);
+  assert.match(r.text, re(`acme/notes: "keel update: practice ${BEHIND} → ${CLI}" from ${UPDATE_BRANCH}`));
+  assert.match(r.text, re(`acme/waiting: ${UPDATE_BRANCH} is already open; it waits for a person`));
   assert.match(r.text, /⚑ Opening pull requests on these repos needs a yes/);
   assert.ok((await gh.calls()).every(c => ['api', 'run', 'pr'].includes(c[0]) && !(c[0] === 'pr' && c[1] === 'create')), 'reads only');
   // The CLI: the same plan, exit 3; at home only.
-  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: gh.env });
+  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: CLI } });
   assert.equal(cli.status, 3, cli.stderr);
   assert.equal(JSON.parse(cli.stdout).plans.length, 4);
+});
+
+test('fleet update counts follow the injected version, far above and far below the live one, in-process and through the CLI', async t => {
+  const { dir, gh } = await fleetOfUpdates(t);
+  const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
+  const [major] = live.split('.').map(Number);
+  const above = `${major + 100}.0.0`, below = '0.0.1';
+  // Far above: every adopted project but home is behind, and none has this branch open yet.
+  let r = await fleetUpdate({ dir }, updateDeps(gh, above));
+  assert.equal(r.exitCode, 3, r.text);
+  assert.deepEqual(r.data.plans.map(p => [p.repo, p.from, p.to, p.open]), [
+    ['acme/notes', BEHIND, above, false], ['acme/ledger', BEHIND, above, false], ['acme/current', CLI, above, false],
+    ['acme/waiting', BEHIND, above, false], ['acme/gone', BEHIND, above, false],
+  ]);
+  let cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: above } });
+  assert.equal(cli.status, 3, cli.stderr);
+  assert.deepEqual(JSON.parse(cli.stdout).plans.map(p => p.to), Array(5).fill(above));
+  // Far below: no project is behind it. acme/current, with every migration recorded, needs nothing;
+  // the init'd projects record none, so they are planned for pending migrations only, never as behind.
+  r = await fleetUpdate({ dir }, updateDeps(gh, below));
+  assert.equal(r.exitCode, 3, r.text);
+  assert.deepEqual(r.data.plans.map(p => [p.repo, p.to, p.title]), ['notes', 'ledger', 'waiting', 'gone'].map(n =>
+    [`acme/${n}`, below, `keel update: practice ${below}, pending migrations`]));
+  assert.doesNotMatch(r.text, /→/, 'nothing is behind a version below every project');
+  cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: below } });
+  assert.equal(cli.status, 3, cli.stderr);
+  assert.deepEqual(JSON.parse(cli.stdout).plans.map(p => p.title), r.data.plans.map(p => p.title));
+  // A seam that is not a version is a usage error, never a silent fallback to the live one.
+  cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: 'banana' } });
+  assert.equal(cli.status, 2);
+  assert.match(JSON.parse(cli.stdout).error, /KEEL_FLEET_PRACTICE=banana is not a version/);
 });
 
 test('fleet update --yes, against the gh stub: one PR per project behind, pushed from a clone; a failure is said and the others go on', async t => {
@@ -340,8 +379,8 @@ test('fleet update --yes, against the gh stub: one PR per project behind, pushed
   const r = await fleetUpdate({ dir, yes: true }, updateDeps(gh));
   assert.equal(r.exitCode, 1, r.text);
   const by = repo => r.data.results.find(x => x.repo === repo);
-  assert.equal(by('acme/notes').pr, 'https://github.com/acme/pulls/keel/update-v0.3.0');
-  assert.equal(by('acme/ledger').pr, 'https://github.com/acme/pulls/keel/update-v0.3.0');
+  assert.equal(by('acme/notes').pr, `https://github.com/acme/pulls/${UPDATE_BRANCH}`);
+  assert.equal(by('acme/ledger').pr, `https://github.com/acme/pulls/${UPDATE_BRANCH}`);
   assert.equal(by('acme/gone').ok, false);
   assert.equal(by('acme/gone').step, 'clone');
   assert.match(by('acme/gone').error, /Could not resolve to a Repository/);
@@ -351,11 +390,11 @@ test('fleet update --yes, against the gh stub: one PR per project behind, pushed
   assert.equal(creates.length, 2, 'exactly one PR per project behind');
   assert.deepEqual(calls.filter(c => c[0] === 'repo').map(c => [c[2], c[4], c[5]]), [['acme/notes', '--', '--quiet'], ['acme/ledger', '--', '--quiet'], ['acme/gone', '--', '--quiet']]);
   for (const { origin } of [notes, ledger]) {
-    assert.match(git(origin, 'branch', '--list', 'keel/update-v0.3.0'), /keel\/update-v0\.3\.0/, 'the update branch is pushed');
-    const config = JSON.parse(git(origin, 'show', 'keel/update-v0.3.0:.keel/keel.json'));
-    assert.equal(config.practice, '0.3.0');
-    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, '0.2.0', 'main is untouched: a person merges');
+    assert.match(git(origin, 'branch', '--list', UPDATE_BRANCH), re(UPDATE_BRANCH), 'the update branch is pushed');
+    const config = JSON.parse(git(origin, 'show', `${UPDATE_BRANCH}:.keel/keel.json`));
+    assert.equal(config.practice, CLI);
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, BEHIND, 'main is untouched: a person merges');
   }
   assert.match(r.text, /acme\/gone: FAILED at clone/);
-  assert.match(r.text, /acme\/waiting: keel\/update-v0\.3\.0 is already open/);
+  assert.match(r.text, re(`acme/waiting: ${UPDATE_BRANCH} is already open`));
 });

@@ -285,7 +285,8 @@ The order is the rule (design §3):
 
 `keel release` cuts a version of keel itself: package.json's version, a
 WHATSNEW entry written for the person receiving it, a commit and a local tag.
-It never pushes.
+It runs the gate (config `check`) on the bumped tree first; a failing gate
+puts every file back, exits 1 and commits nothing. It never pushes.
 
 <!-- topic: lessons | sending what a project learned home to keel, once each -->
 
