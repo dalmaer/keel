@@ -9,7 +9,7 @@ Read the project's AGENTS.md before changing anything.
 Verbs (every one takes `--json`; parse that, never the prose):
 
 - `keel status` — goals, built and lived-in counts, the next phase
-- `keel next` — the next phase to conduct: its file, done-when, next action
+- `keel next` — the next phase to conduct: its file, done-when, next action; `--project <p>`
 - `keel goal list|show|add|retire` — goals and their progress; add and retire edit `docs/goals.json`
 - `keel phase new|list` — scaffold the next free phase under a goal; list them
 - `keel render` — render the project's practices onto it; `--check` writes nothing, exits 1 on a difference
@@ -50,10 +50,17 @@ human text is never mixed in. Without it, text goes to stdout and errors to
 stderr as one line beginning `keel:`.
 
 - `status` → `{name, goals: [{id, title, outcome, phases, built, lived}], next}`
-- `status`, `next`, `goal …` and `phase …` exit 2 where `phases` is a local variant.
+- `status`, `next`, `goal …` and `phase …` exit 2 where `phases` is a local
+  variant, except that `status` and `next` read the projects shape.
 - `next` → the phase object (`id, file, title, status, since, goal, depends,
   note, evidence, done, next`) or `null` when nothing is left unbuilt. It is
   the same object `node scripts/roadmap.mjs --json` reports as `next`.
+- In the projects shape (`"phases": {"shape": "projects"}`): `next` →
+  `{shape: "projects", projects: [{project, file, next, from, unknown}]}`;
+  `next --project <p>` → `{shape, project, file, next, from, unknown, where}`;
+  `next` is `{id, title, status, word, line}` or `null`; `status` →
+  `{name, shape, projects: [{project, phases, built, partial, planned,
+  superseded, unknown, file, next, from}]}`. An unknown `<p>` exits 2.
 - `goal list` → `[{id, title, outcome, phases, built, lived}]`
 - `goal show` → `{goal, phases: [{id, title, status}], built, lived, next}`;
   `next` is the phase object or `null`
@@ -69,11 +76,11 @@ stderr as one line beginning `keel:`.
   `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
   {dir, name, repo, steps, secrets}}`; with `--yes`, `github: {repo,
   created, secrets}` in place of `secrets`
-- `adopt` → `{dir, dryRun, check: {check, from}, config, practices: [{name,
+- `adopt` → `{dir, dryRun, check: {check, from}, lessons: {path, from}, config, practices: [{name,
   state, why}], files: [{practice, path, kind, block?, status, note?}],
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
 - `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
-  lint: [{rule, path, message}], local: {name: why}, qualifies, ejected}`;
+  lint: [{rule, path, message}], local: {name: why}, qualifies, owing, ejected}`;
   state is `edited|behind|both`. With `--fix` and no `--yes`, exit 3 and
   `{ok: false, needs: "yes", plan: {path, action, practice, what}}`; with
   `--yes`, `{ok: true, fixed, ...the report after}`
@@ -195,7 +202,22 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
 - AGENTS.md keeps every byte; missing blocks of on practices are appended under
   `## The keel practice`.
 - `check` in `.keel/keel.json` is the gate: `--check`, else the existing
-  config's, else `check:all`, else `check`. keel's `check.yml` runs it.
+  config's, else `check:all`, else `check`, else none: the dry run says
+  `Gate: none found — pass --check "<command>"` and a write run exits 2. Adopt
+  never invents a gate. keel's `check.yml` runs it.
+- `lessons` in `.keel/keel.json` is the lessons table when it is not
+  `docs/lessons.md`: adopt finds a `docs/**/lessons.md` with a numbered table,
+  records it and seeds nothing beside it; lessons, doctor, fleet and improve
+  read it.
+- `docs/projects/<p>/phases.md` with `**Status:**` lines is the **projects
+  shape**: `"phases": {"shape": "projects"}`, phases and evidence local, read
+  only by `keel next [--project <p>]` and `keel status` (CLOSED→built,
+  PART-DONE→partial, NOT STARTED→planned, RETIRED→superseded; anything else is
+  unknown, never guessed). `goal`/`phase` exit 2 there.
+- A practice whose `source.path` is a real file in the repo (the repo is its
+  upstream) stays local; keel installs no copy beside the original.
+- Phases with no `goal` converge by migration 0003 once every built phase
+  names evidence; until then adopt and doctor list each phase that owes it.
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 
@@ -217,9 +239,13 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
 - Lints: `second-copy` (a `SKILL.md` naming a managed skill outside
   `.agents/skills/`, not through a symlink), `claude-md-pointer` (more than 3
   non-empty lines), `phase` (the roadmap parser's error), `goal-without-phase`,
-  `symlink-replaced` (a managed doorway that became a real directory).
+  `symlink-replaced` (a managed doorway that became a real directory),
+  `lessons-path` (a `lessons` config naming no file), and in the projects
+  shape `off-vocabulary` (Status: DONE, or an unknown word) and
+  `phase-status` (status in a heading, or none).
 - `local` lists the project's local variants as information; `qualifies`
-  names those adopt's survey would now switch on.
+  names those adopt's survey would now switch on; `owing` lists the built
+  phases that name no evidence while phases or evidence is local.
 - `--fix <path> restore` rewrites it from the template; `--fix <path> eject`
   drops it from the lock and adds it to `.keel/keel.json` `ejected`, which
   render honours forever. Each needs `--yes`, or exits 3 with the plan.
@@ -325,7 +351,9 @@ first, a model's opinion never: every number comes from a command.
   run no tests (lesson 14). `roadmap_stale` — the roadmap check.
 - `phases_without_issue` (only with `repo`), `phases_stuck` (unfinished, `since`
   older than 21 days), `lessons_without_guard` (empty, "to write", or planned
-  with no phase), `drift` and `lint` (doctor), `inbox_waiting` (keel only).
+  with no phase; the `lessons` path), `evidence_placeholders` (a built phase
+  whose evidence is the blank template), `drift` and `lint` (doctor),
+  `inbox_waiting` (keel only).
 - `ci_red_streak` and `machine_prs` read GitHub with `gh` (`KEEL_GH`): n/a
   without `repo` or gh auth, and the reason says which.
 - `dependency_age` — `npm outdated`, only with a `package-lock.json`.

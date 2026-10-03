@@ -36,3 +36,15 @@ local where a project already has a Renovate or Dependabot config.
 **Lineage.** Keel phase 10, from isocan's `renovate.json` and its AGENTS.md
 section "Dependencies are Renovate's, in four lanes" (22 Sep 2026), without
 its workspace rule and its timezone.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **ledger**: *stays local*; keel takes nothing. Its weekly, grouped,
+  never-automerged lanes and its regex manager for action versions inside
+  `scripts/agent-workflows.ts` are deliberate for a repo that generates its
+  workflows. Keel's four lanes already move Node with `engines.node` (the npm
+  manager reads it), which was the one rule worth comparing.
+- **isocan**: *stays local*. Keel's file is isocan's, less two rules that are
+  isocan's alone (its workspace packages, its timezone); there is nothing to
+  learn and nothing to converge.

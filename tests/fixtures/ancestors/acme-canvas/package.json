@@ -1,0 +1,13 @@
+{
+  "name": "acme-canvas",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Acme Canvas: an infinite board for Acme's pottery studio.",
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "node --check scripts/night.mjs",
+    "test:deep": "ACME_DEEP=1 node --test",
+    "night": "node scripts/night.mjs"
+  }
+}

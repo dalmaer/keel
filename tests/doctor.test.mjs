@@ -67,7 +67,7 @@ test('a fresh project is clean, has a lock, and doctor writes nothing', async t 
   const before = await tree(dir);
   const { code, data } = doctor(dir);
   assert.equal(code, 0, JSON.stringify(data));
-  assert.deepEqual(data, { drift: [], lint: [], local: {}, qualifies: [], ejected: [] });
+  assert.deepEqual(data, { drift: [], lint: [], local: {}, qualifies: [], owing: [], ejected: [] });
   const text = keel(['doctor'], dir);
   assert.equal(text.code, 0);
   assert.match(text.out, /^Clean/m);

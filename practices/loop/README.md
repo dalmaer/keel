@@ -123,3 +123,13 @@ header. `practice.json` carries no `source` yet: a pinned source is watched by
 `keel learn` every night, and whether keel learns from isocan's or ledger's
 loop script that way is still open (phase 14, *Deliberately open*). The nightly's install and enable steps, the env aliases and the
 skip-with-a-notice are from isocan's `.github/workflows/loop.yml`.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **ledger**: *converges* (no migration needed). Keel's `scripts/loop.mjs` is
+  the port of ledger's `scripts/loop.ts` and renders ledger's `docs/LOOP.md`
+  identically but for the generated-by line (phase 14). Retiring ledger's
+  script for keel's is the owner's PR, not a migration.
+- **isocan**: *stays local*. Its `scripts/loop.mjs` is its own; which loop
+  script keel pins as a source is still open (phase 14).

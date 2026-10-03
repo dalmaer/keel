@@ -3,7 +3,7 @@
   "summary": "Failures are recorded as shapes, each with the guard that now catches it.",
   "requires": ["agents-md"],
   "files": [
-    { "path": "docs/lessons.md", "from": "docs/lessons.md", "kind": "seeded" },
+    { "path": "docs/lessons.md", "from": "docs/lessons.md", "kind": "seeded", "seat": "lessons" },
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "lessons" }
   ]
 }

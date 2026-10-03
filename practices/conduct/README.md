@@ -16,3 +16,13 @@ committed symlink `.claude/skills/conduct`.
 **Lineage.** Adapted from dglazkov/isocan `.claude/skills/conduct/SKILL.md`
 at `7227f325` (Apache-2.0), for one-file-per-phase projects. The pin is in
 `practice.json`; `keel learn` (phase 8) polls it.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **isocan**: *keel takes isocan's*. isocan's `.claude/skills/conduct/` is
+  this practice's upstream source (pinned above). In isocan the practice stays
+  local: adopt sees the source file is a real file there, seeds no copy, and
+  never installs `.agents/skills/conduct` beside it (lesson 1 — a stale
+  untracked `.agents/skills/conduct/` in one working copy was the shape).
+- **ledger**: *on*. ledger had no conductor of its own.

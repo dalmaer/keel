@@ -244,7 +244,8 @@ test('tagline and gate detection', () => {
   assert.equal(readmeTagline('# Only a heading\n'), null);
   assert.equal(detectCheck({ scripts: { check: 'a', 'check:all': 'b' } }).check, 'npm run check:all');
   assert.equal(detectCheck({ scripts: { check: 'a' } }).check, 'npm run check');
-  assert.equal(detectCheck(null).check, 'npm run check');
+  assert.deepEqual(detectCheck(null), { check: null, from: 'none found' }, 'never a script that is not there (phase 16)');
+  assert.deepEqual(detectCheck({ scripts: { test: 'vitest run', typecheck: 'tsc' } }), { check: null, from: 'none found' });
 });
 
 test('check.yml runs the config\'s check; keel\'s own stays byte-identical', async () => {

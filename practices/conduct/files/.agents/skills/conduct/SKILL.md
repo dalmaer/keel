@@ -57,7 +57,7 @@ Then read, in this order:
 1. the phase file;
 2. the design sections it cites;
 3. the **Trajectory** of the phases it depends on (what the design didn't know);
-4. `docs/lessons.md` rows that share its shape.
+4. `{{lessons}}` rows that share its shape.
 
 Note the wall clock. The commit records what a phase cost.
 
@@ -104,7 +104,7 @@ Decided here, not in the docs: <…>
 
 ## Who else is in the tree   (another builder's paths, and which red checks are theirs)
 ## What you own
-Files under <paths>. Not docs/phases/, docs/ROADMAP.md, docs/lessons.md or the
+Files under <paths>. Not docs/phases/, docs/ROADMAP.md, {{lessons}} or the
 evidence: the conductor writes the record.
 
 ## Where you stop

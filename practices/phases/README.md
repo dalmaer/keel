@@ -15,3 +15,24 @@ template (managed); `docs/goals.json` (seeded); the `phases` block of
 
 **Lineage.** isocan → ledger (`scripts/roadmap.ts`) → cajones/ritmo
 (`scripts/roadmap.mjs`, evidence and dependency checks) → keel.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **ledger** (one file per phase, no `goal`, its own `scripts/roadmap.ts`):
+  *converges via migration 0003*, which adds `goal:`, `docs/goals.json` (one
+  goal per group in its phases README, else one) and keel's missing sections,
+  marked as added, then hands the roadmap to keel's. 0003 applies only when
+  every built or lived-in phase already names evidence; it never writes
+  evidence (a page that proves nothing would pass the check without being the
+  thing) and never steps a phase back. On 3 Oct 17 built phases name none, so
+  `phases` stays local and adopt's and doctor's proposal lists all 17 with the
+  two honest moves: write the evidence when each is next checked, or step it
+  back to partial.
+- **isocan** (`docs/projects/<p>/phases.md`, `**Status: WORD.**` lines):
+  *stays local*. Keel learned the shape as a second, read-only reader
+  (`"phases": {"shape": "projects"}`; `keel next --project <p>`, `keel
+  status`): CLOSED→built, PART-DONE→partial, NOT STARTED→planned,
+  RETIRED→superseded; DONE and status kept in headings are linted, never
+  guessed. isocan generates its own roadmap; keel writes none for this shape.
+  Whether keel ever writes these files is deliberately open.

@@ -24,3 +24,10 @@ in a workflow of its own, so two Claudes never answer one mention.
 
 **Lineage.** Keel phase 10, from duo's `.github/workflows/claude.yml`, with
 git narrowed from `git *` to the subcommands that cannot push.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **isocan**: *stays local*. `changelog.yml` already runs
+  `anthropics/claude-code-action`; two Claudes would answer one mention.
+- **ledger**: *on*.

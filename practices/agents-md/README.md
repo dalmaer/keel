@@ -12,3 +12,10 @@ project's.
 practice), `CLAUDE.md` (managed), and the `agents-md` block (⚑ steps).
 
 **Lineage.** isocan's "one file, many doorways" (keel design §2).
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **isocan** and **ledger**: *on*. Their `AGENTS.md` keeps every byte; the
+  on practices' blocks are appended under "The keel practice", and
+  `CLAUDE.md` becomes the one-line doorway.

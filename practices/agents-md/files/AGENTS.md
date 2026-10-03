@@ -11,7 +11,7 @@ npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 ## How the work is run
 
 Each rule below exists because of a specific failure, recorded in
-[`docs/lessons.md`](docs/lessons.md).
+[`{{lessons}}`]({{lessons}}).
 
 <!-- keel:begin phases -->
 <!-- keel:end phases -->

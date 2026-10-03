@@ -40,6 +40,9 @@ export const HEALTH = 'docs/health';
 export const STUCK_DAYS = 21;
 export const MACHINE_PREFIXES = ['keel/', 'keel-night/', 'renovate/'];
 export const CHECK = 'npm run check';
+export const LESSONS = 'docs/lessons.md';
+/** The project's lessons table: .keel/keel.json `lessons`, else docs/lessons.md. */
+export const lessonsPathOf = config => typeof config?.lessons === 'string' && config.lessons ? config.lessons : LESSONS;
 export const COMMAND = 'node scripts/keel/improve.mjs';
 
 export class ImproveError extends Error {
@@ -276,6 +279,14 @@ function lessonRows(text) {
 
 const unguarded = g => !g.trim() || /^\*?to write\*?\.?$/i.test(g.trim()) || (/planned/i.test(g) && !/phase \d+/i.test(g));
 
+/**
+ * An evidence page that proves nothing: keel's evidence template with its
+ * blanks still blank (the <phase> or <claim> heading, an empty Date or Claim
+ * line). It passes the roadmap's "exists and is not empty" check without
+ * being the thing — a facade.
+ */
+export const placeholderEvidence = text => /<phase>|<claim>/.test(text) || /^- (Date|Claim being checked):[ \t]*$/m.test(text);
+
 export const MEASURES = [
   {
     id: 'gate', what: "the project's check fails, or passes having run no tests", unit: '0/1', bound: 0, better: 'lower',
@@ -326,14 +337,32 @@ export const MEASURES = [
     },
   },
   {
+    id: 'evidence_placeholders', what: 'built or lived-in phases whose evidence is the blank template (proves nothing)', unit: 'phases', bound: 0, better: 'lower',
+    async run(ctx) {
+      const off = phasesOff(ctx);
+      if (off) return { na: off };
+      const { DONE } = await roadmapModule(ctx);
+      const found = [];
+      for (const p of (await roadmapData(ctx)).phases.filter(p => DONE.includes(p.status))) {
+        for (const e of p.evidence) {
+          const text = await read(join(ctx.root, 'docs', e));
+          if (text !== null && placeholderEvidence(text)) found.push({ id: p.id, evidence: e });
+        }
+      }
+      const ids = [...new Set(found.map(f => f.id))];
+      return { value: ids.length, detail: ids.length ? `phase${ids.length === 1 ? '' : 's'} ${list(found.map(f => `${f.id} (${f.evidence})`), 4)}` : 'every built phase\'s evidence says what was checked', facts: { ids, found } };
+    },
+  },
+  {
     id: 'lessons_without_guard', what: 'lessons whose guard is empty, "to write", or planned without a phase', unit: 'lessons', bound: 0, better: 'lower',
     async run(ctx) {
-      const text = await readFile(join(ctx.root, 'docs', 'lessons.md'), 'utf8').catch(e => e.code === 'ENOENT' ? null : Promise.reject(e));
-      if (text === null) return { na: 'no docs/lessons.md' };
+      const path = lessonsPathOf(ctx.config);
+      const text = await readFile(join(ctx.root, path), 'utf8').catch(e => e.code === 'ENOENT' ? null : Promise.reject(e));
+      if (text === null) return { na: `no ${path}` };
       const rows = lessonRows(text);
-      if (!rows) throw new Error('docs/lessons.md has no table with a Guard column');
+      if (!rows) throw new Error(`${path} has no table with a Guard column`);
       const ids = rows.filter(r => unguarded(r.guard)).map(r => r.id);
-      return { value: ids.length, detail: ids.length ? `#${ids.join(', #')} of ${rows.length}` : `all ${rows.length} name a guard`, facts: { ids } };
+      return { value: ids.length, detail: ids.length ? `#${ids.join(', #')} of ${rows.length}` : `all ${rows.length} name a guard`, facts: { ids, path } };
     },
   },
   {
@@ -468,7 +497,8 @@ export function proposalText(r, config = {}) {
       const p = f.stuck[0];
       return `Move phase ${p.id} (${p.status} since ${p.since}, ${p.days} days): take its next action, split it, or mark it superseded, and set \`since:\`.${f.stuck.length > 1 ? ` ${f.stuck.length - 1} more after it.` : ''}`;
     }
-    case 'lessons_without_guard': return `Name the guard, or the phase that will build it, for lesson${f.ids.length === 1 ? '' : 's'} #${f.ids.join(', #')} in docs/lessons.md.`;
+    case 'lessons_without_guard': return `Name the guard, or the phase that will build it, for lesson${f.ids.length === 1 ? '' : 's'} #${f.ids.join(', #')} in ${f.path ?? LESSONS}.`;
+    case 'evidence_placeholders': return `Fill the evidence for phase${f.ids.length === 1 ? '' : 's'} ${f.ids.join(', ')} with what was actually checked, or step ${f.ids.length === 1 ? 'it' : 'them'} back to partial; a blank template proves nothing.`;
     case 'drift': return `Settle the project's edits to ${list(f.paths, 3)}: send them home (\`keel lessons\`), or \`keel doctor --fix <path> restore|eject\`.`;
     case 'lint': return `Fix ${f.lint[0].rule} at ${f.lint[0].path} (\`keel doctor\` says how).${f.lint.length > 1 ? ` ${f.lint.length - 1} more after it.` : ''}`;
     case 'inbox_waiting': return f.status === 'untriaged'

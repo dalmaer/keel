@@ -11,3 +11,14 @@ Never write expectations as observations.
 `AGENTS.md`.
 
 **Lineage.** ledger's evidence notes, made mandatory by ritmo's roadmap check.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **ledger**: *stays local* until its built phases name evidence (17 do not,
+  3 Oct). It converges with phases through migration 0003, which never writes
+  evidence.
+- **isocan**: *stays local*. Each phase's `**Status:**` line carries its proof
+  (with `docs/verify/`); keel's evidence files serve `docs/phases/`. The
+  night practice's `evidence_placeholders` measure keeps keel's own promise:
+  a blank evidence template under a built phase is outside its bound.

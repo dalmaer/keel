@@ -135,6 +135,19 @@ export async function up(project) {
     try { validateGraph(parsed.sort((a, b) => a.id - b.id), goals); } catch (e) { errors.push(e.message); }
   }
 
+  await converge(project, { parsed, errors, put, label: 'milestones became goals (migration 0001)' });
+  return edits;
+}
+
+/**
+ * Once a project's phases parse with keel's roadmap, converge the phases
+ * practice: the project's own roadmap, its test, phase contract and template
+ * give way to keel's, package.json's roadmap scripts point at keel's, the
+ * block markers are appended, and phases (and evidence, once no built phase
+ * lacks it) move from `local` to `practices`. Otherwise phases stays local and
+ * the reason says why. Shared with 0003. `put(path, content)` records an edit.
+ */
+export async function converge(project, { parsed, errors, put, label }) {
   const config = structuredClone(project.config);
   config.practices ??= [];
   const local = { ...(config.local ?? {}) };
@@ -146,9 +159,9 @@ export async function up(project) {
   if (config.practices.includes('phases')) {
     // Keel's phases were already on; only the milestones needed converting.
   } else if (errors.length) {
-    local.phases = `milestones became goals (migration 0001); still local because ${errors[0]}; proposal: fix that phase file, then keel adopt again`;
+    local.phases = `${label}; still local because ${errors[0]}; proposal: fix that phase file, then keel adopt again`;
   } else if (tests?.why) {
-    local.phases = `milestones became goals (migration 0001); still local because ${tests.why}, and deleting ${ownTests.join(', ')} would leave the gate running no roadmap test; proposal: make the test script run tests/roadmap.test.mjs, then keel adopt again`;
+    local.phases = `${label}; still local because ${tests.why}, and deleting ${ownTests.join(', ')} would leave the gate running no roadmap test; proposal: make the test script run tests/roadmap.test.mjs, then keel adopt again`;
   } else {
     // The project's own roadmap, its test and its phase contract give way to keel's.
     const gone = [];
@@ -189,5 +202,4 @@ export async function up(project) {
   if (Object.keys(local).length) config.local = local; else delete config.local;
   const configText = `${JSON.stringify(config, null, 2)}\n`;
   if (configText !== await project.read('.keel/keel.json')) put('.keel/keel.json', configText);
-  return edits;
 }

@@ -62,3 +62,14 @@ requests" (AGENTS.md; the drain after its grades and loop workflows, and
 `scripts/changelog-drain.mjs`); the skip-with-a-notice from isocan's
 `loop.yml`; porcelain over `git diff --quiet` from ledger's
 `agent-audit.yml`.
+
+**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+practice came from, where each keeps a version of its own:
+
+- **isocan**: *stays local*. Its `scripts/night.mjs` (a converge lane and a
+  morning comment) is a different night from keel's measures; adopt keeps
+  `night` local where a project has `scripts/night.*` or an `npm run night`.
+  Its ideas already came home: conduct cost (`subagent-time.mjs`) and the
+  ratchet (`ratchet.mjs`).
+- **ledger**: *on*. Its agent workflows are its product's jobs, not a night
+  shift over its practice.

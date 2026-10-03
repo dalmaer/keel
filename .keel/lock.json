@@ -35,7 +35,7 @@
     },
     "AGENTS.md#lessons": {
       "practice": "lessons",
-      "sha256": "cebec778840ea01c7c1ded029310dc516511572d098db313010fd4c442a47a88"
+      "sha256": "91f880dfda0f8203aace1f6df75547c100dadb59771e80fd52529dc776cb813f"
     },
     "AGENTS.md#phases": {
       "practice": "phases",
@@ -67,7 +67,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "8c8c957cfb07c4cfc906dfa992a0a92bdf12c612bca8cd5df66468f21fc70b99"
+      "sha256": "64ad1317c7ff93ec6c53240584f51cbbcd956438fc716ee11182561d879afe7f"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",

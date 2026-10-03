@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-03
 goal: G2
 depends: [4, 6]
-note: "Dry runs on ledger and isocan copies (3 Oct): ledger adopts cleanly with five local variants; isocan exposed three adopt bugs and a phase shape keel can't read."
-evidence: []
+note: "The three isocan adopt bugs are fixed (no invented gate, lessons path from config, project-directory phases read). ledger and isocan clones adopt with additions only and pass their own gates (isocan: 7,593 tests). ledger's phases stay local: 17 built phases owe evidence. The PRs wait on the owner, and on Dimitri."
+evidence: ["evidence/2026-10-03-ancestors.md"]
 ---
 
 # The projects the practice came from can use keel without losing their shapes
@@ -41,12 +41,12 @@ recorded in each practice's README:
 
 ## Acceptance
 
-- [ ] Adopt on an isocan-shaped fixture with no `check` script reports no gate and asks for `--check`; with `--check "npm test && npm run typecheck"` it records that.
-- [ ] Adopt never seeds a lessons file when one exists elsewhere; `lessons` config is honoured by lessons, doctor, fleet and improve.
-- [ ] `keel next` on an isocan-shaped fixture reads `docs/projects/<p>/phases.md` and names the next phase.
-- [ ] A fresh copy of ledger, adopted (plus migration 0003 if built), passes its own `npm run check:all`.
-- [ ] A fresh copy of isocan, adopted, passes its own gate, and `git diff --stat` shows additions only.
-- [ ] Every ledger and isocan local variant has a recorded decision in its practice README.
+- [x] Adopt on an isocan-shaped fixture with no `check` script reports no gate and asks for `--check`; with `--check "npm test && npm run typecheck"` it records that.
+- [x] Adopt never seeds a lessons file when one exists elsewhere; `lessons` config is honoured by lessons, doctor, fleet and improve.
+- [x] `keel next` on an isocan-shaped fixture reads `docs/projects/<p>/phases.md` and names the next phase.
+- [x] A fresh copy of ledger, adopted (plus migration 0003 if built), passes its own `npm run check:all`.
+- [x] A fresh copy of isocan, adopted, passes its own gate, and `git diff --stat` shows additions only.
+- [x] Every ledger and isocan local variant has a recorded decision in its practice README.
 - [ ] ⚑ ledger's adoption PR opened (owner merges); isocan's adoption PR opened on dglazkov/isocan, for Dimitri to decide.
 
 ## Proof
@@ -68,6 +68,9 @@ recorded in each practice's README:
 
 ## Next action
 
-Write the isocan-shaped fixture (synthetic: a `docs/projects/acme/phases.md`
-with `**Status:**` lines, `docs/reviews/lessons.md`, and no `check` script),
-and make the three bugs fail as tests first.
+⚑ Owner: say yes to opening ledger's adoption PR, and to preparing isocan's for Dimitri (with `--check "npm test && npm run typecheck"`).
+
+## Trajectory
+
+- **2026-10-03** — Placeholder evidence was rejected as a facade, before it was built. 0003 applies only when every built phase already names evidence. ledger therefore keeps local phases, with 17 owed listed, until that's settled honestly.
+- **2026-10-03** — isocan's own files show 39 doctor findings (29 heading statuses, 10 `DONE`): real signal keel can send it, once Dimitri adopts.

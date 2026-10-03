@@ -196,6 +196,16 @@ test('unsent lessons: rows whose fingerprint is not in .keel/sent.json', async t
   assert.equal(rowOf(r, 'acme/quiet').lessons.unsent, 0, 'no lessons.md is nothing to send');
 });
 
+test('a configured lessons path is where fleet counts unsent lessons (phase 16)', async t => {
+  const s = state();
+  s.repos['acme/quiet'].files['.keel/keel.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], lessons: 'docs/reviews/lessons.md' });
+  s.repos['acme/quiet'].files['docs/reviews/lessons.md'] = LESSONS;
+  const gh = await stubGh(t, s);
+  const r = await go(await home(t, LIST), gh);
+  assert.deepEqual(rowOf(r, 'acme/quiet').lessons, { project: 'acme/quiet', path: 'docs/reviews/lessons.md', rows: 3, unsent: 3 });
+  assert.ok((await gh.calls()).some(c => c[1] === 'repos/acme/quiet/contents/docs/reviews/lessons.md'));
+});
+
 test('unadopted (404 on .keel/keel.json): shown as not adopted, its CI still read', async t => {
   const r = await go(await home(t, LIST), await stubGh(t, state()));
   const row = rowOf(r, 'acme/plain');
