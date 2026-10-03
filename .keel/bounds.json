@@ -3,6 +3,7 @@
   "roadmap_stale": 0,
   "phases_without_issue": 0,
   "phases_stuck": 0,
+  "evidence_placeholders": 0,
   "lessons_without_guard": 0,
   "drift": 0,
   "lint": 0,
