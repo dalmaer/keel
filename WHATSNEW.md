@@ -5,6 +5,28 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.4.0 — 2026-10-03
+
+keel can now run a project whose gate needs installs or environment, and it
+adds less to projects that already say things their own way.
+
+- **`setup` and `env` in `.keel/keel.json`.**
+  - `setup` is the install command the night shift runs before measuring.
+    Without it, the night runs `npm ci` when there's a lockfile.
+  - `env` holds variables applied wherever keel runs your gate.
+  - `keel adopt --setup "<cmd>" --env KEY=VALUE` sets both, and
+    `keel doctor` shows them.
+- **`@claude` is opt-in.** The `claude` practice is off unless you ask for it
+  with `--with claude`. Locally, Claude Code does the same work. Projects
+  that already have it keep it.
+- **No repeated rules.** If your AGENTS.md already states a rule, adopt
+  doesn't append keel's copy of it (`blocksSkipped`).
+- **adopt records your GitHub repo** from `origin`, but only when the
+  project is its own git top level. The night's CI and PR measures then
+  have something to read.
+- **Shorter health pages.** A measure blocked by a local phases variant says
+  so in one line; `keel doctor` has the detail.
+
 ## v0.3.1 — 2026-10-03
 
 An agent working in your project now finds keel on its own.
