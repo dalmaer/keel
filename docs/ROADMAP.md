@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 14 phases lived in; 3 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 15 phases lived in; 3 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). ⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
 
@@ -73,15 +73,17 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-0/2 built or lived-in; 0/2 lived-in.
+0/3 built or lived-in; 0/3 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md) | planned | 2026-10-02 | [6](phases/06-update-and-migrations.md) | Rules taken whole from isocan's night-shift section; Renovate lanes from isocan's renovate.json. |
 | [11. A project can say, with numbers, whether its practice is working, and proposes one fix](phases/11-keel-improve.md) | planned | 2026-10-02 | [5](phases/05-managed-files-and-drift.md), [9](phases/09-goals.md) | Measures listed in design.md §6; the conduct-cost measure exists upstream as isocan's scripts/subagent-time.mjs. |
+| [14. A project's Stitch Loop findings are triaged the same way everywhere, through keel](phases/14-stitch-loop.md) | planned | 2026-10-02 | [1](phases/01-practices-as-modules.md), [10](phases/10-the-night-shift.md) | Loop triage runs by hand-port in ledger (scripts/loop.ts, 132 findings) and isocan (scripts/loop.mjs, loop.yml); keel has no loop practice yet. |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
+- **14 done when:** One adopted project's Loop cycle (pull new insights, propose a rank for each, render `docs/LOOP.md`) runs through keel's `loop` practice, and that project's own scripts/loop.* is retired in favour of it.
 
 ## G5 — Keel knows whether it helps
 

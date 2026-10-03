@@ -228,7 +228,12 @@ three questions:
   of it. Self-update is a `git pull` of that checkout.
 - **Whether isocan is adopted.** isocan is Dimitri's repo. Keel can *learn*
   from it as a source without managing it. Adopting it is his decision, not keel's.
-- **Stitch Loop and the isocan canvas.** Both are optional practices. They
-  come in once two projects have used them through keel, not before.
+- **Stitch Loop.** **Settled 2026-10-02:** an optional `loop` practice
+  (phase 14, under the night shift). It is ported from ledger's
+  `scripts/loop.ts` and isocan's `scripts/loop.mjs`, and keeps their rules:
+  the ranking is ours, an agent proposes, a person decides. The owner decided
+  it rather than waiting for two projects to have used it through keel.
+- **The isocan canvas.** Still an optional practice that comes in once two
+  projects have used it through keel, not before.
 - **License.** keel adapts Apache-2.0 material from isocan, with attribution in
   each file. Keel's own license is the owner's call.
