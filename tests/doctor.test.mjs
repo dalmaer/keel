@@ -67,7 +67,7 @@ test('a fresh project is clean, has a lock, and doctor writes nothing', async t 
   const before = await tree(dir);
   const { code, data } = doctor(dir);
   assert.equal(code, 0, JSON.stringify(data));
-  assert.deepEqual(data, { drift: [], lint: [], local: {}, qualifies: [], owing: [], ejected: [] });
+  assert.deepEqual(data, { drift: [], lint: [], notes: [], local: {}, qualifies: [], owing: [], ejected: [] });
   const text = keel(['doctor'], dir);
   assert.equal(text.code, 0);
   assert.match(text.out, /^Clean/m);
@@ -178,6 +178,46 @@ test('a phase without Done when and a goal without a phase are linted', async t 
   assert.equal(code, 1);
   assert.deepEqual(data.lint.map(l => l.rule).sort(), ['goal-without-phase', 'goal-without-phase', 'phase']);
   assert.match(data.lint.find(l => l.rule === 'phase').message, /Done when/);
+});
+
+test('a README older than the newest built phase is a readme-behind note, never a finding', async t => {
+  const dir = await project(t);
+  const git = (args, env = {}) => {
+    const r = run('git', ['-C', dir, ...args], { env: { ...ENV, ...env } });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  // README last committed 2 Jan 2020; a phase built on 5 Jan 2020.
+  await writeFile(join(dir, 'README.md'), '# Acme Notes\n\nAcme Notes keeps meeting notes.\n');
+  git(['add', 'README.md']);
+  git(['commit', '-q', '-m', 'Acme readme'], { GIT_AUTHOR_DATE: '2020-01-02T12:00:00Z', GIT_COMMITTER_DATE: '2020-01-02T12:00:00Z' });
+  assert.equal(git(['log', '-1', '--format=%cs', '--', 'README.md']), '2020-01-02');
+  const zero = await readFile(join(dir, 'docs', 'phases', '00-practice-room.md'), 'utf8');
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-search.md'), zero.replace(/^---\n[\s\S]*?\n---\n/, [
+    '---', 'status: built', 'since: 2020-01-05', 'goal: G0', 'depends: [0]', 'note: "Acme search works."', 'evidence: ["evidence/2020-01-05-acme-search.md"]', '---', '',
+  ].join('\n')).replaceAll('- [ ]', '- [x]'));
+  const { code, data } = doctor(dir);
+  assert.equal(code, 0, JSON.stringify(data));
+  assert.deepEqual(data.lint, []);
+  assert.deepEqual(data.notes.map(n => `${n.rule} ${n.path}`), ['readme-behind README.md']);
+  assert.match(data.notes[0].message, /2020-01-02.*01-acme-search\.md.*2020-01-05/);
+  const text = keel(['doctor'], dir);
+  assert.equal(text.code, 0);
+  assert.match(text.out, /Notes \(information; never changes the exit code\):\n {2}readme-behind/);
+
+  // A README committed on or after that day: no note.
+  await writeFile(join(dir, 'README.md'), '# Acme Notes\n\nAcme Notes keeps and finds meeting notes.\n');
+  git(['commit', '-q', '-am', 'Acme readme, search'], { GIT_AUTHOR_DATE: '2020-01-05T12:00:00Z', GIT_COMMITTER_DATE: '2020-01-05T12:00:00Z' });
+  assert.deepEqual(doctor(dir).data.notes, []);
+
+  // Not a git repo: skipped silently.
+  await writeFile(join(dir, 'README.md'), '# Acme Notes\n');
+  git(['commit', '-q', '-am', 'Acme readme, short'], { GIT_AUTHOR_DATE: '2020-01-02T12:00:00Z', GIT_COMMITTER_DATE: '2020-01-02T12:00:00Z' });
+  assert.equal(doctor(dir).data.notes.length, 1);
+  await rm(join(dir, '.git'), { recursive: true, force: true });
+  const bare = doctor(dir);
+  assert.equal(bare.code, 0);
+  assert.deepEqual(bare.data.notes, []);
 });
 
 test('--fix eject asks first, then hands the file to the project for good', async t => {

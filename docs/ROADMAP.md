@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 19 phases lived in; 7 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 19 phases lived in; 8 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). ⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
 
@@ -13,13 +13,13 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-2/3 built or lived-in; 0/3 lived-in.
+3/3 built or lived-in; 0/3 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [0. Keel is run the way it will tell others to run](phases/00-keel-runs-on-itself.md) | built | 2026-10-02 | — | The practice is installed on keel by hand and holds: check passes locally and on GitHub Actions, and /conduct loads through the .claude/skills symlink. Not yet rendered from practices (phase 1). |
 | [1. The practice is a set of modules keel can install, including on itself](phases/01-practices-as-modules.md) | built | 2026-10-02 | [0](phases/00-keel-runs-on-itself.md) | Seven practices (base, agents-md, phases, evidence, lessons, conduct, ci) render keel's own files; render --self --check in npm run check keeps the two copies one. Not yet rendered into a real project. |
-| [18. What keel tells people can't fall behind what keel does](phases/18-docs-cannot-drift.md) | planned | 2026-10-03 | [16](phases/16-keel-learns-its-ancestors.md) | Lesson 16: the README called built verbs 'planned' for eight phases. The owner asked for a lesson that keeps docs updated; a test is the only guard that holds. |
+| [18. What keel tells people can't fall behind what keel does](phases/18-docs-cannot-drift.md) | built | 2026-10-03 | [16](phases/16-keel-learns-its-ancestors.md) | tests/docs.test.mjs checks the README's verb and practice tables against the code, both ways; its first run caught a missing practice row. Conduct's Record step asks about docs; doctor notes a README older than the newest built phase. |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.

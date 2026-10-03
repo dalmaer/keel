@@ -188,6 +188,10 @@ When the proof holds, and only then, write the record, all in one change:
   dated, saying what settled them.
 - **Next action** for the phase, if it isn't built.
 - **Lessons**: a new row only if a bug turned out to have a shape.
+- **What people and agents are told**: if the change alters what a person or
+  an agent would be told — a verb, a flag, a practice, a default — update
+  README and the agent guide in the same commit. A test catches the tables;
+  nothing catches the prose but you.
 - **Other phases** this one changed the facts for: `grep -rn` the term across
   `docs/` and fix each mention.
 - `npm run roadmap`, then `npm run roadmap:check`.

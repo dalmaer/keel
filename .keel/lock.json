@@ -3,7 +3,7 @@
   "files": {
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "4337050b399ab44808fa2be9b7106ef6b80a5e95b9835e3d0d260c82ffa3546a"
+      "sha256": "f97b22a1f95b240dfc7d1547408a6b0f72211f89e7806ffc38ddd77f7a2e860d"
     },
     ".claude/skills/conduct": {
       "practice": "conduct",

@@ -246,6 +246,9 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
 - `local` lists the project's local variants as information; `qualifies`
   names those adopt's survey would now switch on; `owing` lists the built
   phases that name no evidence while phases or evidence is local.
+- `notes` never change the exit code and are not lints (improve's `lint`
+  measure does not count them): `readme-behind` fires when README.md's last
+  commit is older than the newest built or lived-in phase's `since`.
 - `--fix <path> restore` rewrites it from the template; `--fix <path> eject`
   drops it from the lock and adds it to `.keel/keel.json` `ejected`, which
   render honours forever. Each needs `--yes`, or exits 3 with the plan.

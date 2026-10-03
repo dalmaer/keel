@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-03
 goal: G0
 depends: [16]
-note: "Lesson 16: the README called built verbs 'planned' for eight phases. The owner asked for a lesson that keeps docs updated; a test is the only guard that holds."
-evidence: []
+note: "tests/docs.test.mjs checks the README's verb and practice tables against the code, both ways; its first run caught a missing practice row. Conduct's Record step asks about docs; doctor notes a README older than the newest built phase."
+evidence: ["evidence/2026-10-03-docs.md"]
 ---
 
 # What keel tells people can't fall behind what keel does
@@ -30,10 +30,10 @@ evidence: []
 
 ## Acceptance
 
-- [ ] Removing a verb row from the README, adding a fake one, or writing "planned" beside a built verb each fails `npm run check`.
-- [ ] Removing a practice row, or adding a fake one, fails it too.
-- [ ] Conduct's rendered Record step has the docs line, in keel and in a fresh `keel init` project.
-- [ ] On a project whose README is older than its newest built phase, `keel doctor` reports `readme-behind` without changing the exit code.
+- [x] Removing a verb row from the README, adding a fake one, or writing "planned" beside a built verb each fails `npm run check`.
+- [x] Removing a practice row, or adding a fake one, fails it too.
+- [x] Conduct's rendered Record step has the docs line, in keel and in a fresh `keel init` project.
+- [x] On a project whose README is older than its newest built phase, `keel doctor` reports `readme-behind` without changing the exit code.
 
 ## Proof
 
@@ -48,5 +48,8 @@ evidence: []
 
 ## Next action
 
-After phase 16 commits, write `tests/docs.test.mjs` against the README as it
-stands. It must pass now, and fail under each mutation.
+None.
+
+## Trajectory
+
+- **2026-10-03** — On its first run, the README check found that the practices table had never listed `base`. The README had been rewritten that same morning, by hand, from the registry, which shows why the guard has to be a test.
