@@ -2,7 +2,8 @@
 // and can be conducted, with GitHub reached only through a modelled gh.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { run, testsRan } from './helpers/run.mjs';
 import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, chmod, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -24,7 +25,7 @@ const ENV = {
 };
 
 const keel = (args, cwd, env = ENV) => {
-  const r = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8', env });
+  const r = run(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
@@ -89,8 +90,10 @@ test('init into an empty directory passes the new project\'s own npm run check',
   }
 
   // The facade check: the new project's own gate, run as a person would.
-  const check = spawnSync('npm', ['run', 'check'], { cwd: dir, encoding: 'utf8', env: ENV });
+  const check = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(check.status, 0, check.stdout + check.stderr);
+  assert.ok(testsRan(check.stdout + check.stderr) > 0, `the gate ran no tests:\n${check.stdout}${check.stderr}`);
+  assert.match(check.stdout + check.stderr, /a well-formed phase parses/);
 
   // keel's render agrees nothing has drifted.
   const drift = keel(['render', '--check', '--json'], dir);

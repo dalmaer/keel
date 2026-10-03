@@ -2,7 +2,8 @@
 // nothing changes unless a fix is chosen and answered with --yes.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { run } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, lstat, readlink, realpath, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,7 +21,7 @@ const ENV = {
   GIT_CONFIG_NOSYSTEM: '1',
 };
 const keel = (args, cwd) => {
-  const r = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8', env: ENV });
+  const r = run(process.execPath, [BIN, ...args], { cwd, env: ENV });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 const doctor = (dir, ...args) => {
@@ -35,7 +36,7 @@ async function project(t) {
   t.after(() => rm(dir, { recursive: true, force: true }));
   if (!template) {
     template = await realpath(await mkdtemp(join(tmpdir(), 'keel-doctor-template-')));
-    process.on('exit', () => spawnSync('rm', ['-rf', template]));
+    process.on('exit', () => rmSync(template, { recursive: true, force: true }));
     const r = keel(['init', join(template, 'acme-notes'), '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node'], template);
     assert.equal(r.code, 0, r.err);
   }

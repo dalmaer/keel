@@ -10,12 +10,14 @@ Verbs (every one takes `--json`; parse that, never the prose):
 
 - `keel status` — goals with built and lived-in counts, and the next phase
 - `keel next` — the next phase to conduct: its file, done-when, next action
-- `keel goal list` — every goal, with progress derived from its phases
+- `keel goal list` — every goal, progress derived from its phases
 - `keel render` — render the project's practices onto it; `--check` writes nothing and exits 1 on a difference; `--into <dir>` targets another project
-- `keel init [dir] --description "<paragraph>"` — a new project in an empty directory: practice, goal G0, phase 0, one commit; `--github` plans a private repo and exits 3 until `--yes`
+- `keel init [dir] --description "<paragraph>"` — a new project in an empty directory, one commit; `--github` plans a private repo, exit 3 until `--yes`
 - `keel adopt [dir]` — bring an existing repo under keel: on only what it already satisfies, the rest recorded as local variants with proposals; `--dry-run` writes nothing, `--check "<cmd>"` names the gate
 - `keel doctor` — drift (what the project changed of keel's files) and practice-rule lints; exit 1 on findings; `--fix <path> restore|eject` exits 3 until `--yes`
-- `keel help` — the verbs, one line each
+- `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3 until `--yes`), or `--local`
+- `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
+- `keel help` — the verbs
 - `keel --agent-help` — this text; `keel --agent-help <topic>` opens one topic, `all` prints everything
 - `keel --version` — CLI version, its commit, and the practice version it carries
 
@@ -32,7 +34,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 the command ran and found a failure; 2 usage error or
 not in a project; 3 a ⚑ step needs the owner's yes and nothing was done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `render`, `init`, `adopt`, `doctor`, `install`, `coming`.
+Topics: `json`, `render`, `init`, `adopt`, `doctor`, `update`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -58,11 +60,17 @@ stderr as one line beginning `keel:`.
   state is `edited|behind|both`. With `--fix` and no `--yes`, exit 3 and
   `{ok: false, needs: "yes", plan: {path, action, practice, what}}`; with
   `--yes`, `{ok: true, fixed, ...the report after}`
+- `update` → `{root, from, to, selfUpdate: {state, note}, changed, migrations:
+  [{id, to, summary, edits: [{path, action}]}], rendered, check, mode,
+  branch?, commit?}`; without `--yes`, exit 3 with `needs: "yes", plan`;
+  with it, `pushed, pr`. Already current: `{changed: false}`
+- `release` → bare: `{version, tag, tagged, newest}`; with a version:
+  `{ok, dryRun, version, from, tag, commit, files, entry, push}`
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
-- `--version` → `{cli, commit, practice}`; `commit` is `null` outside a git
-  checkout of keel.
+- `--version` → `{cli, commit, practice, tag}`; `commit` is `null` outside a
+  git checkout of keel, `tag` is `v<version>` when that commit is released.
 
 <!-- topic: render | how practices reach a project, and what render will not touch -->
 
@@ -157,6 +165,37 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   render honours forever. Each needs `--yes`, or exits 3 with the plan.
   Restore refuses to replace a real directory; move it aside first.
 
+<!-- topic: update | how a project takes a new practice version, in the order that matters -->
+
+```bash
+keel update --local          # look first: a working-tree diff on this branch
+keel update                  # commit on keel/update-v<version>; exit 3, plan printed
+keel update --yes            # push that branch and gh pr create
+```
+
+The order is the rule (design §3):
+
+1. The CLI updates itself first (`git pull --ff-only` in its checkout, then
+   re-runs once with `KEEL_SELF_UPDATED=1`). A dirty or diverged checkout is
+   said and skipped. `--no-self-update` skips it.
+2. A project on a newer practice than this keel: exit 2, "update keel first".
+   On the same one: "already on practice", nothing changes, exit 0.
+3. A clean working tree, and nothing of keel's the project changed (doctor's
+   `edited`/`both`): otherwise refused. `behind` is what update re-renders.
+4. Migrations (`migrations/NNNN-*.mjs`, `from < to ≤ this version`) return
+   edits in memory; if one throws, nothing is written and it is named.
+5. Edits written, managed files and blocks re-rendered, lock and `practice`
+   bumped, roadmap regenerated.
+6. The project's `check` runs. If it fails, every byte update touched is put
+   back, exit 1.
+7. Commit on the branch (the current branch is left as it was), or `--local`.
+   ⚑ Push and PR need `--yes`; the PR body is WHATSNEW's entries between the
+   versions. Re-running with `--yes` resumes from the branch.
+
+`keel release` cuts a version of keel itself: package.json's version, a
+WHATSNEW entry written for the person receiving it, a commit and a local tag.
+It never pushes.
+
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
 Keel is a git checkout plus a link; there is no registry and no build step.
@@ -170,11 +209,10 @@ keel --version
 `npm i -g <dir>` links the checkout, so the installed CLI is exactly that
 checkout's commit; `keel --version` prints the short sha. The CLI uses its
 own copy of the practice (its `practices/`), never the project's scripts.
-Updating will be `git pull --ff-only` in the checkout.
+`keel update` pulls the checkout (`--ff-only`) before it touches a project.
 
 <!-- topic: coming | verbs that are planned and not yet built -->
 
-Not built yet, so not verbs: `update` (CLI then practice migration, as one PR),
-`improve`, `lessons` (send lessons home),
+Not built yet, so not verbs: `improve`, `lessons` (send lessons home),
 `learn`, `fleet`. Do not call them; `keel help` lists what exists. The
 roadmap in keel's `docs/ROADMAP.md` says where each one stands.

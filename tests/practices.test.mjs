@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, cp, lstat, readdir, appendFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
+import { run as spawnRun, testsRan } from './helpers/run.mjs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,7 @@ import { load, claims, fill, plan, config } from '../lib/practices.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RENDER = 'scripts/render.mjs';
-const node = (cwd, ...args) => spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
+const node = (cwd, ...args) => spawnRun(process.execPath, args, { cwd });
 const temp = prefix => mkdtemp(join(tmpdir(), `keel-practices-${prefix}-`));
 const ACME = {
   name: 'Acme', tagline: 'Acme builds anvils, one checked phase at a time.', repo: 'acme/anvils',
@@ -136,10 +136,12 @@ test('a render into an empty directory, plus one phase, passes its own npm run c
     assert.match(lessons, /\| --- \| --- \| --- \| --- \|\n$/, 'an empty table, not keel\'s central rows');
     const template = await readFile(join(dir, 'docs/templates/phase.md'), 'utf8');
     await writeFile(join(dir, 'docs/phases/00-acme-starts.md'), template.replace('YYYY-MM-DD', '2026-10-02'));
-    const npm = (...a) => spawnSync('npm', a, { cwd: dir, encoding: 'utf8' });
+    const npm = (...a) => spawnRun('npm', a, { cwd: dir });
     assert.equal(npm('run', 'roadmap').status, 0);
     const check = npm('run', 'check');
     assert.equal(check.status, 0, check.stdout + check.stderr);
+    assert.ok(testsRan(check.stdout + check.stderr) > 0, `the gate ran no tests:\n${check.stdout}${check.stderr}`);
+    assert.match(check.stdout + check.stderr, /a well-formed phase parses/);
     const roadmap = await readFile(join(dir, 'docs/ROADMAP.md'), 'utf8');
     assert.match(roadmap, /^# Acme roadmap$/m);
     assert.match(roadmap, /\[Working rules\]\(\.\.\/AGENTS\.md\) · \[Lessons\]\(lessons\.md\)\n/, 'no link to a design doc Acme lacks');

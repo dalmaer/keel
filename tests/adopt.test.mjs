@@ -5,7 +5,7 @@
 // with a TypeScript roadmap and its own workflows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { run, testsRan } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
 import { cp, mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -25,7 +25,7 @@ const ENV = {
   GIT_CONFIG_NOSYSTEM: '1',
 };
 const keel = (args, cwd = KEEL) => {
-  const r = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8', env: ENV });
+  const r = run(process.execPath, [BIN, ...args], { cwd, env: ENV });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
@@ -139,8 +139,10 @@ test('adopting acme-groove keeps AGENTS.md\'s bytes, passes its own gate, and a 
   const report = await readFile(join(dir, REPORT), 'utf8');
   for (const p of Object.keys(config.local)) assert.match(report, new RegExp(`### ${p}\\n\\n${config.local[p].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
 
-  const gate = spawnSync('npm', ['run', 'check:all'], { cwd: dir, encoding: 'utf8', env: ENV });
+  const gate = run('npm', ['run', 'check:all'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
+  assert.ok(testsRan(gate.stdout + gate.stderr) > 0, `the gate ran no tests:\n${gate.stdout}${gate.stderr}`);
+  assert.match(gate.stdout + gate.stderr, /every phase names a known milestone/);
   assert.equal(keel(['render', '--check'], dir).code, 0, 'the adopted project renders clean');
 
   const settled = await tree(dir);
@@ -160,8 +162,10 @@ test('adopting acme-fold writes no phase, evidence or workflow file and keeps it
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
   assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md']);
-  const gate = spawnSync('npm', ['run', 'check'], { cwd: dir, encoding: 'utf8', env: ENV });
+  const gate = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
+  assert.ok(testsRan(gate.stdout + gate.stderr) > 0, `the gate ran no tests:\n${gate.stdout}${gate.stderr}`);
+  assert.match(gate.stdout + gate.stderr, /every phase has a status/);
 });
 
 test('a project that already is keel-shaped switches everything on, and its files stay as they are', async t => {

@@ -2,7 +2,8 @@
 // and keel installs from a checkout with no build step.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { run } from './helpers/run.mjs';
 import { mkdtemp, readFile, rm, cp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -13,8 +14,8 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
 const keel = (args, cwd = KEEL, bin = BIN, env = process.env) => {
   const r = bin === BIN
-    ? spawnSync(process.execPath, [bin, ...args], { cwd, encoding: 'utf8', env })
-    : spawnSync(bin, args, { cwd, encoding: 'utf8', env });
+    ? run(process.execPath, [bin, ...args], { cwd, env })
+    : run(bin, args, { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 const names = () => [...verbs.keys(), ...FLAGS.map(f => f.name)];
@@ -35,7 +36,7 @@ async function copyTree(dir) {
 test('keel next --json equals the roadmap script\'s next', () => {
   const ours = keel(['next', '--json']);
   assert.equal(ours.code, 0, ours.err);
-  const script = spawnSync(process.execPath, ['scripts/roadmap.mjs', '--json'], { cwd: KEEL, encoding: 'utf8' });
+  const script = run(process.execPath, ['scripts/roadmap.mjs', '--json'], { cwd: KEEL });
   assert.equal(script.status, 0, script.stderr);
   assert.deepEqual(JSON.parse(ours.out), JSON.parse(script.stdout).next);
 });
@@ -165,7 +166,8 @@ test('installs from a checkout with no build step, on a machine that has never s
     const prefix = join(tmp, 'prefix'), home = join(tmp, 'home');
     await mkdir(home);
     const env = { ...process.env, HOME: home, npm_config_cache: join(tmp, 'npm-cache'), npm_config_userconfig: join(home, '.npmrc') };
-    execFileSync('npm', ['install', '-g', src, '--prefix', prefix, '--no-audit', '--no-fund', '--offline'], { env, stdio: 'pipe' });
+    const install = run('npm', ['install', '-g', src, '--prefix', prefix, '--no-audit', '--no-fund', '--offline'], { env });
+    assert.equal(install.status, 0, install.stderr);
     const bin = join(prefix, 'bin', 'keel');
     const project = await copyTree(join(tmp, 'project')); // a copy of keel, run from the installed bin
     const v = keel(['--version'], project, bin, env);
