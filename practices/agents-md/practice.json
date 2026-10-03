@@ -5,6 +5,8 @@
   "files": [
     { "path": "AGENTS.md", "from": "AGENTS.md", "kind": "seeded" },
     { "path": "CLAUDE.md", "from": "CLAUDE.md", "kind": "managed" },
+    { "path": ".agents/skills/keel/SKILL.md", "from": ".agents/skills/keel/SKILL.md", "kind": "managed" },
+    { "path": ".claude/skills/keel", "link": "../../.agents/skills/keel", "kind": "managed" },
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "agents-md" }
   ]
 }

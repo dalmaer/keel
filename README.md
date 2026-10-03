@@ -24,6 +24,10 @@ repo, with its own copies of the scripts they need.
 > `keel --agent-help <topic>` opens the details, and `all` prints everything.
 > It ships with the CLI, so it always matches the keel you have. The rest of
 > this page is the same story, told for people.
+>
+> Every keel project carries a short `keel` skill at
+> `.agents/skills/keel/SKILL.md` (linked from `.claude/skills/keel`). An agent
+> working there finds keel and runs `keel --agent-help` without being told.
 
 ## Install
 

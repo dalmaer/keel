@@ -5,9 +5,17 @@
       "practice": "conduct",
       "sha256": "f97b22a1f95b240dfc7d1547408a6b0f72211f89e7806ffc38ddd77f7a2e860d"
     },
+    ".agents/skills/keel/SKILL.md": {
+      "practice": "agents-md",
+      "sha256": "84d91a5e95683b03c265b573b83078770e9ab8d8f341fe43e98c623cfe09890f"
+    },
     ".claude/skills/conduct": {
       "practice": "conduct",
       "sha256": "17ee152e2cdd354af27d61c98cb5943eed933a02fd00e220e75db3af5b12e4df"
+    },
+    ".claude/skills/keel": {
+      "practice": "agents-md",
+      "sha256": "fc2ca840d70a4aed22edaa7c95ff46e2f3098c2f4bd3d3b606d14fa4a2b5305d"
     },
     ".github/workflows/check.yml": {
       "practice": "ci",

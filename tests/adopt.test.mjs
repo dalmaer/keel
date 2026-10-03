@@ -162,7 +162,7 @@ test('adopting acme-fold writes no phase, evidence, check or claude file and kee
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
-  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.github/workflows/keel-night.yml', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md', 'renovate.json', 'scripts/keel/drain.mjs', 'scripts/keel/improve.mjs', 'scripts/keel/lib.mjs'],
+  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.agents/skills/keel/SKILL.md', '.claude/skills/conduct', '.claude/skills/keel', '.github/workflows/keel-night.yml', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md', 'renovate.json', 'scripts/keel/drain.mjs', 'scripts/keel/improve.mjs', 'scripts/keel/lib.mjs'],
     'the night shift and Renovate beside its own workflows; never a second claude.yml or check.yml');
   const gate = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);

@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-03
 goal: G1
 depends: [18]
-note: "The owner said yes (3 Oct): an agent working in any keel project should learn it is one, and run keel --agent-help, without being told."
-evidence: []
+note: "Every keel project carries a 144-word keel skill (with its .claude symlink) that says what keel is, how to install it, and to run keel --agent-help, with no verb list; a test holds it to that."
+evidence: ["evidence/2026-10-03-doorway.md"]
 ---
 
 # An agent in any keel project learns what keel is and where to start, unprompted
@@ -23,10 +23,10 @@ install it, and update reaches existing projects by re-rendering.
 
 ## Acceptance
 
-- [ ] A fresh `keel init` project has `.agents/skills/keel/SKILL.md`, with a valid `name` and `description` front matter, and the `.claude/skills/keel` symlink resolves to it.
-- [ ] A test fails if the skill grows past a word budget, or names any `keel` verb other than `--agent-help` and the install commands.
-- [ ] `keel doctor` treats a second copy of the keel skill like any other (second-copy lint).
-- [ ] keel itself carries it (render `--self`), and the README says agents find it.
+- [x] A fresh `keel init` project has `.agents/skills/keel/SKILL.md`, with a valid `name` and `description` front matter, and the `.claude/skills/keel` symlink resolves to it.
+- [x] A test fails if the skill grows past a word budget, or names any `keel` verb other than `--agent-help` and the install commands.
+- [x] `keel doctor` treats a second copy of the keel skill like any other (second-copy lint).
+- [x] keel itself carries it (render `--self`), and the README says agents find it.
 
 ## Proof
 
@@ -40,4 +40,8 @@ install it, and update reaches existing projects by re-rendering.
 
 ## Next action
 
-Write the skill text first: about 150 words, with the door and no room.
+None.
+
+## Trajectory
+
+*Nothing — the phase went as planned.*
