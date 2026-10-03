@@ -5,6 +5,19 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.5.1 — 2026-10-03
+
+Fixes from adopting cajones.
+
+- **The night's lessons measure reads more tables.** It now reads a table
+  whose guard column is called anything containing "guard" (for example
+  "Guard / status"), with or without row numbers. Before, it reported
+  itself broken and turned the night red.
+- **Machine PRs are bounded per queue.** keel's own queues (`keel/`,
+  `keel-night/`, `keel-loop/`) allow one open PR. Renovate allows four, one
+  per lane of keel's config, and is information only where your Renovate
+  config is your own.
+
 ## v0.5.0 — 2026-10-03
 
 Loop can carry your own contexts, and keel catches a lessons table that
