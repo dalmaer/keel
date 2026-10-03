@@ -378,11 +378,15 @@ first, a model's opinion never: every number comes from a command.
   no `NODE_TEST_*`: fails, or passes having run no tests (lesson 14). `roadmap_stale` — the roadmap check.
 - `phases_without_issue` (only with `repo`), `phases_stuck` (unfinished, `since`
   older than 21 days), `lessons_without_guard` (empty, "to write", or planned
-  with no phase; the `lessons` path), `evidence_placeholders` (a built phase
+  with no phase; the `lessons` path; the guard column is the header naming a
+  guard, e.g. `Guard / status`, and unnumbered rows count by position), `evidence_placeholders` (a built phase
   whose evidence is the blank template), `drift` and `lint` (doctor),
   `inbox_waiting` (keel only).
 - `ci_red_streak` and `machine_prs` read GitHub with `gh` (`KEEL_GH`): n/a
-  without `repo` or gh auth, and the reason says which.
+  without `repo` or gh auth, and the reason says which. `machine_prs` judges
+  each queue by its own bound: `keel/`, `keel-night/`, `keel-loop/` 1,
+  `renovate/` 4 (one per lane of keel's renovate.json; information only when
+  the project's `renovate` practice is local). It never ratchets.
 - `dependency_age` — `npm outdated`, only with a `package-lock.json`.
 - `conduct_cost` — only with `--transcripts <dir>` of Claude Code subagent
   transcripts (`*.jsonl`, `*.output`): whole-check and whole-suite runs by

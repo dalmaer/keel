@@ -75,11 +75,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "889f5bb063f24d1edeea0d253e7e19222df1dfdf88a9ed0205c39baf9b20e26a"
+      "sha256": "7f0daa37c73466e1af782766cac6b53638072c747aa2d2ec00a4226c9ac9a20b"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "2d4396b3b0696f8e419882672ffc8aa62516758bddbcad1084ce3556ed080ecb"
+      "sha256": "03c6c08a320680b6cbb0aab823fe872378124de1ade71d9c27776a172e930811"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",

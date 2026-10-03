@@ -12,6 +12,9 @@
 //   claudeMdLint(text)       a CLAUDE.md that is more than a pointer
 //   lessonsTableSplit(text, path)  a blank line inside the lessons table:
 //                            the numbered rows after it render as text
+//   parseLessons(text)       the lesson rows of a lessons table, and which
+//                            column is the guard (keel lessons, fleet, learn
+//                            and improve all read the table with this one)
 //   secondCopies(root, …)    a second copy of a managed skill (lesson 1)
 //   gateEnv(env, config)     the environment the project's gate runs in:
 //                            NODE_TEST_* stripped (lesson 14), .keel/keel.json
@@ -159,6 +162,47 @@ export function lessonsTableSplit(text, path = 'docs/lessons.md') {
     } else if (l.trim()) last = -1;
   }
   return lint;
+}
+
+/** Cells of a markdown table row, split on unescaped pipes, trimmed. */
+export function cells(line) {
+  const body = line.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '');
+  return body.split(/(?<!\\)\|/).map(c => c.trim());
+}
+const isSeparator = line => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line.trim());
+
+/**
+ * The lesson rows of a lessons table: the first table whose header is
+ * numbered (`| # | shape | cost | guard |`), has three columns
+ * (`| shape | cost | guard |`, numbered by position), or names a guard
+ * column. The guard column is the header cell containing "guard", in any
+ * case and position (ledger's `Guard`, cajones' `Guard / status`); `guard`
+ * is its index, -1 when the table has none, and each row's guard is then
+ * the last column. Returns { numbered, guard, rows: [{ n, line, shape, cost,
+ * guard }] }; `line` is 1-based, for permalinks.
+ */
+export function parseLessons(text) {
+  const lines = (text ?? '').split('\n');
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (!lines[i].trim().startsWith('|') || !isSeparator(lines[i + 1])) continue;
+    const head = cells(lines[i]);
+    const numbered = head.length >= 4 && /^(#|n|no\.?)$/i.test(head[0]);
+    const guard = head.findIndex(c => /guard/i.test(c));
+    if (!numbered && head.length !== 3 && guard < 0) continue;
+    const from = numbered ? 1 : 0; // the shape's column
+    const at = guard >= 0 ? guard : from + 2;
+    const rows = [];
+    for (let j = i + 2; j < lines.length && lines[j].trim().startsWith('|'); j++) {
+      const c = cells(lines[j]);
+      if (numbered && !/^\d+$/.test(c[0])) continue;
+      if (c.length < Math.max(at, from + 2) + 1 || (!numbered && !c[from])) continue;
+      // An unescaped pipe in the last column splits it; the guard keeps the rest.
+      const g = at === head.length - 1 ? c.slice(at).join(' | ') : c[at];
+      rows.push({ n: numbered ? Number(c[0]) : rows.length + 1, line: j + 1, shape: c[from], cost: c[from + 1], guard: g });
+    }
+    return { numbered, guard, rows };
+  }
+  return { numbered: false, guard: -1, rows: [] };
 }
 
 /** Phases the roadmap's parser rejects, duplicate numbers, and goals with no phase. */

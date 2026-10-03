@@ -33,12 +33,21 @@ import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, gateEnv, isMain, rootOf, main } from './lib.mjs';
+import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, parseLessons, gateEnv, isMain, rootOf, main } from './lib.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 export const HEALTH = 'docs/health';
 export const STUCK_DAYS = 21;
-export const MACHINE_PREFIXES = ['keel/', 'keel-night/', 'renovate/'];
+/**
+ * Each machine queue's bound: the open PRs it may hold. keel's own queues
+ * hold one, the newest (lesson 9; the drain keeps them there). Renovate keeps
+ * one PR per lane, and keel's renovate.json (practice renovate) has four
+ * lanes, so renovate/ holds up to four. A project whose Renovate config is its
+ * own (`renovate` local in .keel/keel.json) may group differently: its
+ * renovate/ count is reported as information, not judged.
+ */
+export const MACHINE_BOUNDS = Object.freeze({ 'keel/': 1, 'keel-night/': 1, 'keel-loop/': 1, 'renovate/': 4 });
+export const MACHINE_PREFIXES = Object.keys(MACHINE_BOUNDS);
 export const CHECK = 'npm run check';
 export const LESSONS = 'docs/lessons.md';
 /** The project's lessons table: .keel/keel.json `lessons`, else docs/lessons.md. */
@@ -266,22 +275,6 @@ export async function conductCost(dir, check, root) {
 
 // ---- the measures ----------------------------------------------------------
 
-function lessonRows(text) {
-  const lines = text.split('\n');
-  const cells = l => l.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map(c => c.trim());
-  const at = lines.findIndex(l => /^\s*\|/.test(l) && cells(l).some(c => /^guard$/i.test(c)));
-  if (at < 0) return null;
-  const guard = cells(lines[at]).findIndex(c => /^guard$/i.test(c));
-  const rows = [];
-  for (const l of lines.slice(at + 1)) {
-    if (!/^\s*\|/.test(l)) break;
-    const c = cells(l);
-    if (c.every(x => /^:?-+:?$/.test(x))) continue;
-    rows.push({ id: c[0], guard: c[guard] ?? '' });
-  }
-  return rows;
-}
-
 const unguarded = g => !g.trim() || /^\*?to write\*?\.?$/i.test(g.trim()) || (/planned/i.test(g) && !/phase \d+/i.test(g));
 
 /**
@@ -364,9 +357,12 @@ export const MEASURES = [
       const path = lessonsPathOf(ctx.config);
       const text = await readFile(join(ctx.root, path), 'utf8').catch(e => e.code === 'ENOENT' ? null : Promise.reject(e));
       if (text === null) return { na: `no ${path}` };
-      const rows = lessonRows(text);
-      if (!rows) throw new Error(`${path} has no table with a Guard column`);
-      const ids = rows.filter(r => unguarded(r.guard)).map(r => r.id);
+      // The guard column is the header cell naming a guard, anywhere (ledger's
+      // `Guard`, cajones' `Guard / status`); unnumbered rows count by position.
+      const table = parseLessons(text);
+      if (table.guard < 0) throw new Error(`${path} has no table with a Guard column`);
+      const { rows } = table;
+      const ids = rows.filter(r => unguarded(r.guard)).map(r => r.n);
       return { value: ids.length, detail: ids.length ? `#${ids.join(', #')} of ${rows.length}` : `all ${rows.length} name a guard`, facts: { ids, path } };
     },
   },
@@ -415,17 +411,22 @@ export const MEASURES = [
     },
   },
   {
-    id: 'machine_prs', what: 'open machine PRs in the largest queue (keel/, keel-night/, renovate/)', unit: 'PRs', bound: 1, better: 'lower',
-    // The bound is the rule (a queue holds at most one PR, the newest), not a level to improve:
-    // the night shift's own open PR would sit outside a ratcheted 0 every morning.
+    id: 'machine_prs', what: 'open machine PRs in the fullest queue, against that queue\'s own bound (keel/, keel-night/, keel-loop/ 1; renovate/ 4)', unit: 'PRs', bound: 1, better: 'lower',
+    // The bound is the rule, per queue (MACHINE_BOUNDS), not a level to improve: the night
+    // shift's own open PR would sit outside a ratcheted 0 every morning. The run names the
+    // queue it judged and that queue's bound; .keel/bounds.json does not move it.
     ratchet: false,
     async run(ctx) {
       const ready = await ghReady(ctx);
       if (ready.na) return { na: ready.na };
       const prs = ghJson(ctx, ready.gh, ['pr', 'list', '--repo', ctx.config.repo, '--state', 'open', '--json', 'headRefName', '--limit', '100']);
       const queues = Object.fromEntries(MACHINE_PREFIXES.map(p => [p, prs.filter(x => String(x?.headRefName ?? '').startsWith(p)).length]));
-      const [worst, value] = Object.entries(queues).reduce((a, b) => b[1] > a[1] ? b : a);
-      return { value, detail: Object.entries(queues).map(([p, n]) => `${p} ${n}`).join(', '), facts: { queues, worst } };
+      const info = Object.hasOwn(ctx.config.local ?? {}, 'renovate') ? ['renovate/'] : [];
+      // The fullest queue relative to its own bound; ties by order.
+      const judged = MACHINE_PREFIXES.filter(p => !info.includes(p));
+      const worst = judged.reduce((a, b) => queues[b] / MACHINE_BOUNDS[b] > queues[a] / MACHINE_BOUNDS[a] ? b : a);
+      const detail = MACHINE_PREFIXES.map(p => `${p} ${queues[p]}${info.includes(p) ? ' (information: the project\'s own Renovate config)' : ''}`).join(', ');
+      return { value: queues[worst], bound: MACHINE_BOUNDS[worst], detail, facts: { queues, worst, bounds: MACHINE_BOUNDS, ...(info.length ? { information: info } : {}) } };
     },
   },
   {
@@ -480,7 +481,9 @@ export async function measure({ root, config, env = process.env, transcripts, da
       const r = await m.run(ctx);
       if (r?.na) { results.push({ ...base, state: 'n/a', value: null, detail: r.na }); continue; }
       if (!Number.isFinite(r?.value)) throw new Error(`the instrument returned no number (${JSON.stringify(r?.value)})`);
-      results.push({ ...base, state: within(m, r.value, bound) ? 'ok' : 'outside', value: r.value, detail: r.detail ?? '', facts: r.facts ?? {} });
+      // A rule measure (ratchet: false) may name the bound its value is judged by (machine_prs: per queue).
+      const b = m.ratchet === false && Number.isFinite(r.bound) ? r.bound : bound;
+      results.push({ ...base, bound: b, state: within(m, r.value, b) ? 'ok' : 'outside', value: r.value, detail: r.detail ?? '', facts: r.facts ?? {} });
     } catch (e) {
       results.push({ ...base, state: 'broken', value: null, detail: String(e?.message ?? e).split('\n')[0] });
     }
@@ -510,7 +513,12 @@ export function proposalText(r, config = {}) {
       ? `Read and propose ${f.oldest} (\`keel learn propose ${f.oldest} …\`); it has waited ${f.age} days. A person then decides.`
       : `Decide ${f.oldest} (\`keel learn decide ${f.oldest} accepted|declined\`); it has waited ${f.age} days for a person.`;
     case 'ci_red_streak': return `Fix main: ${f.workflow} has failed ${f.streak} runs in a row. Start from the newest failure (\`gh run list --workflow ${f.workflow}\`).`;
-    case 'machine_prs': return `Drain the ${f.worst} queue to its newest PR: close the ${f.queues[f.worst] - 1} older one${f.queues[f.worst] === 2 ? '' : 's'} (lesson 9).`;
+    case 'machine_prs': {
+      const n = f.queues[f.worst], b = f.bounds?.[f.worst] ?? 1, over = n - b;
+      return b === 1
+        ? `Drain the ${f.worst} queue to its newest PR: close the ${over} older one${over === 1 ? '' : 's'} (lesson 9).`
+        : `The ${f.worst} queue holds ${n} PRs against ${b} (one per lane): merge or close the ${over} oldest (lesson 9).`;
+    }
     case 'dependency_age': return `Update ${list(f.names, 4)}, or let Renovate's lanes take them.`;
     case 'conduct_cost': return `Brief builders to test the files they touched: they ran the whole check or suite ${f.wholeRuns} times (${f.wholeMinutes} min); the conductor runs it once (lesson 5).`;
     default: return `Move ${r.id} back within its bound (${r.value} against ${r.bound}).`;

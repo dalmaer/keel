@@ -199,23 +199,23 @@ test('the ratchet tightens to a better value and never loosens', async t => {
 test('--report writes that day\'s page and the bounds, nothing else; the one proposal is deterministic', async t => {
   const dir = await project(t);
   await setConfig(dir, { repo: 'acme/storefront' });
-  const env = { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"failure"},{"conclusion":"success"}]', prs: '[{"headRefName":"renovate/a"},{"headRefName":"renovate/b"},{"headRefName":"renovate/c"}]' }) };
+  const env = { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"failure"},{"conclusion":"success"}]', prs: '[{"headRefName":"keel-night/a"},{"headRefName":"keel-night/b"},{"headRefName":"keel-night/c"},{"headRefName":"renovate/a"},{"headRefName":"renovate/b"}]' }) };
   await mkdir(join(dir, 'docs', 'health'));
   await writeFile(join(dir, 'docs', 'health', '2020-01-01.md'), 'an older page\n');
   const before = await snapshot(dir);
   const r1 = keel(['improve', '--report', '--json'], dir, env);
   assert.equal(r1.code, 1, r1.out);
   const d1 = r1.json();
-  // machine_prs is 3 against 1 (margin 2); ci 1 against 0 and phase 0 without an issue (margin 1).
-  assert.deepEqual(d1.proposal, { id: 'machine_prs', state: 'outside', text: 'Drain the renovate/ queue to its newest PR: close the 2 older ones (lesson 9).' });
+  // machine_prs is keel-night/ 3 against 1 (margin 2); ci 1 against 0 and phase 0 without an issue (margin 1).
+  assert.deepEqual(d1.proposal, { id: 'machine_prs', state: 'outside', text: 'Drain the keel-night/ queue to its newest PR: close the 2 older ones (lesson 9).' });
   const after = await snapshot(dir);
   const changed = Object.keys(after).filter(k => after[k] !== before[k]).sort();
   assert.deepEqual(changed, ['.keel/bounds.json', d1.report].sort());
   assert.equal(after['docs/health/2020-01-01.md'], 'an older page\n');
   const pageText = after[d1.report];
   assert.match(pageText, /^# Health — \d{4}-\d{2}-\d{2}/);
-  assert.match(pageText, /\| `machine_prs` — .* \| 3 \| ≤ 1 \| outside \| keel\/ 0, keel-night\/ 0, renovate\/ 3 \|/);
-  assert.match(pageText, /## Proposal\n\n\*\*`machine_prs`\*\* \(outside\) — Drain the renovate\/ queue/);
+  assert.match(pageText, /\| `machine_prs` — .* \| 3 \| ≤ 1 \| outside \| keel\/ 0, keel-night\/ 3, keel-loop\/ 0, renovate\/ 2 \|/);
+  assert.match(pageText, /## Proposal\n\n\*\*`machine_prs`\*\* \(outside\) — Drain the keel-night\/ queue/);
   assert.equal(pageText.match(/^## Proposal$/gm).length, 1);
   const r2 = keel(['improve', '--report', '--json'], dir, env);
   assert.deepEqual(r2.json().proposal, d1.proposal);
@@ -351,4 +351,96 @@ test('the gate runs with .keel/keel.json `env`: outside without it, ok with it, 
   assert.equal(byId(keel(['improve', '--json'], dir).json(), 'gate').state, 'outside');
   await setConfig(dir, { env: { ACME_FLAG: '1' } });
   assert.equal(byId(keel(['improve', '--json'], dir).json(), 'gate').state, 'ok');
+});
+
+// ---- lessons_without_guard: the guard column by its header -----------------
+
+const guardMeasure = MEASURES.filter(m => m.id === 'lessons_without_guard');
+async function guardOn(t, table) {
+  const dir = await scratch(t);
+  await mkdir(join(dir, 'docs'));
+  await writeFile(join(dir, 'docs', 'lessons.md'), `# Lessons\n\nWhat Acme learned.\n\n${table}`);
+  const [r] = await measure({ root: dir, config: { name: 'Acme' }, env: {}, date: '2026-10-03', measures: guardMeasure });
+  return r;
+}
+
+test('lessons_without_guard: ledger-shaped (numbered, Guard) counts the unguarded by number', async t => {
+  const r = await guardOn(t, [
+    '| # | The shape of it | What it cost | Guard |', '| --- | --- | --- | --- |',
+    '| 1 | **Anvils fall.** | A coyote. | A net, tested. |',
+    '| 2 | **Rockets leave.** | A canyon. | *to write* |',
+    '| 3 | **Skates slip.** | A cliff. | *Planned:* phase 4. |', ''].join('\n'));
+  assert.equal(r.state, 'outside', JSON.stringify(r));
+  assert.equal(r.value, 1);
+  assert.deepEqual(r.facts.ids, [2]);
+});
+
+test('lessons_without_guard: a three-column table with "Guard / status" and unnumbered rows is read, not broken', async t => {
+  const r = await guardOn(t, [
+    '| Shape | Evidence in Acme | Guard / status |', '|---|---|---|',
+    '| **Anvils fall.** | A coyote. | `tests/anvil.test.mjs` |',
+    '| **Rockets leave.** | A canyon. | planned |',
+    '| **Skates slip.** | A cliff. | to write |',
+    '| **Magnets pull.** | A train. | Planned in phase 7. |', ''].join('\n'));
+  assert.equal(r.state, 'outside', JSON.stringify(r));
+  assert.equal(r.value, 2);
+  assert.deepEqual(r.facts.ids, [2, 3], 'numbered by position; "planned" without a phase and "to write" are unguarded');
+  const ok = await guardOn(t, '| Shape | Evidence | Guard / status |\n|---|---|---|\n| **Anvils fall.** | A coyote. | a test |\n');
+  assert.equal(ok.state, 'ok', JSON.stringify(ok));
+  assert.match(ok.detail, /all 1 name a guard/);
+});
+
+test('lessons_without_guard: a table with no guard-like column is broken, never a zero', async t => {
+  const r = await guardOn(t, '| Shape | Evidence | Fix |\n|---|---|---|\n| **Anvils fall.** | A coyote. | a net |\n');
+  assert.equal(r.state, 'broken');
+  assert.match(r.detail, /docs\/lessons\.md has no table with a Guard column/);
+});
+
+// ---- machine_prs: each queue against its own bound -------------------------
+
+const prsMeasure = MEASURES.filter(m => m.id === 'machine_prs');
+async function prsOn(t, heads, patch = {}) {
+  const dir = await scratch(t);
+  const KEEL_GH = await ghStub(t, { prs: JSON.stringify(heads.map(headRefName => ({ headRefName }))) });
+  const [r] = await measure({ root: dir, config: { name: 'Acme', repo: 'acme/storefront', ...patch }, env: { ...ENV, KEEL_GH }, date: '2026-10-03', measures: prsMeasure });
+  return r;
+}
+
+test('machine_prs: keel/, keel-night/ and keel-loop/ each hold one; a second is outside', async t => {
+  for (const p of ['keel/update-v', 'keel-night/', 'keel-loop/']) {
+    const one = await prsOn(t, [`${p}a`, 'wile/rocket']);
+    assert.equal(one.state, 'ok', `${p}: ${JSON.stringify(one)}`);
+    const two = await prsOn(t, [`${p}a`, `${p}b`]);
+    assert.equal(two.state, 'outside', `${p}: ${JSON.stringify(two)}`);
+    assert.equal(two.value, 2);
+    assert.equal(two.bound, 1);
+  }
+});
+
+test('machine_prs: renovate/ holds four, one per lane of keel\'s renovate.json; a fifth is outside', async t => {
+  const lanes = n => Array.from({ length: n }, (_, i) => `renovate/lane-${i}`);
+  const two = await prsOn(t, lanes(2));
+  assert.equal(two.state, 'ok', JSON.stringify(two));
+  assert.match(two.detail, /^keel\/ 0, keel-night\/ 0, keel-loop\/ 0, renovate\/ 2$/);
+  const four = await prsOn(t, lanes(4));
+  assert.equal(four.state, 'ok', JSON.stringify(four));
+  assert.equal(four.value, 4);
+  assert.equal(four.bound, 4);
+  const five = await prsOn(t, lanes(5));
+  assert.equal(five.state, 'outside', JSON.stringify(five));
+  assert.equal(propose([five]).text, 'The renovate/ queue holds 5 PRs against 4 (one per lane): merge or close the 1 oldest (lesson 9).');
+  // A renovate queue that is fine does not hide a keel queue that is not.
+  const both = await prsOn(t, [...lanes(3), 'keel-night/a', 'keel-night/b']);
+  assert.equal(both.state, 'outside');
+  assert.equal(both.facts.worst, 'keel-night/');
+});
+
+test('machine_prs: a project with its own Renovate config reports renovate/ as information, not judged', async t => {
+  const r = await prsOn(t, ['renovate/a', 'renovate/b', 'renovate/c', 'renovate/d', 'renovate/e', 'renovate/f', 'keel-night/a'], { local: { renovate: 'its own lanes' } });
+  assert.equal(r.state, 'ok', JSON.stringify(r));
+  assert.equal(r.facts.queues['renovate/'], 6);
+  assert.deepEqual(r.facts.information, ['renovate/']);
+  assert.match(r.detail, /renovate\/ 6 \(information/);
+  const still = await prsOn(t, ['renovate/a', 'keel-night/a', 'keel-night/b'], { local: { renovate: 'its own lanes' } });
+  assert.equal(still.state, 'outside', 'keel\'s own queues are still judged');
 });
