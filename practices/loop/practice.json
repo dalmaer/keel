@@ -1,0 +1,19 @@
+{
+  "name": "loop",
+  "summary": "Stitch Loop's insights triaged in the repo: one finding file each, our rank and decision in its front matter, docs/LOOP.md generated and checked; an agent proposes, a person decides.",
+  "optional": true,
+  "requires": ["base", "agents-md"],
+  "secrets": [
+    { "name": "LOOP_API_KEY", "why": "the Loop key the stitch CLI reads (also passed as STITCH_API_KEY); until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" },
+    { "name": "STITCH_INSTALLER_URL", "why": "the stitch CLI installer's address; a secret because it carries a read token for a bucket that is not public; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" },
+    { "name": "KEEL_TOKEN", "why": "read access to the private keel repo, to fetch the CLI that drains the keel-loop/ queue; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" }
+  ],
+  "files": [
+    { "path": "scripts/loop.mjs", "from": "scripts/loop.mjs", "kind": "managed" },
+    { "path": "tests/loop.test.mjs", "from": "tests/loop.test.mjs", "kind": "managed" },
+    { "path": ".github/workflows/keel-loop.yml", "from": ".github/workflows/keel-loop.yml", "kind": "managed" },
+    { "path": ".stitch.json", "from": ".stitch.json", "kind": "seeded" },
+    { "path": "docs/loop/README.md", "from": "docs/loop/README.md", "kind": "seeded" },
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "loop" }
+  ]
+}

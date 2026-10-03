@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G4
 depends: [1, 10]
-note: "Loop triage runs by hand-port in ledger (scripts/loop.ts, 132 findings) and isocan (scripts/loop.mjs, loop.yml); keel has no loop practice yet."
-evidence: []
+note: "The optional loop practice ports ledger's format and verbs (isocan credited); it renders ledger's 132 real findings identically except the generator's name. A real cycle waits on stitch, its secrets and an adopted project."
+evidence: ["evidence/2026-10-02-loop.md"]
 ---
 
 # A project's Stitch Loop findings are triaged the same way everywhere, through keel
@@ -37,12 +37,12 @@ The rules carry over unchanged:
 
 ## Acceptance
 
-- [ ] `keel adopt` on a project with its own loop script reports `loop` as local, with the convergence proposal, and leaves its findings untouched.
-- [ ] Findings parse identically under keel's script and the project's own, before it is retired (same `docs/LOOP.md` bytes).
-- [ ] `pull` against a stubbed `stitch` CLI files new insights as untriaged, and never overwrites our fields on a re-filing.
-- [ ] `propose` records a proposal; only `decide` (a person) changes a decision, and `push` is the only verb that sends anything to Loop.
-- [ ] `render --check` fails CI on a stale `docs/LOOP.md` or a proposal without a read of the code.
-- [ ] ⚑ The nightly workflow's secrets (`LOOP_API_KEY`, `STITCH_INSTALLER_URL`) are listed with what they cost; none set without the owner's yes.
+- [x] `keel adopt` on a project with its own loop script reports `loop` as local, with the convergence proposal, and leaves its findings untouched.
+- [x] Findings parse identically under keel's script and the project's own, before it is retired (same `docs/LOOP.md` bytes, except the generator's own name on line 1).
+- [x] `pull` against a stubbed `stitch` CLI files new insights as untriaged, and never overwrites our fields on a re-filing.
+- [x] `propose` records a proposal; only `decide` (a person) changes a decision, and `push` is the only verb that sends anything to Loop.
+- [x] `render --check` fails CI on a stale `docs/LOOP.md` or a proposal without a read of the code.
+- [x] ⚑ The nightly workflow's secrets (`LOOP_API_KEY`, `STITCH_INSTALLER_URL`) are listed with what they cost; none set without the owner's yes.
 - [ ] One real cycle on the adopted project: pull, propose, render, merged.
 
 ## Proof
@@ -66,14 +66,19 @@ real workspace.
 
 - **Which project goes first.** ledger has the most findings and the oldest
   script, but isn't adopted yet; it needs its own phase-4 run.
-- **Whose shape wins where ledger and isocan differ.** For example, a finding
-  names a phase in ledger and a project in isocan. Settle it when porting, in
-  the practice README.
+- **Whose shape wins where ledger and isocan differ.** **Settled 2026-10-02**
+  (recorded in `practices/loop/README.md`): ledger's. That means YAML
+  findings, `phase`, and its rendered page. From isocan, keel took only
+  additions that leave ledger's bytes unchanged. It didn't take isocan's
+  unverified-read regex, which flags 7 of ledger's findings.
 - **Whether keel learns from isocan's loop.mjs as a pinned source** (phase 8),
   as it does for conduct.
 
 ## Next action
 
-Diff ledger's `scripts/loop.ts` against isocan's `scripts/loop.mjs`. Write the
-finding format and verb set they share into a draft `practices/loop/README.md`,
-then build the stubbed-API test before porting the script.
+⚑ Owner: adopt ledger (phase 4's walk), set `LOOP_API_KEY` and `STITCH_INSTALLER_URL` there, then run one real pull, propose and render cycle and merge it.
+
+## Trajectory
+
+- **2026-10-02** — Loop is reached through the `stitch` CLI, not HTTP, so the stub sits at the process boundary. The Proof was fixed before the brief.
+- **2026-10-02** — The loop gate rides on the managed `tests/loop.test.mjs`, which renders with `--check`, so a project's existing `node --test` gate covers it without editing its `check` script. Doctor lints only when the gate can't reach it.

@@ -35,12 +35,13 @@ test('no target is claimed by two practices', async () => {
 
 test('every managed target exists on keel, and keel switches on every practice', async () => {
   const practices = await load();
-  for (const p of practices.values()) for (const f of p.files.filter(f => f.kind === 'managed')) {
+  for (const p of [...practices.values()].filter(p => !p.optional)) for (const f of p.files.filter(f => f.kind === 'managed')) {
     const info = await lstat(join(KEEL, f.path)).catch(() => null);
     assert.ok(info, `${f.path} (${p.name}) is missing on keel`);
     if (f.link) assert.ok(info.isSymbolicLink(), `${f.path} should be a symlink`);
   }
-  assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].sort());
+  // Optional practices (loop) are each project's own choice; keel has no Loop workspace.
+  assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].filter(n => !practices.get(n).optional).sort());
 });
 
 test('conduct pins its upstream source', async () => {

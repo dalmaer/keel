@@ -17,6 +17,7 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const PREFIX = {
   'keel-night.yml': 'keel-night/',
   'keel-update.yml': 'keel/update-v',
+  'keel-loop.yml': 'keel-loop/',
   'claude.yml': 'claude/',
   'check.yml': null,
 };
@@ -72,7 +73,7 @@ export function problems(name, text, declared = []) {
   }
   const body = lines.map(l => l.line).join('\n');
   if (/^\s*git commit\b/m.test(body) && !/git status --porcelain/.test(body)) out.push('commits without testing git status --porcelain');
-  if (/--gate-passed/.test(text) && !/GATE: \$\{\{ steps\.improve\.outputs\.gate \}\}/.test(text)) out.push('--gate-passed, but GATE is not the gate measure keel improve ran');
+  if (/--gate-passed/.test(text) && !/GATE: \$\{\{ steps\.(improve|gate)\.outputs\.gate \}\}/.test(text)) out.push('--gate-passed, but GATE is not the gate this run ran (keel improve\'s measure, or a gate step)');
   return out;
 }
 
@@ -81,7 +82,7 @@ async function shipped() {
   const out = [];
   for (const p of (await load()).values()) for (const f of p.files) {
     if (!f.path.startsWith('.github/workflows/')) continue;
-    out.push({ practice: p.name, path: f.path, name: f.path.split('/').pop(), template: f.template,
+    out.push({ practice: p.name, optional: p.optional, path: f.path, name: f.path.split('/').pop(), template: f.template,
       declared: p.secrets.filter(s => s.workflow === f.path).map(s => s.name) });
   }
   return out;
@@ -89,10 +90,11 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-night.yml', 'keel-update.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-update.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
+    if (w.optional) continue; // keel does not switch on an optional practice, so has no rendered copy
     const rendered = await readFile(join(KEEL, w.path), 'utf8');
     assert.deepEqual(problems(w.name, rendered, w.declared), [], `keel's ${w.path}`);
   }

@@ -1,0 +1,179 @@
+# Stitch Loop's insights, pulled nightly (keel practice `loop`; managed: keel
+# render rewrites it).
+#
+# READS LOOP AND WRITES FILES; DECIDES NOTHING AND SENDS NOTHING. A pull files
+# new insights as `untriaged` findings in docs/loop/, refreshes what Loop says
+# about the ones already there, and rebuilds docs/LOOP.md. It never runs
+# decide, push, mine or propose: a decision dismisses an insight for everyone
+# in the workspace, and that is a person's act; proposing with a model here is
+# a later, priced decision. The rules (keel docs/design.md §6, from isocan's
+# loop.yml and its "night shift's pull requests"):
+#
+#   - A bot writes a pull request, never to main. The only push names
+#     refs/heads/keel-loop/<date>.
+#   - One open PR per queue, the newest; `keel drain keel-loop/` enforces it.
+#   - A merge is checked, not trusted. A GITHUB_TOKEN PR runs no CI, so this
+#     run's gate (render --check, then the project's own) is the check; the
+#     newest merges only when it passed and the PR holds only docs/loop/ and
+#     docs/LOOP.md.
+#   - A guard fires into a room someone is in: a pull that cannot reach Loop,
+#     or a gate that fails, makes this run red, and GitHub emails.
+#
+# SECRETS, and until each exists the run ends green with a notice (an
+# unconfigured repo is not a broken one):
+#   LOOP_API_KEY          the Loop key stitch reads (passed as STITCH_API_KEY
+#                         too: the Linux build reads that name)
+#   STITCH_INSTALLER_URL  the installer's address; a secret, never a line here,
+#                         because it carries a read token for a bucket that is
+#                         not public
+#   KEEL_TOKEN            read access to the keel repo, for `keel drain`
+# Repo setting: Actions must be allowed to create pull requests.
+name: keel-loop
+
+on:
+  schedule:
+    # 09:43 UTC: after keel-night (07:23), off the hour.
+    - cron: "43 9 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-loop
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LOOP_API_KEY: ${{ secrets.LOOP_API_KEY }}
+      STITCH_API_KEY: ${{ secrets.LOOP_API_KEY }}
+      # Loop lives at jules.googleapis.com; the Linux build defaults to the
+      # Canvas API, and a run sent there dies (isocan, 2 Oct 2026). Both names.
+      STITCH_BASE_URL: https://jules.googleapis.com/v2alpha
+      LOOP_BASE_URL: https://jules.googleapis.com/v2alpha
+      STITCH_INSTALLER_URL: ${{ secrets.STITCH_INSTALLER_URL }}
+      # Pinned, so a new release cannot change what a nightly does.
+      STITCH_VERSION: 0.10.0
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Configured?
+        id: keel
+        env:
+          KEEL_TOKEN: ${{ secrets.KEEL_TOKEN }}
+        run: |
+          if [ -z "$LOOP_API_KEY" ] || [ -z "$STITCH_INSTALLER_URL" ]; then
+            echo "::notice::Skipped: add the LOOP_API_KEY and STITCH_INSTALLER_URL secrets to run the nightly Loop pull."
+            echo "cli=" >> "$GITHUB_OUTPUT"
+          elif node -e "process.exit(JSON.parse(require('fs').readFileSync('.keel/keel.json', 'utf8')).keel === 'self' ? 0 : 1)"; then
+            echo "cli=node $GITHUB_WORKSPACE/bin/keel.mjs" >> "$GITHUB_OUTPUT"
+          elif [ -z "$KEEL_TOKEN" ]; then
+            echo "::notice::Skipped: add the KEEL_TOKEN secret (read access to dalmaer/keel) to run the nightly Loop pull."
+            echo "cli=" >> "$GITHUB_OUTPUT"
+          else
+            GH_TOKEN="$KEEL_TOKEN" gh repo clone dalmaer/keel "$RUNNER_TEMP/keel" -- --quiet
+            echo "cli=node $RUNNER_TEMP/keel/bin/keel.mjs" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install
+        if: steps.keel.outputs.cli != ''
+        run: if [ -f package-lock.json ]; then npm ci; fi
+
+      # To a file first, so a failed download stops the step instead of piping
+      # an error page into bash.
+      - name: Install the stitch CLI
+        if: steps.keel.outputs.cli != ''
+        run: |
+          curl -fsSL "$STITCH_INSTALLER_URL" -o "$RUNNER_TEMP/stitch-install.sh"
+          bash "$RUNNER_TEMP/stitch-install.sh" "$STITCH_VERSION"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/stitch" --version
+
+      # Loop is off in a fresh CLI until it is switched on, per runner (isocan's
+      # nightlies of 29 Sep to 1 Oct all died on this). Newer builds say
+      # `enable loop`, older `yolo --enable loop`. Neither working is red.
+      - name: Turn Loop on in the CLI
+        if: steps.keel.outputs.cli != ''
+        run: stitch enable loop || stitch yolo --enable loop
+
+      # A pull that cannot reach Loop fails here, loudly.
+      - name: Pull Loop's insights
+        if: steps.keel.outputs.cli != ''
+        run: node scripts/loop.mjs pull
+
+      - name: Gate
+        id: gate
+        if: steps.keel.outputs.cli != ''
+        run: |
+          if node scripts/loop.mjs render --check && {{check}}; then
+            echo "gate=ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate=failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Porcelain, never `git diff --quiet`: a finding filed for the first time
+      # is not in the index. The push names its own branch.
+      - name: Open the pull request
+        if: steps.keel.outputs.cli != ''
+        env:
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$(git status --porcelain docs/loop docs/LOOP.md)" ]; then
+            echo "Nothing changed: Loop has said nothing new since the last pull."
+            exit 0
+          fi
+          DAY=$(date -u +%Y-%m-%d)
+          BRANCH="keel-loop/$DAY"
+          git config user.name "keel-loop"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b "$BRANCH"
+          git add docs/loop docs/LOOP.md
+          git commit -q -m "Loop: findings pulled $DAY"
+          git push --force origin "HEAD:refs/heads/keel-loop/$DAY"
+          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            code=0
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "Loop: findings pulled $DAY" \
+              --body "Stitch Loop's insights, pulled. New ones are untriaged findings in docs/loop/; nothing was decided and nothing was sent to Loop. An agent proposes, with the loop script's propose verb; deciding is a person's." 2>&1) || code=$?
+            echo "$out"
+            if [ "$code" != 0 ]; then
+              if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+                echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions."
+              else
+                exit "$code"
+              fi
+            fi
+          fi
+
+      # Older keel-loop PRs: merged when they hold only findings and still
+      # merge, closed as superseded (branch kept) otherwise. The newest merges
+      # only after the gate passed on this tree.
+      - name: Drain the queue
+        if: steps.keel.outputs.cli != ''
+        env:
+          GATE: ${{ steps.gate.outputs.gate }}
+        run: |
+          if [ "$GATE" = ok ]; then
+            ${{ steps.keel.outputs.cli }} drain keel-loop/ --yes --gate-passed
+          else
+            ${{ steps.keel.outputs.cli }} drain keel-loop/ --yes
+          fi
+
+      - name: Verdict
+        if: always() && steps.keel.outputs.cli != ''
+        env:
+          GATE: ${{ steps.gate.outputs.gate }}
+        run: |
+          if [ "$GATE" != ok ]; then
+            echo "::error::The gate did not pass on the pulled findings (gate: ${GATE:-not run}); the PR is left for a person."
+            exit 1
+          fi

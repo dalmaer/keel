@@ -1,0 +1,6 @@
+{
+  "name": "Acme",
+  "tagline": "Widgets, made carefully.",
+  "practice": "0.1.0",
+  "practices": ["base", "agents-md", "loop"]
+}
