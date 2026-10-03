@@ -59,7 +59,8 @@ to `practices` and the markers by hand, then `keel render`.
 
 **The night.** `keel-loop.yml` runs at 09:43 UTC and does the following:
 
-1. Installs stitch from `STITCH_INSTALLER_URL` (pinned to 0.10.0).
+1. Installs the official stitch CLI, `npm install -g @google/stitch@0`
+   (major 0, checked against 0.11.0; a 1.0 never arrives unseen).
 2. Turns Loop on in the CLI and runs `pull`.
 3. Runs the gate: `render --check`, then the project's `{{check}}`.
 4. Opens one `keel-loop/<date>` PR when `docs/loop/` or `docs/LOOP.md` changed.
@@ -71,14 +72,14 @@ For this queue the drain's data is `docs/loop/` and `docs/LOOP.md` only
 proposes. Proposing with a model is a later decision, priced on its own. A
 failing gate or an unreachable Loop is red.
 
-**What it needs (⚑).** Three secrets. Until all three are set, each night ends
-green with a notice:
+**What it needs (⚑).** Two secrets. Until both are set, each night ends green
+with a notice:
 
-- `LOOP_API_KEY`, the Loop key. The workflow also passes it as
-  `STITCH_API_KEY`, the name the Linux build reads.
-- `STITCH_INSTALLER_URL`. It is a secret because it carries a read token for
-  a bucket that is not public.
+- `STITCH_API_KEY`, the Loop key, under the name the official CLI reads.
 - `KEEL_TOKEN`, for the drain.
+
+The workspace is `.stitch.json`'s `"workspace"`, which the official CLI reads
+too; `STITCH_WORKSPACE` overrides it.
 
 Allow Actions to create PRs. Every `decide --yes`, `push --yes` or `mine --yes`
 against a real workspace is the owner's.

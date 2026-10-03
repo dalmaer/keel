@@ -9,7 +9,7 @@ import { readFileSync, appendFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 const state = JSON.parse(readFileSync(process.env.STITCH_STUB_STATE, 'utf8'));
-appendFileSync(process.env.STITCH_STUB_LOG, `${JSON.stringify({ args, includeDismissed: process.env.LOOP_INCLUDE_DISMISSED ?? null })}\n`);
+appendFileSync(process.env.STITCH_STUB_LOG, `${JSON.stringify({ args, includeDismissed: process.env.STITCH_INCLUDE_DISMISSED ?? null })}\n`);
 const say = body => process.stdout.write(JSON.stringify(body));
 const ok = data => say({ success: true, data });
 const fail = (code, message) => { say({ success: false, error: { code, message } }); process.exitCode = 1; };

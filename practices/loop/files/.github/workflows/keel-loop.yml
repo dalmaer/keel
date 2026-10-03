@@ -21,12 +21,10 @@
 #
 # SECRETS, and until each exists the run ends green with a notice (an
 # unconfigured repo is not a broken one):
-#   LOOP_API_KEY          the Loop key stitch reads (passed as STITCH_API_KEY
-#                         too: the Linux build reads that name)
-#   STITCH_INSTALLER_URL  the installer's address; a secret, never a line here,
-#                         because it carries a read token for a bucket that is
-#                         not public
-#   KEEL_TOKEN            read access to the keel repo, for `keel drain`
+#   STITCH_API_KEY  the Loop key the official stitch CLI (@google/stitch on
+#                   npm) reads
+#   KEEL_TOKEN      read access to the keel repo, for `keel drain`
+# The workspace is .stitch.json's "workspace" (STITCH_WORKSPACE overrides it).
 # Repo setting: Actions must be allowed to create pull requests.
 name: keel-loop
 
@@ -50,15 +48,8 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
-      LOOP_API_KEY: ${{ secrets.LOOP_API_KEY }}
-      STITCH_API_KEY: ${{ secrets.LOOP_API_KEY }}
-      # Loop lives at jules.googleapis.com; the Linux build defaults to the
-      # Canvas API, and a run sent there dies (isocan, 2 Oct 2026). Both names.
-      STITCH_BASE_URL: https://jules.googleapis.com/v2alpha
-      LOOP_BASE_URL: https://jules.googleapis.com/v2alpha
-      STITCH_INSTALLER_URL: ${{ secrets.STITCH_INSTALLER_URL }}
-      # Pinned, so a new release cannot change what a nightly does.
-      STITCH_VERSION: 0.10.0
+      STITCH_API_KEY: ${{ secrets.STITCH_API_KEY }}
+      # No base URL override: the CLI's default endpoint; the first real cycle confirms it.
     steps:
       - uses: actions/checkout@v5
         with:
@@ -72,8 +63,8 @@ jobs:
         env:
           KEEL_TOKEN: ${{ secrets.KEEL_TOKEN }}
         run: |
-          if [ -z "$LOOP_API_KEY" ] || [ -z "$STITCH_INSTALLER_URL" ]; then
-            echo "::notice::Skipped: add the LOOP_API_KEY and STITCH_INSTALLER_URL secrets to run the nightly Loop pull."
+          if [ -z "$STITCH_API_KEY" ]; then
+            echo "::notice::Skipped: add the STITCH_API_KEY secret to run the nightly Loop pull."
             echo "cli=" >> "$GITHUB_OUTPUT"
           elif node -e "process.exit(JSON.parse(require('fs').readFileSync('.keel/keel.json', 'utf8')).keel === 'self' ? 0 : 1)"; then
             echo "cli=node $GITHUB_WORKSPACE/bin/keel.mjs" >> "$GITHUB_OUTPUT"
@@ -89,22 +80,21 @@ jobs:
         if: steps.keel.outputs.cli != ''
         run: if [ -f package-lock.json ]; then npm ci; fi
 
-      # To a file first, so a failed download stops the step instead of piping
-      # an error page into bash.
+      # The official CLI, from npm. Pinned to major 0: 0.x is what this script
+      # was checked against (0.11.0), and a 1.0 may rename verbs, so a nightly
+      # never moves to it unseen. Loop is experimental, so even a 0.x minor can
+      # change it; a pull that breaks is red, and GitHub emails.
       - name: Install the stitch CLI
         if: steps.keel.outputs.cli != ''
         run: |
-          curl -fsSL "$STITCH_INSTALLER_URL" -o "$RUNNER_TEMP/stitch-install.sh"
-          bash "$RUNNER_TEMP/stitch-install.sh" "$STITCH_VERSION"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/stitch" --version
+          npm install -g @google/stitch@0
+          stitch --version
 
       # Loop is off in a fresh CLI until it is switched on, per runner (isocan's
-      # nightlies of 29 Sep to 1 Oct all died on this). Newer builds say
-      # `enable loop`, older `yolo --enable loop`. Neither working is red.
+      # nightlies of 29 Sep to 1 Oct all died on this). Failing is red.
       - name: Turn Loop on in the CLI
         if: steps.keel.outputs.cli != ''
-        run: stitch enable loop || stitch yolo --enable loop
+        run: stitch enable loop
 
       # A pull that cannot reach Loop fails here, loudly.
       - name: Pull Loop's insights

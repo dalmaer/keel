@@ -21,7 +21,7 @@
 //
 // Loop is reached through the `stitch` CLI, never HTTP. The binary is
 // process.env.KEEL_STITCH || 'stitch'. The workspace comes from .stitch.json
-// ("workspace"), or LOOP_WORKSPACE. Per-project wording comes from
+// ("workspace"), or STITCH_WORKSPACE (the official CLI's name for it). Per-project wording comes from
 // .keel/keel.json "loop": { run, insights, source, kind } — see
 // practices/loop/README.md in keel.
 //
@@ -543,8 +543,8 @@ export function render(root = ROOT, { check = false } = {}) {
 // ── stitch ───────────────────────────────────────────────────────────────
 
 function workspace(root, env) {
-  const ws = env.LOOP_WORKSPACE || readJson(join(root, '.stitch.json')).workspace;
-  if (!ws) throw new LoopError('No Loop workspace: put its id in .stitch.json ("workspace"), or set LOOP_WORKSPACE.');
+  const ws = env.STITCH_WORKSPACE || readJson(join(root, '.stitch.json')).workspace;
+  if (!ws) throw new LoopError('No Loop workspace: put its id in .stitch.json ("workspace"), or set STITCH_WORKSPACE.');
   return ws;
 }
 
@@ -562,7 +562,12 @@ async function stitch(args, { root, env, format = true }) {
   let code;
   try {
     code = await new Promise((done, fail) => {
-      const child = spawn(bin, [...args, ...(format ? ['--format', 'json'] : []), '-q'], { cwd: root, env: { ...env, LOOP_INCLUDE_DISMISSED: '1' }, stdio: ['ignore', fd, fd] });
+      // STITCH_INCLUDE_DISMISSED lists dismissed insights too, so a pull sees
+      // what Loop dismissed (loop_state DISMISSED). It is the official CLI's
+      // own key (@google/stitch 0.11 ENV_KEYS), but in neither its README nor
+      // its --help, and `find insights` has no flag for it: unverified against
+      // a live workspace. It must be the string 'true'; its config is boolean.
+      const child = spawn(bin, [...args, ...(format ? ['--format', 'json'] : []), '-q'], { cwd: root, env: { ...env, STITCH_INCLUDE_DISMISSED: 'true' }, stdio: ['ignore', fd, fd] });
       child.on('error', e => fail(e.code === 'ENOENT' ? new LoopError(`${bin} is not installed (set KEEL_STITCH, or put stitch on PATH)`) : e));
       child.on('close', done);
     });

@@ -4,8 +4,7 @@
   "optional": true,
   "requires": ["base", "agents-md"],
   "secrets": [
-    { "name": "LOOP_API_KEY", "why": "the Loop key the stitch CLI reads (also passed as STITCH_API_KEY); until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" },
-    { "name": "STITCH_INSTALLER_URL", "why": "the stitch CLI installer's address; a secret because it carries a read token for a bucket that is not public; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" },
+    { "name": "STITCH_API_KEY", "why": "the Loop key the official stitch CLI (@google/stitch, from npm) reads; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" },
     { "name": "KEEL_TOKEN", "why": "read access to the private keel repo, to fetch the CLI that drains the keel-loop/ queue; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" }
   ],
   "files": [

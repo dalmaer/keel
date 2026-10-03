@@ -179,3 +179,35 @@ test('every secret a practice declares is used by the workflow it names', async 
     assert.match(f.template, new RegExp(`secrets\\.${s.name}\\b`), `${p.name}: ${s.name} is declared for ${s.workflow} but unused there`);
   }
 });
+
+/**
+ * Names the official stitch CLI (@google/stitch, from npm) never reads, in one
+ * shipped file's text: [string]. It reads STITCH_API_KEY and STITCH_WORKSPACE;
+ * a LOOP_* variable, or a secret holding an installer's URL, belonged to the
+ * build before it, and a project told to set one is told wrong. LOOP_DOC_HEADER
+ * is a constant in scripts/loop.mjs, not an environment variable.
+ */
+export function staleStitchNames(text) {
+  const out = [];
+  for (const [m] of text.matchAll(/\bLOOP_(?!DOC_HEADER\b)[A-Z][A-Z0-9_]*/g)) out.push(`${m}: the official CLI reads STITCH_* names`);
+  if (/\bSTITCH_INSTALLER_URL\b/.test(text)) out.push('STITCH_INSTALLER_URL: the CLI comes from npm, never a URL');
+  if (/\bSTITCH_BASE_URL\s*[:=]/.test(text)) out.push('STITCH_BASE_URL set: the official CLI uses its own default endpoint (a stored copy of an old fact)');
+  return [...new Set(out)];
+}
+
+test('no shipped file names a LOOP_* variable or STITCH_INSTALLER_URL; the official CLI reads STITCH_*', async () => {
+  for (const p of (await load()).values()) {
+    for (const f of p.files.filter(f => f.template !== undefined)) assert.deepEqual(staleStitchNames(f.template), [], `${p.name} ${f.path}`); // a link has no text
+    assert.deepEqual(staleStitchNames(JSON.stringify(p.secrets)), [], `${p.name} practice.json secrets`);
+  }
+  for (const f of ['lib/agent-guide.md', 'practices/loop/README.md']) assert.deepEqual(staleStitchNames(await readFile(join(KEEL, f), 'utf8')), [], f);
+  // Mutations: each stale name is caught; the constant is not.
+  const loop = (await shipped()).find(w => w.name === 'keel-loop.yml').template;
+  assert.ok(staleStitchNames(loop.replace('secrets.STITCH_API_KEY', 'secrets.LOOP_API_KEY')).length, 'a LOOP_ secret');
+  assert.ok(staleStitchNames(`${loop}\n      LOOP_WORKSPACE: acme\n`).length, 'a LOOP_ env');
+  assert.ok(staleStitchNames("env.LOOP_INCLUDE_DISMISSED = '1'").length, 'a LOOP_ variable in a script');
+  assert.ok(staleStitchNames(`${loop}\n      X: \${{ secrets.STITCH_INSTALLER_URL }}\n`).length, 'the installer URL secret');
+  assert.ok(staleStitchNames(loop.replace('    steps:', '      STITCH_BASE_URL: https://jules.googleapis.com/v2alpha\n    steps:')).length, 'a base URL override in the workflow');
+  assert.ok(staleStitchNames("const env = { ...process.env, STITCH_BASE_URL: 'https://x' };").length, 'a base URL override in a script');
+  assert.deepEqual(staleStitchNames('export const LOOP_DOC_HEADER = 1;'), []);
+});

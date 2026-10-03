@@ -42,7 +42,7 @@ The rules carry over unchanged:
 - [x] `pull` against a stubbed `stitch` CLI files new insights as untriaged, and never overwrites our fields on a re-filing.
 - [x] `propose` records a proposal; only `decide` (a person) changes a decision, and `push` is the only verb that sends anything to Loop.
 - [x] `render --check` fails CI on a stale `docs/LOOP.md` or a proposal without a read of the code.
-- [ ] ⚑ The nightly workflow's secret (`STITCH_API_KEY`, for the official `@google/stitch` CLI, installed from npm) is listed with what it costs; none set without the owner's yes.
+- [x] ⚑ The nightly workflow's secret (`STITCH_API_KEY`, for the official `@google/stitch` CLI, installed from npm) is listed with what it costs; none set without the owner's yes.
 - [ ] One real cycle on the adopted project: pull, propose, render, merged.
 
 ## Proof
@@ -76,10 +76,11 @@ real workspace.
 
 ## Next action
 
-Move the practice to the official CLI: `npm i -g @google/stitch` in the workflow; `STITCH_API_KEY` and `STITCH_WORKSPACE`, never `LOOP_*`; drop the installer-URL secret. Then ⚑ owner: set `STITCH_API_KEY` on the adopted ledger and run one real cycle.
+⚑ Owner: set `STITCH_API_KEY` on the adopted ledger and run one real cycle. That cycle also confirms two things checked only against the CLI's source: that the default endpoint serves Loop, and that `STITCH_INCLUDE_DISMISSED=true` returns dismissed insights.
 
 ## Trajectory
 
 - **2026-10-02** — Loop is reached through the `stitch` CLI, not HTTP, so the stub sits at the process boundary. The Proof was fixed before the brief.
 - **2026-10-02** — The loop gate rides on the managed `tests/loop.test.mjs`, which renders with `--check`, so a project's existing `node --test` gate covers it without editing its `check` script. Doctor lints only when the gate can't reach it.
 - **2026-10-03** — The owner corrected the names: the official `@google/stitch` CLI from npm reads `STITCH_API_KEY` and `STITCH_WORKSPACE`. Installing from npm removes the installer-URL secret. Its documented verbs (`find insights`, `dismiss`, `generate insights`, `create context`) are the ones the port already calls.
+- **2026-10-03** — Done: the workflow installs `@google/stitch@0` from npm, and only `STITCH_API_KEY` and `STITCH_WORKSPACE` are read. There is no base-URL override (a stored copy of an old endpoint), and dismissed insights come back via `STITCH_INCLUDE_DISMISSED=true`, read from the CLI's own source. A test fails on any `LOOP_*`, installer-URL or base-URL name in a shipped file.

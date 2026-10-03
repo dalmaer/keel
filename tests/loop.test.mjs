@@ -56,7 +56,7 @@ async function project(t, state = BASE_STATE) {
   await writeFile(stateFile, JSON.stringify(state));
   await writeFile(log, '');
   const env = { ...process.env, KEEL_STITCH: STUB, STITCH_STUB_STATE: stateFile, STITCH_STUB_LOG: log };
-  delete env.LOOP_WORKSPACE;
+  delete env.STITCH_WORKSPACE;
   const loop = (...args) => run(process.execPath, [join(dir, 'scripts', 'loop.mjs'), ...args], { cwd: dir, env });
   const calls = async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).map(l => JSON.parse(l));
   const finding = async slug => readFile(join(dir, 'docs', 'loop', `${slug}.md`), 'utf8');
@@ -74,7 +74,7 @@ test('the practice is optional: keel init leaves it off, its files and secrets a
   assert.deepEqual(p.files.map(f => `${f.kind} ${f.path}`).sort(), [
     'block AGENTS.md', 'managed .github/workflows/keel-loop.yml', 'managed scripts/loop.mjs', 'managed tests/loop.test.mjs', 'seeded .stitch.json', 'seeded docs/loop/README.md',
   ]);
-  assert.deepEqual(p.secrets.map(s => s.name).sort(), ['KEEL_TOKEN', 'LOOP_API_KEY', 'STITCH_INSTALLER_URL']);
+  assert.deepEqual(p.secrets.map(s => s.name).sort(), ['KEEL_TOKEN', 'STITCH_API_KEY']);
   assert.equal(JSON.parse(p.files.find(f => f.path === '.stitch.json').template).workspace, '');
   const init = await readFile(join(KEEL, 'lib', 'init.mjs'), 'utf8');
   assert.match(init, /filter\(n => !practices\.get\(n\)\.optional\)/);
@@ -146,7 +146,7 @@ test('pull files new insights as untriaged, through stitch find only, and a re-f
     assert.equal(c.args[0], 'find');
     assert.deepEqual(c.args.slice(-3), ['--format', 'json', '-q']);
     assert.equal(c.args[c.args.indexOf('-w') + 1], 'acme-0000-workspace');
-    assert.equal(c.includeDismissed, '1');
+    assert.equal(c.includeDismissed, 'true', 'the official CLI\'s key, and its config takes only the string true');
   }
   assert.equal(log.length, 1, 'one fetch per pull');
   assert.ok((await readFile(join(dir, 'docs', 'LOOP.md'), 'utf8')).startsWith(LOOP_DOC_HEADER));
@@ -321,11 +321,10 @@ test('keel-loop.yml reads Loop and files findings, and nothing else; it skips wi
   const code = yml.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
   assert.doesNotMatch(code, /loop\.mjs (decide|push|mine|propose)\b/, 'a pull that could decide would dismiss insights for the whole workspace');
   assert.match(code, /node scripts\/loop\.mjs pull/);
-  assert.match(code, /stitch enable loop \|\| stitch yolo --enable loop[\s\S]*scripts\/loop\.mjs pull/);
-  assert.match(code, /::notice::Skipped: add the LOOP_API_KEY and STITCH_INSTALLER_URL secrets/);
-  assert.match(code, /STITCH_API_KEY: \$\{\{ secrets\.LOOP_API_KEY \}\}/);
-  assert.match(code, /STITCH_BASE_URL: https:\/\/jules\.googleapis\.com\/v2alpha/);
-  assert.match(code, /curl -fsSL "\$STITCH_INSTALLER_URL" -o/);
+  assert.match(code, /npm install -g @google\/stitch@0\n[\s\S]*stitch enable loop\n[\s\S]*scripts\/loop\.mjs pull/, 'the official CLI, from npm, pinned to a major');
+  assert.match(code, /::notice::Skipped: add the STITCH_API_KEY secret/);
+  assert.match(code, /STITCH_API_KEY: \$\{\{ secrets\.STITCH_API_KEY \}\}/);
+  assert.doesNotMatch(code, /curl|https?:\/\/\S*install/i, 'never installed from a URL');
   assert.match(code, /render --check && \{\{check\}\}/, 'the gate is render --check, then the project\'s own');
   assert.match(code, /drain keel-loop\/ --yes --gate-passed/);
   assert.doesNotMatch(code, /anthropic|claude -p/i, 'no model proposes here');
