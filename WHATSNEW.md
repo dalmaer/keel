@@ -5,6 +5,43 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.2.0 — 2026-10-02
+
+Your project now gets measured overnight, can send its lessons home, and can
+say what it is for.
+
+- **Goals you can manage.**
+  - `keel goal add|show|retire` and `keel phase new|list`.
+  - A goal may exist before it has a phase. The roadmap allows it and
+    `keel doctor` reminds you.
+  - A retired goal stays visible and counted, and is never your next focus.
+  - *If you're on 0.1.0:* your roadmap script rejects a goal with no phase
+    until this update re-renders it, so update before you `goal add`.
+- **`keel improve`** measures whether the practice is working here, with
+  twelve numbers. Among them:
+  - whether your gate passed, and whether it actually ran tests;
+  - a stale roadmap, phases with no issue, phases stuck in one status;
+  - lessons with no guard, drift, red CI streaks, queued machine PRs, and
+    dependency age.
+
+  `--report` writes `docs/health/<date>.md`, with one proposal for you to
+  accept or decline. A measure that can't run says *broken*; it never reports
+  zero. Bounds in `.keel/bounds.json` only tighten.
+- **The night shift** (`night`, plus the optional `claude` and `renovate`
+  practices).
+  - `keel-night.yml` runs `keel improve --report` nightly and opens at most
+    one PR. `keel drain` merges older data-only PRs and closes the rest as
+    superseded, keeping their branches.
+  - `keel-update.yml` opens the weekly practice-update PR.
+  - A run goes red only when an instrument breaks or your gate fails. A
+    missing secret or repo setting is a notice that names exactly what to set.
+- **`keel lessons`** sends your new lessons, your edits to keel's files, and
+  practice-shaped commits home to keel as issues, each exactly once. It asks
+  first.
+- **Stitch Loop** is an optional `loop` practice, for projects that triage
+  Loop findings. `keel adopt` leaves a project's own loop script as a local
+  variant.
+
 ## v0.1.0 — 2026-10-02
 
 The first released practice. If your project was set up with `keel init` or
