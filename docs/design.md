@@ -170,6 +170,15 @@ paid for:
 - **A guard must fire into a room someone is in.** A red nightly is a failed
   workflow GitHub emails about. It is never a page nobody opens.
 
+**Projects run on their own** (settled 3 October, phase 15, on the owner's
+word). A project's workflows never reach back to keel at runtime: no keel
+checkout, no keel token. Everything a workflow runs ships *into* the project
+as managed files, the way `scripts/roadmap.mjs` already does. Keel is the
+source of the practice, the channel that carries changes out to projects, and
+the place lessons come home to. Changes go out from keel: `keel fleet update`
+opens the update PR in each project that is behind. A project never pulls
+keel.
+
 Keel installs the following, all managed:
 
 - `check.yml`
@@ -178,7 +187,8 @@ Keel installs the following, all managed:
 - `claude.yml` (`@claude` on issues; it opens PRs, a person merges)
 - Renovate's lanes: daily patch/minor automerge on green, Monday lockfile,
   Monday majors for a person, Node on its own
-- a weekly `keel-update.yml` that opens the practice-update PR
+- *(retired in phase 15)* a weekly `keel-update.yml` in each project. Updates
+  go out from keel instead, via `keel fleet update`.
 
 `keel improve` is the eval half. It answers "is the practice actually
 working here?" with numbers:
@@ -224,10 +234,13 @@ three questions:
 ## Deliberately open
 
 - **How the CLI is installed.** **Settled 2026-10-02 (phase 2):** a checkout
-  (`gh repo clone dalmaer/keel`, since the repo is private) and `npm install -g`
-  of it. Self-update is a `git pull` of that checkout.
+  and `npm install -g` of it. Self-update is a `git pull` of that checkout.
+  Once keel is public (phase 17), a plain `git clone` works; until then it's
+  `gh repo clone`.
 - **Whether isocan is adopted.** isocan is Dimitri's repo. Keel can *learn*
-  from it as a source without managing it. Adopting it is his decision, not keel's.
+  from it as a source without managing it. **The owner wants it shared
+  (3 Oct):** keel goes public (phase 17), and isocan's adoption is prepared as
+  a PR for Dimitri (phase 16). Merging it is his decision, not keel's.
 - **Stitch Loop.** **Settled 2026-10-02:** an optional `loop` practice
   (phase 14, under the night shift). It is ported from ledger's
   `scripts/loop.ts` and isocan's `scripts/loop.mjs`, and keeps their rules:
@@ -235,5 +248,6 @@ three questions:
   it rather than waiting for two projects to have used it through keel.
 - **The isocan canvas.** Still an optional practice that comes in once two
   projects have used it through keel, not before.
-- **License.** keel adapts Apache-2.0 material from isocan, with attribution in
-  each file. Keel's own license is the owner's call.
+- **License.** **Settled 2026-10-03:** Apache-2.0, matching isocan, chosen when
+  the owner decided keel goes public (phase 17). Adapted isocan material keeps
+  its attribution in each file.
