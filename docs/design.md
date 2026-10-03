@@ -64,6 +64,26 @@ with, so drift is a fact rather than a guess. **A local edit to a managed file
 is the most valuable signal keel gets**: someone needed the practice to be
 different. `doctor` must never just revert it.
 
+### 1a. Adopting a project that already has a version of the practice (phase 4)
+
+Found by reading duo and cajones on 2 October, before adopt existed:
+
+- **The check command differs.** ritmo's `check` is a syntax check; its gate is
+  `check:all`. duo's `check` also typechecks and builds.
+- **The phase files differ.** duo's built phases carry no evidence and only two
+  of keel's six sections.
+
+So `adopt` follows two rules:
+
+- **The project's gate is config, not an assumption.** `.keel/keel.json` gets
+  a `check` field (default `npm run check`), and keel's workflows run that.
+- **A practice is switched on only where the project already satisfies it.**
+  Where it doesn't, adopt records it as a *local variant* in `.keel/keel.json`,
+  with a proposal for how to converge, and installs nothing for it. Adopt
+  never rewrites a project's phases into a shape their history can't support,
+  and never invents evidence to make a built phase pass. A local variant can
+  converge later through a migration the owner accepts.
+
 ### 2. One file, many doorways (phase 1)
 
 From isocan, who learned it first: a skill lives once, under
