@@ -1,0 +1,13 @@
+{
+  "name": "phases",
+  "summary": "One file per phase owns its status; the roadmap is generated from them and checked in CI.",
+  "requires": ["base", "agents-md"],
+  "files": [
+    { "path": "scripts/roadmap.mjs", "from": "scripts/roadmap.mjs", "kind": "managed" },
+    { "path": "tests/roadmap.test.mjs", "from": "tests/roadmap.test.mjs", "kind": "managed" },
+    { "path": "docs/phases/README.md", "from": "docs/phases/README.md", "kind": "managed" },
+    { "path": "docs/templates/phase.md", "from": "docs/templates/phase.md", "kind": "managed" },
+    { "path": "docs/goals.json", "from": "docs/goals.json", "kind": "seeded" },
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "phases" }
+  ]
+}

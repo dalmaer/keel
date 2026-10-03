@@ -3,9 +3,9 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 14 phases lived in; 1 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 14 phases lived in; 2 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
-**Next focus:** [1. The practice is a set of modules keel can install, including on itself](phases/01-practices-as-modules.md). List every file phase 0 created and assign each to a practice and a kind, in `docs/design.md` §1's table form, before moving any file.
+**Next focus:** [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md). Write the agent guide's cold start first — the verbs as one line each — and make the surface test read it.
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 
@@ -13,12 +13,12 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-1/2 built or lived-in; 0/2 lived-in.
+2/2 built or lived-in; 0/2 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [0. Keel is run the way it will tell others to run](phases/00-keel-runs-on-itself.md) | built | 2026-10-02 | — | The practice is installed on keel by hand and holds: check passes locally and on GitHub Actions, and /conduct loads through the .claude/skills symlink. Not yet rendered from practices (phase 1). |
-| [1. The practice is a set of modules keel can install, including on itself](phases/01-practices-as-modules.md) | planned | 2026-10-02 | [0](phases/00-keel-runs-on-itself.md) | Design names the three file kinds (managed, block, seeded); nothing is extracted yet. |
+| [1. The practice is a set of modules keel can install, including on itself](phases/01-practices-as-modules.md) | built | 2026-10-02 | [0](phases/00-keel-runs-on-itself.md) | Seven practices (base, agents-md, phases, evidence, lessons, conduct, ci) render keel's own files; render --self --check in npm run check keeps the two copies one. Not yet rendered into a real project. |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.

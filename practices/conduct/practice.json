@@ -1,0 +1,16 @@
+{
+  "name": "conduct",
+  "summary": "A conductor briefs a builder per phase, verifies the proof itself, records and commits.",
+  "requires": ["phases", "evidence", "lessons", "agents-md"],
+  "source": {
+    "repo": "dglazkov/isocan",
+    "path": ".claude/skills/conduct/SKILL.md",
+    "commit": "7227f325",
+    "license": "Apache-2.0"
+  },
+  "files": [
+    { "path": ".agents/skills/conduct/SKILL.md", "from": ".agents/skills/conduct/SKILL.md", "kind": "managed" },
+    { "path": ".claude/skills/conduct", "link": "../../.agents/skills/conduct", "kind": "managed" },
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "conduct" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "base",
+  "summary": "The repo's floor: Node pinned, a package.json whose check is the project's one gate, and an ignore file.",
+  "requires": [],
+  "files": [
+    { "path": "package.json", "from": "package.json", "kind": "seeded" },
+    { "path": ".nvmrc", "from": ".nvmrc", "kind": "seeded" },
+    { "path": ".gitignore", "from": ".gitignore", "kind": "seeded" }
+  ]
+}

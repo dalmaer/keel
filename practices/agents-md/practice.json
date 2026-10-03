@@ -1,0 +1,10 @@
+{
+  "name": "agents-md",
+  "summary": "One working guide, AGENTS.md, that every harness reaches; CLAUDE.md is a doorway to it.",
+  "requires": [],
+  "files": [
+    { "path": "AGENTS.md", "from": "AGENTS.md", "kind": "seeded" },
+    { "path": "CLAUDE.md", "from": "CLAUDE.md", "kind": "managed" },
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "agents-md" }
+  ]
+}

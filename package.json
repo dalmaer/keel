@@ -10,6 +10,8 @@
     "roadmap": "node scripts/roadmap.mjs",
     "roadmap:check": "node scripts/roadmap.mjs --check",
     "next": "node scripts/roadmap.mjs --next",
-    "check": "npm test && npm run roadmap:check"
+    "render": "node scripts/render.mjs --self",
+    "render:check": "node scripts/render.mjs --self --check",
+    "check": "npm test && npm run roadmap:check && npm run render:check"
   }
 }

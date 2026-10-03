@@ -1,0 +1,9 @@
+{
+  "name": "evidence",
+  "summary": "Built and lived-in claims point at a file saying what was actually checked.",
+  "requires": ["phases", "agents-md"],
+  "files": [
+    { "path": "docs/templates/evidence.md", "from": "docs/templates/evidence.md", "kind": "managed" },
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "evidence" }
+  ]
+}
