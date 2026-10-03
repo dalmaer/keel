@@ -26,13 +26,14 @@ person receiving it.
 ## Acceptance
 
 - [ ] An old CLI refuses a project on a newer practice, and says how to update.
-- [ ] The first real migration carries isocan `7227f325`'s conduct changes to a project still on the pre-efficiency skill.
+- [ ] A project on practice 0.0.0 holding the pre-`7227f325` conduct skill comes out of `keel update` on the current one (a managed re-render, no migration needed).
+- [ ] The first real migration, `0001-milestone-to-goal`, converts a ritmo-shaped project's phases (milestones → goals), shown as a diff, and after it adopt finds `phases` on.
 - [ ] Running update twice makes no second change.
 - [ ] A failing migration leaves the project as it was and says which one.
 
 ## Proof
 
-`node --test tests/update.test.mjs` across a temp project at v0.1 → v0.2. Then one real update PR on an adopted project.
+`node --test tests/update.test.mjs` across a temp project at 0.0.0 → the released version, and a ritmo-shaped fixture through 0001. ⚑ Then one real update PR on an adopted project (after phase 4's PRs merge).
 
 ## Deliberately open
 
