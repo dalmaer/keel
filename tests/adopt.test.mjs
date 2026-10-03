@@ -74,13 +74,14 @@ test('a dry run changes nothing, for either fixture', async () => {
 
 test('acme-groove: milestones make phases local; its gate is check:all; its workflow keeps ci local', async () => {
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-groove'), dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'on', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'on', renovate: 'on', loop: 'off' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'on', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'off', renovate: 'on', loop: 'off' });
   assert.equal(data.config.check, 'npm run check:all');
   assert.equal(data.config.name, 'acme-groove');
   assert.equal(data.config.tagline, 'A static practice room for Acme\'s hand drum.');
   assert.match(data.config.local.phases, /migrate milestone→goal \(phase 6 migration\)/);
   assert.match(data.config.local.ci, /pages\.yml already runs `npm run check:all`/);
-  assert.deepEqual(data.config.practices, ['base', 'agents-md', 'evidence', 'lessons', 'conduct', 'night', 'claude', 'renovate']);
+  assert.deepEqual(data.config.practices, ['base', 'agents-md', 'evidence', 'lessons', 'conduct', 'night', 'renovate']);
+  assert.equal(data.practices.find(p => p.name === 'claude').why, 'optional; --with claude to add it');
   assert.equal(status(data, 'scripts/roadmap.mjs'), 'keep-local');
   assert.equal(status(data, 'tests/roadmap.test.js'), 'keep-local');
   assert.equal(status(data, 'AGENTS.md'), 'keep-local');
@@ -177,7 +178,7 @@ test('a project that already is keel-shaped switches everything on, and its file
   await rm(join(dir, '.keel'), { recursive: true });
   const before = await tree(dir);
   const { data } = await adopt({ dir }, { version: VERSION });
-  assert.ok(data.practices.every(p => p.state === (p.name === 'loop' ? 'off' : 'on')), JSON.stringify(data.practices)); // loop is optional: no .stitch.json, no Loop
+  assert.ok(data.practices.every(p => p.state === (['loop', 'claude'].includes(p.name) ? 'off' : 'on')), JSON.stringify(data.practices)); // loop and claude are optional, and init left both off
   assert.equal(data.config.local, undefined);
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) assert.equal(after[path], hash, `${path} changed`);
@@ -188,7 +189,11 @@ test('a bare project: phases off, so is what needs them; ci on and runs its gate
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-bare', scripts: { check: 'node -e 0' } }));
   const { data } = await adopt({ dir, dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'off', evidence: 'off', lessons: 'on', conduct: 'off', ci: 'on', night: 'on', claude: 'on', renovate: 'on', loop: 'off' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'off', evidence: 'off', lessons: 'on', conduct: 'off', ci: 'on', night: 'on', claude: 'off', renovate: 'on', loop: 'off' });
+  const asked = await adopt({ dir, dryRun: true, with: ['claude'] }, { version: VERSION });
+  assert.equal(states(asked.data).claude, 'on', '--with claude switches it on');
+  assert.equal(status(asked.data, '.github/workflows/claude.yml'), 'create');
+  assert.deepEqual(asked.data.secrets.map(s => s.name), ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
   assert.equal(status(data, '.github/workflows/check.yml'), 'create');
 });
 
@@ -283,4 +288,89 @@ test('--setup and repeated --env land in .keel/keel.json; a bad --env writes not
   // A second adopt without the flags keeps them.
   assert.equal(keel(['adopt', dir]).code, 0);
   assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).env, { ACME_SYNC: '0', ACME_MODE: 'a=b' });
+});
+
+// A block whose rule the project's AGENTS.md already states in its own words is
+// not appended a second time: it is recorded in blocksSkipped, render does not
+// ask for its markers, and doctor lists it as information.
+async function stated(t, agents) {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-stated', scripts: { check: 'node -e 0' } }));
+  await writeFile(join(dir, 'AGENTS.md'), agents);
+  return dir;
+}
+
+test('adopt does not append a block whose first bold sentence AGENTS.md already states', async t => {
+  const own = '# Acme\n\nOur own rules.\n\n**Lessons are shapes,\nnot  incidents.** We keep ours in docs/lessons.md.\n';
+  const dir = await stated(t, own);
+  const r = keel(['adopt', dir, '--json']);
+  assert.equal(r.code, 0, r.err + r.out);
+  const data = JSON.parse(r.out);
+  assert.equal(status(data, 'AGENTS.md#lessons'), 'skip');
+  assert.equal(status(data, 'AGENTS.md#agents-md'), 'create', 'a rule it does not state is still appended');
+  const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
+  assert.ok(agents.startsWith(own), 'every byte kept');
+  assert.doesNotMatch(agents, /keel:begin lessons/);
+  assert.match(agents, /keel:begin agents-md/);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  assert.deepEqual(cfg.blocksSkipped, ['lessons']);
+  assert.ok(cfg.practices.includes('lessons'), 'the practice stays on; only its block is skipped');
+  assert.match(await readFile(join(dir, REPORT), 'utf8'), /`AGENTS\.md#lessons` — the project's AGENTS\.md already states this rule/);
+  const check = keel(['render', '--check'], dir);
+  assert.equal(check.code, 0, check.out + check.err);
+  assert.doesNotMatch(check.out + check.err, /missing/);
+  const doc = keel(['doctor'], dir);
+  assert.match(doc.out, /Blocks not appended \(information; the project's AGENTS\.md already states each rule\): AGENTS\.md#lessons/);
+  assert.ok(!JSON.parse(keel(['doctor', '--json'], dir).out).drift.some(d => d.path === 'AGENTS.md#lessons'));
+  // Re-running is a no-op.
+  const again = JSON.parse(keel(['adopt', dir, '--json']).out);
+  assert.deepEqual(again.written, []);
+});
+
+test('adopt appends the block when AGENTS.md does not state its rule, or states it only inside keel markers', async t => {
+  for (const agents of ['# Acme\n\nOur own rules: lessons go in a table.\n',
+    '# Acme\n\n<!-- keel:begin agents-md -->\n**Lessons are shapes, not incidents.**\n<!-- keel:end agents-md -->\n']) {
+    const dir = await stated(t, agents);
+    const { data } = await adopt({ dir, dryRun: true }, { version: VERSION });
+    assert.equal(status(data, 'AGENTS.md#lessons'), 'create', agents);
+    assert.equal(data.config.blocksSkipped, undefined);
+  }
+});
+
+// repo is recorded only when it is safely known: the dir is its own git top
+// level and origin is on github.com. Anything else leaves it unset, and says so.
+test('adopt records repo from a github.com origin of the project\'s own git repository, and only then', async t => {
+  const git = (dir, ...args) => assert.equal(run('git', ['-C', dir, ...args], { env: ENV }).status, 0, args.join(' '));
+  const cases = [
+    ['https://github.com/acme/notes.git', 'acme/notes'],
+    ['https://github.com/acme/notes', 'acme/notes'],
+    ['git@github.com:acme/notes.git', 'acme/notes'],
+    ['git@github.com:acme/notes', 'acme/notes'],
+    ['https://gitlab.com/acme/notes.git', undefined],
+    [null, undefined],
+  ];
+  for (const [url, want] of cases) {
+    const dir = await scratch(t);
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-repo', scripts: { check: 'node -e 0' } }));
+    git(dir, 'init', '-q');
+    if (url) git(dir, 'remote', 'add', 'origin', url);
+    const { data, text } = await adopt({ dir, dryRun: true }, { version: VERSION });
+    assert.equal(data.config.repo, want, String(url));
+    assert.match(text, want ? new RegExp(`^Repo: ${want} \\(git remote origin\\)$`, 'm') : /^Repo: unset — (no origin remote|origin is not a github\.com remote)/m, String(url));
+  }
+  // A directory nested inside another repository is not its own: unset, even with a GitHub origin above it.
+  const outer = await scratch(t);
+  git(outer, 'init', '-q');
+  git(outer, 'remote', 'add', 'origin', 'https://github.com/acme/outer.git');
+  const inner = join(outer, 'packages', 'inner');
+  await mkdir(inner, { recursive: true });
+  await writeFile(join(inner, 'package.json'), JSON.stringify({ name: 'acme-inner', scripts: { check: 'node -e 0' } }));
+  const nested = await adopt({ dir: inner, dryRun: true }, { version: VERSION });
+  assert.equal(nested.data.config.repo, undefined);
+  assert.match(nested.text, /^Repo: unset — not its own git repository/m);
+  // An existing repo is never overwritten.
+  await mkdir(join(outer, '.keel'));
+  await writeFile(join(outer, '.keel', 'keel.json'), JSON.stringify({ name: 'outer', repo: 'acme/kept', practices: ['base'] }));
+  const kept = await adopt({ dir: outer, dryRun: true }, { version: VERSION });
+  assert.equal(kept.data.config.repo, 'acme/kept');
 });

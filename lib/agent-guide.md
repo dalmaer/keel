@@ -170,7 +170,9 @@ cd acme-notes && keel next
   `--kind` to `other`.
 - It refuses (exit 2) a directory that is already a keel project (use
   `keel update`) or holds anything besides `.git` (use `keel adopt`).
-- It writes `.keel/keel.json` with every practice, seeds goal G0 (the
+- It writes `.keel/keel.json` with every practice except the optional ones
+  (`loop`, `claude`): `--with <practice>` (repeatable) switches one on, and
+  only on practices' secrets are listed. It seeds goal G0 (the
   description is its outcome) and `docs/phases/00-practice-room.md`, renders
   the practices, puts the description into AGENTS.md, generates the roadmap,
   and makes one commit on `main` naming the practice version.
@@ -201,7 +203,13 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   (`scripts/roadmap.ts`) counts. Existing workflows keep `ci` local: keel never
   adds a second workflow running the same gate.
 - AGENTS.md keeps every byte; missing blocks of on practices are appended under
-  `## The keel practice`.
+  `## The keel practice` — except a block whose first bold sentence AGENTS.md
+  already states in its own prose (case and spacing aside): it is listed in
+  `.keel/keel.json` `blocksSkipped`, render never asks for its markers, and
+  doctor shows it as information.
+- Optional practices (`loop`, `claude`) are off unless `--with <practice>`
+  names them or `.keel/keel.json` already has them on; a project with its own
+  version (its own claude-code-action workflow) is still local.
 - `check` in `.keel/keel.json` is the gate: `--check`, else the existing
   config's, else `check:all`, else `check`, else none: the dry run says
   `Gate: none found — pass --check "<command>"` and a write run exits 2. Adopt

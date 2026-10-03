@@ -75,7 +75,9 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.equal(config.tagline, 'Acme Notes keeps meeting notes as plain files.');
   assert.equal(config.kind, 'node');
   assert.equal(config.repo, undefined, 'no repo without --repo or --github');
-  assert.deepEqual(config.practices, ['base', 'agents-md', 'phases', 'evidence', 'lessons', 'conduct', 'ci', 'night', 'claude', 'renovate']);
+  // claude and loop are optional: off unless named with --with.
+  assert.deepEqual(config.practices, ['base', 'agents-md', 'phases', 'evidence', 'lessons', 'conduct', 'ci', 'night', 'renovate']);
+  assert.deepEqual(result.secrets, [], 'no secret is listed for a practice that is off');
 
   const goals = JSON.parse(await readFile(join(dir, 'docs', 'goals.json'), 'utf8'));
   assert.equal(goals.length, 1);
@@ -90,9 +92,11 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.match(agents, /<!-- keel:begin phases -->\n\*\*Status lives/);
   for (const f of ['CLAUDE.md', '.nvmrc', '.gitignore', 'docs/lessons.md', 'docs/ROADMAP.md',
     '.github/workflows/check.yml', '.github/workflows/keel-night.yml', 'scripts/keel/improve.mjs', 'scripts/keel/drain.mjs',
-    '.github/workflows/claude.yml', 'renovate.json', '.agents/skills/conduct/SKILL.md', '.claude/skills/conduct/SKILL.md']) {
+    'renovate.json', '.agents/skills/conduct/SKILL.md', '.claude/skills/conduct/SKILL.md']) {
     await readFile(join(dir, f), 'utf8');
   }
+
+  assert.equal(await readFile(join(dir, '.github/workflows/claude.yml'), 'utf8').catch(() => null), null, 'claude is opt-in');
 
   // The facade check: the new project's own gate, run as a person would.
   const check = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
@@ -182,14 +186,19 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   assert.equal(out.needs, 'yes');
   assert.equal(out.plan.repo, 'acme/acme-notes');
   assert.ok(out.plan.steps.some(s => s.what === `gh repo create acme/acme-notes --private --source ${dir} --push`));
-  // claude's secrets, each named with its workflow; none is set. The night needs none: it runs from the project.
-  assert.deepEqual(out.plan.secrets.map(s => [s.name, s.workflow, s.practice, s.set]), SECRETS.map(s => [...s, false]));
-  assert.ok(out.plan.secrets.every(s => s.why), 'each says why');
+  // Without --with claude no practice needs a secret: the night runs from the project.
+  assert.deepEqual(out.plan.secrets, []);
   const calls = await gh.calls();
-  assert.ok(!calls.some(c => c[0] === 'repo'), `gh saw: ${JSON.stringify(calls)}`);
+  assert.ok(!calls.some(c => c[0] === 'repo' || c[0] === 'secret'), `gh saw: ${JSON.stringify(calls)}`);
   assert.deepEqual(await readdir(root).then(n => n.sort()), ['gh', 'gh.log'], 'not even the directory');
+  const plain = keel(['init', dir, '--description', DESCRIPTION, '--github'], root, { ...ENV, KEEL_GH: gh.bin });
+  assert.match(plain.out, /Secrets needed:\n {2}none/);
 
-  const text = keel(['init', dir, '--description', DESCRIPTION, '--github'], root, { ...ENV, KEEL_GH: gh.bin });
+  // --with claude: claude's secrets, each named with its workflow; none is set.
+  const withClaude = JSON.parse(keel(['init', dir, '--description', DESCRIPTION, '--github', '--with', 'claude', '--json'], root, { ...ENV, KEEL_GH: gh.bin }).out);
+  assert.deepEqual(withClaude.plan.secrets.map(s => [s.name, s.workflow, s.practice, s.set]), SECRETS.map(s => [...s, false]));
+  assert.ok(withClaude.plan.secrets.every(s => s.why), 'each says why');
+  const text = keel(['init', dir, '--description', DESCRIPTION, '--github', '--with', 'claude'], root, { ...ENV, KEEL_GH: gh.bin });
   assert.equal(text.code, 3);
   assert.match(text.out, /needs a yes/);
   assert.match(text.out, /Secrets needed:\n {2}CLAUDE_CODE_OAUTH_TOKEN \(\.github\/workflows\/claude\.yml\): .* — not set; keel never sets one/);
@@ -200,7 +209,7 @@ test('--github --yes inits, then creates the private repo from the directory and
   const root = await scratch(t);
   const gh = await stubGh(root);
   const dir = join(root, 'acme-notes');
-  const r = keel(['init', dir, '--description', DESCRIPTION, '--github', '--yes', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
+  const r = keel(['init', dir, '--description', DESCRIPTION, '--github', '--yes', '--with', 'claude', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
   assert.equal(r.code, 0, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.equal(out.github.repo, 'acme/acme-notes');
@@ -210,6 +219,8 @@ test('--github --yes inits, then creates the private repo from the directory and
   assert.ok(!calls.some(c => c[0] === 'secret' && c[1] === 'set'), 'never sets a secret');
   const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
   assert.equal(config.repo, 'acme/acme-notes');
+  assert.ok(config.practices.includes('claude'), '--with claude switches it on');
+  await readFile(join(dir, '.github/workflows/claude.yml'), 'utf8');
   // The commit exists before the push.
   assert.equal(execFileSync('git', ['-C', dir, 'rev-list', '--count', 'HEAD'], { encoding: 'utf8' }).trim(), '1');
 });
@@ -217,11 +228,26 @@ test('--github --yes inits, then creates the private repo from the directory and
 test('--repo names the repo without asking gh who you are', async t => {
   const root = await scratch(t);
   const gh = await stubGh(root);
-  const r = keel(['init', 'x', '--description', DESCRIPTION, '--repo', 'acme/elsewhere', '--github', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
+  const r = keel(['init', 'x', '--description', DESCRIPTION, '--repo', 'acme/elsewhere', '--github', '--with', 'claude', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
   assert.equal(r.code, 3);
   assert.equal(JSON.parse(r.out).plan.repo, 'acme/elsewhere');
   assert.ok(!(await gh.calls()).some(c => c[0] === 'api'), 'never asks gh who you are');
   assert.deepEqual((await gh.calls()).map(c => c.slice(0, 2)), [['secret', 'list']], 'only reads which secrets are set');
+});
+
+test('--with takes only optional practices, and switches each on', async t => {
+  const root = await scratch(t);
+  for (const name of ['ci', 'nope']) {
+    const r = keel(['init', 'x', '--description', DESCRIPTION, '--with', name], root);
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.err, /--with takes loop, claude|--with takes claude, loop/);
+  }
+  assert.deepEqual(await readdir(root), [], 'nothing written');
+  const r = keel(['init', 'y', '--description', DESCRIPTION, '--with', 'claude,loop', '--json'], root);
+  assert.equal(r.code, 0, r.err || r.out);
+  const out = JSON.parse(r.out);
+  assert.deepEqual(out.config.practices.slice(-3), ['claude', 'renovate', 'loop']);
+  assert.deepEqual([...new Set(out.secrets.map(s => s.practice))], ['claude', 'loop']);
 });
 
 test('a missing placeholder is an error only where a template uses it', () => {

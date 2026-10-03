@@ -77,7 +77,7 @@ test('the practice is optional: keel init leaves it off, its files and secrets a
   assert.deepEqual(p.secrets.map(s => s.name).sort(), ['STITCH_API_KEY'], 'the drain is the project\'s own scripts/keel/drain.mjs: no keel token');
   assert.equal(JSON.parse(p.files.find(f => f.path === '.stitch.json').template).workspace, '');
   const init = await readFile(join(KEEL, 'lib', 'init.mjs'), 'utf8');
-  assert.match(init, /filter\(n => !practices\.get\(n\)\.optional\)/);
+  assert.match(init, /filter\(n => !practices\.get\(n\)\.optional \|\| asked\.includes\(n\)\)/, 'on only when named with --with');
 });
 
 test('adopt: a project with its own loop script keeps it — loop is local, with the convergence proposal, and its findings are untouched', async t => {

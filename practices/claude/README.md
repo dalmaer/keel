@@ -18,6 +18,15 @@ than a configuration.
 `ANTHROPIC_API_KEY` (billed per token). Every mention spends model tokens.
 Until one is set the run ends green with a notice.
 
+**Optional: opt in with `--with claude` (owner's decision, 3 Oct 2026).**
+`keel init` and `keel adopt` leave it off unless asked (`--with claude`), or
+unless `.keel/keel.json` already lists it. It earns its place when the owner is
+away: it runs Claude on GitHub, from an issue or a review, with nobody at a
+terminal. With the owner at hand, Claude Code does the same work locally, so
+the workflow adds a second way to spend, not a second capability; each
+mention spends model tokens. Adopt still marks it local where the project
+runs its own claude-code-action workflow.
+
 **Its files.** `.github/workflows/claude.yml` (managed). `keel adopt` keeps
 the practice local where a project already runs `anthropics/claude-code-action`
 in a workflow of its own, so two Claudes never answer one mention.

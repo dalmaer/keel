@@ -129,6 +129,8 @@ test('n/a says which: gh missing, gh not authenticated, phases a local variant',
   for (const id of ['roadmap_stale', 'phases_without_issue', 'phases_stuck']) {
     assert.equal(byId(r.json(), id).state, 'n/a', id);
     assert.match(byId(r.json(), id).detail, /local variant/, id);
+    assert.ok(byId(r.json(), id).detail.length < 120, `${id}: one short line, not adopt's proposal`);
+    assert.doesNotMatch(byId(r.json(), id).detail, /Acme keeps its own roadmap/, `${id}: the proposal stays in doctor`);
   }
 });
 

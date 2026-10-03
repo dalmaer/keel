@@ -72,7 +72,8 @@ const once = (ctx, key, fn) => {
 function phasesOff({ config }) {
   const local = config.local ?? {};
   if ((config.practices ?? []).includes('phases')) return null;
-  if (Object.hasOwn(local, 'phases')) return `phases is a local variant here (${local.phases}); keel's parser does not read it`;
+  // One short line: the whole proposal lives in keel doctor, not repeated on every measure.
+  if (Object.hasOwn(local, 'phases')) return 'phases is a local variant here; keel doctor lists why and what is owed';
   return 'the phases practice is not on';
 }
 

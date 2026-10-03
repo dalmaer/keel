@@ -68,7 +68,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `agents-md` | `AGENTS.md` sections for each practice; `CLAUDE.md` as a one-line pointer | Instructions copied per harness, ageing |
 | `ci` | A `check` workflow running the project's own gate | A green laptop that isn't the build |
 | `night` | `keel-night.yml` measures the project nightly, opens at most one PR, and goes red only when something is broken | Guards that fire into an empty room |
-| `claude` | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
+| `claude` *(optional)* | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 
