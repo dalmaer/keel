@@ -1,0 +1,87 @@
+# keel — agent cold start
+
+Keel installs a working practice in a repo: phases that own their status, a
+generated roadmap, lessons kept as shapes, evidence for every built claim.
+Run keel inside a project (a directory with `.keel/keel.json`, or below one).
+Read the project's AGENTS.md before changing anything.
+
+Verbs (every one takes `--json`; parse that, never the prose):
+
+- `keel status` — goals with built and lived-in counts, and the next phase
+- `keel next` — the next phase to conduct: its file, done-when, next action
+- `keel goal list` — every goal, with progress derived from its phases
+- `keel render` — render the project's practices onto it; `--check` writes nothing and exits 1 on a difference; `--into <dir>` targets another project
+- `keel help` — the verbs, one line each
+- `keel --agent-help` — this text; `keel --agent-help <topic>` opens one topic, `all` prints everything
+- `keel --version` — CLI version, its commit, and the practice version it carries
+
+Rules that bite:
+
+- Status lives in each `docs/phases/NN-*.md` front matter. Never edit
+  `docs/ROADMAP.md`; it is generated.
+- `built` and `lived-in` need an evidence file. Never invent evidence.
+- Managed files are keel's, seeded files are the project's. Never overwrite
+  a project's own work; render only rewrites managed files and blocks.
+- ⚑ steps (creating repos, secrets, Pages, issues elsewhere, scheduled model
+  spend) wait for the owner's yes.
+
+Exit codes: 0 ok; 1 the command ran and found a failure; 2 usage error or
+not in a project. Under `--json` an error is `{"error": "..."}` on stdout.
+
+Topics: `json`, `render`, `install`, `coming`.
+
+<!-- topic: json | the output contract every verb keeps -->
+
+Under `--json`, stdout carries exactly one JSON document and nothing else;
+human text is never mixed in. Without it, text goes to stdout and errors to
+stderr as one line beginning `keel:`.
+
+- `status` → `{name, goals: [{id, title, outcome, phases, built, lived}], next}`
+- `next` → the phase object (`id, file, title, status, since, goal, depends,
+  note, evidence, done, next`) or `null` when nothing is left unbuilt. It is
+  the same object `node scripts/roadmap.mjs --json` reports as `next`.
+- `goal list` → `[{id, title, outcome, phases, built, lived}]`
+- `render` → `{root, check, ok, differs: [path or path#block], entries}`
+- `help` → `{verbs: [{name, usage, summary}], flags}`
+- `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
+  `{slug, summary, body}`
+- `--version` → `{cli, commit, practice}`; `commit` is `null` outside a git
+  checkout of keel.
+
+<!-- topic: render | how practices reach a project, and what render will not touch -->
+
+A practice is a module under keel's `practices/<name>/`. The project's
+`.keel/keel.json` lists the practices it uses; `keel render` writes them.
+
+- **managed** files are keel's and rewritten every render. A difference is
+  drift: signal that the project changed something keel owns. Read the diff
+  before rendering over it; if the change is right, it belongs upstream.
+- **block** regions (`<!-- keel:begin id -->` … `<!-- keel:end id -->`) sit
+  in a file the project owns; only the inside is rewritten.
+- **seeded** files are written once, when absent, and never compared again.
+
+`keel render --check --json` is safe at any time: it writes nothing and lists
+what differs. A render that finds block markers missing refuses to write.
+
+<!-- topic: install | how keel is installed, and how to tell which keel you have -->
+
+Keel is a git checkout plus a link; there is no registry and no build step.
+
+```bash
+git clone https://github.com/dalmaer/keel ~/code/keel   # any path works
+npm install -g ~/code/keel                              # or, in the checkout: npm link
+keel --version
+```
+
+`npm i -g <dir>` links the checkout, so the installed CLI is exactly that
+checkout's commit; `keel --version` prints the short sha. The CLI uses its
+own copy of the practice (its `practices/`), never the project's scripts.
+Updating will be `git pull --ff-only` in the checkout.
+
+<!-- topic: coming | verbs that are planned and not yet built -->
+
+Not built yet, so not verbs: `init` (a new project), `adopt` (bring an
+existing repo under keel), `update` (CLI then practice migration, as one PR),
+`doctor` (conformance and drift), `improve`, `lessons` (send lessons home),
+`learn`, `fleet`. Do not call them; `keel help` lists what exists. The
+roadmap in keel's `docs/ROADMAP.md` says where each one stands.

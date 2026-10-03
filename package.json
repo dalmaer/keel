@@ -5,8 +5,10 @@
   "description": "The mothership for projects run the isocan/ledger way: phases that own their status, lessons as shapes, a conductor, and a night shift.",
   "type": "module",
   "engines": { "node": ">=24" },
+  "bin": { "keel": "bin/keel.mjs" },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
+    "keel": "node bin/keel.mjs",
     "roadmap": "node scripts/roadmap.mjs",
     "roadmap:check": "node scripts/roadmap.mjs --check",
     "next": "node scripts/roadmap.mjs --next",

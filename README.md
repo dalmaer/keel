@@ -12,6 +12,20 @@ Today each project carries a hand-copied version of that practice. Keel makes
 it one versioned thing. You can install it, update it and migrate it, and the
 lessons each project learns flow back home.
 
+## Install
+
+Keel is a git checkout plus a link: no registry, no build step, Node ≥ 24.
+
+```bash
+git clone https://github.com/dalmaer/keel ~/code/keel   # any path
+npm install -g ~/code/keel                              # or, in the checkout: npm link
+keel --version        # keel <version> (<commit>) practice <version>
+keel --agent-help     # where an agent starts
+```
+
+The global install is a symlink to the checkout, so the CLI you run is exactly
+that checkout's commit. Updating is `git pull --ff-only` in the checkout.
+
 ## The verbs (planned — see [the roadmap](docs/ROADMAP.md))
 
 | Verb | Where | What |
