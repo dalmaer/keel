@@ -39,7 +39,7 @@ The rules carry over unchanged:
 
 - [ ] `keel adopt` on a project with its own loop script reports `loop` as local, with the convergence proposal, and leaves its findings untouched.
 - [ ] Findings parse identically under keel's script and the project's own, before it is retired (same `docs/LOOP.md` bytes).
-- [ ] `pull` against a stubbed Loop API files new insights as untriaged, and never overwrites our fields on a re-filing.
+- [ ] `pull` against a stubbed `stitch` CLI files new insights as untriaged, and never overwrites our fields on a re-filing.
 - [ ] `propose` records a proposal; only `decide` (a person) changes a decision, and `push` is the only verb that sends anything to Loop.
 - [ ] `render --check` fails CI on a stale `docs/LOOP.md` or a proposal without a read of the code.
 - [ ] ⚑ The nightly workflow's secrets (`LOOP_API_KEY`, `STITCH_INSTALLER_URL`) are listed with what they cost; none set without the owner's yes.
@@ -47,9 +47,14 @@ The rules carry over unchanged:
 
 ## Proof
 
-Automated: `node --test tests/loop.test.mjs`, with the Loop API stubbed at the
-HTTP boundary from recorded real responses (lesson: a fake that mirrors the
-code only confirms it).
+Automated: `node --test tests/loop.test.mjs`, with the `stitch` CLI stubbed
+at the process boundary (both ledger and isocan drive Loop through `stitch …
+--format json`, never HTTP), answering in its real JSON envelope (lesson: a
+fake that mirrors the code only confirms it).
+
+Equivalence: render a copy of ledger's real `docs/loop/` with keel's port and
+with ledger's own `scripts/loop.ts`; the two `docs/LOOP.md` files must be
+byte-identical.
 
 By hand: run the cycle on the adopted project and compare `docs/LOOP.md`
 before and after.
