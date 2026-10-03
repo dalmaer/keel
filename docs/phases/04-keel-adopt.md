@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G2
 depends: [3]
-note: "duo and cajones are the first candidates; both already run a hand-ported version."
-evidence: []
+note: "adopt classifies each practice on/local/off and only adds; on temp clones of duo and ritmo it is +350/−0 and each project's gate stays green. The two real PRs wait on the owner's yes (duo is public)."
+evidence: ["evidence/2026-10-02-adopt.md"]
 ---
 
 # An existing project comes under keel without losing what is its own
@@ -24,10 +24,10 @@ front matter, ritmo's `milestone` → `goal`) is a migration, shown as a diff.
 
 ## Acceptance
 
-- [ ] A dry run lists, per file, adopt / keep-local / conflict, and changes nothing.
+- [x] A dry run lists, per file, adopt / keep-local / conflict, and changes nothing.
 - [ ] duo adopted: its roadmap, lessons and workflows still pass; the PR is merged by its owner.
 - [ ] cajones adopted, the same.
-- [ ] Every local difference from keel's managed version is either ejected or filed as a lesson — none silently overwritten.
+- [x] Every local difference from keel's managed version is either ejected or filed as a lesson — none silently overwritten.
 
 ## Proof
 
@@ -40,4 +40,10 @@ front matter, ritmo's `milestone` → `goal`) is a migration, shown as a diff.
 
 ## Next action
 
-Write down, for duo and cajones, every practice file each has and which keel practice it maps to — that table is adopt's test fixture.
+⚑ With the owner's yes, for each of duo (public) and cajones (private): clone, `keel adopt`, push branch `keel/adopt`, `gh pr create` with `docs/keel-adoption.md` as the body; the owner merges.
+
+## Trajectory
+
+- **2026-10-02** — Adopt switches on only what a project already satisfies; the rest is a recorded local variant with a proposal (design §1a). On both real projects, phases, evidence and ci came out local, so convergence is phase 6's migrations, not adopt.
+- **2026-10-02** — The project's gate is config (`check`), and every shipped instruction names it via `{{check}}`. Before that, ritmo's adopted conduct block told agents to run its syntax check as the whole suite.
+- **2026-10-02** — A local variant meets another practice's `requires`, so conduct and lessons can be on beside a project's own phases.

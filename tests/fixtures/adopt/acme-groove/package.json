@@ -1,0 +1,14 @@
+{
+  "name": "acme-groove",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check scripts/roadmap.mjs",
+    "test": "node --test tests/*.test.js",
+    "roadmap": "node scripts/roadmap.mjs",
+    "roadmap:check": "node scripts/roadmap.mjs --check",
+    "check:code": "npm run check && npm test",
+    "check:all": "npm run check:code && npm run roadmap:check"
+  }
+}

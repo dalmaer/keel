@@ -1,0 +1,12 @@
+{
+  "name": "acme-fold",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Acme Fold explorer: what an app does in each pose of a folding device.",
+  "scripts": {
+    "test": "node --test 'scripts/*.test.ts'",
+    "roadmap": "node ./scripts/roadmap.ts",
+    "check": "npm test && npm run roadmap -- --check"
+  }
+}

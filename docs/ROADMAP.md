@@ -47,7 +47,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [4. An existing project comes under keel without losing what is its own](phases/04-keel-adopt.md) | planned | 2026-10-02 | [3](phases/03-keel-init.md) | duo and cajones are the first candidates; both already run a hand-ported version. |
+| [4. An existing project comes under keel without losing what is its own](phases/04-keel-adopt.md) | partial | 2026-10-02 | [3](phases/03-keel-init.md) | adopt classifies each practice on/local/off and only adds; on temp clones of duo and ritmo it is +350/−0 and each project's gate stays green. The two real PRs wait on the owner's yes (duo is public). |
 | [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | planned | 2026-10-02 | [1](phases/01-practices-as-modules.md) | Motivated by lesson 1: isocan's untracked second copy of conduct was twelve days stale. |
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | planned | 2026-10-02 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | Order is settled in design.md §3: CLI first, then migrations, then re-render, then check, then PR. |
 

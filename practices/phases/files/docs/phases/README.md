@@ -52,4 +52,4 @@ the course: `- **YYYY-MM-DD** — Claim. Evidence.` A phase that went as planned
 says so in one line. Work done is not trajectory; git holds it.
 
 Use [the template](../templates/phase.md). After editing: `npm run roadmap`,
-then `npm run check`.
+then `{{check}}`.

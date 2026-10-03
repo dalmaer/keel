@@ -23,4 +23,4 @@ jobs:
       # Zero dependencies, so no install step. The roadmap is a VIEW of the
       # phases; a view that can go stale is how status came to be written in
       # two places that disagreed.
-      - run: npm run check
+      - run: {{check}}

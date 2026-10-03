@@ -4,7 +4,7 @@
 
 ```bash
 npm run next      # the next phase to conduct, and its next action
-npm run check     # tests + roadmap guard; run before pushing (CI runs it too)
+{{check}}     # the whole gate; run before pushing (CI runs it too)
 npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 ```
 

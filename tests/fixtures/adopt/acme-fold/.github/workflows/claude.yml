@@ -1,0 +1,11 @@
+name: Claude
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5

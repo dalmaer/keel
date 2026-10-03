@@ -117,7 +117,7 @@ evidence: the conductor writes the record.
 
 ## How you test
 The test files you touched or wrote, by path (`node --test tests/<file>`),
-as often as you like. Do NOT run the whole check (`npm run check`): the
+as often as you like. Do NOT run the whole check (`{{check}}`): the
 conductor runs it once on the integrated tree. Never run a build beside
 another build.
 
@@ -152,7 +152,7 @@ as written, from the repo root, and read exit codes, not tails.
   Never stage before an autostash pull: the pull hands staged changes back unstaged.
 - `git status --short`: only the phase's files changed, no leftovers, no
   `.env`, nothing under `docs/phases/`.
-- **The whole check, once**, on the integrated tree: `npm run check`. Start it
+- **The whole check, once**, on the integrated tree: `{{check}}`. Start it
   detached and do the reading below while it runs. If something fails, re-run
   just that, alone, before calling it a flake.
 - The named Proof, command by command.
