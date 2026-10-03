@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-03
 goal: G3
 depends: [15]
-note: "The owner decided keel goes public (3 Oct) so isocan and others can use it; Apache-2.0. Waits on a review of everything that would become public."
-evidence: []
+note: "Public under Apache-2.0 after an audit the owner approved; git clone and npm install -g work with an empty HOME and no GitHub login."
+evidence: ["evidence/2026-10-03-public-audit.md", "evidence/2026-10-03-public.md"]
 ---
 
 # Anyone can install keel, and nothing private comes with it
@@ -32,10 +32,10 @@ evidence: []
 
 ## Acceptance
 
-- [ ] `LICENSE` and `NOTICE` exist, and each adapted file's header still credits its source.
-- [ ] A written audit (`docs/evidence/`) lists every hit for private content in the tree and the history, with a decision for each.
-- [ ] The owner has seen the audit's hits before the flip.
-- [ ] ⚑ The repo is public; `git clone` plus `npm install -g` with an empty `HOME` works.
+- [x] `LICENSE` and `NOTICE` exist, and each adapted file's header still credits its source.
+- [x] A written audit (`docs/evidence/`) lists every hit for private content in the tree and the history, with a decision for each.
+- [x] The owner has seen the audit's hits before the flip.
+- [x] ⚑ The repo is public; `git clone` plus `npm install -g` with an empty `HOME` works.
 
 ## Proof
 
@@ -47,10 +47,13 @@ evidence: []
 ## Deliberately open
 
 - **Whether private-repo content quoted in keel's history is acceptable.**
-  For example, ledger's lessons are summarised in keel's lessons and
-  research. Decided by the owner, from the audit.
+  **Settled 2026-10-03:** the owner saw the audit's three items and chose
+  "publish as is".
 
 ## Next action
 
-Run the audit: grep the tree and `git log -p` for ledger and cajones content,
-absolute paths and private repo names, and write the hits up.
+None.
+
+## Trajectory
+
+- **2026-10-03** — Public on the owner's decision, so that isocan and others can use keel. With no token needed anywhere (phase 15), a public keel is installable by anyone with git and Node.

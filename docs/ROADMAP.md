@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 18 phases lived in; 6 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 18 phases lived in; 7 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). ⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
 
@@ -61,13 +61,13 @@ Existing projects come under keel without losing what is theirs, and a practice 
 
 A lesson learned in any project, or a practice improved upstream, reaches keel, is decided by a person, and ships to the rest of the fleet.
 
-1/3 built or lived-in; 0/3 lived-in.
+2/3 built or lived-in; 0/3 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [7. A lesson learned in a project reaches keel without anyone copying it](phases/07-lessons-go-home.md) | partial | 2026-10-02 | [5](phases/05-managed-files-and-drift.md) | keel lessons gathers lesson rows, drift and practice commits with stable fingerprints and files each once (sent.json plus an exact-fingerprint search); real dry runs on duo and ritmo clones. Filing for real waits on the owner's yes. |
 | [8. Keel turns what it hears into the next practice version, with a person deciding](phases/08-learn-at-home.md) | built | 2026-10-02 | [6](phases/06-update-and-migrations.md), [7](phases/07-lessons-go-home.md) | keel learn gathers lesson issues and pinned sources into docs/inbox proposals (INBOX.md generated and checked); propose needs a cited read, decide is the person's; real run: 0 issues, conduct source still at its pin. |
-| [17. Anyone can install keel, and nothing private comes with it](phases/17-keel-is-public.md) | planned | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md) | The owner decided keel goes public (3 Oct) so isocan and others can use it; Apache-2.0. Waits on a review of everything that would become public. |
+| [17. Anyone can install keel, and nothing private comes with it](phases/17-keel-is-public.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md) | Public under Apache-2.0 after an audit the owner approved; git clone and npm install -g work with an empty HOME and no GitHub login. |
 
 - **7 done when:** `keel lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/keel` labelled `lesson`, and never files the same one twice.
 - **8 done when:** `keel learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.
