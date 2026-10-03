@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-03
 goal: G4
 depends: [10, 11]
-note: "The owner's correction: a project's workflows must never reach back to keel at runtime. Today keel-night clones keel with KEEL_TOKEN."
-evidence: []
+note: "Night and loop workflows run the project's own scripts/keel/*.mjs: no keel checkout, no KEEL_TOKEN (keel's real nightly ran that way). keel-update.yml retired by migration 0002; keel fleet update opens update PRs from home. A real fleet update waits on an adopted project."
+evidence: ["evidence/2026-10-03-projects-run-on-their-own.md"]
 ---
 
 # A project's night shift runs from its own repo, and keel is only where the ideas come from
@@ -31,11 +31,11 @@ A project made by `keel init` runs its night shift with no keel checkout and no 
 
 ## Acceptance
 
-- [ ] A workflow test fails if any shipped workflow references `dalmaer/keel`, `KEEL_TOKEN`, or clones anything.
-- [ ] A fresh `keel init` project, with keel's checkout moved away, runs its night steps (`improve --report`, drain) locally and they pass.
-- [ ] Migration 0002 removes `keel-update.yml` and leaves the rest of the night practice rendered.
-- [ ] `keel fleet update` without `--yes` lists each behind project and the PR it would open; with `--yes`, against the gh stub, it opens exactly one PR per behind project.
-- [ ] The managed improve/drain copies and keel's own verbs share one source (the render check fails if they drift).
+- [x] A workflow test fails if any shipped workflow references `dalmaer/keel`, `KEEL_TOKEN`, or clones anything.
+- [x] A fresh `keel init` project, with keel's checkout moved away, runs its night steps (`improve --report`, drain) locally and they pass.
+- [x] Migration 0002 removes `keel-update.yml` and leaves the rest of the night practice rendered.
+- [x] `keel fleet update` without `--yes` lists each behind project and the PR it would open; with `--yes`, against the gh stub, it opens exactly one PR per behind project.
+- [x] The managed improve/drain copies and keel's own verbs share one source (the render check fails if they drift).
 
 ## Proof
 
@@ -47,10 +47,13 @@ A project made by `keel init` runs its night shift with no keel checkout and no 
 
 ## Deliberately open
 
-- **Where the shipped scripts live** (`scripts/keel/`, or `.keel/bin/`).
-  Prefer `scripts/keel/`: it's visible, and its tests sit beside it.
+- **Where the shipped scripts live.** **Settled 2026-10-03:** `scripts/keel/`,
+  which is visible, with its tests beside it.
 
 ## Next action
 
-List every module `improve` and `drain` import, to see how much ships into a
-project, then write the "no workflow names keel" test first.
+⚑ After an adoption merges, run `keel fleet update --yes` from keel and link the PR it opens.
+
+## Trajectory
+
+- **2026-10-03** — A project measures what it can read itself: drift by its own lock, plus five lint rules. The `behind` state, the `both` state and the loop lints are keel-side, and say so rather than 0. keel's own night loads the full set from its checkout, which is still its own repo.
