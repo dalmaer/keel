@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-03
 goal: G2
 depends: [15, 16]
-note: "The owner wants keel going and tested on ledger first (3 Oct), then the others."
-evidence: []
+note: "ledger runs on keel: adoption PR #16 merged (CI green, no deploy), and the first real keel-night measured 2,046 tests, opened #17 and drained it, with LEDGER_AUTOSYNC applied throughout. Stage B (Loop through keel) remains."
+evidence: ["evidence/2026-10-03-ledger.md"]
 ---
 
 # ledger runs on keel for real, and nothing it had stops working
@@ -41,12 +41,12 @@ with the `STITCH_API_KEY` the owner set. That is a separate PR.
 
 ## Acceptance
 
-- [ ] `setup` and `env` exist, are honoured by keel-night, improve and update, are shown by `keel doctor`, and are tested (a gate that needs an env var fails without it and passes with it).
-- [ ] A fresh ledger clone, adopted, passes `check:all` and `keel improve`, and `git log` and `git status` in the clone show nothing the gate wrote or synced.
-- [ ] The adoption PR shows additions only, apart from intended keel files. Its AGENTS.md section doesn't restate ledger's own rules.
-- [ ] ⚑ The ledger PR is merged, by the owner or with their yes, and ledger's own CI is green on it.
-- [ ] ⚑ The owner turns on "Allow GitHub Actions to create and approve pull requests" for ledger. One real keel-night on ledger then opens and drains its health PR.
-- [ ] `keel fleet` shows ledger `adopted: yes`, current.
+- [x] `setup` and `env` exist, are honoured by keel-night, improve and update, are shown by `keel doctor`, and are tested (a gate that needs an env var fails without it and passes with it).
+- [x] A fresh ledger clone, adopted, passes `check:all` and `keel improve`, and `git log` and `git status` in the clone show nothing the gate wrote or synced.
+- [x] The adoption PR shows additions only, apart from intended keel files. Its AGENTS.md section doesn't restate ledger's own rules.
+- [x] ⚑ The ledger PR is merged, by the owner or with their yes, and ledger's own CI is green on it.
+- [x] ⚑ The owner turns on "Allow GitHub Actions to create and approve pull requests" for ledger. One real keel-night on ledger then opens and drains its health PR.
+- [x] `keel fleet` shows ledger `adopted: yes`, current.
 - [ ] Stage B: Loop's real pull, propose and render cycle runs through keel's practice on ledger, and ledger's `docs/LOOP.md` keeps its bytes (except line 1).
 
 ## Proof
@@ -66,4 +66,9 @@ with the `STITCH_API_KEY` the owner set. That is a separate PR.
 
 ## Next action
 
-Build `setup` and `env`, then walk Stage A on a fresh clone.
+Stage B: port ledger's telemetry context and roadmap Loop counts into keel's loop practice, then retire `loop.ts` in a second ledger PR and run one real Loop cycle with `STITCH_API_KEY`.
+
+## Trajectory
+
+- **2026-10-03** — `@claude` became opt-in, and adopt now skips any block whose rule the project already states. Both were the owner's calls, made while adopting ledger.
+- **2026-10-03** — The first real night on ledger needed no person: measure, PR #17, gate, merge. The variable that stops ledger's CLI from syncing reached every step through `env`.
