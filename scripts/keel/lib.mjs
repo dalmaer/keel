@@ -10,6 +10,8 @@
 //   phaseLints(root, parse)  a phase the roadmap parser rejects, a duplicate
 //                            phase number, a goal no phase serves
 //   claudeMdLint(text)       a CLAUDE.md that is more than a pointer
+//   lessonsTableSplit(text, path)  a blank line inside the lessons table:
+//                            the numbered rows after it render as text
 //   secondCopies(root, …)    a second copy of a managed skill (lesson 1)
 //   gateEnv(env, config)     the environment the project's gate runs in:
 //                            NODE_TEST_* stripped (lesson 14), .keel/keel.json
@@ -133,6 +135,30 @@ export function claudeMdLint(text) {
   return lines > CLAUDE_MD_LINES
     ? { rule: 'claude-md-pointer', path: 'CLAUDE.md', message: `CLAUDE.md has ${lines} non-empty lines; it should be a pointer to AGENTS.md (at most ${CLAUDE_MD_LINES}), so there is one guide` }
     : null;
+}
+
+/**
+ * A lessons table split by a blank line: Markdown ends a table at the first
+ * blank line, so every numbered row after it renders as raw text and the
+ * lessons in it are hidden. One lint per split, naming its lines. `path` is
+ * the configured lessons file (.keel/keel.json "lessons", default
+ * docs/lessons.md).
+ */
+export function lessonsTableSplit(text, path = 'docs/lessons.md') {
+  if (text === null || text === undefined) return [];
+  const lines = text.split('\n'), lint = [];
+  let last = -1; // the last line that starts with |, while only blank lines follow it
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (l.startsWith('|')) {
+      if (last >= 0 && i > last + 1 && /^\|\s*\d+\s*\|/.test(l)) {
+        const blank = last + 2 === i ? `line ${i}` : `lines ${last + 2}–${i}`;
+        lint.push({ rule: 'lessons-table-split', path, message: `a blank line (${blank}) splits the lessons table: the rows from line ${i + 1} on render as text, not as the table; remove the blank ${i - last - 1 === 1 ? 'line' : 'lines'}` });
+      }
+      last = i;
+    } else if (l.trim()) last = -1;
+  }
+  return lint;
 }
 
 /** Phases the roadmap's parser rejects, duplicate numbers, and goals with no phase. */

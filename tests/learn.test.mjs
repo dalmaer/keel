@@ -118,7 +118,7 @@ test('learn runs at home only: elsewhere exit 2', async t => {
   delete cfg.keel;
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(cfg));
   for (const args of [['learn'], ['learn', 'render', '--check']]) {
-    const r = keel([...args, '--json'], dir, cleanEnv());
+    const r = keel([...args, '--json'], dir, { ...cleanEnv(), KEEL_GH: '/nonexistent/gh' });
     assert.equal(r.code, 2, args.join(' '));
     assert.match(JSON.parse(r.out).error, /learn runs at home, on keel/);
   }

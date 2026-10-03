@@ -105,17 +105,20 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // goal add runs before goal retire, which retires the goal it added.
     // improve bare would run keel's own check from inside it; its --selftest runs on its fixture.
     const added = `G${Math.max(...JSON.parse(await readFile(join(dir, 'docs/goals.json'), 'utf8')).map(g => Number(g.id.slice(1)))) + 1}`;
-    // drain and fleet read GitHub; here a gh that prints [], and tests/night.test.mjs and
-    // tests/fleet.test.mjs cover the rest.
+    // No verb here reads the live world (lesson 17's shape: a test that reads it goes red when
+    // the world changes, as fleet update did once ledger was adopted). Every verb runs with a gh
+    // that prints [], and fleet.json is a synthetic, empty fleet; tests/night.test.mjs,
+    // tests/fleet.test.mjs and tests/learn.test.mjs cover those verbs against a stub gh.
     const emptyGh = join(dir, 'empty-gh');
     await writeFile(emptyGh, `#!${process.execPath}\nconsole.log('[]');\n`, { mode: 0o755 });
+    await writeFile(join(dir, 'fleet.json'), '[]\n');
     const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
       'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     for (const name of names()) {
-      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, ['drain', 'fleet'].includes(name) ? { ...env, KEEL_GH: emptyGh } : env);
+      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, { ...env, KEEL_GH: emptyGh });
       assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lineDiff, blockBody } from '../lib/doctor.mjs';
+import { lessonsTableSplit } from '../practices/night/files/scripts/keel/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -165,6 +166,50 @@ test('a CLAUDE.md that is more than a pointer is linted', async t => {
   assert.equal(code, 1);
   assert.deepEqual(rules(data), ['claude-md-pointer CLAUDE.md']);
   assert.deepEqual(data.drift.map(d => [d.path, d.state]), [['CLAUDE.md', 'edited']]);
+});
+
+// The shape ledger's lessons.md had (rows 8 on rendered as raw text), with Acme's rows.
+const SPLIT_LESSONS = [
+  '# Lessons', '',
+  '| # | The shape of it | What it cost | Guard |', '| --- | --- | --- | --- |',
+  '| 1 | **Acme widgets drift.** | A day. | A test. |',
+  '| 2 | **Acme sprockets stall.** | An hour. | A lint. |',
+  '',
+  '| 3 | **Acme gears slip.** | A week. | planned |',
+  '| 4 | **Acme cogs jam.** | A day. | A test. |',
+  '', '',
+  '| 5 | **Acme belts fray.** | An hour. | A test. |',
+  '',
+  'Prose, then a second table is a table of its own:', '',
+  '| Kind | Count |', '| --- | --- |', '| widgets | 2 |',
+  '',
+  '| Size | Count |', '| --- | --- |', '| large | 1 |',
+  '', 'More prose.', '',
+  '| 6 | **A numbered row after prose is not a split.** | — | — |',
+  '',
+].join('\n');
+
+test('lessons-table-split: a blank line inside the lessons table is linted, naming its lines', async t => {
+  const lint = lessonsTableSplit(SPLIT_LESSONS, 'docs/lessons.md');
+  assert.deepEqual(lint.map(l => l.message.match(/\((lines? [\d–]+)\).*from line (\d+)/).slice(1)), [['line 7', '8'], ['lines 10–11', '12']]);
+  assert.ok(lint.every(l => l.rule === 'lessons-table-split' && l.path === 'docs/lessons.md'));
+  assert.deepEqual(lessonsTableSplit(SPLIT_LESSONS.replace('\n\n| 3 |', '\n| 3 |').replace('\n\n\n| 5 |', '\n| 5 |')), [], 'one table again: clean');
+  assert.deepEqual(lessonsTableSplit(null), []);
+
+  const dir = await project(t);
+  assert.deepEqual(doctor(dir).data.lint, []);
+  await writeFile(join(dir, 'docs', 'lessons.md'), SPLIT_LESSONS);
+  const { code, data } = doctor(dir);
+  assert.equal(code, 1);
+  assert.deepEqual(rules(data), ['lessons-table-split docs/lessons.md', 'lessons-table-split docs/lessons.md']);
+  assert.match(data.lint[0].message, /a blank line \(line 7\) splits the lessons table: the rows from line 8 on render as text/);
+  // A configured lessons path is the one read.
+  await mkdir(join(dir, 'notes'), { recursive: true });
+  await writeFile(join(dir, 'notes', 'lessons.md'), SPLIT_LESSONS);
+  await writeFile(join(dir, 'docs', 'lessons.md'), '# Lessons\n');
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, lessons: 'notes/lessons.md' }, null, 2));
+  assert.deepEqual(rules(doctor(dir).data), ['lessons-table-split notes/lessons.md', 'lessons-table-split notes/lessons.md']);
 });
 
 test('a phase without Done when and a goal without a phase are linted', async t => {

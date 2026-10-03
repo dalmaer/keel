@@ -374,3 +374,76 @@ test('adopt records repo from a github.com origin of the project\'s own git repo
   const kept = await adopt({ dir: outer, dryRun: true }, { version: VERSION });
   assert.equal(kept.data.config.repo, 'acme/kept');
 });
+
+test('--with on an adopted project adds only that practice: its files, block and lock rows; every other byte stays', async t => {
+  const dir = join(await scratch(t), 'acme-notes');
+  const init = keel(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']);
+  assert.equal(init.code, 0, init.err);
+  await writeFile(join(dir, '.stitch.json'), '{ "workspace": "acme-0000-workspace" }\n');
+  // A managed file keel has moved on from (behind: the bytes are the lock's, not today's template).
+  const lockPath = join(dir, '.keel', 'lock.json');
+  const old = '// Acme: an older drain\n';
+  await writeFile(join(dir, 'scripts', 'keel', 'drain.mjs'), old);
+  const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+  lock.files['scripts/keel/drain.mjs'].sha256 = createHash('sha256').update(old).digest('hex');
+  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+  const cfgBefore = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel', 'keel.json'), `${JSON.stringify({ ...cfgBefore, practice: '0.0.1', loop: { run: 'npm run loop --' } }, null, 2)}\n`);
+  const agentsBefore = await readFile(join(dir, 'AGENTS.md'), 'utf8');
+  const lockBefore = JSON.parse(await readFile(lockPath, 'utf8'));
+  const before = await tree(dir);
+
+  // A project with its own loop script: refused, nothing written.
+  await writeFile(join(dir, 'scripts', 'loop.ts'), '// Acme\'s own Loop triage.\n');
+  let r = keel(['adopt', dir, '--with', 'loop']);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /--with loop: loop would be local here — the project triages Loop with its own scripts\/loop\.ts.*nothing written/);
+  await rm(join(dir, 'scripts', 'loop.ts'));
+  assert.deepEqual(await tree(dir), before);
+
+  r = keel(['adopt', dir, '--with', 'loop', '--dry-run', '--json']);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(JSON.parse(r.out).added, ['loop']);
+  assert.deepEqual(await tree(dir), before, 'a dry run writes nothing');
+
+  r = keel(['adopt', dir, '--with', 'loop', '--json']);
+  assert.equal(r.code, 0, r.err);
+  const after = await tree(dir);
+  const changed = Object.keys({ ...before, ...after }).filter(p => before[p] !== after[p]).sort();
+  assert.deepEqual(changed, ['.github/workflows/keel-loop.yml', '.keel/keel.json', '.keel/lock.json', 'AGENTS.md', 'docs/loop/README.md', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  assert.deepEqual(cfg, { ...cfgBefore, practice: '0.0.1', loop: { run: 'npm run loop --' }, practices: [...cfgBefore.practices, 'loop'] }, 'only practices changed; the practice version is kept');
+  const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
+  assert.ok(agents.startsWith(agentsBefore));
+  // Appended after the project's last byte (under the keel heading adopt adds when it is missing).
+  assert.match(agents.slice(agentsBefore.length), /^\n(## The keel practice\n\n.*\n\n)?<!-- keel:begin loop -->\n\*\*Loop's insights are claims[^]*<!-- keel:end loop -->\n$/);
+  const lockAfter = JSON.parse(await readFile(lockPath, 'utf8'));
+  assert.equal(lockAfter.practice, lockBefore.practice);
+  for (const [k, v] of Object.entries(lockBefore.files)) assert.deepEqual(lockAfter.files[k], v, k);
+  assert.deepEqual(Object.keys(lockAfter.files).filter(k => !lockBefore.files[k]).sort(), ['.github/workflows/keel-loop.yml', 'AGENTS.md#loop', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
+  assert.equal(await readFile(join(dir, 'scripts', 'keel', 'drain.mjs'), 'utf8'), old, 'a behind file is update\'s, not adopt\'s');
+
+  // Run again: loop is on, so nothing is added and the whole re-run is the old no-op path.
+  const again = await tree(dir);
+  r = keel(['adopt', dir, '--with', 'loop', '--dry-run', '--json']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(JSON.parse(r.out).added, undefined);
+  assert.deepEqual(await tree(dir), again);
+});
+
+test('--with on an adopted project honours a block the config already skips', async t => {
+  const dir = join(await scratch(t), 'acme-notes');
+  assert.equal(keel(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']).code, 0);
+  await writeFile(join(dir, '.stitch.json'), '{ "workspace": "acme-0000-workspace" }\n');
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel', 'keel.json'), `${JSON.stringify({ ...cfg, blocksSkipped: ['loop'] }, null, 2)}\n`);
+  const agentsBefore = await readFile(join(dir, 'AGENTS.md'), 'utf8');
+  const r = keel(['adopt', dir, '--with', 'loop', '--json']);
+  assert.equal(r.code, 0, r.err);
+  const data = JSON.parse(r.out);
+  assert.equal(data.files.find(f => f.block === 'loop').status, 'skip');
+  assert.equal(await readFile(join(dir, 'AGENTS.md'), 'utf8'), agentsBefore);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).blocksSkipped, ['loop']);
+  assert.ok(!Object.hasOwn(JSON.parse(await readFile(join(dir, '.keel', 'lock.json'), 'utf8')).files, 'AGENTS.md#loop'));
+  assert.equal(keel(['render', '--check'], dir).code, 0, 'render agrees there is nothing to write');
+});

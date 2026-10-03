@@ -288,10 +288,10 @@ const UPDATE_BRANCH = `keel/update-v${CLI}`;
 const re = s => new RegExp(s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
 
 /** A keel init project on practice BEHIND, its origin a local bare repo, and a checkout the stub's clone copies. */
-async function remoteProject(t, name) {
+async function remoteProject(t, name, version = BEHIND) {
   const root = await scratch(t, `keel-fleet-${name}-`);
   const src = join(root, name);
-  await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: BEHIND, commit: null, practice: BEHIND }, env: { ...cleanEnv(), ...GIT_ENV } });
+  await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: version, commit: null, practice: version }, env: { ...cleanEnv(), ...GIT_ENV } });
   const origin = join(root, 'origin.git');
   execFileSync('git', ['clone', '-q', '--bare', src, origin], { env: { ...cleanEnv(), ...GIT_ENV } });
   const prepared = join(root, 'prepared');
@@ -397,4 +397,24 @@ test('fleet update --yes, against the gh stub: one PR per project behind, pushed
   }
   assert.match(r.text, /acme\/gone: FAILED at clone/);
   assert.match(r.text, re(`acme/waiting: ${UPDATE_BRANCH} is already open`));
+});
+
+test('fleet update: a current project whose only reason is unrecorded migrations is possibly pending, and --yes opens nothing when none applies', async t => {
+  const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
+  const quiet = await remoteProject(t, 'quiet', live);
+  assert.ok(!JSON.parse(quiet.config).migrations?.length, 'init records no migration');
+  const st = { repos: { 'acme/quiet': { default_branch: 'main', files: { '.keel/keel.json': quiet.config } } }, commits: {}, prepared: { 'acme/quiet': quiet.prepared } };
+  const dir = await home(t, [{ repo: 'acme/quiet', kind: 'node', role: 'managed' }]);
+  const gh = await stubGh(t, st);
+  gh.env = { ...gh.env, ...GIT_ENV };
+  let r = await fleetUpdate({ dir }, updateDeps(gh, live));
+  assert.equal(r.exitCode, 3, r.text);
+  assert.deepEqual(r.data.plans.map(p => [p.repo, p.behind, p.title]), [['acme/quiet', false, `keel update: practice ${live}, pending migrations`]]);
+  assert.match(r.text, /\(possibly pending: [^)]*; applies\(\) is checked on the clone; nothing is opened if none applies\)/);
+  r = await fleetUpdate({ dir, yes: true }, updateDeps(gh, live));
+  assert.equal(r.exitCode, 0, r.text);
+  assert.deepEqual(r.data.results.map(x => [x.repo, x.ok, x.pr]), [['acme/quiet', true, null]]);
+  assert.match(r.text, /acme\/quiet: nothing to change once cloned \(no pending migration applies\)/);
+  assert.equal((await gh.calls()).filter(c => c[0] === 'pr' && c[1] === 'create').length, 0, 'no PR');
+  assert.equal(git(quiet.origin, 'branch', '--list', `keel/update-v${live}`), '', 'nothing pushed');
 });

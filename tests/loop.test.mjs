@@ -15,7 +15,7 @@ import { load, render } from '../lib/practices.mjs';
 import { survey, adopt } from '../lib/adopt.mjs';
 import { diagnose } from '../lib/doctor.mjs';
 import { plan, isData } from '../lib/night.mjs';
-import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER } from '../practices/loop/files/scripts/loop.mjs';
+import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER, loadFindings, phaseCounts, settings, commandEnv } from '../practices/loop/files/scripts/loop.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PRACTICE = join(KEEL, 'practices', 'loop', 'files');
@@ -363,4 +363,113 @@ test('doctor: loop on with no workspace, or a gate that never runs the loop chec
   await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { check: 'npm run unit && npm run loop -- render --check', unit: 'node --test test/', loop: 'node scripts/loop.mjs' } }));
   r = await diagnose(dir, { version: '0.0.0' });
   assert.deepEqual(r.lint, []);
+});
+
+// ── The project's own contexts, and what a project's roadmap imports (phase 20) ──
+
+/** Set .keel/keel.json "loop" (and "env") in the Acme copy. */
+async function configure(dir, loop, env) {
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, `${JSON.stringify({ ...cfg, ...(env ? { env } : {}), loop }, null, 2)}\n`);
+}
+const NODE = JSON.stringify(process.execPath);
+
+test('push sends each loop.contexts command\'s stdout as its own Loop context, created or updated as the triage one is', async t => {
+  const { dir, loop, calls, setState } = await project(t);
+  await writeFile(join(dir, 'scripts', 'measures.mjs'), "process.stdout.write(JSON.stringify({ mode: process.env.ACME_MODE ?? null, widgets: 3 }) + '\\n');\n");
+  await configure(dir, { contexts: [{ source: 'acme:measures', description: 'Acme\'s own measures.', command: `${NODE} scripts/measures.mjs` }] }, { ACME_MODE: 'night' });
+  const expected = JSON.stringify({ mode: 'night', widgets: 3 });
+
+  let r = loop('push', '--dry-run');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /would create the Loop context "acme:docs\/loop" \(\d+ chars\)\nwould create the Loop context "acme:measures" \(28 chars\)/);
+  assert.equal(expected.length, 28);
+  assert.deepEqual(sent(await calls()), []);
+
+  r = loop('push', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  const creates = sent(await calls()).filter(c => c.args[0] === 'create').map(c => JSON.parse(c.args[c.args.indexOf('--json') + 1]).body);
+  assert.deepEqual(creates.map(b => b.dataSource), ['acme:docs/loop', 'acme:measures']);
+  assert.deepEqual(creates[1], { data: expected, dataSource: 'acme:measures', description: 'Acme\'s own measures.', annotations: { acme: 'measures' } }, 'stdout less its trailing newline, in the project\'s env');
+
+  // Loop holds it already: nothing replaced. Then it changed: replaced whole.
+  const triage = creates[0];
+  await setState({ ...BASE_STATE, insights: [], contexts: [{ id: 'ctx-1', dataSource: 'acme:docs/loop', data: triage.data }, { id: 'ctx-2', dataSource: 'acme:measures', data: expected }] });
+  const n = sent(await calls()).length;
+  r = loop('push');
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /Loop context "acme:measures" is already current/);
+  await configure(dir, { contexts: [{ source: 'acme:measures', description: 'Acme\'s own measures.', command: `${NODE} scripts/measures.mjs` }] }, { ACME_MODE: 'day' });
+  r = loop('push', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(sent(await calls()).slice(n).map(c => c.args.slice(0, 3).join(' ')), ['delete context ctx-2', 'create context -w']);
+  assert.match(r.stdout, /updated the Loop context "acme:measures"/);
+});
+
+test('a failing context command fails push before anything is sent; an empty one is not sent; a bad config is refused', async t => {
+  const { dir, loop, calls } = await project(t);
+  await configure(dir, { contexts: [{ source: 'acme:measures', description: 'Acme measures.', command: `${NODE} -e "process.stderr.write('acme gauge broke'); process.exit(4)"` }] });
+  let r = loop('push', '--yes');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /Loop context "acme:measures" \(push stopped; nothing was sent\): `.*` exited 4\nacme gauge broke/);
+  assert.deepEqual(sent(await calls()), [], 'not even the dismissal the triage owes');
+  r = loop('push', '--dry-run');
+  assert.equal(r.status, 1, 'a dry run fails the same way');
+
+  await configure(dir, { contexts: [{ source: 'acme:measures', description: 'Acme measures.', command: `${NODE} -e ""` }] });
+  r = loop('push', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Loop context "acme:measures": `.*` printed nothing — not sent\./);
+  assert.deepEqual(sent(await calls()).filter(c => c.args[0] === 'create').map(c => JSON.parse(c.args[c.args.indexOf('--json') + 1]).body.dataSource), ['acme:docs/loop']);
+
+  for (const [contexts, message] of [
+    [[{ source: 'acme:measures', description: 'x' }], /"loop" "contexts"\[0\] needs "command"/],
+    [[{ source: 'acme:docs/loop', description: 'x', command: 'true' }], /source "acme:docs\/loop" is the triage context's own/],
+    [{ source: 'acme:x' }, /must be a list/],
+  ]) {
+    await configure(dir, { contexts });
+    const before = sent(await calls()).length;
+    r = loop('push', '--yes');
+    assert.equal(r.status, 1, JSON.stringify(contexts));
+    assert.match(r.stderr, message);
+    assert.equal(sent(await calls()).length, before);
+  }
+});
+
+test('the context command runs in the gate\'s env: NODE_TEST_* stripped, the project\'s env over it', () => {
+  const env = commandEnv({ PATH: '/bin', NODE_TEST_CONTEXT: 'child-v8', ACME_MODE: 'day' }, { env: { ACME_MODE: 'night' } });
+  assert.deepEqual(env, { PATH: '/bin', ACME_MODE: 'night' });
+});
+
+test('loop.name names the triage context, its kind and annotations; afterRender runs after a render that writes, never on --check', async t => {
+  const { dir, loop } = await project(t);
+  await writeFile(join(dir, 'scripts', 'after.mjs'), "import { appendFileSync } from 'node:fs';\nappendFileSync('after.log', process.argv[2] + '\\n');\n");
+  await configure(dir, { name: 'Acme Works', afterRender: `${NODE} scripts/after.mjs ran` });
+  const s = settings(dir);
+  assert.deepEqual([s.display, s.name, s.source, s.kind], ['Acme Works', 'acme-works', 'acme-works:docs/loop', 'acme-works-triage-decisions']);
+  let r = loop('render');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(await readFile(join(dir, 'after.log'), 'utf8'), 'ran\n');
+  assert.equal(loop('render', '--check').status, 0);
+  assert.equal(await readFile(join(dir, 'after.log'), 'utf8'), 'ran\n', '--check writes nothing and runs nothing');
+  await configure(dir, { afterRender: `${NODE} -e "process.exit(2)"` });
+  r = loop('render');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /afterRender: `.*` exited 2/);
+});
+
+test('a project\'s own roadmap counts findings per phase from loop.mjs, in the shape ledger\'s roadmap reads', async t => {
+  const { dir } = await project(t);
+  const findings = loadFindings(join(dir, 'docs', 'loop'));
+  const extra = [
+    { ...findings[0], slug: 'a', decision: 'accepted', phase: 1 },
+    { ...findings[0], slug: 'b', decision: 'proposed', phase: 1 },
+    { ...findings[0], slug: 'c', decision: 'proposed', phase: 'new' },
+    { ...findings[0], slug: 'd', decision: 'declined', phase: 1 },
+    { ...findings[0], slug: 'e', decision: 'accepted', phase: null },
+  ];
+  const counts = phaseCounts(extra);
+  assert.ok(counts instanceof Map);
+  assert.deepEqual([...counts], [[1, { accepted: 1, proposed: 1 }], ['new', { accepted: 0, proposed: 1 }]]);
 });

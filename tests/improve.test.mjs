@@ -319,6 +319,18 @@ test('in the project, drift and lint read its own files; from keel, the full set
   assert.match(inbox.detail, /keel-side only/);
 });
 
+test('in the project, a lessons table split by a blank line counts as lint (lessons-table-split)', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: '/nonexistent/gh' };
+  const lessons = join(dir, 'docs', 'lessons.md');
+  await writeFile(lessons, '# Lessons\n\n| # | Shape | Cost | Guard |\n| --- | --- | --- | --- |\n| 1 | **Acme widgets drift.** | A day. | A test. |\n\n| 2 | **Acme gears slip.** | A week. | planned |\n');
+  const mine = JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env }).stdout);
+  assert.deepEqual(byId(mine, 'lint').facts.lint, [{ rule: 'lessons-table-split', path: 'docs/lessons.md' }]);
+  assert.match(byId(mine, 'lint').detail, /lessons-table-split/);
+  const full = keel(['improve', '--json'], dir, env).json();
+  assert.deepEqual(byId(full, 'lint').facts.lint, [{ rule: 'lessons-table-split', path: 'docs/lessons.md' }], 'keel\'s doctor agrees');
+});
+
 test('the gate runs with .keel/keel.json `env`: outside without it, ok with it, and never a test runner\'s context', async t => {
   const dir = await project(t);
   // Exits 0 only with ACME_FLAG=1 and no NODE_TEST_CONTEXT (lesson 14).

@@ -6,7 +6,7 @@
 //   node scripts/loop.mjs list [--json] [-d proposed]
 //   node scripts/loop.mjs propose <slug> --rank next [--phase 10] [--lesson 3] --note "…" --read "… file:line …"
 //   node scripts/loop.mjs decide <slug> <accepted|declined|stale|done> [--rank …] [--phase …] [--note "…"] (--no-push | --yes)
-//   node scripts/loop.mjs push (--dry-run | --yes)   dismiss what we declined; send our decisions as a Loop context
+//   node scripts/loop.mjs push (--dry-run | --yes)   dismiss what we declined; send our decisions (and the project's own contexts) to Loop
 //   node scripts/loop.mjs mine [priority…] --yes     ask Loop to re-mine the code now
 //   node scripts/loop.mjs render [--check]        write docs/LOOP.md (and fail if stale, for CI)
 //
@@ -22,8 +22,13 @@
 // Loop is reached through the `stitch` CLI, never HTTP. The binary is
 // process.env.KEEL_STITCH || 'stitch'. The workspace comes from .stitch.json
 // ("workspace"), or STITCH_WORKSPACE (the official CLI's name for it). Per-project wording comes from
-// .keel/keel.json "loop": { run, insights, source, kind } — see
-// practices/loop/README.md in keel.
+// .keel/keel.json "loop": { name, run, insights, source, kind, contexts,
+// afterRender } — see practices/loop/README.md in keel. `contexts` are the
+// project's own Loop contexts beyond the triage one: on push each `command`
+// runs (in the gate's env: NODE_TEST_* stripped, .keel/keel.json `env` over
+// it) and its stdout is that context's data. `afterRender` runs after every
+// render that writes docs/LOOP.md (a roadmap that counts findings moves with
+// them). A project's own roadmap imports loadFindings and phaseCounts from here.
 //
 // Provenance. The finding format, the verbs and the rendered page are ledger's
 // (github.com/dalmaer/ledger, scripts/loop.ts and core/loop.ts at fd70d6f1,
@@ -319,6 +324,18 @@ export function slugify(title) {
   return cut.slice(0, cut.lastIndexOf('-')) || full.slice(0, 60);
 }
 
+/** Per phase: how many findings are accepted into it, and how many are proposed for it. A Map keyed by phase number or 'new'. */
+export function phaseCounts(findings) {
+  const out = new Map();
+  for (const f of findings) {
+    if (f.phase === null || (f.decision !== 'accepted' && f.decision !== 'proposed')) continue;
+    const c = out.get(f.phase) ?? { accepted: 0, proposed: 0 };
+    c[f.decision] += 1;
+    out.set(f.phase, c);
+  }
+  return out;
+}
+
 export function loadFindings(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter(n => n.endsWith('.md') && n !== 'README.md').sort()
@@ -497,20 +514,75 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
+
+/** What is wrong with "loop" "contexts" and "afterRender" in .keel/keel.json, as messages. */
+export function contextProblems(own, triageSource) {
+  const out = [];
+  if (own.afterRender !== undefined && !nonEmpty(own.afterRender)) out.push('"loop" "afterRender" must be a non-empty shell command');
+  if (own.contexts === undefined) return out;
+  if (!Array.isArray(own.contexts)) return [...out, '"loop" "contexts" must be a list of { source, description, command }'];
+  const seen = new Set([triageSource]);
+  own.contexts.forEach((c, i) => {
+    const at = `"loop" "contexts"[${i}]`;
+    if (!c || typeof c !== 'object' || Array.isArray(c)) { out.push(`${at} must be { source, description, command }`); return; }
+    for (const k of ['source', 'description', 'command']) if (!nonEmpty(c[k])) out.push(`${at} needs "${k}" (a non-empty string)`);
+    if (c.annotations !== undefined && (!c.annotations || typeof c.annotations !== 'object' || Array.isArray(c.annotations) || Object.values(c.annotations).some(v => typeof v !== 'string'))) out.push(`${at} "annotations" must be an object of strings`);
+    if (nonEmpty(c.source)) {
+      if (seen.has(c.source)) out.push(`${at} source "${c.source}" is ${c.source === triageSource ? 'the triage context\'s own' : 'repeated'}`);
+      seen.add(c.source);
+    }
+  });
+  return out;
+}
+
 /** Per-project wording and names, from .keel/keel.json "loop". */
 export function settings(root = ROOT) {
   const keel = readJson(join(root, '.keel', 'keel.json'));
   const own = keel.loop && typeof keel.loop === 'object' ? keel.loop : {};
-  const display = typeof keel.name === 'string' && keel.name ? keel.name : basename(root);
+  const display = nonEmpty(own.name) ? own.name : typeof keel.name === 'string' && keel.name ? keel.name : basename(root);
   const name = display.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
+  const source = own.source ?? `${name}:docs/loop`;
   return {
     display,
     name,
     run: own.run ?? 'node scripts/loop.mjs',
     insights: own.insights ?? 'https://jules.google.com/jitro',
-    source: own.source ?? `${name}:docs/loop`,
+    source,
     kind: own.kind ?? `${name}-triage-decisions`,
+    contexts: Array.isArray(own.contexts) ? own.contexts : [],
+    afterRender: own.afterRender ?? null,
+    env: keel.env && typeof keel.env === 'object' && !Array.isArray(keel.env) ? keel.env : {},
+    problems: contextProblems(own, source),
   };
+}
+
+/** The environment a project command runs in, as keel runs the gate: never a test runner's (lesson 14), the project's `env` over it. */
+export function commandEnv(env, s) {
+  return { ...Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_'))), ...s.env };
+}
+
+/**
+ * Run one of the project's shell commands. Its stdout goes to a file, as
+ * stitch's does, so a large answer is read whole. Returns stdout; throws on a
+ * non-zero exit, with what it printed to stderr.
+ */
+async function shell(command, { root, env, what }) {
+  const dir = mkdtempSync(join(tmpdir(), 'keel-loop-cmd-'));
+  const outFile = join(dir, 'out'), errFile = join(dir, 'err');
+  const out = openSync(outFile, 'w'), errFd = openSync(errFile, 'w');
+  let code, signal;
+  try {
+    [code, signal] = await new Promise((done, fail) => {
+      const child = spawn(command, { cwd: root, env, shell: true, stdio: ['ignore', out, errFd] });
+      child.on('error', fail);
+      child.on('close', (c, sig) => done([c, sig]));
+    });
+  } finally { closeSync(out); closeSync(errFd); }
+  const stdout = readFileSync(outFile, 'utf8'), stderr = readFileSync(errFile, 'utf8');
+  rmSync(dir, { recursive: true, force: true });
+  if (code !== 0) throw new LoopError(`${what}: \`${command}\` ${signal ? `was killed (${signal})` : `exited ${code}`}${stderr.trim() ? `\n${stderr.trimEnd().split('\n').slice(-20).join('\n')}` : ''}`);
+  return stdout;
 }
 
 export function phases(root = ROOT) {
@@ -649,6 +721,15 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
   /** Dismiss what we declined or found stale; send every decision as one context. Returns whether anything is (or would be) sent. */
   const push = async dryRun => {
     const ws = workspace(root, env);
+    if (s.problems.length) throw new LoopError(`.keel/keel.json: ${s.problems.join('; ')}`);
+    // The project's own contexts are computed first, so a failing command
+    // stops the push before anything reaches Loop.
+    const own = [];
+    for (const c of s.contexts) {
+      const data = (await shell(c.command, { root, env: commandEnv(env, s), what: `Loop context "${c.source}" (push stopped; nothing was sent)` })).trimEnd();
+      if (!data.trim()) { own.push({ source: c.source, empty: true, command: c.command }); continue; }
+      own.push({ source: c.source, data, description: c.description, annotations: c.annotations ?? { [s.name]: c.source.split(':').pop() } });
+    }
     const findings = loadFindings(DIR);
     const dismiss = pendingDismissals(findings, await fetchInsights(ws));
     if (dismiss.length) {
@@ -672,7 +753,18 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         annotations: { [s.name]: 'triage' },
       });
     } else log('No decisions yet — nothing to send as the triage context.');
+    for (const c of own) {
+      if (c.empty) { log(`Loop context "${c.source}": \`${c.command}\` printed nothing — not sent.`); continue; }
+      context = (await upsertContext(ws, dryRun, c)) || context;
+    }
     return dismiss.length > 0 || context;
+  };
+
+  /** Write docs/LOOP.md, then run the project's afterRender, as ledger's own script ran its roadmap. */
+  const write = async () => {
+    render(root);
+    if (s.problems.length) throw new LoopError(`.keel/keel.json: ${s.problems.join('; ')}`);
+    if (s.afterRender) await shell(s.afterRender, { root, env: commandEnv(env, s), what: 'afterRender' });
   };
 
   const needsYes = (what, plan) => {
@@ -687,7 +779,7 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         const insights = await fetchInsights(ws);
         const r = reconcile(loadFindings(DIR), insights);
         for (const f of r.findings) save(f);
-        render(root);
+        await write();
         const say = (label, xs) => xs.length && log(`${label} (${xs.length}): ${xs.join(', ')}`);
         log(`${r.findings.length} findings in docs/loop/.`);
         say('new', r.added);
@@ -717,7 +809,7 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         const problems = findingProblems(f);
         if (problems.length) throw new LoopError(`${f.slug}: ${problems.join('; ')}`);
         save(f);
-        if (!v['no-render']) render(root);
+        if (!v['no-render']) await write();
         log(`proposed ${f.slug}: ${f.rank}${f.phase === null ? '' : `, phase ${f.phase}`}`);
         return 0;
       }
@@ -735,7 +827,7 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
             `A person's call. Record it without sending: ${s.run} decide ${f.slug} ${decision} --no-push`]);
         }
         save(f);
-        render(root);
+        await write();
         log(`${f.slug} is ${f.decision}.`);
         if (!v['no-push']) await push(false);
         return 0;
@@ -758,7 +850,7 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         return 0;
       }
       case 'render': {
-        if (!v.check) { render(root); log('wrote docs/LOOP.md'); return 0; }
+        if (!v.check) { await write(); log('wrote docs/LOOP.md'); return 0; }
         const r = render(root, { check: true });
         if (r.stale) err(`docs/LOOP.md is out of date — run: ${s.run} render`);
         for (const p of r.problems) err(p);

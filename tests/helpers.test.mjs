@@ -6,7 +6,7 @@ import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { run, testsRan } from './helpers/run.mjs';
+import { run, testsRan, GH_VERBS } from './helpers/run.mjs';
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
 
@@ -44,4 +44,22 @@ test('no test spawns node or npm except through the helper', async () => {
     }
   }
   assert.deepEqual(offenders, [], 'spawn node and npm with tests/helpers/run.mjs');
+});
+
+// No keel test reads the live world (lesson 17's shape): fleet, lessons and learn read GitHub, so a
+// test runs them only against a stub gh. The helper refuses one without KEEL_GH; the sources are read too.
+test('keel\'s gh-reading verbs never run without KEEL_GH: the helper refuses, and every test file that runs one sets it', async () => {
+  const bin = join(TESTS, '..', 'bin', 'keel.mjs');
+  for (const verb of GH_VERBS) {
+    const env = { ...process.env };
+    delete env.KEEL_GH;
+    assert.throws(() => run(process.execPath, [bin, verb, '--json'], { env }), new RegExp(`keel ${verb} reads GitHub: run it with KEEL_GH set`));
+  }
+  const offenders = [];
+  for (const f of (await readdir(TESTS)).filter(n => n.endsWith('.test.mjs'))) {
+    const text = await readFile(join(TESTS, f), 'utf8');
+    const runs = new RegExp(`\\b(keel|BIN)\\b[^\\n]*['"](${GH_VERBS.join('|')})['"]`).test(text) || /names\(\)/.test(text);
+    if (runs && !/KEEL_GH/.test(text)) offenders.push(f);
+  }
+  assert.deepEqual(offenders, [], 'these run a gh-reading verb and never set KEEL_GH');
 });

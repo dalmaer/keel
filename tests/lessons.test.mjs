@@ -114,7 +114,7 @@ else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
   };
 }
 
-const keel = (args, cwd, env = ENV) => {
+const keel = (args, cwd, env = { ...ENV, KEEL_GH: '/nonexistent/gh' }) => { // never the real gh
   const r = runCmd(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };

@@ -10,8 +10,15 @@ export function cleanEnv(env = process.env) {
   return Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
 }
 
+/** keel's verbs that read GitHub through gh: a test runs them only with KEEL_GH set (a stub, or a path that fails). */
+export const GH_VERBS = ['fleet', 'lessons', 'learn'];
+
 /** Spawn `cmd` (use process.execPath for node) and return { status, stdout, stderr }. */
 export function run(cmd, args = [], { cwd, env, input, timeout } = {}) {
+  // No keel test reads the live world: a test that does goes red when the world changes (lesson 17).
+  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && GH_VERBS.includes(args[1]) && !(env ?? process.env).KEEL_GH) {
+    throw new Error(`keel ${args[1]} reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh`);
+  }
   const r = spawnSync(cmd, args, { cwd, input, timeout, encoding: 'utf8', env: cleanEnv(env ?? process.env), maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw r.error;
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };

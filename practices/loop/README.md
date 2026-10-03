@@ -51,11 +51,35 @@ To switch it on later, add the Loop workspace id to `.stitch.json` and run
 to `practices` and the markers by hand, then `keel render`.
 
 `.keel/keel.json` `"loop"` (all optional) keeps a project's wording:
-`run` (the command the page names, default `node scripts/loop.mjs`; ledger's is
-`npm run loop --`), `insights` (the Loop link, default
+`name` (the name Loop sees, default the config's `name`; ledger's is
+`Ledger`), `run` (the command the page names, default `node scripts/loop.mjs`;
+ledger's is `npm run loop --`), `insights` (the Loop link, default
 `https://jules.google.com/jitro`), `source` and `kind` (the context's
 `dataSource` and `kind`, default `<name>:docs/loop` and
 `<name>-triage-decisions`).
+
+**A project's own contexts.** `"contexts": [{ "source", "description",
+"command" }]` (and optional `annotations`, default `{<name>: <source after
+its last colon>}`) are Loop contexts beyond the triage one. On `push`, every
+command runs first, in the gate's environment (`NODE_TEST_*` stripped,
+`.keel/keel.json` `env` over it); its stdout, less trailing whitespace, is the
+context's data, created or replaced exactly as the triage context is (the same
+dry-run line). A command that fails stops the push before anything reaches
+Loop; one that prints nothing is not sent, and the push says so. Ledger's is
+its telemetry digest: `{"source": "ledger:telemetry", "command": "node
+scripts/telemetry-digest.ts"}`, a script that stays ledger's own.
+
+**A roadmap that counts findings.** `loadFindings(dir)` and
+`phaseCounts(findings)` (a Map from phase number or `new` to `{accepted,
+proposed}`) are exported, so a project's own roadmap imports them from
+`./loop.mjs`. `"afterRender"` is a command run (gate env) after every render
+that writes `docs/LOOP.md` (pull, propose, decide, render), as ledger's own
+script reran its roadmap; it fails the verb when it fails. `render --check`
+never runs it.
+
+**Switching it on in an adopted project.** `keel adopt --with loop` adds only
+this practice and leaves every other byte; it refuses while the project's
+own `scripts/loop.*` is still there.
 
 **The night.** `keel-loop.yml` runs at 09:43 UTC and does the following:
 
@@ -109,10 +133,10 @@ bytes unchanged.
 | `loop_goal` | the priority id | the priority's name (an extra `find priorities` per pull) | ledger's: one fetch per pull, consistent with existing findings |
 | stitch calls | `find insights` without `-w`; two fetches per pull | `-w` on every call; one fetch | isocan's (`generate` ignores .stitch.json, so explicit is safer) |
 | Empty triage context | always sent | not sent with no decisions | isocan's |
-| Second context | device telemetry digest | the repo's own measures | neither. The triage context only; a project's own context is a later local extension |
+| Second context | device telemetry digest | the repo's own measures | neither built in; `loop.contexts` runs the project's own command for each (phase 20) |
 | Model proving on pull | none | `claude -p` per untriaged finding | not taken (a priced decision, later) |
 | `--no-render` on propose | none | yes | taken |
-| After render | runs ledger's roadmap (it counts findings per phase) | runs isocan's roadmap | neither: keel's roadmap does not count findings |
+| After render | runs ledger's roadmap (it counts findings per phase) | runs isocan's roadmap | `loop.afterRender`, the project's command; `phaseCounts` is exported for a roadmap that counts (phase 20) |
 | Outward verbs | `decide` pushes by default | same | `decide`, `push` and `mine` need `--yes` (exit 3) |
 
 **Lineage.** Keel phase 14. Ported from `dalmaer/ledger` `scripts/loop.ts` and
@@ -129,7 +153,9 @@ practice came from, where each keeps a version of its own:
 
 - **ledger**: *converges* (no migration needed). Keel's `scripts/loop.mjs` is
   the port of ledger's `scripts/loop.ts` and renders ledger's `docs/LOOP.md`
-  identically but for the generated-by line (phase 14). Retiring ledger's
-  script for keel's is the owner's PR, not a migration.
+  identically but for the generated-by line (phase 14). Phase 20 ported what
+  the first port left out: the telemetry context (`loop.contexts`, sending the
+  same bytes) and the roadmap's Loop counts (`phaseCounts`, `afterRender`).
+  Retiring ledger's script for keel's is the owner's PR, not a migration.
 - **isocan**: *stays local*. Its `scripts/loop.mjs` is its own; which loop
   script keel pins as a source is still open (phase 14).

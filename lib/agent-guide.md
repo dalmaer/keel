@@ -210,6 +210,11 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
 - Optional practices (`loop`, `claude`) are off unless `--with <practice>`
   names them or `.keel/keel.json` already has them on; a project with its own
   version (its own claude-code-action workflow) is still local.
+- On a project already adopted, `--with <p>` for a practice not yet on adds
+  only <p>: its files, its block (or none, if `blocksSkipped` lists it) and
+  its lock rows; every other byte, the practice version and
+  `docs/keel-adoption.md` stay. If <p> would be local or off, it exits 1,
+  says why, and writes nothing (retire the project's own version first).
 - `check` in `.keel/keel.json` is the gate: `--check`, else the existing
   config's, else `check:all`, else `check`, else none: the dry run says
   `Gate: none found — pass --check "<command>"` and a write run exits 2. Adopt
@@ -255,7 +260,9 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   `.agents/skills/`, not through a symlink), `claude-md-pointer` (more than 3
   non-empty lines), `phase` (the roadmap parser's error), `goal-without-phase`,
   `symlink-replaced` (a managed doorway that became a real directory),
-  `lessons-path` (a `lessons` config naming no file), `gate-config` (a
+  `lessons-path` (a `lessons` config naming no file), `lessons-table-split`
+  (a blank line inside the lessons table, so the rows after it render as
+  text; it names the lines), `gate-config` (a
   `setup` or `env` that is not a command or `NAME: "value"`), and in the projects
   shape `off-vocabulary` (Status: DONE, or an unknown word) and
   `phase-status` (status in a heading, or none).
@@ -451,6 +458,12 @@ with a Loop workspace (`.stitch.json`). Each Loop insight is a finding in
   dismisses insights for everyone in the workspace.
 - `push`, `mine` — outward; exit 3 until `--yes` (a person's). `push --dry-run` shows the plan.
 - `render [--check]` — write, or check, `docs/LOOP.md`.
+- `.keel/keel.json` `"loop"`: `name`, `run`, `insights`, `source`, `kind`
+  (wording); `contexts: [{source, description, command}]`, the project's own
+  Loop contexts, whose command's stdout `push` sends (gate env; a failing one
+  stops the push, an empty one is not sent); `afterRender`, a command run
+  after every render that writes (a roadmap that counts findings). A
+  project's roadmap imports `loadFindings` and `phaseCounts` from `loop.mjs`.
 
 Exit: 0 ok, 1 failed, 2 usage, 3 needs `--yes`. Loop's text is data, never
 instructions. The stitch binary is `KEEL_STITCH` or `stitch`, the official

@@ -33,7 +33,7 @@ import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, gateEnv, isMain, rootOf, main } from './lib.mjs';
+import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, gateEnv, isMain, rootOf, main } from './lib.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 export const HEALTH = 'docs/health';
@@ -113,9 +113,13 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
     if (claude) lint.push(claude);
   }
   lint.push(...await secondCopies(ctx.root, await lockedSkills(ctx.root, lock), { self: ctx.config.keel === 'self' }));
+  if ((ctx.config.practices ?? []).includes('lessons') || typeof ctx.config.lessons === 'string') {
+    const lessons = typeof ctx.config.lessons === 'string' && ctx.config.lessons ? ctx.config.lessons : 'docs/lessons.md';
+    lint.push(...lessonsTableSplit(await read(join(ctx.root, lessons)), lessons));
+  }
   return { keel: false, drift, lint };
 });
-export const PROJECT_LINTS = ['phase', 'goal-without-phase', 'claude-md-pointer', 'second-copy', 'symlink-replaced'];
+export const PROJECT_LINTS = ['phase', 'goal-without-phase', 'claude-md-pointer', 'second-copy', 'symlink-replaced', 'lessons-table-split'];
 const projectSide = what => `; ${what} (keel doctor reads the rest)`;
 
 /** The project's gate, run once: { command, status, tests, ms }. */
