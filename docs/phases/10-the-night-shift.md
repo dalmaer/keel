@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G4
 depends: [6]
-note: "Rules taken whole from isocan's night-shift section; Renovate lanes from isocan's renovate.json."
-evidence: []
+note: "keel-night, keel-update, claude and renovate ship as practices, with keel drain. The first real dispatch on keel measured, pushed its branch and stayed green with a notice (the PR setting is off). Owed: seven nights, a red night, and the owner's settings and secrets."
+evidence: ["evidence/2026-10-02-night-shift.md"]
 ---
 
 # Each project is looked after overnight, and nothing lands unread
@@ -27,10 +27,10 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 
 ## Acceptance
 
-- [ ] A workflow test asserts each workflow's branch prefix, concurrency group and that none pushes to `main`.
+- [x] A workflow test asserts each workflow's branch prefix, concurrency group and that none pushes to `main`.
 - [ ] Seven nights on keel: never more than one open `keel-night/` PR.
 - [ ] A deliberately red night produces a failed workflow (an email), not a quiet page.
-- [ ] ⚑ Secrets the workflows need are listed with what they cost; none set without a yes.
+- [x] ⚑ Secrets the workflows need are listed with what they cost; none set without a yes.
 
 ## Proof
 
@@ -38,8 +38,13 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 
 ## Deliberately open
 
-- Whether night runs spend model tokens. Deterministic measurement first; a model step only when a number proves worth explaining, and only with the owner's yes on the cost.
+- Whether night runs spend model tokens. Still no: the nightly is deterministic. A model step (e.g. `learn propose`) comes only with the owner's yes on its cost.
 
 ## Next action
 
-Write the workflows test against the three duo/ledger workflows that already exist, so it fails on today's real shapes before keel's versions are written.
+⚑ Owner: on dalmaer/keel, Settings → Actions → General → Workflow permissions → "Allow GitHub Actions to create and approve pull requests". Then let seven nights run, and record the queue depth each morning.
+
+## Trajectory
+
+- **2026-10-02** — A missing repo setting is a ⚑, like a missing secret: the run gives a notice, not red. Otherwise keel's nightly would have emailed the owner every night about something they'd never been asked for.
+- **2026-10-02** — Drain merges only data PRs (health, inbox, bounds), never an update PR and never a fork's. Update PRs are reviewed, not drained.
