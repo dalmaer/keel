@@ -33,7 +33,7 @@ import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, isMain, rootOf, main } from './lib.mjs';
+import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, gateEnv, isMain, rootOf, main } from './lib.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 export const HEALTH = 'docs/health';
@@ -121,8 +121,8 @@ const projectSide = what => `; ${what} (keel doctor reads the rest)`;
 const gateRun = ctx => once(ctx, 'gate', () => {
   const command = ctx.config.check ?? CHECK;
   const started = Date.now();
-  // Never hand the gate a test runner's context: its node --test would skip every file and pass (lesson 14).
-  const r = spawnSync(command, { cwd: ctx.root, env: stripTest(ctx.env), shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+  // Never a test runner's context (lesson 14); the project's .keel/keel.json `env` over it.
+  const r = spawnSync(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config), shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new Error(`could not run \`${command}\`: ${r.error.message}`);
   if (r.status === null) throw new Error(`\`${command}\` was killed (${r.signal}) before it finished`);
   const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;

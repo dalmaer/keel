@@ -54,8 +54,40 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      # The project's install, read from .keel/keel.json at run time (so a
+      # config change never needs a re-render): `setup` when it has one, else
+      # npm ci when a lockfile exists. Its `env` goes to every later step
+      # (scripts/keel/improve.mjs applies it to the gate too), so a gate that
+      # must not sync or push is told so before anything runs.
+      - name: Read the config
+        id: config
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+          '
       - name: Install
-        run: if [ -f package-lock.json ]; then npm ci; fi
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
 
       # On keel itself only (its .keel/keel.json says "keel": "self"): lesson
       # issues and moved sources become inbox proposals. It reads and writes

@@ -80,7 +80,8 @@ stderr as one line beginning `keel:`.
   state, why}], files: [{practice, path, kind, block?, status, note?}],
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
 - `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
-  lint: [{rule, path, message}], local: {name: why}, qualifies, owing, ejected}`;
+  lint: [{rule, path, message}], local: {name: why}, qualifies, owing, ejected,
+  gate?: {check, setup?, env?}}` (gate only when setup or env is set: information);
   state is `edited|behind|both`. With `--fix` and no `--yes`, exit 3 and
   `{ok: false, needs: "yes", plan: {path, action, practice, what}}`; with
   `--yes`, `{ok: true, fixed, ...the report after}`
@@ -205,6 +206,12 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   config's, else `check:all`, else `check`, else none: the dry run says
   `Gate: none found — pass --check "<command>"` and a write run exits 2. Adopt
   never invents a gate. keel's `check.yml` runs it.
+- `setup` (a shell command) and `env` (`{"NAME": "value"}`) in
+  `.keel/keel.json`: `--setup "<command>"` and repeated `--env KEY=VALUE`.
+  keel-night and keel-loop run `setup` before measuring (default: `npm ci` when
+  a lockfile exists), reading it at run time. `env` goes over the environment
+  wherever keel runs the gate (improve, update, release, the night's steps),
+  e.g. `LEDGER_AUTOSYNC=0` so a gate never syncs or pushes from a keel run.
 - `lessons` in `.keel/keel.json` is the lessons table when it is not
   `docs/lessons.md`: adopt finds a `docs/**/lessons.md` with a numbered table,
   records it and seeds nothing beside it; lessons, doctor, fleet and improve
@@ -240,7 +247,8 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   `.agents/skills/`, not through a symlink), `claude-md-pointer` (more than 3
   non-empty lines), `phase` (the roadmap parser's error), `goal-without-phase`,
   `symlink-replaced` (a managed doorway that became a real directory),
-  `lessons-path` (a `lessons` config naming no file), and in the projects
+  `lessons-path` (a `lessons` config naming no file), `gate-config` (a
+  `setup` or `env` that is not a command or `NAME: "value"`), and in the projects
   shape `off-vocabulary` (Status: DONE, or an unknown word) and
   `phase-status` (status in a heading, or none).
 - `local` lists the project's local variants as information; `qualifies`
@@ -351,8 +359,8 @@ keel learn render [--check]        # docs/INBOX.md, generated; npm run check run
 `keel improve` runs each measure and compares it with its bound. Measures
 first, a model's opinion never: every number comes from a command.
 
-- `gate` — the project's `check` (`.keel/keel.json`): fails, or passes having
-  run no tests (lesson 14). `roadmap_stale` — the roadmap check.
+- `gate` — the project's `check` (`.keel/keel.json`), run with its `env` and
+  no `NODE_TEST_*`: fails, or passes having run no tests (lesson 14). `roadmap_stale` — the roadmap check.
 - `phases_without_issue` (only with `repo`), `phases_stuck` (unfinished, `since`
   older than 21 days), `lessons_without_guard` (empty, "to write", or planned
   with no phase; the `lessons` path), `evidence_placeholders` (a built phase

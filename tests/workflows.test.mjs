@@ -263,3 +263,41 @@ test('no shipped file names a LOOP_* variable or STITCH_INSTALLER_URL; the offic
   assert.ok(staleStitchNames("const env = { ...process.env, STITCH_BASE_URL: 'https://x' };").length, 'a base URL override in a script');
   assert.deepEqual(staleStitchNames('export const LOOP_DOC_HEADER = 1;'), []);
 });
+
+/**
+ * The night's install, read from .keel/keel.json at run time: `setup` when it
+ * has one, else npm ci with a lockfile; `env` exported to later steps. [string].
+ */
+export function installProblems(text) {
+  const out = [];
+  const at = s => text.indexOf(s);
+  if (!/readFileSync\("\.keel\/keel\.json"/.test(text)) out.push('the config is not read at run time');
+  if (!/GITHUB_OUTPUT, `setup<<\$\{eof\}\\n\$\{c\.setup \?\? ""\}/.test(text)) out.push('setup is not read from .keel/keel.json');
+  if (!/appendFileSync\(process\.env\.GITHUB_ENV/.test(text)) out.push('env is not exported to the later steps');
+  if (!/SETUP: \$\{\{ steps\.config\.outputs\.setup \}\}\n/.test(text)) out.push('Install does not take setup from the config step');
+  if (!/if \[ -n "\$SETUP" \]; then\n[^\n]*\n\s+bash -e -c "\$SETUP"\n\s+elif \[ -f package-lock\.json \]; then\n\s+npm ci\n\s+fi\n/.test(text)) out.push('no setup-else-npm-ci default');
+  if (/run:[^\n]*\$\{\{ steps\.config\.outputs\.setup/.test(text) || /^\s+[^#\n]*\$\{\{ steps\.config\.outputs\.setup \}\}[^\n]*;/m.test(text)) out.push('setup is spliced into a script; pass it through env');
+  if (!(at('- name: Read the config') >= 0 && at('- name: Read the config') < at('- name: Install'))) out.push('the config is read after the install');
+  const measure = at('node scripts/keel/improve.mjs');
+  if (measure >= 0 && !(at('- name: Install') < measure)) out.push('the install runs after the measure');
+  return out;
+}
+
+test('keel-night and keel-loop install with the config\'s setup, else npm ci, and export its env', async () => {
+  const all = await shipped();
+  for (const name of ['keel-night.yml', 'keel-loop.yml']) {
+    const w = all.find(w => w.name === name);
+    assert.deepEqual(installProblems(w.template), [], name);
+    if (!w.optional) assert.deepEqual(installProblems(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
+  }
+  // Mutations: each way the install goes wrong is caught.
+  const night = all.find(w => w.name === 'keel-night.yml').template;
+  for (const [why, text] of [
+    ['the old fixed install', night.replace(/      - name: Read the config[\s\S]*?          fi\n/, '      - name: Install\n        run: if [ -f package-lock.json ]; then npm ci; fi\n')],
+    ['no default', night.replace(/\n\s+elif \[ -f package-lock\.json \]; then\n\s+npm ci/, '')],
+    ['setup ignored', night.replace('bash -e -c "$SETUP"', 'true')],
+    ['env not exported', night.replace('fs.appendFileSync(process.env.GITHUB_ENV', 'console.log(')],
+    ['setup spliced into the script', night.replace('bash -e -c "$SETUP"', 'bash -e -c "${{ steps.config.outputs.setup }}";')],
+    ['the install after the measure', night.replace(/(      - name: Install\n[\s\S]*?          fi\n)([\s\S]*?)(      # Porcelain)/, '$2$1$3')],
+  ]) assert.ok(installProblems(text).length, `${why}: expected a problem`);
+});

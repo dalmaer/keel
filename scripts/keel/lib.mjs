@@ -11,6 +11,9 @@
 //                            phase number, a goal no phase serves
 //   claudeMdLint(text)       a CLAUDE.md that is more than a pointer
 //   secondCopies(root, …)    a second copy of a managed skill (lesson 1)
+//   gateEnv(env, config)     the environment the project's gate runs in:
+//                            NODE_TEST_* stripped (lesson 14), .keel/keel.json
+//                            `env` merged over it
 //   main(meta, fn)           run a script: --json or text, and its exit code
 import { createHash } from 'node:crypto';
 import { readFile, readdir, lstat, readlink } from 'node:fs/promises';
@@ -153,6 +156,41 @@ export async function phaseLints(root, parsePhase) {
     if (g?.id && !g.retired && !phases.some(p => p.goal === g.id)) lint.push({ rule: 'goal-without-phase', path: 'docs/goals.json', message: `${g.id}: no phase serves this goal` });
   }
   return lint;
+}
+
+// ---- the gate's environment -------------------------------------------------
+
+export const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/;
+
+/**
+ * What is wrong with .keel/keel.json `setup` (a shell command, run before the
+ * gate by the night's workflows) and `env` (a flat map applied wherever keel
+ * runs the gate). Both are optional. Returns a list of messages.
+ */
+export function setupEnvProblems(config) {
+  const problems = [];
+  if (config?.setup !== undefined && (typeof config.setup !== 'string' || !config.setup.trim())) problems.push('"setup" must be a non-empty shell command');
+  const env = config?.env;
+  if (env === undefined) return problems;
+  if (!env || typeof env !== 'object' || Array.isArray(env)) return [...problems, '"env" must be an object of NAME: "value"'];
+  for (const [k, v] of Object.entries(env)) {
+    if (!ENV_KEY.test(k)) problems.push(`"env" key ${JSON.stringify(k)} is not an environment variable name (${ENV_KEY.source})`);
+    if (typeof v !== 'string') problems.push(`"env" ${k} must be a string`);
+  }
+  return problems;
+}
+
+/**
+ * The environment the project's gate runs in. Never a test runner's context:
+ * its node --test would skip every file and pass (lesson 14). The project's
+ * `env` goes over it, so a gate that must not sync or push (ledger's
+ * LEDGER_AUTOSYNC=0) never does from a keel run. A bad `env` throws.
+ */
+export function gateEnv(env, config) {
+  const problems = setupEnvProblems({ env: config?.env });
+  if (problems.length) throw new Error(`.keel/keel.json: ${problems.join('; ')}`);
+  const base = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
+  return { ...base, ...(config?.env ?? {}) };
 }
 
 // ---- running a script --------------------------------------------------------

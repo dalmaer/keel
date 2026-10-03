@@ -267,3 +267,20 @@ test('the conduct block and skill name the project\'s gate, never a bare npm run
     assert.doesNotMatch(text, /npm run check(?!:all)/, `${what} names a bare npm run check`);
   }
 });
+
+test('--setup and repeated --env land in .keel/keel.json; a bad --env writes nothing', async t => {
+  const dir = await copyFixture(t, 'acme-groove');
+  const before = await tree(dir);
+  const bad = keel(['adopt', dir, '--env', 'acme-flag=1', '--json']);
+  assert.equal(bad.code, 2, bad.out);
+  assert.deepEqual(await tree(dir), before);
+  assert.equal(keel(['adopt', dir, '--env', 'NOEQUALS']).code, 2);
+  const r = keel(['adopt', dir, '--setup', 'npm ci && npm ci --prefix web', '--env', 'ACME_SYNC=0', '--env', 'ACME_MODE=a=b', '--json']);
+  assert.equal(r.code, 0, r.err + r.out);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  assert.equal(cfg.setup, 'npm ci && npm ci --prefix web');
+  assert.deepEqual(cfg.env, { ACME_SYNC: '0', ACME_MODE: 'a=b' });
+  // A second adopt without the flags keeps them.
+  assert.equal(keel(['adopt', dir]).code, 0);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).env, { ACME_SYNC: '0', ACME_MODE: 'a=b' });
+});

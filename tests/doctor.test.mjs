@@ -344,3 +344,23 @@ test('adopt run again on a project with an ejected file keeps its practice on', 
   assert.deepEqual(data.config.ejected, ['docs/templates/evidence.md']);
   assert.equal(await readFile(join(dir, 'docs', 'templates', 'evidence.md'), 'utf8'), 'Acme\'s own evidence template.\n');
 });
+
+test('doctor shows setup and env as information, and lints a bad one', async t => {
+  const dir = await project(t);
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  let d = doctor(dir);
+  assert.equal(d.data.gate, undefined);
+  assert.doesNotMatch(keel(['doctor'], dir).out, /The gate \(information\)/);
+  await writeFile(path, `${JSON.stringify({ ...cfg, setup: 'npm ci --prefix web', env: { ACME_SYNC: '0' } }, null, 2)}\n`);
+  d = doctor(dir);
+  assert.equal(d.code, 0, JSON.stringify(d.data.lint));
+  assert.deepEqual(d.data.gate, { check: cfg.check ?? 'npm run check', setup: 'npm ci --prefix web', env: { ACME_SYNC: '0' } });
+  const text = keel(['doctor'], dir).out;
+  assert.match(text, /setup: npm ci --prefix web/);
+  assert.match(text, /env: {3}ACME_SYNC=0/);
+  await writeFile(path, `${JSON.stringify({ ...cfg, setup: '', env: { 'acme-sync': 0 } }, null, 2)}\n`);
+  d = doctor(dir);
+  assert.equal(d.code, 1);
+  assert.equal(d.data.lint.filter(l => l.rule === 'gate-config').length, 3);
+});

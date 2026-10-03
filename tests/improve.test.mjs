@@ -316,3 +316,25 @@ test('in the project, drift and lint read its own files; from keel, the full set
   assert.equal(inbox.state, 'n/a');
   assert.match(inbox.detail, /keel-side only/);
 });
+
+test('the gate runs with .keel/keel.json `env`: outside without it, ok with it, and never a test runner\'s context', async t => {
+  const dir = await project(t);
+  // Exits 0 only with ACME_FLAG=1 and no NODE_TEST_CONTEXT (lesson 14).
+  const check = 'node -e "process.exit(process.env.NODE_TEST_CONTEXT ? 5 : process.env.ACME_FLAG === \'1\' ? 0 : 4)"';
+  await setConfig(dir, { check });
+  const gateOnly = MEASURES.filter(m => m.id === 'gate');
+  const env = { ...process.env, NODE_TEST_CONTEXT: 'child-v8' };
+  const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  let [g] = await measure({ root: dir, config, env, measures: gateOnly });
+  assert.equal(g.state, 'outside');
+  assert.match(g.detail, /exit 4/);
+  [g] = await measure({ root: dir, config: { ...config, env: { ACME_FLAG: '1' } }, env, measures: gateOnly });
+  assert.equal(g.state, 'ok', g.detail);
+  // A bad env is a broken instrument, never a reading.
+  [g] = await measure({ root: dir, config: { ...config, env: { 'acme-flag': '1' } }, env, measures: gateOnly });
+  assert.equal(g.state, 'broken');
+  // Through the CLI, from the config file.
+  assert.equal(byId(keel(['improve', '--json'], dir).json(), 'gate').state, 'outside');
+  await setConfig(dir, { env: { ACME_FLAG: '1' } });
+  assert.equal(byId(keel(['improve', '--json'], dir).json(), 'gate').state, 'ok');
+});

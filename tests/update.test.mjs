@@ -509,3 +509,19 @@ test('0002 leaves a keel-update.yml the project edited, as its own, and forgets 
   assert.ok(!(await readLock(dir)).files[m0002.WORKFLOW], 'keel no longer manages it');
   assert.equal(await m0002.applies(await view(dir)), false);
 });
+
+test('the check runs with .keel/keel.json `env`: it fails without ACME_FLAG and passes with it', async t => {
+  const check = 'node -e "process.exit(process.env.ACME_FLAG === \'1\' ? 0 : 6)"';
+  const withCheck = env => async d => {
+    const cfg = await json(join(d, '.keel/keel.json'));
+    await writeFile(join(d, '.keel/keel.json'), `${JSON.stringify({ ...cfg, check, ...(env ? { env } : {}) }, null, 2)}\n`);
+  };
+  const bare = await groove(t, withCheck());
+  const r = await run({ dir: bare, local: true });
+  assert.equal(r.exitCode, 1, r.text);
+  assert.match(r.text, /exit 6\); the project is as it was/);
+  const flagged = await groove(t, withCheck({ ACME_FLAG: '1' }));
+  const ok = await run({ dir: flagged, local: true });
+  assert.equal(ok.exitCode ?? 0, 0, ok.text);
+  assert.equal(ok.data.check.ok, true);
+});
