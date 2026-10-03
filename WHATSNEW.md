@@ -5,6 +5,23 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.5.0 — 2026-10-03
+
+Loop can carry your own contexts, and keel catches a lessons table that
+GitHub silently breaks.
+
+- **`keel adopt --with <practice>`** works on a project that's already
+  adopted. It adds just that practice, and every other byte stays as it was.
+- **Loop contexts.** In `.keel/keel.json`, `"loop"` gains `contexts`: Loop
+  contexts produced by a command of yours and sent on `push`. It also gains
+  `afterRender` and `name`, and `scripts/loop.mjs` exports `phaseCounts`
+  for your own roadmap.
+- **`lessons-table-split`.** A blank line inside your lessons table ends it
+  in Markdown, so later rows show as raw text. `keel doctor` and the
+  nightly lint now name the lines.
+- Fleet update plans say when migrations are only *possibly* pending. They
+  are checked on the clone, and nothing is opened if none applies.
+
 ## v0.4.0 — 2026-10-03
 
 keel can now run a project whose gate needs installs or environment, and it
