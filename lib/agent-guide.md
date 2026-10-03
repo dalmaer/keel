@@ -2,7 +2,8 @@
 
 Keel installs a working practice in a repo: phases that own their status, a
 generated roadmap, lessons kept as shapes, evidence for every built claim.
-Run keel inside a project (a directory with `.keel/keel.json`, or below one).
+Run keel inside a project (a directory with `.keel/keel.json`, or below one);
+`keel init` is the one verb that runs outside one.
 Read the project's AGENTS.md before changing anything.
 
 Verbs (every one takes `--json`; parse that, never the prose):
@@ -11,6 +12,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel next` — the next phase to conduct: its file, done-when, next action
 - `keel goal list` — every goal, with progress derived from its phases
 - `keel render` — render the project's practices onto it; `--check` writes nothing and exits 1 on a difference; `--into <dir>` targets another project
+- `keel init [dir] --description "<paragraph>"` — a new project in an empty directory: practice, goal G0, phase 0, one commit; `--github` plans a private repo and exits 3 until `--yes`
 - `keel help` — the verbs, one line each
 - `keel --agent-help` — this text; `keel --agent-help <topic>` opens one topic, `all` prints everything
 - `keel --version` — CLI version, its commit, and the practice version it carries
@@ -26,9 +28,9 @@ Rules that bite:
   spend) wait for the owner's yes.
 
 Exit codes: 0 ok; 1 the command ran and found a failure; 2 usage error or
-not in a project. Under `--json` an error is `{"error": "..."}` on stdout.
+not in a project; 3 a ⚑ step needs the owner's yes and nothing was done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `render`, `install`, `coming`.
+Topics: `json`, `render`, `init`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -42,6 +44,10 @@ stderr as one line beginning `keel:`.
   the same object `node scripts/roadmap.mjs --json` reports as `next`.
 - `goal list` → `[{id, title, outcome, phases, built, lived}]`
 - `render` → `{root, check, ok, differs: [path or path#block], entries}`
+- `init` → `{ok, dir, config, commit, message, files, secrets}`; with
+  `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
+  {dir, name, repo, steps, secrets}}`; with `--yes`, `github: {repo,
+  created, secrets}` in place of `secrets`
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -63,6 +69,29 @@ A practice is a module under keel's `practices/<name>/`. The project's
 `keel render --check --json` is safe at any time: it writes nothing and lists
 what differs. A render that finds block markers missing refuses to write.
 
+<!-- topic: init | starting a new project, and what init will not do -->
+
+```bash
+keel init acme-notes --description "Acme Notes keeps meeting notes as plain files. It ..." --kind node
+cd acme-notes && keel next
+```
+
+- Flags only, no questions. `--description` is required; `--name` defaults
+  to the directory's name, `--tagline` to the description's first sentence,
+  `--kind` to `other`.
+- It refuses (exit 2) a directory that is already a keel project (use
+  `keel update`) or holds anything besides `.git` (use `keel adopt`).
+- It writes `.keel/keel.json` with every practice, seeds goal G0 (the
+  description is its outcome) and `docs/phases/00-practice-room.md`, renders
+  the practices, puts the description into AGENTS.md, generates the roadmap,
+  and makes one commit on `main` naming the practice version.
+- Phase 0's Done when is a generic draft. Replace it with the first thing a
+  person could check before conducting it.
+- ⚑ `--github` resolves the repo (`--repo`, else your gh login and the
+  name), prints the plan and the secrets each workflow needs, and creates
+  nothing. `--github --yes` inits, then `gh repo create <repo> --private
+  --source <dir> --push`. Keel never sets a secret.
+
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
 Keel is a git checkout plus a link; there is no registry and no build step.
@@ -80,7 +109,7 @@ Updating will be `git pull --ff-only` in the checkout.
 
 <!-- topic: coming | verbs that are planned and not yet built -->
 
-Not built yet, so not verbs: `init` (a new project), `adopt` (bring an
+Not built yet, so not verbs: `adopt` (bring an
 existing repo under keel), `update` (CLI then practice migration, as one PR),
 `doctor` (conformance and drift), `improve`, `lessons` (send lessons home),
 `learn`, `fleet`. Do not call them; `keel help` lists what exists. The

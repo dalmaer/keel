@@ -5,7 +5,7 @@ The mothership: start projects the isocan/ledger way, keep them current, and car
 
 **0 of 14 phases lived in; 3 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
-**Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Write the init test against a temp directory first, asserting the tree and the passing check.
+**Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). ⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 
@@ -32,7 +32,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | status, next, goal list, render, --agent-help, --version; every verb --json; the surface test reads the registry both ways. Installed from GitHub via gh repo clone + npm i -g with no build. |
-| [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | planned | 2026-10-02 | [2](phases/02-the-keel-cli.md) | The walk is known from isocan's new-project.md and how duo and cajones were started by hand. |
+| [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md) | Local init works end to end and passes the new project's own check; --github asks (exit 3) and acts only with --yes. The real GitHub walk waits on the owner's ⚑ yes. |
 | [9. A person can say what the project is for, and the work lines up behind it](phases/09-goals.md) | planned | 2026-10-02 | [2](phases/02-the-keel-cli.md) | goals.json and goal-derived progress already work in the roadmap generator; no verbs yet. |
 
 - **2 done when:** `keel --agent-help` lists every verb in one screen, every verb accepts `--json`, and a test fails when a registered verb is missing from the agent guide.

@@ -2,6 +2,7 @@
   "name": "ci",
   "summary": "CI runs the project's one check on every push and pull request, so a red guard fails where someone is told.",
   "requires": ["base"],
+  "secrets": [],
   "files": [
     { "path": ".github/workflows/check.yml", "from": ".github/workflows/check.yml", "kind": "managed" }
   ]

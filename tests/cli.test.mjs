@@ -90,13 +90,19 @@ test('agent-help opens a topic, and all', () => {
 test('--json parses for every verb and flag; human text never mixes in', async () => {
   const dir = await copyTree(await mkdtemp(join(tmpdir(), 'keel-json-')));
   try {
+    // A verb that cannot run bare gets the least it needs; init makes a commit,
+    // so it gets a git identity (CI has none).
+    const needs = { init: ['fresh', '--description', 'Acme is a test project.'] };
+    const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
+      GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     for (const name of names()) {
-      const r = keel([...name.split(' '), '--json'], dir);
+      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, env);
       assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
     }
     // render onto an unchanged copy rewrites nothing.
+    await rm(join(dir, 'fresh'), { recursive: true, force: true });
     assert.equal(JSON.parse(keel(['render', '--check', '--json'], dir).out).ok, true);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

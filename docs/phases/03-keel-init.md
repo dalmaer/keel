@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G1
 depends: [2]
-note: "The walk is known from isocan's new-project.md and how duo and cajones were started by hand."
-evidence: []
+note: "Local init works end to end and passes the new project's own check; --github asks (exit 3) and acts only with --yes. The real GitHub walk waits on the owner's ⚑ yes."
+evidence: ["evidence/2026-10-02-init.md"]
 ---
 
 # A new project, from an empty directory, ready to conduct the same day
@@ -25,10 +25,10 @@ workflow will need and whether they are set (`gh secret list`), never sets one.
 
 ## Acceptance
 
-- [ ] Local init in a temp dir passes `npm run check` with no network.
-- [ ] Re-running init on an initialised directory refuses, and says to use `adopt` or `update`.
-- [ ] `--github` asks before creating anything, and names what it will create.
-- [ ] The first commit's message says which keel version made it.
+- [x] Local init in a temp dir passes `npm run check` with no network.
+- [x] Re-running init on an initialised directory refuses, and says to use `adopt` or `update`.
+- [x] `--github` asks before creating anything, and names what it will create.
+- [x] The first commit's message says which keel version made it.
 - [ ] A conducted session can run phase 0 of the new project with no further setup.
 
 ## Proof
@@ -37,8 +37,13 @@ workflow will need and whether they are set (`gh secret list`), never sets one.
 
 ## Deliberately open
 
-- Whether init writes app scaffolding (vite, etc.) or only the practice. Lean: practice only, plus a one-line hint per kind; scaffolds age faster than practices.
+- Whether init writes app scaffolding (vite, etc.) or only the practice. **Settled 2026-10-02:** practice only, plus a one-line hint per kind in AGENTS.md; scaffolds age faster than practices.
+- Labels, project board, Pages on `--github`. Not built; add when a second project wants them.
 
 ## Next action
 
-Write the init test against a temp directory first, asserting the tree and the passing check.
+⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
+
+## Trajectory
+
+- **2026-10-02** — `--github` without `--yes` writes nothing locally either; exit 3 means "needs a yes". Otherwise the `--yes` rerun hits init's own already-a-project refusal. This is the pattern for every outward keel verb.
