@@ -55,12 +55,15 @@ right is what makes `update` possible at all.
 
 | Kind | Example | On update | Local edit means |
 | --- | --- | --- | --- |
-| **managed** | `scripts/roadmap.mjs`, `.agents/skills/conduct/SKILL.md`, workflows | Overwritten. Header says so. | Drift. `doctor` flags it; `lessons` offers it upstream. |
+| **managed** | `scripts/roadmap.mjs`, `.agents/skills/conduct/SKILL.md`, workflows | Overwritten. `.keel/lock.json` records that keel wrote it. | Drift. `doctor` flags it; `lessons` offers it upstream. |
 | **block** | the `<!-- keel:begin … -->` regions of `AGENTS.md` | The region is re-rendered; the rest of the file is the project's. | Same as managed, for the region only. |
 | **seeded** | phase files, `docs/lessons.md`, `docs/goals.json` | Never touched. Migrations may *transform* it, with a diff. | Nothing; the project owns it. |
 
 `.keel/lock.json` records the hash each managed file and block was written
-with, so drift is a fact rather than a guess. **A local edit to a managed file
+with, so drift is a fact rather than a guess. Managed files carry **no
+header** (decided 2 October, phase 5). A header would change every managed
+file's bytes, and the lock says it better; a file adapted from upstream
+keeps its one provenance comment. **A local edit to a managed file
 is the most valuable signal keel gets**: someone needed the practice to be
 different. `doctor` must never just revert it.
 
