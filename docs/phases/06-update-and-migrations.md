@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G2
 depends: [2, 5]
-note: "Order is settled in design.md §3: CLI first, then migrations, then re-render, then check, then PR."
-evidence: []
+note: "keel update and release work; v0.1.0 is cut; 0001 converged a fresh clone of the real ritmo with no evidence touched and its 60 tests running. The real update PR waits on phase 4's adoption PRs (owner's yes)."
+evidence: ["evidence/2026-10-02-update.md"]
 ---
 
 # A practice change reaches a project as one reviewed pull request
@@ -25,11 +25,11 @@ person receiving it.
 
 ## Acceptance
 
-- [ ] An old CLI refuses a project on a newer practice, and says how to update.
-- [ ] A project on practice 0.0.0 holding the pre-`7227f325` conduct skill comes out of `keel update` on the current one (a managed re-render, no migration needed).
-- [ ] The first real migration, `0001-milestone-to-goal`, converts a ritmo-shaped project's phases (milestones → goals), shown as a diff, and after it adopt finds `phases` on.
-- [ ] Running update twice makes no second change.
-- [ ] A failing migration leaves the project as it was and says which one.
+- [x] An old CLI refuses a project on a newer practice, and says how to update.
+- [x] A project on practice 0.0.0 holding the pre-`7227f325` conduct skill comes out of `keel update` on the current one (a managed re-render, no migration needed).
+- [x] The first real migration, `0001-milestone-to-goal`, converts a ritmo-shaped project's phases (milestones → goals), shown as a diff, and after it adopt finds `phases` on.
+- [x] Running update twice makes no second change.
+- [x] A failing migration leaves the project as it was and says which one.
 
 ## Proof
 
@@ -37,8 +37,13 @@ person receiving it.
 
 ## Deliberately open
 
-- PR versus direct push for a person running update interactively. Default PR; `--local` for the person who wants to look first.
+- PR versus direct push. **Settled 2026-10-02:** default is a local branch and commit, then exit 3 with the push/PR plan; `--yes` pushes and opens the PR; `--local` leaves a working-tree diff.
 
 ## Next action
 
-Write the v0.1 → v0.2 migration test with a deliberately renamed file before writing the runner.
+⚑ After the owner merges an adoption PR (phase 4), run `keel update --yes` there and link the PR in the evidence.
+
+## Trajectory
+
+- **2026-10-02** — Migrations run once per project, when `applies()` is true; they aren't gated on version. A version gate never reaches a project adopted after the migration's version, and that's every newly adopted project. Found on the real ritmo walk.
+- **2026-10-02** — A gate spawned from inside `node --test` inherits `NODE_TEST_CONTEXT` and passes while running nothing. All spawns go through one helper, and spawned gates must show tests ran (lesson 14).
