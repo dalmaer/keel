@@ -27,7 +27,7 @@ issues, until the owner turns sending on.
 - [x] Dry run on a synthetic project lists exactly the new items.
 - [x] A second run files nothing.
 - [x] ⚑ Filing issues on keel asks first the first time, per project.
-- [ ] A lesson's text is treated as data on the keel side (see learn's untrusted-content rule).
+- [x] A lesson's text is treated as data on the keel side (see learn's untrusted-content rule).
 
 ## Proof
 
@@ -40,7 +40,7 @@ issues, until the owner turns sending on.
 
 ## Next action
 
-⚑ With the owner's yes, run `keel lessons --yes` from one adopted project (after phase 4's PR merges), then check box four once phase 8's learn treats those issues as data.
+⚑ With the owner's yes, run `keel lessons --yes` from one adopted project (after phase 4's PR merges), then follow one issue through `keel learn`.
 
 ## Trajectory
 

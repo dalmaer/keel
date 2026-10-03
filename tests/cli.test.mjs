@@ -93,7 +93,8 @@ test('--json parses for every verb and flag; human text never mixes in', async (
   try {
     // A verb that cannot run bare gets the least it needs; init makes a commit,
     // so it gets a git identity (CI has none).
-    const needs = { init: ['fresh', '--description', 'Acme is a test project.'] };
+    // learn bare reads GitHub; its JSON is covered by tests/learn.test.mjs against a stub gh.
+    const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     for (const name of names()) {

@@ -14,6 +14,7 @@
     "next": "node scripts/roadmap.mjs --next",
     "render": "node scripts/render.mjs --self",
     "render:check": "node scripts/render.mjs --self --check",
-    "check": "npm test && npm run roadmap:check && npm run render:check"
+    "inbox:check": "node bin/keel.mjs learn render --check",
+    "check": "npm test && npm run roadmap:check && npm run render:check && npm run inbox:check"
   }
 }

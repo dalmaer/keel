@@ -1,0 +1,6 @@
+{
+  "name": "conduct",
+  "summary": "Acme's conductor, adapted from an upstream skill.",
+  "source": { "repo": "acme/upstream", "path": "skills/conduct/SKILL.md", "commit": "a1b2c3d4", "license": "Apache-2.0" },
+  "files": []
+}
