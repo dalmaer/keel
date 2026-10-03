@@ -1,10 +1,10 @@
 ---
-status: partial
+status: built
 since: 2026-10-02
 goal: G4
 depends: [1, 10]
-note: "The optional loop practice renders ledger's 132 real findings identically except the generator's name. Being moved to the official @google/stitch CLI (STITCH_API_KEY, STITCH_WORKSPACE, npm install, no installer secret); a real cycle waits on that key and an adopted project."
-evidence: ["evidence/2026-10-02-loop.md"]
+note: "The optional loop practice runs ledger's Loop: the real cycle pulled 10 new findings, gated and drained them (#23), using the official @google/stitch CLI."
+evidence: ["evidence/2026-10-02-loop.md", "evidence/2026-10-03-ledger.md"]
 ---
 
 # A project's Stitch Loop findings are triaged the same way everywhere, through keel
@@ -43,7 +43,7 @@ The rules carry over unchanged:
 - [x] `propose` records a proposal; only `decide` (a person) changes a decision, and `push` is the only verb that sends anything to Loop.
 - [x] `render --check` fails CI on a stale `docs/LOOP.md` or a proposal without a read of the code.
 - [x] ⚑ The nightly workflow's secret (`STITCH_API_KEY`, for the official `@google/stitch` CLI, installed from npm) is listed with what it costs; none set without the owner's yes.
-- [ ] One real cycle on the adopted project: pull, propose, render, merged.
+- [x] One real cycle on the adopted project: pull, propose, render, merged.
 
 ## Proof
 

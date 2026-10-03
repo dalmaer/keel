@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 21 phases lived in; 9 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 21 phases lived in; 11 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
 
@@ -47,7 +47,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-1/5 built or lived-in; 0/5 lived-in.
+2/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -55,7 +55,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | keel doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes. |
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | keel update and release work; v0.1.0 is cut; 0001 converged a fresh clone of the real ritmo with no evidence touched and its 60 tests running. The real update PR waits on phase 4's adoption PRs (owner's yes). |
 | [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | partial | 2026-10-03 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | The three isocan adopt bugs are fixed (no invented gate, lessons path from config, project-directory phases read). ledger and isocan clones adopt with additions only and pass their own gates (isocan: 7,593 tests). ledger's phases stay local: 17 built phases owe evidence. The PRs wait on the owner, and on Dimitri. |
-| [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | partial | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | ledger runs on keel: adoption PR #16 merged (CI green, no deploy), and the first real keel-night measured 2,046 tests, opened #17 and drained it, with LEDGER_AUTOSYNC applied throughout. Stage B (Loop through keel) remains. |
+| [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | ledger runs on keel: adopted (#16), nightly health (#17), lessons table fixed (#18), Loop through keel (#19) with its first real cycle pulled, gated and drained (#23). Lived-in waits on a week of nights. |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
@@ -83,13 +83,13 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-0/4 built or lived-in; 0/4 lived-in.
+1/4 built or lived-in; 0/4 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md) | partial | 2026-10-02 | [6](phases/06-update-and-migrations.md) | The night shift ships as practices with drain. On keel, the full cycle has run for real: measure, PR #1, gate, self-merge. Owed: seven nights, a deliberately red night, and one adopted project's night. |
 | [11. A project can say, with numbers, whether its practice is working, and proposes one fix](phases/11-keel-improve.md) | partial | 2026-10-02 | [5](phases/05-managed-files-and-drift.md), [9](phases/09-goals.md) | keel improve measures 12 things with ratcheting bounds, broken is never zero, and the selftest fails on an unhealthy fixture. First real page on keel: one measure outside (9 phases without an issue); its proposal awaits the owner's decision. |
-| [14. A project's Stitch Loop findings are triaged the same way everywhere, through keel](phases/14-stitch-loop.md) | partial | 2026-10-02 | [1](phases/01-practices-as-modules.md), [10](phases/10-the-night-shift.md) | The optional loop practice renders ledger's 132 real findings identically except the generator's name. Being moved to the official @google/stitch CLI (STITCH_API_KEY, STITCH_WORKSPACE, npm install, no installer secret); a real cycle waits on that key and an adopted project. |
+| [14. A project's Stitch Loop findings are triaged the same way everywhere, through keel](phases/14-stitch-loop.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md), [10](phases/10-the-night-shift.md) | The optional loop practice runs ledger's Loop: the real cycle pulled 10 new findings, gated and drained them (#23), using the official @google/stitch CLI. |
 | [15. A project's night shift runs from its own repo, and keel is only where the ideas come from](phases/15-projects-run-on-their-own.md) | partial | 2026-10-03 | [10](phases/10-the-night-shift.md), [11](phases/11-keel-improve.md) | Night and loop workflows run the project's own scripts/keel/*.mjs: no keel checkout, no KEEL_TOKEN (keel's real nightly ran that way). keel-update.yml retired by migration 0002; keel fleet update opens update PRs from home. A real fleet update waits on an adopted project. |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
