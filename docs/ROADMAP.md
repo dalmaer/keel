@@ -5,7 +5,7 @@ The mothership: start projects the isocan/ledger way, keep them current, and car
 
 **0 of 20 phases lived in; 9 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
-**Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). ⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
+**Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 
@@ -34,7 +34,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | status, next, goal list, render, --agent-help, --version; every verb --json; the surface test reads the registry both ways. Installed from GitHub via gh repo clone + npm i -g with no build. |
-| [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md) | Local init works end to end and passes the new project's own check; --github asks (exit 3) and acts only with --yes. The real GitHub walk waits on the owner's ⚑ yes. |
+| [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md) | Local and --github init both work end to end: dalmaer/keel-walk was created, pushed and went green (3 Oct). One box is owed: a conducted session running phase 0 of a fresh project. |
 | [9. A person can say what the project is for, and the work lines up behind it](phases/09-goals.md) | built | 2026-10-02 | [2](phases/02-the-keel-cli.md) | goal add&#124;show&#124;retire and phase new&#124;list work; a goal with no phase is allowed and reported by doctor; retired goals stay counted but are never next focus. Cold-start cap raised to 3,200. |
 | [19. An agent in any keel project learns what keel is and where to start, unprompted](phases/19-agents-find-keel.md) | built | 2026-10-03 | [18](phases/18-docs-cannot-drift.md) | Every keel project carries a 144-word keel skill (with its .claude symlink) that says what keel is, how to install it, and to run keel --agent-help, with no verb list; a test holds it to that. |
 

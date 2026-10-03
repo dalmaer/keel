@@ -3,7 +3,7 @@ status: partial
 since: 2026-10-02
 goal: G1
 depends: [2]
-note: "Local init works end to end and passes the new project's own check; --github asks (exit 3) and acts only with --yes. The real GitHub walk waits on the owner's ⚑ yes."
+note: "Local and --github init both work end to end: dalmaer/keel-walk was created, pushed and went green (3 Oct). One box is owed: a conducted session running phase 0 of a fresh project."
 evidence: ["evidence/2026-10-02-init.md"]
 ---
 
@@ -42,7 +42,7 @@ workflow will need and whether they are set (`gh secret list`), never sets one.
 
 ## Next action
 
-⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
+Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
 
 ## Trajectory
 
