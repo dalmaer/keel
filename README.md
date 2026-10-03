@@ -17,7 +17,7 @@ lessons each project learns flow back home.
 Keel is a git checkout plus a link: no registry, no build step, Node ≥ 24.
 
 ```bash
-gh repo clone dalmaer/keel ~/code/keel   # any path; gh because the repo is private
+git clone https://github.com/dalmaer/keel ~/code/keel   # any path
 npm install -g ~/code/keel                              # or, in the checkout: npm link
 keel --version        # keel <version> (<commit>) practice <version>
 keel --agent-help     # where an agent starts

@@ -1,0 +1,12 @@
+keel
+Copyright 2026 Dion Almaer
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes material adapted from isocan (https://github.com/dglazkov/isocan),
+by isocan's authors, licensed under the Apache License, Version 2.0:
+- .agents/skills/conduct/SKILL.md (practices/conduct), adapted from isocan's
+  .claude/skills/conduct/SKILL.md at 7227f325;
+- ideas and logic credited in the headers of scripts/keel/improve.mjs
+  (subagent-time.mjs, ratchet.mjs) and practices/loop/files/scripts/loop.mjs.
+Each adapted file names its source in its own header.

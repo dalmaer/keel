@@ -455,7 +455,7 @@ why}]}`. A cell that failed is `{unreadable}`.
 Keel is a git checkout plus a link; there is no registry and no build step.
 
 ```bash
-gh repo clone dalmaer/keel ~/code/keel # any path works
+git clone https://github.com/dalmaer/keel ~/code/keel # any path works
 npm install -g ~/code/keel                              # or, in the checkout: npm link
 keel --version
 ```
