@@ -162,7 +162,7 @@ test('adopting acme-fold writes no phase, evidence, check or claude file and kee
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
-  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.github/workflows/keel-night.yml', '.github/workflows/keel-update.yml', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md', 'renovate.json'],
+  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.github/workflows/keel-night.yml', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md', 'renovate.json', 'scripts/keel/drain.mjs', 'scripts/keel/improve.mjs', 'scripts/keel/lib.mjs'],
     'the night shift and Renovate beside its own workflows; never a second claude.yml or check.yml');
   const gate = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
@@ -220,10 +220,10 @@ test('the night shift\'s practices go local where the project already does the j
   assert.equal(states(data).renovate, 'local');
   assert.match(data.config.local.renovate, /\.github\/dependabot\.yml/);
   assert.equal(states(data).night, 'on');
-  assert.deepEqual(data.secrets.map(s => s.name), ['KEEL_TOKEN', 'KEEL_TOKEN'], 'the secrets of the practices switched on');
+  assert.deepEqual(data.secrets.map(s => s.name), [], 'the night needs no secret: it runs from the project\'s own scripts');
   const again = await adopt({ dir }, { version: VERSION });
   // (The report also lists the AGENTS.md the first run seeded, as kept: not this test's concern.)
-  assert.deepEqual(again.data.written.filter(p => p !== REPORT), [], 'keel-night.yml and keel-update.yml, once written, are not the project\'s workflows');
+  assert.deepEqual(again.data.written.filter(p => p !== REPORT), [], 'keel-night.yml and scripts/keel/, once written, are not the project\'s own');
   assert.equal(again.data.config.local.ci, data.config.local.ci);
 });
 

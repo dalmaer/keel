@@ -64,19 +64,19 @@ to `practices` and the markers by hand, then `keel render`.
 2. Turns Loop on in the CLI and runs `pull`.
 3. Runs the gate: `render --check`, then the project's `{{check}}`.
 4. Opens one `keel-loop/<date>` PR when `docs/loop/` or `docs/LOOP.md` changed.
-5. Runs `keel drain keel-loop/ --yes`, with `--gate-passed` only when the gate
-   passed.
+5. Runs `node scripts/keel/drain.mjs keel-loop/ --yes`, with `--gate-passed`
+   only when the gate passed.
 
 For this queue the drain's data is `docs/loop/` and `docs/LOOP.md` only
-(lib/night.mjs `DATA_BY_PREFIX`). The workflow never decides, pushes, mines or
-proposes. Proposing with a model is a later decision, priced on its own. A
-failing gate or an unreachable Loop is red.
+(`DATA_BY_PREFIX` in the night practice's `scripts/keel/drain.mjs`, which
+the workflow runs from the project's own checkout; without the night practice
+there is no drain, and the run says so with a notice). The workflow never
+decides, pushes, mines or proposes. Proposing with a model is a later
+decision, priced on its own. A failing gate or an unreachable Loop is red.
 
-**What it needs (⚑).** Two secrets. Until both are set, each night ends green
-with a notice:
-
-- `STITCH_API_KEY`, the Loop key, under the name the official CLI reads.
-- `KEEL_TOKEN`, for the drain.
+**What it needs (⚑).** One secret, `STITCH_API_KEY`, the Loop key, under the
+name the official CLI reads. Until it is set, each night ends green with a
+notice.
 
 The workspace is `.stitch.json`'s `"workspace"`, which the official CLI reads
 too; `STITCH_WORKSPACE` overrides it.

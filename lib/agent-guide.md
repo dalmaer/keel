@@ -22,6 +22,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
 - `keel drain <prefix>` — one open PR per machine queue: older data PRs merged, the rest superseded; newest only `--gate-passed`; exit 3 until `--yes`
 - `keel fleet` — keel only, read-only: each project in `fleet.json`: practice, health, CI, unsent lessons
+- `keel fleet update` — keel only: open the update PR in each project behind; exit 3 until `--yes`
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — this text; `<topic>` opens one, `all` prints everything
@@ -343,6 +344,16 @@ ends in one proposal: a broken measure first, else the one furthest outside
 its bound, and the smallest change that would move it. Nothing else is
 written: no issue, no PR, no phase. A person decides.
 
+The same measures ship into each project as the `night` practice's
+`scripts/keel/improve.mjs` (with `drain.mjs` and `lib.mjs`): `node
+scripts/keel/improve.mjs [--report] [--json]` runs with no keel at all. What
+a project cannot read alone is never a zero: `drift` there is by
+`.keel/lock.json` only (bytes keel did not write; `behind` needs keel),
+`lint` is the rules its own files show (phase, goal-without-phase,
+claude-md-pointer, second-copy, symlink-replaced), and `inbox_waiting` is
+`n/a` (keel-side only). `keel improve` is the same module with keel's
+doctor and inbox, so it reads the full set.
+
 `--selftest` runs every measure on keel's own unhealthy fixture (gh and npm
 stubbed) and exits 1 unless every one reports `outside`.
 
@@ -371,9 +382,11 @@ prefix is touched.
 - `UNKNOWN` mergeability is asked once more after a short wait
   (`KEEL_DRAIN_WAIT_MS`, default 5000), then counts as not mergeable.
 
-The `night` practice's workflows call it: `keel-night.yml` after
-`keel improve --report` opens the night's PR, and `keel-update.yml` to close
-older update PRs (never to merge one: they are not data).
+The `night` practice ships it into each project as `scripts/keel/drain.mjs`
+(the same module): `keel-night.yml` runs `node scripts/keel/drain.mjs
+keel-night/` after the night's PR is opened, and `keel-loop.yml` drains
+`keel-loop/`. Run from keel, `keel drain keel/update-v` closes older update
+PRs (never merges one: they are not data).
 
 <!-- topic: loop | Stitch Loop's findings: a project script, not a keel verb; an agent proposes, a person decides -->
 
@@ -418,10 +431,22 @@ A repo or cell that could not be read says `unreadable: <why>`; it is never
 shown as healthy, and the other rows still render. The table ends in a
 "Needs you" list. Exit 0 whenever the table was drawn.
 
+`keel fleet update` is how practice changes go out: a project never pulls
+keel. From the same reads, each adopted project behind this CLI or with
+migrations it has not recorded (never keel itself, never one whose
+`keel/update-v<version>` PR is already open). Without `--yes`: each, and the
+PR it would open; exit 3 (0 when none). ⚑ With `--yes`, one at a time, with
+your own gh login: `gh repo clone` into a temp dir, a git identity only if
+none is set, `npm ci` with a lockfile, then `keel update --yes
+--no-self-update` there (push and PR). A repo that fails says why; the
+others go on; exit 1 if any failed. `--json` → `{ok, cli, plans: [{repo,
+from, to, pending, branch, title, open}], results?: [{…plan, ok, pr?, note?,
+step?, error?}], needs?}`.
+
 `--json` → `{ok, root, cli, at, ms, rows: [{repo, role, kind, note,
 unreadable?, branch, adopted, practice: {version, behind, possiblyPending},
 health: {last, age, state}, ci: {state, workflow, conclusion, at}, lessons:
-{project, rows, unsent}, machinePrs: {total, queues}} | {repo, role:
+{project, rows, unsent}, machinePrs: {total, queues, heads}} | {repo, role:
 'source', pins: [{practice, path, pinned, head, moved}]}], needs: [{repo,
 why}]}`. A cell that failed is `{unreadable}`.
 

@@ -19,11 +19,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "d07bce16f96722d1c2ad2fc2968dae9ff5c59d530939fa4487805f282c0b7721"
-    },
-    ".github/workflows/keel-update.yml": {
-      "practice": "night",
-      "sha256": "2d431516f7dbc53bfc6e2cd0d57c92e4619326a3cce6ce815e26ac98c4c81a79"
+      "sha256": "6c7c35b98f09014fd8c0890e393cf557b837924ab23b82ca2a32f86c54fa5f91"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -64,6 +60,18 @@
     "renovate.json": {
       "practice": "renovate",
       "sha256": "8bdd3dbad7e77d5698c0c541adeeddea7313981f6f111762b961e34f7562c4ef"
+    },
+    "scripts/keel/drain.mjs": {
+      "practice": "night",
+      "sha256": "7ac89a7e67d1a34d72f0cefea45962b6ad7eb9d461cf20d07b0a9d2bb51c7fd3"
+    },
+    "scripts/keel/improve.mjs": {
+      "practice": "night",
+      "sha256": "8c8c957cfb07c4cfc906dfa992a0a92bdf12c612bca8cd5df66468f21fc70b99"
+    },
+    "scripts/keel/lib.mjs": {
+      "practice": "night",
+      "sha256": "13562c41eb0bcaa6d35631eb877d81b16df6cf3370603ea73a42627491626893"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",

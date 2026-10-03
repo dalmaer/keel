@@ -3,7 +3,7 @@
 // to say "fine" (lesson 6); an instrument that cannot run is broken, never 0.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile, cp, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -253,4 +253,66 @@ test('conduct_cost reads a tiny synthetic transcript: whole runs, minutes per ki
     ['cd /acme && npm run check', 'whole check'], ['cd /acme && env -u NODE_TEST_CONTEXT npm test 2>&1 | tail', 'whole suite'], ['cd /acme/tests/fixtures/x && npm run check', 'other'], ['cd $S/clone && npm test', 'other'],
     ["cat > notes.md <<'EOF'\nnpm run check\nEOF", 'reading'], ["node -e 'run(\"npm test\")'", 'other'], ["node --test 'tests/*.test.mjs'", 'whole suite'],
   ]) assert.equal(commandKind(cmd, 'npm run check', '/acme'), kind, cmd);
+});
+
+test('moved away from keel: a fresh project runs its own night steps, improve --report and the drain, with no keel anywhere', async t => {
+  const made = await project(t);
+  const away = await realpath(await mkdtemp(join(tmpdir(), 'acme-away-')));
+  t.after(() => rm(away, { recursive: true, force: true }));
+  const dir = join(away, 'storefront');
+  await cp(made, dir, { recursive: true, verbatimSymlinks: true }); // a link stays relative, as git would check it out
+  assert.doesNotMatch(dir, /keel/i, 'no keel anywhere on its path');
+  // Nothing the project runs may resolve to keel: no keel on PATH, no NODE_PATH.
+  const env = { ...ENV, KEEL_GH: await ghStub(t), PATH: (process.env.PATH ?? '').split(':').filter(p => !/keel/i.test(p)).join(':') };
+  delete env.NODE_PATH;
+  const improve = run(process.execPath, ['scripts/keel/improve.mjs', '--report', '--json'], { cwd: dir, env });
+  assert.equal(improve.status, 0, improve.stdout + improve.stderr);
+  const data = JSON.parse(improve.stdout);
+  assert.ok(data.report.startsWith('docs/health/'), 'the page is written');
+  assert.match(await readFile(join(dir, data.report), 'utf8'), /`node scripts\/keel\/improve\.mjs --report` on Acme/);
+  assert.equal(byId(data, 'gate').state, 'ok');
+  assert.equal(byId(data, 'roadmap_stale').state, 'ok', 'the project\'s own scripts/roadmap.mjs');
+  assert.equal(byId(data, 'drift').value, 0);
+  assert.match(byId(data, 'drift').detail, /by \.keel\/lock\.json; behind is keel-side/);
+  assert.match(byId(data, 'lint').detail, /keel doctor reads the rest/);
+  assert.match(byId(data, 'inbox_waiting').detail, /keel only/);
+  await rm(join(dir, '.keel', 'bounds.json'));
+  await rm(join(dir, 'docs', 'health'), { recursive: true });
+  const drain = run(process.execPath, ['scripts/keel/drain.mjs', 'keel-night/', '--json'], { cwd: dir, env });
+  assert.equal(drain.status, 0, drain.stdout + drain.stderr);
+  assert.deepEqual(JSON.parse(drain.stdout), { ok: true, prefix: 'keel-night/', repo: null, newest: null, actions: [] });
+  const usage = run(process.execPath, ['scripts/keel/drain.mjs'], { cwd: dir, env });
+  assert.equal(usage.status, 2);
+  // The tree is as the project left it: the scripts wrote only what they say.
+  assert.deepEqual(await snapshot(dir), await snapshot(made));
+});
+
+test('in the project, drift and lint read its own files; from keel, the full set; a measure that needs keel is never a zero', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: '/nonexistent/gh' };
+  await appendFile(join(dir, 'scripts', 'keel', 'drain.mjs'), '// Acme was here\n');
+  await writeFile(join(dir, 'CLAUDE.md'), 'Read AGENTS.md.\nAnd also\nthese\nfour lines.\n');
+  await mkdir(join(dir, 'tools', 'conduct'), { recursive: true });
+  await writeFile(join(dir, 'tools', 'conduct', 'SKILL.md'), '---\nname: conduct\n---\nA copy.\n');
+  const local = run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env });
+  const mine = JSON.parse(local.stdout);
+  assert.deepEqual(byId(mine, 'drift').facts.paths, ['CLAUDE.md', 'scripts/keel/drain.mjs']);
+  assert.deepEqual(byId(mine, 'lint').facts.lint.map(l => l.rule).sort(), ['claude-md-pointer', 'second-copy']);
+  const full = keel(['improve', '--json'], dir, env).json();
+  assert.deepEqual(byId(full, 'drift').facts.paths, ['CLAUDE.md', 'scripts/keel/drain.mjs'], 'keel\'s doctor agrees on an edit');
+  assert.doesNotMatch(byId(full, 'drift').detail, /keel-side/);
+  assert.deepEqual(byId(full, 'lint').facts.lint.map(l => l.rule).sort(), ['claude-md-pointer', 'second-copy']);
+  // No lock: drift and lint cannot be read here, and say so.
+  await rm(join(dir, '.keel', 'lock.json'));
+  const bare = JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env }).stdout);
+  for (const id of ['drift', 'lint']) {
+    assert.equal(byId(bare, id).state, 'n/a', id);
+    assert.equal(byId(bare, id).value, null, id);
+  }
+  // keel itself, by its own rendered script: the inbox is read through keel's instruments, never a zero by default.
+  const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  const { measure: bareMeasure } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  const [inbox] = await bareMeasure({ root: dir, config: { ...config, keel: 'self' }, env, measures: MEASURES.filter(m => m.id === 'inbox_waiting') });
+  assert.equal(inbox.state, 'n/a');
+  assert.match(inbox.detail, /keel-side only/);
 });

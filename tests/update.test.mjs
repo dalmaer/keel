@@ -18,12 +18,14 @@ import { adopt, survey } from '../lib/adopt.mjs';
 import { update, selfUpdate, BRANCH } from '../lib/update.mjs';
 import { load as loadMigrations, collect, compareVersions, view } from '../lib/migrations.mjs';
 import * as m0001 from '../migrations/0001-milestone-to-goal.mjs';
+import * as m0002 from '../migrations/0002-projects-run-on-their-own.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
 const GROOVE = join(KEEL, 'tests', 'fixtures', 'adopt', 'acme-groove');
-// The version this keel brings a project to: its own, and at least the first release.
-const TARGET = compareVersions(practiceVersion(), '0.1.0') > 0 ? practiceVersion() : '0.1.0';
+// The version this keel brings a project to: its own, and at least the release
+// its newest migration is for (0002, 0.3.0), as 0001 was for 0.1.0 before it.
+const TARGET = compareVersions(practiceVersion(), '0.3.0') > 0 ? practiceVersion() : '0.3.0';
 const OLD = { cli: '0.0.0', commit: null, practice: '0.0.0' };
 // update() runs the project's check in-process: give it the runner's env without NODE_TEST_*.
 const ENV = {
@@ -406,8 +408,9 @@ test('the migrations keel ships load, each with an id, a version, applies and up
 });
 
 test('a project adopted on the current practice still gets 0001, and keel next says plainly that its phases are local until then', async t => {
-  const dir = await groove(t, null, { cli: TARGET, commit: null, practice: TARGET });
-  assert.equal((await json(join(dir, '.keel/keel.json'))).practice, TARGET, 'adopt stamps the current practice');
+  const current = practiceVersion(); // the CLI's own, which keel update (the CLI) brings it to
+  const dir = await groove(t, null, { cli: current, commit: null, practice: current });
+  assert.equal((await json(join(dir, '.keel/keel.json'))).practice, current, 'adopt stamps the current practice');
 
   for (const verb of [['next'], ['status'], ['goal', 'list']]) {
     const r = keel([...verb, '--json'], dir);
@@ -460,4 +463,49 @@ test('0001 replaces a milestone-shaped phase template, and leaves the project\'s
   const cfg = await json(join(dir, '.keel/keel.json'));
   assert.ok(cfg.practices.includes('phases') && !cfg.practices.includes('evidence'));
   assert.ok(cfg.local.evidence);
+});
+
+/** A project on practice 0.2.0 with the weekly keel-update.yml keel wrote then (synthetic bytes). */
+async function withUpdateWorkflow(t, { edited = false } = {}) {
+  const dir = join(await scratch(t), 'acme-notes');
+  await init({ dir, name: 'Acme Notes', description: 'Acme Notes keeps meeting notes as plain files.', kind: 'node' }, { version: { cli: '0.2.0', commit: null, practice: '0.2.0' }, env: ENV });
+  const written = '# keel-update (Acme fixture): cloned keel with a token, weekly.\nname: keel-update\n';
+  await writeFile(join(dir, m0002.WORKFLOW), edited ? `${written}# Acme added a step of its own.\n` : written);
+  const lock = await readLock(dir);
+  lock.files[m0002.WORKFLOW] = { practice: 'night', sha256: sha256(written) };
+  await writeFile(join(dir, '.keel/lock.json'), formatLock(lock));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'acme on practice 0.2.0 with keel-update.yml');
+  return dir;
+}
+
+test('0002 retires keel-update.yml where keel\'s bytes stand, and the rest of the night practice is rendered', async t => {
+  const dir = await withUpdateWorkflow(t);
+  assert.equal(await m0002.applies(await view(dir)), true);
+  const r = await run({ dir, local: true });
+  assert.equal(r.exitCode ?? 0, 0, r.text);
+  assert.deepEqual(r.data.migrations.map(m => m.id), ['0002-projects-run-on-their-own']);
+  assert.deepEqual(r.data.migrations[0].edits, [{ path: m0002.WORKFLOW, action: 'delete' }, { path: '.keel/lock.json', action: 'write' }]);
+  assert.match(r.text, /KEEL_TOKEN secret is no longer used/, 'the owner is told the secret can go');
+  await assert.rejects(lstat(join(dir, m0002.WORKFLOW)), 'deleted');
+  const lock = await readLock(dir);
+  assert.ok(!lock.files[m0002.WORKFLOW], 'and gone from the lock');
+  for (const f of ['.github/workflows/keel-night.yml', 'scripts/keel/improve.mjs', 'scripts/keel/drain.mjs', 'scripts/keel/lib.mjs']) {
+    same(await readFile(join(dir, f), 'utf8'), await template(dir, 'night', f), f);
+    assert.ok(lock.files[f], `${f} is locked`);
+  }
+  assert.deepEqual((await json(join(dir, '.keel/keel.json'))).migrations, ['0002-projects-run-on-their-own']);
+  assert.equal(await m0002.applies(await view(dir)), false, 'idempotent: nothing left to retire');
+});
+
+test('0002 leaves a keel-update.yml the project edited, as its own, and forgets it in the lock', async t => {
+  const dir = await withUpdateWorkflow(t, { edited: true });
+  assert.equal(await m0002.decision(await view(dir)), 'keep');
+  const r = await run({ dir, local: true });
+  assert.equal(r.exitCode ?? 0, 0, r.text);
+  assert.deepEqual(r.data.migrations[0].edits, [{ path: '.keel/lock.json', action: 'write' }]);
+  assert.match(r.text, /left as the project's own where it was edited/);
+  assert.match(await readFile(join(dir, m0002.WORKFLOW), 'utf8'), /Acme added a step of its own/);
+  assert.ok(!(await readLock(dir)).files[m0002.WORKFLOW], 'keel no longer manages it');
+  assert.equal(await m0002.applies(await view(dir)), false);
 });

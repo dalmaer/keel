@@ -1,13 +1,11 @@
 {
   "name": "night",
-  "summary": "The night shift: a nightly health page as one PR, its queue drained by machinery, and a weekly practice-update PR; a red night is a failed workflow.",
+  "summary": "The night shift: a nightly health page as one PR, its queue drained by machinery, all from scripts in the project's own repo; a red night is a failed workflow.",
   "requires": ["base"],
-  "secrets": [
-    { "name": "KEEL_TOKEN", "why": "read access to the private keel repo, to fetch the CLI (not needed on keel itself); until it is set the run ends green with a notice", "workflow": ".github/workflows/keel-night.yml" },
-    { "name": "KEEL_TOKEN", "why": "read access to the private keel repo, to fetch the CLI that opens the update PR; until it is set the run ends green with a notice", "workflow": ".github/workflows/keel-update.yml" }
-  ],
   "files": [
     { "path": ".github/workflows/keel-night.yml", "from": ".github/workflows/keel-night.yml", "kind": "managed" },
-    { "path": ".github/workflows/keel-update.yml", "from": ".github/workflows/keel-update.yml", "kind": "managed" }
+    { "path": "scripts/keel/improve.mjs", "from": "scripts/keel/improve.mjs", "kind": "managed" },
+    { "path": "scripts/keel/drain.mjs", "from": "scripts/keel/drain.mjs", "kind": "managed" },
+    { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" }
   ]
 }

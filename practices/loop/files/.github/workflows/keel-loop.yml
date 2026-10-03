@@ -11,7 +11,9 @@
 #
 #   - A bot writes a pull request, never to main. The only push names
 #     refs/heads/keel-loop/<date>.
-#   - One open PR per queue, the newest; `keel drain keel-loop/` enforces it.
+#   - One open PR per queue, the newest; the night practice's
+#     scripts/keel/drain.mjs keel-loop/ enforces it, from this repo. Without
+#     the night practice there is no drain, and the run says so (a notice).
 #   - A merge is checked, not trusted. A GITHUB_TOKEN PR runs no CI, so this
 #     run's gate (render --check, then the project's own) is the check; the
 #     newest merges only when it passed and the PR holds only docs/loop/ and
@@ -19,11 +21,10 @@
 #   - A guard fires into a room someone is in: a pull that cannot reach Loop,
 #     or a gate that fails, makes this run red, and GitHub emails.
 #
-# SECRETS, and until each exists the run ends green with a notice (an
+# SECRET, and until it exists the run ends green with a notice (an
 # unconfigured repo is not a broken one):
 #   STITCH_API_KEY  the Loop key the official stitch CLI (@google/stitch on
 #                   npm) reads
-#   KEEL_TOKEN      read access to the keel repo, for `keel drain`
 # The workspace is .stitch.json's "workspace" (STITCH_WORKSPACE overrides it).
 # Repo setting: Actions must be allowed to create pull requests.
 name: keel-loop
@@ -59,25 +60,17 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Configured?
-        id: keel
-        env:
-          KEEL_TOKEN: ${{ secrets.KEEL_TOKEN }}
+        id: configured
         run: |
           if [ -z "$STITCH_API_KEY" ]; then
             echo "::notice::Skipped: add the STITCH_API_KEY secret to run the nightly Loop pull."
-            echo "cli=" >> "$GITHUB_OUTPUT"
-          elif node -e "process.exit(JSON.parse(require('fs').readFileSync('.keel/keel.json', 'utf8')).keel === 'self' ? 0 : 1)"; then
-            echo "cli=node $GITHUB_WORKSPACE/bin/keel.mjs" >> "$GITHUB_OUTPUT"
-          elif [ -z "$KEEL_TOKEN" ]; then
-            echo "::notice::Skipped: add the KEEL_TOKEN secret (read access to dalmaer/keel) to run the nightly Loop pull."
-            echo "cli=" >> "$GITHUB_OUTPUT"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           else
-            GH_TOKEN="$KEEL_TOKEN" gh repo clone dalmaer/keel "$RUNNER_TEMP/keel" -- --quiet
-            echo "cli=node $RUNNER_TEMP/keel/bin/keel.mjs" >> "$GITHUB_OUTPUT"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         run: if [ -f package-lock.json ]; then npm ci; fi
 
       # The official CLI, from npm. Pinned to major 0: 0.x is what this script
@@ -85,7 +78,7 @@ jobs:
       # never moves to it unseen. Loop is experimental, so even a 0.x minor can
       # change it; a pull that breaks is red, and GitHub emails.
       - name: Install the stitch CLI
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         run: |
           npm install -g @google/stitch@0
           stitch --version
@@ -93,17 +86,17 @@ jobs:
       # Loop is off in a fresh CLI until it is switched on, per runner (isocan's
       # nightlies of 29 Sep to 1 Oct all died on this). Failing is red.
       - name: Turn Loop on in the CLI
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         run: stitch enable loop
 
       # A pull that cannot reach Loop fails here, loudly.
       - name: Pull Loop's insights
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         run: node scripts/loop.mjs pull
 
       - name: Gate
         id: gate
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         run: |
           if node scripts/loop.mjs render --check && {{check}}; then
             echo "gate=ok" >> "$GITHUB_OUTPUT"
@@ -114,7 +107,7 @@ jobs:
       # Porcelain, never `git diff --quiet`: a finding filed for the first time
       # is not in the index. The push names its own branch.
       - name: Open the pull request
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         env:
           BASE: ${{ github.event.repository.default_branch }}
         run: |
@@ -148,18 +141,22 @@ jobs:
       # merge, closed as superseded (branch kept) otherwise. The newest merges
       # only after the gate passed on this tree.
       - name: Drain the queue
-        if: steps.keel.outputs.cli != ''
+        if: steps.configured.outputs.ready == 'true'
         env:
           GATE: ${{ steps.gate.outputs.gate }}
         run: |
+          if [ ! -f scripts/keel/drain.mjs ]; then
+            echo "::notice::No drain: scripts/keel/drain.mjs comes with keel's night practice; switch it on to keep the keel-loop/ queue at one PR."
+            exit 0
+          fi
           if [ "$GATE" = ok ]; then
-            ${{ steps.keel.outputs.cli }} drain keel-loop/ --yes --gate-passed
+            node scripts/keel/drain.mjs keel-loop/ --yes --gate-passed
           else
-            ${{ steps.keel.outputs.cli }} drain keel-loop/ --yes
+            node scripts/keel/drain.mjs keel-loop/ --yes
           fi
 
       - name: Verdict
-        if: always() && steps.keel.outputs.cli != ''
+        if: always() && steps.configured.outputs.ready == 'true'
         env:
           GATE: ${{ steps.gate.outputs.gate }}
         run: |

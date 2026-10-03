@@ -13,7 +13,10 @@ import { mkdtemp, mkdir, readFile, rm, writeFile, realpath, chmod } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fleet, healthOf, gateName, parseFleet } from '../lib/fleet.mjs';
+import { fleet, fleetUpdate, healthOf, gateName, parseFleet } from '../lib/fleet.mjs';
+import { execFileSync } from 'node:child_process';
+import { init } from '../lib/init.mjs';
+import { load as loadMigrations } from '../lib/migrations.mjs';
 import { lessonFingerprint, parseLessons } from '../lib/lessons.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -92,6 +95,13 @@ if (a === 'api') {
 } else if (a === 'pr' && b === 'list') {
   const r = repoOf(opt('-R')); if (!r) { console.error('GraphQL: Could not resolve to a Repository'); process.exit(1); }
   console.log(JSON.stringify(pick(r.prs ?? [], opt('--json').split(','))));
+} else if (a === 'repo' && b === 'clone') {
+  // A clone is a copy of the prepared checkout (its origin a local bare repo), links kept as git keeps them.
+  const from = (s.prepared ?? {})[argv[2]];
+  if (!from) { console.error('GraphQL: Could not resolve to a Repository with the name ' + argv[2] + '.'); process.exit(1); }
+  fs.cpSync(from, argv[3], { recursive: true, verbatimSymlinks: true });
+} else if (a === 'pr' && b === 'create') {
+  console.log('https://github.com/acme/pulls/' + opt('--head'));
 } else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
   await chmod(gh, 0o755);
@@ -252,4 +262,90 @@ test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', a
   const text = runCmd(process.execPath, [BIN, 'fleet'], { cwd: dir, env: gh.env });
   assert.match(text.stdout, /^repo\s+adopted\s+practice\s+health\s+CI\s+unsent lessons\s+machine PRs$/m);
   assert.match(text.stdout, /^Needs you:$/m);
+});
+
+// ---- fleet update -------------------------------------------------------------
+
+const GIT_ENV = { GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test', GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test', GIT_CONFIG_NOSYSTEM: '1', KEEL_SELF_UPDATED: '' };
+const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: { ...cleanEnv(), ...GIT_ENV }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+/** A keel init project on practice 0.2.0, its origin a local bare repo, and a checkout the stub's clone copies. */
+async function remoteProject(t, name) {
+  const root = await scratch(t, `keel-fleet-${name}-`);
+  const src = join(root, name);
+  await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: '0.2.0', commit: null, practice: '0.2.0' }, env: { ...cleanEnv(), ...GIT_ENV } });
+  const origin = join(root, 'origin.git');
+  execFileSync('git', ['clone', '-q', '--bare', src, origin], { env: { ...cleanEnv(), ...GIT_ENV } });
+  const prepared = join(root, 'prepared');
+  execFileSync('git', ['clone', '-q', origin, prepared], { env: { ...cleanEnv(), ...GIT_ENV } });
+  return { origin, prepared, config: await readFile(join(src, '.keel/keel.json'), 'utf8') };
+}
+
+async function fleetOfUpdates(t) {
+  const notes = await remoteProject(t, 'notes'), ledger = await remoteProject(t, 'ledger');
+  const all = (await loadMigrations()).map(m => m.id);
+  const current = JSON.stringify({ name: 'Acme Current', repo: 'acme/current', practice: '0.3.0', practices: ['base'], migrations: all });
+  const st = {
+    repos: {
+      'acme/notes': { default_branch: 'main', files: { '.keel/keel.json': notes.config } },
+      'acme/ledger': { default_branch: 'main', files: { '.keel/keel.json': ledger.config } },
+      'acme/current': { default_branch: 'main', files: { '.keel/keel.json': current } },
+      'acme/waiting': { default_branch: 'main', files: { '.keel/keel.json': notes.config }, prs: [{ number: 9, headRefName: 'keel/update-v0.3.0' }] },
+      'acme/gone': { default_branch: 'main', files: { '.keel/keel.json': notes.config } },
+    },
+    commits: {},
+    prepared: { 'acme/notes': notes.prepared, 'acme/ledger': ledger.prepared },
+  };
+  const list = ['notes', 'ledger', 'current', 'waiting', 'gone'].map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' }));
+  const dir = await home(t, list);
+  const gh = await stubGh(t, st);
+  gh.env = { ...gh.env, ...GIT_ENV };
+  return { dir, gh, notes, ledger };
+}
+const updateDeps = gh => ({ env: gh.env, now: NOW, cli: '0.3.0', cliRoot: KEEL, whatsnew: join(KEEL, 'WHATSNEW.md') });
+
+test('fleet update without --yes: each project behind or with pending migrations, and the PR it would open; exit 3; nothing cloned', async t => {
+  const { dir, gh } = await fleetOfUpdates(t);
+  const r = await fleetUpdate({ dir }, updateDeps(gh));
+  assert.equal(r.exitCode, 3, r.text);
+  assert.equal(r.data.needs, 'yes');
+  assert.deepEqual(r.data.plans.map(p => [p.repo, p.from, p.to, p.branch, p.open]), [
+    ['acme/notes', '0.2.0', '0.3.0', 'keel/update-v0.3.0', false],
+    ['acme/ledger', '0.2.0', '0.3.0', 'keel/update-v0.3.0', false],
+    ['acme/waiting', '0.2.0', '0.3.0', 'keel/update-v0.3.0', true],
+    ['acme/gone', '0.2.0', '0.3.0', 'keel/update-v0.3.0', false],
+  ], 'acme/current is current with every migration recorded; keel itself is never one');
+  assert.match(r.text, /acme\/notes: "keel update: practice 0\.2\.0 → 0\.3\.0" from keel\/update-v0\.3\.0/);
+  assert.match(r.text, /acme\/waiting: keel\/update-v0\.3\.0 is already open; it waits for a person/);
+  assert.match(r.text, /⚑ Opening pull requests on these repos needs a yes/);
+  assert.ok((await gh.calls()).every(c => ['api', 'run', 'pr'].includes(c[0]) && !(c[0] === 'pr' && c[1] === 'create')), 'reads only');
+  // The CLI: the same plan, exit 3; at home only.
+  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: gh.env });
+  assert.equal(cli.status, 3, cli.stderr);
+  assert.equal(JSON.parse(cli.stdout).plans.length, 4);
+});
+
+test('fleet update --yes, against the gh stub: one PR per project behind, pushed from a clone; a failure is said and the others go on', async t => {
+  const { dir, gh, notes, ledger } = await fleetOfUpdates(t);
+  const r = await fleetUpdate({ dir, yes: true }, updateDeps(gh));
+  assert.equal(r.exitCode, 1, r.text);
+  const by = repo => r.data.results.find(x => x.repo === repo);
+  assert.equal(by('acme/notes').pr, 'https://github.com/acme/pulls/keel/update-v0.3.0');
+  assert.equal(by('acme/ledger').pr, 'https://github.com/acme/pulls/keel/update-v0.3.0');
+  assert.equal(by('acme/gone').ok, false);
+  assert.equal(by('acme/gone').step, 'clone');
+  assert.match(by('acme/gone').error, /Could not resolve to a Repository/);
+  assert.equal(by('acme/waiting'), undefined, 'an open update PR is not opened twice');
+  const calls = await gh.calls();
+  const creates = calls.filter(c => c[0] === 'pr' && c[1] === 'create');
+  assert.equal(creates.length, 2, 'exactly one PR per project behind');
+  assert.deepEqual(calls.filter(c => c[0] === 'repo').map(c => [c[2], c[4], c[5]]), [['acme/notes', '--', '--quiet'], ['acme/ledger', '--', '--quiet'], ['acme/gone', '--', '--quiet']]);
+  for (const { origin } of [notes, ledger]) {
+    assert.match(git(origin, 'branch', '--list', 'keel/update-v0.3.0'), /keel\/update-v0\.3\.0/, 'the update branch is pushed');
+    const config = JSON.parse(git(origin, 'show', 'keel/update-v0.3.0:.keel/keel.json'));
+    assert.equal(config.practice, '0.3.0');
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, '0.2.0', 'main is untouched: a person merges');
+  }
+  assert.match(r.text, /acme\/gone: FAILED at clone/);
+  assert.match(r.text, /acme\/waiting: keel\/update-v0\.3\.0 is already open/);
 });

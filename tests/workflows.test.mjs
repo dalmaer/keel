@@ -16,7 +16,6 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Each keel workflow's own branch prefix: the only refs it may push or drain. */
 export const PREFIX = {
   'keel-night.yml': 'keel-night/',
-  'keel-update.yml': 'keel/update-v',
   'keel-loop.yml': 'keel-loop/',
   'claude.yml': 'claude/',
   'check.yml': null,
@@ -57,7 +56,7 @@ export function problems(name, text, declared = []) {
     }
     if (/\bgit diff\b.*--(quiet|exit-code)/.test(line)) out.push(`line ${n}: git diff --quiet misses new files; test git status --porcelain`);
     if (/\bgh pr merge\b/.test(line)) out.push(`line ${n}: merges directly; merges go through keel drain, after a gate`);
-    const drain = /(?:\bkeel|outputs\.cli \}\})\s+drain\s+(\S*\/\S*)/.exec(line);
+    const drain = /(?:\bkeel|outputs\.cli \}\})\s+drain\s+(\S*\/\S*)/.exec(line) ?? /\bdrain\.mjs\s+(\S*\/\S*)/.exec(line);
     if (drain) {
       if (drain[1] !== prefix) out.push(`line ${n}: drains ${drain[1]}, not this workflow's prefix ${prefix}`);
       if (/--gate-passed/.test(line)) {
@@ -90,7 +89,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-update.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-loop.yml', 'keel-night.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -106,18 +105,15 @@ test('every workflow keel ships keeps the night shift\'s rules, as a template an
 test('the night workflow measures before it drains, pushes only its dated branch, and goes red on a broken instrument or gate', async () => {
   const night = (await shipped()).find(w => w.name === 'keel-night.yml').template;
   const at = s => { const i = night.indexOf(s); assert.ok(i >= 0, `missing: ${s}`); return i; };
-  assert.ok(at('improve --report --json') < at('drain keel-night/'), 'improve runs before the drain, so machine_prs counts last night\'s PR');
+  assert.ok(at('node scripts/keel/improve.mjs --report --json') < at('node scripts/keel/drain.mjs keel-night/'), 'improve runs before the drain, so machine_prs counts last night\'s PR');
   assert.ok(at('git status --porcelain') < at('git commit'));
   assert.match(night, /git push --force origin "HEAD:refs\/heads\/keel-night\/\$DAY"/);
   assert.match(night, /cancel-in-progress: false/);
-  assert.match(night, /if: always\(\) && steps\.keel\.outputs\.cli != ''/, 'the verdict runs even after a failed step');
+  assert.match(night, /- name: Verdict\n\s+if: always\(\)\n/, 'the verdict runs even after a failed step');
   assert.match(night, /if \[ "\$CODE" = 2 \] \|\| \[ -z "\$CODE" \]; then[\s\S]*?exit 1/, 'a broken instrument (or no reading) is red');
   assert.match(night, /if \[ "\$GATE" != ok \]; then[\s\S]*?exit 1/, 'a failing gate is red');
   assert.doesNotMatch(night.slice(at('if [ "$CODE" = 1 ]')), /exit 1/, 'outside a bound is news, not red');
-  assert.match(night, /::notice::Skipped: add the KEEL_TOKEN secret/, 'no secret: a notice, not a red run');
-  const update = (await shipped()).find(w => w.name === 'keel-update.yml').template;
-  assert.doesNotMatch(update, /--gate-passed/, 'an update PR is never merged by machinery');
-  assert.match(update, /update --yes/);
+  assert.doesNotMatch(night, /secrets\./, 'the night needs no secret: it runs the project\'s own scripts');
 });
 
 test('mutations: a workflow that breaks a rule fails', async () => {
@@ -137,11 +133,67 @@ test('mutations: a workflow that breaks a rule fails', async () => {
   fails(night.replace(/concurrency:\n\s+group: keel-night\n/, ''), /no concurrency group/, 'no concurrency');
   fails(night.replace('cron: "23 7 * * *"', 'cron: "23 7 * *"'), /invalid cron/, 'four fields');
   fails(night.replace('cron: "23 7 * * *"', 'cron: "61 7 * * *"'), /invalid cron/, 'minute 61');
-  fails(night.replace('${{ secrets.KEEL_TOKEN }}', '${{ secrets.ACME_SECRET }}'), /ACME_SECRET is not declared/, 'an undeclared secret');
-  fails(night.replace(/if \[ "\$GATE" = ok \]; then\n(\s+)(.*drain keel-night\/ --yes --gate-passed)/, '$1$2\n$1true'), /outside an if on the gate/, 'an unconditional --gate-passed');
-  fails(night.replace('drain keel-night/ --yes --gate-passed', 'drain keel/ --yes --gate-passed'), /not this workflow's prefix/, 'draining another prefix');
+  fails(night.replace('    env:\n      GH_TOKEN: ${{ github.token }}\n', '    env:\n      GH_TOKEN: ${{ github.token }}\n      ACME: ${{ secrets.ACME_SECRET }}\n'), /ACME_SECRET is not declared/, 'an undeclared secret');
+  fails(night.replace(/if \[ "\$GATE" = ok \]; then\n(\s+)(.*drain\.mjs keel-night\/ --yes --gate-passed)/, '$1$2\n$1true'), /outside an if on the gate/, 'an unconditional --gate-passed');
+  fails(night.replace('drain.mjs keel-night/ --yes --gate-passed', 'drain.mjs keel/ --yes --gate-passed'), /not this workflow's prefix/, 'draining another prefix');
   fails(`${night}\n      - run: gh pr merge 1 --squash\n`, /merges directly/, 'a direct merge');
   assert.deepEqual(problems('keel-night.yml', night, w.declared), [], 'the unmutated template is clean');
+});
+
+/**
+ * Every way a shipped workflow could reach back to keel at runtime (design §6,
+ * "Projects run on their own"): keel's repo by name, a keel token, any clone,
+ * or keel's CLI. The one exception is keel's own night gathering its inbox:
+ * `node bin/keel.mjs learn` in a step guarded on `steps.self.outputs.self`,
+ * set by a step that reads `"keel": "self"` from .keel/keel.json.
+ */
+export function reachesBack(text) {
+  const out = [];
+  const lines = text.split('\n');
+  const steps = [];
+  lines.forEach((line, i) => {
+    if (/^\s+- (name|uses|id|run):/.test(line) && /^\s{6}- /.test(line)) steps.push({ start: i, lines: [] });
+    steps.at(-1)?.lines.push(line);
+  });
+  const stepOf = i => steps.filter(s => s.start <= i).at(-1);
+  const selfStep = steps.find(s => s.lines.some(l => /^\s+id: self\s*$/.test(l)) && s.lines.some(l => /\.keel === 'self'/.test(l)));
+  lines.forEach((line, i) => {
+    const n = i + 1;
+    if (/dalmaer\/keel\b/.test(line)) out.push(`line ${n}: names keel's repo`);
+    if (/\bKEEL_TOKEN\b/.test(line)) out.push(`line ${n}: a keel token`);
+    if (/\bgh repo clone\b/.test(line)) out.push(`line ${n}: gh repo clone`);
+    if (/\bgit clone\b/.test(line)) out.push(`line ${n}: git clone`);
+    if (/\bkeel\.mjs\b/.test(line)) {
+      const step = stepOf(i);
+      const guarded = selfStep && step && step !== selfStep && step.lines.some(l => /^\s+if: steps\.self\.outputs\.self == 'true'\s*$/.test(l));
+      if (!guarded || !/\bnode bin\/keel\.mjs learn\b/.test(line)) out.push(`line ${n}: keel's CLI outside keel's own learn step`);
+    }
+  });
+  return out;
+}
+
+test('no shipped workflow reaches back to keel: no keel repo, no keel token, no clone, no keel CLI (keel\'s own learn aside)', async () => {
+  for (const w of await shipped()) {
+    assert.deepEqual(reachesBack(w.template), [], `${w.practice} ${w.path}`);
+    if (!w.optional) assert.deepEqual(reachesBack(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
+  }
+  for (const p of (await load()).values()) assert.ok(!p.secrets.some(s => s.name === 'KEEL_TOKEN'), `${p.name} declares KEEL_TOKEN`);
+  // Mutations: each way back is caught.
+  const night = (await shipped()).find(w => w.name === 'keel-night.yml').template;
+  const loop = (await shipped()).find(w => w.name === 'keel-loop.yml').template;
+  const learn = 'run: node bin/keel.mjs learn';
+  assert.ok(night.includes(learn));
+  const add = (text, step) => text.replace('      - name: Measure\n', `${step}      - name: Measure\n`);
+  for (const [why, text] of [
+    ['a clone of keel', add(night, '      - run: gh repo clone dalmaer/keel "$RUNNER_TEMP/keel" -- --quiet\n')],
+    ['a git clone', add(night, '      - run: git clone https://github.com/acme/tools tools\n')],
+    ['a keel token', add(night, '      - env:\n          T: ${{ secrets.KEEL_TOKEN }}\n        run: echo\n')],
+    ['keel\'s repo in a comment', `# fetched from dalmaer/keel\n${night}`],
+    ['keel\'s CLI for the measure', night.replace('node scripts/keel/improve.mjs --report --json', 'node $RUNNER_TEMP/keel/bin/keel.mjs improve --report --json')],
+    ['learn without its guard', night.replace("        if: steps.self.outputs.self == 'true'\n", '')],
+    ['the guard without its self check', night.replace(".keel === 'self'", ".keel === 'acme'")],
+    ['keel\'s CLI in the loop drain', loop.replace('node scripts/keel/drain.mjs keel-loop/ --yes --gate-passed', 'node bin/keel.mjs drain keel-loop/ --yes --gate-passed')],
+  ]) assert.ok(reachesBack(text).length, `${why}: expected a problem`);
 });
 
 /** The PR-permission path: notice on GitHub's refusal, red on anything else. */
@@ -155,7 +207,7 @@ export function permissionPath(text) {
 }
 
 test('the night workflows: Actions not allowed to open PRs is a notice naming the setting; any other failure is red', async () => {
-  for (const name of ['keel-night.yml', 'keel-update.yml']) {
+  for (const name of ['keel-night.yml']) {
     const w = (await shipped()).find(w => w.name === name);
     assert.deepEqual(permissionPath(w.template), [], name);
     assert.deepEqual(permissionPath(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${name}`);

@@ -16,8 +16,6 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
 const DESCRIPTION = 'Acme Notes keeps meeting notes as plain files. It files each note under the meeting it came from and finds them again by who was there.';
 const SECRETS = [
-  ['KEEL_TOKEN', '.github/workflows/keel-night.yml', 'night'],
-  ['KEEL_TOKEN', '.github/workflows/keel-update.yml', 'night'],
   ['CLAUDE_CODE_OAUTH_TOKEN', '.github/workflows/claude.yml', 'claude'],
   ['ANTHROPIC_API_KEY', '.github/workflows/claude.yml', 'claude'],
 ];
@@ -91,7 +89,7 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.match(agents, /Kind: Node CLI/);
   assert.match(agents, /<!-- keel:begin phases -->\n\*\*Status lives/);
   for (const f of ['CLAUDE.md', '.nvmrc', '.gitignore', 'docs/lessons.md', 'docs/ROADMAP.md',
-    '.github/workflows/check.yml', '.github/workflows/keel-night.yml', '.github/workflows/keel-update.yml',
+    '.github/workflows/check.yml', '.github/workflows/keel-night.yml', 'scripts/keel/improve.mjs', 'scripts/keel/drain.mjs',
     '.github/workflows/claude.yml', 'renovate.json', '.agents/skills/conduct/SKILL.md', '.claude/skills/conduct/SKILL.md']) {
     await readFile(join(dir, f), 'utf8');
   }
@@ -184,7 +182,7 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   assert.equal(out.needs, 'yes');
   assert.equal(out.plan.repo, 'acme/acme-notes');
   assert.ok(out.plan.steps.some(s => s.what === `gh repo create acme/acme-notes --private --source ${dir} --push`));
-  // The night shift's and claude's secrets, each named with its workflow; none is set.
+  // claude's secrets, each named with its workflow; none is set. The night needs none: it runs from the project.
   assert.deepEqual(out.plan.secrets.map(s => [s.name, s.workflow, s.practice, s.set]), SECRETS.map(s => [...s, false]));
   assert.ok(out.plan.secrets.every(s => s.why), 'each says why');
   const calls = await gh.calls();
@@ -194,7 +192,8 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   const text = keel(['init', dir, '--description', DESCRIPTION, '--github'], root, { ...ENV, KEEL_GH: gh.bin });
   assert.equal(text.code, 3);
   assert.match(text.out, /needs a yes/);
-  assert.match(text.out, /Secrets needed:\n {2}KEEL_TOKEN \(\.github\/workflows\/keel-night\.yml\): .* — not set; keel never sets one/);
+  assert.match(text.out, /Secrets needed:\n {2}CLAUDE_CODE_OAUTH_TOKEN \(\.github\/workflows\/claude\.yml\): .* — not set; keel never sets one/);
+  assert.doesNotMatch(text.out, /KEEL_TOKEN/);
 });
 
 test('--github --yes inits, then creates the private repo from the directory and pushes', async t => {

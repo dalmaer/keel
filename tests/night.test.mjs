@@ -212,3 +212,23 @@ test('usage: a prefix is required and names a namespace', async t => {
   assert.equal(s.keel(['drain', 'keel-night/', '--merge-all']).code, 2);
   assert.deepEqual(writes(await s.calls()), []);
 });
+
+test('one source: keel\'s verbs are the night practice\'s shipped modules, and a drifted copy fails render --check', async t => {
+  const night = await import('../lib/night.mjs'), drainSrc = await import('../practices/night/files/scripts/keel/drain.mjs');
+  const improve = await import('../lib/improve.mjs'), improveSrc = await import('../practices/night/files/scripts/keel/improve.mjs');
+  assert.equal(night.drain, drainSrc.drain, 'keel drain is the shipped drain');
+  assert.equal(night.plan, drainSrc.plan);
+  assert.equal(improve.MEASURES, improveSrc.MEASURES, 'keel improve measures with the shipped measures');
+  // keel's own rendered copies are byte-identical, and a changed one is caught.
+  for (const f of ['improve.mjs', 'drain.mjs', 'lib.mjs']) {
+    assert.equal(await readFile(join(KEEL, 'scripts', 'keel', f), 'utf8'), await readFile(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', f), 'utf8'), f);
+  }
+  const dir = join(await scratch(t), 'acme');
+  const made = run(process.execPath, [BIN, 'init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme'], { env: { ...cleanEnv(), GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test', GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' } });
+  assert.equal(made.status, 0, made.stderr);
+  assert.equal(run(process.execPath, [BIN, 'render', '--check'], { cwd: dir }).status, 0);
+  await writeFile(join(dir, 'scripts', 'keel', 'drain.mjs'), `${await readFile(join(dir, 'scripts', 'keel', 'drain.mjs'), 'utf8')}// a local fix\n`);
+  const check = run(process.execPath, [BIN, 'render', '--check', '--json'], { cwd: dir });
+  assert.equal(check.status, 1);
+  assert.deepEqual(JSON.parse(check.stdout).differs, ['scripts/keel/drain.mjs']);
+});

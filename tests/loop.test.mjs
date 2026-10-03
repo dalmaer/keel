@@ -74,7 +74,7 @@ test('the practice is optional: keel init leaves it off, its files and secrets a
   assert.deepEqual(p.files.map(f => `${f.kind} ${f.path}`).sort(), [
     'block AGENTS.md', 'managed .github/workflows/keel-loop.yml', 'managed scripts/loop.mjs', 'managed tests/loop.test.mjs', 'seeded .stitch.json', 'seeded docs/loop/README.md',
   ]);
-  assert.deepEqual(p.secrets.map(s => s.name).sort(), ['KEEL_TOKEN', 'STITCH_API_KEY']);
+  assert.deepEqual(p.secrets.map(s => s.name).sort(), ['STITCH_API_KEY'], 'the drain is the project\'s own scripts/keel/drain.mjs: no keel token');
   assert.equal(JSON.parse(p.files.find(f => f.path === '.stitch.json').template).workspace, '');
   const init = await readFile(join(KEEL, 'lib', 'init.mjs'), 'utf8');
   assert.match(init, /filter\(n => !practices\.get\(n\)\.optional\)/);
@@ -316,7 +316,7 @@ test('findings read and write as ledger\'s YAML does; the comma form of loop rea
   assert.deepEqual(reconcile([], [i, { ...i, id: 'other' }]).findings[0].loop, [i.id, 'other']);
 });
 
-test('keel-loop.yml reads Loop and files findings, and nothing else; it skips with a notice until its secrets exist', async () => {
+test('keel-loop.yml reads Loop and files findings, and nothing else; it skips with a notice until its secret exists', async () => {
   const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'keel-loop.yml'), 'utf8');
   const code = yml.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
   assert.doesNotMatch(code, /loop\.mjs (decide|push|mine|propose)\b/, 'a pull that could decide would dismiss insights for the whole workspace');
@@ -326,7 +326,7 @@ test('keel-loop.yml reads Loop and files findings, and nothing else; it skips wi
   assert.match(code, /STITCH_API_KEY: \$\{\{ secrets\.STITCH_API_KEY \}\}/);
   assert.doesNotMatch(code, /curl|https?:\/\/\S*install/i, 'never installed from a URL');
   assert.match(code, /render --check && \{\{check\}\}/, 'the gate is render --check, then the project\'s own');
-  assert.match(code, /drain keel-loop\/ --yes --gate-passed/);
+  assert.match(code, /node scripts\/keel\/drain\.mjs keel-loop\/ --yes --gate-passed/, 'the project\'s own drain, never keel\'s CLI');
   assert.doesNotMatch(code, /anthropic|claude -p/i, 'no model proposes here');
   for (const dir of [PRACTICE, join(KEEL, 'practices', 'loop')]) {
     for (const n of await readdir(dir, { recursive: true })) {
