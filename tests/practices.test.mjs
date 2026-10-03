@@ -107,8 +107,15 @@ test('--self --check fails on a copy of keel whose managed file or block was edi
     await writeFile(agents, (await readFile(agents, 'utf8')).replace('## The map', '## The map, edited'));
     assert.deepEqual(JSON.parse(node(dir, RENDER, '--self', '--check', '--json').stdout).differs.sort(),
       ['AGENTS.md#conduct', 'scripts/roadmap.mjs']);
-    assert.equal(node(dir, RENDER, '--self').status, 0);
-    assert.equal(node(dir, RENDER, '--self', '--check').status, 0, 'a render restores them');
+    // A local edit is signal: render refuses to write over it and changes nothing.
+    const before = await readFile(agents, 'utf8');
+    const refused = node(dir, RENDER, '--self');
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /refusing to overwrite what the project changed/);
+    assert.equal(await readFile(agents, 'utf8'), before);
+    // doctor's restore, asked for, brings keel's bytes back and keeps the project's own lines.
+    for (const path of ['scripts/roadmap.mjs', 'AGENTS.md#conduct']) assert.equal(node(dir, 'bin/keel.mjs', 'doctor', '--fix', path, 'restore', '--yes').status, 0);
+    assert.equal(node(dir, RENDER, '--self', '--check').status, 0, 'restored');
     assert.match(await readFile(agents, 'utf8'), /## The map, edited/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
@@ -139,7 +146,7 @@ test('a render into an empty directory, plus one phase, passes its own npm run c
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('a second render never overwrites seeded files, and restores managed ones', async () => {
+test('a second render never overwrites seeded files, and refuses to overwrite edited managed ones', async () => {
   const dir = await temp('again');
   try {
     await acmeInto(dir);
@@ -155,6 +162,12 @@ test('a second render never overwrites seeded files, and restores managed ones',
     await writeFile(agents, (await readFile(agents, 'utf8')).replace('Write them here.', 'Anvils are heavy.')
       .replace('**Lessons are shapes, not incidents.**', '**Lessons are optional.**'));
     await writeFile(join(dir, 'CLAUDE.md'), 'Drifted.\n');
+    const refused = node(KEEL, RENDER, '--into', dir);
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /AGENTS\.md#lessons edited.*CLAUDE\.md edited|CLAUDE\.md edited.*AGENTS\.md#lessons edited/);
+    assert.equal(await readFile(join(dir, 'CLAUDE.md'), 'utf8'), 'Drifted.\n');
+    // Restored by choice (doctor --fix restore), the next render goes through.
+    for (const path of ['CLAUDE.md', 'AGENTS.md#lessons']) assert.equal(node(dir, join(KEEL, 'bin/keel.mjs'), 'doctor', '--fix', path, 'restore', '--yes').status, 0);
     const second = JSON.parse(node(KEEL, RENDER, '--into', dir, '--json').stdout);
     assert.equal(second.ok, true);
     for (const [path, text] of Object.entries(mine)) assert.equal(await readFile(join(dir, path), 'utf8'), text, path);

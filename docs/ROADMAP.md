@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 15 phases lived in; 3 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 15 phases lived in; 4 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). ⚑ With the owner's yes: `keel init /tmp/keel-walk --description "A throwaway to prove keel init." --github --yes`, watch its check.yml go green, then the owner deletes `dalmaer/keel-walk`. Then conduct phase 0 of a fresh project once to close the last box.
 
@@ -43,12 +43,12 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-0/3 built or lived-in; 0/3 lived-in.
+1/3 built or lived-in; 0/3 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [4. An existing project comes under keel without losing what is its own](phases/04-keel-adopt.md) | partial | 2026-10-02 | [3](phases/03-keel-init.md) | adopt classifies each practice on/local/off and only adds; on temp clones of duo and ritmo it is +350/−0 and each project's gate stays green. The two real PRs wait on the owner's yes (duo is public). |
-| [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | planned | 2026-10-02 | [1](phases/01-practices-as-modules.md) | Motivated by lesson 1: isocan's untracked second copy of conduct was twelve days stale. |
+| [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | keel doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes. |
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | planned | 2026-10-02 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | Order is settled in design.md §3: CLI first, then migrations, then re-render, then check, then PR. |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.

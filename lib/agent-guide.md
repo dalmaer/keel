@@ -14,6 +14,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel render` — render the project's practices onto it; `--check` writes nothing and exits 1 on a difference; `--into <dir>` targets another project
 - `keel init [dir] --description "<paragraph>"` — a new project in an empty directory: practice, goal G0, phase 0, one commit; `--github` plans a private repo and exits 3 until `--yes`
 - `keel adopt [dir]` — bring an existing repo under keel: on only what it already satisfies, the rest recorded as local variants with proposals; `--dry-run` writes nothing, `--check "<cmd>"` names the gate
+- `keel doctor` — drift (what the project changed of keel's files) and practice-rule lints; exit 1 on findings; `--fix <path> restore|eject` exits 3 until `--yes`
 - `keel help` — the verbs, one line each
 - `keel --agent-help` — this text; `keel --agent-help <topic>` opens one topic, `all` prints everything
 - `keel --version` — CLI version, its commit, and the practice version it carries
@@ -31,7 +32,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 the command ran and found a failure; 2 usage error or
 not in a project; 3 a ⚑ step needs the owner's yes and nothing was done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `render`, `init`, `adopt`, `install`, `coming`.
+Topics: `json`, `render`, `init`, `adopt`, `doctor`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -52,6 +53,11 @@ stderr as one line beginning `keel:`.
 - `adopt` → `{dir, dryRun, check: {check, from}, config, practices: [{name,
   state, why}], files: [{practice, path, kind, block?, status, note?}],
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
+- `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
+  lint: [{rule, path, message}], local: {name: why}, qualifies, ejected}`;
+  state is `edited|behind|both`. With `--fix` and no `--yes`, exit 3 and
+  `{ok: false, needs: "yes", plan: {path, action, practice, what}}`; with
+  `--yes`, `{ok: true, fixed, ...the report after}`
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -64,8 +70,11 @@ A practice is a module under keel's `practices/<name>/`. The project's
 `.keel/keel.json` lists the practices it uses; `keel render` writes them.
 
 - **managed** files are keel's and rewritten every render. A difference is
-  drift: signal that the project changed something keel owns. Read the diff
-  before rendering over it; if the change is right, it belongs upstream.
+  drift: signal that the project changed something keel owns. Render refuses
+  (exit 1) to write over a target the lock shows the project changed; `keel
+  doctor` shows the diff. If the change is right, it
+  belongs upstream; if the project keeps it, eject it (`ejected` in
+  `.keel/keel.json`) and render leaves it alone.
 - **block** regions (`<!-- keel:begin id -->` … `<!-- keel:end id -->`) sit
   in a file the project owns; only the inside is rewritten.
 - **seeded** files are written once, when absent, and never compared again.
@@ -122,6 +131,32 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 
+<!-- topic: doctor | drift as signal, the practice's own rules, and the two fixes -->
+
+```bash
+keel doctor --json                                   # read; changes nothing
+keel doctor --fix CLAUDE.md eject --yes               # keep the project's version
+keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
+```
+
+- `.keel/lock.json` records the sha256 of what render wrote for each managed
+  file, block (`path#block`, hashed by its inside) and link. Render writes it;
+  `render --check` never does. Seeded files are not in it.
+- **edited**: the project changed it since keel wrote it. That is the most
+  valuable signal keel gets: if the change is right, send it home with keel
+  lessons (phase 7). **behind**: unchanged, but keel's template moved on;
+  update's job (phase 6), not a finding. **both**: both moved.
+- Lints: `second-copy` (a `SKILL.md` naming a managed skill outside
+  `.agents/skills/`, not through a symlink), `claude-md-pointer` (more than 3
+  non-empty lines), `phase` (the roadmap parser's error), `goal-without-phase`,
+  `symlink-replaced` (a managed doorway that became a real directory).
+- `local` lists the project's local variants as information; `qualifies`
+  names those adopt's survey would now switch on.
+- `--fix <path> restore` rewrites it from the template; `--fix <path> eject`
+  drops it from the lock and adds it to `.keel/keel.json` `ejected`, which
+  render honours forever. Each needs `--yes`, or exits 3 with the plan.
+  Restore refuses to replace a real directory; move it aside first.
+
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
 Keel is a git checkout plus a link; there is no registry and no build step.
@@ -140,6 +175,6 @@ Updating will be `git pull --ff-only` in the checkout.
 <!-- topic: coming | verbs that are planned and not yet built -->
 
 Not built yet, so not verbs: `update` (CLI then practice migration, as one PR),
-`doctor` (conformance and drift), `improve`, `lessons` (send lessons home),
+`improve`, `lessons` (send lessons home),
 `learn`, `fleet`. Do not call them; `keel help` lists what exists. The
 roadmap in keel's `docs/ROADMAP.md` says where each one stands.

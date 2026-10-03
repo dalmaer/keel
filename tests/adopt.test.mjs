@@ -159,7 +159,7 @@ test('adopting acme-fold writes no phase, evidence or workflow file and keeps it
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
-  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.keel/keel.json', 'docs/keel-adoption.md']);
+  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md']);
   const gate = spawnSync('npm', ['run', 'check'], { cwd: dir, encoding: 'utf8', env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
 });
@@ -175,7 +175,7 @@ test('a project that already is keel-shaped switches everything on, and its file
   assert.equal(data.config.local, undefined);
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) assert.equal(after[path], hash, `${path} changed`);
-  assert.deepEqual(Object.keys(after).filter(p => !(p in before)).sort(), ['.keel/keel.json', REPORT]);
+  assert.deepEqual(Object.keys(after).filter(p => !(p in before)).sort(), ['.keel/keel.json', '.keel/lock.json', REPORT]);
 });
 
 test('a bare project: phases off, so is what needs them; ci on and runs its gate', async t => {

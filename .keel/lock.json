@@ -1,0 +1,61 @@
+{
+  "practice": "0.0.0",
+  "files": {
+    ".agents/skills/conduct/SKILL.md": {
+      "practice": "conduct",
+      "sha256": "4337050b399ab44808fa2be9b7106ef6b80a5e95b9835e3d0d260c82ffa3546a"
+    },
+    ".claude/skills/conduct": {
+      "practice": "conduct",
+      "sha256": "17ee152e2cdd354af27d61c98cb5943eed933a02fd00e220e75db3af5b12e4df"
+    },
+    ".github/workflows/check.yml": {
+      "practice": "ci",
+      "sha256": "d6b6b4f228fcf9d026d998ea6b2cc33bd872a180c2f26aa882b13445ba9f701d"
+    },
+    "AGENTS.md#agents-md": {
+      "practice": "agents-md",
+      "sha256": "8c2da366dd8c2f09c7680320b10f5e0521cd12894b0bc482391e5fafe1ed709a"
+    },
+    "AGENTS.md#conduct": {
+      "practice": "conduct",
+      "sha256": "cc44d25bd6e6137b09bdc2bf32921cb88e586e672104ff671242072b71789f22"
+    },
+    "AGENTS.md#evidence": {
+      "practice": "evidence",
+      "sha256": "65ef3d01245eb6121e272dc9a9f0436094354483d57fa160982324ae1f988c3c"
+    },
+    "AGENTS.md#lessons": {
+      "practice": "lessons",
+      "sha256": "cebec778840ea01c7c1ded029310dc516511572d098db313010fd4c442a47a88"
+    },
+    "AGENTS.md#phases": {
+      "practice": "phases",
+      "sha256": "a723979f6012d67c29b2447a97fabee6d173194d4e12206665de85cece5b0e56"
+    },
+    "CLAUDE.md": {
+      "practice": "agents-md",
+      "sha256": "afc2da8653649abeb8ecce9a8792e12e755e69986b27659462e790c7d410708a"
+    },
+    "docs/phases/README.md": {
+      "practice": "phases",
+      "sha256": "50d7b50125a983b9688eb38e12659405c8ca8ac2779476843510dfbfbd7e44e1"
+    },
+    "docs/templates/evidence.md": {
+      "practice": "evidence",
+      "sha256": "ba3e3946c2c20beb41b5a6db62b99958fcced8bd0339646ee4d2811cbcaafc71"
+    },
+    "docs/templates/phase.md": {
+      "practice": "phases",
+      "sha256": "5df612acd9e4d8d103a27006fc1805e9ea13f765d91cae3453c80dee1bf23b52"
+    },
+    "scripts/roadmap.mjs": {
+      "practice": "phases",
+      "sha256": "0c7cd3f943211e515f6f6dbe4cd953cb9b41e80d2602e6d1b437b47890204744"
+    },
+    "tests/roadmap.test.mjs": {
+      "practice": "phases",
+      "sha256": "a31929f80799d9738e8a952bb89cfd30c9421a24adc2ff90199daa11ccf8e715"
+    }
+  }
+}
