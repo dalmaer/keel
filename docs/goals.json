@@ -1,0 +1,8 @@
+[
+  { "id": "G0", "title": "Keel runs on its own practice", "outcome": "Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan." },
+  { "id": "G1", "title": "Start a project in one command", "outcome": "From an empty directory, keel init produces a repo whose check passes, whose roadmap renders, and that an agent can conduct the same day." },
+  { "id": "G2", "title": "The fleet stays current", "outcome": "Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request." },
+  { "id": "G3", "title": "Lessons come home", "outcome": "A lesson learned in any project, or a practice improved upstream, reaches keel, is decided by a person, and ships to the rest of the fleet." },
+  { "id": "G4", "title": "The night shift keeps it working", "outcome": "Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person." },
+  { "id": "G5", "title": "Keel knows whether it helps", "outcome": "Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs." }
+]
