@@ -10,7 +10,8 @@ Verbs (every one takes `--json`; parse that, never the prose):
 
 - `keel status` — goals, built and lived-in counts, the next phase
 - `keel next` — the next phase to conduct: its file, done-when, next action
-- `keel goal list` — every goal, progress derived from its phases
+- `keel goal list|show|add|retire` — goals and their progress; add and retire edit `docs/goals.json`
+- `keel phase new|list` — scaffold the next free phase under a goal; list them
 - `keel render` — render the project's practices onto it; `--check` writes nothing, exits 1 on a difference
 - `keel init [dir] --description "<paragraph>"` — a new project in an empty directory; `--github` plans a private repo, exit 3 until `--yes`
 - `keel adopt [dir]` — bring an existing repo under keel: on only what it satisfies, the rest local; `--dry-run` writes nothing
@@ -36,7 +37,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `install`, `coming`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -45,11 +46,20 @@ human text is never mixed in. Without it, text goes to stdout and errors to
 stderr as one line beginning `keel:`.
 
 - `status` → `{name, goals: [{id, title, outcome, phases, built, lived}], next}`
-- `status`, `next`, `goal list` exit 2 where `phases` is a local variant.
+- `status`, `next`, `goal …` and `phase …` exit 2 where `phases` is a local variant.
 - `next` → the phase object (`id, file, title, status, since, goal, depends,
   note, evidence, done, next`) or `null` when nothing is left unbuilt. It is
   the same object `node scripts/roadmap.mjs --json` reports as `next`.
 - `goal list` → `[{id, title, outcome, phases, built, lived}]`
+- `goal show` → `{goal, phases: [{id, title, status}], built, lived, next}`;
+  `next` is the phase object or `null`
+- `goal add` → `{ok, goal: {id, title, outcome}, file}`
+- `goal retire` → `{ok, plan: {goal, retired, phases: [{id, file, title,
+  status, action, to?}]}}`; unbuilt phases and no `--phases`: exit 2, `{ok:
+  false, needs: "phases", unbuilt, options}`; with `--phases`, no `--yes`:
+  exit 3, `{ok: false, needs: "yes", plan}`
+- `phase new` → `{ok, id, file, path, goal, depends}`
+- `phase list` → the roadmap's phase objects, as `next` reports one
 - `render` → `{root, check, ok, differs: [path or path#block], entries}`
 - `init` → `{ok, dir, config, commit, message, files, secrets}`; with
   `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
@@ -86,6 +96,33 @@ stderr as one line beginning `keel:`.
   `{slug, summary, body}`
 - `--version` → `{cli, commit, practice, tag}`; `commit` is `null` outside a
   git checkout of keel, `tag` is `v<version>` when that commit is released.
+
+<!-- topic: goals | goals as outcomes, and phases lined up behind them -->
+
+```bash
+keel goal add "Acme exports notes" --outcome "A person can export any meeting's notes as one file."
+keel phase new "Export one meeting" --goal G1 --depends 0
+keel goal show G1 --json
+keel goal retire G1 --reason "Nobody exports" --phases supersede --yes
+```
+
+- Goals are outcomes, not dates; progress is derived from phases, never stored.
+  Every write regenerates `docs/ROADMAP.md`; a write it rejects is put back.
+- `goal add` takes the next free `G<n>` (max + 1; a retired id stays taken).
+  A goal with no phase renders "No phases yet"; `keel doctor` reports it
+  (`goal-without-phase`) until a phase names it.
+- `goal show`'s `next` is the goal's first unfinished phase whose dependencies,
+  in any goal, are built.
+- `goal retire` needs `--reason`, and writes `"retired": "<date>: <reason>"`;
+  the goal moves to the roadmap's Retired section, still counted, never next
+  focus. Unbuilt phases need `--phases supersede` (status superseded, note
+  "Goal <id> retired: <reason>") or `--phases move:<Gm>`, and `--yes`.
+- `phase new` writes `NN-<slug>.md` from `docs/templates/phase.md`: status
+  planned, since today, note "Drafted by keel phase new.", sections as the
+  template has them. The number is the highest in `docs/phases` plus one, at
+  the project's width. Another branch's phase is invisible to it: when two
+  branches take the same number, the roadmap check and `keel doctor` name
+  both files; renumber one.
 
 <!-- topic: render | how practices reach a project, and what render will not touch -->
 

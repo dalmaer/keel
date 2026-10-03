@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parsePhase, validateGraph, nextPhase, run } from '../scripts/roadmap.mjs';
+import { parsePhase, validateGraph, nextPhase, focus, render, run } from '../scripts/roadmap.mjs';
 
 const phase = ({ status = 'planned', since = '2026-10-02', goal = 'G0', depends = '[]', evidence = '[]', acceptance = '- [ ] Something observable.', extra = '' } = {}) => `---
 status: ${status}
@@ -62,13 +62,34 @@ test('rejects what would let the roadmap lie', () => {
   for (const [why, file, raw] of cases) assert.throws(() => parsePhase(file, raw), undefined, why);
 });
 
-test('the graph rejects cycles, unknown goals and empty goals', () => {
+test('the graph rejects cycles, unknown goals and duplicate numbers', () => {
   const goals = [{ id: 'G0', title: 't', outcome: 'o' }];
-  const p = (id, depends, goal = 'G0') => ({ id, file: `${id}.md`, depends, goal });
+  const p = (id, depends, goal = 'G0', file = `${id}.md`) => ({ id, file, depends, goal });
   assert.throws(() => validateGraph([p(0, [1]), p(1, [0])], goals), /cycle/);
   assert.throws(() => validateGraph([p(0, [], 'G9')], goals), /unknown goal/);
-  assert.throws(() => validateGraph([p(0, [])], [...goals, { id: 'G1', title: 't', outcome: 'o' }]), /no phases/);
   assert.throws(() => validateGraph([p(0, [7])], goals), /unknown dependency/);
+  // Two branches each added phase 7: the message names both files.
+  assert.throws(() => validateGraph([p(7, [], 'G0', '07-a.md'), p(7, [], 'G0', '07-b.md')], goals), /duplicate phase number 7: 07-a\.md and 07-b\.md/);
+  assert.throws(() => validateGraph([p(0, [])], [{ ...goals[0], retired: 'someday' }]), /retired/);
+});
+
+test('a goal with no phase yet is allowed, and says how to start one', () => {
+  const goals = [{ id: 'G0', title: 't', outcome: 'o' }, { id: 'G1', title: 'Later', outcome: 'It will.' }];
+  const phases = [{ id: 0, file: '00-x.md', title: 'X', status: 'planned', since: '2026-10-02', goal: 'G0', depends: [], note: 'n', done: 'd', next: 'n' }];
+  validateGraph(phases, goals);
+  assert.match(render({ config: { name: 'Acme' }, phases, goals }), /## G1 — Later\n\nIt will\.\n\nNo phases yet — `keel phase new --goal G1`\./);
+});
+
+test('a retired goal renders last, still counted, never next focus', () => {
+  const goals = [{ id: 'G0', title: 'Gone', outcome: 'o', retired: '2026-10-02: no longer wanted' }, { id: 'G1', title: 'Kept', outcome: 'o' }];
+  const ph = (id, goal) => ({ id, file: `0${id}-x.md`, title: `P${id}`, status: 'planned', since: '2026-10-02', goal, depends: [], note: 'n', done: 'd', next: 'n' });
+  const phases = [ph(0, 'G0'), ph(1, 'G1')];
+  validateGraph(phases, goals);
+  assert.equal(focus({ phases, goals }).id, 1);
+  const md = render({ config: { name: 'Acme' }, phases, goals });
+  assert.match(md, /0 of 2 phases lived in/);
+  assert.ok(md.indexOf('## G1 — Kept') < md.indexOf('## Retired'));
+  assert.match(md, /## Retired[\s\S]*### G0 — Gone\n\nRetired 2026-10-02: no longer wanted/);
 });
 
 test('next focus skips a phase whose dependencies are not built', () => {
@@ -80,6 +101,9 @@ test('next focus skips a phase whose dependencies are not built', () => {
   ];
   assert.equal(nextPhase(phases).id, 2);
   assert.equal(nextPhase(phases.map(p => ({ ...p, status: 'built' }))), null);
+  // Narrowed to phase 1's goal, deps are still read from every phase.
+  assert.equal(nextPhase(phases, p => p.id === 1), null);
+  assert.equal(nextPhase(phases.map(p => p.id === 2 ? { ...p, status: 'built' } : p), p => p.id === 1).id, 1);
 });
 
 test('check fails on a stale roadmap and passes once regenerated', async () => {

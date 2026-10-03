@@ -8,7 +8,7 @@ import { mkdtemp, readFile, rm, cp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verbs, FLAGS, GUIDE, COLD_START_LIMIT, parseGuide, surfaceGaps } from '../lib/cli.mjs';
+import { verbs, FLAGS, GUIDE, COLD_START_LIMIT, parseGuide, surfaceGaps, announced } from '../lib/cli.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -62,14 +62,22 @@ test('a verb registered without a guide line fails the surface check', async () 
 
 test('the guide lists only registered verbs, and names every topic', async () => {
   const { coldStart, topics } = parseGuide(await readFile(GUIDE, 'utf8'));
-  const announced = [...coldStart.matchAll(/^- `keel ([^`]+?)`/gm)].map(m => m[1]);
-  for (const line of announced) assert.ok(names().some(n => line === n || line.startsWith(`${n} `)), `unregistered: keel ${line}`);
+  for (const line of announced(coldStart)) assert.ok(names().some(n => line === n || line.startsWith(`${n} `)), `unregistered: keel ${line}`);
   assert.ok(topics.length >= 1);
   for (const t of topics) assert.match(coldStart, new RegExp(`\`${t.slug}\``), `cold start does not name topic ${t.slug}`);
 });
 
+test('a word list announces one command per word', () => {
+  assert.deepEqual(announced('- `keel goal list|show` — goals\n- `keel next` — n\n- `keel doctor --fix <path> restore|eject`'),
+    ['goal list', 'goal show', 'next', 'doctor --fix <path> restore', 'doctor --fix <path> eject']);
+  assert.deepEqual(surfaceGaps(['goal list', 'goal show', 'goal add'], '- `keel goal list|show` — goals'), ['goal add']);
+});
+
+// The cap is "one screen". It was 2,500 at seven verbs; at sixteen (phase 9),
+// with each verb family on one line and details in topics, it is 3,200.
 test(`the cold start stays under ${COLD_START_LIMIT} characters`, async () => {
   const { coldStart } = parseGuide(await readFile(GUIDE, 'utf8'));
+  assert.equal(COLD_START_LIMIT, 3200);
   assert.ok(coldStart.length < COLD_START_LIMIT, `cold start is ${coldStart.length} characters`);
   const r = keel(['--agent-help']);
   assert.equal(r.code, 0, r.err);
@@ -94,7 +102,11 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // A verb that cannot run bare gets the least it needs; init makes a commit,
     // so it gets a git identity (CI has none).
     // learn bare reads GitHub; its JSON is covered by tests/learn.test.mjs against a stub gh.
-    const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'] };
+    // goal add runs before goal retire, which retires the goal it added.
+    const added = `G${Math.max(...JSON.parse(await readFile(join(dir, 'docs/goals.json'), 'utf8')).map(g => Number(g.id.slice(1)))) + 1}`;
+    const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'],
+      'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
+      'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     for (const name of names()) {
