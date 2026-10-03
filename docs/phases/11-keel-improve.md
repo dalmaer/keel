@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-02
 goal: G4
 depends: [5, 9]
-note: "Measures listed in design.md §6; the conduct-cost measure exists upstream as isocan's scripts/subagent-time.mjs."
-evidence: []
+note: "keel improve measures 12 things with ratcheting bounds, broken is never zero, and the selftest fails on an unhealthy fixture. First real page on keel: one measure outside (9 phases without an issue); its proposal awaits the owner's decision."
+evidence: ["evidence/2026-10-02-improve.md"]
 ---
 
 # A project can say, with numbers, whether its practice is working, and proposes one fix
@@ -25,8 +25,8 @@ smallest change that would move it.
 
 ## Acceptance
 
-- [ ] `--selftest`: a deliberately unhealthy fixture fails every measure (isocan's lesson: a grader that reports zeros when broken is believed).
-- [ ] An instrument that cannot run exits non-zero rather than reporting zero.
+- [x] `--selftest`: a deliberately unhealthy fixture fails every measure (isocan's lesson: a grader that reports zeros when broken is believed).
+- [x] An instrument that cannot run exits non-zero rather than reporting zero.
 - [ ] Run on keel itself, the page is committed and its proposal becomes, or is declined as, a phase.
 
 ## Proof
@@ -39,4 +39,10 @@ smallest change that would move it.
 
 ## Next action
 
-Port isocan's subagent-time measure's idea into a keel measure and test it against one transcript directory from a conducted keel session.
+Owner: decide `docs/health/2026-10-02.md`'s proposal — open issues for the nine unfinished phases and set `issue:` (accept), or decline it with a reason.
+
+## Trajectory
+
+- **2026-10-02** — Conducted before phase 10, because the nightly workflow runs `keel improve --report`.
+- **2026-10-02** — `machine_prs` is exempt from the ratchet. Its bound of 1 is the night shift's rule, and tightening it to 0 would flag the nightly's own PR every morning.
+- **2026-10-02** — Measured on this session's own builders: 0 whole-check runs across 10 transcripts. The cost rule carried from isocan `7227f325` held.

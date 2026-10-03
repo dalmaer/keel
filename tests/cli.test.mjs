@@ -103,8 +103,9 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // so it gets a git identity (CI has none).
     // learn bare reads GitHub; its JSON is covered by tests/learn.test.mjs against a stub gh.
     // goal add runs before goal retire, which retires the goal it added.
+    // improve bare would run keel's own check from inside it; its --selftest runs on its fixture.
     const added = `G${Math.max(...JSON.parse(await readFile(join(dir, 'docs/goals.json'), 'utf8')).map(g => Number(g.id.slice(1)))) + 1}`;
-    const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'],
+    const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'],
       'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',

@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "description": "Acme sells anvils to coyotes; this repo is its storefront.",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "roadmap": "node scripts/roadmap.mjs",
+    "roadmap:check": "node scripts/roadmap.mjs --check",
+    "next": "node scripts/roadmap.mjs --next",
+    "check": "npm test && npm run roadmap:check"
+  }
+}

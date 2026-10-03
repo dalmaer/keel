@@ -1,0 +1,14 @@
+{
+  "gate": 0,
+  "roadmap_stale": 0,
+  "phases_without_issue": 0,
+  "phases_stuck": 0,
+  "lessons_without_guard": 0,
+  "drift": 0,
+  "lint": 0,
+  "inbox_waiting": 0,
+  "ci_red_streak": 0,
+  "machine_prs": 1,
+  "dependency_age": 0,
+  "conduct_cost": 0
+}

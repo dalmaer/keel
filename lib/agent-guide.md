@@ -19,6 +19,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3 until `--yes`), or `--local`
 - `keel lessons` — send new lessons, drift and practice commits home as issues, once each; exit 3 until `--yes`
 - `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`
+- `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — this text; `<topic>` opens one, `all` prints everything
@@ -37,7 +38,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `install`, `coming`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `install`, `coming`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -308,6 +309,42 @@ keel learn render [--check]        # docs/INBOX.md, generated; npm run check run
   ⚑ If the proposal has an issue, closing it with the decision and note
   exits 3 with the plan until `--yes` (the local record is written first).
 
+<!-- topic: improve | is the practice working here: measures, bounds, a ratchet, one proposal -->
+
+`keel improve` runs each measure and compares it with its bound. Measures
+first, a model's opinion never: every number comes from a command.
+
+- `gate` — the project's `check` (`.keel/keel.json`): fails, or passes having
+  run no tests (lesson 14). `roadmap_stale` — the roadmap check.
+- `phases_without_issue` (only with `repo`), `phases_stuck` (unfinished, `since`
+  older than 21 days), `lessons_without_guard` (empty, "to write", or planned
+  with no phase), `drift` and `lint` (doctor), `inbox_waiting` (keel only).
+- `ci_red_streak` and `machine_prs` read GitHub with `gh` (`KEEL_GH`): n/a
+  without `repo` or gh auth, and the reason says which.
+- `dependency_age` — `npm outdated`, only with a `package-lock.json`.
+- `conduct_cost` — only with `--transcripts <dir>` of Claude Code subagent
+  transcripts (`*.jsonl`, `*.output`): whole-check and whole-suite runs by
+  builders (lesson 5), and minutes per kind of command.
+
+States: `ok`, `outside`, `n/a` (with why), `broken`. An instrument that
+cannot run is `broken`, never a zero (lesson 6). Exit 0 all within bounds, 1
+one outside, 2 one broken.
+
+`--report` writes `docs/health/<YYYY-MM-DD>.md` (that day's page only) and
+`.keel/bounds.json`, seeded on the first report and the project's to edit.
+A value that beats its bound becomes the bound; it never loosens. The page
+ends in one proposal: a broken measure first, else the one furthest outside
+its bound, and the smallest change that would move it. Nothing else is
+written: no issue, no PR, no phase. A person decides.
+
+`--selftest` runs every measure on keel's own unhealthy fixture (gh and npm
+stubbed) and exits 1 unless every one reports `outside`.
+
+`--json` → `{root, date, ok, measures: [{id, what, unit, better, bound,
+value, state, detail, facts?}], proposal: {id, state, text} | null, report,
+bounds, tightened: [{id, from, to}]}`; `--selftest --json` → `{ok, fixture,
+measures, missed}`.
+
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
 Keel is a git checkout plus a link; there is no registry and no build step.
@@ -325,5 +362,5 @@ own copy of the practice (its `practices/`), never the project's scripts.
 
 <!-- topic: coming | verbs that are planned and not yet built -->
 
-Not built yet, so not verbs: `improve`, `fleet`. Do not call
+Not built yet, so not verbs: `fleet`. Do not call
 them; `keel help` lists what exists. The roadmap in keel's `docs/ROADMAP.md` says where each one stands.

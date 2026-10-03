@@ -1,0 +1,12 @@
+#!/usr/bin/env node
+// A gh for keel improve --selftest, answering the three calls improve makes
+// with the shapes real gh returns (`--json conclusion`, `--json headRefName`).
+// Synthetic: an Acme repo whose main has failed three runs in a row and whose
+// night-shift queue holds two PRs.
+const argv = process.argv.slice(2);
+const has = (...words) => words.every(w => argv.includes(w));
+if (has('--version')) console.log('gh version 2.0.0 (stub)');
+else if (has('auth', 'status')) console.log('Logged in to github.com as acme (stub)');
+else if (has('run', 'list')) console.log(JSON.stringify([{ conclusion: '' }, { conclusion: 'failure' }, { conclusion: 'failure' }, { conclusion: 'failure' }, { conclusion: 'success' }]));
+else if (has('pr', 'list')) console.log(JSON.stringify([{ headRefName: 'keel-night/2020-03-01' }, { headRefName: 'keel-night/2020-03-02' }, { headRefName: 'renovate/anvil-2.x' }, { headRefName: 'wile/rocket-skates' }]));
+else { console.error(`stub gh: unknown ${argv.join(' ')}`); process.exit(1); }
