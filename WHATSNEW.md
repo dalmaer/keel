@@ -5,6 +5,42 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.3.0 — 2026-10-03
+
+Your project now runs entirely on its own, and keel can read projects that
+were built differently.
+
+- **Your night shift needs nothing from keel.**
+  - `keel-night.yml` runs your repo's own `scripts/keel/improve.mjs` and
+    `scripts/keel/drain.mjs`, which are new managed files. There's no keel
+    checkout and no secret.
+  - What it can't measure from your repo alone, it marks "keel-side" rather
+    than 0.
+- **`keel-update.yml` is retired.** Migration 0002 deletes it if keel wrote
+  it, and leaves it as yours if you edited it. Update PRs now arrive from
+  keel (`keel fleet update`). You can delete a `KEEL_TOKEN` secret if you
+  set one; nothing reads it now.
+- **Stitch Loop uses the official `@google/stitch` CLI from npm.**
+  - The secret is `STITCH_API_KEY`, and `STITCH_WORKSPACE` overrides
+    `.stitch.json`.
+  - The installer-URL secret is gone.
+- **Adopt reads your setup instead of assuming keel's.**
+  - It never invents a gate: with no `check` script, it asks for `--check`.
+  - A lessons table outside `docs/lessons.md` is found and used (`lessons`
+    in `.keel/keel.json`).
+  - Phases kept as `docs/projects/<p>/phases.md` are read
+    (`keel next --project <p>`).
+- **Migration 0003** gives your phases goals, but only once every built
+  phase names its evidence. Until then, `keel doctor` lists the phases
+  owing it.
+- **Docs.**
+  - Conduct's Record step now asks whether a change alters what people or
+    agents are told.
+  - `keel doctor` notes when your README is older than your newest built
+    phase.
+- **New measure:** `evidence_placeholders` counts built phases whose
+  evidence is still the blank template.
+
 ## v0.2.0 — 2026-10-02
 
 Your project now gets measured overnight, can send its lessons home, and can
