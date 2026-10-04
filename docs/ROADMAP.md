@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 22 phases lived in; 17 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 23 phases lived in; 17 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
 
@@ -47,7 +47,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-4/5 built or lived-in; 0/5 lived-in.
+4/6 built or lived-in; 0/6 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -56,12 +56,14 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | built | 2026-10-04 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | keel update and release work, and update PRs reach projects for real: keel fleet update took duo and cajones to 0.5.2 (#48, #23), green and merged, and left ledger alone because nothing applied. |
 | [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | partial | 2026-10-03 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | The three isocan adopt bugs are fixed, and ledger is adopted for real (#16). isocan's adoption PR waits on Dimitri, together with the keel/nerd proposal. |
 | [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | ledger runs on keel: adopted (#16), nightly health (#17), lessons table fixed (#18), Loop through keel (#19) with its first real cycle pulled, gated and drained (#23). Lived-in waits on a week of nights. |
+| [22. A project hears about a new practice only when the practice changed](phases/22-practice-version.md) | planned | 2026-10-04 | [6](phases/06-update-and-migrations.md) | Found 4 Oct: the practice version is the package version, so a keel-side-only release would mark every project behind and open no-op update PRs. |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
 - **6 done when:** A project on practice version N runs `keel update` and gets one pull request that brings it to N+1 through a migration, passes its check, and is idempotent when run again.
 - **16 done when:** `keel adopt` on fresh copies of ledger and isocan reports their real gate, their real lessons file and their real phases, installs nothing that duplicates something they already have, and each copy's own gate passes afterwards. ledger's adoption is a PR for the owner; isocan's is a PR prepared for Dimitri.
 - **20 done when:** ledger's adoption PR is merged; ledger's own CI is green on it; one real keel-night on ledger has measured it, opened its health PR and drained it; `keel fleet` shows ledger adopted and current; and ledger's CLI never synced or pushed from a keel run.
+- **22 done when:** `keel release` moves the practice version only when `practices/` or `migrations/` changed since the last practice release. A keel-side-only release leaves every project current, and `keel fleet update` opens nothing for it.
 
 ## G3 — Lessons come home
 
