@@ -3,6 +3,6 @@
   "tagline": "The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home.",
   "repo": "dalmaer/keel",
   "keel": "self",
-  "practice": "0.5.1",
+  "practice": "0.5.2",
   "practices": ["base", "agents-md", "phases", "evidence", "lessons", "conduct", "ci", "night", "claude", "renovate"]
 }

@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.5.2 — 2026-10-03
+
+The nightly Loop pull now commits everything its gate checked.
+
+- **`afterRenderWrites`, if your roadmap counts Loop findings.** A pull runs your `"loop" "afterRender"`, and if that rewrites a file (ledger's roadmap), the gate passed with it but the PR left it out, so main went stale and red after the merge. List those files in `.keel/keel.json`: `"loop": { "afterRender": "node scripts/roadmap.ts", "afterRenderWrites": ["docs/ROADMAP.md"] }`. The nightly PR then carries them, and the drain treats them as the queue's data. Each must be a plain repo-relative path: no `..`, no `.github/`, no glob or whitespace.
+- Nothing to do if you have no `afterRender`, or it writes nothing.
+
 ## v0.5.1 — 2026-10-03
 
 Fixes from adopting cajones.
