@@ -3,7 +3,8 @@
 // object; `api repos/<r>/contents/<path>` prints {type: file, encoding: base64,
 // content} with GitHub's line breaks for a file and an array of entries for a
 // directory; a missing path prints GitHub's 404 body on stdout and
-// "gh: Not Found (HTTP 404)" on stderr, exit 1; `run list --json` and
+// "gh: Not Found (HTTP 404)" on stderr, exit 1 (a path in failPaths fails
+// with its stderr line instead, as a 5xx or 403 does); `run list --json` and
 // `pr list --json` print arrays of the asked fields; `api .../commits?path=`
 // prints commit objects newest first. Fixtures are synthetic (Acme).
 import { test } from 'node:test';
@@ -13,7 +14,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile, realpath, chmod } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fleet, fleetUpdate, healthOf, gateName, parseFleet } from '../lib/fleet.mjs';
+import { fleet, fleetUpdate, healthOf, gateName, gateOf, runCommands, onPush, parseFleet } from '../lib/fleet.mjs';
 import { execFileSync } from 'node:child_process';
 import { init } from '../lib/init.mjs';
 import { load as loadMigrations } from '../lib/migrations.mjs';
@@ -24,7 +25,11 @@ const BIN = join(KEEL, 'bin', 'keel.mjs');
 const NOW = '2026-10-02T12:00:00.000Z';
 const PIN_FULL = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const HEAD = 'f00dfeed0123456789abcdef0123456789abcdef';
-const MIGRATIONS = [{ id: '0001-acme-one' }, { id: '0002-acme-two' }];
+// Synthetic migrations: each applies while its marker file is on the default branch.
+const MIGRATIONS = [
+  { id: '0001-acme-one', applies: async p => p.exists('acme-one.todo') },
+  { id: '0002-acme-two', applies: async p => (await p.read('acme-two.todo')) !== null },
+];
 
 async function scratch(t, prefix) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
@@ -79,14 +84,19 @@ if (a === 'api') {
   } else if ((m = /^\\/repos\\/([^/]+\\/[^/]+)\\/contents\\/(.+)$/.exec(u.pathname))) {
     const r = repoOf(m[1]); if (!r) notFound();
     const path = decodeURIComponent(m[2]);
+    if ((r.failPaths ?? {})[path]) { console.error('gh: ' + r.failPaths[path]); process.exit(1); }
     const files = r.files ?? {};
     if (path in files) {
       const content = Buffer.from(files[path]).toString('base64').replace(/(.{60})/g, '$1\\n');
       console.log(JSON.stringify({ type: 'file', name: path.split('/').pop(), path, encoding: 'base64', content }));
     } else {
-      const kids = Object.keys(files).filter(f => f.startsWith(path + '/')).map(f => f.slice(path.length + 1).split('/')[0]);
-      if (!kids.length) notFound();
-      console.log(JSON.stringify([...new Set(kids)].map(name => ({ name, path: path + '/' + name, type: 'file' }))));
+      const kids = new Map();
+      for (const f of Object.keys(files).filter(f => f.startsWith(path + '/'))) {
+        const rest = f.slice(path.length + 1).split('/');
+        kids.set(rest[0], rest.length > 1 ? 'dir' : 'file');
+      }
+      if (!kids.size) notFound();
+      console.log(JSON.stringify([...kids].map(([name, type]) => ({ name, path: path + '/' + name, type }))));
     }
   } else notFound();
 } else if (a === 'run' && b === 'list') {
@@ -129,7 +139,7 @@ function state() {
     repos: {
       'acme/behind': {
         default_branch: 'main',
-        files: { '.keel/keel.json': cfg(), 'docs/health/2026-09-25.md': '#', 'docs/health/2026-09-28.md': '#', 'docs/lessons.md': LESSONS, '.keel/sent.json': sentOne },
+        files: { '.keel/keel.json': cfg(), 'docs/health/2026-09-25.md': '#', 'docs/health/2026-09-28.md': '#', 'docs/lessons.md': LESSONS, '.keel/sent.json': sentOne, 'acme-two.todo': 'x' },
         runs: [run('check', '', '2026-10-02T03:00:00Z', { status: 'in_progress' }), run('check', 'failure', '2026-10-01T03:00:00Z'),
           run('deploy', 'success', '2026-10-01T04:00:00Z'), run('check', 'success', '2026-10-01T05:00:00Z', { headBranch: 'feature' })],
         prs: [{ number: 1, headRefName: 'keel-night/2026-10-01' }, { number: 2, headRefName: 'keel-night/2026-10-02' }, { number: 3, headRefName: 'person/fix' }],
@@ -158,16 +168,17 @@ const go = (dir, gh) => fleet({ dir }, { env: gh.env, now: NOW, cli: '0.2.0', mi
 const rowOf = (r, repo) => r.data.rows.find(x => x.repo === repo);
 const needsOf = (r, repo) => r.data.needs.filter(n => n.repo === repo).map(n => n.why);
 
-test('a project behind: how far, which migrations are possibly pending, red CI from the gate on the default branch', async t => {
+test('a project behind: how far, which migrations it has not recorded (fleet update asks them), red CI from the gate on the default branch', async t => {
   const r = await go(await home(t, LIST), await stubGh(t, state()));
   const row = rowOf(r, 'acme/behind');
   assert.equal(row.adopted, true);
   assert.equal(row.practice.behind, '0.1.0 → 0.2.0');
-  assert.deepEqual(row.practice.possiblyPending, ['0002-acme-two']);
+  assert.deepEqual(row.practice, { version: '0.1.0', behind: '0.1.0 → 0.2.0', unrecorded: ['0002-acme-two'] }, 'plain fleet never asks applies()');
   assert.equal(row.ci.workflow, 'check');
+  assert.equal(row.ci.rule, 'named check');
   assert.equal(row.ci.state, 'red', 'the newest completed check on main failed; the running one and the feature branch do not count');
   assert.equal(row.machinePrs.total, 2);
-  assert.ok(needsOf(r, 'acme/behind').includes('behind: 0.1.0 → 0.2.0; possibly pending: 0002-acme-two (keel update)'));
+  assert.ok(needsOf(r, 'acme/behind').includes('behind: 0.1.0 → 0.2.0; 1 unrecorded (0002-acme-two); keel fleet update checks them (keel update)'));
   assert.ok(needsOf(r, 'acme/behind').some(w => w.startsWith('red: check failure')));
   assert.ok(needsOf(r, 'acme/behind').includes('2 open keel-night/ PRs (keel drain keel-night/)'));
   assert.match(r.text, /acme\/behind\s+yes\s+0\.1\.0 → 0\.2\.0/);
@@ -239,13 +250,53 @@ test('a source repo: unmoved, then moved', async t => {
   assert.deepEqual(needsOf(r, 'acme/upstream'), ['conduct: upstream skills/conduct/SKILL.md moved a1b2c3d4 → f00dfeed (keel learn)']);
 });
 
-test('the reads are read-only gh calls, seven per managed repo and one per pin', async t => {
+test('the reads are read-only gh calls, seven per managed repo and one per pin, then the default branch where a question needs it', async t => {
   const gh = await stubGh(t, state());
   await go(await home(t, LIST), gh);
   const calls = await gh.calls();
-  // 7 per managed repo, 1 per pinned source; nothing writes.
-  assert.equal(calls.length, 5 * 7 + 1);
+  // 8 per managed repo (the workflows listing among them), 1 per pinned source; nothing writes.
+  assert.equal(calls.length, 5 * 8 + 1);
+  assert.equal(calls.filter(c => /contents\/\.github\/workflows$/.test(c[1])).length, 5);
+  // Plain fleet never asks a migration: no read at a ref, none of the migration's marker.
+  assert.deepEqual(calls.filter(c => /\?ref=|acme-(one|two)\.todo/.test(String(c[1]))), []);
   assert.ok(calls.every(c => ['api', 'run', 'pr'].includes(c[0]) && !c.includes('-X') && !c.includes('--method')));
+});
+
+test('the gate workflow: one named check; else one with default-branch runs whose YAML runs the check or npm test; else a name match — and the cell says which', async t => {
+  // Shaped like a project whose Tests run on pull requests only and whose Deploy runs the check on main.
+  const TEST_YML = 'name: Tests\non:\n  pull_request:\njobs:\n  check:\n    steps:\n      - run: npm ci\n      - run: npm test\n';
+  const DEPLOY_YML = 'name: Deploy\n# Every push to main is checked, then built.\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm ci\n      - name: The gate\n        run: |\n          npm run check\n      - run: npm run build\n';
+  const NIGHT_YML = 'name: keel-night\n# the gate (npm run check) runs inside improve.mjs\non:\n  schedule:\n    - cron: "23 7 * * *"\njobs:\n  night:\n    steps:\n      - run: node scripts/keel/improve.mjs --report\n';
+  const st = {
+    repos: {
+      'acme/duet': {
+        default_branch: 'main',
+        files: { '.keel/keel.json': cfg({ repo: 'acme/duet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#',
+          '.github/workflows/test.yml': TEST_YML, '.github/workflows/deploy.yml': DEPLOY_YML, '.github/workflows/keel-night.yml': NIGHT_YML },
+        runs: [run('Tests', 'failure', '2026-10-02T01:00:00Z', { headBranch: 'acme/feature' }), run('keel-night', 'success', '2026-10-02T07:23:00Z'),
+          run('Deploy', 'success', '2026-10-01T05:00:00Z'), run('Deploy', 'failure', '2026-09-30T05:00:00Z')],
+      },
+    },
+    commits: {},
+  };
+  const r = await go(await home(t, [{ repo: 'acme/duet', kind: 'web', role: 'managed' }]), await stubGh(t, st));
+  const row = rowOf(r, 'acme/duet');
+  assert.deepEqual([row.ci.state, row.ci.workflow, row.ci.rule], ['green', 'Deploy', 'runs npm run check']);
+  assert.match(r.text, /acme\/duet .*green \(Deploy · runs npm run check\)/);
+  assert.deepEqual(needsOf(r, 'acme/duet'), []);
+
+  // The rules, in order.
+  assert.deepEqual(runCommands(DEPLOY_YML), ['npm ci', 'npm run check', 'npm run build']);
+  assert.deepEqual(runCommands(NIGHT_YML), ['node scripts/keel/improve.mjs --report'], 'a comment naming the check is not a step');
+  assert.deepEqual([TEST_YML, DEPLOY_YML, NIGHT_YML, 'on: [push, pull_request]\n', 'on:\n  workflow_dispatch: {}\n# push\nenv:\n  push: 1\n'].map(onPush), [false, true, false, true, false]);
+  const workflows = [{ name: 'Lint', push: true, commands: ['npm test'] }, { name: 'Deploy', push: true, commands: ['npm ci && npm run verify -- --ci'] },
+    { name: 'loop', push: false, commands: ['npm run verify'] }];
+  assert.deepEqual(gateOf(['loop', 'Lint'], { workflows, check: 'npm run verify' }), { workflow: 'Lint', rule: 'runs npm test' }, 'a loop not run by push is not the gate');
+  assert.deepEqual(gateOf(['Lint', 'Deploy', 'Check'], { workflows }), { workflow: 'Check', rule: 'named check' });
+  assert.deepEqual(gateOf(['Lint', 'Deploy'], { workflows, check: 'npm run verify' }), { workflow: 'Deploy', rule: 'runs npm run verify' }, 'the configured check beats npm test');
+  assert.deepEqual(gateOf(['Lint', 'Deploy'], { workflows }), { workflow: 'Lint', rule: 'runs npm test' });
+  assert.deepEqual(gateOf(['Deploy', 'CI'], { workflows: null }), { workflow: 'CI', rule: 'name matches' });
+  assert.deepEqual(gateOf(['Deploy'], { workflows: [{ name: 'Tests', push: true, commands: ['npm test'] }] }), { workflow: null, rule: null }, 'a workflow with no run on the default branch is never the gate');
 });
 
 test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', async t => {
@@ -288,10 +339,15 @@ const UPDATE_BRANCH = `keel/update-v${CLI}`;
 const re = s => new RegExp(s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
 
 /** A keel init project on practice BEHIND, its origin a local bare repo, and a checkout the stub's clone copies. */
-async function remoteProject(t, name, version = BEHIND) {
+async function remoteProject(t, name, version = BEHIND, over = null) {
   const root = await scratch(t, `keel-fleet-${name}-`);
   const src = join(root, name);
   await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: version, commit: null, practice: version }, env: { ...cleanEnv(), ...GIT_ENV } });
+  if (over) { // fields over .keel/keel.json (setup, env), committed on main
+    const path = join(src, '.keel/keel.json');
+    await writeFile(path, `${JSON.stringify({ ...JSON.parse(await readFile(path, 'utf8')), ...over }, null, 2)}\n`);
+    git(src, 'commit', '-qam', 'Acme: its own install');
+  }
   const origin = join(root, 'origin.git');
   execFileSync('git', ['clone', '-q', '--bare', src, origin], { env: { ...cleanEnv(), ...GIT_ENV } });
   const prepared = join(root, 'prepared');
@@ -358,16 +414,18 @@ test('fleet update counts follow the injected version, far above and far below t
   let cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: above } });
   assert.equal(cli.status, 3, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout).plans.map(p => p.to), Array(5).fill(above));
-  // Far below: no project is behind it. acme/current, with every migration recorded, needs nothing;
-  // the init'd projects record none, so they are planned for pending migrations only, never as behind.
+  // Far below: no project is behind it. acme/current records every migration; the init'd projects record
+  // none, and none applies to their default branch, so nothing is planned: each says why.
   r = await fleetUpdate({ dir }, updateDeps(gh, below));
-  assert.equal(r.exitCode, 3, r.text);
-  assert.deepEqual(r.data.plans.map(p => [p.repo, p.to, p.title]), ['notes', 'ledger', 'waiting', 'gone'].map(n =>
-    [`acme/${n}`, below, `keel update: practice ${below}, pending migrations`]));
+  assert.equal(r.exitCode, 0, r.text);
+  assert.deepEqual(r.data.plans, []);
+  assert.deepEqual(r.data.resting.map(x => x.repo), ['acme/notes', 'acme/ledger', 'acme/current', 'acme/waiting', 'acme/gone']);
+  assert.match(r.text, re(`acme/notes: ahead (${BEHIND}); nothing applies (asked 0001-`));
+  assert.match(r.text, re(`acme/current: ahead (${CLI}); every migration recorded`));
   assert.doesNotMatch(r.text, /→/, 'nothing is behind a version below every project');
   cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: below } });
-  assert.equal(cli.status, 3, cli.stderr);
-  assert.deepEqual(JSON.parse(cli.stdout).plans.map(p => p.title), r.data.plans.map(p => p.title));
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.deepEqual(JSON.parse(cli.stdout).plans, []);
   // A seam that is not a version is a usage error, never a silent fallback to the live one.
   cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: 'banana' } });
   assert.equal(cli.status, 2);
@@ -399,7 +457,7 @@ test('fleet update --yes, against the gh stub: one PR per project behind, pushed
   assert.match(r.text, re(`acme/waiting: ${UPDATE_BRANCH} is already open`));
 });
 
-test('fleet update: a current project whose only reason is unrecorded migrations is possibly pending, and --yes opens nothing when none applies', async t => {
+test('fleet update: a current project whose unrecorded migrations do not apply is not planned, and --yes clones nothing', async t => {
   const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
   const quiet = await remoteProject(t, 'quiet', live);
   assert.ok(!JSON.parse(quiet.config).migrations?.length, 'init records no migration');
@@ -407,14 +465,87 @@ test('fleet update: a current project whose only reason is unrecorded migrations
   const dir = await home(t, [{ repo: 'acme/quiet', kind: 'node', role: 'managed' }]);
   const gh = await stubGh(t, st);
   gh.env = { ...gh.env, ...GIT_ENV };
-  let r = await fleetUpdate({ dir }, updateDeps(gh, live));
+  for (const yes of [false, true]) {
+    const r = await fleetUpdate({ dir, yes }, updateDeps(gh, live));
+    assert.equal(r.exitCode, 0, r.text);
+    assert.deepEqual(r.data.plans, []);
+    assert.match(r.text, /Every adopted project is current, with nothing pending\./);
+    assert.match(r.text, /acme\/quiet: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals\)/);
+  }
+  assert.equal((await gh.calls()).filter(c => c[0] === 'repo' || (c[0] === 'pr' && c[1] === 'create')).length, 0, 'nothing cloned, no PR');
+});
+
+test('fleet update plans only real work: applies() is asked over the default branch through the contents API', async t => {
+  const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
+  const config = repo => JSON.stringify({ name: 'Acme', repo, practice: live, practices: ['base'] });
+  const st = {
+    repos: {
+      // A ritmo-shaped project: milestones.json, and a phase naming a milestone. 0001 applies.
+      'acme/goals': { default_branch: 'main', files: {
+        '.keel/keel.json': config('acme/goals'),
+        'docs/milestones.json': JSON.stringify([{ id: 'M1', title: 'Start', outcome: 'Acme starts.' }]),
+        'docs/phases/1-start.md': '---\nstatus: planned\nmilestone: M1\n---\n# Start\n',
+      } },
+      // Records nothing, and nothing applies: not planned.
+      'acme/still': { default_branch: 'main', files: { '.keel/keel.json': config('acme/still'), 'README.md': '# still' } },
+      // .keel/lock.json cannot be read (not a 404): 0002 cannot be asked, so it is possibly pending, with why.
+      'acme/broken': { default_branch: 'main', files: { '.keel/keel.json': config('acme/broken') }, failPaths: { '.keel/lock.json': 'HTTP 502: Server Error (https://api.github.com/repos/acme/broken/contents/.keel/lock.json?ref=main)' } },
+    },
+    commits: {},
+  };
+  const dir = await home(t, ['goals', 'still', 'broken'].map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
+  const gh = await stubGh(t, st);
+  const r = await fleetUpdate({ dir }, updateDeps(gh, live));
   assert.equal(r.exitCode, 3, r.text);
-  assert.deepEqual(r.data.plans.map(p => [p.repo, p.behind, p.title]), [['acme/quiet', false, `keel update: practice ${live}, pending migrations`]]);
-  assert.match(r.text, /\(possibly pending: [^)]*; applies\(\) is checked on the clone; nothing is opened if none applies\)/);
-  r = await fleetUpdate({ dir, yes: true }, updateDeps(gh, live));
-  assert.equal(r.exitCode, 0, r.text);
-  assert.deepEqual(r.data.results.map(x => [x.repo, x.ok, x.pr]), [['acme/quiet', true, null]]);
-  assert.match(r.text, /acme\/quiet: nothing to change once cloned \(no pending migration applies\)/);
-  assert.equal((await gh.calls()).filter(c => c[0] === 'pr' && c[1] === 'create').length, 0, 'no PR');
-  assert.equal(git(quiet.origin, 'branch', '--list', `keel/update-v${live}`), '', 'nothing pushed');
+  assert.deepEqual(r.data.plans.map(p => [p.repo, p.behind, p.pending, p.possiblyPending.map(x => x.id)]), [
+    ['acme/goals', false, ['0001-milestone-to-goal'], []],
+    ['acme/broken', false, [], ['0002-projects-run-on-their-own']],
+  ]);
+  assert.match(r.data.plans[1].possiblyPending[0].why, /\.keel\/lock\.json: HTTP 502/);
+  assert.match(r.text, /acme\/goals: "keel update: practice [^"]+, pending migrations" from keel\/update-v[^ ]+ \(pending: 0001-milestone-to-goal\)/);
+  assert.match(r.text, /acme\/broken: .*\(possibly pending: 0002-projects-run-on-their-own \(\.keel\/lock\.json: HTTP 502/);
+  assert.match(r.text, /Not planned:\n {2}acme\/still: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals\)/);
+  const reads = (await gh.calls()).filter(c => String(c[1]).includes('?ref=main'));
+  assert.ok(reads.some(c => c[1] === 'repos/acme/goals/contents/docs/phases/1-start.md?ref=main'), 'the phase file is read at the default branch');
+  assert.equal(new Set(reads.map(c => c[1])).size, reads.length, 'each path is asked once per run (cached)');
+  // Plain fleet stays fast: it lists what is unrecorded and asks nothing at the migrations' paths.
+  const before = (await gh.calls()).length;
+  const f = await fleet({ dir }, { env: gh.env, now: NOW, cli: live });
+  const plain = (await gh.calls()).slice(before);
+  assert.deepEqual(plain.filter(c => /\?ref=|contents\/(docs\/milestones\.json|docs\/goals\.json|docs\/phases|\.keel\/lock\.json)/.test(String(c[1]))), []);
+  assert.ok(f.data.needs.some(n => n.repo === 'acme/goals' && n.why === '3 unrecorded (0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals); keel fleet update checks them'));
+});
+
+test('fleet update --yes installs the way the project says: its setup in the gate env; a failing setup is reported and opens nothing', async t => {
+  const marks = await scratch(t, 'keel-fleet-marks-');
+  const mark = join(marks, 'setup.txt');
+  const setup = await remoteProject(t, 'setup', BEHIND, {
+    setup: 'pwd > "$ACME_MARK"; echo "ctx=${NODE_TEST_CONTEXT:-none}" >> "$ACME_MARK"', env: { ACME_MARK: mark },
+  });
+  const failing = await remoteProject(t, 'failing', BEHIND, { setup: 'echo acme-setup-detail; echo acme-setup-err >&2; (exit 7); echo never' });
+  const st = {
+    repos: {
+      'acme/setup': { default_branch: 'main', files: { '.keel/keel.json': setup.config } },
+      'acme/failing': { default_branch: 'main', files: { '.keel/keel.json': failing.config } },
+    },
+    commits: {},
+    prepared: { 'acme/setup': setup.prepared, 'acme/failing': failing.prepared },
+  };
+  const dir = await home(t, [{ repo: 'acme/failing', kind: 'node', role: 'managed' }, { repo: 'acme/setup', kind: 'node', role: 'managed' }]);
+  const gh = await stubGh(t, st);
+  gh.env = { ...gh.env, ...GIT_ENV, NODE_TEST_CONTEXT: 'child-v8' };
+  const r = await fleetUpdate({ dir, yes: true }, updateDeps(gh));
+  assert.equal(r.exitCode, 1, r.text);
+  const by = repo => r.data.results.find(x => x.repo === repo);
+  assert.deepEqual([by('acme/failing').ok, by('acme/failing').step], [false, 'setup']);
+  assert.match(by('acme/failing').error, /exit 7/);
+  assert.match(by('acme/failing').error, /acme-setup-detail\nacme-setup-err/);
+  assert.doesNotMatch(by('acme/failing').error.split(':\n')[1], /never/, 'bash -e: nothing after the failure ran');
+  assert.equal(by('acme/setup').pr, `https://github.com/acme/pulls/${UPDATE_BRANCH}`, 'the failing one never stops the next');
+  const [cwd, ctx] = (await readFile(mark, 'utf8')).trim().split('\n');
+  assert.match(cwd, /keel-fleet-update-[^/]+\/setup$/, 'setup ran in the clone');
+  assert.equal(ctx, 'ctx=none', 'the test runner\'s context is stripped');
+  assert.equal((await gh.calls()).filter(c => c[0] === 'pr' && c[1] === 'create').length, 1);
+  assert.equal(git(failing.origin, 'branch', '--list', UPDATE_BRANCH), '', 'nothing pushed for the failed setup');
+  assert.match(r.text, /acme\/failing: FAILED at setup: setup `[^`]+` failed \(exit 7\):\n {6}acme-setup-detail/);
 });

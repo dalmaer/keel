@@ -485,12 +485,15 @@ about every repo at once.
 
 - `managed`: adopted (`.keel/keel.json` on the default branch; 404 is not
   adopted), practice against this CLI's (`0.1.0 → 0.2.0` or `current`),
-  migrations not in its `migrations` list ("possibly pending": `applies()`
-  needs the tree), newest `docs/health/<date>.md` (older than two days is
-  silent), CI (the newest completed default-branch run of the workflow named
-  `check`, else `ci`/`test`, else one naming check, test or CI; it says
-  which), lesson rows whose fingerprint is not in `.keel/sent.json`, and
-  open machine PRs by prefix.
+  migrations not in its `migrations` list ("unrecorded"; only `fleet
+  update` asks their `applies()`), newest
+  `docs/health/<date>.md` (older than two days is silent), CI (the newest
+  completed default-branch run of the gate: the workflow named `check`, else
+  one run by push whose YAML runs the configured check or `npm test`, else a
+  name match;
+  the cell says which, e.g. `green (Deploy · runs npm run check)`), lesson
+  rows whose fingerprint is not in `.keel/sent.json`, and open machine PRs
+  by prefix.
 - `source`: each practice pinned to it, and whether its head moved (as
   `keel learn` checks).
 
@@ -499,20 +502,25 @@ shown as healthy, and the other rows still render. The table ends in a
 "Needs you" list. Exit 0 whenever the table was drawn.
 
 `keel fleet update` is how practice changes go out: a project never pulls
-keel. From the same reads, each adopted project behind this CLI or with
-migrations it has not recorded (never keel itself, never one whose
-`keel/update-v<version>` PR is already open). Without `--yes`: each, and the
-PR it would open; exit 3 (0 when none). ⚑ With `--yes`, one at a time, with
-your own gh login: `gh repo clone` into a temp dir, a git identity only if
-none is set, `npm ci` with a lockfile, then `keel update --yes
---no-self-update` there (push and PR). A repo that fails says why; the
-others go on; exit 1 if any failed. `--json` → `{ok, cli, plans: [{repo,
-from, to, pending, branch, title, open}], results?: [{…plan, ok, pr?, note?,
-step?, error?}], needs?}`.
+keel. From the same reads, plus each unrecorded migration's `applies()`
+asked over the default branch through the contents API, each adopted
+project behind this CLI or with a migration that applies or could not be
+asked ("possibly pending: <why>") (never keel itself, never one
+whose `keel/update-v<version>` PR is already open); the rest are "Not
+planned", with why (`current; nothing applies`). Without `--yes`: each, and
+the PR it would open; exit 3 (0 when none). ⚑ With `--yes`, one at a time,
+with your own gh login: `gh repo clone` into a temp dir, a git identity only
+if none is set, the project's install (its `setup` under `bash -e` in the
+gate env, else `npm ci` with a lockfile, else nothing), then `keel update
+--yes --no-self-update` there (push and PR). A repo that fails says the step
+and why; the others go on; exit 1 if any failed. `--json` → `{ok, cli,
+plans: [{repo, from, to, pending, possiblyPending, branch, title, open}],
+resting: [{repo, why}], results?: [{…plan, ok, pr?, note?, step?, error?}],
+needs?}`.
 
 `--json` → `{ok, root, cli, at, ms, rows: [{repo, role, kind, note,
-unreadable?, branch, adopted, practice: {version, behind, possiblyPending},
-health: {last, age, state}, ci: {state, workflow, conclusion, at}, lessons:
+unreadable?, branch, adopted, practice: {version, behind, unrecorded, pending, possiblyPending},
+health: {last, age, state}, ci: {state, workflow, rule, conclusion, at}, lessons:
 {project, rows, unsent}, machinePrs: {total, queues, heads}} | {repo, role:
 'source', pins: [{practice, path, pinned, head, moved}]}], needs: [{repo,
 why}]}`. A cell that failed is `{unreadable}`.
