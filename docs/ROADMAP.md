@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 24 phases lived in; 19 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 24 phases lived in; 20 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
@@ -29,7 +29,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 
 From an empty directory, keel init produces a repo whose check passes, whose roadmap renders, and that an agent can conduct the same day.
 
-4/5 built or lived-in; 0/5 lived-in.
+5/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -37,7 +37,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 | [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | built | 2026-10-04 | [2](phases/02-the-keel-cli.md) | init works locally and with --github (keel-walk), and a fresh agent conducted a new project's phase 0 from the project's own instructions alone; its 11 friction points are phase 23. |
 | [9. A person can say what the project is for, and the work lines up behind it](phases/09-goals.md) | built | 2026-10-02 | [2](phases/02-the-keel-cli.md) | goal add&#124;show&#124;retire and phase new&#124;list work; a goal with no phase is allowed and reported by doctor; retired goals stay counted but are never next focus. Cold-start cap raised to 3,200. |
 | [19. An agent in any keel project learns what keel is and where to start, unprompted](phases/19-agents-find-keel.md) | built | 2026-10-03 | [18](phases/18-docs-cannot-drift.md) | Every keel project carries a 144-word keel skill (with its .claude symlink) that says what keel is, how to install it, and to run keel --agent-help, with no verb list; a test holds it to that. |
-| [23. A new project tells a fresh agent everything it needs, and nothing it doesn't](phases/23-no-guessing.md) | planned | 2026-10-04 | [3](phases/03-keel-init.md), [19](phases/19-agents-find-keel.md) | The phase 3 walk (4 Oct): a fresh agent conducted acme-tally's phase 0 from the project alone, but had to guess 11 times. |
+| [23. A new project tells a fresh agent everything it needs, and nothing it doesn't](phases/23-no-guessing.md) | built | 2026-10-04 | [3](phases/03-keel-init.md), [19](phases/19-agents-find-keel.md) | Four fresh-agent walks (npx only, an empty npm cache) took frictions 11 → 10 → 7 → 0 blockers and 0 impossible steps. One walk found that npx init failed for everyone (fixed, lesson 28). |
 
 - **2 done when:** `keel --agent-help` lists every verb in one screen, every verb accepts `--json`, and a test fails when a registered verb is missing from the agent guide.
 - **3 done when:** `keel init <name>` in an empty directory produces a git repo with the practice installed, a goal and a phase 0 drafted from a one-paragraph description, and a passing `npm run check`; with `--github` it is also a private repo with CI green.

@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-04
 goal: G1
 depends: [3, 19]
-note: "The phase 3 walk (4 Oct): a fresh agent conducted acme-tally's phase 0 from the project alone, but had to guess 11 times."
-evidence: []
+note: "Four fresh-agent walks (npx only, an empty npm cache) took frictions 11 → 10 → 7 → 0 blockers and 0 impossible steps. One walk found that npx init failed for everyone (fixed, lesson 28)."
+evidence: ["evidence/2026-10-04-no-guessing.md"]
 ---
 
 # A new project tells a fresh agent everything it needs, and nothing it doesn't
@@ -45,8 +45,8 @@ The 11 friction points, each fixed where it lives:
 
 ## Acceptance
 
-- [ ] Each of the 11 has a test or a guard where one can exist (7, 4, 6 and 9 certainly).
-- [ ] A fresh-agent walk on a new project hits no blocker and no step that cannot be done as written; every other point is fixed or recorded under Deliberately open.
+- [x] Each of the 11 has a test or a guard where one can exist (7, 4, 6 and 9 certainly).
+- [x] A fresh-agent walk on a new project hits no blocker and no step that cannot be done as written; every other point is fixed or recorded under Deliberately open.
 
 ## Proof
 
@@ -56,12 +56,17 @@ was, with its report in the evidence.
 ## Deliberately open
 
 - **Whether `npx github:dalmaer/keel` is fast enough as the everyday way in**,
-  or only as the fallback.
+  or only as the fallback. About 5 s on first use, then about 2 s.
+- **From walk 4, recorded rather than fixed:**
+  - the conduct skill has the "check stays green" box ticked in the record,
+    before the one gate run, so the tick is a forecast the gate then
+    confirms;
+  - the drafted phase 0's documents-only commit says `roadmap:check`, where
+    `npm run roadmap` must run first.
 
 ## Next action
 
-Fix 7 (stale status) and 4/6/9 (init seeds) first, since they have tests,
-then the skill and doorway text, then re-walk.
+None. Cut a practice release so projects receive the new conduct and doorway skills.
 
 ## Trajectory
 
