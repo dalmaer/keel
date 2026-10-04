@@ -100,7 +100,11 @@ stderr as one line beginning `keel:`.
   status, outcome, note, link}`. `learn decide` → `{ok, slug, file, status,
   outcome, link, lesson, migration, checklist, closed}`; with an issue and no
   `--yes`, exit 3 with `needs: "yes", plan: {what, issue, repo, comment}`.
-  `learn render` → `{ok, check, path, counts, waiting}`
+  A private inbox: gather adds `private: true, counts: {untriaged, proposed,
+  decided}, open: [{issue, title, status, outcome, project, flag}]`;
+  propose/decide return `{ok, issue, repo, private, status, outcome, …,
+  plan: [{what}]}`, exit 3 with `needs: "yes"` until `--yes`.
+  `learn render` → `{ok, check, path, counts, waiting, private?: {inbox, counts}}`
 - `drain` → `{ok, prefix, repo, newest, actions: [{number, head, createdAt,
   action, why, done?, error?}]}`; `action` is `merge|close|leave`. Without
   `--yes` and something to merge or close: exit 3, `needs: "yes"`, nothing
@@ -328,7 +332,8 @@ keel lessons --since v1.2 --json  # practice commits from a ref, not from adopti
   since `--since` (else since `.keel/keel.json` was first committed),
   `<project>/commit/<sha>`; `keel init:`/`keel update:` commits are skipped.
   `<project>` is the config's `repo`, else its `name`.
-- The target is the CLI checkout's own repo (`dalmaer/keel`); `--to` overrides.
+- The target is `--to`, else the CLI checkout's config `inbox` (keel's is the
+  private `dalmaer/keel-inbox`), else its `repo`.
 - Sent items live in `.keel/sent.json` (`{fingerprint: {issue, at}}`),
   written only after an issue is filed. Commit it. Before filing, the target
   is searched for the fingerprint; a hit is recorded, not filed again.
@@ -341,13 +346,14 @@ keel lessons --since v1.2 --json  # practice commits from a ref, not from adopti
 
 ```bash
 keel learn                         # gather: open `lesson` issues + every pinned source; new proposals only
-keel learn propose <slug> --outcome lesson|practice|decline|link --note "<one line>" --read "<read citing a path or sha>" [--link <n>]
-keel learn decide <slug> accepted|declined [--note "<why>"] [--yes]   # the person's verb, never the agent's
+keel learn propose <slug|issue#> --outcome lesson|practice|decline|link --note "<one line>" --read "<read citing a path or sha>" [--link <n>] [--yes]
+keel learn decide <slug|issue#> accepted|declined [--note "<why>"] [--shape "…" --cost "…" --guard "…"] [--yes]   # the person's verb, never the agent's
 keel learn render [--check]        # docs/INBOX.md, generated; npm run check runs --check
 ```
 
 - Runs on keel only (`"keel": "self"`); elsewhere exit 2.
-- Gather reads `gh issue list -R <keel's repo> --label lesson --state open`
+- Issues are read from the inbox: config `inbox`, else keel's `repo`.
+  Gather reads `gh issue list -R <inbox> --label lesson --state open`
   and each `practices/*/practice.json` `source` against its upstream head. A
   moved source is one proposal citing both shas and the compare URL, with the
   new upstream text beside it as `<file>.upstream.txt`. An issue without keel
@@ -368,6 +374,17 @@ keel learn render [--check]        # docs/INBOX.md, generated; npm run check run
   checklist: edit the practice, write the migration, WHATSNEW at release.
   ⚑ If the proposal has an issue, closing it with the decision and note
   exits 3 with the plan until `--yes` (the local record is written first).
+- **A private inbox stays private.** Privacy is `gh api repos/<inbox> -q
+  .private`, once per run; no answer counts as private. Then nothing quoting
+  an issue is written in keel: gather lists the issues on stdout (read one
+  with `gh issue view <n> -R <inbox>`) and `docs/INBOX.md` shows counts only
+  (untriaged, proposed, decided). Address issues by number. ⚑ `propose <n>`
+  adds label `proposed:<outcome>` and a comment with the note and read;
+  ⚑ `decide <n>` adds `decided:<outcome>` and closes it with the note. Both
+  exit 3 with the plan, writing nothing, until `--yes`. Accepting `lesson` or
+  `practice` needs `--shape --cost --guard` in general terms (else exit 2):
+  only those words reach `docs/lessons.md`, provenance the project.
+  `render --check` compares the counts INBOX.md recorded.
 
 <!-- topic: improve | is the practice working here: measures, bounds, a ratchet, one proposal -->
 

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, lstat, readlink, rm, writeFile, appendFile, realpath, chmod, copyFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, appendFile, realpath, chmod, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -142,7 +142,7 @@ test('a dry run lists exactly the new lessons, drift and practice commits, calls
   const r = keel(['lessons', '--dry-run', '--json'], dir, stub.env);
   assert.equal(r.code, 3, r.err + r.out);
   const out = JSON.parse(r.out);
-  assert.equal(out.to, 'dalmaer/keel', 'the default target is the CLI checkout\'s own repo');
+  assert.equal(out.to, 'dalmaer/keel-inbox', 'the default target is the CLI checkout\'s inbox');
   assert.equal(out.project, PROJECT);
   assert.deepEqual(out.counts, { lesson: 2, drift: 1, practice: 2 });
   const skill = await readFile(join(dir, '.agents/skills/conduct/SKILL.md'), 'utf8');
@@ -249,4 +249,29 @@ test('--since chooses the base; a bad ref or target is a usage error', async t =
   assert.match(JSON.parse(bad.out).error, /--since no-such-ref: not a commit/);
   assert.equal(keel(['lessons', '--to', 'not a repo', '--json'], dir).code, 2);
   assert.equal(keel(['lessons', 'extra', '--json'], dir).code, 2);
+});
+
+test('the target: --to, else the CLI checkout\'s inbox, else its repo; with inbox set, --yes files into the inbox', async t => {
+  const { dir } = await acme(t);
+  const cli = await scratch(t, 'keel-cli-');
+  const config = async cfg => writeFile(join(cli, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Keel', keel: 'self', ...cfg }));
+  await mkdir(join(cli, '.keel'), { recursive: true });
+  const to = async (extra = {}) => (await lessons({ dir, dryRun: true, ...extra }, { cliRoot: cli, env: ENV })).data.to;
+
+  await config({ repo: 'acme/keel', inbox: 'acme/keel-inbox' });
+  assert.equal(await to(), 'acme/keel-inbox', 'the inbox wins over the repo');
+  assert.equal(await to({ to: 'acme/elsewhere' }), 'acme/elsewhere', '--to wins over both');
+  await config({ repo: 'acme/keel' });
+  assert.equal(await to(), 'acme/keel', 'no inbox: the repo, as before');
+  await config({});
+  await assert.rejects(to(), /names no inbox or repo/);
+
+  await config({ repo: 'acme/keel', inbox: 'acme/keel-inbox' });
+  const stub = await stubGh(t);
+  const r = await lessons({ dir, yes: true }, { cliRoot: cli, env: stub.env, now: '2026-10-02T00:00:00.000Z' });
+  assert.equal(r.exitCode, 0, r.text);
+  const creates = (await stub.calls()).filter(c => c[0] === 'issue' && c[1] === 'create');
+  assert.equal(creates.length, 5);
+  for (const c of creates) assert.equal(c[c.indexOf('-R') + 1], 'acme/keel-inbox');
+  assert.ok(Object.values(JSON.parse(await readFile(join(dir, SENT), 'utf8'))).every(s => s.issue.startsWith('https://github.com/acme/keel-inbox/issues/')));
 });

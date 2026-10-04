@@ -99,7 +99,8 @@ home as a lesson.
    It writes a dated health page, opens one PR with it, and proposes one
    change. You read it in the morning.
 4. **Lessons go home.** `keel lessons` files the project's new lessons, its
-   edits to keel's files, and practice-shaped commits as issues on keel,
+   edits to keel's files, and practice-shaped commits as issues on keel's
+   inbox (a private repo, so a private project's lessons stay private),
    each exactly once.
 5. **At home.** `keel learn` turns those issues, and any upstream source that
    moved, into proposals. A person decides. `keel release` cuts a version.
