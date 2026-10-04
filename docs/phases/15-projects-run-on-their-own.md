@@ -1,9 +1,9 @@
 ---
-status: partial
-since: 2026-10-03
+status: built
+since: 2026-10-04
 goal: G4
 depends: [10, 11]
-note: "Night and loop workflows run the project's own scripts/keel/*.mjs: no keel checkout, no KEEL_TOKEN (keel's real nightly ran that way). keel-update.yml retired by migration 0002; keel fleet update opens update PRs from home. A real fleet update waits on an adopted project."
+note: "Night and loop workflows run each project's own scripts/keel/*.mjs with no keel checkout and no token, and update PRs go out from keel: keel fleet update opened duo #48 and cajones #23, both merged."
 evidence: ["evidence/2026-10-03-projects-run-on-their-own.md"]
 ---
 
@@ -52,7 +52,7 @@ A project made by `keel init` runs its night shift with no keel checkout and no 
 
 ## Next action
 
-Fix `keel fleet update` first (it planned no-op PRs and installed with `npm ci` instead of the project's `setup`), then run it with `--yes` for duo and cajones and link the PRs.
+None.
 
 ## Trajectory
 

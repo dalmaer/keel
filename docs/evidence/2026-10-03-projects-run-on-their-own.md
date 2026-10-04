@@ -37,6 +37,5 @@ The tests cover:
 
 ## Gaps and decision
 
-- ⚑ The Proof's real `keel fleet update --yes` needs an adopted, behind
-  project. None exists until the adoptions merge.
-- Supports **partial**.
+- The real `keel fleet update --yes` ran on 2026-10-04: duo #48 and cajones #23, both green and merged (see the update evidence).
+- Supports **built**.

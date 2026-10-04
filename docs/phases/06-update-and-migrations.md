@@ -1,9 +1,9 @@
 ---
-status: partial
-since: 2026-10-02
+status: built
+since: 2026-10-04
 goal: G2
 depends: [2, 5]
-note: "keel update and release work; v0.1.0 is cut; 0001 converged a fresh clone of the real ritmo with no evidence touched and its 60 tests running. The real update PR waits on phase 4's adoption PRs (owner's yes)."
+note: "keel update and release work, and update PRs reach projects for real: keel fleet update took duo and cajones to 0.5.2 (#48, #23), green and merged, and left ledger alone because nothing applied."
 evidence: ["evidence/2026-10-02-update.md"]
 ---
 
@@ -41,7 +41,7 @@ person receiving it.
 
 ## Next action
 
-Fix `keel fleet update` (plan only what `applies()`, install with the project's `setup`), then take duo and cajones from 0.5.1 to 0.5.2 through it and link the PRs here.
+None.
 
 ## Trajectory
 
