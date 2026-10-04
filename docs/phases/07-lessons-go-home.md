@@ -40,7 +40,7 @@ issues, until the owner turns sending on.
 
 ## Next action
 
-⚑ With the owner's yes, run `keel lessons --yes` from one adopted project (after phase 4's PR merges), then follow one issue through `keel learn`.
+⚑ With the owner's yes, run `keel lessons --yes` from ledger (28 unsent, plus Loop's finding about keel's bounds file), then follow one issue through `keel learn`.
 
 ## Trajectory
 

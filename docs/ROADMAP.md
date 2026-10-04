@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 21 phases lived in; 11 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 21 phases lived in; 13 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
 
@@ -47,14 +47,14 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-2/5 built or lived-in; 0/5 lived-in.
+3/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [4. An existing project comes under keel without losing what is its own](phases/04-keel-adopt.md) | partial | 2026-10-02 | [3](phases/03-keel-init.md) | adopt classifies each practice on/local/off and only adds; on temp clones of duo and ritmo it is +350/−0 and each project's gate stays green. The two real PRs wait on the owner's yes (duo is public). |
+| [4. An existing project comes under keel without losing what is its own](phases/04-keel-adopt.md) | built | 2026-10-04 | [3](phases/03-keel-init.md) | ledger, duo and cajones are adopted by PRs their owner merged (#16, #46, #19), each green, each with a first night drained; adopt only added, and converged cajones' phases via 0001. |
 | [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | keel doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes. |
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | keel update and release work; v0.1.0 is cut; 0001 converged a fresh clone of the real ritmo with no evidence touched and its 60 tests running. The real update PR waits on phase 4's adoption PRs (owner's yes). |
-| [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | partial | 2026-10-03 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | The three isocan adopt bugs are fixed (no invented gate, lessons path from config, project-directory phases read). ledger and isocan clones adopt with additions only and pass their own gates (isocan: 7,593 tests). ledger's phases stay local: 17 built phases owe evidence. The PRs wait on the owner, and on Dimitri. |
+| [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | partial | 2026-10-03 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | The three isocan adopt bugs are fixed, and ledger is adopted for real (#16). isocan's adoption PR waits on Dimitri, together with the keel/nerd proposal. |
 | [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | ledger runs on keel: adopted (#16), nightly health (#17), lessons table fixed (#18), Loop through keel (#19) with its first real cycle pulled, gated and drained (#23). Lived-in waits on a week of nights. |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
@@ -101,11 +101,11 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-0/2 built or lived-in; 0/2 lived-in.
+1/2 built or lived-in; 0/2 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [12. One look tells the owner which projects are behind, red, or teaching something](phases/12-the-fleet.md) | partial | 2026-10-02 | [4](phases/04-keel-adopt.md), [11](phases/11-keel-improve.md) | keel fleet reads five repos in 1.6s and shows the truth: keel current and green, duo/cajones/ledger not adopted, isocan unmoved. Behind and silent are proven on the stub; a real reading waits on phase 4's adoptions. |
+| [12. One look tells the owner which projects are behind, red, or teaching something](phases/12-the-fleet.md) | built | 2026-10-04 | [4](phases/04-keel-adopt.md), [11](phases/11-keel-improve.md) | keel fleet shows all four projects adopted, with duo and cajones correctly one release behind; silent is proven on the stub, as no project has gone silent. |
 | [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md) | partial | 2026-10-02 | [12](phases/12-the-fleet.md) | Measures and comparison pre-registered and committed before any adoption (45a52ee). The results page is due no earlier than 2026-11-01 and needs two adopted projects. |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.

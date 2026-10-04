@@ -41,7 +41,7 @@ person receiving it.
 
 ## Next action
 
-⚑ After the owner merges an adoption PR (phase 4), run `keel update --yes` there and link the PR in the evidence.
+Fix `keel fleet update` (plan only what `applies()`, install with the project's `setup`), then take duo and cajones from 0.5.1 to 0.5.2 through it and link the PRs here.
 
 ## Trajectory
 

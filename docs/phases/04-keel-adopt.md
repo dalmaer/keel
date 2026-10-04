@@ -1,9 +1,9 @@
 ---
-status: partial
-since: 2026-10-02
+status: built
+since: 2026-10-04
 goal: G2
 depends: [3]
-note: "adopt classifies each practice on/local/off and only adds; on temp clones of duo and ritmo it is +350/−0 and each project's gate stays green. The two real PRs wait on the owner's yes (duo is public)."
+note: "ledger, duo and cajones are adopted by PRs their owner merged (#16, #46, #19), each green, each with a first night drained; adopt only added, and converged cajones' phases via 0001."
 evidence: ["evidence/2026-10-02-adopt.md"]
 ---
 
@@ -25,8 +25,8 @@ front matter, ritmo's `milestone` → `goal`) is a migration, shown as a diff.
 ## Acceptance
 
 - [x] A dry run lists, per file, adopt / keep-local / conflict, and changes nothing.
-- [ ] duo adopted: its roadmap, lessons and workflows still pass; the PR is merged by its owner.
-- [ ] cajones adopted, the same.
+- [x] duo adopted: its roadmap, lessons and workflows still pass; the PR is merged by its owner.
+- [x] cajones adopted, the same.
 - [x] Every local difference from keel's managed version is either ejected or filed as a lesson — none silently overwritten.
 
 ## Proof
@@ -40,7 +40,7 @@ front matter, ritmo's `milestone` → `goal`) is a migration, shown as a diff.
 
 ## Next action
 
-⚑ With the owner's yes, for each of duo (public) and cajones (private): clone, `keel adopt`, push branch `keel/adopt`, `gh pr create` with `docs/keel-adoption.md` as the body; the owner merges.
+None. isocan's adoption is phase 16's.
 
 ## Trajectory
 

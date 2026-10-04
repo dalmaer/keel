@@ -52,7 +52,7 @@ A project made by `keel init` runs its night shift with no keel checkout and no 
 
 ## Next action
 
-⚑ After an adoption merges, run `keel fleet update --yes` from keel and link the PR it opens.
+Fix `keel fleet update` first (it planned no-op PRs and installed with `npm ci` instead of the project's `setup`), then run it with `--yes` for duo and cajones and link the PRs.
 
 ## Trajectory
 

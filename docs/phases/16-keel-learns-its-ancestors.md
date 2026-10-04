@@ -3,7 +3,7 @@ status: partial
 since: 2026-10-03
 goal: G2
 depends: [4, 6]
-note: "The three isocan adopt bugs are fixed (no invented gate, lessons path from config, project-directory phases read). ledger and isocan clones adopt with additions only and pass their own gates (isocan: 7,593 tests). ledger's phases stay local: 17 built phases owe evidence. The PRs wait on the owner, and on Dimitri."
+note: "The three isocan adopt bugs are fixed, and ledger is adopted for real (#16). isocan's adoption PR waits on Dimitri, together with the keel/nerd proposal."
 evidence: ["evidence/2026-10-03-ancestors.md"]
 ---
 
@@ -68,7 +68,7 @@ recorded in each practice's README:
 
 ## Next action
 
-⚑ Owner: say yes to opening ledger's adoption PR, and to preparing isocan's for Dimitri (with `--check "npm test && npm run typecheck"`).
+⚑ Owner, then Dimitri: share the keel/nerd comparison with Dimitri, and with his yes open isocan's adoption PR (`--check "npm test && npm run typecheck"`) for him to merge. ledger's half is done (phase 20).
 
 ## Trajectory
 

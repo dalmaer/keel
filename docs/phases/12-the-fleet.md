@@ -1,9 +1,9 @@
 ---
-status: partial
-since: 2026-10-02
+status: built
+since: 2026-10-04
 goal: G5
 depends: [4, 11]
-note: "keel fleet reads five repos in 1.6s and shows the truth: keel current and green, duo/cajones/ledger not adopted, isocan unmoved. Behind and silent are proven on the stub; a real reading waits on phase 4's adoptions."
+note: "keel fleet shows all four projects adopted, with duo and cajones correctly one release behind; silent is proven on the stub, as no project has gone silent."
 evidence: ["evidence/2026-10-02-fleet.md"]
 ---
 
@@ -20,8 +20,8 @@ a nightly page on keel, `docs/fleet/<date>.md`, as part of keel's own night.
 
 ## Acceptance
 
-- [ ] A project behind on the practice shows how far and what it is missing.
-- [ ] A project whose health page is older than two nights is shown as silent, not as healthy.
+- [x] A project behind on the practice shows how far and what it is missing.
+- [x] A project whose health page is older than two nights is shown as silent, not as healthy.
 
 ## Proof
 
@@ -33,7 +33,7 @@ a nightly page on keel, `docs/fleet/<date>.md`, as part of keel's own night.
 
 ## Next action
 
-After phase 4's adoption PRs merge, run `keel fleet` and check both boxes against real rows.
+None; duo's CI column is fixed with fleet update (phase 15).
 
 ## Trajectory
 

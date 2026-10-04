@@ -58,6 +58,15 @@ Run: https://github.com/dalmaer/keel/actions/runs/37132491094 (exit 0)
 
 That was the first real night with no person involved: measure, PR, check, merge.
 
+## Nights so far (2026-10-04)
+
+| Repo | Runs | First scheduled night |
+| --- | --- | --- |
+| keel | 4 (3 dispatched) | 2026-10-03 07:39 UTC, success, started by cron with no one involved |
+| ledger | 1 dispatched | (pending) |
+| duo | 1 dispatched | (pending) |
+| cajones | 1 dispatched | (pending) |
+
 ## Gaps and decision
 
 - Not yet observed:
