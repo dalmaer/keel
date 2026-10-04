@@ -5,6 +5,6 @@
   "files": [
     { "path": "package.json", "from": "package.json", "kind": "seeded" },
     { "path": ".nvmrc", "from": ".nvmrc", "kind": "seeded" },
-    { "path": ".gitignore", "from": ".gitignore", "kind": "seeded" }
+    { "path": ".gitignore", "from": "gitignore", "kind": "seeded" }
   ]
 }

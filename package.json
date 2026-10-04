@@ -6,6 +6,16 @@
   "type": "module",
   "engines": { "node": ">=24" },
   "bin": { "keel": "bin/keel.mjs" },
+  "files": [
+    "bin/",
+    "lib/",
+    "practices/",
+    "migrations/",
+    "tests/fixtures/improve/",
+    ".keel/keel.json",
+    "WHATSNEW.md",
+    "NOTICE"
+  ],
   "scripts": {
     "test": "node --import ./tests/helpers/hermetic.mjs --test tests/*.test.mjs",
     "keel": "node bin/keel.mjs",
