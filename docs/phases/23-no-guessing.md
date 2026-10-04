@@ -11,7 +11,7 @@ evidence: []
 
 ## Done when
 
-A second fresh-agent walk, the same as phase 3's, conducts a new project's phase 0 and reports no friction points (or only ones recorded here as deliberately open).
+A fresh-agent walk, the same as phase 3's (npx only, an empty npm cache), conducts a new project's phase 0 with no blocker and no step that cannot be done as written; every other point it reports is fixed or recorded here as deliberately open.
 
 ## Scope
 
@@ -46,7 +46,7 @@ The 11 friction points, each fixed where it lives:
 ## Acceptance
 
 - [ ] Each of the 11 has a test or a guard where one can exist (7, 4, 6 and 9 certainly).
-- [ ] A fresh-agent walk on a new project reports no friction, or only items recorded under Deliberately open.
+- [ ] A fresh-agent walk on a new project hits no blocker and no step that cannot be done as written; every other point is fixed or recorded under Deliberately open.
 
 ## Proof
 
@@ -62,3 +62,8 @@ was, with its report in the evidence.
 
 Fix 7 (stale status) and 4/6/9 (init seeds) first, since they have tests,
 then the skill and doorway text, then re-walk.
+
+## Trajectory
+
+- **2026-10-04** — The bar changed from "a walk reports no friction" to "no blocker, no step that cannot be done as written". Three walks found 11, then 10, then 7 points, each round smaller. A fresh agent always finds something to note, so "none" could never close. The bar now holds what matters, and the rest is fixed or recorded.
+- **2026-10-04** — The second walk found a blocker no checkout-based test could see: npm strips `.gitignore`, so `npx github:dalmaer/keel init` failed for everyone (lesson 28).

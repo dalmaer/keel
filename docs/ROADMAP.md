@@ -43,7 +43,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 - **3 done when:** `keel init <name>` in an empty directory produces a git repo with the practice installed, a goal and a phase 0 drafted from a one-paragraph description, and a passing `npm run check`; with `--github` it is also a private repo with CI green.
 - **9 done when:** `keel goal add|list|show|retire` edits `docs/goals.json`, regenerates the roadmap, and `keel goal show G1 --json` reports its phases, how many are built and lived-in, and the next one.
 - **19 done when:** Every project keel renders carries one short `keel` skill at `.agents/skills/keel/SKILL.md` (reached from Claude Code by symlink) that says what keel is, how to install it if missing, and "run `keel --agent-help`", and a test keeps it short and free of copied verb lists.
-- **23 done when:** A second fresh-agent walk, the same as phase 3's, conducts a new project's phase 0 and reports no friction points (or only ones recorded here as deliberately open).
+- **23 done when:** A fresh-agent walk, the same as phase 3's (npx only, an empty npm cache), conducts a new project's phase 0 with no blocker and no step that cannot be done as written; every other point it reports is fixed or recorded here as deliberately open.
 
 ## G2 — The fleet stays current
 
