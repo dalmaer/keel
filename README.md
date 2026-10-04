@@ -143,6 +143,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel learn` | Lesson issues and moved sources become proposals: `propose` is an agent's, `decide` is a person's |
 | `keel release` | Cut a practice version, with a what's-new written for the person receiving it |
 | `keel fleet`, `keel fleet update` | Every project at a glance; open update PRs where they're behind |
+| `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 
 ## Where a person decides
 

@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-04
 goal: G2
 depends: [12]
-note: "The owner fires off many tasks from chat and loses track of some (4 Oct). Everything needed to find them is already on the machine: Claude Code transcripts and git."
-evidence: []
+note: "keel loose-ends lists unfinished sessions, uncommitted files, unmerged branches, worktrees, open PRs, owner-waiting phases and recent unlisted repos across the fleet; marks persist; nothing from a transcript is written to a file."
+evidence: ["evidence/2026-10-04-loose-ends.md"]
 ---
 
 # Nothing the owner started is forgotten
@@ -55,11 +55,11 @@ lists, and prints the commands.
 
 ## Acceptance
 
-- [ ] Synthetic transcripts and git repos produce the right items, and a session whose work is already committed is not listed.
-- [ ] Each item's suggested move and command is right for its kind.
-- [ ] Marks persist across runs; park reappears after its date; drop never reappears.
-- [ ] Nothing from a transcript is written anywhere but the terminal (a leak test like phase 21's).
-- [ ] The real run on this Mac lists the loose ends known on 4 Oct: the other session's uncommitted keel/nerd research file, ledger's local uncommitted files and unmerged branch, and keel-walk.
+- [x] Synthetic transcripts and git repos produce the right items, and a session whose work is already committed is not listed.
+- [x] Each item's suggested move and command is right for its kind.
+- [x] Marks persist across runs; park reappears after its date; drop never reappears.
+- [x] Nothing from a transcript is written anywhere but the terminal (a leak test like phase 21's).
+- [x] The real run on this Mac lists the loose ends known on 4 Oct: the other session's uncommitted keel/nerd research file, ledger's local uncommitted files and unmerged branch, and keel-walk.
 
 ## Proof
 
@@ -77,6 +77,9 @@ lists, and prints the commands.
 
 ## Next action
 
-Read three real transcripts' shapes (types, fields, how a session ends)
-before writing the parser. Never copy their content into fixtures;
-fixtures are synthetic.
+None. Measure the "ended on a question" rules on real use.
+
+## Trajectory
+
+- **2026-10-04** — Recent repos not in `fleet.json` became a loose-end kind. Without it, keel-walk, made and then forgotten, was invisible.
+
