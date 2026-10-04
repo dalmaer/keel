@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fill } from '../lib/practices.mjs';
-import { firstSentence, goalTitle, npmName, phaseZero, PHASE0_TITLE } from '../lib/init.mjs';
+import { firstSentence, goalTitle, init, npmName, phaseZero, readme, DRAFT, PHASE0_TITLE } from '../lib/init.mjs';
 import { parsePhase } from '../practices/phases/files/scripts/roadmap.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -141,7 +141,16 @@ test('the first commit names the practice version and the keel that made it', as
   assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).name, undefined, 'only --kind node names package.json');
   const version = JSON.parse(keel(['--version', '--json'], dir).out);
   const subject = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).trim();
-  assert.equal(subject, `keel init: Acme on practice ${version.practice} (keel ${version.commit ?? 'no git'})`);
+  assert.equal(subject, `keel init: Acme on practice ${version.practice} (keel ${version.commit ?? version.cli})`);
+});
+
+test('run from a package (no commit known), the first commit names the keel version, never "no git"', async t => {
+  const dir = await scratch(t);
+  const r = await init({ dir, name: 'Acme', description: DESCRIPTION }, { version: { cli: '9.8.7', commit: null, practice: '1.2.3' }, env: ENV });
+  assert.equal(r.data.message, 'keel init: Acme on practice 1.2.3 (keel 9.8.7)');
+  const subject = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).trim();
+  assert.equal(subject, 'keel init: Acme on practice 1.2.3 (keel 9.8.7)');
+  assert.doesNotMatch(r.text, /no git/);
 });
 
 test('keel next inside the new project names phase 0', async t => {
@@ -154,7 +163,7 @@ test('keel next inside the new project names phase 0', async t => {
   assert.equal(next.title, PHASE0_TITLE);
   assert.equal(next.status, 'planned');
   assert.equal(next.title, 'The first thing that runs');
-  assert.match(next.next, /Done when, Acceptance and Proof .* commit that edit on its own; then \/conduct\./);
+  assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs`; then \/conduct\./);
   // A subdirectory finds it too.
   await mkdir(join(dir, 'src'));
   assert.equal(JSON.parse(keel(['next', '--json'], join(dir, 'src')).out).id, 0);
@@ -282,6 +291,19 @@ test('phase 0 comes from the phase template and parses', async () => {
   assert.equal(p.title, PHASE0_TITLE);
   assert.equal(p.goal, 'G0');
   assert.equal(p.since, '2026-10-02');
+  assert.match(p.done, /^Following README\.md's "How to run it" from a fresh clone/);
+  assert.doesNotMatch(p.done, /other than the author/, 'an agent can check Done when');
+  assert.equal(p.next, 'Replace this draft\'s Done when, Acceptance and Proof with the first thing that runs, and move status to `designed`, in one commit of its own titled `phase 0: name what runs`; then /conduct.');
+  const text = phaseZero(template, { name: 'Acme', kind: 'node', since: '2026-10-02' });
+  assert.ok(text.includes(`# ${PHASE0_TITLE}\n\n${DRAFT}\n`), 'says it is a draft to replace wholesale');
+  assert.match(DRAFT, /Replace this draft wholesale before building; its Deliberately open questions are placeholders, not decisions to settle/);
+  assert.match(text, /- \[ \] README\.md's "How to run it", followed from a fresh clone, runs Acme\./);
+  assert.doesNotMatch(text, /only AGENTS\.md/);
+  assert.match(text, /## Deliberately open\n\nNothing yet\.\n/);
+  assert.doesNotMatch(text, /## Trajectory/, 'a draft has no Trajectory');
+  assert.ok(parsePhase('00-first-thing-that-runs.md', text));
+  assert.match(readme({ name: 'Acme Notes', description: 'x', kind: 'node' }), /## How to run it\n\n```bash\nnode bin\/acme-notes\.mjs …\n```/);
+  assert.doesNotMatch(readme({ name: 'Acme', description: 'x', kind: 'static' }), /node bin/);
   assert.equal(firstSentence('One. Two.'), 'One.');
   assert.equal(firstSentence('No full stop'), 'No full stop');
   assert.equal(goalTitle('Short. Then more.'), 'Short');

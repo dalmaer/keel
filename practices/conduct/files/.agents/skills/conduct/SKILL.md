@@ -192,9 +192,10 @@ When the proof holds, and only then, write the record, all in one change:
   actually showed. The roadmap check fails a phase whose boxes are all
   checked and evidence named but whose status wasn't moved.
 - **The evidence file**, `docs/evidence/<date>-<slug>.md`, from
-  `docs/templates/evidence.md`: what was run, with exit codes; what was
+  `docs/templates/evidence.md`: what was run, with exit codes, against the
+  phase's commit by its title (it doesn't exist yet), or the base commit and 'working tree'; what was
   checked by hand; what was not. Never write expectations as observations.
-- **Trajectory** in the phase file: only what changes the course. One line
+- **Trajectory** in the phase file (`## Trajectory`, after Next action): only what changes the course. One line
   per claim: `- **YYYY-MM-DD** — Claim. Evidence.` A phase that went as
   planned writes `*Nothing — the phase went as planned.*`
 - **Deliberately open**: settle the questions that were settled, in place,

@@ -48,6 +48,16 @@ test('a well-formed phase parses', () => {
   assert.equal(p.next, 'Do the thing.');
 });
 
+test('an optional Trajectory after Next action parses, and stays out of the next action', async () => {
+  const p = parsePhase('03-a-phase.md', `${phase()}\n## Trajectory\n\n- **2026-10-03** — A claim. Its evidence.\n`);
+  assert.equal(p.next, 'Do the thing.');
+  const { readFile } = await import('node:fs/promises');
+  const template = await readFile(new URL('../docs/templates/phase.md', import.meta.url), 'utf8');
+  assert.match(template, /## Next action[\s\S]*## Trajectory\n\n<!-- Optional\./, 'the template carries Trajectory after Next action, marked optional');
+  const filled = template.replace('since: YYYY-MM-DD', 'since: 2026-10-03');
+  assert.equal(parsePhase('04-template.md', filled).next, 'One concrete action that advances this phase.');
+});
+
 test('rejects what would let the roadmap lie', () => {
   const cases = [
     ['bad name', 'phase.md', phase()],

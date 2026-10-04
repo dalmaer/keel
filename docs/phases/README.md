@@ -48,9 +48,9 @@ person must do), **Deliberately open** (decisions postponed on purpose — settl
 them in place, dated), **Next action** (one concrete step; `npm run next`
 prints it).
 
-Optional: **Trajectory** — written by the conductor, only for what changed
-the course: `- **YYYY-MM-DD** — Claim. Evidence.` A phase that went as planned
-says so in one line. Work done is not trajectory; git holds it.
+Optional: **Trajectory**, after Next action — written by the conductor, only
+for what changed the course: `- **YYYY-MM-DD** — Claim. Evidence.` A phase
+that went as planned says so in one line. Work done is not trajectory; git holds it.
 
 Use [the template](../templates/phase.md). After editing: `npm run roadmap`,
 then `npm run check`.

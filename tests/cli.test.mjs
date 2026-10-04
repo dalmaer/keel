@@ -194,7 +194,8 @@ test('installs from a checkout with no build step, on a machine that has never s
     const project = await copyTree(join(tmp, 'project')); // a copy of keel, run from the installed bin
     const v = keel(['--version'], project, bin, env);
     assert.equal(v.code, 0, v.err);
-    assert.match(v.out, /^keel \S+ \(no git\) practice \S+/);
+    assert.match(v.out, /^keel \S+ practice \S+\n$/, 'no commit known: just the two versions');
+    assert.doesNotMatch(v.out, /no git/);
     const help = keel(['--agent-help'], project, bin, env);
     assert.equal(help.code, 0, help.err);
     assert.match(help.out, /keel --agent-help/);

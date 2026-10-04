@@ -34,3 +34,8 @@ An unsettled decision, why it is open, and what will settle it.
 ## Next action
 
 One concrete action that advances this phase.
+
+## Trajectory
+
+<!-- Optional. Written by the conductor, only for what changed the course; delete it until something does. -->
+- **YYYY-MM-DD** — Claim. Evidence.

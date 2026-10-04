@@ -2,7 +2,7 @@
 
 - Date:
 - Phase:
-- Revision: commit, or a description of the working tree
+- Revision: the phase's commit (its title), or the base commit and 'working tree'
 - Claim being checked:
 
 ## Automated checks

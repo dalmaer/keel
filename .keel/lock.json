@@ -3,7 +3,7 @@
   "files": {
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "c8e7696fb7c1ac7a12c593e3af1478146d61e6f2a89e51b36783aedfd9bf03af"
+      "sha256": "9f43ec9cf0ca58ec3bcf2d2e06ce71a348c69aa934de3a855b8f88ef44ab59a4"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -55,15 +55,15 @@
     },
     "docs/phases/README.md": {
       "practice": "phases",
-      "sha256": "f2e9712c9b8115865f0f4bd2f4a8c67f699962661f0f7ca5e8d3a5805f880d01"
+      "sha256": "788c6b6683d8017482a65298e35c93818c260f8a534196d3ed2644bbaa2edfe4"
     },
     "docs/templates/evidence.md": {
       "practice": "evidence",
-      "sha256": "ba3e3946c2c20beb41b5a6db62b99958fcced8bd0339646ee4d2811cbcaafc71"
+      "sha256": "3e6ca799b1816880f05f8ce963d60d73a315dc7762d4acf24de2f4f31b1f5656"
     },
     "docs/templates/phase.md": {
       "practice": "phases",
-      "sha256": "5df612acd9e4d8d103a27006fc1805e9ea13f765d91cae3453c80dee1bf23b52"
+      "sha256": "2389742bb73c805ccce9cd7ece960839dbc14f07d1f80c6f8da2db5c1a21e0fd"
     },
     "renovate.json": {
       "practice": "renovate",
@@ -87,7 +87,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "2158ac0229e1d7a21b769b0f56285c47ca7c56112a5e4d8c773a33d756fb569e"
+      "sha256": "4e2e14b075f3f5e2e8ba60834496c221f5170be14de4a411a5b779244fc1225b"
     }
   }
 }
