@@ -176,12 +176,16 @@ cd acme-notes && keel next
   `keel update`) or holds anything besides `.git` (use `keel adopt`).
 - It writes `.keel/keel.json` with every practice except the optional ones
   (`loop`, `claude`): `--with <practice>` (repeatable) switches one on, and
-  only on practices' secrets are listed. It seeds goal G0 (the
-  description is its outcome) and `docs/phases/00-practice-room.md`, renders
-  the practices, puts the description into AGENTS.md, generates the roadmap,
-  and makes one commit on `main` naming the practice version.
-- Phase 0's Done when is a generic draft. Replace it with the first thing a
-  person could check before conducting it.
+  only on practices' secrets are listed. It seeds goal G0 (titled by the
+  description's first sentence; the description is its outcome),
+  `docs/phases/00-first-thing-that-runs.md`, `docs/evidence/README.md`, and a
+  README.md with a "How to run it" section to fill (project-owned from then
+  on); `--kind node` also names package.json. It renders the practices, puts
+  the description into AGENTS.md once, generates the roadmap, and makes one
+  commit on `main` naming the practice version.
+- Phase 0's Done when, Acceptance and Proof are a generic draft. Replace them
+  with the first thing a person could check, as their own commit, then
+  conduct it.
 - ⚑ `--github` resolves the repo (`--repo`, else your gh login and the
   name), prints the plan and the secrets each workflow needs, and creates
   nothing. `--github --yes` inits, then `gh repo create <repo> --private
@@ -549,6 +553,10 @@ why}]}`. A cell that failed is `{unreadable}`.
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
 Keel is a git checkout plus a link; there is no registry and no build step.
+Keel is public, so with nothing installed, `npx` runs it from GitHub: put
+`npx -y github:dalmaer/keel` wherever a command says `keel`
+(`npx -y github:dalmaer/keel next`). The first run fetches it (about 5 s),
+later ones take about 2 s. To install it:
 
 ```bash
 git clone https://github.com/dalmaer/keel ~/code/keel # any path works

@@ -22,6 +22,15 @@ cannot fall behind it.
 
 ## If `keel` isn't there
 
+Run it from GitHub with nothing installed: wherever a command says `keel`,
+say `npx -y github:dalmaer/keel`.
+
+```sh
+npx -y github:dalmaer/keel --agent-help
+```
+
+To install it instead:
+
 ```sh
 git clone https://github.com/dalmaer/keel <dir>
 npm install -g <dir>

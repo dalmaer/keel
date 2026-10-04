@@ -3,11 +3,11 @@
   "files": {
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "f97b22a1f95b240dfc7d1547408a6b0f72211f89e7806ffc38ddd77f7a2e860d"
+      "sha256": "c8e7696fb7c1ac7a12c593e3af1478146d61e6f2a89e51b36783aedfd9bf03af"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
-      "sha256": "84d91a5e95683b03c265b573b83078770e9ab8d8f341fe43e98c623cfe09890f"
+      "sha256": "f59c3d89b3a480af6aaccfa2a6fe1a62fcaf18582402ac006b9b2bccea930ab1"
     },
     ".claude/skills/conduct": {
       "practice": "conduct",
@@ -55,7 +55,7 @@
     },
     "docs/phases/README.md": {
       "practice": "phases",
-      "sha256": "50d7b50125a983b9688eb38e12659405c8ca8ac2779476843510dfbfbd7e44e1"
+      "sha256": "f2e9712c9b8115865f0f4bd2f4a8c67f699962661f0f7ca5e8d3a5805f880d01"
     },
     "docs/templates/evidence.md": {
       "practice": "evidence",
@@ -83,11 +83,11 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "f28a8e794a321e02d6bc94cf81173d6230f0aab66182665322c0b4e297f397e3"
+      "sha256": "10b375dc9e4406189c6766c9601e4243b115a38465617165856f15be4e12191c"
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "c654a4b9dfd31d85fb7fa0c57f8a1a0e383995bffc8c101b9b50677cfd4aaa51"
+      "sha256": "2158ac0229e1d7a21b769b0f56285c47ca7c56112a5e4d8c773a33d756fb569e"
     }
   }
 }

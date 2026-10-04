@@ -80,7 +80,7 @@ test('goal show reports its phases, counts and next; deps in another goal count'
   assert.equal(g0.data.built, 0);
   assert.equal(g0.data.lived, 0);
   assert.equal(g0.data.next.id, 0);
-  assert.equal(g0.data.next.file, '00-practice-room.md');
+  assert.equal(g0.data.next.file, '00-first-thing-that-runs.md');
 
   keel(dir, 'goal', 'add', 'Export', '--outcome', 'Notes export.');
   keel(dir, 'phase', 'new', 'Export one meeting', '--goal', 'G1', '--depends', '0');
@@ -145,7 +145,7 @@ test('retire --phases move:<Gm> gives the unbuilt phases to another goal', async
 
 test('phase new picks max + 1, keeps the template, and validates', async t => {
   const dir = await project(t);
-  const zero = await read(dir, 'docs/phases/00-practice-room.md');
+  const zero = await read(dir, 'docs/phases/00-first-thing-that-runs.md');
   await writeFile(join(dir, 'docs/phases/07-later.md'), zero.replace(/^# .+$/m, '# Later'));
   const r = keel(dir, 'phase', 'new', 'Acme: export, one meeting!', '--goal', 'G0', '--depends', '0,7', '--json');
   assert.equal(r.code, 0, r.out);
@@ -167,7 +167,7 @@ test('phase new picks max + 1, keeps the template, and validates', async t => {
 
 test('phase new matches a project that numbers its phases with one digit', async t => {
   const dir = await project(t);
-  await rename(join(dir, 'docs/phases/00-practice-room.md'), join(dir, 'docs/phases/0-practice-room.md'));
+  await rename(join(dir, 'docs/phases/00-first-thing-that-runs.md'), join(dir, 'docs/phases/0-practice-room.md'));
   const r = keel(dir, 'phase', 'new', 'Second', '--goal', 'G0', '--json');
   assert.equal(r.code, 0, r.out);
   assert.equal(r.data.file, '1-second.md');
@@ -176,7 +176,7 @@ test('phase new matches a project that numbers its phases with one digit', async
 
 test('two branches that took the same number are named, file by file', async t => {
   const dir = await project(t);
-  const zero = await read(dir, 'docs/phases/00-practice-room.md');
+  const zero = await read(dir, 'docs/phases/00-first-thing-that-runs.md');
   await writeFile(join(dir, 'docs/phases/03-from-one-branch.md'), zero.replace(/^# .+$/m, '# One'));
   await writeFile(join(dir, 'docs/phases/03-from-another.md'), zero.replace(/^# .+$/m, '# Another'));
   const c = check(dir);

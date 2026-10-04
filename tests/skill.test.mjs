@@ -60,6 +60,7 @@ test(`the keel skill stays short (≤ ${BUDGET} words) and names no verb but --a
   assert.match(body, /keel --agent-help/);
   assert.match(body, /git clone https:\/\/github\.com\/dalmaer\/keel/);
   assert.match(body, /npm install -g/);
+  assert.match(body, /npx -y github:dalmaer\/keel --agent-help/, 'a way in with nothing installed (phase 23)');
   assert.match(body, /AGENTS\.md/);
   assert.match(body, /docs\/ROADMAP\.md/);
   assert.deepEqual(verbMentions(body), []);
@@ -112,4 +113,24 @@ test('keel carries its own copy (render --self)', async () => {
   const mine = await readFile(join(KEEL, '.agents', 'skills', 'keel', 'SKILL.md'), 'utf8');
   assert.equal(parseSkill(mine).front.name, 'keel');
   assert.ok((await lstat(join(KEEL, '.claude', 'skills', 'keel'))).isSymbolicLink());
+});
+
+// The conduct skill (phase 23): what a fresh agent had to guess, said.
+test('the conduct skill covers no remote, missing docs, small phases, and records before the one gate run', async () => {
+  const text = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const section = n => text.slice(text.indexOf(`\n## ${n}.`), text.indexOf('\n## ', text.indexOf(`\n## ${n}.`) + 1));
+  assert.match(text, /If `git remote` prints nothing, skip every pull, push and CI/);
+  assert.match(text, /the walk ends at the local commit/);
+  assert.match(section(2), /`git pull --ff-only` \*\*first\*\*, if there is a remote/);
+  assert.match(section(4), /With no remote, stop at the local commit/);
+  assert.match(text, /if\s+the project has one, is the argument/);
+  assert.match(text, /the README \(if the project has one\)/);
+  assert.match(text, /\*\*Small phases\.\*\*[\s\S]*built by the conductor/);
+  // Status first; the whole check after the record, not in Verify.
+  assert.match(section(3), /^[\s\S]*?\n- \*\*Set the phase's `status:`\*\*/);
+  assert.equal(section(3).match(/\n- /).index, section(3).indexOf("\n- **Set the phase's `status:`**"), 'status is the first bullet');
+  assert.doesNotMatch(section(2), /\*\*The whole check, once\*\*/);
+  assert.ok(section(3).indexOf('**the whole check, once**') > section(3).indexOf('npm run roadmap'), 'the gate runs after the record');
+  assert.match(section(3), /\{\{check\}\}/);
+  assert.match(section(4), /Commit the\s+tree the gate just checked/);
 });

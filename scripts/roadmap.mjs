@@ -60,6 +60,10 @@ export function parsePhase(file, raw) {
   }
   if (!/^- \[[ x]\] /m.test(sections.Acceptance)) fail(`${file}: Acceptance needs checkboxes`);
   if (DONE.includes(meta.status) && /^- \[ \] /m.test(sections.Acceptance)) fail(`${file}: ${meta.status} with unchecked acceptance`);
+  // The record was written but the status wasn't moved: the roadmap would call proven work unbuilt.
+  if (['planned', 'designed', 'partial'].includes(meta.status) && meta.evidence.length && !/^- \[ \] /m.test(sections.Acceptance)) {
+    fail(`phase ${Number(number[1])}: every box checked and evidence named, but status is ${meta.status} — set status: built (or uncheck what isn't proven)`);
+  }
   return {
     file, id: Number(number[1]), title, ...meta,
     done: sections['Done when'].replace(/\s+/g, ' '),

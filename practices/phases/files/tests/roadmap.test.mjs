@@ -62,6 +62,17 @@ test('rejects what would let the roadmap lie', () => {
   for (const [why, file, raw] of cases) assert.throws(() => parsePhase(file, raw), undefined, why);
 });
 
+test('a phase with every box checked and evidence named must not stay unbuilt', () => {
+  for (const status of ['planned', 'designed', 'partial']) {
+    assert.throws(() => parsePhase('07-x.md', phase({ status, evidence: '["evidence/x.md"]', acceptance: '- [x] Did it.' })),
+      new RegExp(`^Error: phase 7: every box checked and evidence named, but status is ${status} — set status: built`));
+  }
+  // Any one of the three missing is a phase still in progress, and fine.
+  assert.ok(parsePhase('07-x.md', phase({ status: 'partial', evidence: '["evidence/x.md"]', acceptance: '- [x] Did it.\n- [ ] Not yet.' })));
+  assert.ok(parsePhase('07-x.md', phase({ status: 'partial', acceptance: '- [x] Did it.' })));
+  assert.ok(parsePhase('07-x.md', phase({ status: 'built', evidence: '["evidence/x.md"]', acceptance: '- [x] Did it.' })));
+});
+
 test('the graph rejects cycles, unknown goals and duplicate numbers', () => {
   const goals = [{ id: 'G0', title: 't', outcome: 'o' }];
   const p = (id, depends, goal = 'G0', file = `${id}.md`) => ({ id, file, depends, goal });

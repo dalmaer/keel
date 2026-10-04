@@ -36,8 +36,9 @@ issue: 3
 ```
 
 `evidence` paths are relative to `docs/` (`evidence/2026-10-02-x.md`); built
-and lived-in need at least one. The filename number is the phase id; never
-renumber.
+and lived-in need at least one. A phase with every Acceptance box checked
+and evidence named can't stay planned, designed or partial: the check fails
+until its status moves. The filename number is the phase id; never renumber.
 
 ## Sections
 

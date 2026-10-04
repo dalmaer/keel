@@ -214,7 +214,7 @@ test('lessons-table-split: a blank line inside the lessons table is linted, nami
 
 test('a phase without Done when and a goal without a phase are linted', async t => {
   const dir = await project(t);
-  const phase = join(dir, 'docs', 'phases', '00-practice-room.md');
+  const phase = join(dir, 'docs', 'phases', '00-first-thing-that-runs.md');
   await writeFile(phase, (await readFile(phase, 'utf8')).replace(/## Done when\n[\s\S]*?(?=## Scope)/, ''));
   const goals = JSON.parse(await readFile(join(dir, 'docs', 'goals.json'), 'utf8'));
   goals.push({ id: 'G1', title: 'Acme search', outcome: 'Notes are found by who was there.' });
@@ -237,7 +237,7 @@ test('a README older than the newest built phase is a readme-behind note, never 
   git(['add', 'README.md']);
   git(['commit', '-q', '-m', 'Acme readme'], { GIT_AUTHOR_DATE: '2020-01-02T12:00:00Z', GIT_COMMITTER_DATE: '2020-01-02T12:00:00Z' });
   assert.equal(git(['log', '-1', '--format=%cs', '--', 'README.md']), '2020-01-02');
-  const zero = await readFile(join(dir, 'docs', 'phases', '00-practice-room.md'), 'utf8');
+  const zero = await readFile(join(dir, 'docs', 'phases', '00-first-thing-that-runs.md'), 'utf8');
   await writeFile(join(dir, 'docs', 'phases', '01-acme-search.md'), zero.replace(/^---\n[\s\S]*?\n---\n/, [
     '---', 'status: built', 'since: 2020-01-05', 'goal: G0', 'depends: [0]', 'note: "Acme search works."', 'evidence: ["evidence/2020-01-05-acme-search.md"]', '---', '',
   ].join('\n')).replaceAll('- [ ]', '- [x]'));

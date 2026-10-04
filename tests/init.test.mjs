@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fill } from '../lib/practices.mjs';
-import { firstSentence, phaseZero, PHASE0_TITLE } from '../lib/init.mjs';
+import { firstSentence, goalTitle, npmName, phaseZero, PHASE0_TITLE } from '../lib/init.mjs';
 import { parsePhase } from '../practices/phases/files/scripts/roadmap.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -83,11 +83,29 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.equal(goals.length, 1);
   assert.equal(goals[0].id, 'G0');
   assert.equal(goals[0].outcome, DESCRIPTION);
-  assert.deepEqual((await readdir(join(dir, 'docs', 'phases'))).sort(), ['00-practice-room.md', 'README.md']);
+  assert.equal(goals[0].title, 'Acme Notes keeps meeting notes as plain files', 'G0 is titled by the first sentence');
+  assert.deepEqual((await readdir(join(dir, 'docs', 'phases'))).sort(), ['00-first-thing-that-runs.md', 'README.md']);
+
+  // docs/evidence/ exists, and its README names the template and the path rule.
+  const evidence = await readFile(join(dir, 'docs', 'evidence', 'README.md'), 'utf8');
+  assert.match(evidence, /docs\/templates\/evidence\.md/);
+  assert.match(evidence, /relative to\s+`docs\/`/);
+  assert.match(evidence, /evidence: \["evidence\/[^"]+\.md"\]/);
+
+  // A README with the name, the description and a section to fill.
+  const readme = await readFile(join(dir, 'README.md'), 'utf8');
+  assert.match(readme, /^# acme-notes\n/);
+  assert.ok(readme.includes(DESCRIPTION));
+  assert.match(readme, /^## How to run it$/m);
+
+  // --kind node: package.json has an npm-safe name.
+  assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).name, 'acme-notes');
 
   const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
   assert.match(agents, /## What acme-notes is/);
   assert.ok(agents.includes(DESCRIPTION));
+  assert.equal(agents.split('Acme Notes keeps meeting notes as plain files.').length - 1, 1, 'the description is printed once');
+  assert.match(agents, /How to run it: see \[README\.md\]\(README\.md#how-to-run-it\)/);
   assert.match(agents, /Kind: Node CLI/);
   assert.match(agents, /<!-- keel:begin phases -->\n\*\*Status lives/);
   for (const f of ['CLAUDE.md', '.nvmrc', '.gitignore', 'docs/lessons.md', 'docs/ROADMAP.md',
@@ -119,6 +137,8 @@ test('the first commit names the practice version and the keel that made it', as
   const dir = await scratch(t);
   const r = keel(['init', '--name', 'Acme', '--description', DESCRIPTION], dir);
   assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /No keel on PATH\? Run it as npx -y github:dalmaer\/keel <verb>/, 'says how to run keel with nothing installed');
+  assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).name, undefined, 'only --kind node names package.json');
   const version = JSON.parse(keel(['--version', '--json'], dir).out);
   const subject = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).trim();
   assert.equal(subject, `keel init: Acme on practice ${version.practice} (keel ${version.commit ?? 'no git'})`);
@@ -133,7 +153,8 @@ test('keel next inside the new project names phase 0', async t => {
   assert.equal(next.id, 0);
   assert.equal(next.title, PHASE0_TITLE);
   assert.equal(next.status, 'planned');
-  assert.equal(next.next, 'Replace this phase\'s Done when with the first thing a person could check, then /conduct.');
+  assert.equal(next.title, 'The first thing that runs');
+  assert.match(next.next, /Done when, Acceptance and Proof .* commit that edit on its own; then \/conduct\./);
   // A subdirectory finds it too.
   await mkdir(join(dir, 'src'));
   assert.equal(JSON.parse(keel(['next', '--json'], join(dir, 'src')).out).id, 0);
@@ -257,10 +278,16 @@ test('a missing placeholder is an error only where a template uses it', () => {
 
 test('phase 0 comes from the phase template and parses', async () => {
   const template = await readFile(join(KEEL, 'practices/phases/files/docs/templates/phase.md'), 'utf8');
-  const p = parsePhase('00-practice-room.md', phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' }));
+  const p = parsePhase('00-first-thing-that-runs.md', phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' }));
   assert.equal(p.title, PHASE0_TITLE);
   assert.equal(p.goal, 'G0');
   assert.equal(p.since, '2026-10-02');
   assert.equal(firstSentence('One. Two.'), 'One.');
   assert.equal(firstSentence('No full stop'), 'No full stop');
+  assert.equal(goalTitle('Short. Then more.'), 'Short');
+  const long = goalTitle('Acme Ledger reconciles every invoice against every payment it can find in the shared drive folders. More.');
+  assert.ok(long.length <= 80, long);
+  assert.equal(long, 'Acme Ledger reconciles every invoice against every payment it can find in the…');
+  assert.equal(npmName('Acme Notes!'), 'acme-notes');
+  assert.equal(npmName('_Acme'), 'acme');
 });
