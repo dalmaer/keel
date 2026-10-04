@@ -252,6 +252,13 @@ three questions:
   `scripts/loop.ts` and isocan's `scripts/loop.mjs`, and keeps their rules:
   the ranking is ours, an agent proposes, a person decides. The owner decided
   it rather than waiting for two projects to have used it through keel.
+- **The practice version is the package version.** Found 4 October: a
+  release made only for keel-side changes (fleet, learn) would mark every
+  project behind and have `fleet update` open PRs that change nothing but a
+  number. Until the two are separated, a keel-side-only change isn't
+  released: it reaches users when keel's checkout is pulled. The likely fix
+  is a practice version that moves only when `practices/` or `migrations/`
+  change, so `keel release` refuses, or skips the bump, when they haven't.
 - **The isocan canvas.** Still an optional practice that comes in once two
   projects have used it through keel, not before.
 - **License.** **Settled 2026-10-03:** Apache-2.0, matching isocan, chosen when
