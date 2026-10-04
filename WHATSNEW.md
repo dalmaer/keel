@@ -5,6 +5,38 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.0 — practice 0.6.0 (2026-10-04)
+
+A fresh agent can now run your project's practice without guessing, and
+keel installs cleanly through npx.
+
+- **The conductor skill:**
+  - It works without a remote, a design doc or a README.
+  - Small phases can be built by the conductor itself.
+  - The record is written before the one full check, so the check covers
+    exactly what's committed.
+  - The evidence names the check command, and its result line goes in the
+    commit message.
+  - A proof that needs the commit is walked after it.
+  - "Set `status:`" is the first step of the record.
+- **The `keel` doorway skill** says how to run keel with no install:
+  `npx -y github:dalmaer/keel <verb>`.
+- **The roadmap check catches a stale status.** It now fails when a phase
+  has every box checked and names evidence but is still marked planned,
+  designed or partial.
+- **Templates:**
+  - the phase template has an optional `## Trajectory` section;
+  - the evidence template's Revision line no longer asks for a commit that
+    doesn't exist yet;
+  - AGENTS.md says keel's files are listed in `.keel/lock.json`.
+- **New projects** (`keel init`) get:
+  - a README with "How to run it", and a `docs/evidence/` folder;
+  - a drafted phase 0 called "The first thing that runs";
+  - a goal titled from your description's first sentence;
+  - a `package.json` name for node projects;
+  - a `.gitignore` that now actually ships. Before this, `npx …keel init`
+    failed for everyone.
+
 ## v0.5.2 — 2026-10-03
 
 The nightly Loop pull now commits everything its gate checked.
