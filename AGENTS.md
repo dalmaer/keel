@@ -84,6 +84,10 @@ one waits for the owner's yes.
   the CLI, and a test fails when a verb is missing from it (phase 2).
 - **Never overwrite a project's own work.** Managed files are keel's, seeded
   files are the project's, and drift is signal (design §1). When in doubt, propose.
+- **Tests never read the developer's git settings.** `npm test` loads
+  `tests/helpers/hermetic.mjs` first: an empty global config, no system config,
+  an Acme identity, fsmonitor and gpgsign pinned off. Never rely on anyone's own
+  git config, and never write to it.
 - **Fixtures are synthetic.** Use "Acme". Never carry a real project's names
   or data into a test.
 - **Adapted material keeps its provenance.** Record the source repo, path,
