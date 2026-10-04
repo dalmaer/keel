@@ -516,10 +516,29 @@ const today = () => {
 
 const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
 
-/** What is wrong with "loop" "contexts" and "afterRender" in .keel/keel.json, as messages. */
+/**
+ * A repo-relative file path, as "afterRenderWrites" must name: no leading
+ * slash, no `.` or `..`, no `.github/`, no glob, no whitespace. The same rule
+ * as the night practice's drain (`isPlainPath`), which is what lets the drain
+ * merge a pull's PR carrying those files; a test holds the two together.
+ */
+export const isPlainPath = p =>
+  typeof p === 'string' && p.trim() === p && p !== '' && !p.startsWith('/') && !p.endsWith('/') &&
+  !p.split('/').some(seg => seg === '..' || seg === '.' || seg === '') && !p.startsWith('.github/') && !/[*?[\]\\\s]/.test(p);
+
+/** What is wrong with "loop" "contexts", "afterRender" and "afterRenderWrites" in .keel/keel.json, as messages. */
 export function contextProblems(own, triageSource) {
   const out = [];
   if (own.afterRender !== undefined && !nonEmpty(own.afterRender)) out.push('"loop" "afterRender" must be a non-empty shell command');
+  if (own.afterRenderWrites !== undefined) {
+    if (!Array.isArray(own.afterRenderWrites)) out.push('"loop" "afterRenderWrites" must be a list of repo-relative file paths');
+    else {
+      own.afterRenderWrites.forEach((p, i) => {
+        if (!isPlainPath(p)) out.push(`"loop" "afterRenderWrites"[${i}] must be a repo-relative file path (no leading /, no . or .., no .github/, no glob or whitespace)`);
+      });
+      if (own.afterRender === undefined) out.push('"loop" "afterRenderWrites" names what "afterRender" writes, and there is no "afterRender"');
+    }
+  }
   if (own.contexts === undefined) return out;
   if (!Array.isArray(own.contexts)) return [...out, '"loop" "contexts" must be a list of { source, description, command }'];
   const seen = new Set([triageSource]);
@@ -552,6 +571,9 @@ export function settings(root = ROOT) {
     kind: own.kind ?? `${name}-triage-decisions`,
     contexts: Array.isArray(own.contexts) ? own.contexts : [],
     afterRender: own.afterRender ?? null,
+    // What afterRender writes: the nightly commits these with the findings,
+    // and the drain counts them as the keel-loop/ queue's data.
+    afterRenderWrites: Array.isArray(own.afterRenderWrites) ? own.afterRenderWrites.filter(isPlainPath) : [],
     env: keel.env && typeof keel.env === 'object' && !Array.isArray(keel.env) ? keel.env : {},
     problems: contextProblems(own, source),
   };

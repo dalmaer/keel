@@ -3,7 +3,7 @@ status: built
 since: 2026-10-02
 goal: G4
 depends: [1, 10]
-note: "The optional loop practice runs ledger's Loop: the real cycle pulled 10 new findings, gated and drained them (#23), using the official @google/stitch CLI."
+note: "The optional loop practice runs ledger's Loop: the real cycle pulled 10 new findings, gated and drained them (#23). That merge left ledger's roadmap stale and main red; the PR now carries what afterRender writes (afterRenderWrites)."
 evidence: ["evidence/2026-10-02-loop.md", "evidence/2026-10-03-ledger.md"]
 ---
 
@@ -84,3 +84,4 @@ real workspace.
 - **2026-10-02** — The loop gate rides on the managed `tests/loop.test.mjs`, which renders with `--check`, so a project's existing `node --test` gate covers it without editing its `check` script. Doctor lints only when the gate can't reach it.
 - **2026-10-03** — The owner corrected the names: the official `@google/stitch` CLI from npm reads `STITCH_API_KEY` and `STITCH_WORKSPACE`. Installing from npm removes the installer-URL secret. Its documented verbs (`find insights`, `dismiss`, `generate insights`, `create context`) are the ones the port already calls.
 - **2026-10-03** — Done: the workflow installs `@google/stitch@0` from npm, and only `STITCH_API_KEY` and `STITCH_WORKSPACE` are read. There is no base-URL override (a stored copy of an old endpoint), and dismissed insights come back via `STITCH_INCLUDE_DISMISSED=true`, read from the CLI's own source. A test fails on any `LOOP_*`, installer-URL or base-URL name in a shipped file.
+- **2026-10-03** — The first real cycle's merge (#23) turned ledger's main red. A pull runs `afterRender`, and ledger's rewrites `docs/ROADMAP.md`, which counts findings. The gate passed on that tree, but the PR staged only `docs/loop/` and `docs/LOOP.md`, and the drain merges nothing else. So the roadmap the gate checked stayed on the runner, and main's was stale until it was rerun by hand. Fixed with `"loop" "afterRenderWrites"`: the files a project's `afterRender` writes. The workflow commits them with the findings, and the drain counts them as the queue's data. A plain repo-relative path is the only kind accepted (no `..`, no `.github/`, no glob or whitespace), and one rule is shared by `loop.mjs`, `drain.mjs` and the workflow; a test holds the three together and runs the workflow's config step. Lesson 18.

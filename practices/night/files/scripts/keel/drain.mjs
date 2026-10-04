@@ -12,7 +12,8 @@
 // The newest by createdAt is kept. Each older one, oldest first:
 //   - it holds only data (DATA: docs/health/, docs/inbox/, docs/INBOX.md,
 //     .keel/bounds.json; for keel-loop/ instead docs/loop/ and docs/LOOP.md,
-//     DATA_BY_PREFIX) and GitHub says MERGEABLE → squash-merged, branch kept;
+//     DATA_BY_PREFIX, plus the files .keel/keel.json "loop" "afterRenderWrites"
+//     names) and GitHub says MERGEABLE → squash-merged, branch kept;
 //   - otherwise, or if that merge fails → closed as superseded by the newest,
 //     with a comment saying how to recover it (the branch is kept).
 // Then the newest: merged under the same rule only with --gate-passed (the
@@ -45,12 +46,33 @@ export class DrainError extends Error {
   constructor(message, exitCode = 1) { super(message); this.exitCode = exitCode; }
 }
 
-/** A path the queue under `prefix` writes as data, never code. */
-export const isData = (path, prefix) => {
+/**
+ * A path the queue under `prefix` writes as data, never code. `extra` is the
+ * files the project says its own step writes beside that data — for
+ * keel-loop/, what "afterRenderWrites" names (a roadmap that counts findings
+ * is rewritten by every pull, so a PR without it leaves main stale).
+ */
+export const isData = (path, prefix, extra = []) => {
   const { dirs, files } = DATA_BY_PREFIX[prefix] ?? { dirs: DATA_DIRS, files: DATA_FILES };
-  return files.includes(path) || dirs.some(d => path.startsWith(d));
+  return files.includes(path) || extra.includes(path) || dirs.some(d => path.startsWith(d));
 };
-const dataOnly = (pr, prefix) => Array.isArray(pr.files) && pr.files.length > 0 && pr.files.every(f => isData(f.path, prefix));
+const dataOnly = (pr, prefix, extra) => Array.isArray(pr.files) && pr.files.length > 0 && pr.files.every(f => isData(f.path, prefix, extra));
+
+/**
+ * The files beyond a queue's own data that it may carry, from the project's
+ * .keel/keel.json: for keel-loop/, "loop" "afterRenderWrites". Anything that
+ * is not a plain repo-relative path is dropped, never trusted.
+ */
+export function extraData(keel, prefix) {
+  if (prefix !== 'keel-loop/') return [];
+  const list = keel?.loop?.afterRenderWrites;
+  return Array.isArray(list) ? list.filter(isPlainPath) : [];
+}
+
+/** A repo-relative file path: no leading slash, no `..`, no `.github/`, no glob, no whitespace (the workflow hands it to a shell). */
+export const isPlainPath = p =>
+  typeof p === 'string' && p.trim() === p && p !== '' && !p.startsWith('/') && !p.endsWith('/') &&
+  !p.split('/').some(seg => seg === '..' || seg === '.' || seg === '') && !p.startsWith('.github/') && !/[*?[\]\\\s]/.test(p);
 
 /** A prefix names a machine namespace: it has a slash, and is not one. */
 export function checkPrefix(prefix) {
@@ -64,19 +86,19 @@ export function checkPrefix(prefix) {
  * What a drain would do with these PRs, as data. Pure.
  * Returns { queue, newest, actions: [{ number, head, createdAt, action: merge|close|leave, why }] }.
  */
-export function plan(prs, prefix, { gatePassed = false } = {}) {
+export function plan(prs, prefix, { gatePassed = false, extra = [] } = {}) {
   const queue = prs.filter(p => typeof p.headRefName === 'string' && p.headRefName.startsWith(prefix) && !p.isCrossRepository)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.number - b.number);
   if (!queue.length) return { queue: [], newest: null, actions: [] };
   const newest = queue.at(-1);
   const row = (pr, action, why) => ({ number: pr.number, head: pr.headRefName, createdAt: pr.createdAt, action, why });
   const actions = queue.slice(0, -1).map(pr => {
-    if (!dataOnly(pr, prefix)) return row(pr, 'close', `superseded by #${newest.number}; it touches more than data (${(pr.files ?? []).map(f => f.path).filter(p => !isData(p, prefix)).slice(0, 3).join(', ') || 'no files'})`);
+    if (!dataOnly(pr, prefix, extra)) return row(pr, 'close', `superseded by #${newest.number}; it touches more than data (${(pr.files ?? []).map(f => f.path).filter(p => !isData(p, prefix, extra)).slice(0, 3).join(', ') || 'no files'})`);
     if (pr.mergeable !== 'MERGEABLE') return row(pr, 'close', `superseded by #${newest.number}; it does not merge cleanly (${pr.mergeable ?? 'UNKNOWN'})`);
     return row(pr, 'merge', 'data only, and it still merges');
   });
   let last;
-  if (!dataOnly(newest, prefix)) last = row(newest, 'leave', 'the newest touches more than data: left for a person');
+  if (!dataOnly(newest, prefix, extra)) last = row(newest, 'leave', 'the newest touches more than data: left for a person');
   else if (newest.mergeable !== 'MERGEABLE') last = row(newest, 'leave', `the newest does not merge cleanly yet (${newest.mergeable ?? 'UNKNOWN'}): left for a person`);
   else if (!gatePassed) last = row(newest, 'leave', 'the newest is data, but the gate did not pass on its tree (no --gate-passed): left for a person');
   else last = row(newest, 'merge', 'the newest: data only, it merges, and the gate passed on its tree');
@@ -89,8 +111,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 export async function drain({ root, prefix, yes = false, gatePassed = false }, { env = process.env } = {}) {
   checkPrefix(prefix);
   const gh = env.KEEL_GH || 'gh';
-  let repo = null;
-  try { repo = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8')).repo ?? null; } catch { repo = null; }
+  let keel = {};
+  try { keel = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8')) ?? {}; } catch { keel = {}; }
+  const repo = keel.repo ?? null;
+  const extra = extraData(keel, prefix);
   const R = repo ? ['--repo', repo] : [];
   const call = args => {
     try { return { ok: true, out: execFileSync(gh, args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 }) }; }
@@ -112,7 +136,7 @@ export async function drain({ root, prefix, yes = false, gatePassed = false }, {
     await sleep(Number(env.KEEL_DRAIN_WAIT_MS ?? 5000));
     prs = list();
   }
-  const p = plan(prs, prefix, { gatePassed });
+  const p = plan(prs, prefix, { gatePassed, extra });
   const acting = p.actions.filter(a => a.action !== 'leave');
   const lines = a => `  #${a.number} ${a.head}: ${a.action} — ${a.why}`;
   const head = `keel drain ${prefix}: ${p.queue.length} open PR${p.queue.length === 1 ? '' : 's'}${p.newest ? `, newest #${p.newest}` : ''}.`;

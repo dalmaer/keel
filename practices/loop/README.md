@@ -75,7 +75,13 @@ proposed}`) are exported, so a project's own roadmap imports them from
 `./loop.mjs`. `"afterRender"` is a command run (gate env) after every render
 that writes `docs/LOOP.md` (pull, propose, decide, render), as ledger's own
 script reran its roadmap; it fails the verb when it fails. `render --check`
-never runs it.
+never runs it. `"afterRenderWrites"` lists the files that command rewrites
+(ledger's: `["docs/ROADMAP.md"]`): the nightly commits them with the findings
+and the drain counts them as this queue's data. Leave one out and the gate
+passes on a tree the PR does not carry — the pull's roadmap stays on the
+runner, and main's is stale until someone reruns it by hand (ledger, 3 Oct
+2026). Each must be a plain repo-relative file path: no `..`, no `.github/`,
+no glob or whitespace.
 
 **Switching it on in an adopted project.** `keel adopt --with loop` adds only
 this practice and leaves every other byte; it refuses while the project's
@@ -87,12 +93,14 @@ own `scripts/loop.*` is still there.
    (major 0, checked against 0.11.0; a 1.0 never arrives unseen).
 2. Turns Loop on in the CLI and runs `pull`.
 3. Runs the gate: `render --check`, then the project's `{{check}}`.
-4. Opens one `keel-loop/<date>` PR when `docs/loop/` or `docs/LOOP.md` changed.
+4. Opens one `keel-loop/<date>` PR when `docs/loop/`, `docs/LOOP.md` or an
+   `afterRenderWrites` file changed, holding all of them.
 5. Runs `node scripts/keel/drain.mjs keel-loop/ --yes`, with `--gate-passed`
    only when the gate passed.
 
-For this queue the drain's data is `docs/loop/` and `docs/LOOP.md` only
-(`DATA_BY_PREFIX` in the night practice's `scripts/keel/drain.mjs`, which
+For this queue the drain's data is `docs/loop/`, `docs/LOOP.md` and the
+`afterRenderWrites` files only (`DATA_BY_PREFIX` and `extraData` in the night
+practice's `scripts/keel/drain.mjs`, which
 the workflow runs from the project's own checkout; without the night practice
 there is no drain, and the run says so with a notice). The workflow never
 decides, pushes, mines or proposes. Proposing with a model is a later

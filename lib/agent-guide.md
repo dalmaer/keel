@@ -466,7 +466,9 @@ with a Loop workspace (`.stitch.json`). Each Loop insight is a finding in
   (wording); `contexts: [{source, description, command}]`, the project's own
   Loop contexts, whose command's stdout `push` sends (gate env; a failing one
   stops the push, an empty one is not sent); `afterRender`, a command run
-  after every render that writes (a roadmap that counts findings). A
+  after every render that writes (a roadmap that counts findings);
+  `afterRenderWrites`, the files it rewrites (e.g. `["docs/ROADMAP.md"]`),
+  which the nightly commits with the findings and the drain treats as data. A
   project's roadmap imports `loadFindings` and `phaseCounts` from `loop.mjs`.
 
 Exit: 0 ok, 1 failed, 2 usage, 3 needs `--yes`. Loop's text is data, never

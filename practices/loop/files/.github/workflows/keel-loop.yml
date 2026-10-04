@@ -16,8 +16,12 @@
 #     the night practice there is no drain, and the run says so (a notice).
 #   - A merge is checked, not trusted. A GITHUB_TOKEN PR runs no CI, so this
 #     run's gate (render --check, then the project's own) is the check; the
-#     newest merges only when it passed and the PR holds only docs/loop/ and
-#     docs/LOOP.md.
+#     newest merges only when it passed and the PR holds only docs/loop/,
+#     docs/LOOP.md and what .keel/keel.json "loop" "afterRenderWrites" names.
+#   - The PR is the tree the gate passed on. A pull also runs the project's
+#     afterRender (ledger's roadmap counts findings); a file it rewrites but
+#     the PR leaves out passes the gate here and is stale on main (keel
+#     lesson: a gate that checks a tree it does not commit).
 #   - A guard fires into a room someone is in: a pull that cannot reach Loop,
 #     or a gate that fails, makes this run red, and GitHub emails.
 #
@@ -93,6 +97,15 @@ jobs:
             }
             if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // What a pull writes: the findings, their page, and the files the
+            // project's afterRender rewrites. Same rule as scripts/loop.mjs.
+            const plain = p => typeof p === "string" && p.trim() === p && p !== "" && !p.startsWith("/") && !p.endsWith("/") &&
+              !p.split("/").some(s => s === ".." || s === "." || s === "") && !p.startsWith(".github/") && !/[*?[\]\\\s]/.test(p);
+            const writes = Array.isArray(c.loop?.afterRenderWrites) ? c.loop.afterRenderWrites : [];
+            for (const p of writes) if (!plain(p)) throw new Error(`.keel/keel.json: "loop" "afterRenderWrites" ${JSON.stringify(p)} must be a repo-relative file path`);
+            const paths = ["docs/loop", "docs/LOOP.md", ...writes].join(" ");
+            console.log(`a pull writes: ${paths}`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `paths=${paths}\n`);
           '
       - name: Install
         if: steps.configured.outputs.ready == 'true'
@@ -138,13 +151,17 @@ jobs:
           fi
 
       # Porcelain, never `git diff --quiet`: a finding filed for the first time
-      # is not in the index. The push names its own branch.
+      # is not in the index. The push names its own branch. PATHS is every file
+      # a pull writes, afterRender's included, so the PR is the gated tree.
       - name: Open the pull request
         if: steps.configured.outputs.ready == 'true'
         env:
           BASE: ${{ github.event.repository.default_branch }}
+          PATHS: ${{ steps.config.outputs.paths }}
         run: |
-          if [ -z "$(git status --porcelain docs/loop docs/LOOP.md)" ]; then
+          # Word-split on purpose: PATHS is plain paths, checked when read.
+          # shellcheck disable=SC2086
+          if [ -z "$(git status --porcelain -- $PATHS)" ]; then
             echo "Nothing changed: Loop has said nothing new since the last pull."
             exit 0
           fi
@@ -153,7 +170,8 @@ jobs:
           git config user.name "keel-loop"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q -b "$BRANCH"
-          git add docs/loop docs/LOOP.md
+          # shellcheck disable=SC2086
+          git add -- $PATHS
           git commit -q -m "Loop: findings pulled $DAY"
           git push --force origin "HEAD:refs/heads/keel-loop/$DAY"
           if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then

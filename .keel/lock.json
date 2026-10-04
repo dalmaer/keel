@@ -71,7 +71,7 @@
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
-      "sha256": "7ac89a7e67d1a34d72f0cefea45962b6ad7eb9d461cf20d07b0a9d2bb51c7fd3"
+      "sha256": "564feb1f714fbfa64e803983597f2032d3a5d5b5c043cf0bab3d69c1ce599121"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",

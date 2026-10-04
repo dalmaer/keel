@@ -14,8 +14,8 @@ import { run } from './helpers/run.mjs';
 import { load, render } from '../lib/practices.mjs';
 import { survey, adopt } from '../lib/adopt.mjs';
 import { diagnose } from '../lib/doctor.mjs';
-import { plan, isData } from '../lib/night.mjs';
-import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER, loadFindings, phaseCounts, settings, commandEnv } from '../practices/loop/files/scripts/loop.mjs';
+import { plan, isData, extraData, isPlainPath as drainPlainPath } from '../lib/night.mjs';
+import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER, loadFindings, phaseCounts, settings, commandEnv, contextProblems, isPlainPath } from '../practices/loop/files/scripts/loop.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PRACTICE = join(KEEL, 'practices', 'loop', 'files');
@@ -472,4 +472,66 @@ test('a project\'s own roadmap counts findings per phase from loop.mjs, in the s
   const counts = phaseCounts(extra);
   assert.ok(counts instanceof Map);
   assert.deepEqual([...counts], [[1, { accepted: 1, proposed: 1 }], ['new', { accepted: 0, proposed: 1 }]]);
+});
+
+// A pull runs the project's afterRender, and ledger's rewrites its roadmap. The
+// gate passed on that tree, but the PR carried only docs/loop/ and LOOP.md, so
+// main's roadmap went stale and red (ledger, 3 Oct 2026; lesson 18).
+test('afterRenderWrites: the drain counts them as keel-loop/ data, and only there', () => {
+  const extra = extraData({ loop: { afterRenderWrites: ['docs/ROADMAP.md', '../etc/passwd', '.github/workflows/x.yml', 'docs/*.md'] } }, 'keel-loop/');
+  assert.deepEqual(extra, ['docs/ROADMAP.md'], 'anything not a plain repo-relative path is dropped');
+  assert.deepEqual(extraData({ loop: { afterRenderWrites: ['docs/ROADMAP.md'] } }, 'keel-night/'), [], 'another queue never gets them');
+  assert.deepEqual(extraData({}, 'keel-loop/'), []);
+  assert.ok(isData('docs/ROADMAP.md', 'keel-loop/', extra));
+  assert.ok(!isData('docs/ROADMAP.md', 'keel-loop/'), 'not data unless the project names it');
+  const pr = (number, files) => ({ number, headRefName: `keel-loop/2026-10-0${number}`, createdAt: `2026-10-0${number}T09:43:00Z`, mergeable: 'MERGEABLE', isCrossRepository: false, files: files.map(path => ({ path })) });
+  const prs = [pr(1, ['docs/loop/a.md', 'docs/LOOP.md', 'docs/ROADMAP.md'])];
+  assert.equal(plan(prs, 'keel-loop/', { gatePassed: true, extra }).actions[0].action, 'merge');
+  assert.equal(plan(prs, 'keel-loop/', { gatePassed: true }).actions[0].action, 'leave', 'without the list, the roadmap is "more than data"');
+});
+
+test('afterRenderWrites: config problems are named, and every copy of the path rule agrees', async () => {
+  assert.deepEqual(contextProblems({ afterRender: 'node scripts/roadmap.ts', afterRenderWrites: ['docs/ROADMAP.md'] }, 'acme:docs/loop'), []);
+  assert.match(contextProblems({ afterRender: 'x', afterRenderWrites: 'docs/ROADMAP.md' }, 's').join(), /must be a list/);
+  assert.match(contextProblems({ afterRender: 'x', afterRenderWrites: ['../x'] }, 's').join(), /\[0\] must be a repo-relative file path/);
+  assert.match(contextProblems({ afterRenderWrites: ['docs/ROADMAP.md'] }, 's').join(), /there is no "afterRender"/);
+
+  const samples = ['docs/ROADMAP.md', 'README.md', 'a/b/c.json', '/abs', '../up', 'a/../b', './x', 'dir/', '.github/workflows/x.yml', 'docs/*.md', 'a b', ' x', 'x\\y', '', 7];
+  // The workflow's own copy runs in its config step; read it out of the template.
+  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'keel-loop.yml'), 'utf8');
+  const src = /const plain = (p => [\s\S]*?);\n/.exec(yml)?.[1];
+  assert.ok(src, 'the workflow checks the paths it is given');
+  const workflowPlain = new Function(`return ${src}`)();
+  for (const p of samples) {
+    assert.equal(isPlainPath(p), drainPlainPath(p), `loop.mjs and drain.mjs on ${JSON.stringify(p)}`);
+    assert.equal(workflowPlain(p), isPlainPath(p), `the workflow and loop.mjs on ${JSON.stringify(p)}`);
+  }
+});
+
+test('keel-loop.yml commits what the gate checked: the findings, their page, and afterRenderWrites', async t => {
+  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'keel-loop.yml'), 'utf8');
+  assert.match(yml, /git status --porcelain -- \$PATHS/);
+  assert.match(yml, /git add -- \$PATHS/);
+  assert.doesNotMatch(yml, /git add docs\/loop docs\/LOOP\.md/, 'a fixed list leaves afterRender\'s files on the runner');
+  assert.match(yml, /PATHS: \$\{\{ steps\.config\.outputs\.paths \}\}/);
+
+  // Run the config step's own script against a project, as the runner would.
+  const script = /run: \|\n\s+node -e '\n([\s\S]*?)\n\s+'\n/.exec(yml)?.[1];
+  assert.ok(script, 'the config step is a node -e script');
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-loop-paths-')));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, '.keel'));
+  const step = async keel => {
+    await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify(keel));
+    for (const f of ['env', 'out']) await writeFile(join(dir, f), '');
+    const r = run(process.execPath, ['-e', script], { cwd: dir, env: { ...process.env, GITHUB_ENV: join(dir, 'env'), GITHUB_OUTPUT: join(dir, 'out') } });
+    return { ...r, out: await readFile(join(dir, 'out'), 'utf8') };
+  };
+  let r = await step({ name: 'Acme', loop: { afterRender: 'node scripts/roadmap.mjs', afterRenderWrites: ['docs/ROADMAP.md'] } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.out, /^paths=docs\/loop docs\/LOOP\.md docs\/ROADMAP\.md$/m);
+  r = await step({ name: 'Acme' });
+  assert.match(r.out, /^paths=docs\/loop docs\/LOOP\.md$/m, 'no list: the findings and their page, as before');
+  r = await step({ name: 'Acme', loop: { afterRender: 'x', afterRenderWrites: ['docs/ROADMAP.md; rm -rf ~'] } });
+  assert.notEqual(r.status, 0, 'a path that is not plain fails the step before anything reaches a shell');
 });
