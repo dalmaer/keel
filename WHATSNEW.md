@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.1 — practice 0.6.1 (2026-10-04)
+
+- **The night counts real verdicts only.** The CI measure skips cancelled and skipped runs, so a project whose tests cancel themselves on every push (as ledger's do) no longer shows a broken or missing CI reading.
+
 ## v0.6.0 — practice 0.6.0 (2026-10-04)
 
 A fresh agent can now run your project's practice without guessing, and
