@@ -300,6 +300,31 @@ test('the gate workflow: one named check; else one with default-branch runs whos
   assert.deepEqual(gateOf(['Deploy'], { workflows: [{ name: 'Tests', push: true, commands: ['npm test'] }] }), { workflow: null, rule: null }, 'a workflow with no run on the default branch is never the gate');
 });
 
+test('CI is the newest verdict: cancelled, skipped and running gate runs are counted, never read as the state', async t => {
+  // Shaped like a busy repo with cancel-in-progress: one running, three cancelled, then the verdict.
+  const busy = (verdict, extra = []) => [run('Tests', '', '2026-10-02T22:00:00Z', { status: 'in_progress' }),
+    run('Tests', 'cancelled', '2026-10-02T21:50:00Z'), run('Tests', 'cancelled', '2026-10-02T21:40:00Z'), run('Tests', 'cancelled', '2026-10-02T21:30:00Z'),
+    run('Tests', verdict, '2026-10-02T21:29:00Z'), ...extra];
+  const repo = (name, runs) => ({ default_branch: 'main', runs,
+    files: { '.keel/keel.json': cfg({ repo: name, practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#' } });
+  const st = { repos: {
+    'acme/green': repo('acme/green', busy('success', [run('Tests', 'failure', '2026-10-02T20:00:00Z')])),
+    'acme/red': repo('acme/red', busy('failure', [run('Tests', 'skipped', '2026-10-02T21:00:00Z'), run('Tests', 'success', '2026-10-02T20:00:00Z')])),
+    'acme/none': repo('acme/none', [run('Tests', 'cancelled', '2026-10-02T21:50:00Z'), run('Tests', 'neutral', '2026-10-02T21:40:00Z')]),
+  }, commits: {} };
+  const list = ['acme/green', 'acme/red', 'acme/none'].map(repo => ({ repo, kind: 'node', role: 'managed' }));
+  const r = await go(await home(t, list), await stubGh(t, st));
+  const g = rowOf(r, 'acme/green').ci;
+  assert.deepEqual([g.state, g.conclusion, g.at, g.running, g.skipped], ['green', 'success', '2026-10-02T21:29:00Z', 1, { cancelled: 3 }]);
+  assert.match(r.text, /acme\/green .*green \(Tests · name matches · last verdict 21:29; 3 newer cancelled, 1 running\)/);
+  assert.deepEqual(needsOf(r, 'acme/green'), []);
+  const red = rowOf(r, 'acme/red').ci;
+  assert.deepEqual([red.state, red.conclusion], ['red', 'failure'], 'a failure behind cancelled runs is still red');
+  assert.ok(needsOf(r, 'acme/red').includes('red: Tests failure at 2026-10-02T21:29:00Z'));
+  assert.equal(rowOf(r, 'acme/none').ci.state, 'no verdict');
+  assert.match(r.text, /acme\/none .*no verdict \(Tests · name matches · no verdict; 1 newer cancelled, 1 newer neutral\)/);
+});
+
 test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', async t => {
   assert.throws(() => parseFleet('[{"repo":"acme","role":"managed"}]'), /owner\/name/);
   assert.throws(() => parseFleet('[{"repo":"acme/a","role":"boss"}]'), /role/);

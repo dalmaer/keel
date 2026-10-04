@@ -404,10 +404,15 @@ export const MEASURES = [
       const workflow = await gateWorkflow(ctx);
       if (!workflow) return { na: 'no workflow in .github/workflows runs the gate' };
       const runs = ghJson(ctx, ready.gh, ['run', 'list', '--repo', ctx.config.repo, '--branch', 'main', '--workflow', workflow, '--json', 'conclusion', '--limit', '20']);
-      let i = 0, streak = 0;
-      while (i < runs.length && !runs[i]?.conclusion) i++; // still running
-      while (i < runs.length && ['failure', 'timed_out', 'startup_failure'].includes(runs[i]?.conclusion)) { streak++; i++; }
-      return { value: streak, detail: `${workflow}: ${streak ? `${plural(streak, 'failed run')} in a row` : 'the latest finished run is green'} (${runs.length} read)`, facts: { workflow, streak } };
+      // Only verdicts count: a running, cancelled, skipped, neutral or stale run says
+      // nothing about the code (cancel-in-progress makes most runs cancelled), so it
+      // neither breaks a streak nor adds to one.
+      const FAILED = ['failure', 'timed_out', 'startup_failure'];
+      const verdicts = runs.filter(r => r?.conclusion === 'success' || FAILED.includes(r?.conclusion));
+      let streak = 0;
+      while (streak < verdicts.length && FAILED.includes(verdicts[streak].conclusion)) streak++;
+      const now = streak ? `${plural(streak, 'failed run')} in a row` : verdicts.length ? 'the latest verdict is green' : 'no verdict yet';
+      return { value: streak, detail: `${workflow}: ${now} (${runs.length} read, ${verdicts.length} verdicts)`, facts: { workflow, streak } };
     },
   },
   {

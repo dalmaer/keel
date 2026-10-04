@@ -444,3 +444,19 @@ test('machine_prs: a project with its own Renovate config reports renovate/ as i
   const still = await prsOn(t, ['renovate/a', 'keel-night/a', 'keel-night/b'], { local: { renovate: 'its own lanes' } });
   assert.equal(still.state, 'outside', 'keel\'s own queues are still judged');
 });
+
+test('ci_red_streak counts verdicts only: cancelled and skipped runs between failures neither break nor add to the streak', async t => {
+  const dir = await project(t);
+  await setConfig(dir, { repo: 'acme/storefront' });
+  const runs = JSON.stringify([{ conclusion: '' }, { conclusion: 'failure' }, { conclusion: 'cancelled' }, { conclusion: 'skipped' }, { conclusion: 'cancelled' },
+    { conclusion: 'failure' }, { conclusion: 'cancelled' }, { conclusion: 'success' }, { conclusion: 'failure' }]);
+  let m = byId(keel(['improve', '--json'], dir, { ...ENV, KEEL_GH: await ghStub(t, { runs }) }).json(), 'ci_red_streak');
+  assert.equal(m.value, 2, m.detail);
+  assert.match(m.detail, /2 failed runs in a row \(9 read, 4 verdicts\)/);
+  // A green verdict behind cancelled runs is green; no verdict at all is said, not called green.
+  m = byId(keel(['improve', '--json'], dir, { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"cancelled"},{"conclusion":"success"},{"conclusion":"failure"}]' }) }).json(), 'ci_red_streak');
+  assert.equal(m.value, 0);
+  assert.match(m.detail, /the latest verdict is green/);
+  m = byId(keel(['improve', '--json'], dir, { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"cancelled"}]' }) }).json(), 'ci_red_streak');
+  assert.match(m.detail, /no verdict yet/);
+});
