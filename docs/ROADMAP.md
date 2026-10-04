@@ -3,9 +3,9 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 23 phases lived in; 17 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 24 phases lived in; 18 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
-**Next focus:** [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md). Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
+**Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 
@@ -29,19 +29,21 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 
 From an empty directory, keel init produces a repo whose check passes, whose roadmap renders, and that an agent can conduct the same day.
 
-3/4 built or lived-in; 0/4 lived-in.
+4/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [2. An agent can drive keel without reading its source](phases/02-the-keel-cli.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | status, next, goal list, render, --agent-help, --version; every verb --json; the surface test reads the registry both ways. Installed from GitHub via gh repo clone + npm i -g with no build. |
-| [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | partial | 2026-10-02 | [2](phases/02-the-keel-cli.md) | Local and --github init both work end to end: dalmaer/keel-walk was created, pushed and went green (3 Oct). One box is owed: a conducted session running phase 0 of a fresh project. |
+| [3. A new project, from an empty directory, ready to conduct the same day](phases/03-keel-init.md) | built | 2026-10-04 | [2](phases/02-the-keel-cli.md) | init works locally and with --github (keel-walk), and a fresh agent conducted a new project's phase 0 from the project's own instructions alone; its 11 friction points are phase 23. |
 | [9. A person can say what the project is for, and the work lines up behind it](phases/09-goals.md) | built | 2026-10-02 | [2](phases/02-the-keel-cli.md) | goal add&#124;show&#124;retire and phase new&#124;list work; a goal with no phase is allowed and reported by doctor; retired goals stay counted but are never next focus. Cold-start cap raised to 3,200. |
 | [19. An agent in any keel project learns what keel is and where to start, unprompted](phases/19-agents-find-keel.md) | built | 2026-10-03 | [18](phases/18-docs-cannot-drift.md) | Every keel project carries a 144-word keel skill (with its .claude symlink) that says what keel is, how to install it, and to run keel --agent-help, with no verb list; a test holds it to that. |
+| [23. A new project tells a fresh agent everything it needs, and nothing it doesn't](phases/23-no-guessing.md) | planned | 2026-10-04 | [3](phases/03-keel-init.md), [19](phases/19-agents-find-keel.md) | The phase 3 walk (4 Oct): a fresh agent conducted acme-tally's phase 0 from the project alone, but had to guess 11 times. |
 
 - **2 done when:** `keel --agent-help` lists every verb in one screen, every verb accepts `--json`, and a test fails when a registered verb is missing from the agent guide.
 - **3 done when:** `keel init <name>` in an empty directory produces a git repo with the practice installed, a goal and a phase 0 drafted from a one-paragraph description, and a passing `npm run check`; with `--github` it is also a private repo with CI green.
 - **9 done when:** `keel goal add|list|show|retire` edits `docs/goals.json`, regenerates the roadmap, and `keel goal show G1 --json` reports its phases, how many are built and lived-in, and the next one.
 - **19 done when:** Every project keel renders carries one short `keel` skill at `.agents/skills/keel/SKILL.md` (reached from Claude Code by symlink) that says what keel is, how to install it if missing, and "run `keel --agent-help`", and a test keeps it short and free of copied verb lists.
+- **23 done when:** A second fresh-agent walk, the same as phase 3's, conducts a new project's phase 0 and reports no friction points (or only ones recorded here as deliberately open).
 
 ## G2 — The fleet stays current
 

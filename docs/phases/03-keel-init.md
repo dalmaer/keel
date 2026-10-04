@@ -1,9 +1,9 @@
 ---
-status: partial
-since: 2026-10-02
+status: built
+since: 2026-10-04
 goal: G1
 depends: [2]
-note: "Local and --github init both work end to end: dalmaer/keel-walk was created, pushed and went green (3 Oct). One box is owed: a conducted session running phase 0 of a fresh project."
+note: "init works locally and with --github (keel-walk), and a fresh agent conducted a new project's phase 0 from the project's own instructions alone; its 11 friction points are phase 23."
 evidence: ["evidence/2026-10-02-init.md"]
 ---
 
@@ -29,7 +29,7 @@ workflow will need and whether they are set (`gh secret list`), never sets one.
 - [x] Re-running init on an initialised directory refuses, and says to use `adopt` or `update`.
 - [x] `--github` asks before creating anything, and names what it will create.
 - [x] The first commit's message says which keel version made it.
-- [ ] A conducted session can run phase 0 of the new project with no further setup.
+- [x] A conducted session can run phase 0 of the new project with no further setup.
 
 ## Proof
 
@@ -42,8 +42,9 @@ workflow will need and whether they are set (`gh secret list`), never sets one.
 
 ## Next action
 
-Conduct phase 0 of a fresh project once, to close the last box. (The owner deletes the throwaway `dalmaer/keel-walk`.)
+None; the friction a fresh agent found is phase 23.
 
 ## Trajectory
 
 - **2026-10-02** — `--github` without `--yes` writes nothing locally either; exit 3 means "needs a yes". Otherwise the `--yes` rerun hits init's own already-a-project refusal. This is the pattern for every outward keel verb.
+- **2026-10-04** — A fresh agent could conduct phase 0 from the project alone, but it had to guess 11 times. The phase is built; making a new project need no guessing is phase 23.
