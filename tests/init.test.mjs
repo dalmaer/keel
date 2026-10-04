@@ -163,7 +163,7 @@ test('keel next inside the new project names phase 0', async t => {
   assert.equal(next.title, PHASE0_TITLE);
   assert.equal(next.status, 'planned');
   assert.equal(next.title, 'The first thing that runs');
-  assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs`; then \/conduct\./);
+  assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs` \(documents only: run `npm run roadmap:check`, not the whole gate\); then \/conduct\./);
   // A subdirectory finds it too.
   await mkdir(join(dir, 'src'));
   assert.equal(JSON.parse(keel(['next', '--json'], join(dir, 'src')).out).id, 0);
@@ -291,13 +291,15 @@ test('phase 0 comes from the phase template and parses', async () => {
   assert.equal(p.title, PHASE0_TITLE);
   assert.equal(p.goal, 'G0');
   assert.equal(p.since, '2026-10-02');
-  assert.match(p.done, /^Following README\.md's "How to run it" from a fresh clone/);
+  assert.match(p.done, /^Following README\.md's "How to run it" from a clean checkout of the committed tree/);
+  assert.doesNotMatch(p.done, /fresh clone/);
+  assert.match(phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' }), /walked from a clean checkout of the committed tree after the phase's commit; its result goes into the evidence in the next commit/);
   assert.doesNotMatch(p.done, /other than the author/, 'an agent can check Done when');
-  assert.equal(p.next, 'Replace this draft\'s Done when, Acceptance and Proof with the first thing that runs, and move status to `designed`, in one commit of its own titled `phase 0: name what runs`; then /conduct.');
+  assert.equal(p.next, 'Replace this draft\'s Done when, Acceptance and Proof with the first thing that runs, and move status to `designed`, in one commit of its own titled `phase 0: name what runs` (documents only: run `npm run roadmap:check`, not the whole gate); then /conduct.');
   const text = phaseZero(template, { name: 'Acme', kind: 'node', since: '2026-10-02' });
   assert.ok(text.includes(`# ${PHASE0_TITLE}\n\n${DRAFT}\n`), 'says it is a draft to replace wholesale');
-  assert.match(DRAFT, /Replace this draft wholesale before building; its Deliberately open questions are placeholders, not decisions to settle/);
-  assert.match(text, /- \[ \] README\.md's "How to run it", followed from a fresh clone, runs Acme\./);
+  assert.equal(DRAFT, 'Drafted by keel init. Replace this draft wholesale before building.', 'no line about open questions to contradict "Nothing yet."');
+  assert.match(text, /- \[ \] README\.md's "How to run it", followed from a clean checkout of the committed tree, runs Acme\./);
   assert.doesNotMatch(text, /only AGENTS\.md/);
   assert.match(text, /## Deliberately open\n\nNothing yet\.\n/);
   assert.doesNotMatch(text, /## Trajectory/, 'a draft has no Trajectory');

@@ -133,4 +133,12 @@ test('the conduct skill covers no remote, missing docs, small phases, and record
   assert.ok(section(3).indexOf('**the whole check, once**') > section(3).indexOf('npm run roadmap'), 'the gate runs after the record');
   assert.match(section(3), /\{\{check\}\}/);
   assert.match(section(4), /Commit the\s+tree the gate just checked/);
+  // Third walk: the record can't hold what only exists after it.
+  assert.match(section(3), /names the gate \*\*command\*\*\s+\(`\{\{check\}\}`\) and what it covers/);
+  assert.match(section(3), /gate's result line\s+\(exit code, test count\) goes in the commit body/);
+  assert.match(section(4), /carries the gate's result line/);
+  assert.match(section(3), /\*\*Proofs that need the commit\*\*[\s\S]*?status `partial`[\s\S]*?Walk them right after the commit[\s\S]*?in the next\s+commit/);
+  assert.match(section(4), /\*\*Proofs that need the commit\*\*[\s\S]*?record them in the next commit/);
+  assert.match(section(3), /once it\s+is built, `None\.` \(or what lived-in needs\)/);
+  assert.match(section(4), /`phase <N>: <heading>`, where the heading is the phase file's\s+`# ` heading, word for word: it is the source/);
 });

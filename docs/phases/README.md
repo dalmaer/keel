@@ -46,7 +46,7 @@ Required, in any order: **Done when** (one sentence someone else could check),
 **Scope**, **Acceptance** (checkboxes), **Proof** (exact commands, and what a
 person must do), **Deliberately open** (decisions postponed on purpose — settle
 them in place, dated), **Next action** (one concrete step; `npm run next`
-prints it).
+prints it; once the phase is built, `None.` or what lived-in needs).
 
 Optional: **Trajectory**, after Next action — written by the conductor, only
 for what changed the course: `- **YYYY-MM-DD** — Claim. Evidence.` A phase

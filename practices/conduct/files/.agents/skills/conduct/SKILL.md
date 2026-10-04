@@ -195,12 +195,22 @@ When the proof holds, and only then, write the record, all in one change:
   `docs/templates/evidence.md`: what was run, with exit codes, against the
   phase's commit by its title (it doesn't exist yet), or the base commit and 'working tree'; what was
   checked by hand; what was not. Never write expectations as observations.
+  The gate runs after the record, so the evidence names the gate **command**
+  (`{{check}}`) and what it covers, not its result; the gate's result line
+  (exit code, test count) goes in the commit body (§4).
+- **Proofs that need the commit** (a clean checkout of the committed tree,
+  a fresh clone, CI on the pushed commit) can't be in this record. Leave
+  their Acceptance boxes unchecked and the status `partial`, with a note
+  naming the walk. Walk them right after the commit (§4), then add the
+  result to the evidence, check the boxes and move the status in the next
+  commit.
 - **Trajectory** in the phase file (`## Trajectory`, after Next action): only what changes the course. One line
   per claim: `- **YYYY-MM-DD** — Claim. Evidence.` A phase that went as
   planned writes `*Nothing — the phase went as planned.*`
 - **Deliberately open**: settle the questions that were settled, in place,
   dated, saying what settled them.
-- **Next action** for the phase, if it isn't built.
+- **Next action** for the phase: the next step if it isn't built; once it
+  is built, `None.` (or what lived-in needs).
 - **Lessons**: a new row only if a bug turned out to have a shape.
 - **What people and agents are told**: if the change alters what a person or
   an agent would be told — a verb, a flag, a practice, a default — update
@@ -221,10 +231,16 @@ that, alone, before calling it a flake; after a fix, run the whole check again.
 One commit per phase, with the phase whole: code, tests, record. Commit the
 tree the gate just checked in §3; if anything changes after it, run it again.
 
-- **Title:** `phase <N>: <title>`, or `<area>: <what>` for something smaller.
+- **Title:** `phase <N>: <heading>`, where the heading is the phase file's
+  `# ` heading, word for word: it is the source. Or `<area>: <what>` for
+  something smaller.
 - **Body:** the argument, in prose a reader who wasn't there can follow. What
   was built, what the proof showed, what changed course, and what it cost in
-  wall time.
+  wall time. It carries the gate's result line from §3 (`{{check}}`: exit
+  code, test count), which the evidence can't, since the evidence is
+  written before the gate runs.
+- **Proofs that need the commit** (§3): walk them now, against the committed
+  tree, and record them in the next commit.
 
 Land on `main`, no pull request:
 
