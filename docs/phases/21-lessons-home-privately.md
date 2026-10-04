@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-04
 goal: G3
 depends: [7, 8]
-note: "keel is public and ledger is private; its 33 lessons carry personal details. The owner chose a private inbox (4 Oct)."
-evidence: []
+note: "ledger's 33 lessons went to the private keel-inbox, were proposed on and decided there (9 accepted, 5 linked, 19 declined), and only the owner-approved general wording reached keel's lessons table (rows 19–27)."
+evidence: ["evidence/2026-10-04-lessons-home.md"]
 ---
 
 # A private project's lessons come home without being published
@@ -35,11 +35,11 @@ evidence: []
 
 ## Acceptance
 
-- [ ] With `inbox` set, `keel lessons --yes` files into it (stub), and `keel learn` reads from it.
-- [ ] A test proves no claim text from a private inbox appears in any file `keel learn` writes in keel's tree.
-- [ ] `keel learn decide … accepted` with `--shape/--cost/--guard` writes exactly those words to keel's lessons table; without them it refuses for a private inbox.
-- [ ] ⚑ `dalmaer/keel-inbox` exists, private, with a `lesson` label.
-- [ ] A real run: ledger's lessons filed into the inbox, one triaged to a decision, and the resulting public row (if accepted) reviewed by the owner.
+- [x] With `inbox` set, `keel lessons --yes` files into it (stub), and `keel learn` reads from it.
+- [x] A test proves no claim text from a private inbox appears in any file `keel learn` writes in keel's tree.
+- [x] `keel learn decide … accepted` with `--shape/--cost/--guard` writes exactly those words to keel's lessons table; without them it refuses for a private inbox.
+- [x] ⚑ `dalmaer/keel-inbox` exists, private, with a `lesson` label.
+- [x] A real run: ledger's lessons filed into the inbox, one triaged to a decision, and the resulting public row (if accepted) reviewed by the owner.
 
 ## Proof
 
@@ -55,5 +55,4 @@ evidence: []
 
 ## Next action
 
-Create `dalmaer/keel-inbox` (owner's yes, 4 Oct), then build `inbox` into
-lessons and learn.
+None.

@@ -1,10 +1,10 @@
 ---
-status: partial
-since: 2026-10-02
+status: built
+since: 2026-10-04
 goal: G3
 depends: [5]
-note: "keel lessons gathers lesson rows, drift and practice commits with stable fingerprints and files each once (sent.json plus an exact-fingerprint search); real dry runs on duo and ritmo clones. Filing for real waits on the owner's yes."
-evidence: ["evidence/2026-10-02-lessons.md"]
+note: "keel lessons filed ledger's 33 lessons home exactly once (to the private inbox, phase 21), and keel learn carried them through to decisions."
+evidence: ["evidence/2026-10-02-lessons.md", "evidence/2026-10-04-lessons-home.md"]
 ---
 
 # A lesson learned in a project reaches keel without anyone copying it
@@ -40,7 +40,7 @@ issues, until the owner turns sending on.
 
 ## Next action
 
-⚑ With the owner's yes, run `keel lessons --yes` from ledger (28 unsent, plus Loop's finding about keel's bounds file), then follow one issue through `keel learn`.
+None. (Loop's finding about keel's bounds file is a Loop finding in ledger, not a lesson row; it is triaged with ledger's other Loop findings.)
 
 ## Trajectory
 

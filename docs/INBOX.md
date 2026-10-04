@@ -15,7 +15,7 @@ Their proposals and decisions stay on those issues; only counts are shown here.
 | --- | --- |
 | untriaged | 0 |
 | proposed | 0 |
-| decided | 0 |
+| decided | 33 |
 
 ## Proposals in docs/inbox
 

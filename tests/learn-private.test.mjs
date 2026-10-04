@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { issueBody, parseLessons } from '../lib/lessons.mjs';
-import { gather, propose, decide, render, proposals, INBOX_MD } from '../lib/learn.mjs';
+import { gather, propose, decide, render, proposals, inboxText, INBOX_MD } from '../lib/learn.mjs';
 import { load as loadMigrations, view } from '../lib/migrations.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -199,6 +199,9 @@ test('a private inbox: gather lists and counts its issues, writes no proposal, a
   assert.ok(inbox.includes(`\`${INBOX}\``), 'the inbox is named');
   for (const [s, n] of [['untriaged', 1], ['proposed', 1], ['decided', 1]]) assert.match(inbox, new RegExp(`^\\| ${s} \\| ${n} \\|$`, 'm'));
   assert.ok(!/Shape (one|two|three)|acme\/ledger|#[123]\b/.test(inbox), 'no titles, no projects, no issue numbers');
+  // The private proposals wait for a decision too, counted from the same counts, no titles.
+  const waiting = inbox.split('## Waiting for a decision\n\n')[1].split('\n## ')[0];
+  assert.equal(waiting.trim(), '1 proposal on the private inbox waits for a decision — `keel learn` lists them by number.');
   assert.deepEqual(await leaks(dir), []);
   // Privacy is asked once per run; the run only read.
   const calls = await gh.calls();
@@ -210,6 +213,7 @@ test('a private inbox: gather lists and counts its issues, writes no proposal, a
   assert.ok(!(await gh.calls()).slice(before).some(c => c[0] === 'issue'));
   await writeFile(join(dir, INBOX_MD), inbox.replace('| proposed | 1 |', '| proposed | 7 |'));
   assert.equal((await render({ dir, check: true }, { env: gh.env })).data.private.counts.proposed, 7, 'check reads the recorded counts');
+  assert.match(inboxText([], { repo: INBOX, counts: { untriaged: 0, proposed: 7, decided: 0 } }).text, /^7 proposals on the private inbox wait for a decision — `keel learn` lists them by number\.$/m, 'the waiting line follows the recorded counts');
 });
 
 test('privacy unknown is private: an inbox gh cannot see is treated as private, noted, and nothing is published', async t => {
@@ -334,6 +338,12 @@ test('the leak test: a private claim reaches no file in keel\'s tree through gat
   assert.ok(state.issues.every(i => i.state === 'CLOSED'), 'every issue was decided on the inbox');
   assert.deepEqual(state.labels.map(l => l.name).sort(), ['decided:decline', 'decided:lesson', 'decided:practice', 'proposed:decline', 'proposed:lesson', 'proposed:practice']);
   assert.ok((await readFile(join(dir, 'docs/lessons.md'), 'utf8')).includes(ROW.shape), 'the approved row did land');
+  // A plain --shape is written bold, keel's table style, period inside; the parser still reads the row and its guard.
+  const landed = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
+  assert.match(landed, /^\| \d+ \| \*\*Another general shape\.\*\* \*\(acme\/ledger\)\* \| Some cost\. \| A guard\. \|$/m);
+  const plain = parseLessons(landed).rows.at(-1);
+  assert.deepEqual([plain.shape, plain.guard], ['**Another general shape.** *(acme/ledger)*', 'A guard.']);
+  assert.match(await readFile(join(dir, INBOX_MD), 'utf8'), /^Nothing is waiting for a decision\.$/m, 'none proposed once all are decided');
   assert.deepEqual(await leaks(dir), [], 'no file under keel\'s tree holds the private marker');
   // The walk can see a leak: plant one and it is found.
   await writeFile(join(dir, 'docs', 'planted.md'), MARKER);

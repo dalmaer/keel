@@ -280,7 +280,7 @@ test('decide accepted + practice: the lesson row and an inert migration stub, an
   assert.equal(await m.applies(await view(dir)), false, 'inert until written');
   const rows = parseLessons(await readFile(join(dir, 'docs/lessons.md'), 'utf8')).rows;
   assert.equal(rows.length, 3);
-  assert.equal(rows[2].shape, `builders test by file *(${UPSTREAM})*`);
+  assert.equal(rows[2].shape, `**builders test by file** *(${UPSTREAM})*`, 'the shape is written bold, keel\'s table style');
   assert.equal(rows[2].cost, 'to write');
 });
 
