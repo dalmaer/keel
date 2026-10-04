@@ -138,6 +138,12 @@ For each item it **proposes** one of four things, with a reason:
 - "project-specific, decline";
 - "already a shape we have, link it".
 
+**Private projects go home privately** (decided 4 October, phase 21). keel
+is public, and some projects aren't. Lesson issues go to a private inbox
+repo named in keel's config, and proposals and decisions stay on its
+issues. Only what the owner accepts, written in general terms, reaches
+keel's public lessons table.
+
 **An agent proposes; a person decides.** That split comes from ledger's Loop
 triage, because a decision here changes every project's practice. Accepted
 proposals become a release.
