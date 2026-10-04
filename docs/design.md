@@ -259,6 +259,15 @@ three questions:
   released: it reaches users when keel's checkout is pulled. The likely fix
   is a practice version that moves only when `practices/` or `migrations/`
   change, so `keel release` refuses, or skips the bump, when they haven't.
+  **Settled 2026-10-04 (phase 22):** two versions. The CLI's is
+  `package.json` and the release tag; the practice's is `practices/VERSION`,
+  the one file every reader goes through. `keel release` always bumps the
+  CLI, and bumps the practice only when `practices/` or `migrations/` differ
+  from the last practice release (the last commit that changed
+  `practices/VERSION`, else its tag); the WHATSNEW entry says which kind it
+  was, and `keel update` carries only practice entries. What settled it: the
+  dry run of a release after 0.5.2, whose changes were all keel-side, now
+  reports the practice unchanged at 0.5.2 and leaves every project current.
 - **The isocan canvas.** Still an optional practice that comes in once two
   projects have used it through keel, not before.
 - **License.** **Settled 2026-10-03:** Apache-2.0, matching isocan, chosen when

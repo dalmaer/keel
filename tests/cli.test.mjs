@@ -170,11 +170,12 @@ test('outside any project: a clear error, exit 2', async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('--version reports the CLI, its commit and the practice version', async () => {
+test('--version reports the CLI, its commit and the practice version, each from its own source', async () => {
   const pkg = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8'));
   const j = JSON.parse(keel(['--version', '--json']).out);
   assert.equal(j.cli, pkg.version);
-  assert.equal(j.practice, pkg.version);
+  assert.equal(j.practice, (await readFile(join(KEEL, 'practices', 'VERSION'), 'utf8')).trim());
+  assert.equal(JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8')).practice, j.practice, 'keel is self: its own practice is the one it ships');
   assert.match(j.commit ?? '', /^[0-9a-f]{4,}$/);
   assert.match(keel(['--version']).out, /^keel \S+ \([0-9a-f]+\) practice \S+\n$/);
 });

@@ -312,6 +312,10 @@ The order is the rule (design §3):
 
 `keel release` cuts a version of keel itself: package.json's version, a
 WHATSNEW entry written for the person receiving it, a commit and a local tag.
+The practice version (`practices/VERSION`) moves with it only when
+`practices/` or `migrations/` changed since the last practice release (to
+the same version, or `--practice <x.y.z>`); otherwise the entry says "keel
+only" and every project stays current. `--dry-run` says which.
 It runs the gate (config `check`) on the bumped tree first; a failing gate
 puts every file back, exits 1 and commits nothing. It never pushes.
 

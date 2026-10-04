@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-04
 goal: G2
 depends: [6]
-note: "Found 4 Oct: the practice version is the package version, so a keel-side-only release would mark every project behind and open no-op update PRs."
-evidence: []
+note: "practices/VERSION is the practice version; package.json is the CLI's. A keel-only release leaves every project current and update makes no change; a practice change still bumps both."
+evidence: ["evidence/2026-10-04-practice-version.md"]
 ---
 
 # A project hears about a new practice only when the practice changed
@@ -36,10 +36,10 @@ one was.
 
 ## Acceptance
 
-- [ ] A release with no change under `practices/` or `migrations/` leaves the practice version, and every project's "current", unchanged (test with a temp keel-shaped repo).
-- [ ] A release that changes a practice file bumps the practice version, and fleet then marks projects behind (test).
-- [ ] `keel update` on a project whose practice is current, after a CLI-only release, makes no change and opens nothing.
-- [ ] The design's open item on this is settled in place.
+- [x] A release with no change under `practices/` or `migrations/` leaves the practice version, and every project's "current", unchanged (test with a temp keel-shaped repo).
+- [x] A release that changes a practice file bumps the practice version, and fleet then marks projects behind (test).
+- [x] `keel update` on a project whose practice is current, after a CLI-only release, makes no change and opens nothing.
+- [x] The design's open item on this is settled in place.
 
 ## Proof
 
@@ -54,6 +54,4 @@ since 0.5.2) reports that the practice is unchanged.
 
 ## Next action
 
-Find every reader of the practice version (`practiceVersion()`,
-`versionInfo()`, update, fleet, init, release) and route them through one
-function.
+None.

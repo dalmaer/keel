@@ -18,6 +18,7 @@ import { fleet, fleetUpdate, healthOf, gateName, gateOf, runCommands, onPush, pa
 import { execFileSync } from 'node:child_process';
 import { init } from '../lib/init.mjs';
 import { load as loadMigrations } from '../lib/migrations.mjs';
+import { practiceVersion } from '../lib/practices.mjs';
 import { lessonFingerprint, parseLessons } from '../lib/lessons.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -401,7 +402,7 @@ test('fleet update without --yes: each project behind or with pending migrations
 
 test('fleet update counts follow the injected version, far above and far below the live one, in-process and through the CLI', async t => {
   const { dir, gh } = await fleetOfUpdates(t);
-  const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
+  const live = practiceVersion();
   const [major] = live.split('.').map(Number);
   const above = `${major + 100}.0.0`, below = '0.0.1';
   // Far above: every adopted project but home is behind, and none has this branch open yet.
@@ -458,7 +459,7 @@ test('fleet update --yes, against the gh stub: one PR per project behind, pushed
 });
 
 test('fleet update: a current project whose unrecorded migrations do not apply is not planned, and --yes clones nothing', async t => {
-  const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
+  const live = practiceVersion();
   const quiet = await remoteProject(t, 'quiet', live);
   assert.ok(!JSON.parse(quiet.config).migrations?.length, 'init records no migration');
   const st = { repos: { 'acme/quiet': { default_branch: 'main', files: { '.keel/keel.json': quiet.config } } }, commits: {}, prepared: { 'acme/quiet': quiet.prepared } };
@@ -476,7 +477,7 @@ test('fleet update: a current project whose unrecorded migrations do not apply i
 });
 
 test('fleet update plans only real work: applies() is asked over the default branch through the contents API', async t => {
-  const live = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8')).version;
+  const live = practiceVersion();
   const config = repo => JSON.stringify({ name: 'Acme', repo, practice: live, practices: ['base'] });
   const st = {
     repos: {

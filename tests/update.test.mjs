@@ -10,7 +10,8 @@ import { createHash } from 'node:crypto';
 import { cp, mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { updatePlan } from '../lib/fleet.mjs';
 import { load, fill, practiceVersion } from '../lib/practices.mjs';
 import { sha256, readLock, formatLock } from '../lib/lock.mjs';
 import { init } from '../lib/init.mjs';
@@ -394,6 +395,47 @@ test('the CLI: update on keel itself is a no-op; --local and --yes do not mix', 
   const both = keel(['update', '--local', '--yes', '--json'], dir);
   assert.equal(both.code, 2);
   assert.match(JSON.parse(both.out).error, /--local makes neither/);
+});
+
+test('after a keel-only release, a project on the practice is current: update changes nothing and opens nothing, and fleet plans nothing', async t => {
+  // A keel-shaped CLI: a copy of this checkout in its own repo, its gate trivial.
+  const root = await scratch(t);
+  const cliRoot = join(root, 'keel');
+  for (const p of ['bin', 'lib', 'practices', 'migrations', 'scripts', '.keel', 'package.json', 'WHATSNEW.md']) {
+    await cp(join(KEEL, p), join(cliRoot, p), { recursive: true, verbatimSymlinks: true });
+  }
+  const cfgPath = join(cliRoot, '.keel', 'keel.json');
+  await writeFile(cfgPath, (await readFile(cfgPath, 'utf8')).replace(/("practices"\s*:)/, '"check": "node -e 0",\n  $1'));
+  git(root, 'init', '-q', '-b', 'main', cliRoot);
+  git(cliRoot, 'add', '-A');
+  git(cliRoot, 'commit', '-qm', 'acme keel');
+  const bin = join(cliRoot, 'bin', 'keel.mjs');
+  const P = (await readFile(join(cliRoot, 'practices', 'VERSION'), 'utf8')).trim();
+  const before = JSON.parse(await readFile(join(cliRoot, 'package.json'), 'utf8')).version;
+  const next = (([a, b, c]) => `${a}.${b}.${c + 1}`)(before.split('.').map(Number));
+  const rel = runCmd(process.execPath, [bin, 'release', next, '--notes', '-', '--json'], { cwd: cliRoot, env: ENV, input: 'Acme fleet reads faster.\n' });
+  assert.equal(rel.status, 0, rel.stderr + rel.stdout);
+  assert.equal(JSON.parse(rel.stdout).practice.changed, false);
+  assert.equal(JSON.parse(await readFile(join(cliRoot, 'package.json'), 'utf8')).version, next, 'the CLI moved');
+  assert.equal((await readFile(join(cliRoot, 'practices', 'VERSION'), 'utf8')).trim(), P, 'the practice did not');
+  const version = JSON.parse(runCmd(process.execPath, [bin, '--version', '--json'], { cwd: root, env: ENV }).stdout);
+  assert.deepEqual([version.cli, version.practice], [next, P]);
+
+  // A project on practice P, updated by that CLI: no change, no branch, exit 0.
+  const dir = join(root, 'acme');
+  await init({ dir, name: 'Acme Notes', description: 'Acme keeps its notes as plain files.', kind: 'node' }, { version: { cli: P, commit: null, practice: P }, env: ENV });
+  const hash = await treeHash(dir), branches = git(dir, 'branch', '--list'), head = git(dir, 'rev-parse', 'HEAD');
+  const up = runCmd(process.execPath, [bin, 'update', '--no-self-update'], { cwd: dir, env: ENV });
+  assert.equal(up.status, 0, up.stderr + up.stdout);
+  assert.match(up.stdout, new RegExp(`Already on practice ${P.replace(/\./g, '\\.')}; nothing to change`));
+  assert.equal(await treeHash(dir), hash, 'no file changed');
+  assert.equal(git(dir, 'branch', '--list'), branches, 'no branch created');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+
+  // Fleet, with that CLI's practice: the project gets no plan.
+  const { versionInfo } = await import(pathToFileURL(join(cliRoot, 'lib', 'cli.mjs')).href);
+  const row = { repo: 'acme/notes', role: 'managed', adopted: true, practice: { version: JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).practice, pending: [], possiblyPending: [] } };
+  assert.equal(updatePlan(row, versionInfo().practice), null);
 });
 
 test('the migrations keel ships load, each with an id, a version, applies and up', async () => {
