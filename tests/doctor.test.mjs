@@ -161,9 +161,17 @@ test('a change keel has since made too is behind, not both: render takes keel\'s
   // A stand-in that is not what the lock says keel wrote is not used.
   const wrong = join(dir, '..', 'wrong');
   await mkdir(join(wrong, 'practices/night/files/.github/workflows'), { recursive: true });
-  await writeFile(join(wrong, 'practices/night/files', path), edited);
+  await writeFile(join(wrong, 'practices/night/files', path), old + '# a line no keel ever shipped\n'); // would merge cleanly to keel's today
   const w = run(process.execPath, [BIN, 'doctor', '--json'], { cwd: dir, env: { ...ENV, KEEL_PREVIOUS_PRACTICES: wrong } });
   assert.deepEqual(JSON.parse(w.stdout).drift.map(x => [x.path, x.state]), [[path, 'both']]);
+  // The file exactly as keel shipped it at the lock's version is keel's, whatever hash the lock holds.
+  await writeFile(join(dir, path), old);
+  lock.files[path].sha256 = sha256('a hash from some other day\n');
+  await writeFile(lockPath, JSON.stringify(lock));
+  assert.deepEqual(JSON.parse(run1(['doctor', '--json']).stdout).drift.map(x => [x.path, x.state]), [[path, 'behind']]);
+  lock.files[path].sha256 = sha256(old);
+  await writeFile(lockPath, JSON.stringify(lock));
+  await writeFile(join(dir, path), edited);
   // One more edit of the project's own is still its change.
   await writeFile(join(dir, path), edited + '# acme runs this by hand on Fridays\n');
   assert.deepEqual(JSON.parse(run1(['doctor', '--json']).stdout).drift.map(x => [x.path, x.state]), [[path, 'both']]);

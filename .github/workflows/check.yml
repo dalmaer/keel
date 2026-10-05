@@ -1,7 +1,10 @@
 name: check
 
 on:
+  # main only: every other branch is checked through its pull request, and a
+  # push to it as well would run the same gate twice.
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch: {}
 

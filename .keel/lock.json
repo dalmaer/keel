@@ -19,19 +19,19 @@
     },
     ".github/workflows/check.yml": {
       "practice": "ci",
-      "sha256": "3350275b3dc02df3a32ea44efe26bf184de1ed4374c00d766ff766e209e5609c"
+      "sha256": "2c09acc0d5e02f1bfbea6fe1a29707a27987ecbb5e28d8d86be1e86f2323c62d"
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",
-      "sha256": "c348958ae7098d83796ed821ec5f5c6fe3bd7e4c5a8af0428ff30494e0a1e7db"
+      "sha256": "ffb313c1e766d848119b6a8b8c3626e2cefac15832ccaf05af5a56d0db520f48"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
-      "sha256": "9466d373e542cfdec7f23ddd14df627ba71141e837765f12f5eef76adca6434e"
+      "sha256": "2f1bf82f06c614c6ef59541829ac9d1713f01672e6d9486909fcf8fdf56f7643"
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "9d25b30eec0d87e405b6b4cc39a38291b23acc9f399eb5f48cd45666ee721eb1"
+      "sha256": "91d99b02eb332ae1ca275672f63530ca5825cdca7f8a671051f6478b0329b168"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
