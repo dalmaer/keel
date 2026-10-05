@@ -56,11 +56,11 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.configured.outputs.enabled == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
       - if: steps.configured.outputs.enabled == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - if: steps.configured.outputs.enabled == 'true'
