@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 27 phases lived in; 23 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 27 phases lived in; 24 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
@@ -49,14 +49,14 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-6/7 built or lived-in; 0/7 lived-in.
+7/7 built or lived-in; 0/7 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [4. An existing project comes under keel without losing what is its own](phases/04-keel-adopt.md) | built | 2026-10-04 | [3](phases/03-keel-init.md) | ledger, duo and cajones are adopted by PRs their owner merged (#16, #46, #19), each green, each with a first night drained; adopt only added, and converged cajones' phases via 0001. |
 | [5. Keel knows when a project has changed the practice, and treats it as signal](phases/05-managed-files-and-drift.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md) | keel doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes. |
 | [6. A practice change reaches a project as one reviewed pull request](phases/06-update-and-migrations.md) | built | 2026-10-04 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | keel update and release work, and update PRs reach projects for real: keel fleet update took duo and cajones to 0.5.2 (#48, #23), green and merged, and left ledger alone because nothing applied. |
-| [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | partial | 2026-10-03 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | The three isocan adopt bugs are fixed, and ledger is adopted for real (#16). isocan's adoption PR waits on Dimitri, together with the keel/nerd proposal. |
+| [16. The projects the practice came from can use keel without losing their shapes](phases/16-keel-learns-its-ancestors.md) | built | 2026-10-05 | [4](phases/04-keel-adopt.md), [6](phases/06-update-and-migrations.md) | Adopt reads the ancestors' real gate, lessons and phases. ledger adopted (#16); isocan's adoption PR (#392) is open for Dimitri. |
 | [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | ledger runs on keel: adopted (#16), nightly health (#17), lessons table fixed (#18), Loop through keel (#19) with its first real cycle pulled, gated and drained (#23). Lived-in waits on a week of nights. |
 | [22. A project hears about a new practice only when the practice changed](phases/22-practice-version.md) | built | 2026-10-04 | [6](phases/06-update-and-migrations.md) | practices/VERSION is the practice version; package.json is the CLI's. A keel-only release leaves every project current and update makes no change; a practice change still bumps both. |
 | [24. Nothing the owner started is forgotten](phases/24-loose-ends.md) | built | 2026-10-04 | [12](phases/12-the-fleet.md) | keel loose-ends lists unfinished sessions, uncommitted files, unmerged branches, worktrees, open PRs, owner-waiting phases and recent unlisted repos across the fleet; marks persist; nothing from a transcript is written to a file. |

@@ -1,10 +1,10 @@
 ---
-status: partial
-since: 2026-10-03
+status: built
+since: 2026-10-05
 goal: G2
 depends: [4, 6]
-note: "The three isocan adopt bugs are fixed, and ledger is adopted for real (#16). isocan's adoption PR waits on Dimitri, together with the keel/nerd proposal."
-evidence: ["evidence/2026-10-03-ancestors.md"]
+note: "Adopt reads the ancestors' real gate, lessons and phases. ledger adopted (#16); isocan's adoption PR (#392) is open for Dimitri."
+evidence: ["evidence/2026-10-03-ancestors.md", "evidence/2026-10-05-isocan-adoption.md"]
 ---
 
 # The projects the practice came from can use keel without losing their shapes
@@ -47,7 +47,7 @@ recorded in each practice's README:
 - [x] A fresh copy of ledger, adopted (plus migration 0003 if built), passes its own `npm run check:all`.
 - [x] A fresh copy of isocan, adopted, passes its own gate, and `git diff --stat` shows additions only.
 - [x] Every ledger and isocan local variant has a recorded decision in its practice README.
-- [ ] ⚑ ledger's adoption PR opened (owner merges); isocan's adoption PR opened on dglazkov/isocan, for Dimitri to decide.
+- [x] ⚑ ledger's adoption PR opened (owner merges); isocan's adoption PR opened on dglazkov/isocan, for Dimitri to decide.
 
 ## Proof
 
@@ -68,9 +68,10 @@ recorded in each practice's README:
 
 ## Next action
 
-⚑ Owner, then Dimitri: share the keel/nerd comparison with Dimitri, and with his yes open isocan's adoption PR (`--check "npm test && npm run typecheck"`) for him to merge. ledger's half is done (phase 20).
+Dimitri merges or closes [dglazkov/isocan#392](https://github.com/dglazkov/isocan/pull/392). On a merge, move isocan in `fleet.json` from `source` to `managed`.
 
 ## Trajectory
 
 - **2026-10-03** — Placeholder evidence was rejected as a facade, before it was built. 0003 applies only when every built phase already names evidence. ledger therefore keeps local phases, with 17 owed listed, until that's settled honestly.
 - **2026-10-03** — isocan's own files show 39 doctor findings (29 heading statuses, 10 `DONE`): real signal keel can send it, once Dimitri adopts.
+- **2026-10-05** — Dimitri agreed; isocan#392 opened, additions only (+191), gate green on 7,679 tests. Doctor found isocan's lessons table split from row 29 (ledger's bug): named in the PR, not fixed in it, since the PR only adds.
