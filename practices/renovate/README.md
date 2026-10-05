@@ -48,3 +48,9 @@ practice came from, where each keeps a version of its own:
 - **isocan**: *stays local*. Keel's file is isocan's, less two rules that are
   isocan's alone (its workspace packages, its timezone); there is nothing to
   learn and nothing to converge.
+
+Generated PRs carry a `keel-impact` declaration through Renovate's `prBodyNotes`
+([configuration reference](https://docs.renovatebot.com/configuration-options/#prbodynotes)).
+Dependency pins and lockfiles declare no record impact; a change to actual
+phase/decision records still fails the optional reconciliation diff check until
+its declaration is corrected and reviewed. All four lanes inherit this note.

@@ -41,8 +41,8 @@ test('every managed target exists on keel, and keel switches on every practice',
     if (f.link) assert.ok(info.isSymbolicLink(), `${f.path} should be a symlink`);
   }
   // Optional practices are each project's own choice: keel has no Loop workspace, and keeps claude on (its owner set the token).
-  assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].filter(n => !practices.get(n).optional || n === 'claude').sort());
-  assert.deepEqual([...practices.values()].filter(p => p.optional).map(p => p.name).sort(), ['claude', 'loop']);
+  assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].filter(n => !practices.get(n).optional || ['claude', 'reconciliation'].includes(n)).sort());
+  assert.deepEqual([...practices.values()].filter(p => p.optional).map(p => p.name).sort(), ['claude', 'loop', 'reconciliation']);
 });
 
 test('conduct pins its upstream source', async () => {

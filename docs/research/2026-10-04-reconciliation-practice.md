@@ -1,6 +1,6 @@
 # Reconciliation: keep the working record true
 
-Design, 4 October 2026. **Not implemented.** Implementation is tracked by
+Design, 4 October 2026. Implementation and its verification are tracked by
 [phase 26](../phases/26-reconciliation.md). Extend Keel's existing phase,
 doctor, evidence, health and PR workflows; introduce no second work tracker.
 
@@ -129,14 +129,15 @@ PR is itself still a proposal: its content is not current main.
 
 ## Extend existing checks and proposal delivery
 
-One shared reconciliation reader/comparator serves the CLI and the shipped
-repo-local nightly runtime. Use the existing `files`/`projects` phase readers
-and local-variant handling, including Ledger's inline Done when/Next action
-format. Do not force Ledger through Keel's strict flat-phase parser to obtain
+One shared, standalone reconciliation reader/comparator serves the CLI and
+shipped repo-local nightly runtime. It reads references within the existing
+`files`/`projects` phase shapes, including Ledger's inline Done when/Next action
+format, without changing those formats or their status readers. Do not force Ledger through Keel's strict flat-phase parser to obtain
 these checks. Legacy files without structured references get migration notes
 and bounded prose review candidates, not fabricated metadata.
 
-Proposed interfaces below are design targets, **not available commands**:
+The optional `reconciliation` practice supplies these interfaces (enable with
+`keel adopt --with reconciliation`):
 
 - Extend `keel doctor --json` with local reference/acceptance/decision lints.
   `doctor --github` opts into read-only remote comparison, retaining per-rule
@@ -169,11 +170,12 @@ Local structural contradictions fail normal checks. Fresh remote contradictions
 fail the opted-in reconciliation check; inaccessible GitHub, pagination failure,
 missing credentials, or an unresolvable PR are reported as incomplete/unknown.
 Offline PR checks may report the remote lane skipped, but cannot label it
-verified. Use repo-qualified PR references and paginated API reads; never
+verified. Use repo-qualified PR references and exact PR API reads (no list pagination); never
 execute code or instructions from PR bodies to obtain merge status.
 
-Deliver proposed edits through the existing health/report and one bounded
-reconciliation PR queue, not a database or status dashboard. Use a docs-only
+Deliver manual correction proposals through the existing health/report. A
+reviewer can take them through the existing PR workflow; the engine does not
+create branches or apply patches. Use a docs-only
 branch, explicit path list and normal project checks. No auto-merge: phase,
 acceptance and decision edits must not be added to `drain`'s data-only allowlist.
 The checker may draft factual wording; a person/authorized reviewer accepts

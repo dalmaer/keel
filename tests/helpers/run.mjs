@@ -19,6 +19,9 @@ export function run(cmd, args = [], { cwd, env, input, timeout } = {}) {
   if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && GH_VERBS.includes(args[1]) && !(env ?? process.env).KEEL_GH) {
     throw new Error(`keel ${args[1]} reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh`);
   }
+  if (args.includes('--github') && (/(^|[/\\])reconcile\.mjs$/.test(String(args[0] ?? '')) || args[1] === 'doctor') && !(env ?? process.env).KEEL_GH) {
+    throw new Error('remote reconciliation reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh');
+  }
   // loose-ends reads the developer's own Claude Code transcripts unless told where else to look.
   if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'loose-ends' && !(env ?? process.env).KEEL_CLAUDE_DIR) {
     throw new Error('keel loose-ends reads transcripts: run it with KEEL_CLAUDE_DIR set (synthetic ones), never ~/.claude');

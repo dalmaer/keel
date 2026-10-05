@@ -5,5 +5,17 @@
   "inbox": "dalmaer/keel-inbox",
   "keel": "self",
   "practice": "0.6.5",
-  "practices": ["base", "agents-md", "phases", "evidence", "lessons", "conduct", "ci", "night", "claude", "renovate"]
+  "practices": [
+    "base",
+    "agents-md",
+    "phases",
+    "evidence",
+    "lessons",
+    "conduct",
+    "ci",
+    "night",
+    "claude",
+    "renovate",
+    "reconciliation"
+  ]
 }

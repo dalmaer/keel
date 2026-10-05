@@ -1,7 +1,7 @@
 # keel — agent cold start
 
-Keel installs a working practice in a repo: phases that own their status, a
-generated roadmap, lessons kept as shapes, evidence for every built claim.
+Keel installs a working practice in a repo: phases own status; roadmaps derive it;
+lessons name shapes; built claims need evidence.
 Run keel inside a project (a directory with `.keel/keel.json`, or below one);
 `keel init` and `keel adopt` run outside one.
 Read the project's AGENTS.md before changing anything.
@@ -26,7 +26,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel loose-ends` — unfinished chats, files, branches, PRs, owner steps; `mark <id> resume|park|drop`
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
-- `keel --agent-help` — this text; `<topic>` opens one, `all` prints everything
+- `keel --agent-help` — this text; `<topic>` opens one, `all` prints all
 - `keel --version` — CLI version, commit, and practice version
 
 Rules that bite:
@@ -42,7 +42,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `fleet`, `loose-ends`, `install`, `coming`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `fleet`, `loose-ends`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -636,3 +636,7 @@ own copy of the practice (its `practices/`), never the project's scripts.
 Nothing is planned and unbuilt as a verb right now. A verb not in
 `keel help` does not exist; do not call it. Keel's `docs/ROADMAP.md` says
 what is planned.
+
+<!-- topic: reconciliation | optional record checks and manual corrections -->
+
+Enable with `keel adopt --with reconciliation` or `keel init <dir> --description "<paragraph>" --with reconciliation`. Local phase formats remain intact. `keel doctor --json` reads local annotations; `keel doctor --github --json` also compares read-only GitHub facts (exit 2 when unknown). `keel improve --report` and the installed night share the engine, reporting `record_contradictions` and manual proposals on the health page. See `docs/reconciliation.md` after installation for annotations, PR impact, and local CI integration. No merge establishes acceptance.

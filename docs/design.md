@@ -224,7 +224,8 @@ three questions:
 
 ### 8. Reconcile records with delivery and decisions (phase 26)
 
-**Designed 4 October 2026, not implemented.** Ledger PRs #22 and #38 exposed
+**Implemented 4 October 2026 as the optional `reconciliation` practice.**
+Ledger PRs #22 and #38 exposed
 three recurring gaps: merged work still called draft, completed work still
 named as next, and superseded architecture still presented as current.
 [The reconciliation practice design](research/2026-10-04-reconciliation-practice.md)
@@ -233,8 +234,8 @@ and decision records architecture. Implemented, merged, production-verified
 and lived-in are separate claims; a merge never establishes acceptance.
 
 PRs declare affected phases and decisions and update their records, next
-actions and superseded plans. Extend doctor, phase checks, improve and the
-existing PR/nightly workflows with shared contradiction checks and reviewed
+actions and superseded plans. Doctor, CI record checks, improve and the
+existing PR/nightly workflows share contradiction checks and reviewed
 correction proposals. Keep historical evidence and local phase formats;
 generate views from their owners, without another tracking system.
 

@@ -1,0 +1,28 @@
+{
+  "name": "reconciliation",
+  "summary": "Compare working records with delivery facts and scoped decisions; propose manual corrections without inferring acceptance.",
+  "optional": true,
+  "requires": [],
+  "files": [
+    {
+      "path": "scripts/keel/reconcile.mjs",
+      "from": "scripts/keel/reconcile.mjs",
+      "kind": "managed"
+    },
+    {
+      "path": "docs/reconciliation.md",
+      "from": "docs/reconciliation.md",
+      "kind": "managed"
+    },
+    {
+      "path": "docs/templates/reconciliation.md",
+      "from": "docs/templates/reconciliation.md",
+      "kind": "seeded"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "from": ".github/pull_request_template.md",
+      "kind": "seeded"
+    }
+  ]
+}

@@ -186,9 +186,18 @@ jobs:
           git commit -q -m "Loop: findings pulled $DAY"
           git push --force origin "HEAD:refs/heads/keel-loop/$DAY"
           if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            cat > "$RUNNER_TEMP/loop-body.md" <<'KEEL_BODY'
+          Stitch Loop insights, pulled as untriaged findings in docs/loop/ and generated views. No acceptance or architecture decision is made. An agent proposes; a person decides.
+
+          If a custom afterRender step changes phase or decision records, review those edits and replace the declaration with their actual impact before merging. The impact check examines the diff.
+
+          ```keel-impact
+          {"version":1,"phases":[],"decisions":[],"supersedes":[],"evidence":[],"reconciliation":"none","reason":"Imports untriaged Loop findings and refreshes generated views only; no phase acceptance, next action, or architecture decision is changed."}
+          ```
+          KEEL_BODY
             code=0
             out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "Loop: findings pulled $DAY" \
-              --body "Stitch Loop's insights, pulled. New ones are untriaged findings in docs/loop/; nothing was decided and nothing was sent to Loop. An agent proposes, with the loop script's propose verb; deciding is a person's." 2>&1) || code=$?
+              --body-file "$RUNNER_TEMP/loop-body.md" 2>&1) || code=$?
             echo "$out"
             if [ "$code" != 0 ]; then
               if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then

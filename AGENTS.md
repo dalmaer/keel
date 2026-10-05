@@ -78,6 +78,21 @@ keel's files are listed in `.keel/lock.json`; `keel doctor` says if you
 changed one. Everything else is yours.
 <!-- keel:end agents-md -->
 
+## Reconcile before calling work done
+
+With the optional reconciliation practice enabled, `keel doctor --json`
+checks local record references; add `--github` for fresh merge facts. The
+existing PR check and night report use the same engine. See
+[`docs/reconciliation.md`](docs/reconciliation.md) for the impact declaration
+and evidence references.
+
+GitHub owns merge status; phases own acceptance and remaining work; accepted
+decision records own architecture. PRs name affected records and update their
+status, next actions and superseded plans, or explain each unchanged record.
+Keep implemented, merged, production-verified and lived-in distinct. A merge
+never checks acceptance. Review correction proposals against fresh source
+facts; preserve historical evidence and the scope of replaced decisions.
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24, no build step.** `node --test` for

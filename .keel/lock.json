@@ -3,7 +3,7 @@
   "files": {
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "d0d177ed732718e15abc204587c81836dba5e61963eaea66fd88f1aaa89c4a76"
+      "sha256": "906f3eddc4843f296203411a94577d35b60409841eeed62a4fba2799d313ecd2"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -19,7 +19,7 @@
     },
     ".github/workflows/check.yml": {
       "practice": "ci",
-      "sha256": "d6b6b4f228fcf9d026d998ea6b2cc33bd872a180c2f26aa882b13445ba9f701d"
+      "sha256": "3227f988924fc6968b72555e29ea2508233bf307b52367216110da18087a70c0"
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",
@@ -27,7 +27,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "85880ec09476048a9aec3981c887b5e403c8a25e5afbcdd7a5ba3c56e3736a57"
+      "sha256": "9d25b30eec0d87e405b6b4cc39a38291b23acc9f399eb5f48cd45666ee721eb1"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -57,6 +57,10 @@
       "practice": "phases",
       "sha256": "6f1a8f29717fc4516e8d82a28a14f88067b1c65d61ba92d0b4bf2bd4245548f6"
     },
+    "docs/reconciliation.md": {
+      "practice": "reconciliation",
+      "sha256": "9a1ada0597dd60a2533f7f2b38473c093b3ac430f0a2746c67de7269e5e92486"
+    },
     "docs/templates/evidence.md": {
       "practice": "evidence",
       "sha256": "fed8142c572973a853ef016b7b2fbc626683b89760f660b0dd19eeb818b62880"
@@ -67,19 +71,23 @@
     },
     "renovate.json": {
       "practice": "renovate",
-      "sha256": "8bdd3dbad7e77d5698c0c541adeeddea7313981f6f111762b961e34f7562c4ef"
+      "sha256": "4a021ce8f3b7d6cb90d13e9e6707a5769b8f6a101a0c31ae459c85732b1c804d"
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
-      "sha256": "64ece991ffe69f3926ebfebd9c32df5b137a8ad620eba97add33560647299af8"
+      "sha256": "1e20c77ebecaa8c76737675f01073dfe0297a524cdc0dc64c920b6b8c823614b"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "97ad5be4920da7d983beaa25388f9ed1886fe511bb713b857e43c90168320fb3"
+      "sha256": "70bc4127f3391303b85b8b673f02148bc69f730a22b7b4dbc541710f28867b03"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
       "sha256": "37c5870bfacc4144a31fbc091fcde23c1e356a3e62be8d380bd6c763f3f34bc2"
+    },
+    "scripts/keel/reconcile.mjs": {
+      "practice": "reconciliation",
+      "sha256": "dc1a6db156a1759a0a6e37a96331bada458806545e7a520c3be4ce8f371f999e"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",

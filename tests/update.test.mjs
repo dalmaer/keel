@@ -322,6 +322,8 @@ test('the default path commits on a branch, exits 3 with the plan, and --yes pus
   const log = join(tmp, 'gh.log'), gh = join(tmp, 'gh');
   await writeFile(gh, `#!${process.execPath}
 require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+const a = process.argv.slice(2);
+require('node:fs').writeFileSync(${JSON.stringify(log + '.body')}, require('node:fs').readFileSync(a[a.indexOf('--body-file') + 1]));
 console.log('https://github.test/acme/notes/pull/1');
 `);
   await chmod(gh, 0o755);
@@ -348,7 +350,12 @@ console.log('https://github.test/acme/notes/pull/1');
   const calls = (await readFile(log, 'utf8')).trim().split('\n').map(l => JSON.parse(l));
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].slice(0, 6), ['pr', 'create', '--head', BRANCH(TARGET), '--base', 'main']);
-  const body = calls[0][calls[0].indexOf('--body') + 1];
+  assert.ok(calls[0].includes('--body-file'));
+  const body = await readFile(log + '.body', 'utf8');
+  const { checkImpact } = await import('../practices/reconciliation/files/scripts/keel/reconcile.mjs');
+  assert.deepEqual((await checkImpact({ root: dir, body, changedFiles: ['scripts/roadmap.mjs', '.keel/keel.json'] })).findings, []);
+  assert.ok((await checkImpact({ root: dir, body, changedFiles: ['docs/phases/01-acme.md'] })).findings.length);
+  assert.match(body, /If a migration changes actual phase or decision records/);
   assert.match(body, /Acme gets the current conductor\./);
   assert.doesNotMatch(body, /Not for this project/);
 });

@@ -72,6 +72,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `night` | `keel-night.yml` measures the project nightly, opens at most one PR, and goes red only when something is broken | Guards that fire into an empty room |
 | `claude` *(optional)* | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
+| `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 
 **Who owns which file.** Every file keel writes is one of three kinds:

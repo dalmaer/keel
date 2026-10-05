@@ -56,6 +56,7 @@ export class DrainError extends Error {
  * directory.
  */
 export const isData = (path, prefix, extra = []) => {
+  if (/^docs\/(?:phases|projects|decisions|research|evidence|records)(?:\/|$)/.test(path) || path === 'docs/design.md') return false;
   const { dirs, files } = DATA_BY_PREFIX[prefix] ?? { dirs: DATA_DIRS, files: DATA_FILES };
   return files.includes(path) || dirs.some(d => path.startsWith(d)) ||
     extra.some(e => e.endsWith('/') ? path.startsWith(e) : e === path);

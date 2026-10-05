@@ -151,6 +151,7 @@ jobs:
             fs.writeFileSync(body, [
               `The night shift measured the practice on ${day}: \`node scripts/keel/improve.mjs --report\`.`, "",
               r.proposal ? `**Proposal (\`${r.proposal.id}\`, ${r.proposal.state}):** ${r.proposal.text}` : "**Proposal:** none; every measure is within its bound.", "",
+              "```keel-impact", JSON.stringify({version:1, phases:[], decisions:[], supersedes:[], evidence:[], reconciliation:"none", reason:"Health observations and bounds only; no working record correction is applied."}), "```", "",
               `The page is \`${r.report ?? "docs/health/"}\`. This PR holds data only. scripts/keel/drain.mjs merges it tonight if the gate passed on this tree; otherwise the next night merges it with the series, or supersedes it if it no longer merges.`,
             ].join("\n"));
           ' "$RUNNER_TEMP/improve.json" "$GITHUB_OUTPUT" "$RUNNER_TEMP/body.md"

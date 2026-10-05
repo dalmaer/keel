@@ -183,6 +183,16 @@ conductor edits documents (except in a small phase it built itself).
 
 ## 3. Record
 
+With reconciliation enabled, include one `keel-impact` JSON fence in the PR
+body naming affected phases, decisions, superseded plans and evidence. Check
+the actual diff. Update those records and their next action in the same PR,
+or give per-record reasons for leaving them unchanged; no impact needs a
+reason too. A merge never ticks acceptance, proves production, or establishes
+lived-in use. Preserve historical evidence. Revalidate any saved correction
+proposal against current records and remote facts; record edits are manual
+review, never night data for automatic merge.
+
+
 When the proof holds, and only then, write the record, all in one change:
 
 - **Set the phase's `status:`** in its front matter (`built`, or `partial`
