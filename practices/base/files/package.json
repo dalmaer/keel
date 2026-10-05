@@ -2,7 +2,7 @@
   "private": true,
   "description": "{{tagline}}",
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": { "node": ">=24.21.0" },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "roadmap": "node scripts/roadmap.mjs",
