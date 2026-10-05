@@ -222,6 +222,22 @@ three questions:
 - Which are red?
 - Which have lessons we haven't heard?
 
+### 8. Reconcile records with delivery and decisions (phase 26)
+
+**Designed 4 October 2026, not implemented.** Ledger PRs #22 and #38 exposed
+three recurring gaps: merged work still called draft, completed work still
+named as next, and superseded architecture still presented as current.
+[The reconciliation practice design](research/2026-10-04-reconciliation-practice.md)
+assigns GitHub the merge facts, phase files acceptance and remaining work,
+and decision records architecture. Implemented, merged, production-verified
+and lived-in are separate claims; a merge never establishes acceptance.
+
+PRs declare affected phases and decisions and update their records, next
+actions and superseded plans. Extend doctor, phase checks, improve and the
+existing PR/nightly workflows with shared contradiction checks and reviewed
+correction proposals. Keep historical evidence and local phase formats;
+generate views from their owners, without another tracking system.
+
 ## Rules keel holds itself to
 
 - **Zero runtime dependencies, Node ≥ 24, no build step.** Installing from

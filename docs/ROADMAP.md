@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 26 phases lived in; 22 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 27 phases lived in; 22 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
@@ -93,7 +93,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-2/4 built or lived-in; 0/4 lived-in.
+2/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -101,11 +101,13 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [11. A project can say, with numbers, whether its practice is working, and proposes one fix](phases/11-keel-improve.md) | partial | 2026-10-02 | [5](phases/05-managed-files-and-drift.md), [9](phases/09-goals.md) | keel improve measures 12 things with ratcheting bounds, broken is never zero, and the selftest fails on an unhealthy fixture. First real page on keel: one measure outside (9 phases without an issue); its proposal awaits the owner's decision. |
 | [14. A project's Stitch Loop findings are triaged the same way everywhere, through keel](phases/14-stitch-loop.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md), [10](phases/10-the-night-shift.md) | The optional loop practice runs ledger's Loop: the real cycle pulled 10 new findings, gated and drained them (#23). That merge left ledger's roadmap stale and main red; the PR now carries what afterRender writes (afterRenderWrites). |
 | [15. A project's night shift runs from its own repo, and keel is only where the ideas come from](phases/15-projects-run-on-their-own.md) | built | 2026-10-04 | [10](phases/10-the-night-shift.md), [11](phases/11-keel-improve.md) | Night and loop workflows run each project's own scripts/keel/*.mjs with no keel checkout and no token, and update PRs go out from keel: keel fleet update opened duo #48 and cajones #23, both merged. |
+| [26. Phase records agree with delivery facts and current decisions](phases/26-reconciliation.md) | designed | 2026-10-04 | [5](phases/05-managed-files-and-drift.md), [15](phases/15-projects-run-on-their-own.md), [18](phases/18-docs-cannot-drift.md) | Practice designed from Ledger PRs 22 and 38: GitHub owns merge facts, phases own acceptance and next work, decisions own architecture. No reconciliation checker is implemented yet. |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
 - **14 done when:** One adopted project's Loop cycle (pull new insights, propose a rank for each, render `docs/LOOP.md`) runs through keel's `loop` practice, and that project's own scripts/loop.* is retired in favour of it.
 - **15 done when:** A project made by `keel init` runs its night shift with no keel checkout and no `KEEL_TOKEN`, and the update PR a project receives is opened from keel by `keel fleet update`.
+- **26 done when:** Keel's existing checks detect and propose scoped corrections for merged-PR, completed-next-action and superseded-decision contradictions on an adopted project, without inferring acceptance, production verification or lived-in status from a merge.
 
 ## G5 — Keel knows whether it helps
 
