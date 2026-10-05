@@ -15,7 +15,10 @@
 #   - A merge is checked, not trusted. A GITHUB_TOKEN PR never runs CI, so the
 #     gate that improve.mjs runs here, on this tree, is the check; the
 #     newest PR merges only when it passed and the PR holds nothing but data
-#     (docs/health/, docs/inbox/, docs/INBOX.md, .keel/bounds.json).
+#     (the health directory, docs/inbox/, docs/INBOX.md, .keel/bounds.json).
+#     The health directory is .keel/keel.json "health" (default docs/health),
+#     read at run time; one the project git-ignores makes the run red, since
+#     its page would never be committed.
 #   - A guard fires into a room someone is in. A broken instrument (improve
 #     exit 2) or a failing gate makes this run red, and GitHub emails. A
 #     measure outside its bound (exit 1) is news: it is on the page, not red.
@@ -85,6 +88,19 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
             if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
           '
+      # Where improve writes the health page and what the PR commits: the
+      # project's own scripts/keel/lib.mjs reads .keel/keel.json "health"
+      # (default docs/health), so improve, this workflow and drain agree.
+      - name: Where the health page goes
+        id: health
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, appendFileSync } from "node:fs";
+            import { healthDirOf } from "./scripts/keel/lib.mjs";
+            const dir = healthDirOf(JSON.parse(readFileSync(".keel/keel.json", "utf8")));
+            console.log(`health: ${dir}`);
+            appendFileSync(process.env.GITHUB_OUTPUT, `dir=${dir}\n`);
+          '
       - name: Install
         # setupToken (a secret's name in .keel/keel.json) becomes GH_TOKEN here
         # and in no other step, so setup can clone a private repo with gh
@@ -141,13 +157,29 @@ jobs:
 
       # Porcelain, never `git diff --quiet`: a file created for the first time
       # is not in the index, so diff reads it as no change (ledger's audit
-      # agent lost every report to that). The push names its own branch.
+      # agent lost every report to that). Only the night's data is committed:
+      # the configured health directory, the inbox and the bounds. A health
+      # directory the project ignores is red: its page would never be
+      # committed (ledger lost its pages that way). The push names its own branch.
       - name: Open the night's pull request
         env:
           DAY: ${{ steps.improve.outputs.day }}
           BASE: ${{ github.event.repository.default_branch }}
+          HEALTH: ${{ steps.health.outputs.dir }}
         run: |
-          if [ -z "$(git status --porcelain)" ]; then
+          if [ -z "$HEALTH" ]; then
+            echo "::error::No health directory was read from .keel/keel.json."
+            exit 1
+          fi
+          if git check-ignore -q -- "$HEALTH/x.md"; then
+            echo "::error::$HEALTH is git-ignored, so its health page is never committed: set \"health\" in .keel/keel.json to a directory that is not ignored (keel doctor: health-ignored)."
+            exit 1
+          fi
+          PATHS=()
+          for p in "$HEALTH" docs/inbox docs/INBOX.md .keel/bounds.json; do
+            if [ -e "$p" ]; then PATHS+=("$p"); fi
+          done
+          if [ "${#PATHS[@]}" = 0 ] || [ -z "$(git status --porcelain -- "${PATHS[@]}")" ]; then
             echo "Nothing changed."
             exit 0
           fi
@@ -155,7 +187,7 @@ jobs:
           git config user.name "keel-night"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q -b "$BRANCH"
-          git add -A
+          git add -A -- "${PATHS[@]}"
           git commit -q -m "keel night: $DAY"
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own reading, so force is safe here and nowhere else.

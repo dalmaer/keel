@@ -22,8 +22,16 @@
 //   gateEnv(env, config)     the environment the project's gate runs in:
 //                            NODE_TEST_* stripped (lesson 14), .keel/keel.json
 //                            `env` merged over it
+//   healthDirOf(config)      where the night's health pages go: .keel/keel.json
+//                            `health`, default docs/health (improve writes,
+//                            the workflow commits, drain, fleet and loose-ends
+//                            read it; one reader)
+//   healthLints(root, config)  a bad `health` (health-config), or a health
+//                            directory git ignores (health-ignored): the night
+//                            writes its page and never commits it
 //   main(meta, fn)           run a script: --json or text, and its exit code
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { readFile, readdir, lstat, readlink } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
@@ -265,6 +273,57 @@ export async function phaseLints(root, parsePhase) {
     if (g?.id && !g.retired && !phases.some(p => p.goal === g.id)) lint.push({ rule: 'goal-without-phase', path: 'docs/goals.json', message: `${g.id}: no phase serves this goal` });
   }
   return lint;
+}
+
+// ---- the health pages' directory ---------------------------------------------
+
+/** Where health pages go when .keel/keel.json names no `health`. */
+export const HEALTH_DIR = 'docs/health';
+
+/**
+ * What is wrong with .keel/keel.json `health`: a directory inside the repo,
+ * relative, with no `..`, `.` or empty segment, no backslash, glob or
+ * whitespace (the workflow hands it to a shell), not under .git/ or
+ * .github/, and not .keel itself. Absent is fine (the default). Returns a list of messages.
+ */
+export function healthProblems(config) {
+  const h = config?.health;
+  if (h === undefined) return [];
+  const bad = why => [`"health" ${why} (got ${JSON.stringify(h)}); it names the directory health pages go in, relative to the repo, like "${HEALTH_DIR}"`];
+  if (typeof h !== 'string' || !h) return bad('must be a non-empty string');
+  if (h.startsWith('/') || /^[A-Za-z]:/.test(h)) return bad('must be relative to the repo, not absolute');
+  if (/[\\*?[\]\s]/.test(h)) return bad('cannot hold a backslash, glob or whitespace');
+  const segs = h.replace(/\/$/, '').split('/');
+  if (segs.some(s => s === '..')) return bad('cannot leave the repo (`..`)');
+  if (segs.some(s => s === '.' || s === '')) return bad('cannot hold an empty or `.` segment');
+  if (segs[0] === '.git' || segs[0] === '.github') return bad(`cannot be under ${segs[0]}/`);
+  // The night's drain merges whatever is under it unread: never keel's own config.
+  if (segs.length === 1 && segs[0] === '.keel') return bad('cannot be .keel itself (it holds keel.json); use a directory inside it, like ".keel/health"');
+  return [];
+}
+
+/** The project's health directory, no trailing slash: `health`, else docs/health. A bad `health` throws. */
+export function healthDirOf(config) {
+  const problems = healthProblems(config);
+  if (problems.length) throw new Error(`.keel/keel.json: ${problems[0]}`);
+  return config?.health === undefined ? HEALTH_DIR : config.health.replace(/\/$/, '');
+}
+
+/**
+ * The health directory's lints, for a project with the night practice or a
+ * `health` setting: health-config when `health` is not a plain directory in
+ * the repo; health-ignored when git ignores a page in it (`git check-ignore`),
+ * so the night writes the page and its PR never carries it (ledger, phase 33).
+ * Outside a git repository there is nothing to ignore.
+ */
+export function healthLints(root, config) {
+  if (!(config?.practices ?? []).includes('night') && config?.health === undefined) return [];
+  const problems = healthProblems(config);
+  if (problems.length) return problems.map(message => ({ rule: 'health-config', path: '.keel/keel.json', message }));
+  const dir = healthDirOf(config);
+  const r = spawnSync('git', ['check-ignore', '-q', '--', `${dir}/x.md`], { cwd: root, encoding: 'utf8' });
+  if (r.status !== 0) return [];
+  return [{ rule: 'health-ignored', path: dir, message: `${dir} is git-ignored here, so the night writes its health page and never commits it; set "health" in .keel/keel.json to a directory that is not ignored (like ".keel/health")` }];
 }
 
 // ---- the gate's environment -------------------------------------------------

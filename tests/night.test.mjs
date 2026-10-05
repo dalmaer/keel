@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
-import { plan, isData, checkPrefix, SUPERSEDED } from '../lib/night.mjs';
+import { plan, isData, extraData, checkPrefix, SUPERSEDED } from '../lib/night.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -40,11 +40,11 @@ async function scratch(t) {
 }
 
 /** Acme Notes (a keel project naming its repo) and a gh over a JSON state file. */
-async function setup(t, { prs = SEED(), unknownOnce = [], failMerge = [], failClose = [] } = {}) {
+async function setup(t, { prs = SEED(), unknownOnce = [], failMerge = [], failClose = [], config = {} } = {}) {
   const dir = await scratch(t);
   const root = join(dir, 'acme-notes');
   await mkdir(join(root, '.keel'), { recursive: true });
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Notes', repo: REPO, practice: '0.1.0', practices: ['base'] }));
+  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Notes', repo: REPO, practice: '0.1.0', practices: ['base'], ...config }));
   const state = join(dir, 'state.json'), log = join(dir, 'gh.log'), gh = join(dir, 'gh');
   await writeFile(state, JSON.stringify({ prs: prs.map(p => ({ ...p, state: 'OPEN' })), unknownOnce, failMerge, failClose, lists: 0 }));
   await writeFile(gh, `#!${process.execPath}
@@ -152,6 +152,27 @@ test('--yes: oldest first, merge squashes and keeps the branch, close says how t
   for (const n of [14, 20, 21, 22]) assert.equal(by(n).state, 'OPEN', `#${n} untouched`);
   const list = (await s.calls()).find(c => c[1] === 'list');
   assert.equal(list[list.indexOf('--json') + 1], 'number,headRefName,createdAt,mergeable,files,isCrossRepository');
+});
+
+test('a project whose .keel/keel.json names `health`: PRs holding only pages there are data, beside the default', async t => {
+  const OWN = d => [`.keel/health/2026-09-${d}.md`, '.keel/bounds.json'];
+  const extra = extraData({ health: '.keel/health' }, 'keel-night/');
+  assert.deepEqual(extra, ['.keel/health/']);
+  assert.ok(isData('.keel/health/2026-09-30.md', 'keel-night/', extra));
+  assert.ok(isData('docs/health/2026-09-30.md', 'keel-night/', extra), 'the default stays data');
+  for (const p of ['.keel/healthy.md', '.keel/keel.json', '.keel/health']) assert.ok(!isData(p, 'keel-night/', extra), p);
+  for (const bad of ['../x', '/x', '.keel', 'a b', 'docs/health']) assert.deepEqual(extraData({ health: bad }, 'keel-night/'), [], bad);
+  assert.deepEqual(extraData({ health: '.keel/health' }, 'keel-loop/'), [], 'the loop queue keeps its own data');
+  const prs = () => [pr(11, 'keel-night/2026-09-27', 27, 'MERGEABLE', OWN(27)), pr(14, 'keel-night/2026-09-30', 30, 'MERGEABLE', OWN(30))];
+  const s = await setup(t, { prs: prs(), config: { health: '.keel/health' } });
+  const r = s.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  assert.equal(r.code, 0, r.err || r.out);
+  assert.deepEqual(writes(await s.calls()).map(c => [c[1], c[2]]), [['merge', '11'], ['merge', '14']]);
+  // Without the setting, the same pages are not data: superseded and left.
+  const u = await setup(t, { prs: prs() });
+  const ru = u.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  assert.equal(ru.code, 0, ru.err || ru.out);
+  assert.deepEqual(writes(await u.calls()).map(c => [c[1], c[2]]), [['close', '11']]);
 });
 
 test('--gate-passed merges the newest too, leaving the queue empty', async t => {

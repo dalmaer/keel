@@ -11,7 +11,8 @@
 // repo (a fork's PR is never a machine PR, whatever its branch is called).
 // The newest by createdAt is kept. Each older one, oldest first:
 //   - it holds only data (DATA: docs/health/, docs/inbox/, docs/INBOX.md,
-//     .keel/bounds.json; for keel-loop/ instead docs/loop/ and docs/LOOP.md,
+//     .keel/bounds.json, and the health directory .keel/keel.json "health"
+//     names, when it names one; for keel-loop/ instead docs/loop/ and docs/LOOP.md,
 //     DATA_BY_PREFIX, plus the files .keel/keel.json "loop" "afterRenderWrites"
 //     names) and GitHub says MERGEABLE → squash-merged, branch kept;
 //   - otherwise, or if that merge fails → closed as superseded by the newest,
@@ -28,9 +29,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isMain, rootOf, main } from './lib.mjs';
+import { isMain, rootOf, main, healthDirOf, HEALTH_DIR } from './lib.mjs';
 
-export const DATA_DIRS = ['docs/health/', 'docs/inbox/'];
+export const DATA_DIRS = [`${HEALTH_DIR}/`, 'docs/inbox/'];
 export const DATA_FILES = ['docs/INBOX.md', '.keel/bounds.json'];
 /**
  * A queue whose data is something else: its own paths, instead of the
@@ -48,25 +49,34 @@ export class DrainError extends Error {
 
 /**
  * A path the queue under `prefix` writes as data, never code. `extra` is the
- * files the project says its own step writes beside that data — for
+ * paths the project says its own step writes beside that data — for
  * keel-loop/, what "afterRenderWrites" names (a roadmap that counts findings
- * is rewritten by every pull, so a PR without it leaves main stale).
+ * is rewritten by every pull, so a PR without it leaves main stale); for the
+ * night's queues, its configured health directory. An entry ending in / is a
+ * directory.
  */
 export const isData = (path, prefix, extra = []) => {
   const { dirs, files } = DATA_BY_PREFIX[prefix] ?? { dirs: DATA_DIRS, files: DATA_FILES };
-  return files.includes(path) || extra.includes(path) || dirs.some(d => path.startsWith(d));
+  return files.includes(path) || dirs.some(d => path.startsWith(d)) ||
+    extra.some(e => e.endsWith('/') ? path.startsWith(e) : e === path);
 };
 const dataOnly = (pr, prefix, extra) => Array.isArray(pr.files) && pr.files.length > 0 && pr.files.every(f => isData(f.path, prefix, extra));
 
 /**
- * The files beyond a queue's own data that it may carry, from the project's
- * .keel/keel.json: for keel-loop/, "loop" "afterRenderWrites". Anything that
- * is not a plain repo-relative path is dropped, never trusted.
+ * The paths beyond a queue's own data that it may carry, from the project's
+ * .keel/keel.json: for keel-loop/, "loop" "afterRenderWrites"; for the night's
+ * queues, the "health" directory (healthDirOf), beside the default. Anything
+ * that is not a plain repo-relative path is dropped, never trusted.
  */
 export function extraData(keel, prefix) {
-  if (prefix !== 'keel-loop/') return [];
-  const list = keel?.loop?.afterRenderWrites;
-  return Array.isArray(list) ? list.filter(isPlainPath) : [];
+  if (prefix === 'keel-loop/') {
+    const list = keel?.loop?.afterRenderWrites;
+    return Array.isArray(list) ? list.filter(isPlainPath) : [];
+  }
+  if (DATA_BY_PREFIX[prefix] || keel?.health === undefined) return [];
+  let dir;
+  try { dir = healthDirOf(keel); } catch { return []; }
+  return isPlainPath(dir) && dir !== HEALTH_DIR ? [`${dir}/`] : [];
 }
 
 /** A repo-relative file path: no leading slash, no `..`, no `.github/`, no glob, no whitespace (the workflow hands it to a shell). */

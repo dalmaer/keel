@@ -27,7 +27,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "fc86cab3b53b41524016a156afc8a289ffbd23d2559e96779d25dca7d1e4a1c3"
+      "sha256": "85880ec09476048a9aec3981c887b5e403c8a25e5afbcdd7a5ba3c56e3736a57"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -71,15 +71,15 @@
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
-      "sha256": "564feb1f714fbfa64e803983597f2032d3a5d5b5c043cf0bab3d69c1ce599121"
+      "sha256": "64ece991ffe69f3926ebfebd9c32df5b137a8ad620eba97add33560647299af8"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "ad8dc89589c0ee0e267376635dc8514cd0b8f5c2394b869e74053f92b670aaf8"
+      "sha256": "97ad5be4920da7d983beaa25388f9ed1886fe511bb713b857e43c90168320fb3"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "e705e3bf4a77b10b22f907db69a7eb39a3642503feaced69fd50881d84127399"
+      "sha256": "37c5870bfacc4144a31fbc091fcde23c1e356a3e62be8d380bd6c763f3f34bc2"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",

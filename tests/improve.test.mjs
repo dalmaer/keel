@@ -331,6 +331,34 @@ test('in the project, a lessons table split by a blank line counts as lint (less
   assert.deepEqual(byId(full, 'lint').facts.lint, [{ rule: 'lessons-table-split', path: 'docs/lessons.md' }], 'keel\'s doctor agrees');
 });
 
+test('--report writes the page to .keel/keel.json `health`; an ignored health dir is lint (health-ignored); a bad one breaks the report', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: '/nonexistent/gh' };
+  // The project ignores the default, as ledger's phase 33 did, and names its own.
+  await writeFile(join(dir, '.gitignore'), '/docs/health/\n');
+  await setConfig(dir, { health: '.keel/health' });
+  const mine = run(process.execPath, ['scripts/keel/improve.mjs', '--report', '--json'], { cwd: dir, env });
+  const data = JSON.parse(mine.stdout);
+  assert.match(data.report, /^\.keel\/health\/\d{4}-\d{2}-\d{2}\.md$/, mine.stdout);
+  assert.match(await readFile(join(dir, data.report), 'utf8'), /^# Health — /);
+  assert.ok(!(await readdir(join(dir, 'docs'))).includes('health'), 'nothing in the default dir');
+  assert.ok(!byId(data, 'lint').facts.lint.some(l => l.rule === 'health-ignored'));
+  const full = keel(['improve', '--report', '--json'], dir, env).json();
+  assert.equal(full.report, data.report, 'keel improve writes the same place');
+  // Back to the ignored default: the night's own lint says so, and so does keel's doctor.
+  await setConfig(dir, { health: 'docs/health' });
+  const ignored = JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env }).stdout);
+  assert.deepEqual(byId(ignored, 'lint').facts.lint.filter(l => l.rule === 'health-ignored'), [{ rule: 'health-ignored', path: 'docs/health' }]);
+  assert.deepEqual(byId(keel(['improve', '--json'], dir, env).json(), 'lint').facts.lint.filter(l => l.rule === 'health-ignored'), [{ rule: 'health-ignored', path: 'docs/health' }]);
+  // A health dir outside the repo is a broken instrument, and nothing is written.
+  for (const bad of ['../acme-health', '/tmp/acme-health', 'docs/../../x', '.keel']) {
+    await setConfig(dir, { health: bad });
+    const r = run(process.execPath, ['scripts/keel/improve.mjs', '--report', '--json'], { cwd: dir, env });
+    assert.equal(r.status, 2, `${bad}: ${r.stdout}`);
+    assert.match(JSON.parse(r.stdout).error, /"health"/);
+  }
+});
+
 test('the gate runs with .keel/keel.json `env`: outside without it, ok with it, and never a test runner\'s context', async t => {
   const dir = await project(t);
   // Exits 0 only with ACME_FLAG=1 and no NODE_TEST_CONTEXT (lesson 14).

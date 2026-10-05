@@ -185,6 +185,24 @@ test('a project behind: how far, which migrations it has not recorded (fleet upd
   assert.match(r.text, /acme\/behind\s+yes\s+0\.1\.0 → 0\.2\.0/);
 });
 
+test('health is read from the project\'s configured dir (.keel/keel.json `health`), not docs/health', async t => {
+  const st = state();
+  const fresh = st.repos['acme/fresh'];
+  // ledger's shape: an old page left in docs/health, the live ones in .keel/health.
+  fresh.files = { ...fresh.files, '.keel/keel.json': cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], health: '.keel/health' }),
+    'docs/health/2026-09-01.md': '#', '.keel/health/2026-10-01.md': '#' };
+  delete fresh.files['docs/health/2026-10-01.md'];
+  const gh = await stubGh(t, st);
+  const r = await go(await home(t, LIST), gh);
+  assert.deepEqual(rowOf(r, 'acme/fresh').health, { last: '2026-10-01', age: 1, state: 'fresh', dir: '.keel/health' });
+  assert.ok((await gh.calls()).some(c => c[0] === 'api' && c[1] === 'repos/acme/fresh/contents/.keel/health'), 'listed the configured dir');
+  assert.deepEqual(rowOf(r, 'acme/behind').health, { last: '2026-09-28', age: 4, state: 'silent' }, 'no setting: the default');
+  // A health dir outside the repo is unreadable, never the default's reading.
+  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', health: '../elsewhere' });
+  const bad = await go(await home(t, LIST), await stubGh(t, st));
+  assert.match(rowOf(bad, 'acme/fresh').health.unreadable, /"health" cannot leave the repo/);
+});
+
 test('a health page older than two days is silent, not healthy; none says so', async t => {
   const r = await go(await home(t, LIST), await stubGh(t, state()));
   assert.deepEqual(rowOf(r, 'acme/behind').health, { last: '2026-09-28', age: 4, state: 'silent' });

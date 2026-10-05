@@ -212,6 +212,36 @@ test('lessons-table-split: a blank line inside the lessons table is linted, nami
   assert.deepEqual(rules(doctor(dir).data), ['lessons-table-split notes/lessons.md', 'lessons-table-split notes/lessons.md']);
 });
 
+test('health-ignored: a health dir the project git-ignores is a finding, naming the fix; a configured one that is not, is clean', async t => {
+  const dir = await project(t);
+  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
+  assert.ok(cfg.practices.includes('night'), 'the night is on in a fresh project');
+  const setCfg = over => writeFile(cfgPath, `${JSON.stringify({ ...cfg, ...over }, null, 2)}\n`);
+  assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')), 'nothing ignored: clean');
+  await writeFile(join(dir, '.gitignore'), '/docs/health/\n');
+  const r = doctor(dir);
+  assert.equal(r.code, 1, 'a finding, not information: the night silently loses its page');
+  const lint = r.data.lint.filter(l => l.rule === 'health-ignored');
+  assert.deepEqual(lint.map(l => l.path), ['docs/health']);
+  assert.match(lint[0].message, /git-ignored.*set "health" in \.keel\/keel\.json to a directory that is not ignored/);
+  const text = keel(['doctor'], dir);
+  assert.match(text.out + text.err, /health-ignored/);
+  await setCfg({ health: '.keel/health' });
+  assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')), 'a configured dir that is not ignored is clean');
+  await setCfg({ health: '.keel/health/' });
+  assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')), 'a trailing slash is the same dir');
+  for (const bad of ['../acme', '/acme/health', 'docs/./health', '.git/health', 7]) {
+    await setCfg({ health: bad });
+    const b = doctor(dir);
+    assert.equal(b.code, 1, String(bad));
+    assert.deepEqual(b.data.lint.filter(l => l.rule.startsWith('health')).map(l => l.rule), ['health-config'], String(bad));
+  }
+  // Without the night and without a setting, an ignored docs/health is none of keel's business.
+  await setCfg({ practices: cfg.practices.filter(p => p !== 'night') });
+  assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')));
+});
+
 test('a phase without Done when and a goal without a phase are linted', async t => {
   const dir = await project(t);
   const phase = join(dir, 'docs', 'phases', '00-first-thing-that-runs.md');

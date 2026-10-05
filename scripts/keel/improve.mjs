@@ -21,7 +21,8 @@
 // a grader that reports zeros when it breaks is believed (lesson 6).
 //
 // Exit codes: 0 every measure within its bound (or n/a), 1 one outside, 2 one
-// broken. --report also writes docs/health/<date>.md and tightens
+// broken. --report also writes <health>/<date>.md (.keel/keel.json `health`,
+// default docs/health) and tightens
 // .keel/bounds.json where a value beat its bound (a ratchet: never loosens).
 //
 // Adapted ideas, not code: the conduct-cost measure follows isocan's
@@ -33,10 +34,12 @@ import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, isMain, rootOf, main } from './lib.mjs';
+import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main } from './lib.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
-export const HEALTH = 'docs/health';
+/** The default health directory; a project's own is .keel/keel.json `health` (healthDirOf). */
+export const HEALTH = HEALTH_DIR;
+export { healthDirOf };
 export const STUCK_DAYS = 21;
 /**
  * Each machine queue's bound: the open PRs it may hold. keel's own queues
@@ -126,9 +129,10 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
     const lessons = typeof ctx.config.lessons === 'string' && ctx.config.lessons ? ctx.config.lessons : 'docs/lessons.md';
     lint.push(...lessonsTableSplit(await read(join(ctx.root, lessons)), lessons));
   }
+  lint.push(...healthLints(ctx.root, ctx.config));
   return { keel: false, drift, lint };
 });
-export const PROJECT_LINTS = ['phase', 'goal-without-phase', 'claude-md-pointer', 'second-copy', 'symlink-replaced', 'lessons-table-split'];
+export const PROJECT_LINTS = ['phase', 'goal-without-phase', 'claude-md-pointer', 'second-copy', 'symlink-replaced', 'lessons-table-split', 'health-config', 'health-ignored'];
 const projectSide = what => `; ${what} (keel doctor reads the rest)`;
 
 /** The project's gate, run once: { command, status, tests, ms }. */
@@ -615,6 +619,9 @@ export const strip = results => results.map(({ facts, ...r }) => ({ ...r, ...(fa
  */
 export async function improve({ root, report = false, transcripts, date = today() }, { env = process.env, measures = MEASURES, keel, by = keel ? 'keel improve' : COMMAND } = {}) {
   const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
+  // Where the page goes, settled before anything is written: a bad `health` is a broken instrument.
+  let dir = null;
+  if (report) try { dir = healthDirOf(config); } catch (e) { throw new ImproveError(e.message, 2); }
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, keel });
   const proposal = propose(results, config);
@@ -623,8 +630,8 @@ export async function improve({ root, report = false, transcripts, date = today(
     const t = tighten(results, stored ?? {}, measures);
     tightened = t.tightened;
     await writeFile(join(root, BOUNDS), `${JSON.stringify(t.bounds, null, 2)}\n`);
-    written = `${HEALTH}/${date}.md`;
-    await mkdir(join(root, HEALTH), { recursive: true });
+    written = `${dir}/${date}.md`;
+    await mkdir(join(root, dir), { recursive: true });
     await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by }));
   }
   const code = exitCode(results);

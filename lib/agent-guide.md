@@ -243,6 +243,11 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   `docs/lessons.md`: adopt finds a `docs/**/lessons.md` with a numbered table,
   records it and seeds nothing beside it; lessons, doctor, fleet and improve
   read it.
+- `health` in `.keel/keel.json`: the directory the night's health pages go
+  in, default `docs/health` (relative, inside the repo, no `..`). improve
+  writes there, keel-night commits it (read at run time), drain counts it as
+  data beside the default, and fleet and loose-ends read it. A project that
+  git-ignores `docs/health/` sets it (ledger: `.keel/health`).
 - `docs/projects/<p>/phases.md` with `**Status:**` lines is the **projects
   shape**: `"phases": {"shape": "projects"}`, phases and evidence local, read
   only by `keel next [--project <p>]` and `keel status` (CLOSED→built,
@@ -277,7 +282,11 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   `lessons-path` (a `lessons` config naming no file), `lessons-table-split`
   (a blank line inside the lessons table, so the rows after it render as
   text; it names the lines), `gate-config` (a
-  `setup` or `env` that is not a command or `NAME: "value"`), and in the projects
+  `setup` or `env` that is not a command or `NAME: "value"`), `health-config`
+  (a `health` that is not a relative directory inside the repo),
+  `health-ignored` (the health directory is git-ignored, so the night's page
+  is never committed; fix: set `health` to a directory that is not ignored),
+  and in the projects
   shape `off-vocabulary` (Status: DONE, or an unknown word) and
   `phase-status` (status in a heading, or none).
 - `local` lists the project's local variants as information; `qualifies`
@@ -431,7 +440,7 @@ States: `ok`, `outside`, `n/a` (with why), `broken`. An instrument that
 cannot run is `broken`, never a zero (lesson 6). Exit 0 all within bounds, 1
 one outside, 2 one broken.
 
-`--report` writes `docs/health/<YYYY-MM-DD>.md` (that day's page only) and
+`--report` writes `<health>/<YYYY-MM-DD>.md` (`health` in `.keel/keel.json`, default `docs/health`) (that day's page only) and
 `.keel/bounds.json`, seeded on the first report and the project's to edit.
 A value that beats its bound becomes the bound; it never loosens. The page
 ends in one proposal: a broken measure first, else the one furthest outside
@@ -465,8 +474,8 @@ is never in a queue, whatever its branch is called; nothing outside the
 prefix is touched.
 
 - Each older PR, oldest first: merged (squash, branch kept) when every file
-  is data (`docs/health/`, `docs/inbox/`, `docs/INBOX.md`,
-  `.keel/bounds.json`; for `keel-loop/`, `docs/loop/` and `docs/LOOP.md`
+  is data (`docs/health/` and the configured `health` directory,
+  `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`; for `keel-loop/`, `docs/loop/` and `docs/LOOP.md`
   instead) and GitHub says `MERGEABLE`; otherwise closed with a
   comment naming the newest and saying how to recover it. A merge that fails
   becomes that close.
@@ -522,7 +531,8 @@ about every repo at once.
   adopted), practice against this CLI's (`0.1.0 → 0.2.0` or `current`),
   migrations not in its `migrations` list ("unrecorded"; only `fleet
   update` asks their `applies()`), newest
-  `docs/health/<date>.md` (older than two days is silent), CI (the newest
+  `<health>/<date>.md` (the project's configured `health` directory, default
+  `docs/health`; older than two days is silent), CI (the newest
   completed default-branch run of the gate: the workflow named `check`, else
   one run by push whose YAML runs the configured check or `npm test`, else a
   name match;

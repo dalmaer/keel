@@ -54,6 +54,8 @@ A project that uses keel carries `.keel/keel.json`, which records:
 - the gate command that must pass (`check`);
 - the practice version it is on;
 - the practices it has switched on;
+- where its nightly health page goes (`health`, default `docs/health`;
+  `keel doctor` flags a directory the project git-ignores);
 - anything it does its own way, as a *local variant* with a reason.
 
 **The practices:**

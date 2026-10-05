@@ -470,3 +470,15 @@ test('unsent lessons: one item per project with the send command; a mark holds w
   await writeFile(join(w.nested, '.keel', 'sent.json'), JSON.stringify(Object.fromEntries(all.map(f => [f, { issue: 'x', at: 'y' }]))));
   assert.ok(!item(json(w, ['--all']), 'acme/nested', 'unsent-lessons:acme/nested'));
 });
+
+test('the health proposal is read from the configured health dir (.keel/keel.json `health`)', async t => {
+  const w = await world(t);
+  const cfg = join(w.home, '.keel', 'keel.json');
+  await writeFile(cfg, JSON.stringify({ ...JSON.parse(await readFile(cfg, 'utf8')), health: '.keel/health' }));
+  await mkdir(join(w.home, '.keel', 'health'), { recursive: true });
+  await writeFile(join(w.home, '.keel/health/2026-10-03.md'), '# Health\n\n## Proposal\n\n**`lint`** (outside) — fix the Acme lint.\n');
+  const d = json(w);
+  assert.match(item(d, 'acme/keel', 'health:lint').title, /2026-10-03/);
+  assert.deepEqual(item(d, 'acme/keel', 'health:lint').commands, [`less ${join(w.home, '.keel/health/2026-10-03.md')}`]);
+  assert.ok(!item(d, 'acme/keel', 'health:phases_without_issue'), 'docs/health is not read when another dir is configured');
+});

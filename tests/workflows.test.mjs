@@ -6,7 +6,7 @@
 // that breaks it must fail.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -132,7 +132,7 @@ test('mutations: a workflow that breaks a rule fails', async () => {
   fails(night.replace(push, 'git push'), /no explicit/, 'a bare git push');
   fails(night.replace(push, 'git push origin HEAD:refs/heads/main'), /outside this workflow's prefix|names main/, 'a push to refs/heads/main');
   fails(night.replace(push, 'git push origin "HEAD:refs/heads/renovate/x"'), /outside this workflow's prefix/, 'another queue\'s branch');
-  fails(night.replace('if [ -z "$(git status --porcelain)" ]; then', 'if git diff --quiet; then'), /porcelain/, 'git diff --quiet');
+  fails(night.replace('if [ "${#PATHS[@]}" = 0 ] || [ -z "$(git status --porcelain -- "${PATHS[@]}")" ]; then', 'if git diff --quiet; then'), /porcelain/, 'git diff --quiet');
   fails(night.replace(/concurrency:\n\s+group: keel-night\n/, ''), /no concurrency group/, 'no concurrency');
   fails(night.replace('cron: "23 7 * * *"', 'cron: "23 7 * *"'), /invalid cron/, 'four fields');
   fails(night.replace('cron: "23 7 * * *"', 'cron: "61 7 * * *"'), /invalid cron/, 'minute 61');
@@ -470,4 +470,74 @@ test('every run: block in every workflow parses as bash, and every inline node -
   assert.ok(sh.some(p => /step "Install".*bash -n/.test(p)), `broken bash: ${JSON.stringify(sh)}`);
   const one = await shellProblems('loop', 'jobs:\n  x:\n    steps:\n      - name: One line\n        run: if true; then echo\n');
   assert.ok(one.some(p => /step "One line".*bash -n/.test(p)), `a one-line run: ${JSON.stringify(one)}`);
+});
+
+/**
+ * Run the night's "Where the health page goes" and "Open the night's pull
+ * request" steps, as the workflow has them, in a synthetic Acme repo with a
+ * bare origin and a stub gh. Returns { dir, files: the paths the pushed
+ * branch's commit carries, out }.
+ */
+async function nightCommit(t, night, { health, ignore = '' }) {
+  const steps = runBlocks(night);
+  const where = steps.find(b => b.step === 'Where the health page goes');
+  const open = steps.find(b => b.step === "Open the night's pull request");
+  assert.ok(where && open, 'both steps are in the workflow');
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-night-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme'), origin = join(base, 'origin.git'), bin = join(base, 'bin'), temp = join(base, 'tmp');
+  const git = (args, cwd = dir) => { const r = run('git', args, { cwd }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout; };
+  for (const d of [dir, bin, temp, join(dir, 'scripts/keel'), join(dir, '.keel')]) await mkdir(d, { recursive: true });
+  git(['init', '-q', '--bare', origin], base);
+  git(['init', '-q', '-b', 'main']);
+  await writeFile(join(dir, 'scripts/keel/lib.mjs'), await readFile(join(KEEL, 'practices/night/files/scripts/keel/lib.mjs'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme', ...(health ? { health } : {}) })}\n`);
+  await writeFile(join(dir, '.gitignore'), ignore);
+  git(['add', '-A']);
+  git(['commit', '-q', '-m', 'acme']);
+  git(['remote', 'add', 'origin', origin]);
+  await writeFile(join(bin, 'gh'), '#!/bin/sh\nif [ "$1 $2" = "pr list" ]; then exit 0; fi\necho https://github.test/acme/acme/pull/1\n', { mode: 0o755 });
+  // The night's writes: a page where the config says, the bounds, and something that is not data.
+  const out = join(temp, 'out');
+  await writeFile(out, '');
+  const env = { ...process.env, GITHUB_OUTPUT: out, RUNNER_TEMP: temp, PATH: `${bin}:${process.env.PATH}` };
+  const w = run('bash', ['-e', '-c', where.script], { cwd: dir, env });
+  assert.equal(w.status, 0, w.stderr);
+  const page = /^dir=(.*)$/m.exec(await readFile(out, 'utf8'))?.[1];
+  await mkdir(join(dir, health ?? 'docs/health'), { recursive: true });
+  await writeFile(join(dir, health ?? 'docs/health', '2026-10-05.md'), '# Health — 2026-10-05\n');
+  await writeFile(join(dir, '.keel/bounds.json'), '{}\n');
+  await writeFile(join(dir, 'acme-scratch.txt'), 'setup left this\n');
+  await writeFile(join(temp, 'body.md'), 'body\n');
+  const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', BASE: 'main', HEALTH: page ?? '' } });
+  const pushed = run('git', ['--git-dir', origin, 'show', '--name-only', '--format=', 'refs/heads/keel-night/2026-10-05']);
+  return { page, status: o.status, out: o.stdout + o.stderr, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null };
+}
+
+test('the night commits its page from the configured health dir (read at run time), only data, and goes red on an ignored one', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  // ledger's shape: docs/health/ ignored, health in .keel/health.
+  const own = await nightCommit(t, night, { health: '.keel/health', ignore: '/docs/health/\n' });
+  assert.equal(own.page, '.keel/health');
+  assert.equal(own.status, 0, own.out);
+  assert.deepEqual(own.files, ['.keel/bounds.json', '.keel/health/2026-10-05.md'], 'the page and the bounds; never what is not data');
+  // The default, with nothing ignored.
+  const def = await nightCommit(t, night, {});
+  assert.equal(def.page, 'docs/health');
+  assert.deepEqual(def.files, ['.keel/bounds.json', 'docs/health/2026-10-05.md']);
+  // The configured dir ignored: red, naming the fix, and nothing pushed.
+  const lost = await nightCommit(t, night, { ignore: '/docs/health/\n' });
+  assert.notEqual(lost.status, 0);
+  assert.match(lost.out, /docs\/health is git-ignored.*set \\?"health\\?" in \.keel\/keel\.json/);
+  assert.equal(lost.files, null);
+  // Mutation: the commit step hard-codes docs/health instead of the configured dir.
+  const hard = night.replace('for p in "$HEALTH" docs/inbox', 'for p in docs/health docs/inbox');
+  assert.notEqual(hard, night);
+  const m = await nightCommit(t, hard, { health: '.keel/health', ignore: '/docs/health/\n' });
+  assert.ok(!(m.files ?? []).includes('.keel/health/2026-10-05.md'), `a hard-coded docs/health loses the page: ${JSON.stringify(m.files)}`);
+  // Mutation: the dir is not read from the config.
+  const fixed = night.replace('const dir = healthDirOf(JSON.parse(readFileSync(".keel/keel.json", "utf8")));', 'const dir = "docs/health";');
+  assert.notEqual(fixed, night);
+  const f = await nightCommit(t, fixed, { health: '.keel/health', ignore: '/docs/health/\n' });
+  assert.ok(!(f.files ?? []).includes('.keel/health/2026-10-05.md'), `a fixed dir loses the page: ${JSON.stringify(f.files)}`);
 });
