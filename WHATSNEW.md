@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.3 — practice 0.6.3 (2026-10-04)
+
+- **Setup can fetch a private repo your gate depends on.** Name a repo secret in `.keel/keel.json` as `setupToken`, and the night shift (and the Loop workflow) passes it, to the install step only, as `GH_TOKEN`, so `setup` can `gh repo clone` it.
+
 ## v0.6.2 — practice 0.6.2 (2026-10-04)
 
 - **Unsent lessons are counted every night.** The health page gains `lessons_unsent`: rows in your lessons table that haven't gone home yet. Send them with `npx -y github:dalmaer/keel lessons --yes`. `keel loose-ends` lists them too.
