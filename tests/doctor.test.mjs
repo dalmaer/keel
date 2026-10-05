@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lineDiff, blockBody } from '../lib/doctor.mjs';
-import { lessonsTableSplit } from '../practices/night/files/scripts/keel/lib.mjs';
+import { lessonsTableSplit, setupEnvProblems } from '../practices/night/files/scripts/keel/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -408,4 +408,32 @@ test('doctor shows setup and env as information, and lints a bad one', async t =
   d = doctor(dir);
   assert.equal(d.code, 1);
   assert.equal(d.data.lint.filter(l => l.rule === 'gate-config').length, 3);
+});
+
+test('setupToken names a repo secret: checked, and doctor shows the name', async t => {
+  assert.deepEqual(setupEnvProblems({ setup: 'npm ci', setupToken: 'ACME_DATA_TOKEN' }), []);
+  assert.deepEqual(setupEnvProblems({ setup: 'npm ci' }), []);
+  for (const [why, setupToken, setup] of [
+    ['lower case', 'acme_data_token', 'npm ci'],
+    ['a value, not a name', 'ghp_abc123', 'npm ci'],
+    ['a dash', 'ACME-TOKEN', 'npm ci'],
+    ['a number first', '1ACME', 'npm ci'],
+    ['empty', '', 'npm ci'],
+    ['not a string', 42, 'npm ci'],
+    ['a reserved GITHUB_ name', 'GITHUB_TOKEN', 'npm ci'],
+    ['no setup to hand it to', 'ACME_DATA_TOKEN', undefined],
+  ]) assert.equal(setupEnvProblems({ setup, setupToken }).length, 1, why);
+
+  const dir = await project(t);
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, `${JSON.stringify({ ...cfg, setup: 'npm ci', setupToken: 'ACME_DATA_TOKEN' }, null, 2)}\n`);
+  let d = doctor(dir);
+  assert.equal(d.code, 0, JSON.stringify(d.data.lint));
+  assert.equal(d.data.gate.setupToken, 'ACME_DATA_TOKEN');
+  assert.match(keel(['doctor'], dir).out, /setupToken: secrets\.ACME_DATA_TOKEN/);
+  await writeFile(path, `${JSON.stringify({ ...cfg, setup: 'npm ci', setupToken: 'ghp_notaname' }, null, 2)}\n`);
+  d = doctor(dir);
+  assert.equal(d.code, 1);
+  assert.deepEqual(d.data.lint.filter(l => l.rule === 'gate-config').map(l => /setupToken/.test(l.message)), [true]);
 });

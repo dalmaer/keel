@@ -273,12 +273,20 @@ export const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
  * What is wrong with .keel/keel.json `setup` (a shell command, run before the
- * gate by the night's workflows) and `env` (a flat map applied wherever keel
- * runs the gate). Both are optional. Returns a list of messages.
+ * gate by the night's workflows), `setupToken` (the NAME of a repo secret the
+ * night's Install step hands `setup` as GH_TOKEN, for a `gh repo clone` of a
+ * private repo; never a value) and `env` (a flat map applied wherever keel
+ * runs the gate). All are optional. Returns a list of messages.
  */
 export function setupEnvProblems(config) {
   const problems = [];
   if (config?.setup !== undefined && (typeof config.setup !== 'string' || !config.setup.trim())) problems.push('"setup" must be a non-empty shell command');
+  const token = config?.setupToken;
+  if (token !== undefined) {
+    if (typeof token !== 'string' || !ENV_KEY.test(token)) problems.push(`"setupToken" must name a repo secret (${ENV_KEY.source}), never hold a token`);
+    else if (token.startsWith('GITHUB_')) problems.push('"setupToken" cannot start with GITHUB_ (GitHub reserves those secret names; the default token is used when setupToken is absent)');
+    if (config?.setup === undefined) problems.push('"setupToken" is set but there is no "setup" to hand it to');
+  }
   const env = config?.env;
   if (env === undefined) return problems;
   if (!env || typeof env !== 'object' || Array.isArray(env)) return [...problems, '"env" must be an object of NAME: "value"'];

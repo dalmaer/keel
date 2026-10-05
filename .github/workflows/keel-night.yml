@@ -4,7 +4,7 @@
 # the dated health page on a branch of its own, open one pull request, and
 # drain the queue (scripts/keel/drain.mjs) so it never holds more than one
 # open `keel-night/` PR. Both scripts are managed files of this practice, in
-# this repo: the night never fetches anything, and needs no secret. The rules, each
+# this repo: the night never fetches anything, and needs no secret of its own. The rules, each
 # paid for once (keel docs/design.md §6, from isocan's "night shift's pull
 # requests"):
 #
@@ -20,7 +20,9 @@
 #     exit 2) or a failing gate makes this run red, and GitHub emails. A
 #     measure outside its bound (exit 1) is news: it is on the page, not red.
 #
-# No secret. Repo setting: Actions must be allowed to create pull requests;
+# No secret of its own. A project whose `setup` must clone a private repo names
+# a secret in .keel/keel.json "setupToken"; the Install step alone gets it, as
+# GH_TOKEN. Repo setting: Actions must be allowed to create pull requests;
 # until they are, the branch is pushed and the run ends green with a notice.
 name: keel-night
 
@@ -68,6 +70,8 @@ jobs:
             const env = c.env ?? {};
             if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
             if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
             const eof = `KEEL_EOF_${Date.now()}`;
             const lines = [];
             for (const [k, v] of Object.entries(env)) {
@@ -77,10 +81,17 @@ jobs:
             }
             if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // The secret's NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
           '
       - name: Install
+        # setupToken (a secret's name in .keel/keel.json) becomes GH_TOKEN here
+        # and in no other step, so setup can clone a private repo with gh
+        # (ledger's data). Absent or unset, the job's own token. Never echoed.
         env:
           SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
         run: |
           if [ -n "$SETUP" ]; then
             echo "setup (.keel/keel.json): $SETUP"

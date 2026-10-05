@@ -114,6 +114,7 @@ test('the night workflow measures before it drains, pushes only its dated branch
   assert.match(night, /if \[ "\$GATE" != ok \]; then[\s\S]*?exit 1/, 'a failing gate is red');
   assert.doesNotMatch(night.slice(at('if [ "$CODE" = 1 ]')), /exit 1/, 'outside a bound is news, not red');
   assert.doesNotMatch(night, /secrets\./, 'the night needs no secret: it runs the project\'s own scripts');
+  assert.deepEqual(night.match(/secrets\[[^\]]*\]/g), ['secrets[steps.config.outputs.setup_token]'], 'its one secret is the project\'s own setupToken, by name');
 });
 
 test('mutations: a workflow that breaks a rule fails', async () => {
@@ -300,4 +301,70 @@ test('keel-night and keel-loop install with the config\'s setup, else npm ci, an
     ['setup spliced into the script', night.replace('bash -e -c "$SETUP"', 'bash -e -c "${{ steps.config.outputs.setup }}";')],
     ['the install after the measure', night.replace(/(      - name: Install\n[\s\S]*?          fi\n)([\s\S]*?)(      # Porcelain)/, '$2$1$3')],
   ]) assert.ok(installProblems(text).length, `${why}: expected a problem`);
+});
+
+/**
+ * The config's setupToken (a secret's NAME) reaches the Install step's env as
+ * GH_TOKEN and nothing else: not the job, not another step, never printed,
+ * never exported to later steps. [string].
+ */
+export function setupTokenProblems(text) {
+  const out = [];
+  const lines = text.split('\n');
+  const steps = [];
+  let current = null;
+  lines.forEach((line, i) => {
+    if (/^\s{6}- /.test(line)) steps.push(current = { start: i, lines: [] });
+    else if (/^\s{0,5}\S/.test(line)) current = null; // the job's own keys, or another job
+    current?.lines.push(line);
+  });
+  const install = steps.find(s => /^\s+- name: Install\s*$/.test(s.lines[0]));
+  const config = steps.find(s => s.lines.some(l => /^\s+id: config\s*$/.test(l)));
+  const expr = 'GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}';
+  if (!config || !/fs\.appendFileSync\(process\.env\.GITHUB_OUTPUT, `setup_token=\$\{tok \?\? ""\}\\n`\)/.test(config.lines.join('\n'))) out.push('the config step does not output setup_token');
+  if (config && !/!\/\^\[A-Z_\]\[A-Z0-9_\]\*\$\/\.test\(tok\)/.test(config.lines.join('\n'))) out.push('the config step does not check setupToken is a secret name');
+  if (!install) return [...out, 'no Install step'];
+  const own = install.lines.filter(l => !/^\s*#/.test(l));
+  const envAt = own.findIndex(l => /^\s{8}env:\s*$/.test(l));
+  const runAt = own.findIndex(l => /^\s{8}run:/.test(l));
+  const inEnv = envAt >= 0 && own.slice(envAt + 1, runAt < envAt ? undefined : runAt).some(l => l.trim() === expr);
+  if (!inEnv) out.push('the Install step\'s env does not set GH_TOKEN from the setupToken secret (with the job token as fallback)');
+  if (/GITHUB_ENV|GITHUB_OUTPUT|GITHUB_STATE/.test(own.join('\n'))) out.push('the Install step writes to GITHUB_ENV/OUTPUT: the token could reach later steps');
+  lines.forEach((line, i) => {
+    if (/^\s*#/.test(line)) return;
+    const n = i + 1;
+    const mine = i >= install.start && i < install.start + install.lines.length;
+    if (/secrets\[/.test(line) && !(mine && line.trim() === expr)) out.push(`line ${n}: secrets[…] outside the Install step's GH_TOKEN`);
+    if (/outputs\.setup_token/.test(line) && !(mine && line.trim() === expr)) out.push(`line ${n}: setup_token used outside the Install step's GH_TOKEN`);
+    if (/\$\{?GH_TOKEN\b|env\.GH_TOKEN/.test(line)) out.push(`line ${n}: GH_TOKEN is read or printed`);
+  });
+  return out;
+}
+
+test('the setupToken secret reaches only the Install step, as GH_TOKEN, and is never printed', async () => {
+  const all = await shipped();
+  for (const name of ['keel-night.yml', 'keel-loop.yml']) {
+    const w = all.find(w => w.name === name);
+    assert.deepEqual(setupTokenProblems(w.template), [], name);
+    if (!w.optional) assert.deepEqual(setupTokenProblems(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
+  }
+  // Mutations: each way the token leaks or goes missing is caught.
+  const expr = '          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}\n';
+  for (const name of ['keel-night.yml', 'keel-loop.yml']) {
+    const t = all.find(w => w.name === name).template;
+    assert.ok(t.includes(expr), name);
+    for (const [why, text] of [
+      ['no token for setup', t.replace(expr, '')],
+      ['no fallback to the job token', t.replace(' || github.token }}', ' }}')],
+      ['at job level', t.replace(expr, '').replace('    env:\n      GH_TOKEN: ${{ github.token }}\n', '    env:\n      GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}\n')],
+      ['also in another step', t.replace(/(      - name: Verdict\n(?:        if:[^\n]*\n)?)/, `$1        env:\n${expr}`)],
+      ['echoed', t.replace('bash -e -c "$SETUP"', 'echo "$GH_TOKEN"\n            bash -e -c "$SETUP"')],
+      ['exported to later steps', t.replace('bash -e -c "$SETUP"', 'bash -e -c "$SETUP"\n            echo "GH_TOKEN=x" >> "$GITHUB_ENV"')],
+      ['the name never output', t.replace(/fs\.appendFileSync\(process\.env\.GITHUB_OUTPUT, `setup_token=[^\n]*\n/, '')],
+      ['the name never checked', t.replace('!/^[A-Z_][A-Z0-9_]*$/.test(tok)', 'false')],
+    ]) {
+      assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
+      assert.ok(setupTokenProblems(text).length, `${name} ${why}: expected a problem`);
+    }
+  }
 });

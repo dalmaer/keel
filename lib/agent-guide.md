@@ -82,7 +82,7 @@ stderr as one line beginning `keel:`.
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
 - `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
   lint: [{rule, path, message}], local: {name: why}, qualifies, owing, ejected,
-  gate?: {check, setup?, env?}}` (gate only when setup or env is set: information);
+  gate?: {check, setup?, setupToken?, env?}}` (gate only when one is set: information);
   state is `edited|behind|both`. With `--fix` and no `--yes`, exit 3 and
   `{ok: false, needs: "yes", plan: {path, action, practice, what}}`; with
   `--yes`, `{ok: true, fixed, ...the report after}`
@@ -234,6 +234,11 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   a lockfile exists), reading it at run time. `env` goes over the environment
   wherever keel runs the gate (improve, update, release, the night's steps),
   e.g. `LEDGER_AUTOSYNC=0` so a gate never syncs or pushes from a keel run.
+- `setupToken` in `.keel/keel.json`: the NAME of a repo secret (never a
+  token; `^[A-Z_][A-Z0-9_]*$`, not `GITHUB_*`, needs `setup`). keel-night and
+  keel-loop hand it to the Install step alone as `GH_TOKEN`, so `setup` can
+  `gh repo clone` a private repo (else the job's own token). ⚑ The owner sets
+  the secret. `keel fleet update` ignores it: setup runs with the owner's gh.
 - `lessons` in `.keel/keel.json` is the lessons table when it is not
   `docs/lessons.md`: adopt finds a `docs/**/lessons.md` with a numbered table,
   records it and seeds nothing beside it; lessons, doctor, fleet and improve
