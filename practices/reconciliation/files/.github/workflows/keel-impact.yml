@@ -1,0 +1,33 @@
+name: keel-impact
+
+# Managed by keel (practice reconciliation). The pull request's keel-impact
+# declaration, checked against its actual diff. It is its own workflow so that
+# editing the PR's description re-checks it in seconds; folding it into
+# check.yml would mean a full gate on every edit, or a skipped gate whose
+# result replaces a red one.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: keel-impact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  impact:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # The event file carries the description as it is now, so an edit
+      # that fixes the declaration turns this check green.
+      - run: node scripts/keel/reconcile.mjs --event "$GITHUB_EVENT_PATH" --json

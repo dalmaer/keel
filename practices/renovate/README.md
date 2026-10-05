@@ -12,7 +12,9 @@ branch updated in place, so no lane ever holds more than one PR:
   green.
 - `renovate/lock-file-maintenance`, **Mondays**: the lockfile refreshed,
   merged the same way.
-- `renovate/major-weekly`, **Mondays**: every major together, for a person.
+- `renovate/major-weekly`, **Mondays**: every major together, and any
+  vendored git submodule that moved (someone else's code, arriving whole),
+  for a person.
 - `renovate/node`, **Mondays**: `.nvmrc` and `@types/node` together, for a
   person.
 

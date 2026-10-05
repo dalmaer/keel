@@ -13,6 +13,9 @@
     "before 6am"
   ],
   "dependencyDashboard": true,
+  "git-submodules": {
+    "enabled": true
+  },
   "rangeStrategy": "bump",
   "labels": [
     "dependencies"
@@ -55,6 +58,18 @@
       "description": "Weekly lane: majors change behaviour, so they wait for a person, together, once a week.",
       "matchUpdateTypes": [
         "major"
+      ],
+      "groupName": "major updates",
+      "groupSlug": "weekly",
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Vendored git submodules (skills, references) join the weekly lane: someone else's code arriving whole, so a person reads it. A project with no submodules has nothing here.",
+      "matchManagers": [
+        "git-submodules"
       ],
       "groupName": "major updates",
       "groupSlug": "weekly",

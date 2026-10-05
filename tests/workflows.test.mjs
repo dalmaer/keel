@@ -21,6 +21,7 @@ export const PREFIX = {
   'keel-loop.yml': 'keel-loop/',
   'claude.yml': 'claude/',
   'check.yml': null,
+  'keel-impact.yml': null,
 };
 
 const code = text => text.split('\n').map((line, i) => ({ line, n: i + 1 })).filter(({ line }) => !/^\s*#/.test(line));
@@ -91,7 +92,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-loop.yml', 'keel-night.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -540,4 +541,18 @@ test('the night commits its page from the configured health dir (read at run tim
   assert.notEqual(fixed, night);
   const f = await nightCommit(t, fixed, { health: '.keel/health', ignore: '/docs/health/\n' });
   assert.ok(!(f.files ?? []).includes('.keel/health/2026-10-05.md'), `a fixed dir loses the page: ${JSON.stringify(f.files)}`);
+});
+
+test('the PR description is re-checked on edit by keel-impact.yml alone; check.yml never runs it', async () => {
+  const all = await shipped();
+  const impact = all.find(w => w.name === 'keel-impact.yml').template;
+  const check = all.find(w => w.name === 'check.yml').template;
+  const on = /^on:\n([\s\S]*?)\n\S/m.exec(impact)?.[1] ?? '';
+  for (const t of ['opened', 'synchronize', 'reopened', 'edited']) assert.match(on, new RegExp(`\\b${t}\\b`), `keel-impact.yml runs on ${t}`);
+  assert.doesNotMatch(on, /push|pull_request_target/, 'keel-impact.yml: pull_request only');
+  assert.match(impact, /reconcile\.mjs --event "\$GITHUB_EVENT_PATH"/);
+  assert.doesNotMatch(impact, /\{\{check\}\}|npm (ci|test|run)/, 'an edit never re-runs the gate');
+  // An edited-triggered gate would skip, and a skipped required check reads as passed.
+  assert.doesNotMatch(check, /--event/, 'check.yml leaves the description to keel-impact.yml');
+  assert.doesNotMatch(check, /\bedited\b/, 'check.yml does not run on description edits');
 });

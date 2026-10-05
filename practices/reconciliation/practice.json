@@ -10,6 +10,11 @@
       "kind": "managed"
     },
     {
+      "path": ".github/workflows/keel-impact.yml",
+      "from": ".github/workflows/keel-impact.yml",
+      "kind": "managed"
+    },
+    {
       "path": "docs/reconciliation.md",
       "from": "docs/reconciliation.md",
       "kind": "managed"

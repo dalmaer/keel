@@ -11,9 +11,11 @@ also compares read-only GitHub observations. The installed runtime is
 Exit 0 means clean, 1 findings, 2 incomplete/broken. Missing remote facts are
 unknown, never evidence that the record is clean.
 
-The existing managed check workflow runs local checks, and on pull requests
-runs `node scripts/keel/reconcile.mjs --event "$GITHUB_EVENT_PATH" --json`.
-It checks the actual base/head diff and the PR body. Default-branch pushes
+The existing managed check workflow runs local checks. `keel-impact.yml`
+(managed by this practice) runs `node scripts/keel/reconcile.mjs --event
+"$GITHUB_EVENT_PATH" --json` on every pull request, and again whenever its
+description is edited, so fixing a declaration turns the check green without
+re-running the gate. It checks the actual base/head diff and the PR body. Default-branch pushes
 compare remote facts. Existing local CI workflows are preserved on adoption:
 add these steps to yours, using checkout with full history and only contents
 and pull-requests read permissions. Use `pull_request`, never privileged fork

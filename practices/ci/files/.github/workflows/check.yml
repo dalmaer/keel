@@ -37,9 +37,9 @@ jobs:
         run: |
           if node -e 'const c=JSON.parse(require("fs").readFileSync(".keel/keel.json","utf8"));process.exit(c.practices.includes("reconciliation")?0:1)'; then
             node scripts/keel/reconcile.mjs --json
-            if [ "$EVENT" = pull_request ]; then
-              node scripts/keel/reconcile.mjs --event "$GITHUB_EVENT_PATH" --json
-            elif [ "$EVENT" = push ] && [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            # The PR's keel-impact declaration is keel-impact.yml's, so an
+            # changed description is re-checked without re-running this gate.
+            if [ "$EVENT" = push ] && [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
               node scripts/keel/reconcile.mjs --github --json
             fi
           fi

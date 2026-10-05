@@ -164,7 +164,8 @@ test('optional CI routes remote facts only on default-branch pushes', async t =>
   };
   assert.deepEqual(await execute('push', 'trunk'), [['--json'], ['--github', '--json']]);
   assert.deepEqual(await execute('push', 'feature'), [['--json']]);
-  assert.deepEqual(await execute('pull_request', 'feature'), [['--json'], ['--event', join(dir, 'event.json'), '--json']]);
+  // The PR description is keel-impact.yml's (re-checked on edit); check.yml runs only the local check on a PR.
+  assert.deepEqual(await execute('pull_request', 'feature'), [['--json']]);
   config.practices = ['base'];
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(config));
   await rm(join(dir, 'scripts/keel/reconcile.mjs'));
