@@ -67,6 +67,27 @@ That was the first real night with no person involved: measure, PR, check, merge
 | duo | 1 dispatched | (pending) |
 | cajones | 1 dispatched | (pending) |
 
+## A real red night, and the fix (2026-10-04/05)
+
+- **The red night:** ledger's *scheduled* keel-loop run on 2026-10-04 at
+  11:16 UTC failed. An apostrophe in a comment inside the workflow's
+  `node -e '…'` closed the shell string; it had been there since practice
+  0.5.2. It was a failed workflow on ledger's default branch, so GitHub
+  emailed the owner. It was not deliberate, but it is the proof the
+  "a red night reaches the owner" box asks for. The same shape hit 0.6.3's
+  "Read the config" step: https://github.com/dalmaer/ledger/actions/runs/37252616934
+- **Fixed in 0.6.4** (lesson 30). `tests/workflows.test.mjs` now runs
+  `bash -n` on every `run:` block, and `node --check` on every inline
+  script.
+- **The night after the fix:** https://github.com/dalmaer/ledger/actions/runs/37253473934
+  exit 0. ledger's gate ran 2,336 tests, after setup fetched the private
+  `ledger-data` with `setupToken` (`LEDGER_DATA_TOKEN`, looked up as
+  `secrets[name]`, which is now proven on GitHub). It opened
+  https://github.com/dalmaer/ledger/pull/33, and drain merged it.
+- **Loop after the fix:** https://github.com/dalmaer/ledger/actions/runs/37253476292
+  exit 0. 5 new findings; https://github.com/dalmaer/ledger/pull/34
+  merged by drain.
+
 ## Gaps and decision
 
 - Not yet observed:
