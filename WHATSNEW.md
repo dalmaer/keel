@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.4 — practice 0.6.4 (2026-10-04)
+
+- **Fixes two broken workflow steps.** An apostrophe in a comment inside an inline script broke the night shift's "Read the config" step (in 0.6.3) and the Loop workflow (since 0.5.2). If your night or Loop run went red with a bash "syntax error", this is the fix. keel now tests every workflow's shell and inline scripts before shipping.
+
 ## v0.6.3 — practice 0.6.3 (2026-10-04)
 
 - **Setup can fetch a private repo your gate depends on.** Name a repo secret in `.keel/keel.json` as `setupToken`, and the night shift (and the Loop workflow) passes it, to the install step only, as `GH_TOKEN`, so `setup` can `gh repo clone` it.
