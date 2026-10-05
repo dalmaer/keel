@@ -6,7 +6,7 @@
 
 | Check | Result |
 | --- | --- |
-| `npm run check` (conductor) | exit 0 (count in the commit body) |
+| `npm run check` (conductor) | **The phase commit (`01a5902`) went in red**: 272/273, because "Keel is home" in a shipped comment tripped the template-name guard. The conductor's command chain committed without stopping on the check's exit code. Fixed in `13423ee`: 273/273, with the commit gated on the check |
 | `lessons_unsent` | Shares `lessonFingerprint` and `parseLessons` with `keel lessons` (both now in the shipped lib.mjs). The shared-fingerprint test fails on two mutations (raw shape; name instead of repo). n/a on keel ("keel is home") and with no table; an unreadable `sent.json` is broken. The selftest has all 14 measures outside |
 | loose-ends `lessons` item | Lists the count and the send command, and a mark persists across counts |
 | Real send | `keel lessons --yes` from fresh clones: duo 4 and cajones 4 filed to `dalmaer/keel-inbox`; a second run of each: "Nothing new to send (4 already sent)". Their sent.json: https://github.com/dalmaer/duo/pull/51 and https://github.com/dalmaer/cajones/pull/27, green and merged |
