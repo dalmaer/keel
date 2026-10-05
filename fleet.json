@@ -3,5 +3,5 @@
   { "repo": "dalmaer/duo", "kind": "web", "role": "managed", "note": "To be adopted (phase 4)." },
   { "repo": "dalmaer/cajones", "kind": "static", "role": "managed", "note": "To be adopted (phase 4). The project is the repo root, which is ritmo." },
   { "repo": "dalmaer/ledger", "kind": "web", "role": "managed", "note": "To be adopted (phase 4)." },
-  { "repo": "dglazkov/isocan", "kind": "node", "role": "source", "note": "A source: keel learns from it and pins files from it, and never manages it. Adopting it is Dimitri's decision." }
+  { "repo": "dglazkov/isocan", "kind": "node", "role": "managed", "note": "keel's source, and adopted (isocan#392, 5 Oct 2026): it keeps its own phases, conduct, CI, night, renovate and loop as local variants; keel still pins its conduct skill as a source." }
 ]
