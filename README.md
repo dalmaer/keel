@@ -89,6 +89,10 @@ If you change a managed file, keel treats it as **signal, not an error**.
 offers three moves: keep yours (eject), take keel's (restore), or send yours
 home as a lesson.
 
+An edit that keel has since made too, such as Renovate bumping an action in
+your copy of a keel workflow before keel ships the same bump, is not
+treated as yours: the next update simply takes keel's file.
+
 ## The loop
 
 1. **Start.** `keel init` in an empty directory, or `keel adopt` in an

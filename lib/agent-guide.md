@@ -274,7 +274,11 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
 - **edited**: the project changed it since keel wrote it. That is the most
   valuable signal keel gets: if the change is right, send it home with keel
   lessons (phase 7). **behind**: unchanged, but keel's template moved on;
-  update's job (phase 6), not a finding. **both**: both moved.
+  update's job (phase 6), not a finding. **both**: both moved. A `both`
+  whose edit keel has since made too (laid over the template keel wrote, at
+  the lock's practice version from keel's tags, it gives keel's template
+  today) is `behind`: Renovate bumping an action before keel did. Without
+  keel's tags or a matching hash it stays `both`.
 - Lints: `second-copy` (a `SKILL.md` naming a managed skill outside
   `.agents/skills/`, not through a symlink), `claude-md-pointer` (more than 3
   non-empty lines), `phase` (the roadmap parser's error), `goal-without-phase`,

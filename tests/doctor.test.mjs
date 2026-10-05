@@ -134,6 +134,47 @@ test('behind (keel moved on) is reported but is not a finding; both is', async t
   assert.equal(doctor(dir).code, 0);
 });
 
+test('a change keel has since made too is behind, not both: render takes keel\'s; anything more stays both', async t => {
+  // Renovate bumped an action in the project's keel-night.yml before keel shipped the same bump.
+  const dir = await project(t);
+  const path = '.github/workflows/keel-night.yml';
+  const now = await readFile(join(dir, path), 'utf8'); // keel's template today
+  assert.match(now, /@v7/);
+  const old = now.replaceAll('@v7', '@v5').replace('\n', '\n# a line keel has since dropped\n'); // what keel wrote
+  const edited = old.replaceAll('@v5', '@v7'); // the project's Renovate, on keel's old file
+  assert.notEqual(edited, now);
+  const previous = join(dir, '..', 'previous');
+  await mkdir(join(previous, 'practices/night/files/.github/workflows'), { recursive: true });
+  await writeFile(join(previous, 'practices/night/files', path), old);
+  const lockPath = join(dir, '.keel', 'lock.json');
+  const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+  lock.files[path].sha256 = sha256(old);
+  await writeFile(lockPath, JSON.stringify(lock));
+  await writeFile(join(dir, path), edited);
+  const env = { ...ENV, KEEL_PREVIOUS_PRACTICES: previous };
+  const run1 = args => run(process.execPath, [BIN, ...args], { cwd: dir, env });
+  const d = run1(['doctor', '--json']);
+  assert.equal(d.status, 0, d.stdout + d.stderr);
+  assert.deepEqual(JSON.parse(d.stdout).drift.map(x => [x.path, x.state]), [[path, 'behind']]);
+  // Without the template keel wrote, keel cannot tell: both, never guessed.
+  assert.deepEqual(doctor(dir).data.drift.map(x => [x.path, x.state]), [[path, 'both']]);
+  // A stand-in that is not what the lock says keel wrote is not used.
+  const wrong = join(dir, '..', 'wrong');
+  await mkdir(join(wrong, 'practices/night/files/.github/workflows'), { recursive: true });
+  await writeFile(join(wrong, 'practices/night/files', path), edited);
+  const w = run(process.execPath, [BIN, 'doctor', '--json'], { cwd: dir, env: { ...ENV, KEEL_PREVIOUS_PRACTICES: wrong } });
+  assert.deepEqual(JSON.parse(w.stdout).drift.map(x => [x.path, x.state]), [[path, 'both']]);
+  // One more edit of the project's own is still its change.
+  await writeFile(join(dir, path), edited + '# acme runs this by hand on Fridays\n');
+  assert.deepEqual(JSON.parse(run1(['doctor', '--json']).stdout).drift.map(x => [x.path, x.state]), [[path, 'both']]);
+  assert.equal(run1(['render']).status, 1, 'render refuses the project\'s own edit');
+  // Back to the bump alone: render takes keel's.
+  await writeFile(join(dir, path), edited);
+  const r = run1(['render']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(await readFile(join(dir, path), 'utf8'), now);
+});
+
 test('a copied skill outside .agents/skills is a second copy (lesson 1); the symlink is not', async t => {
   const dir = await project(t);
   await mkdir(join(dir, '.codex', 'skills', 'conduct'), { recursive: true });
