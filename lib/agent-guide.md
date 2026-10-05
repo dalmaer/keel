@@ -408,6 +408,10 @@ first, a model's opinion never: every number comes from a command.
   guard, e.g. `Guard / status`, and unnumbered rows count by position), `evidence_placeholders` (a built phase
   whose evidence is the blank template), `drift` and `lint` (doctor),
   `inbox_waiting` (keel only).
+- `lessons_unsent` — lesson rows whose fingerprint (the one `keel lessons`
+  files under) is not in `.keel/sent.json`. Bound 0, never ratchets; n/a
+  without a lessons table, and on keel (keel is home). The night only counts:
+  sending is the owner's `npx -y github:dalmaer/keel lessons --yes`.
 - `ci_red_streak` and `machine_prs` read GitHub with `gh` (`KEEL_GH`): n/a
   without `repo` or gh auth, and the reason says which. `machine_prs` judges
   each queue by its own bound: `keel/`, `keel-night/`, `keel-loop/` 1,
@@ -573,7 +577,9 @@ origin remote; the rest say "no local checkout". Per project:
   checked".
 - **phase** — `partial` with a next action that starts ⚑ or "Owner";
   **health** — the newest health page's proposal; **inbox** — proposals
-  waiting for a person.
+  waiting for a person; **lessons** — lesson rows not in `.keel/sent.json`
+  (fingerprint `unsent-lessons:<project>`, so a mark holds as the count
+  changes), with `npx -y github:dalmaer/keel lessons --dry-run` and `--yes`.
 
 An item naming a phase (`phase 23`, `keel/phase-23`) is listed under it;
 `--phase N` keeps only those. Each has a 6-hex id, one move and the

@@ -33,7 +33,7 @@ import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, parseLessons, gateEnv, isMain, rootOf, main } from './lib.mjs';
+import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, isMain, rootOf, main } from './lib.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 export const HEALTH = 'docs/health';
@@ -50,8 +50,8 @@ export const MACHINE_BOUNDS = Object.freeze({ 'keel/': 1, 'keel-night/': 1, 'kee
 export const MACHINE_PREFIXES = Object.keys(MACHINE_BOUNDS);
 export const CHECK = 'npm run check';
 export const LESSONS = 'docs/lessons.md';
-/** The project's lessons table: .keel/keel.json `lessons`, else docs/lessons.md. */
-export const lessonsPathOf = config => typeof config?.lessons === 'string' && config.lessons ? config.lessons : LESSONS;
+export { lessonsPathOf };
+export const SEND_LESSONS = 'npx -y github:dalmaer/keel lessons --yes';
 export const COMMAND = 'node scripts/keel/improve.mjs';
 
 export class ImproveError extends Error {
@@ -367,6 +367,25 @@ export const MEASURES = [
     },
   },
   {
+    id: 'lessons_unsent', what: `lessons table rows not yet sent home (not in ${SENT})`, unit: 'lessons', bound: 0, better: 'lower',
+    // A rule, not a level: every lesson goes home. The night cannot send (the
+    // inbox needs the owner's login), so it counts, and the proposal says how.
+    ratchet: false,
+    // Keel is home, so the selftest reads this one on its fixture as a project.
+    projectOnly: true,
+    async run(ctx) {
+      if (ctx.config.keel === 'self') return { na: 'keel is home: lessons come here (keel learn), they are not sent' };
+      const u = await unsentLessons(ctx.root, ctx.config);
+      if (u.na) return { na: u.na };
+      const ids = u.unsent.map(r => r.n);
+      return {
+        value: ids.length,
+        detail: ids.length ? `#${ids.join(', #')} of ${u.rows} in ${u.path}` : `all ${u.rows} sent`,
+        facts: { ids, fingerprints: u.unsent.map(r => r.fingerprint), path: u.path },
+      };
+    },
+  },
+  {
     id: 'drift', what: "keel's managed files the project changed (doctor: edited, both)", unit: 'files', bound: 0, better: 'lower',
     async run(ctx) {
       const d = await practiceReading(ctx);
@@ -512,6 +531,7 @@ export function proposalText(r, config = {}) {
     }
     case 'lessons_without_guard': return `Name the guard, or the phase that will build it, for lesson${f.ids.length === 1 ? '' : 's'} #${f.ids.join(', #')} in ${f.path ?? LESSONS}.`;
     case 'evidence_placeholders': return `Fill the evidence for phase${f.ids.length === 1 ? '' : 's'} ${f.ids.join(', ')} with what was actually checked, or step ${f.ids.length === 1 ? 'it' : 'them'} back to partial; a blank template proves nothing.`;
+    case 'lessons_unsent': return `Send them home: \`${SEND_LESSONS}\` (${f.ids.length} unsent in ${f.path}; \`--dry-run\` lists them first). Filing on keel's inbox is the owner's step.`;
     case 'drift': return `Settle the project's edits to ${list(f.paths, 3)}: send them home (\`keel lessons\`), or \`keel doctor --fix <path> restore|eject\`.`;
     case 'lint': return `Fix ${f.lint[0].rule} at ${f.lint[0].path} (\`keel doctor\` says how).${f.lint.length > 1 ? ` ${f.lint.length - 1} more after it.` : ''}`;
     case 'inbox_waiting': return f.status === 'untriaged'

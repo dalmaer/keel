@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-04
 goal: G3
 depends: [11, 21, 24]
-note: "Lessons went home only when someone ran keel lessons by hand; duo and cajones each hold 4 unsent (4 Oct)."
-evidence: []
+note: "The night counts unsent lessons (lessons_unsent), loose-ends lists them with the send command, and duo's and cajones' 8 went home, were triaged and decided (lesson 29)."
+evidence: ["evidence/2026-10-04-lessons-dont-wait.md"]
 ---
 
 # A project's new lessons are noticed without anyone remembering to send them
@@ -33,9 +33,9 @@ The nightly health page counts a project's unsent lessons as a measure, `keel lo
 
 ## Acceptance
 
-- [ ] `lessons_unsent` counts exactly the unsent rows (a test with a synthetic project and a sent.json), shares the parser and fingerprint with `keel lessons`, and is n/a when there is no lessons table.
-- [ ] `keel loose-ends` lists unsent lessons per project, with the send command.
-- [ ] duo's and cajones' lessons are in the private inbox, proposed on, and decided by the owner; their sent.json PRs are merged.
+- [x] `lessons_unsent` counts exactly the unsent rows (a test with a synthetic project and a sent.json), shares the parser and fingerprint with `keel lessons`, and is n/a when there is no lessons table.
+- [x] `keel loose-ends` lists unsent lessons per project, with the send command.
+- [x] duo's and cajones' lessons are in the private inbox, proposed on, and decided by the owner; their sent.json PRs are merged.
 
 ## Proof
 
@@ -51,4 +51,5 @@ The nightly health page counts a project's unsent lessons as a measure, `keel lo
 
 ## Next action
 
-Build the measure and the loose-ends item; then send duo's and cajones'.
+None.
+

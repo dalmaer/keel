@@ -432,3 +432,41 @@ test('usage: unknown flags exit 2; the help and the guide name the verb', async 
   assert.match(guide, /^- `keel loose-ends` — /m);
   assert.match(guide, /^<!-- topic: loose-ends \| /m);
 });
+
+// ---- unsent lessons (phase 25) ------------------------------------------------
+
+const LESSONS_MD = rows => `# Lessons\n\n| # | The shape of it | What it cost | Guard |\n| --- | --- | --- | --- |\n${rows.map((s, i) => `| ${i + 1} | **${s}** | A day. | a test |`).join('\n')}\n`;
+
+test('unsent lessons: one item per project with the send command; a mark holds when the count changes', async t => {
+  const w = await world(t);
+  const { lessonFingerprint, parseLessons } = await import('../lib/lessons.mjs');
+  const shapes = ['An Acme anvil falls twice.', 'An Acme rocket leaves early.', 'An Acme sign is believed.'];
+  const sent = { [lessonFingerprint('acme/nested', parseLessons(LESSONS_MD(shapes)).rows[0])]: { issue: 'https://github.com/acme/keel-inbox/issues/1', at: '2026-10-01' } };
+  await mkdir(join(w.nested, '.keel'), { recursive: true });
+  await writeFile(join(w.nested, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme nested', repo: 'acme/nested', practice: '0.6.0' }));
+  await writeFile(join(w.nested, '.keel', 'sent.json'), JSON.stringify(sent));
+  await mkdir(join(w.nested, 'docs'), { recursive: true });
+  await writeFile(join(w.nested, 'docs', 'lessons.md'), LESSONS_MD(shapes));
+
+  const d = json(w);
+  const it = item(d, 'acme/nested', 'unsent-lessons:acme/nested');
+  assert.ok(it, 'listed');
+  assert.equal(it.count, 2, 'rows 2 and 3; row 1 is in sent.json');
+  assert.equal(it.detail, '#2, #3 of 3 in docs/lessons.md');
+  assert.deepEqual(it.commands, [`cd ${w.nested} && npx -y github:dalmaer/keel lessons --dry-run`, `cd ${w.nested} && npx -y github:dalmaer/keel lessons --yes`]);
+  assert.match(keel(w, []).out, /lessons\s+2 lessons not yet sent home[\s\S]*?\$ cd .* && npx -y github:dalmaer\/keel lessons --yes/);
+  assert.ok(!project(d, 'acme/keel').items.some(i => i.kind === 'lessons'), 'keel itself: home sends nothing');
+
+  assert.equal(keel(w, ['mark', it.id, 'park', '--reason', 'after the trip', '--until', '2999-01-01']).code, 0);
+  await writeFile(join(w.nested, 'docs', 'lessons.md'), LESSONS_MD([...shapes, 'An Acme net has a hole.']));
+  const again = json(w, ['--all']);
+  const back = item(again, 'acme/nested', 'unsent-lessons:acme/nested');
+  assert.equal(back.count, 3, 'a new row counts');
+  assert.equal(back.state, 'hidden', 'the mark holds at a different count');
+  assert.ok(!item(json(w), 'acme/nested', 'unsent-lessons:acme/nested'), 'hidden by default');
+
+  // Every row sent: nothing listed.
+  const all = parseLessons(LESSONS_MD([...shapes, 'An Acme net has a hole.'])).rows.map(r => lessonFingerprint('acme/nested', r));
+  await writeFile(join(w.nested, '.keel', 'sent.json'), JSON.stringify(Object.fromEntries(all.map(f => [f, { issue: 'x', at: 'y' }]))));
+  assert.ok(!item(json(w, ['--all']), 'acme/nested', 'unsent-lessons:acme/nested'));
+});

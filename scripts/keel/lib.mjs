@@ -15,6 +15,9 @@
 //   parseLessons(text)       the lesson rows of a lessons table, and which
 //                            column is the guard (keel lessons, fleet, learn
 //                            and improve all read the table with this one)
+//   lessonFingerprint(project, row)  a row's identity in .keel/sent.json, the
+//                            one keel lessons files under and improve counts by
+//   unsentLessons(root, config)  the rows of the lessons table not yet sent home
 //   secondCopies(root, …)    a second copy of a managed skill (lesson 1)
 //   gateEnv(env, config)     the environment the project's gate runs in:
 //                            NODE_TEST_* stripped (lesson 14), .keel/keel.json
@@ -203,6 +206,42 @@ export function parseLessons(text) {
     return { numbered, guard, rows };
   }
   return { numbered: false, guard: -1, rows: [] };
+}
+
+/** What keel lessons has sent home: { "<fingerprint>": { issue, at } }. */
+export const SENT = '.keel/sent.json';
+/** The project's lessons table: .keel/keel.json `lessons`, else docs/lessons.md. */
+export const lessonsPathOf = config => typeof config?.lessons === 'string' && config.lessons ? config.lessons : 'docs/lessons.md';
+/** The project in a fingerprint: the config's repo (owner/name), else its name. */
+export const lessonProject = config => /^[\w.-]+\/[\w.-]+$/.test(config?.repo ?? '') ? config.repo : config?.name ?? null;
+export const normaliseShape = shape => shape.replace(/\s+/g, ' ').trim();
+/**
+ * A lesson row's fingerprint: <project>/lesson/<n>/<8 hex of sha256(its shape,
+ * whitespace collapsed)>. keel lessons files under it, fleet and improve count
+ * by it: one definition (lesson 7). A reworded or renumbered row is new.
+ */
+export const lessonFingerprint = (project, row) => `${project}/lesson/${row.n}/${sha256(normaliseShape(row.shape)).slice(0, 8)}`;
+
+/**
+ * The lesson rows not yet in .keel/sent.json: { path, rows, unsent:
+ * [{ n, fingerprint }] }, or { na } when there is no lessons table or no
+ * project to name. A sent.json that is not JSON throws (a broken instrument).
+ */
+export async function unsentLessons(root, config) {
+  const path = lessonsPathOf(config);
+  const text = await read(join(root, path));
+  if (text === null) return { na: `no ${path}: no lessons table to send from` };
+  const project = lessonProject(config);
+  if (!project) return { na: '.keel/keel.json names neither repo nor name, so a lesson has no fingerprint' };
+  const raw = await read(join(root, SENT));
+  let sent = {};
+  if (raw !== null) {
+    try { sent = JSON.parse(raw); } catch { throw new Error(`${SENT} is not JSON`); }
+    if (!sent || typeof sent !== 'object' || Array.isArray(sent)) throw new Error(`${SENT} must be an object of fingerprint → { issue, at }`);
+  }
+  const { rows } = parseLessons(text);
+  const unsent = rows.map(r => ({ n: r.n, fingerprint: lessonFingerprint(project, r) })).filter(r => !Object.hasOwn(sent, r.fingerprint));
+  return { path, project, rows: rows.length, unsent };
 }
 
 /** Phases the roadmap's parser rejects, duplicate numbers, and goals with no phase. */

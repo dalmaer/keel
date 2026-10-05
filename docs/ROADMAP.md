@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 26 phases lived in; 21 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 26 phases lived in; 22 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
@@ -73,7 +73,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 
 A lesson learned in any project, or a practice improved upstream, reaches keel, is decided by a person, and ships to the rest of the fleet.
 
-4/5 built or lived-in; 0/5 lived-in.
+5/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 | [8. Keel turns what it hears into the next practice version, with a person deciding](phases/08-learn-at-home.md) | built | 2026-10-02 | [6](phases/06-update-and-migrations.md), [7](phases/07-lessons-go-home.md) | keel learn gathers lesson issues and pinned sources into docs/inbox proposals (INBOX.md generated and checked); propose needs a cited read, decide is the person's; real run: 0 issues, conduct source still at its pin. |
 | [17. Anyone can install keel, and nothing private comes with it](phases/17-keel-is-public.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md) | Public under Apache-2.0 after an audit the owner approved; git clone and npm install -g work with an empty HOME and no GitHub login. |
 | [21. A private project's lessons come home without being published](phases/21-lessons-home-privately.md) | built | 2026-10-04 | [7](phases/07-lessons-go-home.md), [8](phases/08-learn-at-home.md) | ledger's 33 lessons went to the private keel-inbox, were proposed on and decided there (9 accepted, 5 linked, 19 declined), and only the owner-approved general wording reached keel's lessons table (rows 19–27). |
-| [25. A project's new lessons are noticed without anyone remembering to send them](phases/25-lessons-dont-wait.md) | planned | 2026-10-04 | [11](phases/11-keel-improve.md), [21](phases/21-lessons-home-privately.md), [24](phases/24-loose-ends.md) | Lessons went home only when someone ran keel lessons by hand; duo and cajones each hold 4 unsent (4 Oct). |
+| [25. A project's new lessons are noticed without anyone remembering to send them](phases/25-lessons-dont-wait.md) | built | 2026-10-04 | [11](phases/11-keel-improve.md), [21](phases/21-lessons-home-privately.md), [24](phases/24-loose-ends.md) | The night counts unsent lessons (lessons_unsent), loose-ends lists them with the send command, and duo's and cajones' 8 went home, were triaged and decided (lesson 29). |
 
 - **7 done when:** `keel lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/keel` labelled `lesson`, and never files the same one twice.
 - **8 done when:** `keel learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.

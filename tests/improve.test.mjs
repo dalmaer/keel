@@ -460,3 +460,76 @@ test('ci_red_streak counts verdicts only: cancelled and skipped runs between fai
   m = byId(keel(['improve', '--json'], dir, { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"cancelled"}]' }) }).json(), 'ci_red_streak');
   assert.match(m.detail, /no verdict yet/);
 });
+
+// ---- lessons_unsent: what has not gone home, by keel lessons' own fingerprint ----
+
+const unsentMeasure = MEASURES.filter(m => m.id === 'lessons_unsent');
+const ACME_ROWS = '| 1 | **Anvils  fall,   twice.** *(acme)* | A coyote. | a net |\n| 2 | **Rockets leave.** *(acme)* | A canyon. | a leash |\n| 3 | **Signs are believed.** *(acme)* | Tuesdays. | a sceptic |\n';
+async function unsentOn(t, sent, patch = { repo: 'acme/storefront' }) {
+  const dir = await project(t);
+  await setConfig(dir, patch);
+  await appendFile(join(dir, 'docs', 'lessons.md'), ACME_ROWS);
+  if (sent) await writeFile(join(dir, '.keel', 'sent.json'), JSON.stringify(sent));
+  return dir;
+}
+// A dry run calls no gh; a stub path that does not exist proves it.
+const dryLessons = dir => keel(['lessons', '--dry-run', '--to', 'acme/keel', '--json'], dir, { ...ENV, KEEL_GH: '/nonexistent/gh' });
+const unsentResult = async dir => (await measure({ root: dir, config: JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')), measures: unsentMeasure }))[0];
+
+test('lessons_unsent counts exactly the rows not in sent.json, and shares keel lessons\' fingerprint', async t => {
+  const dir = await unsentOn(t, null);
+  // keel lessons' own view of the rows (dry run: no gh, nothing written).
+  const dry = dryLessons(dir);
+  assert.equal(dry.code, 3, dry.out + dry.err);
+  const fps = dry.json().items.filter(i => i.kind === 'lesson').map(i => i.fingerprint);
+  assert.equal(fps.length, 3);
+  let r = await unsentResult(dir);
+  assert.equal(r.state, 'outside');
+  assert.equal(r.value, 3);
+  assert.deepEqual(r.facts.fingerprints, fps, 'the measure\'s set is keel lessons\' set');
+
+  // Two sent, by the fingerprints keel lessons gave: exactly one is left.
+  await writeFile(join(dir, '.keel', 'sent.json'), JSON.stringify({ [fps[0]]: { issue: 'u1', at: 'a' }, [fps[2]]: { issue: 'u3', at: 'a' }, 'acme/storefront/commit/abc': { issue: 'u', at: 'a' } }));
+  r = await unsentResult(dir);
+  assert.equal(r.value, 1);
+  assert.deepEqual(r.facts.ids, [2]);
+  assert.match(r.detail, /^#2 of 3 in docs\/lessons\.md$/);
+  const again = dryLessons(dir);
+  assert.deepEqual(again.json().items.filter(i => i.kind === 'lesson').map(i => i.fingerprint), r.facts.fingerprints);
+  assert.equal(propose([r]).text.startsWith('Send them home: `npx -y github:dalmaer/keel lessons --yes`'), true, propose([r]).text);
+
+  // All sent: within its bound of 0; and it never ratchets.
+  await writeFile(join(dir, '.keel', 'sent.json'), JSON.stringify(Object.fromEntries(fps.map(f => [f, { issue: 'u', at: 'a' }]))));
+  r = await unsentResult(dir);
+  assert.equal(r.state, 'ok');
+  assert.equal(r.value, 0);
+  assert.equal(r.detail, 'all 3 sent');
+  assert.equal(tighten([{ id: 'lessons_unsent', state: 'ok', value: 0 }], { lessons_unsent: 2 }).bounds.lessons_unsent, 2, 'a rule, not a level');
+});
+
+test('lessons_unsent: the project is the repo, else the name; n/a without a table, and on keel itself', async t => {
+  const named = await unsentOn(t, null, { repo: undefined, name: 'Acme Store' });
+  const dry = dryLessons(named);
+  const r = await unsentResult(named);
+  assert.deepEqual(r.facts.fingerprints, dry.json().items.filter(i => i.kind === 'lesson').map(i => i.fingerprint));
+  assert.ok(r.facts.fingerprints.every(f => f.startsWith('Acme Store/lesson/')));
+
+  const custom = await unsentOn(t, null, { repo: 'acme/storefront', lessons: 'notes/LESSONS.md' });
+  let x = await unsentResult(custom);
+  assert.equal(x.state, 'n/a');
+  assert.match(x.detail, /no notes\/LESSONS\.md/);
+  await mkdir(join(custom, 'notes'));
+  await writeFile(join(custom, 'notes', 'LESSONS.md'), `| # | Shape | Cost | Guard |\n| --- | --- | --- | --- |\n${ACME_ROWS}`);
+  x = await unsentResult(custom);
+  assert.equal(x.value, 3, 'the configured table is read');
+
+  const home = await unsentOn(t, null, { repo: 'acme/storefront', keel: 'self' });
+  x = await unsentResult(home);
+  assert.equal(x.state, 'n/a');
+  assert.match(x.detail, /keel is home/);
+
+  const torn = await unsentOn(t, null);
+  await writeFile(join(torn, '.keel', 'sent.json'), '{ torn');
+  x = await unsentResult(torn);
+  assert.equal(x.state, 'broken', 'an unreadable sent.json is never a zero');
+});
