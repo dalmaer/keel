@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.5 — practice 0.6.5 (2026-10-04)
+
+- **Choose where the nightly health page goes.** Set `"health"` in `.keel/keel.json` (default `docs/health`). The night shift, drain, `keel fleet` and `keel loose-ends` all read it. If your repo git-ignores that directory, the night run goes red and `keel doctor` reports `health-ignored`, instead of the page being written and quietly lost.
+- **The night commits only its own data:** the health directory, `docs/inbox/`, `docs/INBOX.md` and `.keel/bounds.json`. Anything else a gate run leaves behind stays out of its pull request.
+
 ## v0.6.4 — practice 0.6.4 (2026-10-04)
 
 - **Fixes two broken workflow steps.** An apostrophe in a comment inside an inline script broke the night shift's "Read the config" step (in 0.6.3) and the Loop workflow (since 0.5.2). If your night or Loop run went red with a bash "syntax error", this is the fix. keel now tests every workflow's shell and inline scripts before shipping.

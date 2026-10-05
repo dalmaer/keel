@@ -4,6 +4,6 @@
   "repo": "dalmaer/keel",
   "inbox": "dalmaer/keel-inbox",
   "keel": "self",
-  "practice": "0.6.4",
+  "practice": "0.6.5",
   "practices": ["base", "agents-md", "phases", "evidence", "lessons", "conduct", "ci", "night", "claude", "renovate"]
 }
