@@ -371,7 +371,7 @@ export const MEASURES = [
     // A rule, not a level: every lesson goes home. The night cannot send (the
     // inbox needs the owner's login), so it counts, and the proposal says how.
     ratchet: false,
-    // Keel is home, so the selftest reads this one on its fixture as a project.
+    // keel is home, so the selftest reads this one on its fixture as a project.
     projectOnly: true,
     async run(ctx) {
       if (ctx.config.keel === 'self') return { na: 'keel is home: lessons come here (keel learn), they are not sent' };
