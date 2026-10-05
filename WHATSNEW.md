@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.6 — practice 0.6.6 (2026-10-05)
+
+- **Renovate watches vendored git submodules.** If your repo vendors code as submodules, their updates now arrive in the Monday majors PR, for a person to read. A repo without submodules sees no change.
+- **New optional practice, `reconciliation`** (`keel adopt --with reconciliation`): it compares your phase and decision records with what actually shipped, and asks each PR to declare which records it touches (a `keel-impact` block). Renovate, night and Loop PRs carry a no-impact declaration. Off unless you switch it on; the night shows its measure as n/a.
+- **With reconciliation on, editing a PR's description re-checks it** (`keel-impact.yml`, a few seconds), so fixing the declaration turns the PR green without re-running your gate.
+- **Node 24.21.0** in the `.nvmrc` keel seeds for new projects.
+
 ## v0.6.5 — practice 0.6.5 (2026-10-04)
 
 - **Choose where the nightly health page goes.** Set `"health"` in `.keel/keel.json` (default `docs/health`). The night shift, drain, `keel fleet` and `keel loose-ends` all read it. If your repo git-ignores that directory, the night run goes red and `keel doctor` reports `health-ignored`, instead of the page being written and quietly lost.
