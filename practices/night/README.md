@@ -14,14 +14,19 @@ secret (design §6, "Projects run on their own"). `keel-night.yml` runs
 every night at 07:23 UTC (and by hand):
 
 1. `node scripts/keel/improve.mjs --report` measures the practice and writes
-   `docs/health/<date>.md` and `.keel/bounds.json` (on keel itself,
+   `<health>/<date>.md` and `.keel/bounds.json`. `<health>` is `"health"` in
+   `.keel/keel.json` (default `docs/health`), read at run time; a directory
+   the project git-ignores makes the run red, since its page would never be
+   committed (ledger lost its pages that way). (On keel itself,
    `keel learn` gathers first). It runs before the drain, so `machine_prs`
    counts last night's PR.
-2. If `git status --porcelain` shows anything, it is committed on
+2. If `git status --porcelain` shows a change in the night's data (the
+   health directory, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`;
+   nothing else a gate run leaves behind), it is committed on
    `keel-night/<date>`, pushed to that branch only, and opened as one PR
    whose body carries the page's proposal.
 3. `node scripts/keel/drain.mjs keel-night/ --yes` keeps the queue at one:
-   each older PR is merged when it holds only data (`docs/health/`,
+   each older PR is merged when it holds only data (the health directory,
    `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`) and still merges, and
    closed as superseded otherwise, with a comment saying how to recover it
    (the branch is kept). The newest merges only with `--gate-passed`, which
@@ -35,7 +40,7 @@ a project's copy cannot read alone it calls `keel-side only`, never a zero:
 drift there is by `.keel/lock.json` (bytes keel did not write are `edited`;
 `behind` needs keel's templates), lint is the rules its own files show
 (phase, goal-without-phase, claude-md-pointer, second-copy,
-symlink-replaced), and the inbox is keel's.
+symlink-replaced, health-config, health-ignored), and the inbox is keel's.
 
 Practice updates go out from keel: `keel fleet update` opens the
 `keel/update-v<version>` PR in each project that is behind, with the owner's
@@ -46,6 +51,12 @@ Every workflow touches only its own branch prefix, never `main` and never a
 person's PR; `tests/workflows.test.mjs` on keel holds the templates to that,
 and to never naming keel's repo, a keel token, or a clone.
 The night spends no model tokens: it measures, deterministically.
+
+**Its config, read at run time** (so a change never needs a re-render), all
+in `.keel/keel.json`: `setup`, the install command (default `npm ci` when
+there is a lockfile); `env`, variables for every gate run; `setupToken`, a
+repo secret's name passed as `GH_TOKEN` to the install step only, so setup
+can clone a private repo the gate needs; `health`, above.
 
 **What it needs (⚑).** No secret. The repo setting *Allow GitHub Actions to
 create and approve pull requests*, or `gh pr create` is refused (the run
