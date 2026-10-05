@@ -102,7 +102,9 @@ if (a === 'api') {
   } else notFound();
 } else if (a === 'run' && b === 'list') {
   const r = repoOf(opt('-R')); if (!r) { console.error('GraphQL: Could not resolve to a Repository'); process.exit(1); }
-  console.log(JSON.stringify(pick((r.runs ?? []).slice(0, Number(opt('--limit'))), opt('--json').split(','))));
+  const w = argv.includes('--workflow') ? opt('--workflow') : null, br = argv.includes('--branch') ? opt('--branch') : null;
+  const rows = (r.runs ?? []).filter(x => (!w || x.workflowName === w) && (!br || x.headBranch === br));
+  console.log(JSON.stringify(pick(rows.slice(0, Number(opt('--limit'))), opt('--json').split(','))));
 } else if (a === 'pr' && b === 'list') {
   const r = repoOf(opt('-R')); if (!r) { console.error('GraphQL: Could not resolve to a Repository'); process.exit(1); }
   console.log(JSON.stringify(pick(r.prs ?? [], opt('--json').split(','))));
@@ -183,6 +185,27 @@ test('a project behind: how far, which migrations it has not recorded (fleet upd
   assert.ok(needsOf(r, 'acme/behind').some(w => w.startsWith('red: check failure')));
   assert.ok(needsOf(r, 'acme/behind').includes('2 open keel-night/ PRs (keel drain keel-night/)'));
   assert.match(r.text, /acme\/behind\s+yes\s+0\.1\.0 → 0\.2\.0/);
+});
+
+test('a gate workflow named in config (.keel/keel.json gateWorkflow) is the gate, read on its own past a busy repo\'s newest 50 runs', async t => {
+  const st = state();
+  const fresh = st.repos['acme/fresh'];
+  // isocan's shape: a gate called release, which no rule guesses, behind sixty newer runs of a bot's workflow.
+  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], check: 'npm test && npm run typecheck', gateWorkflow: 'release' });
+  fresh.runs = [...Array.from({ length: 60 }, (_, i) => run('grade', 'success', `2026-10-01T${String(10 + Math.floor(i / 6)).padStart(2, '0')}:${String(i % 6 * 10).padStart(2, '0')}:00Z`, { headBranch: 'trunk' })),
+    run('release', 'failure', '2026-10-01T05:00:00Z', { headBranch: 'feature' }), run('release', 'success', '2026-10-01T04:00:00Z', { headBranch: 'trunk' })];
+  const gh = await stubGh(t, st);
+  const r = await go(await home(t, LIST), gh);
+  const ci = rowOf(r, 'acme/fresh').ci;
+  assert.deepEqual([ci.workflow, ci.rule, ci.state], ['release', 'named in config', 'green'], 'the default branch\'s release, not the feature branch\'s');
+  assert.ok((await gh.calls()).some(c => c[0] === 'run' && c.includes('--workflow') && c[c.indexOf('--workflow') + 1] === 'release' && c[c.indexOf('--branch') + 1] === 'trunk'));
+  assert.equal(rowOf(r, 'acme/behind').ci.rule, 'named check', 'no setting: the rules as before');
+  // Without the setting, the same runs give no gate: nothing guesses release.
+  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', check: 'npm test && npm run typecheck' });
+  assert.equal(rowOf(await go(await home(t, LIST), await stubGh(t, st)), 'acme/fresh').ci.state, 'no gate run');
+  // A setting that is not a name is said, never ignored.
+  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', gateWorkflow: '' });
+  assert.match(rowOf(await go(await home(t, LIST), await stubGh(t, st)), 'acme/fresh').ci.unreadable, /"gateWorkflow" must be/);
 });
 
 test('health is read from the project\'s configured dir (.keel/keel.json `health`), not docs/health', async t => {
@@ -312,6 +335,7 @@ test('the gate workflow: one named check; else one with default-branch runs whos
     { name: 'loop', push: false, commands: ['npm run verify'] }];
   assert.deepEqual(gateOf(['loop', 'Lint'], { workflows, check: 'npm run verify' }), { workflow: 'Lint', rule: 'runs npm test' }, 'a loop not run by push is not the gate');
   assert.deepEqual(gateOf(['Lint', 'Deploy', 'Check'], { workflows }), { workflow: 'Check', rule: 'named check' });
+  assert.deepEqual(gateOf(['Lint', 'Deploy', 'Check'], { workflows, gateWorkflow: 'release' }), { workflow: 'release', rule: 'named in config' }, 'the config\'s word beats every rule');
   assert.deepEqual(gateOf(['Lint', 'Deploy'], { workflows, check: 'npm run verify' }), { workflow: 'Deploy', rule: 'runs npm run verify' }, 'the configured check beats npm test');
   assert.deepEqual(gateOf(['Lint', 'Deploy'], { workflows }), { workflow: 'Lint', rule: 'runs npm test' });
   assert.deepEqual(gateOf(['Deploy', 'CI'], { workflows: null }), { workflow: 'CI', rule: 'name matches' });

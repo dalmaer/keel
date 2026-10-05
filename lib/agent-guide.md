@@ -239,6 +239,10 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   keel-loop hand it to the Install step alone as `GH_TOKEN`, so `setup` can
   `gh repo clone` a private repo (else the job's own token). ⚑ The owner sets
   the secret. `keel fleet update` ignores it: setup runs with the owner's gh.
+- `gateWorkflow` in `.keel/keel.json`: the name (as GitHub shows it) of the
+  workflow that gates the default branch, when no rule finds it (isocan:
+  `release`, which runs the suite sharded as `test:ci`). Only `keel fleet`
+  reads it.
 - `lessons` in `.keel/keel.json` is the lessons table when it is not
   `docs/lessons.md`: adopt finds a `docs/**/lessons.md` with a numbered table,
   records it and seeds nothing beside it; lessons, doctor, fleet and improve
@@ -537,7 +541,9 @@ about every repo at once.
   update` asks their `applies()`), newest
   `<health>/<date>.md` (the project's configured `health` directory, default
   `docs/health`; older than two days is silent), CI (the newest
-  completed default-branch run of the gate: the workflow named `check`, else
+  completed default-branch run of the gate: `gateWorkflow` from
+  `.keel/keel.json` when set (its own runs are read, so a busy repo cannot
+  push it out of view), else the workflow named `check`, else
   one run by push whose YAML runs the configured check or `npm test`, else a
   name match;
   the cell says which, e.g. `green (Deploy · runs npm run check)`), lesson
