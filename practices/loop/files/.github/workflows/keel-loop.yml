@@ -101,11 +101,11 @@ jobs:
             }
             if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
-            // The secret's NAME, never its value: the Install step looks it up.
+            // Only the secret NAME, never its value: the Install step looks it up.
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
             if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
             // What a pull writes: the findings, their page, and the files the
-            // project's afterRender rewrites. Same rule as scripts/loop.mjs.
+            // afterRender rewrites of the project. Same rule as scripts/loop.mjs.
             const plain = p => typeof p === "string" && p.trim() === p && p !== "" && !p.startsWith("/") && !p.endsWith("/") &&
               !p.split("/").some(s => s === ".." || s === "." || s === "") && !p.startsWith(".github/") && !/[*?[\]\\\s]/.test(p);
             const writes = Array.isArray(c.loop?.afterRenderWrites) ? c.loop.afterRenderWrites : [];

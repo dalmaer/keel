@@ -6,10 +6,12 @@
 // that breaks it must fail.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load } from '../lib/practices.mjs';
+import { run } from './helpers/run.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -367,4 +369,105 @@ test('the setupToken secret reaches only the Install step, as GH_TOKEN, and is n
       assert.ok(setupTokenProblems(text).length, `${name} ${why}: expected a problem`);
     }
   }
+});
+
+/**
+ * Every `run:` script in one workflow's text, read without a YAML dependency:
+ * [{ step, line, script }]. A `run: |` (or `>`) block is the lines indented past
+ * its key, the common indent stripped; a one-line `run:` is its value (outer
+ * quotes stripped). GitHub's `${{ … }}` and a template's `{{name}}` become the
+ * word GHEXPR, so the shell sees what it would after substitution.
+ */
+export function runBlocks(text) {
+  const lines = text.split('\n');
+  const out = [];
+  let step = null;
+  const sub = s => s.replace(/\$\{\{[\s\S]*?\}\}/g, 'GHEXPR').replace(/\{\{\s*[\w.-]+\s*\}\}/g, 'GHEXPR');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*#/.test(line)) continue;
+    const item = /^(\s*)- /.exec(line);
+    if (item) step = null;
+    const name = /^\s*(?:- )?name:\s*(.+?)\s*$/.exec(line);
+    if (name) step = name[1].replace(/^(["'])(.*)\1$/, '$2');
+    const r = /^(\s*)(- )?run:\s*(.*?)\s*$/.exec(line);
+    if (!r) continue;
+    const keyIndent = r[1].length + (r[2] ? 2 : 0);
+    const value = r[3];
+    if (/^[|>][-+]?\d*$/.test(value)) {
+      const body = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        const l = lines[j];
+        if (l.trim() && l.search(/\S/) <= keyIndent) break;
+        body.push(l);
+      }
+      while (body.length && !body.at(-1).trim()) body.pop();
+      const indent = Math.min(...body.filter(l => l.trim()).map(l => l.search(/\S/)));
+      out.push({ step: step ?? `line ${i + 1}`, line: i + 1, script: sub(body.map(l => l.slice(indent)).join('\n')) });
+      i = j - 1;
+    } else {
+      out.push({ step: step ?? `line ${i + 1}`, line: i + 1, script: sub(value.replace(/^(["'])(.*)\1$/, '$2')) });
+    }
+  }
+  return out;
+}
+
+/** The single-quoted JS of each `node [--input-type=module] -e '…'` in a script: [{ module, js }]. */
+export function inlineNode(script) {
+  return [...script.matchAll(/\bnode\s+(--input-type=module\s+)?-e\s+'([^']*)'/g)].map(m => ({ module: Boolean(m[1]), js: m[2] }));
+}
+
+/** What bash -n and node --check say about one workflow's scripts: [string], each naming the step. */
+export async function shellProblems(label, text) {
+  const out = [];
+  const dir = await mkdtemp(join(tmpdir(), 'keel-wf-'));
+  try {
+    for (const b of runBlocks(text)) {
+      const where = `${label}: step "${b.step}" (line ${b.line})`;
+      const sh = run('bash', ['-n'], { input: `${b.script}\n` });
+      if (sh.status !== 0) out.push(`${where}: bash -n: ${sh.stderr.trim().split('\n')[0]}`);
+      for (const [k, n] of inlineNode(b.script).entries()) {
+        const file = join(dir, `b${b.line}-${k}.${n.module ? 'mjs' : 'cjs'}`);
+        await writeFile(file, n.js);
+        const js = run(process.execPath, ['--check', file]);
+        if (js.status !== 0) out.push(`${where}: node -e: ${js.stderr.trim().split('\n').filter(l => /Error|^\S.*:\d+$/.test(l)).join(' | ')}`);
+      }
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+  return out;
+}
+
+test('every run: block in every workflow parses as bash, and every inline node -e \'…\' parses as JS', async () => {
+  const files = [];
+  for (const p of await readdir(join(KEEL, 'practices'))) {
+    const d = join(KEEL, 'practices', p, 'files/.github/workflows');
+    let names = [];
+    try { names = await readdir(d); } catch { continue; }
+    for (const n of names.filter(n => /\.ya?ml$/.test(n))) files.push(join('practices', p, 'files/.github/workflows', n));
+  }
+  for (const n of (await readdir(join(KEEL, '.github/workflows'))).filter(n => /\.ya?ml$/.test(n))) files.push(join('.github/workflows', n));
+  assert.ok(files.length >= 7, `found ${files.length} workflows`);
+  let blocks = 0, nodes = 0;
+  for (const f of files) {
+    const text = await readFile(join(KEEL, f), 'utf8');
+    const bs = runBlocks(text);
+    blocks += bs.length;
+    nodes += bs.reduce((a, b) => a + inlineNode(b.script).length, 0);
+    assert.deepEqual(await shellProblems(f, text), [], f);
+  }
+  assert.ok(blocks >= 30 && nodes >= 4, `read ${blocks} run blocks and ${nodes} inline node scripts: the extractor found too few`);
+
+  // Mutations: the shapes that broke on GitHub, and a JS slip, are caught.
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  const comment = '// Only the secret NAME, never its value: the Install step looks it up.';
+  assert.ok(night.includes(comment));
+  const apostrophe = await shellProblems('night', night.replace(comment, "// Only the secret's NAME, never its value."));
+  assert.ok(apostrophe.some(p => /step "Read the config"/.test(p)), `an apostrophe in node -e: ${JSON.stringify(apostrophe)}`);
+  const js = await shellProblems('night', night.replace('const tok = c.setupToken;', 'const tok = c.setupToken +;'));
+  assert.ok(js.some(p => /step "Read the config".*node -e: .*SyntaxError/.test(p)), `broken JS in node -e: ${JSON.stringify(js)}`);
+  const sh = await shellProblems('night', night.replace('elif [ -f package-lock.json ]; then', 'elif [ -f package-lock.json ]'));
+  assert.ok(sh.some(p => /step "Install".*bash -n/.test(p)), `broken bash: ${JSON.stringify(sh)}`);
+  const one = await shellProblems('loop', 'jobs:\n  x:\n    steps:\n      - name: One line\n        run: if true; then echo\n');
+  assert.ok(one.some(p => /step "One line".*bash -n/.test(p)), `a one-line run: ${JSON.stringify(one)}`);
 });
