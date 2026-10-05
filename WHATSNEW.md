@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.6.7 — practice 0.6.7 (2026-10-05)
+
+- **GitHub Actions v7.** keel's workflows move to `actions/checkout@v7` and `actions/setup-node@v7`.
+- **Renovate's action bumps no longer block updates.** If your Renovate already bumped an action in one of keel's workflows (duo's did), `keel update` now sees that keel made the same change and takes keel's file, instead of refusing it as your own edit.
+
 ## v0.6.6 — practice 0.6.6 (2026-10-05)
 
 - **Renovate watches vendored git submodules.** If your repo vendors code as submodules, their updates now arrive in the Monday majors PR, for a person to read. A repo without submodules sees no change.
