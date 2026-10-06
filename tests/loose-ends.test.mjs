@@ -362,7 +362,12 @@ test('marks persist across runs: drop never comes back, park comes back after it
 
   const marked = JSON.parse(keel(w, ['mark', q.id, 'drop', '--reason', 'answered on the phone', '--json']).out);
   assert.equal(marked.file, join(w.app, MARKS));
-  assert.equal(keel(w, ['mark', b.id.slice(0, 4), 'park', '--reason', 'after the trip', '--until', '2999-01-01']).code, 0, 'an id prefix of four will do');
+  // The shortest prefix of four or more that names b alone: ids hash fixture values that include random
+  // session ids, so a fixed four characters is ambiguous now and then, and mark rightly refuses it.
+  const ids = d.projects.flatMap(p => p.items).map(i => i.id);
+  let n = 4; while (ids.filter(id => id.startsWith(b.id.slice(0, n))).length > 1) n++;
+  const short = keel(w, ['mark', b.id.slice(0, n), 'park', '--reason', 'after the trip', '--until', '2999-01-01']);
+  assert.equal(short.code, 0, `an id prefix of four or more will do (${b.id.slice(0, n)}): ${short.out}${short.err ?? ''}`);
   assert.equal(keel(w, ['mark', f.id, 'park', '--reason', 'already due', '--until', '2020-01-01']).code, 0);
   assert.equal(keel(w, ['mark', pr.id, 'resume', '--reason', 'first thing']).code, 0);
   const saved = JSON.parse(await readFile(join(w.app, MARKS), 'utf8'));
