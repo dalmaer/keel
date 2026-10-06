@@ -41,7 +41,7 @@ The design is [The PR a person reads](../research/2026-10-06-pr-and-retro.md).
 - [x] A fleet update whose migrations rewrite project files is marked one-way, a re-render only two-way. `tests/update.test.mjs`
 - [x] The night's data PR body comes from `pr-body.mjs`, and its inline script passes `bash -n` and `node --check`. `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: one real fleet update PR, in an adopted project, read by the owner in that form.
-- [ ] On GitHub, the next keel night's data PR has the three sections. `gh pr view <n> -R dalmaer/keel --json body`
+- [x] On GitHub, the next keel night's data PR has the three sections. `gh pr view <n> -R dalmaer/keel --json body`
 
 ## Real surfaces
 
