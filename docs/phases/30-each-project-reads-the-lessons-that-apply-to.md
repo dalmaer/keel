@@ -65,3 +65,4 @@ At the fleet release: ledger and isocan declare their stacks through `keel fleet
 - **2026-10-06** — keel's catalogue (docs/lessons.md) now ships in the package and counts as a practice change for `keel release` (`SCOPE`): without that, a lessons-only release would leave the practice version alone and no project's view would ever move. Found by the builder; fixed by the conductor with a test.
 - **2026-10-06** — `.vercel/` is usually git-ignored, so a project whose only Vercel evidence is that folder gets a stack-evidence finding in a fresh clone; ledger may need `vercel.json`.
 - **2026-10-06** — `keel learn decide` now writes an empty Where cell into a five-column catalogue, and `keel init` records the stack, so a fresh project's doctor stays clean.
+- **2026-10-06** — Escape: the first accepted tags broke tests/stacks.test.mjs, whose four-column form stripped only empty Where cells; fixed in dc91fec.

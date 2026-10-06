@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G5
 spec: 2
 depends: [11, 13, 32, 33]
-note: "Climb escapes per built phase: defects found after a phase was built, read from what is already written (a lesson with the project's own provenance, a fix commit, a trajectory correction). Each rigour change is an experiment against it. Design: research/2026-10-06-spec-rigor.md."
-evidence: []
+note: "Built: escapes on the night (fix: commits, the project's own lessons and — Escape: Trajectory lines since the last release, attributed only when one phase is named; bound: the previous release's count), with ceremony beside it. Baseline: 10 before v0.7.0, matching the analysis. Waits on the owner judging phases 32 and 33's levers after a release with them."
+evidence: ["evidence/2026-10-06-escapes.md"]
 issue: 12
 ---
 
@@ -35,9 +35,9 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Acceptance
 
-- [ ] On a synthetic repo with two fix commits, one self-provenance lesson and one trajectory correction since a tag, `escapes` is 4, attributed to the phases they name; with no tag it counts from the first commit. `tests/improve.test.mjs`
-- [ ] A commit whose subject merely contains "fix" mid-sentence is not counted; mutation: a substring match fails the test. `tests/improve.test.mjs`
-- [ ] keel's baseline is computed by the measure and matches the analysis's hand count within the cases the analysis names. `node scripts/keel/improve.mjs --report`
+- [x] On a synthetic repo with two fix commits, one self-provenance lesson and one trajectory correction since a tag, `escapes` is 4, attributed to the phases they name; with no tag it counts from the first commit. `tests/escapes.test.mjs`
+- [x] A commit whose subject merely contains "fix" mid-sentence is not counted; mutation: a substring match fails the test. `tests/escapes.test.mjs`
+- [x] keel's baseline is computed by the measure and matches the analysis's hand count within the cases the analysis names. `node scripts/keel/improve.mjs --report`
 - [ ] ⚑ by hand: the owner reads phases 32 and 33's before-and-after and keeps or retires each lever.
 
 ## Real surfaces
@@ -59,4 +59,9 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Next action
 
-Blocked on phases 32 and 33. Meanwhile: record keel's baseline by hand in this phase's evidence, from the analysis's escape list.
+⚑ After the release that carries phases 32 and 33 and at least three phases built after it: the owner reads escapes and ceremony before and after each lever, and keeps or retires it.
+
+## Trajectory
+
+- **2026-10-06** — The measure reproduces the analysis's baseline exactly (10 before v0.7.0: nine own lessons and one fix commit) but missed all four of today's escapes: keel writes subsystem-prefixed subjects (`climb:`, `loose-ends:`), never `fix:`. The record is the fix, not the code: an escape is written as a `— Escape:` Trajectory line in the phase it escaped from (now in the conduct skill and the phases README), and today's four are.
+- **2026-10-06** — A `fix:` commit naming a lesson counted in the same window is that lesson's escape, counted once; a lesson's phase is read from its shape and cost, never its Guard. Builder's calls, kept.

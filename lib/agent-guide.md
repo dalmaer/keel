@@ -543,6 +543,16 @@ first, a model's opinion never: every number comes from a command.
   each queue by its own bound: `keel/`, `keel-night/`, `keel-loop/` 1,
   `renovate/` 4 (one per lane of keel's renovate.json; information only when
   the project's `renovate` practice is local). It never ratchets.
+- `escapes` — defects found after a phase was built, since the newest `v*`
+  tag (none: the first commit): `fix:`/`fix(` commit subjects (start only),
+  lessons rows added with the project's own provenance (`repo` or `name` in
+  the italics), and added Trajectory lines `- **YYYY-MM-DD** — Escape: …`. A
+  fix commit naming a counted lesson is that lesson's. Each points at the one
+  phase its text names (`phase N`, `phases/N-`; an Escape line naming none,
+  its file's); none or several is unattributed, never guessed. Bound: the
+  previous release's count (from git; `--report` stores it), none with no
+  release before; no ratchet. Detail adds each phase built since the tag:
+  days planned → built, words. Shallow clone, no repo or no commits: n/a.
 - `dependency_age` — `npm outdated`, only with a `package-lock.json`.
 - `conduct_cost` — only with `--transcripts <dir>` of Claude Code subagent
   transcripts (`*.jsonl`, `*.output`): whole-check and whole-suite runs by

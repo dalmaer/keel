@@ -54,6 +54,11 @@ With `spec: 2`, also **Real surfaces** (below).
 Optional: **Trajectory**, after Next action — written by the conductor, only
 for what changed the course: `- **YYYY-MM-DD** — Claim. Evidence.` A phase
 that went as planned says so in one line. Work done is not trajectory; git holds it.
+A defect found after a phase was built is an escape: record it in that
+phase's Trajectory as `- **YYYY-MM-DD** — Escape: What escaped. Where it was
+found.` The night counts these lines (`escapes`), with `fix:` commits and
+lessons of the project's own; an Escape line naming another phase counts
+against that one.
 
 Use [the template](../templates/phase.md). After editing: `npm run roadmap`,
 then `{{check}}`.

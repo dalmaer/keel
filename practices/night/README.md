@@ -54,6 +54,26 @@ steps a phase back or writes evidence; its proposal is to make the test
 pass, re-point the reference, or step the phase back with a reason, which a
 person does.
 
+**Escapes** (phase 34). `escapes` counts the defects found after a phase
+was built, since the newest release tag (`v*`; with none, the first commit),
+from what is already written: a commit whose subject starts `fix:` or
+`fix(` (never "fix" mid-subject), a lessons row added since the tag whose
+provenance italics name the project (its `repo` or `name`), and a
+Trajectory entry added since the tag that begins `- **YYYY-MM-DD** —
+Escape:` (the phases README's marker; no prose is read). A fix commit that
+names a lesson counted there is that lesson's escape, counted once. Each is
+attributed to the one phase its text names (`phase 33`, `phases/33-`; a
+lesson by its shape and cost, not the guard; an Escape entry naming none
+belongs to its own file's phase); none or several is counted unattributed,
+never guessed. The bound is no rise release over release: the previous
+release's own count, from git, which `--report` records in
+`.keel/bounds.json` (no release before: recorded only). Its proposal names
+the phase with the most escapes as the next hygiene target. Beside it, not
+judged, the detail carries the ceremony of each phase built since the tag:
+days from planned (`since` with `status: planned`) to the commit that set
+`built`, and the phase file's words. A shallow clone, or no repository or
+commits, is n/a, never zero.
+
 **Every test run is remembered** (phase 33). `scripts/keel/test-ledger.mjs`
 is a node test reporter, run beside the usual one:
 

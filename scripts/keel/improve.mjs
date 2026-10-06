@@ -403,6 +403,163 @@ export async function conductCost(dir, check, root) {
   return { transcripts, skipped, kinds, agents, wholeRuns: agents.reduce((a, b) => a + b.wholeRuns, 0) };
 }
 
+// ---- escapes (phase 34) ----------------------------------------------------
+//
+// A defect found after a phase was built, read from what is already written,
+// since the newest release tag (`v*`; with none, the first commit):
+//   - a commit whose subject starts `fix:` or `fix(` (never "prefix", never "a fix in");
+//   - a lessons row added since the tag whose provenance italics name this
+//     project (its `repo` or its `name`);
+//   - a Trajectory entry added since the tag that begins
+//     `- **YYYY-MM-DD** — Escape:` (the phases README's marker; no prose is read).
+// Each is attributed to the one phase its text names ("phase 33",
+// "phases/33-"); a Trajectory entry naming none belongs to its own file's
+// phase. Naming none, or several, is counted unattributed: never guessed.
+
+/** A fix commit's subject: `fix:` or `fix(` at its very start. */
+export const isFixSubject = subject => /^fix[:(]/i.test(String(subject ?? ''));
+/** The Trajectory marker of an escape (docs/phases/README.md). */
+export const ESCAPE_ENTRY = /^- \*\*\d{4}-\d{2}-\d{2}\*\* — Escape:/;
+
+/** The distinct phase numbers a text names, in order: "phase 33", "phases/33-". */
+export function phasesNamed(text) {
+  const found = [];
+  for (const m of String(text ?? '').matchAll(/\bphase[ -](\d+)\b|(?<![\w.])phases\/(\d+)-/gi)) {
+    const n = Number(m[1] ?? m[2]);
+    if (!found.includes(n)) found.push(n);
+  }
+  return found;
+}
+/** The one phase a text names, or null (none, or several: never guessed). */
+export const phaseOf = text => { const p = phasesNamed(text); return p.length === 1 ? p[0] : null; };
+
+/** Whether a lessons row's provenance italics *(…)* name this project: its repo, or its name as a word. */
+export function selfProvenance(row, config = {}) {
+  const groups = [...String(row ?? '').matchAll(/\*\(([^)]*)\)\*/g)].map(m => m[1]);
+  if (!groups.length) return false;
+  const words = [config.repo, config.name].filter(w => typeof w === 'string' && w.trim());
+  return groups.some(g => words.some(w => new RegExp(`(?<![\\w/.-])${w.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w/-])`, 'i').test(g)));
+}
+
+/** Added Trajectory escape lines in a `git diff -U0` of docs/phases/: [{ file, phase, text }]. */
+export function escapeEntries(diff) {
+  const out = [];
+  let file = null;
+  for (const line of String(diff ?? '').split('\n')) {
+    if (line.startsWith('+++ ')) { const m = /^\+\+\+ b\/(docs\/phases\/(\d+)-[^/]*\.md)$/.exec(line); file = m ? { path: m[1], phase: Number(m[2]) } : null; continue; }
+    if (!file || !line.startsWith('+') || !ESCAPE_ENTRY.test(line.slice(1))) continue;
+    const text = line.slice(1);
+    out.push({ file: file.path, phase: phaseOf(text.replace(ESCAPE_ENTRY, '')) ?? file.phase, text });
+  }
+  return out;
+}
+
+const SEP = '\x1f', REC = '\x1e';
+
+/** A file's text at a revision, or null where the revision does not hold it. */
+function textAt(ctx, rev, path) {
+  const r = git(ctx, ['show', `${rev}:${path}`]);
+  if (r.status === 0) return r.stdout;
+  if (/does not exist|exists on disk, but not in|bad revision|invalid object name/i.test(r.stderr)) return null;
+  throw new Error(`git show ${rev}:${path} exited ${r.status}: ${r.stderr.trim().split('\n')[0]}`);
+}
+
+/** The escapes between two revisions (from null: the first commit): [{ kind, ref, phase, text }]. */
+function escapesBetween(ctx, from, to) {
+  const found = [];
+  const range = from ? `${from}..${to}` : to;
+  for (const rec of gitOut(ctx, ['log', range, '--reverse', '--no-merges', `--format=%H${SEP}%s${SEP}%b${REC}`]).split(REC)) {
+    const [sha, subject, body = ''] = rec.replace(/^\n/, '').split(SEP);
+    if (!sha || !isFixSubject(subject)) continue;
+    const lessons = [...`${subject}\n${body}`.matchAll(/\blesson (\d+)\b/gi)].map(m => Number(m[1]));
+    found.push({ kind: 'commit', ref: sha.slice(0, 7), phase: phaseOf(`${subject}\n${body}`), text: subject, lessons });
+  }
+  const path = lessonsPathOf(ctx.config);
+  const before = from ? textAt(ctx, from, path) : null, after = textAt(ctx, to, path);
+  if (after !== null) {
+    const known = new Set(parseLessons(before ?? '').rows.map(r => r.n));
+    const lines = after.split('\n');
+    for (const row of parseLessons(after).rows) {
+      const raw = lines[row.line - 1] ?? '';
+      if (known.has(row.n) || !selfProvenance(raw, ctx.config)) continue;
+      // The phase from the shape and its cost only: a Guard naming a phase names the guard's builder, not the escape.
+      found.push({ kind: 'lesson', ref: `lesson ${row.n}`, n: row.n, phase: phaseOf(`${row.shape} ${row.cost}`), text: row.shape.replace(/\*\(([^)]*)\)\*/g, '').replace(/\*\*/g, '').trim().slice(0, 100) });
+    }
+  }
+  // One defect, one count: a fix commit naming a lesson counted here is that lesson's escape (the lesson keeps the commit).
+  for (const c of found.filter(e => e.kind === 'commit')) {
+    const lesson = found.find(e => e.kind === 'lesson' && c.lessons.includes(e.n));
+    if (lesson) { (lesson.commits ??= []).push(c.ref); lesson.phase ??= c.phase; found.splice(found.indexOf(c), 1); }
+  }
+  for (const e of found) { delete e.lessons; delete e.n; }
+  const base = from ?? gitOut(ctx, ['hash-object', '-t', 'tree', '/dev/null']).trim();
+  for (const e of escapeEntries(gitOut(ctx, ['diff', '--no-renames', '--no-color', '-U0', base, to, '--', 'docs/phases/']))) {
+    found.push({ kind: 'trajectory', ref: e.file, phase: e.phase, text: e.text.replace(ESCAPE_ENTRY, '').trim().slice(0, 100) });
+  }
+  return found;
+}
+
+/**
+ * Ceremony for the phases built since `from` (null: all): days from planned
+ * (the `since` written with `status: planned`, else the commit's day; a phase
+ * never planned starts at its first commit) to the first commit in the window
+ * that set `status: built`, and the phase file's words now.
+ */
+function ceremonyBetween(ctx, from, to) {
+  const window = from ? new Set(gitOut(ctx, ['rev-list', `${from}..${to}`]).split('\n').filter(Boolean)) : null;
+  const state = new Map();
+  for (const rec of gitOut(ctx, ['log', to, '--reverse', '--no-renames', '--no-color', '-p', '-U0', `--format=${REC}%H${SEP}%cs`, '--', 'docs/phases/']).split(REC)) {
+    const nl = rec.indexOf('\n');
+    const [sha, day] = (nl < 0 ? rec : rec.slice(0, nl)).split(SEP);
+    if (!sha || !day) continue;
+    const files = new Map();
+    let file = null;
+    for (const line of rec.slice(nl + 1).split('\n')) {
+      if (line.startsWith('+++ ')) { const m = /^\+\+\+ b\/(docs\/phases\/(\d+)-[^/]*\.md)$/.exec(line); file = m?.[1] ?? null; if (file && !files.has(file)) files.set(file, { phase: Number(m[2]), status: [], since: null }); continue; }
+      if (!file) continue;
+      const kv = /^\+(status|since):\s*(\S+)/.exec(line);
+      if (kv?.[1] === 'status') files.get(file).status.push(kv[2]);
+      if (kv?.[1] === 'since' && /^\d{4}-\d{2}-\d{2}$/.test(kv[2])) files.get(file).since = kv[2];
+    }
+    for (const [path, f] of files) {
+      const s = state.get(path) ?? { phase: f.phase, first: day, planned: null, built: null };
+      state.set(path, s);
+      if (f.status.includes('planned') && !s.planned) s.planned = f.since ?? day;
+      if (f.status.includes('built') && !s.built && (!window || window.has(sha))) s.built = day;
+    }
+  }
+  const out = [];
+  for (const [path, s] of state) {
+    if (!s.built) continue;
+    const text = textAt(ctx, to, path);
+    out.push({ phase: s.phase, planned: s.planned ?? s.first, built: s.built, days: Math.max(0, days(s.planned ?? s.first, s.built)), words: text === null ? null : text.split(/\s+/).filter(Boolean).length });
+  }
+  return out.sort((a, b) => a.phase - b.phase);
+}
+
+const ESCAPE_KINDS = { commit: ['fix commit', 'fix commits'], lesson: ['own lesson', 'own lessons'], trajectory: ['Escape entry', 'Escape entries'] };
+
+/** The escapes reading: n/a with why when git history cannot be read; never a zero. */
+const escapesReading = ctx => once(ctx, 'escapes', () => {
+  const shallow = git(ctx, ['rev-parse', '--is-shallow-repository']);
+  if (shallow.status !== 0) return { na: 'not a git repository: no history to read escapes from' };
+  if (shallow.stdout.trim() === 'true') return { na: 'a shallow clone: the release tags and history are not all here (fetch-depth: 0)' };
+  const ref = ['main', 'HEAD'].find(r => git(ctx, ['rev-parse', '--verify', '--quiet', `${r}^{commit}`]).status === 0);
+  if (!ref) return { na: 'no commits yet: no history to read escapes from' };
+  const tags = gitOut(ctx, ['tag', '--list', 'v*', '--merged', ref, '--sort=-v:refname']).split('\n').map(t => t.trim()).filter(Boolean);
+  const [tag = null, prev = null] = tags;
+  const now = escapesBetween(ctx, tag, ref);
+  const before = tag ? escapesBetween(ctx, prev, tag) : null;
+  return { ref, tag, prev, now, before, ceremony: ceremonyBetween(ctx, tag, ref) };
+});
+
+/** The escapes between two revisions of a project (from null: its first commit), for a baseline by hand. */
+export const escapesIn = ({ root, config, env = process.env }, from, to) => escapesBetween({ root, config, env, cache: new Map() }, from, to);
+
+/** Escapes per phase, most first, then by phase: [[phase, [escape…]]]. */
+export const escapesByPhase = escapes => [...escapes.filter(e => e.phase !== null).reduce((m, e) => m.set(e.phase, [...(m.get(e.phase) ?? []), e]), new Map())]
+  .sort((a, b) => b[1].length - a[1].length || a[0] - b[0]);
+
 // ---- the measures ----------------------------------------------------------
 
 const unguarded = g => !g.trim() || /^\*?to write\*?\.?$/i.test(g.trim()) || (/planned/i.test(g) && !/phase \d+/i.test(g));
@@ -615,6 +772,34 @@ export const MEASURES = [
           ? `proof lost: ${list(found.map(f => `phase ${f.id} (${lost(f)})`), 3)}; ${ledger}`
           : `every built phase's cited tests and evidence paths exist; ${ledger}`,
         facts: { found, ...(unrun.length ? { unrun } : {}) },
+      };
+    },
+  },
+  {
+    // Phase 34: defects found after a phase was built, since the newest release.
+    // The bound is the previous release's own count (no rise release over
+    // release), computed from git and recorded in .keel/bounds.json by --report;
+    // with no previous release there is none, and the value is recorded only.
+    id: 'escapes', what: 'defects found after a phase was built, since the newest release tag: fix: commits, own-provenance lessons, Trajectory `— Escape:` entries', unit: 'escapes', bound: null, better: 'lower', ratchet: false, release: true,
+    async run(ctx) {
+      const r = await escapesReading(ctx);
+      if (r.na) return { na: r.na };
+      const by = escapesByPhase(r.now);
+      const unattributed = r.now.filter(e => e.phase === null).length;
+      const kinds = Object.entries(ESCAPE_KINDS).map(([k, [one, many]]) => { const n = r.now.filter(e => e.kind === k).length; return `${n} ${n === 1 ? one : many}`; }).join(', ');
+      const bound = r.before ? r.before.length : null;
+      const window = r.tag ? `since ${r.tag}` : 'since the first commit (no release tag)';
+      const prior = r.tag ? `; the release before (${r.prev ? `${r.prev}..` : 'up to '}${r.tag}) had ${r.before.length}` : '; no release before to compare';
+      const ceremony = r.ceremony.length
+        ? `ceremony, ${plural(r.ceremony.length, 'phase')} built ${r.tag ? `since ${r.tag}` : 'so far'}: ${list(r.ceremony.map(c => `${c.phase} ${c.days}d/${c.words ?? '?'}w`), 8)}`
+        : `ceremony: no phase built ${r.tag ? `since ${r.tag}` : 'yet'}`;
+      return {
+        value: r.now.length, bound,
+        detail: `${r.now.length} ${window} (${kinds}); ${by.length ? `by phase: ${list(by.map(([p, es]) => `${p} ×${es.length}`), 6)}` : 'none names a phase'}${unattributed ? `; ${unattributed} unattributed` : ''}${prior}; ${ceremony}`,
+        facts: {
+          since: r.tag, ref: r.ref, previous: r.tag ? { from: r.prev, to: r.tag, value: r.before.length } : null,
+          escapes: r.now, byPhase: Object.fromEntries(by.map(([p, es]) => [p, es.length])), unattributed, ceremony: r.ceremony,
+        },
       };
     },
   },
@@ -870,7 +1055,8 @@ export async function measure({ root, config, env = process.env, transcripts, da
       if (r?.na) { results.push({ ...base, state: 'n/a', value: null, detail: r.na }); continue; }
       if (!Number.isFinite(r?.value)) throw new Error(`the instrument returned no number (${JSON.stringify(r?.value)})`);
       // A rule measure (ratchet: false) may name the bound its value is judged by (machine_prs: per queue).
-      const b = m.ratchet === false && Number.isFinite(r.bound) ? r.bound : bound;
+      // A release measure (escapes) is judged by its own reading only: none when there is no release before.
+      const b = m.release ? (Number.isFinite(r.bound) ? r.bound : null) : m.ratchet === false && Number.isFinite(r.bound) ? r.bound : bound;
       // No bound at all (build_time with no budget): the value is recorded, never outside.
       results.push({ ...base, bound: Number.isFinite(b) ? b : null, state: !Number.isFinite(b) || within(m, r.value, b) ? 'ok' : 'outside', value: r.value, detail: r.detail ?? '', facts: r.facts ?? {} });
     } catch (e) {
@@ -931,6 +1117,13 @@ export function proposalText(r, config = {}) {
       const t = f.slower[0];
       return `Fix or file the slower test ${named(t)}: ${Math.round(t.ms)} ms against a median of ${t.median} ms over its last ${t.window} passing runs (${t.machine}). Run it alone: \`${aloneCommand(t)}\`.${f.slower.length > 1 ? ` ${f.slower.length - 1} more after it.` : ''}`;
     }
+    case 'escapes': {
+      const [top] = escapesByPhase(f.escapes ?? []);
+      const rose = `${r.value} escapes since ${f.since ?? 'the first commit'} against ${r.bound} in the release before`;
+      return top
+        ? `Make phase ${top[0]} the next hygiene target: it has the most escapes (${top[1].length}: ${list(top[1].map(e => `${e.ref} ${e.text}`.slice(0, 80)), 3)}). ${rose}. For each, name the real surface its proof missed and add the guard that would have caught it.`
+        : `${rose[0].toUpperCase()}${rose.slice(1)}, and none names its phase: name the phase in each fix commit, lesson row or \`— Escape:\` line, so the next night can point at one.`;
+    }
     case 'build_time': return `Bring the build back under its budget: \`${f.command}\` took ${f.ms} ms against ${f.budget} ms. A climb night's build-time job can take it ("climb".jobs).`;
     case 'conduct_cost': return `Brief builders to test the files they touched: they ran the whole check or suite ${f.wholeRuns} times (${f.wholeMinutes} min); the conductor runs it once (lesson 5).`;
     default: return `Move ${r.id} back within its bound (${r.value} against ${r.bound}).`;
@@ -962,6 +1155,8 @@ export function tighten(results, bounds, measures = MEASURES) {
   for (const m of measures) {
     next[m.id] = Number.isFinite(bounds[m.id]) ? bounds[m.id] : m.bound;
     const r = results.find(x => x.id === m.id);
+    // A release measure records the bound it was judged by (the previous release's value); never tightened mid-release.
+    if (m.release) { if (Number.isFinite(r?.bound)) next[m.id] = r.bound; continue; }
     if (m.ratchet !== false && r?.state === 'ok' && beats(m, r.value, next[m.id])) {
       tightened.push({ id: m.id, from: next[m.id], to: r.value });
       next[m.id] = r.value;

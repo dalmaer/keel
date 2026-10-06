@@ -2,16 +2,27 @@
 # A git for keel improve --selftest: the fixture lives inside keel's own repo,
 # so a real git would read keel's history. Answers the calls improve makes.
 # Synthetic: main has commits on the two days before today (no changelog page
-# for either), and every file was last committed on 2020-01-06. Plain sh, not
-# node: the selftest runs it often.
+# for either), and every file was last committed on 2020-01-06. Releases
+# v0.1.0 and v0.2.0: none of the first release's commits is a fix, and one
+# since v0.2.0 is (escapes: 1 against 0). Plain sh, not node: the selftest
+# runs it often.
 day() { # the UTC date $1 days ago: GNU date, else BSD date
   t=$(( $(date +%s) - $1 * 86400 ))
   date -u -d "@$t" +%Y-%m-%d 2>/dev/null || date -u -r "$t" +%Y-%m-%d
 }
 has() { w=$1; shift; for a in "$@"; do [ "$a" = "$w" ] && return 0; done; return 1; }
 if [ "$1" = rev-parse ]; then
-  if has --git-dir "$@"; then echo .git; else echo 0000000000000000000000000000000000000000; fi
+  if has --git-dir "$@"; then echo .git
+  elif has --is-shallow-repository "$@"; then echo false
+  else echo 0000000000000000000000000000000000000000; fi
+elif [ "$1" = tag ]; then printf 'v0.2.0\nv0.1.0\n'
 elif [ "$1" = log ] && has -1 "$@"; then echo 2020-01-06
+elif [ "$1" = log ] && has -p "$@"; then : # no phase file history: no ceremony to read
+elif [ "$1" = log ] && has v0.2.0..main "$@"; then
+  printf '1111111111111111111111111111111111111111\037fix: phase 1 counted each anvil twice\037\036\n2222222222222222222222222222222222222222\037the counter takes a prefix\037\036\n'
+elif [ "$1" = log ] && has v0.1.0..v0.2.0 "$@"; then printf '3333333333333333333333333333333333333333\037anvils: a prefix of four\037\036\n'
+elif [ "$1" = show ]; then echo "fatal: path '${2#*:}' does not exist in '${2%%:*}'" >&2; exit 128
+elif [ "$1" = diff ] || [ "$1" = rev-list ]; then :
 elif [ "$1" = log ]; then d1=$(day 1); printf '%s\n%s\n%s\n' "$d1" "$d1" "$(day 2)"
 else echo "stub git: unknown $*" >&2; exit 1
 fi

@@ -82,4 +82,4 @@ None. Measure the "ended on a question" rules on real use.
 ## Trajectory
 
 - **2026-10-04** — Recent repos not in `fleet.json` became a loose-end kind. Without it, keel-walk, made and then forgotten, was invisible.
-
+- **2026-10-06** — Escape: the marks test's fixed four-character id prefix was ambiguous now and then over random session ids, and CI failed once; fixed in bbd0dcb (the shortest unique prefix). Lesson 56.
