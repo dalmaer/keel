@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G3
 depends: [7, 8]
-note: "Specced 6 Oct after a 131-item inbox: tag keel's catalogue by stack (evidence-backed, universal by default), declare each project's stack, ship the filtered view. Design: research/2026-10-06-lessons-by-stack-and-pattern.md."
-evidence: []
+note: "Built in keel: a closed stack vocabulary with file evidence, the Where column in keel's catalogue (all 56 rows universal until phase 31 tags them), a project's stack (adopt detects, doctor checks), and a managed docs/keel-lessons.md filtered by it. Waits on ledger and isocan declaring their stacks through the fleet release."
+evidence: ["evidence/2026-10-06-lessons-by-stack.md"]
 issue: 8
 ---
 
@@ -35,10 +35,10 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Acceptance
 
-- [ ] An unknown tag in `stacks.json`, the catalogue or a project's `stack` fails (a test and a doctor lint), never passes silently.
-- [ ] Detection: a synthetic repo with `vercel.json` and a workflow is detected as vercel and github-actions; one with neither is not; `stack-evidence` fires both ways (declared without evidence, evidence without declaration).
-- [ ] The view: for a catalogue with universal, vercel-only and gcp-only rows, a vercel project's view holds the universal and vercel rows and no gcp row; an untagged row reaches every project. Mutation: a filter that drops untagged rows fails the test.
-- [ ] A project's own lessons table, its fingerprints and `.keel/sent.json` are byte-identical before and after (keel lessons sends nothing new).
+- [x] An unknown tag in `stacks.json`, the catalogue or a project's `stack` fails (a test and a doctor lint), never passes silently. `tests/stacks.test.mjs`, `tests/doctor.test.mjs`
+- [x] Detection: a synthetic repo with `vercel.json` and a workflow is detected as vercel and github-actions; one with neither is not; `stack-evidence` fires both ways (declared without evidence, evidence without declaration). `tests/stacks.test.mjs`, `tests/doctor.test.mjs`, `tests/adopt.test.mjs`
+- [x] The view: for a catalogue with universal, vercel-only and gcp-only rows, a vercel project's view holds the universal and vercel rows and no gcp row; an untagged row reaches every project. Mutation: a filter that drops untagged rows fails the test. `tests/stacks.test.mjs`, `tests/package.test.mjs`
+- [x] A project's own lessons table, its fingerprints and `.keel/sent.json` are byte-identical before and after (keel lessons sends nothing new). `tests/lessons.test.mjs`, `tests/stacks.test.mjs`
 - [ ] ledger and isocan declare their stacks through `keel fleet update`, and each repo's `docs/keel-lessons.md` is checked against its stack by hand.
 
 ## Proof
@@ -58,4 +58,10 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Next action
 
-Write `practices/lessons/stacks.json` and its test (closed vocabulary, every tag with evidence), then the `Where` column parser.
+At the fleet release: ledger and isocan declare their stacks through `keel fleet update`, and each repo's `docs/keel-lessons.md` is read against its stack.
+
+## Trajectory
+
+- **2026-10-06** — keel's catalogue (docs/lessons.md) now ships in the package and counts as a practice change for `keel release` (`SCOPE`): without that, a lessons-only release would leave the practice version alone and no project's view would ever move. Found by the builder; fixed by the conductor with a test.
+- **2026-10-06** — `.vercel/` is usually git-ignored, so a project whose only Vercel evidence is that folder gets a stack-evidence finding in a fresh clone; ledger may need `vercel.json`.
+- **2026-10-06** — `keel learn decide` now writes an empty Where cell into a five-column catalogue, and `keel init` records the stack, so a fresh project's doctor stays clean.

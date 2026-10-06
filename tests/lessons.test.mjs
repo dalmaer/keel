@@ -275,3 +275,34 @@ test('the target: --to, else the CLI checkout\'s inbox, else its repo; with inbo
   for (const c of creates) assert.equal(c[c.indexOf('-R') + 1], 'acme/keel-inbox');
   assert.ok(Object.values(JSON.parse(await readFile(join(dir, SENT), 'utf8'))).every(s => s.issue.startsWith('https://github.com/acme/keel-inbox/issues/')));
 });
+
+test('the stack view moves nothing keel lessons reads: the own table, its fingerprints and sent.json stay byte-identical, and nothing new is sent', async t => {
+  const { dir, lessonsCommit } = await acme(t);
+  const stub = await stubGh(t);
+  // Render never writes over the project's edit to the skill; take keel's back first.
+  git(dir, 'checkout', lessonsCommit, '--', '.agents/skills/conduct/SKILL.md');
+  git(dir, 'commit', '-qam', 'conduct: keel\'s skill again');
+  assert.equal((await send(dir, stub.env)).exitCode, 0);
+  const { render } = await import('../lib/practices.mjs');
+  const own = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
+  const sent = await readFile(join(dir, SENT), 'utf8');
+  const prints = async () => (await lessons({ dir, to: TO, dryRun: true }, { cliRoot: KEEL, env: stub.env })).data;
+  const before = await prints();
+  assert.deepEqual(before.items, []);
+
+  // The project declares a stack; render rewrites docs/keel-lessons.md for it.
+  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ ...cfg, stack: ['node', 'vercel', 'github-actions'] }, null, 2)}\n`);
+  await writeFile(join(dir, 'vercel.json'), '{}\n');
+  const done = await render(dir);
+  assert.ok(done.entries.some(e => e.path === 'docs/keel-lessons.md' && e.status === 'update'), 'the view was rewritten');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'keel update: the stack');
+
+  assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), own, 'the project\'s own table is byte-identical');
+  assert.equal(await readFile(join(dir, SENT), 'utf8'), sent, '.keel/sent.json is byte-identical');
+  const after = await prints();
+  assert.deepEqual(after.items, [], 'keel lessons sends nothing new');
+  assert.equal(after.already, before.already);
+  assert.equal(parseLessons(await readFile(join(dir, 'docs/lessons.md'), 'utf8')).where, -1, 'a project\'s table keeps four columns');
+});

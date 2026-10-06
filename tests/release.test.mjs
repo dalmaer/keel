@@ -136,7 +136,7 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   // --practice has nothing to version when the practice did not change.
   r = await attempt(release({ root: dir, version: '0.2.0', notes: NOTES, practice: '0.2.0' }, { env: ENV }));
   assert.equal(r.exitCode, 2);
-  assert.match(r.text, /nothing under practices\/ or migrations\/ changed since \w+, so the practice stays at 0\.0\.0/);
+  assert.match(r.text, /nothing under practices\/, migrations\/ or docs\/lessons\.md changed since \w+, so the practice stays at 0\.0\.0/);
 
   // A migration counts as a practice change.
   await mkdir(join(dir, 'migrations'));
@@ -161,10 +161,19 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   assert.deepEqual(await versions(dir), { cli: '0.3.0', practice: '0.2.1', config: '0.2.1', lock: '0.2.1' });
   assert.deepEqual(r.data.practice.files, ['practices/base/AGENTS.md']);
 
+  // The lessons catalogue counts: every project's docs/keel-lessons.md is rendered from it (phase 30).
+  await mkdir(join(dir, 'docs'), { recursive: true });
+  await writeFile(join(dir, 'docs', 'lessons.md'), '# Lessons\n\n| # | The shape of it | What it cost | Guard | Where |\n| --- | --- | --- | --- | --- |\n| 1 | **Acme forgets.** | A day. | A test. | |\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'a lesson');
+  r = await release({ root: dir, version: '0.4.0', notes: 'Acme learns a lesson.' }, { env: ENV, date: '2026-10-08' });
+  assert.equal(r.data.practice.changed, true, 'a lessons-only release moves the practice');
+  assert.deepEqual(r.data.practice.files, ['docs/lessons.md']);
+
   // update's PR carries practice entries between practice versions, never a keel-only one.
   const text = await readFile(join(dir, 'WHATSNEW.md'), 'utf8');
   assert.deepEqual(entries(text).map(e => [e.version, e.practice, e.keelOnly]),
-    [['0.3.0', '0.2.1', false], ['0.2.1', '0.2.0', true], ['0.2.0', '0.2.0', false], ['0.1.0', '0.0.0', true]]);
+    [['0.4.0', r.data.practice.to, false], ['0.3.0', '0.2.1', false], ['0.2.1', '0.2.0', true], ['0.2.0', '0.2.0', false], ['0.1.0', '0.0.0', true]]);
   assert.deepEqual(between(text, '0.0.0', '0.2.1').map(e => e.body), ['Acme gets a sharper gate.', 'Acme renames a file.']);
   assert.deepEqual(between(text, '0.2.0', '0.2.0'), [], 'a project on the practice gets nothing');
   // An entry written before the split names no practice: its version is its practice.

@@ -1,0 +1,49 @@
+[
+  {
+    "tag": "node",
+    "means": "A Node.js project: a package.json at its root.",
+    "evidence": ["package.json"]
+  },
+  {
+    "tag": "web",
+    "means": "Something a browser renders: an HTML entry, or a dependency on a browser UI framework.",
+    "evidence": [
+      "index.html",
+      "public/index.html",
+      "src/index.html",
+      "web/index.html",
+      "depends on react",
+      "depends on vue",
+      "depends on svelte",
+      "depends on preact",
+      "depends on solid-js",
+      "depends on lit",
+      "depends on @angular/core"
+    ]
+  },
+  {
+    "tag": "vercel",
+    "means": "Deployed on Vercel.",
+    "evidence": ["vercel.json", ".vercel/"]
+  },
+  {
+    "tag": "gcp",
+    "means": "Built or deployed on Google Cloud.",
+    "evidence": ["cloudbuild.yaml", "app.yaml", "firebase.json"]
+  },
+  {
+    "tag": "firebase",
+    "means": "Uses Firebase (hosting, Firestore or functions).",
+    "evidence": ["firebase.json", "firestore.rules"]
+  },
+  {
+    "tag": "github-pages",
+    "means": "Published with GitHub Pages from a workflow.",
+    "evidence": ["workflow uses actions/deploy-pages"]
+  },
+  {
+    "tag": "github-actions",
+    "means": "Runs workflows on GitHub Actions.",
+    "evidence": [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+  }
+]

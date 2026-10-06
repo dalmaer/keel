@@ -18,7 +18,8 @@
 //                            the numbered rows after it render as text
 //   parseLessons(text)       the lesson rows of a lessons table, and which
 //                            column is the guard (keel lessons, fleet, learn
-//                            and improve all read the table with this one)
+//                            and improve all read the table with this one);
+//                            keel's catalogue's fifth column, Where, too
 //   lessonFingerprint(project, row)  a row's identity in .keel/sent.json, the
 //                            one keel lessons files under and improve counts by
 //   unsentLessons(root, config)  the rows of the lessons table not yet sent home
@@ -246,8 +247,12 @@ const isSeparator = line => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.tes
  * column. The guard column is the header cell containing "guard", in any
  * case and position (ledger's `Guard`, cajones' `Guard / status`); `guard`
  * is its index, -1 when the table has none, and each row's guard is then
- * the last column. Returns { numbered, guard, rows: [{ n, line, shape, cost,
- * guard }] }; `line` is 1-based, for permalinks.
+ * the last column. A header cell `Where` (keel's catalogue only: the stacks a
+ * lesson applies to, empty for every stack) is `where`, its index, -1 when
+ * the table has none; each row's `where` is that cell, '' without one. The
+ * shape alone makes a fingerprint, so the column moves none. Returns
+ * { numbered, guard, where, rows: [{ n, line, shape, cost, guard, where }] };
+ * `line` is 1-based, for permalinks.
  */
 export function parseLessons(text) {
   const lines = (text ?? '').split('\n');
@@ -259,18 +264,22 @@ export function parseLessons(text) {
     if (!numbered && head.length !== 3 && guard < 0) continue;
     const from = numbered ? 1 : 0; // the shape's column
     const at = guard >= 0 ? guard : from + 2;
+    const where = head.findIndex(c => /^where$/i.test(c));
     const rows = [];
     for (let j = i + 2; j < lines.length && lines[j].trim().startsWith('|'); j++) {
       const c = cells(lines[j]);
       if (numbered && !/^\d+$/.test(c[0])) continue;
       if (c.length < Math.max(at, from + 2) + 1 || (!numbered && !c[from])) continue;
-      // An unescaped pipe in the last column splits it; the guard keeps the rest.
-      const g = at === head.length - 1 ? c.slice(at).join(' | ') : c[at];
-      rows.push({ n: numbered ? Number(c[0]) : rows.length + 1, line: j + 1, shape: c[from], cost: c[from + 1], guard: g });
+      // An unescaped pipe in the last column splits it; the guard keeps the
+      // rest. A Where column after the guard stays the row's last cell.
+      const last = where === head.length - 1 && at === head.length - 2;
+      const g = at === head.length - 1 ? c.slice(at).join(' | ') : last ? c.slice(at, Math.max(at + 1, c.length - 1)).join(' | ') : c[at];
+      const w = where < 0 ? '' : last ? (c.length > at + 1 ? c[c.length - 1] : '') : c[where] ?? '';
+      rows.push({ n: numbered ? Number(c[0]) : rows.length + 1, line: j + 1, shape: c[from], cost: c[from + 1], guard: g, where: w });
     }
-    return { numbered, guard, rows };
+    return { numbered, guard, where, rows };
   }
-  return { numbered: false, guard: -1, rows: [] };
+  return { numbered: false, guard: -1, where: -1, rows: [] };
 }
 
 /** What keel lessons has sent home: { "<fingerprint>": { issue, at } }. */

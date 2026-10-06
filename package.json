@@ -10,6 +10,7 @@
     "bin/",
     "lib/",
     "practices/",
+    "docs/lessons.md",
     "migrations/",
     "tests/fixtures/improve/",
     ".keel/keel.json",

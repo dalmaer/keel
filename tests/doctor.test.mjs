@@ -590,3 +590,47 @@ test('setupToken names a repo secret: checked, and doctor shows the name', async
   assert.equal(d.code, 1);
   assert.deepEqual(d.data.lint.filter(l => l.rule === 'gate-config').map(l => /setupToken/.test(l.message)), [true]);
 });
+
+test('stack: a declaration the evidence disagrees with is a finding either way; none declared is a note; an unknown tag is a finding', async t => {
+  const dir = await project(t);
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  assert.deepEqual(cfg.stack, ['node', 'github-actions'], 'init records the stack its files show');
+  const withStack = stack => writeFile(path, `${JSON.stringify({ ...cfg, stack }, null, 2)}\n`);
+  const stackRules = data => [...data.lint, ...data.notes].filter(l => l.rule.startsWith('stack-')).map(l => `${l.rule} ${data.notes.includes(l) ? 'note' : 'finding'}`);
+
+  // Declared without evidence: vercel, and no vercel.json.
+  await withStack(['node', 'github-actions', 'vercel']);
+  let r = doctor(dir);
+  assert.equal(r.code, 1, JSON.stringify(r.data));
+  assert.deepEqual(stackRules(r.data), ['stack-evidence finding']);
+  assert.match(r.data.lint.find(l => l.rule === 'stack-evidence').message, /declares vercel, and nothing in the repo shows it/);
+
+  // Evidence without declaration: vercel.json, and vercel not declared.
+  await withStack(['node', 'github-actions']);
+  await writeFile(join(dir, 'vercel.json'), '{}\n');
+  r = doctor(dir);
+  assert.equal(r.code, 1, JSON.stringify(r.data));
+  assert.deepEqual(stackRules(r.data), ['stack-evidence finding']);
+  assert.match(r.data.lint.find(l => l.rule === 'stack-evidence').message, /the files show vercel \(vercel\.json\), and "stack" does not declare it/);
+
+  // Agreeing: clean of stack rules.
+  await withStack(['node', 'vercel', 'github-actions']);
+  r = doctor(dir);
+  assert.deepEqual(stackRules(r.data), []);
+
+  // An unknown tag: a finding, and doctor still reads everything else.
+  await withStack(['node', 'netlify']);
+  r = doctor(dir);
+  assert.equal(r.code, 1, JSON.stringify(r.data));
+  assert.deepEqual(stackRules(r.data), ['stack-unknown finding']);
+  assert.match(r.data.lint[0].message, /names netlify, which is not in keel's vocabulary/);
+
+  // None declared: a note naming what the files show; the exit code is not moved by it.
+  const { stack, ...bare } = cfg;
+  await writeFile(path, `${JSON.stringify(bare, null, 2)}\n`);
+  await rm(join(dir, 'vercel.json'));
+  r = doctor(dir);
+  assert.deepEqual(stackRules(r.data), ['stack-evidence note']);
+  assert.match(r.data.notes.find(n => n.rule === 'stack-evidence').message, /no "stack" declared; the files show node \(package\.json\), github-actions/);
+});

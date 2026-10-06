@@ -500,3 +500,28 @@ test('workflowTriggers reads on: inline, as a list, and as a block of keys', () 
   assert.deepEqual(workflowTriggers('on:\n  pull_request:\n    branches: [main]\n  issues:\n    types: [opened]\njobs:\n  a: {}\n'), ['pull_request', 'issues']);
   assert.deepEqual(workflowTriggers('name: x\njobs: {}\n'), []);
 });
+
+test('adopt detects the stack, says it in the dry run, records it, and doctor agrees with it', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-site', scripts: { check: 'node -e 0' } }));
+  await writeFile(join(dir, 'vercel.json'), '{}\n');
+  const dry = keel(['adopt', dir, '--dry-run']);
+  assert.equal(dry.code, 0, dry.err);
+  // github-actions: keel's own check.yml, which the adoption writes.
+  assert.match(dry.out, /^Stack: node, vercel, github-actions \(detected: node \(package\.json\), vercel \(vercel\.json\), github-actions \(\.github\/workflows\/\*\.yml\)/m);
+  const { data } = await adopt({ dir }, { version: VERSION });
+  assert.deepEqual(data.config.stack, ['node', 'vercel', 'github-actions']);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')).stack, ['node', 'vercel', 'github-actions']);
+  assert.match(await readFile(join(dir, 'docs/keel-lessons.md'), 'utf8'), /`node`, `vercel`, `github-actions`/);
+  const doc = keel(['doctor', '--json'], dir);
+  assert.deepEqual(JSON.parse(doc.out).lint.filter(l => l.rule.startsWith('stack-')), [], doc.out);
+
+  // A declared stack stands.
+  const again = await adopt({ dir, dryRun: true }, { version: VERSION });
+  assert.equal(again.data.stack.from, '.keel/keel.json');
+  // A repo that shows nothing and gets none of keel's files records no stack.
+  const bare = await scratch(t);
+  const none = await adopt({ dir: bare, dryRun: true }, { version: VERSION });
+  assert.equal(none.data.config.stack, undefined);
+  assert.match(none.text, /^Stack: none \(detected: nothing; docs\/keel-lessons\.md carries keel's universal lessons\)$/m);
+});

@@ -4,6 +4,7 @@
   "requires": ["agents-md"],
   "files": [
     { "path": "docs/lessons.md", "from": "docs/lessons.md", "kind": "seeded", "seat": "lessons" },
+    { "path": "docs/keel-lessons.md", "from": "docs/keel-lessons.md", "kind": "managed" },
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "lessons" }
   ]
 }

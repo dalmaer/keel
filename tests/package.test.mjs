@@ -53,6 +53,16 @@ test('keel run from its packed tarball inits a project that passes its own check
   assert.equal(init.status, 0, `init from the packed keel failed:\n${init.stdout}${init.stderr}`);
   assert.ok(await exists(join(tmp, 'acme', '.gitignore')), 'the new project has its .gitignore');
 
+  // The stack view's source is keel's catalogue as the package carries it (lesson 28).
+  assert.equal(await readFile(join(pkg, 'docs', 'lessons.md'), 'utf8'), await readFile(join(KEEL, 'docs', 'lessons.md'), 'utf8'), 'the catalogue ships');
+  const acmeConfig = JSON.parse(await readFile(join(tmp, 'acme', '.keel', 'keel.json'), 'utf8'));
+  assert.deepEqual(acmeConfig.stack, ['node', 'github-actions'], 'init records the stack its files show');
+  const { viewRows } = await import('../lib/stacks.mjs');
+  const { parseLessons } = await import('../lib/lessons.mjs');
+  const view = parseLessons(await readFile(join(tmp, 'acme', 'docs', 'keel-lessons.md'), 'utf8')).rows.map(r => r.n);
+  assert.ok(view.length > 0, 'the new project reads keel\'s lessons');
+  assert.deepEqual(view, viewRows(await readFile(join(KEEL, 'docs', 'lessons.md'), 'utf8'), acmeConfig.stack).rows.map(r => r.n));
+
   const check = run('npm', ['run', 'check'], { cwd: join(tmp, 'acme'), env: ENV });
   assert.equal(check.status, 0, `the new project's check failed:\n${check.stdout}${check.stderr}`);
   assert.ok(testsRan(check.stdout + check.stderr) > 0, `the gate ran no tests:\n${check.stdout}${check.stderr}`);

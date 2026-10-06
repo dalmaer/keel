@@ -75,7 +75,7 @@
     },
     "AGENTS.md#lessons": {
       "practice": "lessons",
-      "sha256": "91f880dfda0f8203aace1f6df75547c100dadb59771e80fd52529dc776cb813f"
+      "sha256": "e182d7736213356e90ebde2112cbc2807366555ca3dbf503ce0a0fbc1a3276f8"
     },
     "AGENTS.md#night": {
       "practice": "night",
@@ -88,6 +88,10 @@
     "CLAUDE.md": {
       "practice": "agents-md",
       "sha256": "afc2da8653649abeb8ecce9a8792e12e755e69986b27659462e790c7d410708a"
+    },
+    "docs/keel-lessons.md": {
+      "practice": "lessons",
+      "sha256": "f7dbcc09e2e9cd44449f945827f0434c944c230d4461fadf25e9019aeb487523"
     },
     "docs/phases/README.md": {
       "practice": "phases",
@@ -123,7 +127,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "604f05728c63233bc296b85c2f3be8a30cc01c7959cccad3b922985623165071"
+      "sha256": "c165ba0f1f5a929fcef4f7abf5133d4a4c3993870c2056582f9e702a93f2abc7"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",

@@ -4,6 +4,10 @@
   "repo": "dalmaer/keel",
   "inbox": "dalmaer/keel-inbox",
   "keel": "self",
+  "stack": [
+    "node",
+    "github-actions"
+  ],
   "practice": "0.7.0",
   "practices": [
     "base",

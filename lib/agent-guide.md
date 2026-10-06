@@ -78,7 +78,7 @@ stderr as one line beginning `keel:`.
   `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
   {dir, name, repo, steps, secrets}}`; with `--yes`, `github: {repo,
   created, secrets}` in place of `secrets`
-- `adopt` → `{dir, dryRun, check: {check, from}, lessons: {path, from}, config, practices: [{name,
+- `adopt` → `{dir, dryRun, check: {check, from}, lessons: {path, from}, stack: {stack, from, detected}, config, practices: [{name,
   state, why}], files: [{practice, path, kind, block?, status, note?}],
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
 - `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
@@ -265,6 +265,12 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   `docs/lessons.md`: adopt finds a `docs/**/lessons.md` with a numbered table,
   records it and seeds nothing beside it; lessons, doctor, fleet and improve
   read it.
+- `stack` in `.keel/keel.json`: the project's tags from keel's closed
+  vocabulary (`practices/lessons/stacks.json`: node, web, vercel, gcp,
+  firebase, github-pages, github-actions, each with its file evidence).
+  Adopt (and init) record what the files show, keel's own files included
+  (`check.yml` is github-actions); an existing `stack` stands. It shapes
+  `docs/keel-lessons.md` (topic `lessons`).
 - `health` in `.keel/keel.json`: the directory the night's health pages go
   in, default `docs/health` (relative, inside the repo, no `..`). improve
   writes there, keel-night commits it (read at run time), drain counts it as
@@ -316,7 +322,10 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   (a `health` that is not a relative directory inside the repo),
   `health-ignored` (the health directory is git-ignored, so the night's page
   is never committed; fix: set `health` to a directory that is not ignored),
-  and in the projects
+  `stack-unknown` (a `stack` tag outside the vocabulary; drift reads past
+  it), `stack-evidence` (a declared tag nothing in the repo shows, or
+  evidence for an undeclared one; with no `stack` at all it is a note naming
+  what the files show), and in the projects
   shape `off-vocabulary` (Status: DONE, or an unknown word) and
   `phase-status` (status in a heading, or none).
 - `local` lists the project's local variants as information; `qualifies`
@@ -369,7 +378,7 @@ The order is the rule (design §3):
 `keel release` cuts a version of keel itself: package.json's version, a
 WHATSNEW entry written for the person receiving it, a commit and a local tag.
 The practice version (`practices/VERSION`) moves with it only when
-`practices/` or `migrations/` changed since the last practice release (to
+`practices/`, `migrations/` or `docs/lessons.md` (the catalogue every project's `docs/keel-lessons.md` is rendered from) changed since the last practice release (to
 the same version, or `--practice <x.y.z>`); otherwise the entry says "keel
 only" and every project stays current. `--dry-run` says which.
 It runs the gate (config `check`) on the bumped tree first; a failing gate
@@ -392,6 +401,14 @@ keel lessons --since v1.2 --json  # practice commits from a ref, not from adopti
   since `--since` (else since `.keel/keel.json` was first committed),
   `<project>/commit/<sha>`; `keel init:`/`keel update:` commits are skipped.
   `<project>` is the config's `repo`, else its `name`.
+- Keel's catalogue (`docs/lessons.md` in keel, shipped in the package) has a
+  fifth column, `Where`: empty is universal, else stack tags. Each project
+  gets `docs/keel-lessons.md` (managed by the lessons practice; never edit
+  it): every universal row plus those whose `Where` meets its `stack`, in
+  catalogue order, lines as the catalogue has them. Render writes it,
+  `render --check` and doctor (`behind`) see a stale one, `keel update`
+  rewrites it. A project's own table keeps four columns; the shape alone
+  makes a fingerprint, so neither the view nor `Where` moves `.keel/sent.json`.
 - The target is `--to`, else the CLI checkout's config `inbox` (keel's is the
   private `dalmaer/keel-inbox`), else its `repo`.
 - Sent items live in `.keel/sent.json` (`{fingerprint: {issue, at}}`),
