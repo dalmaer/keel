@@ -40,7 +40,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 - [x] Accepting a family writes `docs/patterns.md` with members and keeps every member's number and provenance; accepting a reword keeps the old text in the row's history; both are tested on a synthetic catalogue, with a mutation that drops provenance failing. `tests/distill.test.mjs`
 - [x] Nothing in the pass reads the private inbox: a test runs distill with no gh at all. `tests/distill.test.mjs`
 - [ ] The real pass on keel's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
-- [ ] One accepted `standardise` becomes a practice change (its check shipped and released), or the owner declines every standardise with a reason.
+- [x] One accepted `standardise` becomes a practice change (its check shipped and released), or the owner declines every standardise with a reason.
 
 ## Proof
 
@@ -64,3 +64,4 @@ The conductor runs the real pass over keel's catalogue (family, tag, reword and 
 
 - **2026-10-06** — Rewording keel's own rows cannot break `keel lessons` dedupe: keel's rows are never sent home (keel is home); a shape reword still records the old fingerprint in docs/lessons-history.md.
 - **2026-10-06** — A decide that changes the catalogue re-renders keel's own view itself, so a decision never leaves keel's check red; a distill proposal's claim is the agent's own words, though it still carries learn's generic "data sent from elsewhere" line.
+- **2026-10-06** — The first real pass: 14 proposals over 56 rows (10 families covering 42 rows, 2 web tags, 2 rewords), all accepted by the owner; then three standardise proposals (the renamed promote: isocan's "promote" means a prod deploy), all accepted and shipped in dff83af: ci's workflow syntax test, the zero-tests gate in the test ledger, phases' generated-file marker test.

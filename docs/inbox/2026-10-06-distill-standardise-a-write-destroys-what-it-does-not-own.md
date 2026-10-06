@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:standardise:a-write-destroys-what-it-does-not-own"
-status: proposed
+status: accepted
 outcome: standardise
-note: "Lesson 52's guard: a declared-generated file whose generator does not rewrite it whole."
+note: "The owner accepted (6 Oct); shipped in dff83af."
+pass: "dff83af3d268b526a1eaa2cb298a167a63f974be"
+through: 56
 ---
 
 # distill standardise: Lesson 52's guard: a declared-generated file whose generator does not rewrite it whole.
@@ -26,3 +28,5 @@ migration: no
 docs/lessons.md row 52; practices/phases/files/scripts/roadmap.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (standardise) — The owner accepted (6 Oct); shipped in dff83af.

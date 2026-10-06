@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:standardise:a-check-that-cannot-fail"
-status: proposed
+status: accepted
 outcome: standardise
-note: "Lessons 14 and 38: a gate that ran nothing passed."
+note: "The owner accepted (6 Oct); shipped in dff83af."
+pass: "dff83af3d268b526a1eaa2cb298a167a63f974be"
+through: 56
 ---
 
 # distill standardise: Lessons 14 and 38: a gate that ran nothing passed.
@@ -26,3 +28,5 @@ migration: no
 docs/lessons.md rows 14, 38; practices/night/files/scripts/keel/improve.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (standardise) — The owner accepted (6 Oct); shipped in dff83af.

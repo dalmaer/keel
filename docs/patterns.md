@@ -15,6 +15,8 @@ Last pass: `18e44862160e`, through lesson 56.
 
 **Guard recipe.** Give every check a fixture or mutation built to fail and require red at the assertion; read exit codes, not tails; assert that tests actually ran and name one; finished and succeeded are separate states; a guard cell names only what an automated run invokes.
 
+**Standardised.** The gate fails when its test run executed zero tests (a node --test summary of 0 tests, or no test-ledger record for the run) — practice `base` ([proposal](inbox/2026-10-06-distill-standardise-a-check-that-cannot-fail.md)).
+
 | # | The shape of it | Provenance | Where |
 | --- | --- | --- | --- |
 | 4 | A green subset hides a red suite. | isocan house rules, conduct | — |
@@ -119,6 +121,8 @@ Decided in [2026-10-06-distill-family-a-wait-not-sized-to-what-it-waits-on.md](i
 
 **Guard recipe.** Check an identity marker or ownership record before the first write, and that a new file's name is free; refuse to overwrite an edited target; round-trip an untouched record byte for byte; append a marker to each generated file, regenerate, and fail if it survives; deliberate breaks run in a separate worktree.
 
+**Standardised.** Each file a practice declares generated (the roadmap, docs/keel-lessons.md, docs/patterns.md, docs/LOOP.md) is regenerated over an appended marker in a test, which fails if the marker survives — practice `phases` ([proposal](inbox/2026-10-06-distill-standardise-a-write-destroys-what-it-does-not-own.md)).
+
 | # | The shape of it | Provenance | Where |
 | --- | --- | --- | --- |
 | 13 | A tool that restores its own copy erases the edit it should have reported. | keel, phase 5 | — |
@@ -150,6 +154,8 @@ Decided in [2026-10-06-distill-family-lost-reads-as-empty.md](inbox/2026-10-06-d
 **Rule.** Test the thing a stranger actually gets, through the path it actually takes: the shipped package, the committed tree, the real input, the real boundary.
 
 **Guard recipe.** Build the shipped artifact in the test (npm pack, the exact staged paths) and run from it; inject values through the channel every path reads, including spawned processes; drive real input where a person's matters; fakes model the third party's recorded behaviour; run embedded code through its own parser.
+
+**Standardised.** Every inline run: block in the project's workflows passes bash -n, and every inline node -e body passes node --check (keel's tests/workflows.test.mjs check, shipped as a project test) — practice `ci` ([proposal](inbox/2026-10-06-distill-standardise-what-you-test-is-not-what-runs.md)).
 
 | # | The shape of it | Provenance | Where |
 | --- | --- | --- | --- |

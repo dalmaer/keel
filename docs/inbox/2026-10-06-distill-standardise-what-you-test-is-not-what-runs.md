@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:standardise:what-you-test-is-not-what-runs"
-status: proposed
+status: accepted
 outcome: standardise
-note: "Lesson 30's guard, today keel-only, shipped to every project with the ci practice."
+note: "The owner accepted (6 Oct); shipped in dff83af."
+pass: "dff83af3d268b526a1eaa2cb298a167a63f974be"
+through: 56
 ---
 
 # distill standardise: Lesson 30's guard, today keel-only, shipped to every project with the ci practice.
@@ -26,3 +28,5 @@ migration: no
 docs/lessons.md rows 28, 30; tests/workflows.test.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (standardise) — The owner accepted (6 Oct); shipped in dff83af.

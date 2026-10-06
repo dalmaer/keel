@@ -22,18 +22,14 @@ Their proposals and decisions stay on those issues; only counts are shown here.
 | Status | Count |
 | --- | --- |
 | untriaged | 0 |
-| proposed | 3 |
-| accepted | 14 |
+| proposed | 0 |
+| accepted | 17 |
 | declined | 0 |
 | linked | 0 |
 
 ## Waiting for a decision
 
-| Proposal | Kind | Proposed | Note |
-| --- | --- | --- | --- |
-| [distill-standardise-a-check-that-cannot-fail](inbox/2026-10-06-distill-standardise-a-check-that-cannot-fail.md) | distill | standardise | Lessons 14 and 38: a gate that ran nothing passed. |
-| [distill-standardise-a-write-destroys-what-it-does-not-own](inbox/2026-10-06-distill-standardise-a-write-destroys-what-it-does-not-own.md) | distill | standardise | Lesson 52's guard: a declared-generated file whose generator does not rewrite it whole. |
-| [distill-standardise-what-you-test-is-not-what-runs](inbox/2026-10-06-distill-standardise-what-you-test-is-not-what-runs.md) | distill | standardise | Lesson 30's guard, today keel-only, shipped to every project with the ci practice. |
+Nothing is waiting for a decision.
 
 ## Waiting for a proposal
 
