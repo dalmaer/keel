@@ -55,6 +55,47 @@ pick, time-boxed to the budget, its tools unable to push or merge; then
 never a merge. A night that keeps nothing opens nothing: its line is a
 notice, in the run's summary, and in the `keel-climb` artifact.
 
+A run whose agent failed before its budget ran out (no secret, a bad
+model: an error after one turn) is red: `agent-ran`, the step after the
+agent's, reads the step's outcome and the action's execution file and
+prints only the result's error text (at most 300 characters, saying whether
+the secret or the model was refused), and nothing is judged or pushed. A
+budget timeout is not red; what was kept is judged (lesson 29).
+
+**The tend pass** (phase 38). With `"tend": { "schedule": "weekly",
+"budget": { "minutes": 30 } }` in `.keel/keel.json` (no `tend`, no pass),
+`.github/workflows/keel-tend.yml` runs on Mondays, a minute after the
+climb's, with the same rights: an agent resolves the night's record
+findings under `.agents/climb/TEND.md`, and a person merges one PR on
+`refs/heads/keel-tend/<date>`. `scripts/keel/tend.mjs`, through
+`climb.mjs`, makes every count and refusal:
+
+- `tend-pick` — whether a pass runs: an open `keel-tend/` PR waits; three
+  closed unmerged in a row and tend proposes its own retirement.
+- `tend-input [--record]` — the worksheet: the record measures
+  (`proofs_hold`, `roadmap_stale`, `phases_stuck`, `evidence_placeholders`,
+  `drift`, `lint`) run on the tree beside the newest health page's row,
+  reconciliation's findings and proposals (when that practice is on), and
+  `keel loose-ends` for this repo (when keel is installed; `KEEL_CLI` names
+  it). A source that cannot run is n/a with why, never a zero. `--record`
+  opens `.keel/tend/pass.json`.
+- `tend-note --finding <id> --propose "…" | --tried "…"` — what only the
+  owner can choose (a step back to partial, keep/restore/send home for a
+  drifted file, closing a branch or a PR), or what was tried and left.
+- `guard --job tend` — refuses, naming the line: any file added or edited
+  under `docs/evidence/`, a front-matter status changed to built, lived-in
+  or accepted, an acceptance box ticked, any tracked file deleted, and a
+  commit that cites no worksheet finding (`Tend: <id>`); then the gate.
+- `tend-report [--body f]` — the record measures again on the branch; the
+  PR body through `pr-body.mjs` (Summary: finding → what was done;
+  Evidence: the record count before and after; Merge danger: a two-way
+  door over records and docs; Notes: the owner's checklist and what is
+  unresolved; the keel-impact block naming any phase it edits) and the
+  pass's line, which the night's health page carries as its Tend line.
+
+A pass that committed nothing opens nothing. The workflow keeps the pass's
+record as the `keel-tend` artifact.
+
 **Config** (`.keel/keel.json`; no `climb`, no climb night):
 
 ```json
@@ -78,7 +119,8 @@ naming it.
 **What it needs (⚑).** The `claude` practice's secret,
 `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`); until one is set the
 run ends green with a notice. Every climb night spends model tokens, up to
-the budget's minutes. Turning it on, and the budget, is the owner's call.
+the budget's minutes, and every tend pass up to `tend.budget.minutes`, once
+a week. Turning either on, and its budget, is the owner's call.
 The test ledger must be the test script's second reporter for `guard` to
 tell a dropped test; without it, guard says it cannot tell (exit 2) rather
 than pass.
@@ -87,12 +129,14 @@ than pass.
 (`--with climb`), or `.keel/keel.json` lists it; keel does not switch it on
 for itself until its owner says so with a budget.
 
-**Its files.** `.github/workflows/keel-climb.yml`, `scripts/keel/climb.mjs`,
-`.agents/climb/PROTOCOL.md`, `.agents/climb/jobs/test-time.md`,
-`hygiene.md` and `build-time.md` (all managed). A hygiene night gathers
+**Its files.** `.github/workflows/keel-climb.yml`, `keel-tend.yml`,
+`scripts/keel/climb.mjs`, `tend.mjs`, `.agents/climb/PROTOCOL.md`,
+`TEND.md`, `.agents/climb/jobs/test-time.md`, `hygiene.md` and
+`build-time.md` (all managed). A hygiene night gathers
 CI's `keel-test-runs` artifacts first, and its workflow may file one issue
-(`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs` and
-`pr-body.mjs`.
+(`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs`,
+`pr-body.mjs` and (tend) `improve.mjs`.
 
-**Lineage.** Keel phases 35 and 36, from the 6 October 2026 hill-climb on keel's own
-suite; design in keel's `docs/research/2026-10-06-climb-nights.md`.
+**Lineage.** Keel phases 35, 36 and 38 (tend), from the 6 October 2026 hill-climb on keel's own
+suite; design in keel's `docs/research/2026-10-06-climb-nights.md` and
+`docs/research/2026-10-06-tend-pass.md`.

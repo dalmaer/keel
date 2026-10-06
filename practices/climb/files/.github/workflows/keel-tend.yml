@@ -1,0 +1,276 @@
+# A tend pass (keel practice `climb`; managed: keel render rewrites it).
+#
+# Once a week an agent resolves the night's record findings (lost proofs,
+# reconciliation's proposals, stale next actions, docs behind code, drift,
+# loose ends) under .agents/climb/TEND.md, and a person merges what it finds.
+# scripts/keel/climb.mjs (tend.mjs) makes the worksheet, every count and
+# every refusal. The rules, as a climb night's (keel phase 38):
+#
+#   - Off unless .keel/keel.json has "tend"; with no secret, a notice and green.
+#   - One pass at a time: an open keel-tend/ PR waits for a person; three
+#     closed unmerged in a row and tend proposes its own retirement.
+#   - The agent never pushes, never merges and cannot reach gh: its tools let
+#     git read, stage and commit, nothing more. It is time-boxed to the budget.
+#   - After it: the tend guard (no evidence written, no status marked built,
+#     lived-in or accepted, no acceptance box ticked, nothing deleted, every
+#     commit citing its finding) and the gate; then one PR on
+#     refs/heads/keel-tend/<date>, never main, never merged here. A pass that
+#     changed nothing opens nothing, and its line says what was left.
+#
+# SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
+# as the climb's. Each pass spends model tokens, up to "tend".budget.minutes.
+name: keel-tend
+
+on:
+  schedule:
+    # 09:42 UTC on Mondays, a minute after the climb's.
+    - cron: "42 9 * * 1"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-tend
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+  actions: read
+
+jobs:
+  tend:
+    runs-on: ubuntu-latest
+    # The agent's own step is bounded by the budget (5 to 180 minutes); this
+    # bounds the whole run, the measures and the gate included.
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Is tend on?
+        id: on
+        run: |
+          node -e '
+            const fs = require("fs");
+            let c = {};
+            try { c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8")); } catch {}
+            const on = c.tend !== undefined;
+            if (!on) console.log("tend is off: .keel/keel.json has no \"tend\", so this run does nothing.");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\n`);
+          '
+      - name: Configured?
+        id: configured
+        if: steps.on.outputs.on == 'true'
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
+            echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a tend pass to run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.configured.outputs.enabled == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The project's install, as the night's: `setup` when it has one, else
+      # npm ci when a lockfile exists; `env` goes to every later step.
+      - name: Read the config
+        id: config
+        if: steps.configured.outputs.enabled == 'true'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        if: steps.configured.outputs.enabled == 'true'
+        # setupToken (a secret's name in .keel/keel.json) becomes GH_TOKEN here
+        # and in no other step. Absent or unset, the job's own token. Never echoed.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      # The tend config, validated (a bad one is red, naming the key), and
+      # whether this week's pass runs: an open keel-tend/ PR waits for a
+      # person; a pass retiring itself says so.
+      - name: Pick this week's pass
+        id: pick
+        if: steps.configured.outputs.enabled == 'true'
+        run: |
+          node scripts/keel/climb.mjs tend-pick --json > "$RUNNER_TEMP/pick.json"
+          node -e '
+            const fs = require("fs");
+            const [pick, out] = process.argv.slice(1);
+            const p = JSON.parse(fs.readFileSync(pick, "utf8"));
+            const lines = [`run=${p.run ? "yes" : ""}`, `minutes=${p.minutes ?? ""}`, `branch=${p.branch ?? ""}`, `day=${p.date}`];
+            fs.appendFileSync(out, `${lines.join("\n")}\n`);
+            console.log(p.run ? `tend this week: ${p.branch}` : `no tend pass: ${p.reason}`);
+          ' "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
+
+      # The worksheet opens the pass's record (.keel/tend/pass.json), on the
+      # pass's own branch, before the agent changes anything: every record
+      # finding, each n/a with why when its source could not run.
+      - name: Worksheet
+        if: steps.pick.outputs.run == 'yes'
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          git config user.name "keel-tend"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH"
+          node scripts/keel/climb.mjs tend-input --record
+
+      # The brief: TEND.md and the worksheet, as one prompt.
+      - name: Brief
+        id: brief
+        if: steps.pick.outputs.run == 'yes'
+        run: |
+          {
+            cat .agents/climb/TEND.md
+            echo
+            echo "## This week's worksheet (climb.mjs tend-input)"
+            echo
+            cat .keel/tend/pass.json
+          } > "$RUNNER_TEMP/prompt.md"
+          eof="KEEL_EOF_$(date +%s%N)"
+          {
+            echo "prompt<<$eof"
+            cat "$RUNNER_TEMP/prompt.md"
+            echo "$eof"
+            echo "started=$(date +%s)"
+          } >> "$GITHUB_OUTPUT"
+
+      # The agent, time-boxed to the budget. Its tools cannot push, merge,
+      # delete through git, or reach gh. A timeout is not red: what it
+      # committed before the box closed is still guarded below.
+      - name: Tend
+        id: tend
+        if: steps.pick.outputs.run == 'yes'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/roadmap.mjs*),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *)"
+
+      # An agent that failed before its budget ran out is red, and nothing is
+      # guarded or pushed (lesson 29); a budget timeout is not red.
+      - name: Did the agent run?
+        if: steps.pick.outputs.run == 'yes'
+        env:
+          OUTCOME: ${{ steps.tend.outcome }}
+          EXECUTION: ${{ steps.tend.outputs.execution_file }}
+          MINUTES: ${{ steps.pick.outputs.minutes }}
+          STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+
+      # Judged by the script, not the agent: anything uncommitted goes; the
+      # tend guard and the gate (red if either fails); then the measures again
+      # on the branch, the PR body and the pass's line.
+      - name: Judge the pass
+        id: judge
+        if: steps.pick.outputs.run == 'yes'
+        run: |
+          git reset -q --hard HEAD
+          git clean -q -fd
+          node scripts/keel/climb.mjs guard --job tend
+          node scripts/keel/climb.mjs tend-report --body "$RUNNER_TEMP/body.md" --json > "$RUNNER_TEMP/report.json"
+          node -e '
+            const fs = require("fs");
+            const [file, out, summary] = process.argv.slice(1);
+            const r = JSON.parse(fs.readFileSync(file, "utf8"));
+            fs.appendFileSync(out, `commits=${r.commits}\nline=${r.line}\n`);
+            fs.appendFileSync(summary, `${r.line}\n`);
+            console.log(r.line);
+          ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+
+      # One PR, on this workflow's own prefix; a person merges it. A pass that
+      # committed nothing pushes nothing.
+      - name: Open the tend pull request
+        if: steps.pick.outputs.run == 'yes'
+        env:
+          COMMITS: ${{ steps.judge.outputs.commits }}
+          LINE: ${{ steps.judge.outputs.line }}
+          DAY: ${{ steps.pick.outputs.day }}
+          BRANCH: ${{ steps.pick.outputs.branch }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$COMMITS" = 0 ] || [ -z "$COMMITS" ]; then
+            echo "::notice::No PR: $LINE"
+            exit 0
+          fi
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::The tree changed after the guard; nothing is pushed."
+            exit 1
+          fi
+          # The branch is this workflow's alone; a re-run the same day replaces
+          # its own pass, so force is safe here and nowhere else.
+          git push --force origin "HEAD:refs/heads/keel-tend/$DAY"
+          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            code=0
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel tend: $DAY" --body-file "$RUNNER_TEMP/body.md" 2>&1) || code=$?
+            echo "$out"
+            if [ "$code" != 0 ]; then
+              if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+                echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions → \"Allow GitHub Actions to create and approve pull requests\"."
+              else
+                exit "$code"
+              fi
+            fi
+          fi
+          # The PR's number goes in the pass's record, for the night's Tend line.
+          num=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' || true)
+          if [ -n "$num" ]; then
+            node -e '
+              const fs = require("fs");
+              const [file, n] = process.argv.slice(1);
+              const pass = JSON.parse(fs.readFileSync(file, "utf8"));
+              pass.pr = Number(n);
+              fs.writeFileSync(file, `${JSON.stringify(pass, null, 2)}\n`);
+            ' .keel/tend/pass.json "$num"
+          fi
+
+      # The pass's record (the worksheet, what was resolved, proposed and left,
+      # the line), kept 30 days: the night reads the newest for its Tend line.
+      - name: Keep the tend record
+        if: always() && steps.pick.outputs.run == 'yes'
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-tend
+          path: .keel/tend/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30

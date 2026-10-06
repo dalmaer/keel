@@ -45,6 +45,7 @@ async function acme(t, { climb = { jobs: ['test-time'] }, config = {}, files = {
   await mkdir(join(dir, 'scripts/keel'), { recursive: true });
   for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
   await cp(CLIMB, join(dir, 'scripts/keel/climb.mjs'));
+  await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/keel/tend.mjs'));
   await write(dir, { '.keel/keel.json': `${JSON.stringify({ name: 'Acme', ...(climb ? { climb } : {}), ...config }, null, 2)}\n`, ...files });
   git(dir, ['init', '-q', '-b', 'main']);
   git(dir, ['add', '-A']);
@@ -495,4 +496,224 @@ test('build guard: fails when the build output changes and no harmless reason na
   const bad = climb(dir, ['config', '--json']);
   assert.equal(bad.status, 2);
   for (const re of [/build-time, so "climb"\.build must name the build command/, /buildOutput must be a path inside the repo/, /buildBudgetMs must be a whole number/]) assert.match(json(bad).error, re);
+});
+
+// ---- did the agent run? (lesson 29) -------------------------------------------------
+
+/** claude-code-action's execution file: the session's messages, then one result. */
+const execution = result => JSON.stringify([{ type: 'system', subtype: 'init', session_id: 'acme' }, { type: 'assistant', message: { content: [{ type: 'text', text: 'acme private session text' }] } }, { type: 'result', ...result }]);
+
+test('agent ran: an agent that errored before its budget ends the run red, saying why from the result alone; a budget timeout is not red', async t => {
+  const dir = await acme(t);
+  const m = await load(dir);
+  // Pure.
+  const early = { is_error: true, num_turns: 1, duration_ms: 2000, subtype: 'success', result: 'Invalid API key · Please run /login' };
+  const red = m.agentVerdict({ outcome: 'success', result: early, elapsedSec: 5, minutes: 45 });
+  assert.equal(red.ok, false);
+  assert.match(red.line, /^Claude did not start: is_error after 1 turn in 2 s \(success\), before its 45-minute budget; the secret was refused: check CLAUDE_CODE_OAUTH_TOKEN/);
+  assert.match(red.line, /It said: "Invalid API key · Please run \/login"$/);
+  assert.match(m.agentVerdict({ outcome: 'failure', result: { ...early, result: 'model: claude-acme-9 not_found_error' }, elapsedSec: 5, minutes: 45 }).line, /the model was refused/);
+  assert.match(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 3, minutes: 45 }).line, /^Claude did not start: the agent step ended failure after 3 s, before its 45-minute budget, with no result/);
+  assert.equal(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 45 * 60, minutes: 45 }).ok, true, 'the budget ran out: judged, not red');
+  assert.equal(m.agentVerdict({ outcome: 'success', result: { is_error: false, num_turns: 40, duration_ms: 900_000 }, elapsedSec: 900, minutes: 45 }).ok, true);
+  assert.equal(m.agentVerdict({ outcome: 'success', result: { is_error: true, num_turns: 80, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 45 }).ok, true, 'out of turns: judged');
+  assert.equal(m.errorText({ result: 'x'.repeat(400) }).length, m.ERROR_CHARS);
+  // The workflow's own step, on a synthetic execution file: red, with only the result's text.
+  const file = join(dir, '..', `${dir.split('/').pop()}-execution.json`);
+  t.after(() => rm(file, { force: true }));
+  await writeFile(file, execution(early));
+  const now = Math.floor(Date.now() / 1000);
+  const s = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 5) });
+  assert.equal(s.status, 1, s.out);
+  assert.match(s.out, /^::error::Claude did not start: is_error after 1 turn in 2 s/m);
+  assert.doesNotMatch(s.out, /acme private session text/, 'never the session\'s messages');
+  // The budget ran out: not red.
+  const timeout = await step(t, dir, 'Did the agent run?', { OUTCOME: 'failure', EXECUTION: join(dir, 'none.json'), MINUTES: '45', STARTED: String(now - 45 * 60) });
+  assert.equal(timeout.status, 0, timeout.out);
+  assert.match(timeout.out, /ran out its budget/);
+  // A good run: not red.
+  await writeFile(file, execution({ is_error: false, num_turns: 30, duration_ms: 600_000, result: 'done' }));
+  const fine = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 600) });
+  assert.equal(fine.status, 0, fine.out);
+  assert.doesNotMatch(fine.out, /done/, 'the result text is printed only on failure');
+});
+
+// ---- phase 38: the tend pass ---------------------------------------------------------
+
+const keelCli = (args, cwd, env = {}) => run(process.execPath, [join(KEEL, 'bin/keel.mjs'), ...args], { cwd, env: { ...process.env, ...env } });
+
+/**
+ * A keel-inited Acme with climb (so tend.mjs, improve.mjs and roadmap.mjs are
+ * its own), a built phase 1 whose cited test is gone (proof lost) and its
+ * evidence, all committed. `tend`: the "tend" key, or null for none.
+ */
+async function tendAcme(t, { tend = { budget: { minutes: 30 } } } = {}) {
+  const base = await mkdtemp(join(tmpdir(), 'keel-tend-acme-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme');
+  const r = keelCli(['init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme', '--with', 'climb'], base);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await write(dir, {
+    '.keel/keel.json': `${JSON.stringify({ ...config, check: 'node -e "process.exit(0)"', ...(tend ? { tend } : {}) }, null, 2)}\n`,
+    'docs/evidence/2026-10-01-acme-orders.md': '# Acme orders\n\nOrdered one anvil; it arrived.\n',
+    'docs/phases/01-acme-orders.md': ['---', 'status: built', 'since: 2026-10-01', 'goal: G0', 'depends: [0]', 'note: "Acme orders work."', 'evidence: ["evidence/2026-10-01-acme-orders.md"]', '---', '',
+      '# Acme orders', '', '## Done when', '', 'An anvil is ordered.', '', '## Scope', '', 'Orders.', '', '## Acceptance', '',
+      '- [x] An anvil is ordered. `tests/acme-orders.test.mjs: "orders"`', '', '## Proof', '', 'Automated: `node --test tests/acme-orders.test.mjs`.', '', '## Deliberately open', '', 'Nothing.', '', '## Next action', '', 'None.', ''].join('\n'),
+    'docs/phases/02-acme-ships.md': ['---', 'status: partial', 'since: 2026-10-01', 'goal: G0', 'depends: [1]', 'note: "Acme ships."', 'evidence: []', '---', '',
+      '# Acme ships', '', '## Done when', '', 'An anvil ships.', '', '## Scope', '', 'Shipping.', '', '## Acceptance', '', '- [ ] An anvil ships.', '', '## Proof', '', 'By hand.', '', '## Deliberately open', '', 'Nothing.', '', '## Next action', '', 'Ship one.', ''].join('\n'),
+    'tests/acme-ships.test.mjs': "import { test } from 'node:test';\ntest('ships', () => {});\n",
+  });
+  const roadmap = run(process.execPath, ['scripts/roadmap.mjs'], { cwd: dir });
+  assert.equal(roadmap.status, 0, roadmap.stderr + roadmap.stdout);
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'acme: orders built, ships partial']);
+  return dir;
+}
+
+/** A keel CLI stub whose loose-ends lists `items` for `repo` (or prints `raw`). */
+async function stubKeel(t, { repo = 'acme/acme', items = [], dir = '/nowhere', raw } = {}) {
+  const d = await mkdtemp(join(tmpdir(), 'keel-tend-cli-'));
+  t.after(() => rm(d, { recursive: true, force: true }));
+  const out = raw ?? JSON.stringify({ projects: [{ repo, dir, checkout: true, github: 'checked', items }], shown: items.length, hidden: 0 });
+  await writeFile(join(d, 'keel'), `#!/bin/sh\ncat <<'KEEL_EOF'\n${out}\nKEEL_EOF\n`, { mode: 0o755 });
+  return join(d, 'keel');
+}
+
+test('tend input: one worksheet of every record measure, reconciliation and loose ends; a source that could not run is n/a with why, never empty', async t => {
+  const dir = await tendAcme(t);
+  const NO_KEEL = { KEEL_CLI: join(dir, 'no-such-keel') };
+  const w = json(climb(dir, ['tend-input', '--json'], NO_KEEL));
+  assert.deepEqual(w.measures.map(m => m.id), ['proofs_hold', 'roadmap_stale', 'phases_stuck', 'evidence_placeholders', 'drift', 'lint']);
+  const proofs = w.measures.find(m => m.id === 'proofs_hold');
+  assert.equal(proofs.value, 1, JSON.stringify(proofs));
+  assert.deepEqual(proofs.findings.map(f => f.id), ['proofs_hold:1']);
+  assert.match(proofs.findings[0].what, /^phase 1 \(docs\/phases\/01-acme-orders\.md\): proof lost: tests\/acme-orders\.test\.mjs missing/);
+  assert.equal(w.count, 1);
+  assert.deepEqual(w.reconciliation, { state: 'n/a', why: 'the reconciliation practice is off here', findings: [] });
+  assert.equal(w.looseEnds.state, 'n/a');
+  assert.match(w.looseEnds.why, /^keel is not installed here/);
+  assert.equal(w.health, null);
+  // Every source has a state; every n/a says why (mutation: a measure returned empty fails here).
+  for (const s of [...w.measures, w.reconciliation, w.looseEnds]) {
+    assert.ok(['ok', 'outside', 'n/a'].includes(s.state), JSON.stringify(s));
+    if (s.state === 'n/a') assert.ok(s.why?.trim(), `n/a with no why: ${JSON.stringify(s)}`);
+    else assert.ok(Number.isFinite(s.value), `a number or n/a: ${JSON.stringify(s)}`);
+  }
+  // The night's row rides beside each measure; loose ends from keel when it is there.
+  await write(dir, { 'docs/health/2026-10-05.md': page([['proofs_hold', 2, '≤ 0', 'outside'], ['lint', 0, '≤ 0', 'ok']]) });
+  const KEEL_STUB = { KEEL_CLI: await stubKeel(t, { dir, items: [{ id: 'ab12', kind: 'branch', fingerprint: 'branch:acme-old', title: 'acme-old', move: 'delete it: merged', commands: ['git branch -d acme-old'] }] }) };
+  const w2 = json(climb(dir, ['tend-input', '--json'], KEEL_STUB));
+  assert.equal(w2.health, 'docs/health/2026-10-05.md');
+  assert.deepEqual(w2.measures.find(m => m.id === 'proofs_hold').night, { value: 2, state: 'outside', detail: 'detail' });
+  assert.deepEqual(w2.looseEnds.findings, [{ id: 'loose:branch:acme-old', measure: 'loose-ends', what: 'branch: acme-old → delete it: merged (git branch -d acme-old)' }]);
+  assert.equal(w2.count, 1, 'loose ends are listed, not counted as records');
+  // An instrument that cannot run: the phases measures are n/a, saying why, never 0.
+  await rm(join(dir, 'scripts/roadmap.mjs'));
+  const w3 = json(climb(dir, ['tend-input', '--json'], NO_KEEL));
+  for (const id of ['proofs_hold', 'roadmap_stale', 'phases_stuck', 'evidence_placeholders']) {
+    const m = w3.measures.find(x => x.id === id);
+    assert.deepEqual([m.state, m.value], ['n/a', null], id);
+    assert.match(m.why, /^could not run: scripts\/roadmap\.mjs is missing/, id);
+  }
+  // keel's loose-ends printing nothing usable is n/a too.
+  const garbled = json(climb(dir, ['tend-input', '--json'], { KEEL_CLI: await stubKeel(t, { raw: 'not json' }) }));
+  assert.match(garbled.looseEnds.why, /printed no JSON/);
+  // The text form names each source.
+  const text = climb(dir, ['tend-input'], NO_KEEL).stdout;
+  assert.match(text, /^ {2}loose-ends: n\/a: keel is not installed here/m);
+});
+
+test('tend guard: refuses an evidence edit, a status marked built, a ticked acceptance box, a deletion and an uncited commit, naming the line; passes a cited record fix, then the gate', async t => {
+  const dir = await tendAcme(t);
+  const env = { KEEL_CLI: join(dir, 'no-such-keel') };
+  assert.equal(climb(dir, ['tend-input', '--record'], env).status, 0);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const findings = JSON.parse(await readFile(join(dir, '.keel/tend/pass.json'), 'utf8')).worksheet.findings;
+  const phase2 = await readFile(join(dir, 'docs/phases/02-acme-ships.md'), 'utf8');
+  /** One commit on a fresh branch from base; the guard's refusals for it. */
+  const attempt = async (name, change, message = 'acme: tend\n\nTend: proofs_hold:1') => {
+    git(dir, ['checkout', '-q', '-f', '-B', `try-${name}`, base]);
+    await change();
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-q', '--allow-empty', '-m', message]);
+    return m.tendCheck(dir, base, git(dir, ['rev-parse', 'HEAD']), { findings }).refused;
+  };
+  const refusedLike = (refused, re, why) => assert.ok(refused.some(p => re.test(p)), `${why}: ${JSON.stringify(refused)}`);
+  refusedLike(await attempt('evidence', () => writeFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), '# Acme orders\n\nOrdered one anvil; it arrived.\nAnd a second.\n')), /^docs\/evidence\/2026-10-01-acme-orders\.md:4: edits evidence; tend never writes evidence/, 'an evidence edit');
+  refusedLike(await attempt('new-evidence', () => write(dir, { 'docs/evidence/2026-10-07-acme-ships.md': '# Shipped\n' })), /^docs\/evidence\/2026-10-07-acme-ships\.md:1: adds evidence/, 'a new evidence file');
+  refusedLike(await attempt('built', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('status: partial', 'status: built'))), /^docs\/phases\/02-acme-ships\.md:2: status partial → built; tend never marks a phase built/, 'partial → built');
+  for (const s of ['lived-in', 'accepted']) refusedLike(await attempt(s, () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('status: partial', `status: ${s}`))), new RegExp(`status partial → ${s}`), s);
+  refusedLike(await attempt('tick', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('- [ ] An anvil ships.', '- [x] An anvil ships.'))), /^docs\/phases\/02-acme-ships\.md:\d+: ticks an acceptance box \("An anvil ships\."\)/, 'a ticked box');
+  refusedLike(await attempt('delete', () => rm(join(dir, 'tests/acme-ships.test.mjs'))), /^tests\/acme-ships\.test\.mjs: deleted; tend never deletes/, 'a deletion');
+  refusedLike(await attempt('uncited', () => write(dir, { 'README.md': 'Acme sells anvils, and ships them.\n' }), 'acme: readme'), /"acme: readme": cites no finding/, 'no citation');
+  refusedLike(await attempt('unknown', () => write(dir, { 'README.md': 'Acme.\n' }), 'acme: readme\n\nTend: lint:acme'), /cites lint:acme, which is not on the worksheet/, 'an unknown finding');
+  assert.deepEqual(await attempt('fix', () => writeFile(join(dir, 'README.md'), '# Acme\n\nAcme sells anvils.\n')), [], 'a cited README fix passes');
+  assert.deepEqual(await attempt('step-back', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('Ship one.', 'Ship one anvil to the first customer.'))), [], 'a refreshed next action passes');
+  // The command line: the guard, then the gate; a refusal is exit 1 naming the line.
+  const okRun = climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']);
+  assert.equal(okRun.status, 0, okRun.stdout + okRun.stderr);
+  assert.match(json(okRun).line, /^`node -e "process\.exit\(0\)"` exit 0 on [0-9a-f]{7}; the tend guard passed/);
+  await attempt('evidence-cli', () => writeFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), 'rewritten\n'));
+  const no = climb(dir, ['guard', '--job', 'tend', '--base', base]);
+  assert.equal(no.status, 1);
+  assert.match(no.stdout, /guard failed:\n {2}docs\/evidence\/2026-10-01-acme-orders\.md:1: edits evidence/);
+  // A failing gate is a failing guard.
+  git(dir, ['checkout', '-q', '-f', 'try-fix']);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: 'node -e "process.exit(3)"' }));
+  const gate = climb(dir, ['guard', '--job', 'tend', '--base', base]);
+  assert.equal(gate.status, 1);
+  assert.match(gate.stdout, /the gate `node -e "process\.exit\(3\)"` failed \(exit 3\)/);
+});
+
+test('tend off: with no tend key nothing runs and gh is never asked; with no secret the run ends green with a notice; a bad tend is red naming the key', async t => {
+  const TEND = join(KEEL, 'practices/climb/files/.github/workflows/keel-tend.yml');
+  const tendStep = async (dir, name, env = {}) => {
+    const block = runBlocks(await readFile(TEND, 'utf8')).find(b => b.step === name);
+    assert.ok(block, `keel-tend.yml has a step "${name}"`);
+    const out = join(dir, '..', `tend-${name.replace(/\W/g, '')}-out`);
+    await writeFile(out, '');
+    const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out, ...env } });
+    const outputs = Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+    return { status: r.status, out: r.stdout + r.stderr, outputs };
+  };
+  const off = await tendAcme(t, { tend: null });
+  const o = await tendStep(off, 'Is tend on?');
+  assert.equal(o.status, 0, o.out);
+  assert.match(o.out, /tend is off: \.keel\/keel\.json has no "tend", so this run does nothing\./);
+  assert.equal(o.outputs.on, 'false');
+  const p = climb(off, ['tend-pick', '--json'], { KEEL_GH: await stubGh(t, null) });
+  assert.equal(p.status, 0, 'tend off never asks gh');
+  assert.deepEqual([json(p).run, json(p).reason], [false, 'tend is off: .keel/keel.json has no "tend"']);
+  const rec = climb(off, ['tend-input', '--record'], { KEEL_CLI: join(off, 'no-keel') });
+  assert.equal(rec.status, 2);
+  assert.match(rec.stdout + rec.stderr, /tend is off/);
+  assert.equal(json(climb(off, ['config', '--json'])).tend, undefined);
+
+  const on = await tendAcme(t);
+  assert.equal((await tendStep(on, 'Is tend on?')).outputs.on, 'true');
+  assert.deepEqual(json(climb(on, ['config', '--json'])).tend, { schedule: 'weekly', minutes: 30 });
+  const unset = await tendStep(on, 'Configured?', { OAUTH: '', API_KEY: '' });
+  assert.equal(unset.status, 0, unset.out);
+  assert.match(unset.out, /^::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN \(or ANTHROPIC_API_KEY\) secret for a tend pass to run\./m);
+  assert.equal(unset.outputs.enabled, 'false');
+  // Every step after those two waits on them.
+  const text = await readFile(TEND, 'utf8');
+  const steps = text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
+  const after = steps.slice(steps.findIndex(s => s.includes('name: Configured?')) + 1);
+  assert.ok(after.length >= 9);
+  for (const s of after) {
+    const cond = /(?:^ {6}- |\n {8})if: (.+)/.exec(s)?.[1] ?? '';
+    assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.run == 'yes'/, `step without the guard: ${s.split('\n')[0]}`);
+  }
+  // A bad "tend" is exit 2, naming the key.
+  for (const [bad, re] of [[{ schedule: 'nightly' }, /"tend"\.schedule must be "weekly"/], [{ budget: { minutes: 999 } }, /"tend"\.budget\.minutes must be a whole number from 5 to 180/], [{ jobs: [] }, /"tend" has an unknown key jobs/], ['weekly', /"tend" must be an object/]]) {
+    const cfg = JSON.parse(await readFile(join(on, '.keel/keel.json'), 'utf8'));
+    await writeFile(join(on, '.keel/keel.json'), JSON.stringify({ ...cfg, tend: bad }));
+    const r = climb(on, ['tend-pick', '--json'], { KEEL_GH: await stubGh(t, []) });
+    assert.equal(r.status, 2, JSON.stringify(bad));
+    assert.match(json(r).error, re);
+  }
 });

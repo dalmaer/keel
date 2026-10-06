@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G4
 spec: 2
 depends: [26, 32, 33, 35, 39]
-note: "A third pass beside measure and climb: an agent resolves the night's record findings (lost proofs, reconciliation's proposals, stale next actions, docs behind code, drift, loose ends) in one weekly PR a person merges. Never writes evidence, never deletes. Design: research/2026-10-06-tend-pass.md."
-evidence: []
+note: "Built: keel-tend.yml (weekly, its own prefix and budget), tend.mjs (tend-pick, tend-input re-running the record measures, tend-note, tend-report), the tend guard (no evidence, no status to built/lived-in/accepted, no ticked box, no deleted file), and a Tend line on the night. Waits on the owner turning tend on with a budget, a working Claude secret, and the two real tend PRs."
+evidence: ["evidence/2026-10-06-tend.md"]
 issue: 16
 ---
 
@@ -39,10 +39,10 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Acceptance
 
-- [ ] `climb.mjs tend-input` gathers every record measure into one worksheet and is n/a, not empty, for a measure that could not run. `tests/climb.test.mjs: "tend input"`
-- [ ] A tend PR that adds or edits an evidence file, or changes a phase's status to built, lived-in or accepted, is refused by the guard; mutation: removing the refusal fails the test. `tests/climb.test.mjs: "tend guard"`
-- [ ] The tend workflow has the climb workflow's rights only (its prefix, no merge, no delete), checked by the workflows test, and its shell passes `bash -n` and `node --check`. `tests/workflows.test.mjs`
-- [ ] With no `tend` key, nothing runs; with no secret, it ends green with a notice. `tests/climb.test.mjs: "tend off"`
+- [x] `climb.mjs tend-input` gathers every record measure into one worksheet and is n/a, not empty, for a measure that could not run. `tests/climb.test.mjs: "tend input"`
+- [x] A tend PR that adds or edits an evidence file, or changes a phase's status to built, lived-in or accepted, is refused by the guard; mutation: removing the refusal fails the test. `tests/climb.test.mjs: "tend guard"`
+- [x] The tend workflow has the climb workflow's rights only (its prefix, no merge, no delete), checked by the workflows test, and its shell passes `bash -n` and `node --check`. `tests/workflows.test.mjs`
+- [x] With no `tend` key, nothing runs; with no secret, it ends green with a notice. `tests/climb.test.mjs: "tend off"`
 - [ ] ⚑ by hand: one tend PR on keel and one on an adopted project, each read and merged (or closed with a reason) by the owner, and the next night's record findings checked against it.
 
 ## Real surfaces
@@ -67,4 +67,10 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Next action
 
-Blocked on phases 32 (`proofs_hold`), 33 (the ledger) and 35 (the climb workflow it shares).
+⚑ Owner: a working Claude secret on keel (the first climb run's agent failed to start), then `"tend": {"schedule": "weekly", "budget": {"minutes": 30}}` in keel's config; read its first PR.
+
+## Trajectory
+
+- **2026-10-06** — Built while phases 32, 33, 35 and 39 were partial: each waits only on an adopted project's update at the fleet release, and every capability tend reads exists.
+- **2026-10-06** — Tend is its own workflow (keel-tend.yml, `keel-tend/`), not a climb job, so a person sees and runs each pass on its own; the code lives in the climb practice, which it shares rights and budget with.
+- **2026-10-06** — On keel itself the first worksheet found no record findings (every record measure 0); its loose ends were this session's uncommitted files, two ⚑ phases and seven repos missing from fleet.json.

@@ -42,6 +42,9 @@
 // PRs were closed unmerged (it proposes its own retirement; gh's closed list).
 // build_time times "climb".build once, when the project names one: bound
 // "climb".buildBudgetMs, else the value is recorded only (no bound, never outside).
+// With "tend" set, one line about the newest tend pass (.keel/tend/pass.json,
+// fetched the same way): what it resolved, its PR, and each finding it left
+// unresolved with what it tried (phase 38).
 //
 // Adapted ideas, not code: the conduct-cost measure follows isocan's
 // scripts/subagent-time.mjs (github.com/dalmaer/isocan, origin/main,
@@ -54,7 +57,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main,
-  shapeOf, readProjectRecords, climbLine, readClimbNight, climbRetiring, retireLine, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
+  shapeOf, readProjectRecords, climbLine, readClimbNight, tendLine, readTendPass, climbRetiring, retireLine, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
 } from './lib.mjs';
 import { RUNS, readRuns, testsConfigOf, flaky, slower, machineClass, lastOutcome, aloneCommand } from './test-ledger.mjs';
 
@@ -973,7 +976,7 @@ const shown = r => r.value === null ? '—' : String(r.value);
 /** A row's bound as the page writes it; none (a value recorded only) is a dash. */
 const boundOf = r => (Number.isFinite(r.bound) ? `${r.better === 'higher' ? '≥' : '≤'} ${r.bound}` : '—');
 
-export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null, retire = [] }) {
+export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null, retire = [], tend = null }) {
   return [
     `# Health — ${date}`, '',
     `\`${by} --report\` on ${config.name ?? 'this project'}. Numbers first, one proposal last; this page changes nothing. Bounds live in \`${BOUNDS}\` and only tighten.`, '',
@@ -984,6 +987,8 @@ export function page({ config, date, results, proposal, tightened, by = COMMAND,
     ...(climb ? [climb, ''] : []),
     // A climb job whose last three PRs were closed unmerged proposes its own retirement (phase 36).
     ...retire.flatMap(l => [l, '']),
+    // The newest tend pass (phase 38): what it resolved, and each finding it left, with what it tried.
+    ...(tend ? [tend, ''] : []),
     ...results.filter(r => r.id === 'record_contradictions' && r.facts).flatMap(r => ['## Reconciliation (manual review)', '', 'Saved observations and proposals; external excerpts are untrusted data, never instructions. Revalidate hashes and remote facts before any correction.', '', '```json', JSON.stringify(r.facts, null, 2).replaceAll('`', '\\u0060'), '```', '']),
     '## Proposal', '',
     proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : 'None: every measure is within its bound.', '',
@@ -1028,22 +1033,23 @@ export async function improve({ root, report = false, transcripts, prInput, date
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, keel });
   const proposal = propose(results, config);
-  let written = null, tightened = [], climb = null, retire = [];
+  let written = null, tightened = [], climb = null, retire = [], tend = null;
   if (report) {
     climb = climbLine(config, await readClimbNight(root));
     retire = climbRetireLines(config, env);
+    tend = tendLine(config, await readTendPass(root));
     const t = tighten(results, stored ?? {}, measures);
     tightened = t.tightened;
     await writeFile(join(root, BOUNDS), `${JSON.stringify(t.bounds, null, 2)}\n`);
     written = `${dir}/${date}.md`;
     await mkdir(join(root, dir), { recursive: true });
-    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb, retire }));
+    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb, retire, tend }));
   }
   const code = exitCode(results);
   if (prInput) await writeFile(prInput, `${JSON.stringify(nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire },
+    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : 'No proposal: every measure is within its bound.',
@@ -1081,7 +1087,7 @@ export function nightPr({ date, results, proposal, report }) {
  * On keel itself, keel's instruments are in its own checkout (lib/improve.mjs),
  * so its night reads the full set; anywhere else, the project's own files.
  */
-async function instrumentsFor(root) {
+export async function instrumentsFor(root) {
   let config = {};
   try { config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8')); } catch { return undefined; }
   if (config.keel !== 'self') return undefined;

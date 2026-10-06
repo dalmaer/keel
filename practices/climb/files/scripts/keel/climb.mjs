@@ -15,6 +15,8 @@
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f]
+//   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
+//   node scripts/keel/climb.mjs tend-pick|tend-input [--record]|tend-note|tend-report   (scripts/keel/tend.mjs)
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 ran and found a failure (a
 // failing gate, a dropped test); 2 usage, a bad config, or an instrument that
@@ -40,6 +42,13 @@
 // and every changed path needs a `harmless` reason, which the PR's Merge
 // danger names. A job whose last three PRs were closed unmerged retires
 // itself: pick skips it until the owner removes it or reopens one.
+//
+// `agent-ran` reads the agent step's outcome and claude-code-action's
+// execution file after the step: an agent that failed before its budget ran
+// out (no secret, a bad model: is_error after one turn) ends the run red, so a
+// run that did nothing never reports success (lesson 29); a budget timeout is
+// not red, and what was kept is judged. Phase 38's tend pass (tend.mjs) shares
+// this script, the workflow's rights and this check.
 import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -50,6 +59,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS } from './tend.mjs';
 
 export const STATE = '.keel/climb.json';
 export const NIGHT_DIR = '.keel/climb';
@@ -942,11 +952,72 @@ export async function report({ root, config, input, body, state = false, issue }
   return { job: night.job, date: night.date, kept: r.kept, tried: r.tried, minutes: r.minutes, line: r.line, body: text && body ? resolve(body) : null, text, issue: filed ? { title: filed.title, path: resolve(issue) } : null };
 }
 
+// ---- did the agent run? ------------------------------------------------------------
+
+/** The last `"type": "result"` message of claude-code-action's execution file (a JSON array, or one JSON per line), or null. */
+export function lastResult(text) {
+  if (typeof text !== 'string' || !text.trim()) return null;
+  let msgs = null;
+  try { const v = JSON.parse(text); msgs = Array.isArray(v) ? v : [v]; }
+  catch { msgs = text.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
+  return msgs.filter(m => m && typeof m === 'object' && m.type === 'result').at(-1) ?? null;
+}
+
+/**
+ * Whether the agent step did its work, pure: { ok, line }. Red (ok: false)
+ * when the step failed, or its result is an error, before the budget ran out:
+ * an agent that never started is not a quiet night (lesson 29). Running out
+ * the budget (the step's time box) or its turns is not red: what it kept is judged.
+ */
+export function agentVerdict({ outcome, result, elapsedSec, minutes }) {
+  const secs = r => `${Math.round((r ?? 0) / 1000)} s`;
+  const budget = minutes * 60;
+  if (outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec >= budget - 60) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
+  if (result?.subtype === 'error_max_turns') return { ok: true, line: `the agent ran out its turns (${result.num_turns}) in ${secs(result.duration_ms)}: what it kept is judged` };
+  if (outcome === 'success' && !result?.is_error) return { ok: true, line: result ? `the agent ran: ${result.num_turns ?? '?'} turns in ${secs(result.duration_ms)}` : 'the agent step succeeded (no execution file to read)' };
+  if (result) {
+    const turns = Number(result.num_turns ?? 0);
+    const head = turns <= 1 ? 'Claude did not start' : 'Claude stopped with an error';
+    const said = errorText(result);
+    return { ok: false, line: `${head}: is_error after ${turns} turn${turns === 1 ? '' : 's'} in ${secs(result.duration_ms)}${result.subtype ? ` (${result.subtype})` : ''}, before its ${minutes}-minute budget; ${errorCause(said)}. Nothing is judged or pushed.${said ? ` It said: "${said}"` : ''}` };
+  }
+  return { ok: false, line: `Claude did not start: the agent step ended ${outcome || 'without an outcome'} after ${Number.isFinite(elapsedSec) ? `${Math.round(elapsedSec)} s` : 'an unknown time'}, before its ${minutes}-minute budget, with no result in the execution file; check the secret / model. Nothing is judged or pushed.` };
+}
+
+/**
+ * The error text of a failed result, and only that: its `result` field (and an
+ * `error` or `message` field), one line, at most ERROR_CHARS. Never the
+ * session's messages: keel's logs are public.
+ */
+export const ERROR_CHARS = 300;
+export function errorText(result) {
+  const pick = v => (typeof v === 'string' ? v : v && typeof v === 'object' && typeof v.message === 'string' ? v.message : null);
+  const parts = [pick(result?.result), pick(result?.error), pick(result?.message)].filter(x => x && x.trim());
+  const text = [...new Set(parts.map(x => x.replace(/\s+/g, ' ').trim()))].join(' | ');
+  return text.length > ERROR_CHARS ? `${text.slice(0, ERROR_CHARS - 1)}…` : text;
+}
+
+/** Which of the two likely causes the error text names: the secret, the model, or (unnamed) both to check. */
+export function errorCause(text) {
+  if (/\b(401|403)\b|auth|token|credential|api[ _-]?key|oauth|unauthori[sz]ed|forbidden|permission|login|billing|credit/i.test(text ?? '')) return 'the secret was refused: check CLAUDE_CODE_OAUTH_TOKEN (claude setup-token) or ANTHROPIC_API_KEY';
+  if (/\bmodel\b|not[ _]found|\b404\b/i.test(text ?? '')) return 'the model was refused: check the model the action asks for (none is pinned here; the action\'s default)';
+  return 'check the secret / model';
+}
+
+export async function agentRan({ outcome, file, minutes, started, now = Date.now() }) {
+  if (!Number.isFinite(minutes) || minutes <= 0) throw new ClimbError('agent-ran needs --minutes <the budget>');
+  let text = null;
+  if (file) try { text = await readFile(file, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new ClimbError(`${file}: ${e.message}`); }
+  const result = lastResult(text);
+  const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
+  return { outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: result.num_turns ?? null, duration_ms: result.duration_ms ?? null, subtype: result.subtype ?? null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...agentVerdict({ outcome, result, elapsedSec, minutes }) };
+}
+
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue' };
-const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state' };
+const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|report|agent-ran|tend-pick|tend-input|tend-note|tend-report [--json]';
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried' };
+const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
 
 export function parseArgs(args) {
   const [verb, ...rest] = args;
@@ -959,6 +1030,10 @@ export function parseArgs(args) {
       opts[FLAGS[a]] = rest[++i];
     } else if (a.startsWith('--')) throw new ClimbError(`unknown flag ${a}; ${USAGE}`);
     else opts.positional.push(a);
+  }
+  for (const k of ['minutes', 'started']) if (opts[k] !== undefined) {
+    if (!/^\d+(\.\d+)?$/.test(opts[k])) throw new ClimbError(`--${k} must be a number`);
+    opts[k] = Number(opts[k]);
   }
   for (const k of ['runs', 'rounds']) if (opts[k] !== undefined) {
     if (!/^\d+$/.test(opts[k])) throw new ClimbError(`--${k} must be a whole number`);
@@ -975,7 +1050,29 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
   switch (o.verb) {
     case 'config': {
       const c = climbConfigOf(config);
-      return { data: c ? { on: true, ...c } : { on: false }, text: c ? `climb: ${c.jobs.join(', ')}, ${c.schedule}, ${c.minutes} min, margin ${Math.round(c.margin * 100)}%, ${c.attempts} attempts` : 'climb is off: .keel/keel.json has no "climb"' };
+      const t = tendConfigOf(config);
+      const tend = t ? `; tend: ${t.schedule}, ${t.minutes} min` : '';
+      return { data: { ...(c ? { on: true, ...c } : { on: false }), ...(t ? { tend: t } : {}) }, text: `${c ? `climb: ${c.jobs.join(', ')}, ${c.schedule}, ${c.minutes} min, margin ${Math.round(c.margin * 100)}%, ${c.attempts} attempts` : 'climb is off: .keel/keel.json has no "climb"'}${tend}` };
+    }
+    case 'agent-ran': {
+      const r = await agentRan({ outcome: o.outcome, file: o.file ? resolve(o.file) : undefined, minutes: o.minutes, started: o.started });
+      return { data: r, text: r.ok ? r.line : `::error::${r.line}`, exitCode: r.ok ? 0 : 1 };
+    }
+    case 'tend-pick': {
+      const p = await tendPick({ ...ctx, date: o.date });
+      return { data: p, text: p.run ? `tend this week: branch ${p.branch}, ${p.minutes} min` : `no tend pass: ${p.reason}` };
+    }
+    case 'tend-input': {
+      const w = o.record ? await openPass({ ...ctx, date: o.date }) : await tendInput({ ...ctx, date: o.date });
+      return { data: w, text: `${worksheetText(w)}${o.record ? `\nThe pass's record is ${PASS}.` : ''}` };
+    }
+    case 'tend-note': {
+      const n = await tendNote({ root, finding: o.finding, propose: o.propose, tried: o.tried });
+      return { data: n, text: `${n.kind}: ${n.finding}: ${n.text}` };
+    }
+    case 'tend-report': {
+      const r = await tendReport({ ...ctx, body: o.body ? resolve(o.body) : undefined, input: o.input ? resolve(o.input) : undefined });
+      return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     case 'pick': {
       const p = await pick({ ...ctx, date: o.date, force: o.force });
@@ -1011,7 +1108,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: r, text: r.dropped ? `settled on ${r.head.slice(0, 7)}: dropped what no compare kept` : `settled: HEAD ${r.head.slice(0, 7)} is the last decision` };
     }
     case 'guard': {
-      const g = await guard({ ...ctx, base: o.base, job: o.job });
+      const g = o.job === 'tend' ? await tendGuard({ ...ctx, base: o.base, check: CHECK }) : await guard({ ...ctx, base: o.base, job: o.job });
       const noted = (g.noted ?? []).map(n => `  note: ${n.message}`);
       return { data: g, text: g.ok ? [`guard: ${g.line}`, ...noted].join('\n') : `guard failed:\n${g.problems.map(p => `  ${p}`).join('\n')}`, exitCode: g.ok ? 0 : 1 };
     }

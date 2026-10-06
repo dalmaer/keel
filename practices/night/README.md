@@ -96,6 +96,14 @@ practice on, the page also says when a climb job's last three
 `keel-climb/<job>/` PRs were closed unmerged: that job proposes its own
 retirement (gh's closed list, read-only).
 
+**The Tend line** (phase 38). With `"tend"` in `.keel/keel.json` (the climb
+practice's weekly tend pass), the night reads the newest `keel-tend`
+artifact on the default branch (gh, read-only, by name) into `.keel/tend`
+before improve, and the page carries one line: `Tend: <date>: resolved N of
+M, K proposed for the owner, PR #n; unresolved: <each finding> (tried: …)`.
+A pass that did not finish says so; tend off, or never run, is no line.
+Like the climb's line, it is not a measure: no bound, nothing to ratchet.
+
 **Every PR keel opens can be judged in a minute** (phase 39).
 `scripts/keel/pr-body.mjs` builds the body from structured input,
 deterministically, in three sections in this order: **Summary**, a picture

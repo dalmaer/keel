@@ -620,6 +620,41 @@ export async function readClimbNight(root) {
   try { return JSON.parse(text); } catch { return 'unreadable'; }
 }
 
+// ---- the tend pass ------------------------------------------------------------
+
+/**
+ * The newest tend pass's record (the climb practice's scripts/keel/tend.mjs
+ * writes it; the night's workflow fetches the newest `keel-tend` artifact
+ * from the default branch into this path before improve runs).
+ */
+export const TEND_PASS = '.keel/tend/pass.json';
+
+/**
+ * The health page's one line about the newest tend pass, or null when tend is
+ * off (no "tend" in .keel/keel.json) or never ran. What it resolved, its PR,
+ * and each finding it left unresolved, named, with what it tried. `pass` is
+ * the parsed record, undefined when absent, or the string 'unreadable'.
+ */
+export function tendLine(config, pass) {
+  if (config?.tend === undefined || pass === undefined || pass === null) return null;
+  const w = pass?.worksheet;
+  if (typeof pass !== 'object' || typeof pass.date !== 'string' || !Array.isArray(w?.findings)) return `Tend: the newest record (${TEND_PASS}) is unreadable; see the last keel-tend run.`;
+  if (typeof pass.line !== 'string') return `Tend: ${pass.date}: ${w.findings.length} finding${w.findings.length === 1 ? '' : 's'} on the worksheet; the pass did not finish (${pass.gate ? 'no report' : 'the tend guard or the gate did not pass'}); see the last keel-tend run.`;
+  const resolved = Array.isArray(pass.resolved) ? pass.resolved.length : 0;
+  const proposed = Array.isArray(pass.proposed) ? pass.proposed.length : 0;
+  const left = Array.isArray(pass.unresolved) ? pass.unresolved : [];
+  const pr = Number.isInteger(pass.pr) ? `PR #${pass.pr}` : resolved ? 'no PR opened' : 'nothing to merge';
+  const named = left.slice(0, 5).map(u => `\`${u.id}\`${u.tried ? ` (tried: ${String(u.tried).replace(/\s+/g, ' ').slice(0, 120)})` : ' (not tried)'}`);
+  return `Tend: ${pass.date}: resolved ${resolved} of ${w.findings.length}, ${proposed} proposed for the owner, ${pr}${left.length ? `; unresolved: ${named.join(', ')}${left.length > 5 ? `, and ${left.length - 5} more` : ''}` : ''}.`;
+}
+
+/** The tend pass's record under root: the object, undefined when absent, 'unreadable' otherwise. */
+export async function readTendPass(root) {
+  const text = await read(join(root, TEND_PASS));
+  if (text === null) return undefined;
+  try { return JSON.parse(text); } catch { return 'unreadable'; }
+}
+
 // ---- the gate's environment -------------------------------------------------
 
 export const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/;

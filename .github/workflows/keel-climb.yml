@@ -205,12 +205,14 @@ jobs:
             echo "prompt<<$eof"
             cat "$RUNNER_TEMP/prompt.md"
             echo "$eof"
+            echo "started=$(date +%s)"
           } >> "$GITHUB_OUTPUT"
 
       # The agent, time-boxed to the budget. Its tools cannot push or merge,
       # and it measures only through climb.mjs. A timeout is not red: what it
       # kept before the box closed is still judged below.
       - name: Climb
+        id: climb
         if: steps.pick.outputs.job != ''
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
@@ -221,6 +223,20 @@ jobs:
           prompt: ${{ steps.brief.outputs.prompt }}
           claude_args: |
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"
+
+      # An agent that failed before its budget ran out (no secret, a bad
+      # model: is_error after one turn) is red, and nothing is judged or
+      # pushed: a run that did nothing never reports success (lesson 29). A
+      # budget timeout is not red; what it kept is judged below.
+      - name: Did the agent run?
+        if: steps.pick.outputs.job != ''
+        env:
+          OUTCOME: ${{ steps.climb.outcome }}
+          EXECUTION: ${{ steps.climb.outputs.execution_file }}
+          MINUTES: ${{ steps.pick.outputs.minutes }}
+          STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
 
       # Judged by the script, not the agent: drop anything no compare kept,
       # run the gate and check no test was dropped (red if either fails), the

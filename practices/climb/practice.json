@@ -1,16 +1,21 @@
 {
   "name": "climb",
-  "summary": "Climb nights: on a schedule, an agent improves one number (the suite's time, a flaky test, the build's time) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR.",
+  "summary": "Climb nights: on a schedule, an agent improves one number (the suite's time, a flaky test, the build's time) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR. With \"tend\" set, a weekly tend pass resolves the night's record findings the same way.",
   "optional": true,
   "requires": ["night"],
   "secrets": [
     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each climb night spends model tokens up to .keel/keel.json climb.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/keel-climb.yml" },
-    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-climb.yml" }
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-climb.yml" },
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "the same credential, for the weekly tend pass; it spends model tokens up to .keel/keel.json tend.budget.minutes, and only when \"tend\" is set", "workflow": ".github/workflows/keel-tend.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN for the tend pass; set one of the two, not both", "workflow": ".github/workflows/keel-tend.yml" }
   ],
   "files": [
     { "path": ".github/workflows/keel-climb.yml", "from": ".github/workflows/keel-climb.yml", "kind": "managed" },
+    { "path": ".github/workflows/keel-tend.yml", "from": ".github/workflows/keel-tend.yml", "kind": "managed" },
     { "path": "scripts/keel/climb.mjs", "from": "scripts/keel/climb.mjs", "kind": "managed" },
+    { "path": "scripts/keel/tend.mjs", "from": "scripts/keel/tend.mjs", "kind": "managed" },
     { "path": ".agents/climb/PROTOCOL.md", "from": ".agents/climb/PROTOCOL.md", "kind": "managed" },
+    { "path": ".agents/climb/TEND.md", "from": ".agents/climb/TEND.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/test-time.md", "from": ".agents/climb/jobs/test-time.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/hygiene.md", "from": ".agents/climb/jobs/hygiene.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/build-time.md", "from": ".agents/climb/jobs/build-time.md", "kind": "managed" }

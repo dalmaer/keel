@@ -653,11 +653,29 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
 - `revert --why "…"`, `settle` — drop an undecided change; drop all of them.
 - `report [--body f] [--state] [--issue f]` — the PR body (pr-body.mjs), the
   night's line; `--issue`, a hygiene night's issue when nothing was proven.
+- `agent-ran --outcome o --file f --minutes m --started s` — after the agent's
+  step: red when it failed before its budget ran out (prints only the
+  result's error text, naming the secret or the model); a timeout is not red.
+
+**Tend** (`"tend": { "schedule": "weekly", "budget": { "minutes": 30 } }`;
+`keel-tend.yml`, Mondays): an agent resolves the night's record findings
+under `.agents/climb/TEND.md`; one `keel-tend/<date>` PR a person merges.
+
+- `tend-pick` — runs unless a `keel-tend/` PR is open or three were closed unmerged.
+- `tend-input [--record]` — the worksheet: `proofs_hold`, `roadmap_stale`,
+  `phases_stuck`, `evidence_placeholders`, `drift`, `lint`, reconciliation,
+  `keel loose-ends` (`KEEL_CLI`); n/a with why, never empty.
+- `tend-note --finding id --propose "…"|--tried "…"` — left to the owner.
+- `guard --job tend` — refuses evidence edits, status → built/lived-in/
+  accepted, a ticked acceptance box, a deletion, a commit with no
+  `Tend: <finding>` line; then the gate.
+- `tend-report [--body f]` — the measures again; the PR body and the line
+  the night's health page carries (`Tend:`).
 
 Exit: 0 ok, 1 a failing gate or a dropped test, 2 usage, bad config, or an
-instrument that cannot tell. The workflow pushes only
-`refs/heads/keel-climb/<job>/<date>`, opens one PR when something was kept,
-and never merges. ⚑ Turning it on spends model tokens up to the budget: the
+instrument that cannot tell. The workflows push only
+`refs/heads/keel-climb/<job>/<date>` and `refs/heads/keel-tend/<date>`, open
+one PR when something was kept, and never merge. ⚑ Turning it on spends model tokens up to the budget: the
 owner's yes, with `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) set.
 
 <!-- topic: fleet | every project at once: behind, red, silent, or teaching something -->

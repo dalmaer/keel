@@ -185,6 +185,32 @@ jobs:
             echo "::warning::The keel-climb record $id could not be read; the health page has no climb line tonight."
           fi
 
+      # The newest tend pass's record (the climb practice's keel-tend
+      # artifact), read the same way into .keel/tend: improve writes its Tend
+      # line, naming each finding the pass left. None is no line: never red.
+      - name: Gather the tend record
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! gh api "repos/$REPO/actions/artifacts?name=keel-tend&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:1][] | .id" > "$RUNNER_TEMP/tend.txt"; then
+            echo "::warning::The keel-tend artifacts could not be listed; the health page has no tend line tonight."
+            exit 0
+          fi
+          id=$(head -n 1 "$RUNNER_TEMP/tend.txt")
+          if [ -z "$id" ]; then
+            echo "tend: no keel-tend record on $BASE"
+            exit 0
+          fi
+          mkdir -p .keel/tend
+          if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-$id.zip"; then
+            unzip -o -q "$RUNNER_TEMP/tend-$id.zip" -d .keel/tend
+            echo "tend: record $id read"
+          else
+            echo "::warning::The keel-tend record $id could not be read; the health page has no tend line tonight."
+          fi
+
       # Before the drain, so machine_prs counts last night's PR. improve also
       # writes the PR body's input (--pr-input); scripts/keel/pr-body.mjs
       # turns it into the body below, so no body is built in inline JS.

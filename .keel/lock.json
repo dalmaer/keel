@@ -5,6 +5,10 @@
       "practice": "climb",
       "sha256": "25571e3a051577961384a396beb08bfd011d735bf8b82c6e61f7bc2e209e90e7"
     },
+    ".agents/climb/TEND.md": {
+      "practice": "climb",
+      "sha256": "add3aca9b5fd4b392a0615acd8d75fadbdf4eebb973845a6c0434dc9be670306"
+    },
     ".agents/climb/jobs/build-time.md": {
       "practice": "climb",
       "sha256": "787b43a66b5ecd759e0b52525c211333639b936250407e0ef816dbb85a6ecdac"
@@ -43,7 +47,7 @@
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
-      "sha256": "6db7c683f2e81fc67bca1edbe1d811ce751d3f793d62ceb0206c05f835afde43"
+      "sha256": "c8555f818c66b8134edc3043f0bf86ce149b2a269ca07ecb464ececfbe78d9d1"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -51,7 +55,11 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "d6201d4411ceb594e954932a8cee66bcfb79d86000a15424e3c55e1c99c42694"
+      "sha256": "cbe2828dd12d7b312bb39d06a1d0bf2cdca1abf7edc4ac6b3618d121134e7c42"
+    },
+    ".github/workflows/keel-tend.yml": {
+      "practice": "climb",
+      "sha256": "4eca9e98f1af9517b49502cacad7f9c8c1b450b0dde099c865514b7a30b02ed7"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -103,7 +111,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "72c9af80e195c2e49783266f26ecd08a47899d92632666240f72a2b3041bc216"
+      "sha256": "517b6f78994224dcdfe9144353cd819e70de5fccc4db21d90ecf22e4df52bbc1"
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
@@ -111,11 +119,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "1d86cc7fac0a1d6e091e18f8fcf7b980bbbebcc1c248f3bb310aa1558c7002fc"
+      "sha256": "886fdaba18e6276dae87862b63fa0bcf7d004733773722396f8a6797bf3617a2"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "bce66ffe4dc0d8199258b1a1ddf2041b3a835033b70ecaf9d5e206ede586ecfb"
+      "sha256": "604f05728c63233bc296b85c2f3be8a30cc01c7959cccad3b922985623165071"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -124,6 +132,10 @@
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",
       "sha256": "dc1a6db156a1759a0a6e37a96331bada458806545e7a520c3be4ce8f371f999e"
+    },
+    "scripts/keel/tend.mjs": {
+      "practice": "climb",
+      "sha256": "a45e0f4bad77ca9249654e4e53a3abc5dda83c5db4ea9924899f84f3d31b5e95"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",

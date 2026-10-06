@@ -23,6 +23,7 @@ export const PREFIX = {
   'keel-night.yml': 'keel-night/',
   'keel-loop.yml': 'keel-loop/',
   'keel-climb.yml': 'keel-climb/',
+  'keel-tend.yml': 'keel-tend/',
   'claude.yml': 'claude/',
   'check.yml': null,
   'keel-impact.yml': null,
@@ -96,7 +97,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -215,7 +216,7 @@ export function permissionPath(text) {
 }
 
 test('the night workflows: Actions not allowed to open PRs is a notice naming the setting; any other failure is red', async () => {
-  for (const name of ['keel-night.yml', 'keel-climb.yml']) {
+  for (const name of ['keel-night.yml', 'keel-climb.yml', 'keel-tend.yml']) {
     const w = (await shipped()).find(w => w.name === name);
     assert.deepEqual(permissionPath(w.template), [], name);
     if (!w.optional) assert.deepEqual(permissionPath(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${name}`);
@@ -291,9 +292,9 @@ export function installProblems(text) {
   return out;
 }
 
-test('keel-night, keel-loop and keel-climb install with the config\'s setup, else npm ci, and export its env', async () => {
+test('keel-night, keel-loop, keel-climb and keel-tend install with the config\'s setup, else npm ci, and export its env', async () => {
   const all = await shipped();
-  for (const name of ['keel-night.yml', 'keel-loop.yml', 'keel-climb.yml']) {
+  for (const name of ['keel-night.yml', 'keel-loop.yml', 'keel-climb.yml', 'keel-tend.yml']) {
     const w = all.find(w => w.name === name);
     assert.deepEqual(installProblems(w.template), [], name);
     if (!w.optional) assert.deepEqual(installProblems(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
@@ -350,7 +351,7 @@ export function setupTokenProblems(text) {
 
 test('the setupToken secret reaches only the Install step, as GH_TOKEN, and is never printed', async () => {
   const all = await shipped();
-  for (const name of ['keel-night.yml', 'keel-loop.yml', 'keel-climb.yml']) {
+  for (const name of ['keel-night.yml', 'keel-loop.yml', 'keel-climb.yml', 'keel-tend.yml']) {
     const w = all.find(w => w.name === name);
     assert.deepEqual(setupTokenProblems(w.template), [], name);
     if (!w.optional) assert.deepEqual(setupTokenProblems(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
@@ -655,6 +656,175 @@ test('keel-climb.yml: the agent cannot push or merge, is time-boxed by the budge
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     assert.ok(climbWorkflowProblems(text).length, `${why}: expected a problem`);
+  }
+});
+
+/**
+ * Lesson 29 on an agent's workflow: a step after the agent's own (its id
+ * `id`), before anything is judged or pushed, runs `climb.mjs agent-ran` on
+ * that step's outcome and the action's execution file, and is not itself
+ * continue-on-error, so an agent that failed before its budget ran out ends
+ * the run red. [string].
+ */
+export function agentRanProblems(text, { step, id }) {
+  const out = [];
+  const steps = text.split(/\n(?= {6}- )/);
+  const at = name => steps.findIndex(s => new RegExp(`^ {6}- name: ${name.replace(/[?]/g, '\\?')}\\n`).test(s));
+  const agent = at(step), check = at('Did the agent run?');
+  if (agent < 0) return [`no "${step}" step`];
+  if (!new RegExp(`\\n {8}id: ${id}\\n`).test(steps[agent])) out.push(`the "${step}" step has no id ${id}, so its outcome cannot be read`);
+  if (check < 0) return [...out, 'no "Did the agent run?" step: an agent that never started reports success (lesson 29)'];
+  if (check < agent) out.push('"Did the agent run?" runs before the agent');
+  const body = steps[check];
+  if (/continue-on-error/.test(body)) out.push('"Did the agent run?" is continue-on-error: its red would be swallowed');
+  if (!new RegExp(`OUTCOME: \\$\\{\\{ steps\\.${id}\\.outcome \\}\\}`).test(body)) out.push(`"Did the agent run?" does not read steps.${id}.outcome`);
+  if (!new RegExp(`EXECUTION: \\$\\{\\{ steps\\.${id}\\.outputs\\.execution_file \\}\\}`).test(body)) out.push('"Did the agent run?" does not read the action\'s execution file');
+  if (!/node scripts\/keel\/climb\.mjs agent-ran --outcome "\$OUTCOME" --file "[^"]+" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not run climb.mjs agent-ran with the outcome, the file, the budget and the start');
+  if (/\|\| true|; *exit 0/.test(body)) out.push('"Did the agent run?" swallows its exit');
+  for (const later of ['guard', 'git push']) {
+    const i = steps.findIndex(s => s.includes(later === 'guard' ? 'node scripts/keel/climb.mjs guard' : 'git push'));
+    if (i >= 0 && i < check) out.push(`${later} runs before "Did the agent run?"`);
+  }
+  return out;
+}
+
+test('lesson 29: keel-climb.yml and keel-tend.yml end red when the agent failed before its budget ran out, before anything is judged or pushed', async () => {
+  const all = await shipped();
+  for (const [name, opts] of [['keel-climb.yml', { step: 'Climb', id: 'climb' }], ['keel-tend.yml', { step: 'Tend', id: 'tend' }]]) {
+    const t = all.find(w => w.name === name).template;
+    assert.deepEqual(agentRanProblems(t, opts), [], name);
+    assert.deepEqual(agentRanProblems(await readFile(join(KEEL, '.github/workflows', name), 'utf8'), opts), [], `keel's ${name}`);
+    const check = /\n {6}- name: Did the agent run\?\n[\s\S]*?(?=\n {6}(?:#|- ))/.exec(t)[0];
+    for (const [why, text] of [
+      ['no check', t.replace(check, '')],
+      ['the check swallowed', t.replace(check, check.replace('        run: |', '        continue-on-error: true\n        run: |'))],
+      ['another step\'s outcome', t.replace(`steps.${opts.id}.outcome`, 'steps.brief.outcome')],
+      ['no execution file', t.replace(`EXECUTION: \${{ steps.${opts.id}.outputs.execution_file }}`, 'EXECUTION: none')],
+      ['its exit ignored', t.replace(/--started "\$STARTED"\n/, '--started "$STARTED" || true\n')],
+      ['the agent step has no id', t.replace(`\n        id: ${opts.id}\n`, '\n')],
+    ]) {
+      assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
+      assert.ok(agentRanProblems(text, opts).length, `${name} ${why}: expected a problem`);
+    }
+  }
+});
+
+/**
+ * The tend pass's own rules (phase 38), on keel-tend.yml's text: [string].
+ * The climb's rights and no more: the agent cannot push, merge, delete or
+ * reach gh; its step is time-boxed by the budget; the tend guard and the
+ * report run before anything is pushed; a pass with no commit pushes nothing;
+ * nothing in it closes, deletes or merges; tend off is said first.
+ */
+export function tendWorkflowProblems(text) {
+  const out = [];
+  const tools = /--allowedTools "([^"]*)"/.exec(text)?.[1];
+  if (!tools) out.push('the agent has no --allowedTools list');
+  else {
+    const list = tools.split(',').map(s => s.trim());
+    for (const t of list) {
+      if (/\bpush\b|\bmerge\b|\brebase\b|\breset\b|\bclean\b|\brm\b|\bbranch\b|\bcheckout\b|\bswitch\b/.test(t)) out.push(`the agent may run ${t}`);
+      if (/^Bash\(git( \*|:\*|\*)\)$/.test(t) || t === 'Bash' || t === 'Bash(*)') out.push(`the agent may run any git or shell command (${t})`);
+      if (/^Bash\(gh\b/.test(t)) out.push(`the agent may run gh (${t})`);
+    }
+    if (!list.includes('Bash(node scripts/keel/climb.mjs *)')) out.push('the agent cannot run climb.mjs (tend-note, the guard)');
+  }
+  const tendAt = text.indexOf('      - name: Tend\n');
+  const tendNext = text.indexOf('\n      - ', tendAt + 1);
+  const tendStep = tendAt < 0 ? '' : text.slice(tendAt, tendNext < 0 ? undefined : tendNext + 1);
+  if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.pick\.outputs\.minutes\) \}\}\n/.test(tendStep) || !/\n\s+uses: anthropics\/claude-code-action@v\d+\n/.test(tendStep)) out.push('the agent\'s step is not time-boxed by the budget (steps.pick.outputs.minutes)');
+  const at = s => text.indexOf(s);
+  const push = at('git push');
+  for (const verb of ['tend-input --record', 'guard --job tend', 'tend-report']) {
+    const i = at(`node scripts/keel/climb.mjs ${verb}`);
+    if (i < 0) out.push(`the pass does not run climb.mjs ${verb}`);
+    else if (push >= 0 && i > push) out.push(`climb.mjs ${verb} runs after the push`);
+  }
+  const waits = at('if [ "$COMMITS" = 0 ]');
+  if (waits < 0 || (push >= 0 && waits > push)) out.push('the push does not wait on a commit: a pass that changed nothing must open nothing');
+  for (const { line, n } of code(text)) {
+    if (/\bgh pr (close|merge)\b|\bgh (api|repo)\b[^\n]*(-X|--method)\s*DELETE|\bgit push\b[^\n]*(--delete|\s:refs)|\bgit branch -[dD]\b|\bgh repo delete\b/.test(line)) out.push(`line ${n}: closes, merges or deletes; tend only proposes that`);
+  }
+  if (/^\s+issues: write$/m.test(text)) out.push('issues: write: tend files no issue');
+  const steps = [...text.matchAll(/^ {6}- (?:name: (.+)|uses: (\S+))$/gm)].map(m => m[1] ?? m[2]);
+  if (!(steps[0]?.startsWith('actions/checkout') && steps[1] === 'Is tend on?')) out.push('"Is tend on?" is not the first step after checkout');
+  if (!/tend is off/.test(text)) out.push('tend off is not said');
+  if (!/^ {4}- cron: "\d+ \d+ \* \* 1"$/m.test(text)) out.push('tend is not weekly on Mondays');
+  return out;
+}
+
+test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge, no delete; the agent time-boxed; the guard and the report before one PR', async () => {
+  const w = (await shipped()).find(x => x.name === 'keel-tend.yml');
+  const t = w.template;
+  assert.equal(w.practice, 'climb');
+  assert.deepEqual(tendWorkflowProblems(t), []);
+  assert.deepEqual(tendWorkflowProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's rendered keel-tend.yml");
+  assert.match(t, /git push --force origin "HEAD:refs\/heads\/keel-tend\/\$DAY"/);
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
+  const climbCron = /cron: "(\d+) (\d+) /.exec((await shipped()).find(x => x.name === 'keel-climb.yml').template);
+  const tendCron = /cron: "(\d+) (\d+) /.exec(t);
+  assert.deepEqual([Number(tendCron[1]) - Number(climbCron[1]), tendCron[2]], [1, climbCron[2]], 'a minute after the climb\'s');
+  const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
+  const push = 'git push --force origin "HEAD:refs/heads/keel-tend/$DAY"';
+  for (const [why, text, rule] of [
+    ['a push outside keel-tend/', t.replace(push, 'git push --force origin "HEAD:refs/heads/keel-climb/$DAY"'), 'problems'],
+    ['a push to main', t.replace(push, 'git push origin main'), 'problems'],
+    ['a merge', `${t}\n      - run: gh pr merge 1 --squash\n`, 'problems'],
+    ['git push allowed', t.replace(tools, `${tools},Bash(git push*)`)],
+    ['rm allowed', t.replace(tools, `${tools},Bash(rm *)`)],
+    ['git rm allowed', t.replace(tools, `${tools},Bash(git rm *)`)],
+    ['gh allowed', t.replace(tools, `${tools},Bash(gh pr close *)`)],
+    ['climb.mjs not allowed', t.replace('Bash(node scripts/keel/climb.mjs *),', '')],
+    ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.pick\.outputs\.minutes\) \}\}/, '')],
+    ['no tend guard', t.replace('          node scripts/keel/climb.mjs guard --job tend\n', '')],
+    ['a push whatever was committed', t.replace('if [ "$COMMITS" = 0 ] || [ -z "$COMMITS" ]; then', 'if false; then')],
+    ['a branch deleted', t.replace(push, `${push}\n          git push origin --delete refs/heads/keel-tend/old`)],
+    ['a PR closed', t.replace(push, `${push}\n          gh pr close 3`)],
+    ['tend off said late', t.replace('      - name: Is tend on?\n', '      - name: Acme first\n        run: true\n      - name: Is tend on?\n')],
+    ['daily', t.replace('cron: "42 9 * * 1"', 'cron: "42 9 * * *"')],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    const found = rule === 'problems' ? problems('keel-tend.yml', text, w.declared) : tendWorkflowProblems(text);
+    assert.ok(found.length, `${why}: expected a problem`);
+  }
+});
+
+/**
+ * The night gathers the newest tend record (phase 38), as it gathers the
+ * climb's: the keel-tend artifact, by name, from the default branch only,
+ * read-only, into .keel/tend before improve writes the page; none is never red.
+ */
+export function tendGatherProblems(text) {
+  const out = [];
+  const at = text.indexOf('      - name: Gather the tend record\n');
+  if (at < 0) return ['no "Gather the tend record" step'];
+  const next = text.indexOf('\n      - ', at + 1);
+  const body = text.slice(at, next < 0 ? undefined : next);
+  const measure = text.indexOf('node scripts/keel/improve.mjs --report');
+  if (measure >= 0 && at > measure) out.push('the tend record is gathered after improve wrote the page');
+  if (!/gh api "repos\/\$REPO\/actions\/artifacts\?name=keel-tend&/.test(body)) out.push('the tend record is not read by name');
+  if (!/head_branch == \\"\$BASE\\"/.test(body) || !/BASE: \$\{\{ github\.event\.repository\.default_branch \}\}/.test(body)) out.push('tend records from other branches are read');
+  if (/gh api[^\n]*(-X|--method|-f |-F |--field|--input)/.test(body)) out.push('the tend read writes to GitHub');
+  if (!/unzip -o -q [^\n]* -d \.keel\/tend\n/.test(body)) out.push('the record is not unpacked into .keel/tend, where improve reads it');
+  if (/exit 1/.test(body)) out.push('a missing tend record must never be red');
+  return out;
+}
+
+test('the night gathers the newest keel-tend record, read-only, from the default branch, before improve writes the health page', async () => {
+  const w = (await shipped()).find(x => x.name === 'keel-night.yml');
+  assert.deepEqual(tendGatherProblems(w.template), []);
+  assert.deepEqual(tendGatherProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's keel-night.yml");
+  const t = w.template;
+  const step = /\n {6}# The newest tend pass's record[\s\S]*?(?=\n {6}# Before the drain)/.exec(t)[0];
+  for (const [why, text] of [
+    ['a write in the read', t.replace('gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-', 'gh api -X DELETE "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-')],
+    ['unpacked elsewhere', t.replace('-d .keel/tend\n', '-d .keel/elsewhere\n')],
+    ['gathered after the measure', t.replace(step, '').replace('\n      - name: Keep the test ledger', `${step}\n      - name: Keep the test ledger`)],
+    ['no gather at all', t.replace(step, '')],
+    ['red when missing', t.replace('echo "tend: no keel-tend record on $BASE"\n            exit 0', 'echo "tend: no keel-tend record on $BASE"\n            exit 1')],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    assert.ok(tendGatherProblems(text).length, `${why}: expected a problem`);
   }
 });
 
