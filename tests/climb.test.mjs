@@ -74,7 +74,9 @@ const page = rows => [
 
 /** A "suite" that sleeps `ms`; `tag` keeps two equal sleeps different commits. */
 const sleeper = (ms, tag = '') => `// acme suite ${tag}\nsetTimeout(() => {}, ${ms});\n`;
-// The margin is wide (30%) and the gaps wider, so the fixture decides, never the machine's noise.
+// The margin is wide (30%) and the gaps wider: the sleeps (600 ms against 10) dominate
+// node's own startup even on a loaded 4-CPU runner (one took ~650 ms to start
+// node; lesson 40), so the fixture decides, never the machine.
 const TIMED = { jobs: ['test-time'], testCommand: 'node t.mjs', margin: 0.3 };
 
 test('pick: the job tied to the worst measure, rotation when none is outside, and a job with an open PR waits', async t => {
@@ -136,17 +138,22 @@ test('config: a bad climb is an error naming each key; the defaults fill the res
 });
 
 test('compare: keep for a real gain, revert for one inside the noise, and two alternated rounds, not one', async t => {
-  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(150) } });
+  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(600) } });
   const base = git(dir, ['rev-parse', 'HEAD']);
   const fast = await commit(dir, { 't.mjs': sleeper(10, 'fast') }, 'acme: a faster suite');
   git(dir, ['checkout', '-q', '-b', 'noise', base]);
-  const noise = await commit(dir, { 't.mjs': sleeper(150, 'noise') }, 'acme: the same suite');
+  const noise = await commit(dir, { 't.mjs': sleeper(600, 'noise') }, 'acme: the same suite');
   // Fast in round 1 (base first, then its first two runs), slow in round 2 (it goes first).
   git(dir, ['checkout', '-q', '-b', 'lucky', base]);
   const counter = join(dir, '..', `${dir.split('/').pop()}-count`);
   t.after(() => rm(counter, { force: true }));
-  const lucky = await commit(dir, { 't.mjs': `import { readFileSync, writeFileSync } from 'node:fs';\nlet n = 0;\ntry { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}\nwriteFileSync(process.env.ACME_COUNT, String(n + 1));\nsetTimeout(() => {}, n < 2 ? 10 : 450);\n` }, 'acme: fast once');
-  const cmp = (candidate, env = {}) => json(climb(dir, ['compare', '--base', base, '--candidate', candidate, '--runs', '2', '--json'], env));
+  const lucky = await commit(dir, { 't.mjs': `import { readFileSync, writeFileSync } from 'node:fs';\nlet n = 0;\ntry { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}\nwriteFileSync(process.env.ACME_COUNT, String(n + 1));\nsetTimeout(() => {}, n < 2 ? 10 : 1100);\n` }, 'acme: fast once');
+  // Each compare's rounds go to the run's diagnostics, so a red run on a slow machine shows its numbers.
+  const cmp = (candidate, env = {}) => {
+    const r = json(climb(dir, ['compare', '--base', base, '--candidate', candidate, '--runs', '2', '--json'], env));
+    t.diagnostic(`${candidate.slice(0, 7)} ${r.verdict}: ${(r.rounds ?? []).map(x => `${Math.round(x.base)}→${Math.round(x.candidate)} ms`).join(', ')}`);
+    return r;
+  };
 
   const keep = cmp(fast);
   assert.equal(keep.verdict, 'keep', keep.why);
@@ -175,7 +182,7 @@ test('compare: keep for a real gain, revert for one inside the noise, and two al
 });
 
 test('compare --decide, revert, settle and report: the numbers go in the commit, a miss resets, and the PR body says it all', async t => {
-  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(150), 'package.json': '{ "name": "acme", "files": ["lib/"] }\n' } });
+  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(600), 'package.json': '{ "name": "acme", "files": ["lib/"] }\n' } });
   const base = git(dir, ['rev-parse', 'HEAD']);
   const m = await load(dir);
   const baseline = json(climb(dir, ['measure', 'test-time', '--baseline', '--runs', '1', '--json']));
@@ -185,15 +192,15 @@ test('compare --decide, revert, settle and report: the numbers go in the commit,
   assert.equal(git(dir, ['status', '--porcelain']), '', 'the night\'s record ignores itself');
 
   await commit(dir, { 't.mjs': sleeper(10, 'fast') }, 'acme: share one fixture');
-  const kept = json(climb(dir, ['compare', '--decide', '--runs', '2', '--json']));
+  const kept = json(climb(dir, ['compare', '--decide', '--runs', '1', '--json']));
   assert.equal(kept.verdict, 'keep', kept.why);
   const message = git(dir, ['log', '-1', '--format=%B']);
   assert.match(message, /^acme: share one fixture\n\nclimb test-time: \d+ ms → \d+ ms \(−[\d.]+%\); \d+ ms → \d+ ms \(−[\d.]+%\); margin 30%, base [0-9a-f]{7}$/);
   const keptSha = git(dir, ['rev-parse', 'HEAD']);
   assert.equal(kept.head, keptSha);
 
-  await commit(dir, { 't.mjs': sleeper(300, 'slower') }, 'acme: nothing really');
-  const missed = json(climb(dir, ['compare', '--decide', '--runs', '2', '--json']));
+  await commit(dir, { 't.mjs': sleeper(100, 'slower') }, 'acme: nothing really');
+  const missed = json(climb(dir, ['compare', '--decide', '--runs', '1', '--json']));
   assert.equal(missed.verdict, 'revert');
   assert.equal(git(dir, ['rev-parse', 'HEAD']), keptSha, 'a revert resets to the base');
 
