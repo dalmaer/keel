@@ -67,7 +67,7 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Next action
 
-⚑ Owner: a working Claude secret on keel (the first climb run's agent failed to start), then `"tend": {"schedule": "weekly", "budget": {"minutes": 30}}` in keel's config; read its first PR.
+⚑ Owner: tend is on in keel's config (weekly, 30 minutes, 5048cf5); read this first `keel-tend/` PR, and if the agent had not started, set a working Claude secret first (the first climb run's agent failed to start).
 
 ## Trajectory
 
