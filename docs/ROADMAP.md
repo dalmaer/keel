@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 30 phases lived in; 24 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 30 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
 
@@ -49,7 +49,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-7/9 built or lived-in; 0/9 lived-in.
+9/9 built or lived-in; 0/9 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -60,8 +60,8 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [20. ledger runs on keel for real, and nothing it had stops working](phases/20-keel-runs-ledger.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md), [16](phases/16-keel-learns-its-ancestors.md) | ledger runs on keel: adopted (#16), nightly health (#17), lessons table fixed (#18), Loop through keel (#19) with its first real cycle pulled, gated and drained (#23). Lived-in waits on a week of nights. |
 | [22. A project hears about a new practice only when the practice changed](phases/22-practice-version.md) | built | 2026-10-04 | [6](phases/06-update-and-migrations.md) | practices/VERSION is the practice version; package.json is the CLI's. A keel-only release leaves every project current and update makes no change; a practice change still bumps both. |
 | [24. Nothing the owner started is forgotten](phases/24-loose-ends.md) | built | 2026-10-04 | [12](phases/12-the-fleet.md) | keel loose-ends lists unfinished sessions, uncommitted files, unmerged branches, worktrees, open PRs, owner-waiting phases and recent unlisted repos across the fleet; marks persist; nothing from a transcript is written to a file. |
-| [28. A Loop finding can belong to a project, not only a phase](phases/28-loop-findings-name-a-project.md) | planned | 2026-10-05 | [14](phases/14-stitch-loop.md) | From isocan: a Loop finding can name the project it belongs to, and docs/LOOP.md groups accepted findings by project, so isocan can retire its own loop.mjs. |
-| [29. keel takes what isocan learned about lanes, tables and workflows](phases/29-adopt-reads-what-is-there.md) | planned | 2026-10-05 | [4](phases/04-keel-adopt.md), [5](phases/05-managed-files-and-drift.md) | From isocan: renovate's workspace and Node lanes, a lessons lint that catches a split table, and adopt reading a claude workflow by its triggers. |
+| [28. A Loop finding can belong to a project, not only a phase](phases/28-loop-findings-name-a-project.md) | built | 2026-10-05 | [14](phases/14-stitch-loop.md) | From isocan: a Loop finding can name its project and LOOP.md groups by project; its hedge rule (loop.hedge) and model proving on pull (loop.prove + ANTHROPIC_API_KEY) came too, opt-in. isocan's 85 findings render to its own page byte for byte. |
+| [29. keel takes what isocan learned about lanes, tables and workflows](phases/29-adopt-reads-what-is-there.md) | built | 2026-10-05 | [4](phases/04-keel-adopt.md), [5](phases/05-managed-files-and-drift.md) | From isocan: renovate.json disables a project's own workspace packages and takes its timezone; doctor names prose between rows, a second header and a stranded row; adopt calls a claude workflow local only when a mention starts it. isocan's rendered renovate.json keeps every rule of its own. |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
@@ -97,7 +97,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-3/6 built or lived-in; 0/6 lived-in.
+4/6 built or lived-in; 0/6 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -106,7 +106,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [14. A project's Stitch Loop findings are triaged the same way everywhere, through keel](phases/14-stitch-loop.md) | built | 2026-10-02 | [1](phases/01-practices-as-modules.md), [10](phases/10-the-night-shift.md) | The optional loop practice runs ledger's Loop: the real cycle pulled 10 new findings, gated and drained them (#23). That merge left ledger's roadmap stale and main red; the PR now carries what afterRender writes (afterRenderWrites). |
 | [15. A project's night shift runs from its own repo, and keel is only where the ideas come from](phases/15-projects-run-on-their-own.md) | built | 2026-10-04 | [10](phases/10-the-night-shift.md), [11](phases/11-keel-improve.md) | Night and loop workflows run each project's own scripts/keel/*.mjs with no keel checkout and no token, and update PRs go out from keel: keel fleet update opened duo #48 and cajones #23, both merged. |
 | [26. Phase records agree with delivery facts and current decisions](phases/26-reconciliation.md) | built | 2026-10-04 | [5](phases/05-managed-files-and-drift.md), [15](phases/15-projects-run-on-their-own.md), [18](phases/18-docs-cannot-drift.md) | Shared checks, PR impact declarations and manual proposals ship in doctor, CI and night health. Ledger main and its correction branch audited read-only; merge never advances acceptance. |
-| [27. A project that keeps phases per project is measured, not skipped](phases/27-projects-shape-measured.md) | planned | 2026-10-05 | [11](phases/11-keel-improve.md), [15](phases/15-projects-run-on-their-own.md) | From isocan: the night measures a project whose phases live in docs/projects/<p>/phases.md, and gains the practice page's measures that hold for any project. |
+| [27. A project that keeps phases per project is measured, not skipped](phases/27-projects-shape-measured.md) | built | 2026-10-05 | [11](phases/11-keel-improve.md), [15](phases/15-projects-run-on-their-own.md) | improve reads the projects shape (isocan: 23 phases without an issue, 22 stuck) and gains eight record measures from isocan's practice page, each n/a with a reason where its source is absent. |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.

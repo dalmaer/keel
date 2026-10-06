@@ -1,12 +1,24 @@
 #!/usr/bin/env node
-// A gh for keel improve --selftest, answering the three calls improve makes
-// with the shapes real gh returns (`--json conclusion`, `--json headRefName`).
-// Synthetic: an Acme repo whose main has failed three runs in a row and whose
-// night-shift queue holds two PRs.
+// A gh for keel improve --selftest, answering the calls improve makes with the
+// shapes real gh returns (it prints every field; real gh prints the ones asked
+// for). Synthetic: an Acme repo whose main has failed three runs in a row,
+// whose night-shift queue holds two PRs, all of them opened in 2020 (stale),
+// and whose open issues are #7 (anvils, a built project), #8 (rockets) and #42
+// (named in no doc).
 const argv = process.argv.slice(2);
 const has = (...words) => words.every(w => argv.includes(w));
 if (has('--version')) console.log('gh version 2.0.0 (stub)');
 else if (has('auth', 'status')) console.log('Logged in to github.com as acme (stub)');
 else if (has('run', 'list')) console.log(JSON.stringify([{ conclusion: '' }, { conclusion: 'failure' }, { conclusion: 'failure' }, { conclusion: 'failure' }, { conclusion: 'success' }]));
-else if (has('pr', 'list')) console.log(JSON.stringify([{ headRefName: 'keel-night/2020-03-01' }, { headRefName: 'keel-night/2020-03-02' }, { headRefName: 'renovate/anvil-2.x' }, { headRefName: 'wile/rocket-skates' }]));
+else if (has('pr', 'list')) console.log(JSON.stringify([
+  { number: 11, title: 'keel night 2020-03-01', createdAt: '2020-03-01T02:00:00Z', headRefName: 'keel-night/2020-03-01' },
+  { number: 12, title: 'keel night 2020-03-02', createdAt: '2020-03-02T02:00:00Z', headRefName: 'keel-night/2020-03-02' },
+  { number: 13, title: 'Update acme-anvil to 2.x', createdAt: '2020-03-02T05:00:00Z', headRefName: 'renovate/anvil-2.x' },
+  { number: 14, title: 'Rocket skates', createdAt: '2020-02-14T09:00:00Z', headRefName: 'wile/rocket-skates' },
+]));
+else if (has('issue', 'list')) console.log(JSON.stringify([
+  { number: 7, title: 'Acme anvils' },
+  { number: 8, title: 'Acme rockets' },
+  { number: 42, title: 'Anvils rust in the rain' },
+]));
 else { console.error(`stub gh: unknown ${argv.join(' ')}`); process.exit(1); }

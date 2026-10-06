@@ -4,7 +4,8 @@
 //
 //   node scripts/keel/improve.mjs [--report] [--transcripts <dir>] [--json]
 //
-// It runs from the project's own checkout with Node built-ins, gh and npm,
+// It runs from the project's own checkout with Node built-ins, git, gh and npm
+// (KEEL_GIT, KEEL_GH, KEEL_NPM stand in for them),
 // and the project's scripts/roadmap.mjs (the phases practice); no keel. keel's
 // own `keel improve` is this same module, handed keel's instruments (its
 // roadmap parser, doctor and inbox), so it computes the full set. Here, a
@@ -34,13 +35,20 @@ import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main } from './lib.mjs';
+import {
+  LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main,
+  shapeOf, readProjectRecords, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
+} from './lib.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 /** The default health directory; a project's own is .keel/keel.json `health` (healthDirOf). */
 export const HEALTH = HEALTH_DIR;
 export { healthDirOf };
 export const STUCK_DAYS = 21;
+/** A pull request open longer than this is stale (prs_stale). */
+export const STALE_PR_DAYS = 14;
+/** The changelog window: days back from today, today itself not owed yet (changelog_gaps). */
+export const CHANGELOG_DAYS = 30;
 /**
  * Each machine queue's bound: the open PRs it may hold. keel's own queues
  * hold one, the newest (lesson 9; the drain keeps them there). Renovate keeps
@@ -80,8 +88,14 @@ const once = (ctx, key, fn) => {
 
 // ---- shared instruments ----------------------------------------------------
 
-/** Why the phases measures do not apply here, or null. */
-function phasesOff({ config }) {
+/**
+ * Why the phases measures do not apply here, or null. In the projects shape
+ * (docs/projects/<p>/phases.md, read only) the measures that read phases
+ * (`projects: true`) apply; the ones that read keel's roadmap and evidence
+ * files do not, and say so.
+ */
+function phasesOff({ config }, { projects = false } = {}) {
+  if (shapeOf(config) === 'projects') return projects ? null : 'phases are in the projects shape (docs/projects/<p>/phases.md): no keel roadmap or evidence files to read';
   const local = config.local ?? {};
   if ((config.practices ?? []).includes('phases')) return null;
   // One short line: the whole proposal lives in keel doctor, not repeated on every measure.
@@ -127,13 +141,79 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
   lint.push(...await secondCopies(ctx.root, await lockedSkills(ctx.root, lock), { self: ctx.config.keel === 'self' }));
   if ((ctx.config.practices ?? []).includes('lessons') || typeof ctx.config.lessons === 'string') {
     const lessons = typeof ctx.config.lessons === 'string' && ctx.config.lessons ? ctx.config.lessons : 'docs/lessons.md';
-    lint.push(...lessonsTableSplit(await read(join(ctx.root, lessons)), lessons));
+    const text = await read(join(ctx.root, lessons));
+    lint.push(...lessonsTableSplit(text, lessons), ...lessonsTableShapes(text, lessons));
   }
   lint.push(...healthLints(ctx.root, ctx.config));
   return { keel: false, drift, lint };
 });
 export const PROJECT_LINTS = ['phase', 'goal-without-phase', 'claude-md-pointer', 'second-copy', 'symlink-replaced', 'lessons-table-split', 'health-config', 'health-ignored'];
 const projectSide = what => `; ${what} (keel doctor reads the rest)`;
+
+/** Every project under docs/projects with its phases (null with no docs/projects), read once. */
+const projectRecords = ctx => once(ctx, 'projects', () => readProjectRecords(ctx.root));
+
+/**
+ * The projects shape's phases as the files shape's measures read them:
+ * [{ id: '<project>/<n>', status, project, issue, path }], keel statuses.
+ */
+const projectPhases = ctx => once(ctx, 'project-phases', async () =>
+  ((await projectRecords(ctx)) ?? []).flatMap(p => (p.phases ?? []).map(x => ({ id: `${p.name}/${x.id}`, status: x.status, project: p.name, issue: p.issue, path: p.phasesPath }))));
+const OPEN = ['planned', 'partial'];
+
+/** git in the project (KEEL_GIT stands in for it): stdout, or a throw that names the command. */
+function git(ctx, args) {
+  const bin = ctx.env.KEEL_GIT || 'git';
+  const r = spawnSync(bin, args, { cwd: ctx.root, env: stripTest(ctx.env), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.error) throw new Error(`could not run git: ${r.error.message}`);
+  return r;
+}
+const gitOut = (ctx, args) => {
+  const r = git(ctx, args);
+  if (r.status !== 0) throw new Error(`git ${args.slice(0, 2).join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+  return r.stdout;
+};
+
+/** The default branch to count commits on: main when it exists, else HEAD; null in a repo with no commits. */
+const defaultRef = ctx => once(ctx, 'git-ref', () => {
+  for (const ref of ['main', 'HEAD']) if (git(ctx, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0) return ref;
+  gitOut(ctx, ['rev-parse', '--git-dir']); // not a repository at all: a broken instrument
+  return null;
+});
+
+/** Commits per committer day on the default branch, back to the changelog window's start. */
+const commitDays = ctx => once(ctx, 'commit-days', async () => {
+  const ref = await defaultRef(ctx);
+  const counts = new Map();
+  if (!ref) return counts;
+  const out = gitOut(ctx, ['log', ref, '--no-merges', `--since=${addDays(ctx.date, -(CHANGELOG_DAYS + 2))}`, '--format=%cs']);
+  for (const d of out.split('\n').filter(Boolean)) counts.set(d, (counts.get(d) ?? 0) + 1);
+  return counts;
+});
+
+/** The day a path was last committed (YYYY-MM-DD), or null when it never was. */
+async function lastTouched(ctx, path) {
+  if (!await defaultRef(ctx)) return null;
+  return gitOut(ctx, ['log', '-1', '--format=%cs', '--', path]).trim() || null;
+}
+
+/** The repo's open issues and open PRs, read once each. */
+const openIssues = (ctx, gh) => once(ctx, 'issues', () => ghJson(ctx, gh, ['issue', 'list', '--repo', ctx.config.repo, '--state', 'open', '--json', 'number,title', '--limit', '1000']));
+const openPrs = (ctx, gh) => once(ctx, 'prs', () => ghJson(ctx, gh, ['pr', 'list', '--repo', ctx.config.repo, '--state', 'open', '--json', 'number,title,createdAt', '--limit', '200']));
+
+/** Every Markdown file under docs/, except the health pages (which name issues themselves): their text. */
+async function docTexts(ctx) {
+  const health = (() => { try { return healthDirOf(ctx.config); } catch { return HEALTH_DIR; } })();
+  const files = (await walk(join(ctx.root, 'docs'))).filter(f => f.endsWith('.md')).map(f => `docs/${f}`)
+    .filter(f => f !== health && !f.startsWith(`${health}/`));
+  return Promise.all(files.map(f => read(join(ctx.root, f))));
+}
+
+/** A directory's *.md names except README.md, or null when the directory is absent. */
+async function notes(ctx, dir) {
+  try { return (await readdir(join(ctx.root, dir))).filter(n => n.endsWith('.md') && n !== 'README.md').sort(); }
+  catch (e) { if (['ENOENT', 'ENOTDIR'].includes(e.code)) return null; throw e; }
+}
 
 /** The project's gate, run once: { command, status, tests, ms }. */
 const gateRun = ctx => once(ctx, 'gate', () => {
@@ -170,8 +250,15 @@ function ghJson(ctx, gh, args) {
   return data;
 }
 
-/** The workflow that runs the gate on pushes: check.yml, or one naming the check command. */
+/**
+ * The workflow that runs the gate on pushes: the one .keel/keel.json
+ * `gateWorkflow` names (as fleet reads it: no guess beats the project
+ * saying), else check.yml, else one naming the check command.
+ */
 async function gateWorkflow(ctx) {
+  const named = gateWorkflowOf(ctx.config);
+  if (named?.problem) throw new Error(named.problem);
+  if (named) return named.name;
   const dir = join(ctx.root, '.github', 'workflows');
   const names = (await readdir(dir).catch(() => [])).filter(n => /\.ya?ml$/.test(n)).sort();
   if (names.includes('check.yml')) return 'check.yml';
@@ -329,19 +416,42 @@ export const MEASURES = [
   {
     id: 'phases_without_issue', what: 'unfinished phases with no issue', unit: 'phases', bound: 0, better: 'lower',
     async run(ctx) {
-      const off = phasesOff(ctx);
+      const off = phasesOff(ctx, { projects: true });
       if (off) return { na: off };
       if (!ctx.config.repo) return { na: 'no repo in .keel/keel.json, so there is nowhere to open an issue' };
+      if (shapeOf(ctx.config) === 'projects') {
+        // A project's issue is its primary doc's `issue:`; its open phases are followed there.
+        const open = (await projectPhases(ctx)).filter(p => OPEN.includes(p.status) && !p.issue);
+        const ids = open.map(p => p.id), projects = [...new Set(open.map(p => p.project))];
+        return { value: ids.length, detail: ids.length ? `${list(ids, 6)} (${plural(projects.length, 'project')} with no issue:)` : 'every project with an open phase names its issue', facts: { shape: 'projects', ids, projects } };
+      }
       const { DONE } = await roadmapModule(ctx);
       const ids = (await roadmapData(ctx)).phases.filter(p => unfinished(p, DONE) && !p.issue).map(p => p.id);
       return { value: ids.length, detail: ids.length ? `phases ${list(ids, 10)}` : 'every unfinished phase has an issue', facts: { ids } };
     },
   },
   {
-    id: 'phases_stuck', what: `unfinished phases in one status for over ${STUCK_DAYS} days (by since)`, unit: 'phases', bound: 0, better: 'lower',
+    id: 'phases_stuck', what: `unfinished phases in one status for over ${STUCK_DAYS} days (by since; in the projects shape, by phases.md's last commit)`, unit: 'phases', bound: 0, better: 'lower',
     async run(ctx) {
-      const off = phasesOff(ctx);
+      const off = phasesOff(ctx, { projects: true });
       if (off) return { na: off };
+      if (shapeOf(ctx.config) === 'projects') {
+        // No `since` per phase here: a phase is as old as its phases.md's last commit.
+        const stuck = [];
+        for (const p of (await projectRecords(ctx)) ?? []) {
+          const open = (p.phases ?? []).filter(x => OPEN.includes(x.status));
+          if (!open.length) continue;
+          const touched = await lastTouched(ctx, p.phasesPath);
+          const age = touched ? days(touched, ctx.date) : null;
+          if (age !== null && age > STUCK_DAYS) stuck.push(...open.map(x => ({ id: `${p.name}/${x.id}`, status: x.status, since: touched, days: age, path: p.phasesPath })));
+        }
+        stuck.sort((a, b) => b.days - a.days || a.id.localeCompare(b.id));
+        return {
+          value: stuck.length,
+          detail: stuck.length ? list(stuck.map(p => `${p.id} ${p.status}, untouched since ${p.since} (${p.days}d)`), 4) : `no open phase in a phases.md untouched over ${STUCK_DAYS} days`,
+          facts: { shape: 'projects', stuck },
+        };
+      }
       const { DONE } = await roadmapModule(ctx);
       const stuck = (await roadmapData(ctx)).phases.filter(p => unfinished(p, DONE) && days(p.since, ctx.date) > STUCK_DAYS)
         .map(p => ({ id: p.id, status: p.status, since: p.since, days: days(p.since, ctx.date) }));
@@ -367,6 +477,68 @@ export const MEASURES = [
       }
       const ids = [...new Set(found.map(f => f.id))];
       return { value: ids.length, detail: ids.length ? `phase${ids.length === 1 ? '' : 's'} ${list(found.map(f => `${f.id} (${f.evidence})`), 4)}` : 'every built phase\'s evidence says what was checked', facts: { ids, found } };
+    },
+  },
+  {
+    id: 'records_disagree', what: "projects whose front matter status contradicts their phases (built with a phase open, partial with all closed)", unit: 'projects', bound: 0, better: 'lower',
+    async run(ctx) {
+      const projects = ((await projectRecords(ctx)) ?? []).filter(p => p.phases?.length);
+      if (!projects.length) return { na: 'no docs/projects/<p>/phases.md: no project records to compare' };
+      const found = recordsDisagree(projects);
+      return { value: found.length, detail: found.length ? list(found.map(f => f.detail), 3) : `all ${plural(projects.length, 'project')} agree with their phases`, facts: { found } };
+    },
+  },
+  {
+    id: 'status_unknown', what: 'phase Status lines no reader understands (a word outside CLOSED, PART-DONE, NOT STARTED, RETIRED; or none at all)', unit: 'findings', bound: 0, better: 'lower',
+    async run(ctx) {
+      const projects = ((await projectRecords(ctx)) ?? []).filter(p => p.phases?.length);
+      if (!projects.length) return { na: 'no docs/projects/<p>/phases.md with phase headings to read' };
+      const found = statusUnknown(projects);
+      return { value: found.length, detail: found.length ? list(found.map(f => f.detail), 3) : `every phase in ${plural(projects.length, 'project')} has a known Status`, facts: { found } };
+    },
+  },
+  {
+    id: 'changelog_gaps', what: `changelog days in the last ${CHANGELOG_DAYS} with commits and no docs/changelog/<date>.md, or one still a draft`, unit: 'days', bound: 0, better: 'lower',
+    async run(ctx) {
+      const names = await notes(ctx, 'docs/changelog');
+      if (names === null) return { na: 'no docs/changelog: this project keeps no changelog' };
+      const pages = new Map();
+      for (const n of names.filter(n => /^\d{4}-\d{2}-\d{2}\.md$/.test(n))) pages.set(n.slice(0, 10), await read(join(ctx.root, 'docs/changelog', n)));
+      const gaps = changelogGaps({ commits: await commitDays(ctx), pages, day: ctx.date, window: CHANGELOG_DAYS });
+      return { value: gaps.length, detail: gaps.length ? list(gaps.map(g => g.detail), 4) : `every day with commits in the last ${CHANGELOG_DAYS} has a written page`, facts: { days: gaps.map(g => g.day) } };
+    },
+  },
+  {
+    id: 'research_unindexed', what: 'notes in docs/research/ its README does not name', unit: 'notes', bound: 0, better: 'lower',
+    async run(ctx) {
+      const names = await notes(ctx, 'docs/research');
+      if (names === null) return { na: 'no docs/research' };
+      const index = await read(join(ctx.root, 'docs/research/README.md'));
+      if (index === null) return { na: 'no docs/research/README.md: no index for a note to be missing from' };
+      const missing = names.filter(n => !index.includes(n));
+      return { value: missing.length, detail: missing.length ? list(missing, 4) : `all ${plural(names.length, 'note')} indexed`, facts: { missing } };
+    },
+  },
+  {
+    id: 'verify_owed', what: 'walks in docs/verify/ nobody has walked yet (status unverified)', unit: 'walks', bound: 0, better: 'lower',
+    async run(ctx) {
+      const names = await notes(ctx, 'docs/verify');
+      if (names === null) return { na: 'no docs/verify: no walks that need a person' };
+      const owed = [];
+      for (const n of names) {
+        const front = frontMatter(await read(join(ctx.root, 'docs/verify', n)));
+        // No front matter, or a word that is not works/broken, stays owed: a typo never takes a walk off the list.
+        if (['works', 'broken'].includes(front?.get('status'))) continue;
+        const since = /^\d{4}-\d{2}-\d{2}/.test(front?.get('since') ?? '') ? front.get('since').slice(0, 10) : null;
+        owed.push({ path: `docs/verify/${n}`, since, days: since ? days(since, ctx.date) : null });
+      }
+      owed.sort((a, b) => (b.days ?? -1) - (a.days ?? -1));
+      const oldest = owed.find(w => w.days !== null) ?? null;
+      return {
+        value: owed.length,
+        detail: owed.length ? `${list(owed.map(w => w.path.slice('docs/verify/'.length)), 3)}${oldest ? `; oldest ${oldest.days}d (since ${oldest.since})` : '; none dated'}` : `all ${plural(names.length, 'walk')} walked`,
+        facts: { owed: owed.map(w => w.path), oldest: oldest ? { path: oldest.path, since: oldest.since, days: oldest.days } : null },
+      };
     },
   },
   {
@@ -439,7 +611,7 @@ export const MEASURES = [
       const ready = await ghReady(ctx);
       if (ready.na) return { na: ready.na };
       const workflow = await gateWorkflow(ctx);
-      if (!workflow) return { na: 'no workflow in .github/workflows runs the gate' };
+      if (!workflow) return { na: 'no workflow in .github/workflows runs the gate, and .keel/keel.json names no gateWorkflow' };
       const runs = ghJson(ctx, ready.gh, ['run', 'list', '--repo', ctx.config.repo, '--branch', 'main', '--workflow', workflow, '--json', 'conclusion', '--limit', '20']);
       // Only verdicts count: a running, cancelled, skipped, neutral or stale run says
       // nothing about the code (cancel-in-progress makes most runs cancelled), so it
@@ -469,6 +641,41 @@ export const MEASURES = [
       const worst = judged.reduce((a, b) => queues[b] / MACHINE_BOUNDS[b] > queues[a] / MACHINE_BOUNDS[a] ? b : a);
       const detail = MACHINE_PREFIXES.map(p => `${p} ${queues[p]}${info.includes(p) ? ' (information: the project\'s own Renovate config)' : ''}`).join(', ');
       return { value: queues[worst], bound: MACHINE_BOUNDS[worst], detail, facts: { queues, worst, bounds: MACHINE_BOUNDS, ...(info.length ? { information: info } : {}) } };
+    },
+  },
+  {
+    id: 'issues_unnamed', what: 'open issues no doc under docs/ names (#N, issue: N, or an /issues/N link)', unit: 'issues', bound: 0, better: 'lower',
+    async run(ctx) {
+      const ready = await ghReady(ctx);
+      if (ready.na) return { na: ready.na };
+      const issues = await openIssues(ctx, ready.gh);
+      const named = new Set();
+      for (const t of await docTexts(ctx)) for (const n of issuesNamed(t ?? '')) named.add(n);
+      const unnamed = issues.filter(i => !named.has(i?.number)).sort((a, b) => a.number - b.number);
+      return { value: unnamed.length, detail: unnamed.length ? `${list(unnamed.map(i => `#${i.number}`), 8)} of ${issues.length} open` : `all ${issues.length} open named in docs/`, facts: { ids: unnamed.map(i => i.number) } };
+    },
+  },
+  {
+    id: 'issues_done_open', what: 'built or superseded projects (docs/projects) whose issue is still open', unit: 'issues', bound: 0, better: 'lower',
+    async run(ctx) {
+      const ready = await ghReady(ctx);
+      if (ready.na) return { na: ready.na };
+      const projects = (await projectRecords(ctx)) ?? [];
+      if (!projects.length) return { na: 'no docs/projects: no project status for an issue to outlive' };
+      const open = new Set((await openIssues(ctx, ready.gh)).map(i => i?.number));
+      const done = projects.filter(p => ['built', 'superseded'].includes(p.status) && p.issue && open.has(p.issue));
+      return { value: done.length, detail: done.length ? list(done.map(p => `#${p.issue} (${p.name} is ${p.status})`), 4) : 'no finished project has an open issue', facts: { found: done.map(p => ({ project: p.name, issue: p.issue, status: p.status })) } };
+    },
+  },
+  {
+    id: 'prs_stale', what: `open PRs older than ${STALE_PR_DAYS} days`, unit: 'PRs', bound: 0, better: 'lower',
+    async run(ctx) {
+      const ready = await ghReady(ctx);
+      if (ready.na) return { na: ready.na };
+      const prs = (await openPrs(ctx, ready.gh)).map(p => ({ number: p?.number, title: p?.title, age: /^\d{4}-\d{2}-\d{2}/.test(p?.createdAt ?? '') ? days(p.createdAt.slice(0, 10), ctx.date) : null }));
+      if (prs.some(p => p.age === null)) throw new Error('gh pr list returned a PR with no createdAt');
+      const stale = prs.filter(p => p.age > STALE_PR_DAYS).sort((a, b) => b.age - a.age);
+      return { value: stale.length, detail: stale.length ? list(stale.map(p => `#${p.number} (${p.age}d)`), 4) : `none of ${prs.length} open older than ${STALE_PR_DAYS} days`, facts: { stale: stale.map(p => ({ number: p.number, age: p.age })) } };
     },
   },
   {
@@ -543,11 +750,22 @@ export function proposalText(r, config = {}) {
       ? `Make \`${f.command}\` run the project's tests: it passed while running none (lesson 14).`
       : `Make the gate pass: \`${f.command}\` exits ${f.status}. Start from its first failure.`;
     case 'roadmap_stale': return `Regenerate the roadmap (\`npm run roadmap\`) and commit it; the check says: ${f.message}`;
-    case 'phases_without_issue': return `Open issues on ${config.repo} for phases ${list(f.ids, 10)} and set \`issue:\` in each one's front matter.`;
+    case 'phases_without_issue': return f.shape === 'projects'
+      ? `Open an issue on ${config.repo} for ${list(f.projects, 6)} and set \`issue:\` in each project's primary doc front matter (open phases ${list(f.ids, 6)}).`
+      : `Open issues on ${config.repo} for phases ${list(f.ids, 10)} and set \`issue:\` in each one's front matter.`;
     case 'phases_stuck': {
       const p = f.stuck[0];
+      if (f.shape === 'projects') return `Move ${p.id} (${p.status}; ${p.path} untouched since ${p.since}, ${p.days} days): take its next action, or mark it RETIRED.${f.stuck.length > 1 ? ` ${f.stuck.length - 1} more after it.` : ''}`;
       return `Move phase ${p.id} (${p.status} since ${p.since}, ${p.days} days): take its next action, split it, or mark it superseded, and set \`since:\`.${f.stuck.length > 1 ? ` ${f.stuck.length - 1} more after it.` : ''}`;
     }
+    case 'records_disagree': return `Make ${f.found[0].path} say what its phases say (${f.found[0].detail}).${f.found.length > 1 ? ` ${f.found.length - 1} more after it.` : ''}`;
+    case 'status_unknown': return `Give ${f.found[0].path} a Status line in the vocabulary (CLOSED, PART-DONE, NOT STARTED, RETIRED): ${f.found[0].detail}.${f.found.length > 1 ? ` ${f.found.length - 1} more after it.` : ''}`;
+    case 'changelog_gaps': return `Write the changelog for ${list(f.days, 4)} (docs/changelog/<date>.md, draft marker removed), from that day's commits.`;
+    case 'research_unindexed': return `Add ${list(f.missing, 4)} to docs/research/README.md, saying what each found.`;
+    case 'verify_owed': return `Walk ${f.oldest?.path ?? f.owed[0]} (or another of the ${f.owed.length}) and set its status to works or broken.`;
+    case 'issues_unnamed': return `Name issue${f.ids.length === 1 ? '' : 's'} ${list(f.ids.map(n => `#${n}`), 6)} in the doc whose work ${f.ids.length === 1 ? 'it follows' : 'they follow'}, or close ${f.ids.length === 1 ? 'it' : 'them'} on ${config.repo}.`;
+    case 'issues_done_open': return `Close #${f.found[0].issue} on ${config.repo} (${f.found[0].project} is ${f.found[0].status}), or say in its doc what is still open.${f.found.length > 1 ? ` ${f.found.length - 1} more after it.` : ''}`;
+    case 'prs_stale': return `Merge or close PR #${f.stale[0].number} (open ${f.stale[0].age} days).${f.stale.length > 1 ? ` ${f.stale.length - 1} more after it.` : ''}`;
     case 'lessons_without_guard': return `Name the guard, or the phase that will build it, for lesson${f.ids.length === 1 ? '' : 's'} #${f.ids.join(', #')} in ${f.path ?? LESSONS}.`;
     case 'evidence_placeholders': return `Fill the evidence for phase${f.ids.length === 1 ? '' : 's'} ${f.ids.join(', ')} with what was actually checked, or step ${f.ids.length === 1 ? 'it' : 'them'} back to partial; a blank template proves nothing.`;
     case 'lessons_unsent': return `Send them home: \`${SEND_LESSONS}\` (${f.ids.length} unsent in ${f.path}; \`--dry-run\` lists them first). Filing on keel's inbox is the owner's step.`;

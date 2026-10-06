@@ -75,7 +75,7 @@
     },
     "renovate.json": {
       "practice": "renovate",
-      "sha256": "63965a9a5d4034d6b0c9e7c644b645632bfc24ce2e90f6c5bc6da0fbb3c8ecbb"
+      "sha256": "aea16dd66fe898a68ee528c9bd47be22da4a061e06e2845a49ee067b91ea2f86"
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
@@ -83,11 +83,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "70bc4127f3391303b85b8b673f02148bc69f730a22b7b4dbc541710f28867b03"
+      "sha256": "1a613145f92a3b1de4004d72c6e8251f210510d406730f8938d1ba6500b2843c"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "37c5870bfacc4144a31fbc091fcde23c1e356a3e62be8d380bd6c763f3f34bc2"
+      "sha256": "3afcdb2767b3f818c65d4a195deea5a5877eee4167a5e44fafc4fbc2c9c2f0d4"
     },
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",

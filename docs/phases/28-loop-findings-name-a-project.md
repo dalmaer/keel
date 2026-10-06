@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-05
 goal: G2
 depends: [14]
-note: "From isocan: a Loop finding can name the project it belongs to, and docs/LOOP.md groups accepted findings by project, so isocan can retire its own loop.mjs."
-evidence: []
+note: "From isocan: a Loop finding can name its project and LOOP.md groups by project; its hedge rule (loop.hedge) and model proving on pull (loop.prove + ANTHROPIC_API_KEY) came too, opt-in. isocan's 85 findings render to its own page byte for byte."
+evidence: ["evidence/2026-10-05-loop-findings-name-a-project.md"]
 ---
 
 # A Loop finding can belong to a project, not only a phase
@@ -33,10 +33,11 @@ by phase. In keel's `practices/loop/files/scripts/loop.mjs`:
 
 ## Acceptance
 
-- [ ] A synthetic projects-shaped fixture renders by project; a phases one
+- [x] A synthetic projects-shaped fixture renders by project; a phases one
   renders as before.
-- [ ] isocan's findings rendered in a copy match isocan's page except the
-  generated-by line.
+- [x] isocan's findings rendered in a copy match isocan's page except the
+  generated-by line. (Settled 2026-10-05: not even that line differs; isocan
+  sets `loop.intro` to keep its sentence.)
 
 ## Proof
 
@@ -48,4 +49,6 @@ Nothing.
 
 ## Next action
 
-Build it.
+isocan's PR: set `.keel/keel.json` `loop` to `{intro, hedge: true, prove:
+true}` and retire `scripts/loop.mjs` for keel's (the owner's call). keel now
+carries isocan's hedge rule and model proving, both opt-in.

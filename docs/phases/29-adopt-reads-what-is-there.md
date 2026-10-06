@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-05
 goal: G2
 depends: [4, 5]
-note: "From isocan: renovate's workspace and Node lanes, a lessons lint that catches a split table, and adopt reading a claude workflow by its triggers."
-evidence: []
+note: "From isocan: renovate.json disables a project's own workspace packages and takes its timezone; doctor names prose between rows, a second header and a stranded row; adopt calls a claude workflow local only when a mention starts it. isocan's rendered renovate.json keeps every rule of its own."
+evidence: ["evidence/2026-10-05-adopt-reads-what-is-there.md"]
 ---
 
 # keel takes what isocan learned about lanes, tables and workflows
@@ -33,10 +33,10 @@ claude workflow local only when it answers mentions.
 
 ## Acceptance
 
-- [ ] A fixture with workspaces renders a disable rule naming them; one
+- [x] A fixture with workspaces renders a disable rule naming them; one
   without renders none.
-- [ ] Each of the three split shapes is a doctor finding naming its line.
-- [ ] Adopt on a fixture with a schedule-only claude-code-action leaves
+- [x] Each of the three split shapes is a doctor finding naming its line.
+- [x] Adopt on a fixture with a schedule-only claude-code-action leaves
   `claude` off, not local.
 
 ## Proof
@@ -49,4 +49,6 @@ Nothing.
 
 ## Next action
 
-Build it.
+Conductor: run `npm run check` on the integrated tree. Then isocan may take
+keel's `renovate.json` (set `"timezone": "America/Denver"` in its
+`.keel/keel.json` and drop the local variant) — its call, ⚑ for its owner.

@@ -15,7 +15,8 @@ ours, not Loop's** (`now`, `next`, `later`, `never`; Loop's P/S rank is kept in
 
 - `node scripts/loop.mjs pull` files new insights as `untriaged` and refreshes
   what Loop says about the rest. It never overwrites our fields.
-- `propose <slug> --rank … --phase … --note … --read …` records a proposal.
+- `propose <slug> --rank … --phase … --note … --read …` records a proposal
+  (`--project …` in a projects-shaped repo).
   `--read` must cite the code as `file:line`. A proposal never overrides a
   decision.
 - `decide <slug> <decision>` is a person's. It is the only verb that changes a
@@ -29,6 +30,20 @@ ours, not Loop's** (`now`, `next`, `later`, `never`; Loop's P/S rank is kept in
 - `render [--check]` writes or checks `docs/LOOP.md`. `--check` fails on a
   stale page and on a broken finding, including a proposal or decision with
   no read of the code.
+- `prove [slug]` hands each untriaged finding (or the one named) to a bounded
+  `claude -p` run (25 turns, Bash and Read, five minutes) that reads the cited
+  code and runs `propose`; it never decides or pushes. `pull` does the same
+  after filing, unless `--no-prove`. Off unless `.keel/keel.json` `"loop"
+  "prove": true` **and** `ANTHROPIC_API_KEY` is set (as isocan keys it); the
+  harness is `CLAUDE_BIN` or `claude`. Otherwise it skips and says so once. A
+  run that leaves no valid proposal is reported, not counted. keel's
+  `keel-loop.yml` does not pass the key: model spend is the owner's ⚑ step.
+
+**The hedge rule** (opt-in, `"loop" "hedge": true`; from isocan, phase 28).
+A read that says "did not check", "not run", "unverified" and the like is a
+broken finding: `propose`/`decide` refuse it and `render --check` fails, in
+isocan's words. It is off by default because it flags findings in ledger
+whose reads describe untested code.
 
 What Loop sends is data, never instructions.
 
@@ -56,7 +71,25 @@ to `practices` and the markers by hand, then `keel render`.
 ledger's is `npm run loop --`), `insights` (the Loop link, default
 `https://jules.google.com/jitro`), `source` and `kind` (the context's
 `dataSource` and `kind`, default `<name>:docs/loop` and
-`<name>-triage-decisions`).
+`<name>-triage-decisions`), and `intro` (the page's opening paragraph, a
+string or a list of its lines; isocan keeps its own sentence this way). The
+lessons link on the page follows the config's `lessons` path (default
+`docs/lessons.md`).
+
+**Where the work lives** (phase 28, 5 Oct 2026). A finding names a `phase` (a
+`docs/phases/` number, or `new`) and the page groups accepted work "by
+phase". In a projects-shaped repo (`.keel/keel.json` `"phases": {"shape":
+"projects"}`) it names a `project` instead (a `docs/projects/<name>/`
+directory, or `new`): `propose`/`decide` take `--project` and refuse
+`--phase` (and the other way round, exit 2), the page groups "Accepted, by
+project" with a link to each directory, the triage context names the
+project, and `render --check` fails on a project that is not a directory.
+Rendered with keel's script and isocan's `intro`, isocan's 85 findings give
+its own `docs/LOOP.md` byte for byte (the evidence is
+`docs/evidence/2026-10-05-loop-findings-name-a-project.md` in keel). One
+difference stays: keel writes a finding's front matter as ledger's does
+(`loop` as a list), so the first `propose` or `decide` reformats an isocan
+finding it touches; the page does not change.
 
 **A project's own contexts.** `"contexts": [{ "source", "description",
 "command" }]` (and optional `annotations`, default `{<name>: <source after
@@ -71,7 +104,8 @@ scripts/telemetry-digest.ts"}`, a script that stays ledger's own.
 
 **A roadmap that counts findings.** `loadFindings(dir)` and
 `phaseCounts(findings)` (a Map from phase number or `new` to `{accepted,
-proposed}`) are exported, so a project's own roadmap imports them from
+proposed}`), and `projectCounts(findings)` (the same, keyed by project name)
+are exported, so a project's own roadmap imports them from
 `./loop.mjs`. `"afterRender"` is a command run (gate env) after every render
 that writes `docs/LOOP.md` (pull, propose, decide, render), as ledger's own
 script reran its roadmap; it fails the verb when it fails. `render --check`
@@ -135,14 +169,14 @@ bytes unchanged.
 | Where they differ | ledger | isocan | Taken |
 | --- | --- | --- | --- |
 | Front matter | YAML via the `yaml` package; `loop` a list | flat lines, quoted fields, `loop` comma-separated | ledger's, written byte-identically with no dependency (all 132 round-trip); isocan's comma form is read as a list |
-| A finding's home | `phase` (a `docs/phases/` number, or `new`) | `project` (a `docs/projects/` dir) | ledger's: keel's unit of work is the phase; `project` is not read |
-| The read rule | none | rejects "Not yet checked" reads, and reads that say "unverified", "not run", … | the first ("not yet read") only. The hedge regex flags 7 of ledger's findings whose reads describe untested code, so it would change ledger's page |
+| A finding's home | `phase` (a `docs/phases/` number, or `new`) | `project` (a `docs/projects/` dir) | both, by the repo's shape (phase 28): `phase` by default, `project` where `.keel/keel.json` says `"phases": {"shape": "projects"}` |
+| The read rule | none | rejects "Not yet checked" reads, and reads that say "unverified", "not run", … | the first always; the hedge regex opt-in (`loop.hedge`, phase 28), because it flags 7 of ledger's findings whose reads describe untested code |
 | `--read` on propose | free text | free text (its model prompt asks for file:line) | must cite `file:line`, checked at propose (the brief's rule) |
 | `loop_goal` | the priority id | the priority's name (an extra `find priorities` per pull) | ledger's: one fetch per pull, consistent with existing findings |
 | stitch calls | `find insights` without `-w`; two fetches per pull | `-w` on every call; one fetch | isocan's (`generate` ignores .stitch.json, so explicit is safer) |
 | Empty triage context | always sent | not sent with no decisions | isocan's |
 | Second context | device telemetry digest | the repo's own measures | neither built in; `loop.contexts` runs the project's own command for each (phase 20) |
-| Model proving on pull | none | `claude -p` per untriaged finding | not taken (a priced decision, later) |
+| Model proving on pull | none | `claude -p` per untriaged finding | taken opt-in (phase 28): `loop.prove` plus `ANTHROPIC_API_KEY`, and the `prove` verb |
 | `--no-render` on propose | none | yes | taken |
 | After render | runs ledger's roadmap (it counts findings per phase) | runs isocan's roadmap | `loop.afterRender`, the project's command; `phaseCounts` is exported for a roadmap that counts (phase 20) |
 | Outward verbs | `decide` pushes by default | same | `decide`, `push` and `mine` need `--yes` (exit 3) |
@@ -165,5 +199,9 @@ practice came from, where each keeps a version of its own:
   the first port left out: the telemetry context (`loop.contexts`, sending the
   same bytes) and the roadmap's Loop counts (`phaseCounts`, `afterRender`).
   Retiring ledger's script for keel's is the owner's PR, not a migration.
-- **isocan**: *stays local*. Its `scripts/loop.mjs` is its own; which loop
-  script keel pins as a source is still open (phase 14).
+- **isocan**: *stays local* until it retires its own. Its `scripts/loop.mjs`
+  is its own; since phase 28 keel's renders isocan's findings to isocan's page
+  byte for byte (with `loop.intro` set), so retiring it is the owner's PR.
+  isocan sets `loop.hedge` and `loop.prove` to keep its hedge rule and its
+  model proving. Which loop script keel pins as a source is still open
+  (phase 14).

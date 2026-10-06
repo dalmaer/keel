@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, fill } from '../lib/practices.mjs';
-import { adopt, appendBlocks, readmeTagline, detectCheck, HEADING, REPORT } from '../lib/adopt.mjs';
+import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, HEADING, REPORT } from '../lib/adopt.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -217,11 +217,11 @@ test('the night shift\'s practices go local where the project already does the j
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-bot', scripts: { check: 'node -e 0' } }));
   await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
-  await writeFile(join(dir, '.github/workflows/assistant.yml'), 'name: assistant\njobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n');
+  await writeFile(join(dir, '.github/workflows/assistant.yml'), 'name: assistant\non:\n  issue_comment:\n    types: [created]\njobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n');
   await writeFile(join(dir, '.github/dependabot.yml'), 'version: 2\n');
   const { data } = await adopt({ dir }, { version: VERSION });
   assert.equal(states(data).claude, 'local');
-  assert.match(data.config.local.claude, /assistant\.yml already runs anthropics\/claude-code-action/);
+  assert.match(data.config.local.claude, /assistant\.yml already runs anthropics\/claude-code-action on issue_comment/);
   assert.equal(states(data).renovate, 'local');
   assert.match(data.config.local.renovate, /\.github\/dependabot\.yml/);
   assert.equal(states(data).night, 'on');
@@ -446,4 +446,35 @@ test('--with on an adopted project honours a block the config already skips', as
   assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).blocksSkipped, ['loop']);
   assert.ok(!Object.hasOwn(JSON.parse(await readFile(join(dir, '.keel', 'lock.json'), 'utf8')).files, 'AGENTS.md#loop'));
   assert.equal(keel(['render', '--check'], dir).code, 0, 'render agrees there is nothing to write');
+});
+
+test('a claude-code-action workflow on a schedule only answers nobody: claude stays off, not local, and says why', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-diary', scripts: { check: 'node -e 0' } }));
+  await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+  // Shaped like a nightly changelog writer: schedule and a manual dispatch, a model step.
+  await writeFile(join(dir, '.github/workflows/diary.yml'), [
+    '# Acme writes yesterday up overnight.', 'name: diary', '', 'on:', '  schedule:', '    # after midnight', '    - cron: "3 8 * * *"',
+    '  workflow_dispatch:', '    inputs:', '      day:', '        required: false', '',
+    'jobs:', '  diary:', '    runs-on: ubuntu-latest', '    steps:', '      - uses: anthropics/claude-code-action@v1', '',
+  ].join('\n'));
+  const { data } = await adopt({ dir, dryRun: true }, { version: VERSION });
+  assert.equal(states(data).claude, 'off');
+  assert.equal(data.config.local?.claude, undefined);
+  assert.match(data.practices.find(p => p.name === 'claude').why, /diary\.yml runs anthropics\/claude-code-action on schedule, workflow_dispatch, not on a mention/);
+  const asked = await adopt({ dir, dryRun: true, with: ['claude'] }, { version: VERSION });
+  assert.equal(states(asked.data).claude, 'on', 'a scheduled writer is no reason to refuse --with claude');
+
+  // The same workflow answering mentions too is the project's own claude.
+  await writeFile(join(dir, '.github/workflows/diary.yml'), 'name: diary\non: [schedule, issue_comment]\njobs:\n  d:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n');
+  const mentions = await adopt({ dir, dryRun: true }, { version: VERSION });
+  assert.equal(states(mentions.data).claude, 'local');
+});
+
+test('workflowTriggers reads on: inline, as a list, and as a block of keys', () => {
+  assert.deepEqual(workflowTriggers('on: push\n'), ['push']);
+  assert.deepEqual(workflowTriggers('"on": [issues, "pull_request_review_comment"]\n'), ['issues', 'pull_request_review_comment']);
+  assert.deepEqual(workflowTriggers('on:\n  - issue_comment\n  - push\njobs: {}\n'), ['issue_comment', 'push']);
+  assert.deepEqual(workflowTriggers('on:\n  pull_request:\n    branches: [main]\n  issues:\n    types: [opened]\njobs:\n  a: {}\n'), ['pull_request', 'issues']);
+  assert.deepEqual(workflowTriggers('name: x\njobs: {}\n'), []);
 });

@@ -9,7 +9,7 @@ import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, lstat, readlink, real
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lineDiff, blockBody } from '../lib/doctor.mjs';
+import { lineDiff, blockBody, lessonsTableShapes } from '../lib/doctor.mjs';
 import { lessonsTableSplit, setupEnvProblems } from '../practices/night/files/scripts/keel/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
@@ -259,6 +259,51 @@ test('lessons-table-split: a blank line inside the lessons table is linted, nami
   const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, lessons: 'notes/lessons.md' }, null, 2));
   assert.deepEqual(rules(doctor(dir).data), ['lessons-table-split notes/lessons.md', 'lessons-table-split notes/lessons.md']);
+});
+
+// The three other ways a lessons table ends early (phase 29), each as a
+// synthetic Acme table: prose between rows, a row stranded under a later
+// heading, and a second header row starting a second table.
+const SHAPED_LESSONS = [
+  '# Lessons', '',                                                    // 1–2
+  '| # | Shape | Cost | Guard |', '| --- | --- | --- | --- |',         // 3–4
+  '| 1 | **Acme widgets drift.** | A day. | A test. |',                // 5
+  '| 2 | **Acme sprockets stall.** | An hour. | A lint. |',           // 6
+  '',                                                                 // 7
+  '**A note on row 2:** Acme found the stall again a week later.',    // 8
+  '',                                                                 // 9
+  '| 3 | **Acme gears slip.** | A week. | planned |',                 // 10
+  '| 4 | **Acme cogs jam.** | A day. | A test. |',                    // 11
+  '',                                                                 // 12
+  '## Habits', '',                                                    // 13–14
+  '- **Look before you leap.** Acme leapt.',                          // 15
+  '| 5 | **Acme belts fray.** | An hour. | A test. |',                // 16
+  '',                                                                 // 17
+  '| # | Shape | Cost | Guard |', '| --- | --- | --- | --- |',         // 18–19
+  '| 6 | **Acme bolts shear.** | A week. | A test. |',                // 20
+  '',
+].join('\n');
+
+test('lessons-table-split: prose between rows, a stranded row and a second header are each a finding naming its line', async t => {
+  const lint = lessonsTableShapes(SHAPED_LESSONS, 'docs/lessons.md');
+  assert.equal(lint.length, 3, JSON.stringify(lint));
+  assert.ok(lint.every(l => l.rule === 'lessons-table-split' && l.path === 'docs/lessons.md'));
+  assert.match(lint[0].message, /^prose between numbered rows \(line 8\) ends the lessons table at line 6: the rows from line 10 on/);
+  assert.match(lint[1].message, /^a numbered row \(line 16\) is stranded after the lessons table ended at line 6/);
+  assert.match(lint[2].message, /^a second header row \(line 18\) starts a second table/);
+  assert.deepEqual(lessonsTableSplit(SHAPED_LESSONS), [], 'none of the three is a blank-line split: the night\'s lint saw nothing');
+  const whole = SHAPED_LESSONS.split('\n').filter((l, i) => ![6, 7, 8, 11, 12, 13, 14, 16, 17, 18].includes(i)).join('\n');
+  assert.deepEqual(lessonsTableShapes(whole), [], 'one table again: clean');
+  assert.deepEqual(lessonsTableShapes(SPLIT_LESSONS), [], 'a blank-line split is the night\'s finding, not a second one; rows after another table are left alone');
+  assert.deepEqual(lessonsTableShapes(null), []);
+  assert.deepEqual(lessonsTableShapes('# Lessons\n\nNone yet.\n'), []);
+
+  const dir = await project(t);
+  await writeFile(join(dir, 'docs', 'lessons.md'), SHAPED_LESSONS);
+  const { code, data } = doctor(dir);
+  assert.equal(code, 1);
+  assert.deepEqual(rules(data), ['lessons-table-split docs/lessons.md', 'lessons-table-split docs/lessons.md', 'lessons-table-split docs/lessons.md']);
+  assert.deepEqual(data.lint.map(l => /\(line (\d+)\)/.exec(l.message)[1]), ['8', '16', '18']);
 });
 
 test('health-ignored: a health dir the project git-ignores is a finding, naming the fix; a configured one that is not, is clean', async t => {

@@ -15,7 +15,7 @@ import { load, render } from '../lib/practices.mjs';
 import { survey, adopt } from '../lib/adopt.mjs';
 import { diagnose } from '../lib/doctor.mjs';
 import { plan, isData, extraData, isPlainPath as drainPlainPath } from '../lib/night.mjs';
-import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER, loadFindings, phaseCounts, settings, commandEnv, contextProblems, isPlainPath } from '../practices/loop/files/scripts/loop.mjs';
+import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER, loadFindings, phaseCounts, projectCounts, renderLoopDoc, contextPayload, provePrompt, proveArgs, UNVERIFIED_READ, settings, commandEnv, contextProblems, isPlainPath } from '../practices/loop/files/scripts/loop.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PRACTICE = join(KEEL, 'practices', 'loop', 'files');
@@ -534,4 +534,206 @@ test('keel-loop.yml commits what the gate checked: the findings, their page, and
   assert.match(r.out, /^paths=docs\/loop docs\/LOOP\.md$/m, 'no list: the findings and their page, as before');
   r = await step({ name: 'Acme', loop: { afterRender: 'x', afterRenderWrites: ['docs/ROADMAP.md; rm -rf ~'] } });
   assert.notEqual(r.status, 0, 'a path that is not plain fails the step before anything reaches a shell');
+});
+
+// Phase 28. isocan files each finding under a project (docs/projects/<name>/),
+// not a numbered phase, and groups accepted work by project; keel's script does
+// the same in a projects-shaped repo, so isocan can retire its own.
+async function projectsShaped(dir, loop) {
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, `${JSON.stringify({ ...cfg, phases: { shape: 'projects' }, lessons: 'docs/reviews/lessons.md', ...(loop ? { loop } : {}) }, null, 2)}\n`);
+  for (const name of ['gears', 'widgets']) await mkdir(join(dir, 'docs', 'projects', name), { recursive: true });
+}
+
+test('a projects-shaped repo: propose and decide name a project, and the page groups accepted work by project', async t => {
+  const { dir, loop, finding, calls } = await project(t);
+  await projectsShaped(dir, { intro: ['What Loop found in Acme, ranked by us.', 'Decide with `acme loop decide`.'] });
+  assert.equal(loop('pull').status, 0);
+  const gear = 'gear-loader-drops-errors';
+  let r = loop('propose', gear, '--rank', 'next', '--phase', '1', '--note', 'Real.', '--read', 'lib/gear.mjs:7 drops it.');
+  assert.equal(r.status, 2, 'a phase in a projects-shaped repo is usage');
+  assert.match(r.stderr, /--project/);
+  r = loop('propose', gear, '--rank', 'next', '--project', 'sprockets', '--note', 'Real.', '--read', 'lib/gear.mjs:7 drops it.');
+  assert.equal(r.status, 1, 'a project that is not a directory is refused');
+  assert.match(r.stderr, /project sprockets is not a directory under docs\/projects\//);
+  r = loop('propose', gear, '--rank', 'next', '--project', 'gears', '--note', 'Real.', '--read', 'lib/gear.mjs:7 drops it.');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /proposed gear-loader-drops-errors: next, project gears/);
+  const raw = await finding(gear);
+  assert.match(raw, /\nrank: next\nproject: gears\nsince: /, 'project sits after rank, in the field order');
+  assert.equal(parseFinding(raw, gear).project, 'gears');
+
+  r = loop('decide', WIDGET, 'accepted', '--no-push');
+  assert.equal(r.status, 1, 'accepted in a projects-shaped repo needs a project, not a phase');
+  assert.match(r.stderr, /accepted with no project — say where the work lives, or project: new/);
+  assert.equal(loop('decide', WIDGET, 'accepted', '--project', 'widgets', '--no-push').status, 0);
+  assert.equal(loop('decide', gear, 'accepted', '--project', 'new', '--no-push').status, 0);
+  assert.equal(loop('render', '--check').status, 0, loop('render', '--check').stderr);
+
+  const page = await readFile(join(dir, 'docs', 'LOOP.md'), 'utf8');
+  assert.ok(page.startsWith(LOOP_DOC_HEADER));
+  assert.match(page, /# Loop findings\n\nWhat Loop found in Acme, ranked by us\.\nDecide with `acme loop decide`\.\n\n\*\*0 to decide · 2 accepted/, 'the intro is the project\'s own');
+  assert.doesNotMatch(page, /by phase|<a id="phase-/);
+  const accepted = page.slice(page.indexOf('## Accepted, by project'), page.indexOf('## Declined'));
+  assert.deepEqual(accepted.match(/^### .*$/gm), ['### new project', '### [widgets](projects/widgets/)'], 'one heading per project, sorted, new linking nowhere');
+  assert.match(accepted, /\| \[Widget cache ignores expiry\]\(loop\/widget-cache-ignores-expiry\.md\) \| P1\/S1 \| \[widgets\]\(projects\/widgets\/\) · \[lesson 2\]\(reviews\/lessons\.md\) \|/, 'Where links the project and the configured lessons table');
+  assert.match(page, /## Declined[\s\S]*\| never \| \[Sprocket API lacks "rate limit"\][^\n]*\| — \|/, 'a declined finding with no project says so');
+  assert.equal((await calls()).length, 1, 'only the pull reached stitch');
+
+  // A project directory that goes away makes the finding broken in the gate.
+  await rm(join(dir, 'docs', 'projects', 'widgets'), { recursive: true });
+  r = loop('render', '--check');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /widget-cache-ignores-expiry\.md: project widgets is not a directory under docs\/projects\//);
+});
+
+test('a phases-shaped repo renders as before: by phase, --project is usage, and a project field is ignored', async t => {
+  const { dir, loop } = await project(t);
+  assert.equal(loop('decide', WIDGET, 'accepted', '--no-push').status, 0);
+  const before = await readFile(join(dir, 'docs', 'LOOP.md'), 'utf8');
+  assert.match(before, /## Accepted, by phase\n\n<a id="phase-1"><\/a>\n### \[1 · /);
+  assert.match(before, /What \[Stitch Loop\]\(https:\/\/jules\.google\.com\/jitro\) found in this\ncodebase, \*\*ranked by us/, 'the default intro');
+  assert.match(before, /\[lesson 2\]\(lessons\.md\)/);
+  const r = loop('decide', WIDGET, 'accepted', '--project', 'widgets', '--no-push');
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /--phase/);
+  const path = join(dir, 'docs', 'loop', `${WIDGET}.md`);
+  await writeFile(path, (await readFile(path, 'utf8')).replace('phase: 1\n', 'phase: 1\nproject: widgets\n'));
+  assert.equal(loop('render').status, 0);
+  assert.equal(await readFile(join(dir, 'docs', 'LOOP.md'), 'utf8'), before);
+});
+
+test('projectCounts counts per project as phaseCounts counts per phase; the context names the project', () => {
+  const base = parseFinding('---\ntitle: Acme gap\nloop: a1\nsince: 2026-10-01\nnote: Real.\nrank: next\n---\n\n# Acme gap\n\n## Our read\n\nlib/acme.mjs:1 holds.\n', 'acme-gap');
+  const xs = [
+    { ...base, slug: 'a', decision: 'accepted', project: 'widgets' },
+    { ...base, slug: 'b', decision: 'proposed', project: 'widgets' },
+    { ...base, slug: 'c', decision: 'proposed', project: 'new' },
+    { ...base, slug: 'd', decision: 'declined', project: 'widgets' },
+    { ...base, slug: 'e', decision: 'accepted', project: null },
+  ];
+  assert.deepEqual([...projectCounts(xs)], [['widgets', { accepted: 1, proposed: 1 }], ['new', { accepted: 0, proposed: 1 }]]);
+  assert.deepEqual([...phaseCounts(xs)], [], 'phaseCounts keeps its shape and ignores projects');
+  const payload = contextPayload(xs, [], 'acme-triage-decisions', 'projects');
+  assert.match(payload.guidance, /in the named project\.$/);
+  const widgets = payload.decisions.find(d => d.decision === 'accepted' && d.project === 'widgets');
+  assert.deepEqual(Object.keys(widgets), ['title', 'decision', 'rank', 'project', 'reason', 'decided', 'insights']);
+  assert.ok(!('project' in contextPayload(xs, [], 'k').decisions[0]), 'a phases repo sends phase, as before');
+  assert.match(renderLoopDoc([{ ...base, decision: 'accepted', project: null }], [], { shape: 'projects' }), /accepted with no project/);
+});
+
+test('loop.intro and the lessons link come from .keel/keel.json; a bad intro is named', async t => {
+  const { dir } = await project(t);
+  await projectsShaped(dir, { intro: 'One line.\nTwo lines.\n' });
+  const s = settings(dir);
+  assert.equal(s.shape, 'projects');
+  assert.deepEqual(s.intro, ['One line.', 'Two lines.']);
+  assert.equal(s.lessons, 'reviews/lessons.md');
+  assert.deepEqual(s.problems, []);
+  await configure(dir, { intro: [] });
+  assert.deepEqual(settings(dir).problems, ['"loop" "intro" must be the opening paragraph: a non-empty string, or a list of its lines']);
+  assert.equal(settings(dir).intro, null);
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', lessons: 'LESSONS.md' }));
+  assert.equal(settings(dir).lessons, '../LESSONS.md');
+  assert.equal(settings(dir).shape, 'phases');
+});
+
+// From isocan, opt-in so ledger's findings stay valid: a read that admits it
+// did not look is not a read ("loop" "hedge"), and a model can prove untriaged
+// findings on pull ("loop" "prove" and ANTHROPIC_API_KEY, as isocan keys it).
+const HEDGE_WORDS = "unverified read — prove every sub-claim against the code instead of leaving 'did not check' or 'not run'";
+const HEDGED = 'lib/gear.mjs:7 looks like it drops the error; I did not check the callers.';
+
+test('hedge off (the default): a hedged read is a read; hedge on: propose and render --check refuse it in isocan\'s words', async t => {
+  const { dir, loop } = await project(t);
+  assert.equal(loop('pull').status, 0);
+  const gear = 'gear-loader-drops-errors';
+  let r = loop('propose', gear, '--rank', 'next', '--phase', '1', '--note', 'Real.', '--read', HEDGED);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(loop('render', '--check').status, 0, 'off: a hedged proposal is valid, as ledger\'s are');
+  await configure(dir, { hedge: true });
+  r = loop('render', '--check');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, new RegExp(`gear-loader-drops-errors\\.md: ${HEDGE_WORDS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  r = loop('propose', gear, '--rank', 'next', '--phase', '1', '--note', 'Real.', '--read', 'lib/gear.mjs:7 holds; not verified at runtime.');
+  assert.equal(r.status, 1);
+  assert.ok(r.stderr.includes(HEDGE_WORDS), r.stderr);
+  r = loop('propose', gear, '--rank', 'next', '--phase', '1', '--note', 'Real.', '--read', '**Holds.** lib/gear.mjs:7 catches and drops the error.');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(loop('render', '--check').status, 0);
+  assert.ok(['I did not check', 'Not run', 'Unverified', 'did not trace it'].every(x => UNVERIFIED_READ.test(x)));
+  assert.ok(!UNVERIFIED_READ.test('lib/gear.mjs:7 runs on every call'), 'the words, not a substring of them');
+  await configure(dir, { hedge: 'yes' });
+  assert.deepEqual(settings(dir).problems, ['"loop" "hedge" must be true or false']);
+});
+
+/** The project, with a stubbed harness: `prove(env, ...args)` runs loop.mjs with env over a clean base. */
+async function provable(t) {
+  const p = await project(t);
+  const claudeLog = join(dirname(p.dir), 'claude.jsonl');
+  await writeFile(claudeLog, '');
+  await chmod(join(FIXTURES, 'claude.mjs'), 0o755);
+  const base = { ...p.env, CLAUDE_BIN: join(FIXTURES, 'claude.mjs'), CLAUDE_STUB_LOG: claudeLog };
+  delete base.ANTHROPIC_API_KEY;
+  delete base.CLAUDE_STUB_MODE;
+  const loopEnv = (over, ...args) => run(process.execPath, [join(p.dir, 'scripts', 'loop.mjs'), ...args], { cwd: p.dir, env: { ...base, ...over } });
+  const claudeCalls = async () => (await readFile(claudeLog, 'utf8')).split('\n').filter(Boolean).map(l => JSON.parse(l));
+  return { ...p, loopEnv, claudeCalls };
+}
+
+test('prove is off without "loop" "prove" or without ANTHROPIC_API_KEY, says so once, and never calls the harness', async t => {
+  const { dir, loopEnv, claudeCalls } = await provable(t);
+  let r = loopEnv({ ANTHROPIC_API_KEY: 'test-key' }, 'pull');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.match(/prove skipped/g)?.length, 1);
+  assert.match(r.stdout, /prove skipped: "loop" "prove" is not on in \.keel\/keel\.json — left untriaged for `node scripts\/loop\.mjs prove`/);
+  await configure(dir, { prove: true });
+  r = loopEnv({}, 'prove');
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /prove skipped: no ANTHROPIC_API_KEY in the environment — left untriaged/);
+  r = loopEnv({}, 'pull');
+  assert.doesNotMatch(r.stdout, /prove skipped/, 'nothing new pulled: nothing to say');
+  r = loopEnv({ ANTHROPIC_API_KEY: 'test-key', CLAUDE_BIN: join(dir, 'no-such-claude') }, 'prove');
+  assert.match(r.stdout, /prove skipped: `.*no-such-claude` is not installed here/);
+  assert.deepEqual(await claudeCalls(), []);
+  assert.equal(parseFinding(await readFile(join(dir, 'docs', 'loop', 'gear-loader-drops-errors.md'), 'utf8'), 'x').decision, 'untriaged');
+});
+
+test('prove on: each untriaged finding goes to a bounded claude -p run that proposes; a hedged or missing proposal is reported, not counted', async t => {
+  const { dir, loopEnv, claudeCalls, calls } = await provable(t);
+  await configure(dir, { prove: true, hedge: true });
+  let r = loopEnv({ ANTHROPIC_API_KEY: 'test-key' }, 'pull');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /proved and proposed \(1\)\./);
+  const gear = parseFinding(await readFile(join(dir, 'docs', 'loop', 'gear-loader-drops-errors.md'), 'utf8'), 'gear-loader-drops-errors');
+  assert.equal(gear.decision, 'proposed');
+  assert.equal(gear.phase, 'new');
+  const [call] = await claudeCalls();
+  assert.equal(call.claudecode, '', 'the harness never thinks it is nested in one');
+  assert.deepEqual(call.args.filter((_, i) => i !== 1), proveArgs('x').filter((_, i) => i !== 1));
+  assert.match(call.args[1], /^Prove the untriaged Stitch Loop finding `gear-loader-drops-errors`/);
+  assert.match(call.args[1], /Valid docs\/phases\/ numbers: 1 /);
+  assert.match(call.args[1], /`node scripts\/loop\.mjs propose gear-loader-drops-errors --rank <now\|next\|later\|never> --phase <n\|new\|none>/);
+  assert.match(call.args[1], /Never run `decide`, `push`, or `mine`/);
+  assert.ok(!sent(await calls()).length, 'proving sends nothing to Loop');
+  assert.match(await readFile(join(dir, 'docs', 'LOOP.md'), 'utf8'), /## Needs your decision[\s\S]*Gear loader drops errors/);
+
+  // A re-proof of one finding by slug; the stub hedges, and hedge is on.
+  const path = join(dir, 'docs', 'loop', 'gear-loader-drops-errors.md');
+  await writeFile(path, (await readFile(path, 'utf8')).replace('decision: proposed', 'decision: untriaged'));
+  r = loopEnv({ ANTHROPIC_API_KEY: 'test-key', CLAUDE_STUB_MODE: 'hedge' }, 'prove', 'gear-loader-drops-errors');
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /proved and proposed 0 finding\(s\)\./);
+  assert.match(r.stderr, /prove gear-loader-drops-errors: model pass did not leave a valid proposal/);
+  r = loopEnv({ ANTHROPIC_API_KEY: 'test-key', CLAUDE_STUB_MODE: 'nothing' }, 'prove');
+  assert.match(r.stderr, /model pass did not leave a valid proposal/);
+  assert.equal((await claudeCalls()).length, 3);
+});
+
+test('provePrompt names the projects in a projects-shaped repo', () => {
+  const f = parseFinding('---\ntitle: Acme gap\nloop: a1\nloop_rank: P2\n---\n\n# Acme gap\n', 'acme-gap');
+  const p = provePrompt(f, { run: 'npm run loop --', shape: 'projects', homes: ['gears', 'widgets'] });
+  assert.match(p, /Valid docs\/projects\/ directories: gears, widgets \(or "new"/);
+  assert.match(p, /`npm run loop -- propose acme-gap --rank <now\|next\|later\|never> --project <project\|new\|none>/);
 });

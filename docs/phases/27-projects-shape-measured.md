@@ -1,10 +1,10 @@
 ---
-status: planned
+status: built
 since: 2026-10-05
 goal: G4
 depends: [11, 15]
-note: "From isocan: the night measures a project whose phases live in docs/projects/<p>/phases.md, and gains the practice page's measures that hold for any project."
-evidence: []
+note: "improve reads the projects shape (isocan: 23 phases without an issue, 22 stuck) and gains eight record measures from isocan's practice page, each n/a with a reason where its source is absent."
+evidence: ["evidence/2026-10-05-projects-shape-measured.md"]
 ---
 
 # A project that keeps phases per project is measured, not skipped
@@ -50,10 +50,10 @@ ratchets). Those stay isocan's own checks.
 
 ## Acceptance
 
-- [ ] On a synthetic projects-shaped fixture each new measure reads the right
+- [x] On a synthetic projects-shaped fixture each new measure reads the right
   count, and `n/a` with its reason when its directory is absent.
-- [ ] `--selftest` reports every measure `outside` on the unhealthy fixture.
-- [ ] On isocan, `phases_stuck` and `phases_without_issue` have values.
+- [x] `--selftest` reports every measure `outside` on the unhealthy fixture.
+- [x] On isocan, `phases_stuck` and `phases_without_issue` have values.
 
 ## Proof
 
@@ -67,4 +67,4 @@ is free prose in isocan, and a heuristic measure is worse than none.
 
 ## Next action
 
-Build it.
+None: built. Lived-in when a projects-shaped repo's own night runs these measures (isocan keeps its own night today).

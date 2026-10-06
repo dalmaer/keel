@@ -4,10 +4,11 @@
 //
 //   node scripts/loop.mjs pull                    fetch Loop's insights into docs/loop/
 //   node scripts/loop.mjs list [--json] [-d proposed]
-//   node scripts/loop.mjs propose <slug> --rank next [--phase 10] [--lesson 3] --note "…" --read "… file:line …"
-//   node scripts/loop.mjs decide <slug> <accepted|declined|stale|done> [--rank …] [--phase …] [--note "…"] (--no-push | --yes)
+//   node scripts/loop.mjs propose <slug> --rank next [--phase 10 | --project acme] [--lesson 3] --note "…" --read "… file:line …"
+//   node scripts/loop.mjs decide <slug> <accepted|declined|stale|done> [--rank …] [--phase … | --project …] [--note "…"] (--no-push | --yes)
 //   node scripts/loop.mjs push (--dry-run | --yes)   dismiss what we declined; send our decisions (and the project's own contexts) to Loop
 //   node scripts/loop.mjs mine [priority…] --yes     ask Loop to re-mine the code now
+//   node scripts/loop.mjs prove [slug]            a model proves untriaged findings and proposes (opt-in: "loop" "prove")
 //   node scripts/loop.mjs render [--check]        write docs/LOOP.md (and fail if stale, for CI)
 //
 // Exit: 0 ok; 1 failed (a stale page, a broken finding, a stitch error);
@@ -22,13 +23,18 @@
 // Loop is reached through the `stitch` CLI, never HTTP. The binary is
 // process.env.KEEL_STITCH || 'stitch'. The workspace comes from .stitch.json
 // ("workspace"), or STITCH_WORKSPACE (the official CLI's name for it). Per-project wording comes from
-// .keel/keel.json "loop": { name, run, insights, source, kind, contexts,
-// afterRender } — see practices/loop/README.md in keel. `contexts` are the
+// .keel/keel.json "loop": { name, run, insights, intro, source, kind,
+// contexts, afterRender } — see practices/loop/README.md in keel. `contexts` are the
 // project's own Loop contexts beyond the triage one: on push each `command`
 // runs (in the gate's env: NODE_TEST_* stripped, .keel/keel.json `env` over
 // it) and its stdout is that context's data. `afterRender` runs after every
 // render that writes docs/LOOP.md (a roadmap that counts findings moves with
-// them). A project's own roadmap imports loadFindings and phaseCounts from here.
+// them). A project's own roadmap imports loadFindings and phaseCounts (or, in
+// a projects-shaped repo, projectCounts) from here.
+//
+// Where the work lives: a finding names a phase (`phase: 10`, docs/phases/) or,
+// in a repo whose .keel/keel.json says "phases": { "shape": "projects" }, a
+// project (`project: acme`, docs/projects/acme/); `new` in either proposes one.
 //
 // Provenance. The finding format, the verbs and the rendered page are ledger's
 // (github.com/dalmaer/ledger, scripts/loop.ts and core/loop.ts at fd70d6f1,
@@ -37,9 +43,11 @@
 // packages/core/src/loop.ts at 92bec34f7, Apache-2.0, Copyright Dimitri
 // Glazkov): the explicit -w on every call, one fetch per pull, no empty
 // triage context, the "not yet read" problem, --no-render, and the comma form
-// of `loop:` read as a list. No YAML dependency: the subset below reads and
+// of `loop:` read as a list; and (phase 28, scripts/loop.mjs and
+// packages/core/src/loop.ts at ea9983851) a finding that belongs to a project,
+// grouped by project on the page. No YAML dependency: the subset below reads and
 // writes what the `yaml` package (2.x, lineWidth 0) writes for a finding.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { closeSync, openSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -61,7 +69,9 @@ export const DISMISSED_BY_US = ['declined', 'stale'];
 /** Our priority, deliberately not Loop's P0–P3. `never` on a proposal recommends declining. */
 export const RANKS = ['now', 'next', 'later', 'never'];
 const STATES = ['ACTIVE', 'RESOLVED', 'DISMISSED'];
-const FIELDS = ['title', 'loop', 'loop_rank', 'loop_state', 'loop_goal', 'decision', 'rank', 'phase', 'lesson', 'since', 'note'];
+const FIELDS = ['title', 'loop', 'loop_rank', 'loop_state', 'loop_goal', 'decision', 'rank', 'phase', 'project', 'lesson', 'since', 'note'];
+/** Where a repo's work lives: numbered phases in docs/phases/, or projects in docs/projects/<name>/. */
+export const SHAPES = ['phases', 'projects'];
 export const PLACEHOLDER_READ = 'Not yet checked against the code.';
 /** A read cites the code: path/file.ext:line. */
 export const CITES = /[\w.@/-]+\.[A-Za-z0-9]+:\d+/;
@@ -279,6 +289,7 @@ export function parseFinding(raw, slug) {
     decision: DECISIONS.includes(data.decision) ? data.decision : 'untriaged',
     rank: RANKS.includes(data.rank) ? data.rank : null,
     phase: data.phase === 'new' ? 'new' : typeof data.phase === 'number' ? data.phase : null,
+    project: str(data.project),
     lesson: typeof data.lesson === 'number' ? data.lesson : null,
     since: isPlainDate(data.since) ? data.since : null,
     note: str(data.note),
@@ -302,8 +313,16 @@ export function ourRead(f) {
   return at < 0 ? null : f.body.slice(at).replace(/^## Our read\s*/, '').trim();
 }
 
-/** What is wrong with a finding, in words meant to be read. */
-export function findingProblems(f) {
+/**
+ * What is wrong with a finding, in words meant to be read. `shape` says where
+ * an accepted finding's work must live (a phase, or a project); `projects`, the
+ * names of docs/projects/'s directories, when given, makes a project that names
+ * none of them a problem.
+ */
+/** A read that admits it did not look (isocan's rule; on with .keel/keel.json "loop" "hedge": true). */
+export const UNVERIFIED_READ = /\b(did not (?:check|verify|test|open|inspect|run|trace|find)|not (?:run|verified)|unverified)\b/i;
+
+export function findingProblems(f, { shape = 'phases', projects, hedge = false } = {}) {
   const out = [];
   if (!f.loop.length) out.push('no loop ids — nothing links it back to Loop');
   if (f.decision === 'untriaged') return out;
@@ -311,9 +330,12 @@ export function findingProblems(f) {
   if (!f.note) out.push(`no note — a ${f.decision} finding says why`);
   if ((f.decision === 'proposed' || f.decision === 'accepted') && !f.rank) out.push(`no rank — one of ${RANKS.join(', ')}`);
   if (f.decision === 'accepted' && f.rank === 'never') out.push('accepted with rank never — decline it instead');
-  if (f.decision === 'accepted' && f.phase === null) out.push('accepted with no phase — say where the work lives, or phase: new');
+  if (f.decision === 'accepted' && shape === 'projects' && f.project === null) out.push('accepted with no project — say where the work lives, or project: new');
+  if (f.decision === 'accepted' && shape !== 'projects' && f.phase === null) out.push('accepted with no phase — say where the work lives, or phase: new');
+  if (shape === 'projects' && projects && f.project && f.project !== 'new' && !projects.includes(f.project)) out.push(`project ${f.project} is not a directory under docs/projects/`);
   const read = ourRead(f);
   if (!read || read.includes(PLACEHOLDER_READ)) out.push('not yet read — prove the claim against the code before proposing or deciding');
+  else if (hedge && UNVERIFIED_READ.test(read)) out.push("unverified read — prove every sub-claim against the code instead of leaving 'did not check' or 'not run'");
   return out;
 }
 
@@ -332,6 +354,18 @@ export function phaseCounts(findings) {
     const c = out.get(f.phase) ?? { accepted: 0, proposed: 0 };
     c[f.decision] += 1;
     out.set(f.phase, c);
+  }
+  return out;
+}
+
+/** Per project: how many findings are accepted into it, and how many are proposed for it. A Map keyed by project name or 'new'. */
+export function projectCounts(findings) {
+  const out = new Map();
+  for (const f of findings) {
+    if (f.project === null || (f.decision !== 'accepted' && f.decision !== 'proposed')) continue;
+    const c = out.get(f.project) ?? { accepted: 0, proposed: 0 };
+    c[f.decision] += 1;
+    out.set(f.project, c);
   }
   return out;
 }
@@ -399,7 +433,7 @@ export function reconcile(existing, insights) {
       let slug = slugify(i.title) || i.id.slice(0, 8);
       if (slugs.has(slug)) slug = `${slug}-${i.id.slice(0, 6)}`;
       slugs.add(slug);
-      f = { slug, title: i.title, loop: [], loop_rank: null, loop_state: null, loop_goal: i.goal, decision: 'untriaged', rank: null, phase: null, lesson: null, since: null, note: null, body: insightBody(i) };
+      f = { slug, title: i.title, loop: [], loop_rank: null, loop_state: null, loop_goal: i.goal, decision: 'untriaged', rank: null, phase: null, project: null, lesson: null, since: null, note: null, body: insightBody(i) };
       findings.push(f);
       byTitle.set(i.title.toLowerCase(), f);
       added.push(slug);
@@ -436,22 +470,9 @@ const byRank = (a, b) => (RANK_ORDER[a.rank ?? ''] ?? 4) - (RANK_ORDER[b.rank ??
 
 export const LOOP_DOC_HEADER = '<!-- Generated by scripts/loop.mjs. Do not edit — edit the finding in docs/loop/,\n     which is where its decision lives. -->';
 
-/** docs/LOOP.md: every finding, by what it needs from a person. */
-export function renderLoopDoc(findings, phases, { run = 'node scripts/loop.mjs', insights = 'https://jules.google.com/jitro' } = {}) {
-  const phaseLink = p => {
-    if (p === 'new') return 'new phase';
-    const ref = phases.find(x => x.n === p);
-    return ref ? `[${ref.n} · ${ref.title}](phases/${ref.file})` : p === null ? '—' : String(p);
-  };
-  const lessonLink = l => l === null ? '' : ` · [lesson ${l}](lessons.md)`;
-  const row = f => `| ${f.rank ?? '—'} | [${f.title}](loop/${f.slug}.md) | ${f.loop_rank ?? '—'} | ${phaseLink(f.phase)}${lessonLink(f.lesson)} | ${(f.note ?? '—').replace(/\|/g, '\\|')} |`;
-  const table = xs => ['| Ours | Finding | Loop | Where | Why |', '| --- | --- | --- | --- | --- |', ...xs.sort(byRank).map(row), ''];
-  const of = d => findings.filter(f => f.decision === d);
-  const count = d => of(d).length;
-  const out = [
-    LOOP_DOC_HEADER,
-    '# Loop findings',
-    '',
+/** The intro paragraph's lines when .keel/keel.json "loop" "intro" does not give its own. */
+export function defaultIntro({ run = 'node scripts/loop.mjs', insights = 'https://jules.google.com/jitro' } = {}) {
+  return [
     `What [Stitch Loop](${insights}) found in this`,
     'codebase, **ranked by us, not by Loop**. Each finding is a file in',
     "[`loop/`](loop/) holding Loop's claim, our read of it against the code, and the",
@@ -459,6 +480,34 @@ export function renderLoopDoc(findings, phases, { run = 'node scripts/loop.mjs',
     'findings are dismissed in Loop, and every decision is sent back to it as a',
     `context so its next pass knows why. Run \`${run} pull\` to fetch,`,
     `\`${run} decide <slug> <decision>\` to decide.`,
+  ];
+}
+
+/**
+ * docs/LOOP.md: every finding, by what it needs from a person. `shape` is
+ * where accepted work is grouped — by phase (docs/phases/) or by project
+ * (docs/projects/<name>/); `intro` replaces the opening paragraph; `lessons` is
+ * the lessons table's link from docs/.
+ */
+export function renderLoopDoc(findings, phases, { run = 'node scripts/loop.mjs', insights = 'https://jules.google.com/jitro', intro = null, shape = 'phases', lessons = 'lessons.md', hedge = false } = {}) {
+  const phaseLink = p => {
+    if (p === 'new') return 'new phase';
+    const ref = phases.find(x => x.n === p);
+    return ref ? `[${ref.n} · ${ref.title}](phases/${ref.file})` : p === null ? '—' : String(p);
+  };
+  const projectLink = p => p === 'new' ? 'new project' : p === null ? '—' : `[${p}](projects/${p}/)`;
+  const byProject = shape === 'projects';
+  const home = f => byProject ? projectLink(f.project) : phaseLink(f.phase);
+  const lessonLink = l => l === null ? '' : ` · [lesson ${l}](${lessons})`;
+  const row = f => `| ${f.rank ?? '—'} | [${f.title}](loop/${f.slug}.md) | ${f.loop_rank ?? '—'} | ${home(f)}${lessonLink(f.lesson)} | ${(f.note ?? '—').replace(/\|/g, '\\|')} |`;
+  const table = xs => ['| Ours | Finding | Loop | Where | Why |', '| --- | --- | --- | --- | --- |', ...xs.sort(byRank).map(row), ''];
+  const of = d => findings.filter(f => f.decision === d);
+  const count = d => of(d).length;
+  const out = [
+    LOOP_DOC_HEADER,
+    '# Loop findings',
+    '',
+    ...(intro ?? defaultIntro({ run, insights })),
     '',
     `**${count('proposed')} to decide · ${count('accepted')} accepted · ${count('declined')} declined · ${count('stale')} stale · ${count('done')} done · ${count('untriaged')} not yet read.**`,
     '',
@@ -466,7 +515,12 @@ export function renderLoopDoc(findings, phases, { run = 'node scripts/loop.mjs',
   const proposed = of('proposed');
   if (proposed.length) out.push('## Needs your decision', '', 'Proposed rank and home; `never` is a recommendation to decline.', '', ...table(proposed));
   const accepted = of('accepted');
-  if (accepted.length) {
+  if (accepted.length && byProject) {
+    out.push('## Accepted, by project', '');
+    const groups = new Map();
+    for (const f of accepted) groups.set(f.project ?? '', [...(groups.get(f.project ?? '') ?? []), f]);
+    for (const k of [...groups.keys()].sort()) out.push(`### ${projectLink(k || null)}`, '', ...table(groups.get(k)));
+  } else if (accepted.length) {
     out.push('## Accepted, by phase', '');
     const groups = new Map();
     for (const f of accepted) groups.set(String(f.phase), [...(groups.get(String(f.phase)) ?? []), f]);
@@ -483,26 +537,28 @@ export function renderLoopDoc(findings, phases, { run = 'node scripts/loop.mjs',
   }
   const untriaged = of('untriaged');
   if (untriaged.length) out.push('## Not yet read', '', ...untriaged.sort(byRank).map(f => `- [${f.title}](loop/${f.slug}.md) — Loop ${f.loop_rank ?? '?'}`), '');
-  const broken = findings.filter(f => findingProblems(f).length);
+  const problems = f => findingProblems(f, { shape, hedge });
+  const broken = findings.filter(f => problems(f).length);
   if (broken.length) {
     out.push('## Needs fixing', '');
-    for (const f of broken) out.push(`- [\`${f.slug}\`](loop/${f.slug}.md) — ${findingProblems(f).join('; ')}`);
+    for (const f of broken) out.push(`- [\`${f.slug}\`](loop/${f.slug}.md) — ${problems(f).join('; ')}`);
     out.push('');
   }
   return out.join('\n');
 }
 
 /** The context sent back to Loop: decisions only, never a proposal. */
-export function contextPayload(findings, phases, kind) {
+export function contextPayload(findings, phases, kind, shape = 'phases') {
   const phaseName = p => p === 'new' ? 'a new phase' : p === null ? null : phases.find(x => x.n === p)?.title ?? `phase ${p}`;
+  const unit = shape === 'projects' ? 'project' : 'phase';
   const decided = findings.filter(f => f.decision !== 'untriaged' && f.decision !== 'proposed').sort((a, b) => a.decision.localeCompare(b.decision) || byRank(a, b));
   return {
     kind,
     guidance:
       'The developer triages every Loop insight in the repo under docs/loop/ and ranks it independently ' +
       '(now, next, later, never). Do not re-file an insight recorded here as declined or stale unless the ' +
-      'code has changed in a way that answers the stated reason. Accepted insights are planned work, in the named phase.',
-    decisions: decided.map(f => ({ title: f.title, decision: f.decision, rank: f.rank, phase: phaseName(f.phase), reason: f.note, decided: f.since, insights: f.loop })),
+      `code has changed in a way that answers the stated reason. Accepted insights are planned work, in the named ${unit}.`,
+    decisions: decided.map(f => ({ title: f.title, decision: f.decision, rank: f.rank, ...(unit === 'project' ? { project: f.project } : { phase: phaseName(f.phase) }), reason: f.note, decided: f.since, insights: f.loop })),
   };
 }
 
@@ -529,6 +585,8 @@ export const isPlainPath = p =>
 /** What is wrong with "loop" "contexts", "afterRender" and "afterRenderWrites" in .keel/keel.json, as messages. */
 export function contextProblems(own, triageSource) {
   const out = [];
+  for (const k of ['hedge', 'prove']) if (own[k] !== undefined && typeof own[k] !== 'boolean') out.push(`"loop" "${k}" must be true or false`);
+  if (own.intro !== undefined && !(nonEmpty(own.intro) || (Array.isArray(own.intro) && own.intro.length && own.intro.every(l => typeof l === 'string')))) out.push('"loop" "intro" must be the opening paragraph: a non-empty string, or a list of its lines');
   if (own.afterRender !== undefined && !nonEmpty(own.afterRender)) out.push('"loop" "afterRender" must be a non-empty shell command');
   if (own.afterRenderWrites !== undefined) {
     if (!Array.isArray(own.afterRenderWrites)) out.push('"loop" "afterRenderWrites" must be a list of repo-relative file paths');
@@ -562,11 +620,18 @@ export function settings(root = ROOT) {
   const display = nonEmpty(own.name) ? own.name : typeof keel.name === 'string' && keel.name ? keel.name : basename(root);
   const name = display.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
   const source = own.source ?? `${name}:docs/loop`;
+  const intro = nonEmpty(own.intro) ? own.intro.replace(/\n+$/, '').split('\n')
+    : Array.isArray(own.intro) && own.intro.length && own.intro.every(l => typeof l === 'string') ? own.intro : null;
+  // The lessons table's link from docs/LOOP.md: .keel/keel.json "lessons" is repo-relative.
+  const lessonsPath = nonEmpty(keel.lessons) ? keel.lessons.replace(/^\.\//, '') : 'docs/lessons.md';
   return {
     display,
     name,
+    shape: keel.phases?.shape === 'projects' ? 'projects' : 'phases',
     run: own.run ?? 'node scripts/loop.mjs',
     insights: own.insights ?? 'https://jules.google.com/jitro',
+    intro,
+    lessons: lessonsPath.startsWith('docs/') ? lessonsPath.slice('docs/'.length) : `../${lessonsPath}`,
     source,
     kind: own.kind ?? `${name}-triage-decisions`,
     contexts: Array.isArray(own.contexts) ? own.contexts : [],
@@ -575,6 +640,8 @@ export function settings(root = ROOT) {
     // and the drain counts them as the keel-loop/ queue's data.
     afterRenderWrites: Array.isArray(own.afterRenderWrites) ? own.afterRenderWrites.filter(isPlainPath) : [],
     env: keel.env && typeof keel.env === 'object' && !Array.isArray(keel.env) ? keel.env : {},
+    hedge: own.hedge === true,
+    prove: own.prove === true,
     problems: contextProblems(own, source),
   };
 }
@@ -616,6 +683,13 @@ export function phases(root = ROOT) {
   }).sort((a, b) => a.n - b.n);
 }
 
+/** The names of docs/projects/'s directories: the projects a finding can belong to. */
+export function projects(root = ROOT) {
+  const dir = join(root, 'docs', 'projects');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort();
+}
+
 /**
  * docs/LOOP.md against the findings. With check, writes nothing and returns
  * { ok, stale, problems }; a project with no findings and no docs/LOOP.md has
@@ -630,8 +704,84 @@ export function render(root = ROOT, { check = false } = {}) {
   if (!findings.length && !existsSync(out)) return { ok: true, stale: false, problems: [] };
   const current = existsSync(out) ? readFileSync(out, 'utf8') : '';
   const stale = current.trim() !== page.trim();
-  const problems = findings.flatMap(f => findingProblems(f).map(p => `docs/loop/${f.slug}.md: ${p}`));
+  const known = s.shape === 'projects' ? projects(root) : undefined;
+  const problems = findings.flatMap(f => findingProblems(f, { shape: s.shape, projects: known, hedge: s.hedge }).map(p => `docs/loop/${f.slug}.md: ${p}`));
   return { ok: !stale && !problems.length, stale, problems };
+}
+
+// ── proving (from isocan) ────────────────────────────────────────────────
+
+/**
+ * The prompt handed to the harness when proving an untriaged finding against
+ * the codebase (`pull` / `prove`). isocan's (packages/core/src/loop.ts
+ * provePrompt), with the home flag and the run command the repo's own.
+ */
+export function provePrompt(f, { run = 'node scripts/loop.mjs', shape = 'phases', homes = [] } = {}) {
+  const byProject = shape === 'projects';
+  const flag = byProject ? `--project <project|new|none>` : `--phase <n|new|none>`;
+  return [
+    `Prove the untriaged Stitch Loop finding \`${f.slug}\` (` +
+      `docs/loop/${f.slug}.md, Loop rank ${f.loop_rank ?? 'unranked'}` +
+      `${f.loop_goal ? `, goal "${f.loop_goal}"` : ''}) against the codebase and record a proposal.`,
+    '',
+    'Finding body:',
+    '```markdown',
+    f.body,
+    '```',
+    '',
+    byProject
+      ? `Valid docs/projects/ directories: ${homes.join(', ')} (or "new", or "none" when rank is "never").`
+      : `Valid docs/phases/ numbers: ${homes.join(', ')} (or "new", or "none" when rank is "never").`,
+    '',
+    'Steps:',
+    '1. **Prove every sub-claim against the code.** Open and read every file and line range Loop cites,',
+    '   search for callers and existing tests/guards, and run non-destructive verification commands',
+    "   (the project's own tests, `npm audit`, etc.) when the claim is about runtime or build behavior.",
+    '   Never leave hedges like "I did not check", "Not run", or "Unverified" — `findingProblems` rejects them.',
+    `2. **Choose our independent rank and ${byProject ? 'project' : 'phase'}** based on what the proof found:`,
+    '   - `now`: ships broken/unsafe or fails its own contract',
+    `   - \`next\`: real friction or gap in an active ${byProject ? 'project' : 'phase'}`,
+    '   - `later`: real, but deferred behind a gate or lower priority',
+    '   - `never`: false positive, already fixed in the tree, or deliberately decided against in docs',
+    '3. **Record the proposal** by running:',
+    `   \`${run} propose ${f.slug} --rank <now|next|later|never> ${flag} --note "<verdict: one line with file:line>" --read "<multi-line markdown proof citing exact files, lines, and tests>"\``,
+    '   Never run `decide`, `push`, or `mine` — deciding sends to the shared Loop workspace and belongs to a person.',
+  ].join('\n');
+}
+
+/** CLI arguments for the bounded `claude -p` proof pass over one untriaged finding (isocan's proveArgs). */
+export function proveArgs(prompt) {
+  return ['-p', prompt, '--bare', '--output-format', 'json', '--no-session-persistence', '--max-turns', '25',
+    '--permission-mode', 'bypassPermissions', '--tools', 'Bash,Read', '--allowedTools', 'Bash,Read'];
+}
+
+/**
+ * Prove untriaged findings with a model and propose our rank: isocan's
+ * proveUntriaged. Opt-in twice, as isocan keys it plus keel's config: runs only
+ * when .keel/keel.json "loop" "prove" is true AND ANTHROPIC_API_KEY is set; the
+ * harness is CLAUDE_BIN or `claude` (a test stubs it there). Skipped, never
+ * failed, otherwise. Returns { proved, skipped }.
+ */
+export function proveUntriaged({ root, env, s, slug = null, err }) {
+  const dir = join(root, 'docs', 'loop');
+  const targets = loadFindings(dir).filter(f => (slug ? f.slug === slug : f.decision === 'untriaged'));
+  if (!targets.length) return { proved: 0, skipped: null };
+  if (!s.prove) return { proved: 0, skipped: `"loop" "prove" is not on in .keel/keel.json — left untriaged for \`${s.run} prove\`` };
+  if (!env.ANTHROPIC_API_KEY) return { proved: 0, skipped: `no ANTHROPIC_API_KEY in the environment — left untriaged for \`${s.run} prove\`` };
+  const bin = env.CLAUDE_BIN ?? 'claude';
+  const known = s.shape === 'projects' ? projects(root) : undefined;
+  const homes = s.shape === 'projects' ? known : phases(root).map(p => p.n);
+  let proved = 0;
+  for (const f of targets) {
+    const res = spawnSync(bin, proveArgs(provePrompt(f, { run: s.run, shape: s.shape, homes })), {
+      cwd: root, encoding: 'utf8', timeout: 5 * 60_000, maxBuffer: 1 << 24, env: { ...env, CLAUDECODE: '' },
+    });
+    if (res.error?.code === 'ENOENT') return { proved, skipped: `\`${bin}\` is not installed here — left untriaged for \`${s.run} prove\`` };
+    const after = loadFindings(dir).find(x => x.slug === f.slug);
+    if (after?.decision === 'proposed' && !findingProblems(after, { shape: s.shape, projects: known, hedge: s.hedge }).length) proved += 1;
+    else err(`prove ${f.slug}: model pass did not leave a valid proposal (exit ${res.status ?? '?'})`);
+  }
+  return { proved, skipped: null };
 }
 
 // ── stitch ───────────────────────────────────────────────────────────────
@@ -676,7 +826,14 @@ async function stitch(args, { root, env, format = true }) {
 
 // ── fields from flags ────────────────────────────────────────────────────
 
-function applyFields(f, v) {
+function applyFields(f, v, shape = 'phases') {
+  if (shape === 'projects' && typeof v.phase === 'string') throw new LoopError('this repo is projects-shaped (.keel/keel.json "phases" "shape"): say where the work lives with --project <name|new|none>', 2);
+  if (shape !== 'projects' && typeof v.project === 'string') throw new LoopError('this repo keeps numbered phases: say where the work lives with --phase <n|new|none>', 2);
+  if (typeof v.project === 'string') {
+    const p = v.project.trim();
+    if (!p || /[\s/]/.test(p)) throw new LoopError('--project is a directory name under docs/projects/, new, or none', 2);
+    f.project = p === 'none' ? null : p;
+  }
   if (typeof v.rank === 'string') {
     if (!RANKS.includes(v.rank)) throw new LoopError(`--rank must be one of ${RANKS.join(', ')}`, 2);
     f.rank = v.rank;
@@ -698,7 +855,7 @@ function applyFields(f, v) {
 
 // ── the verbs ────────────────────────────────────────────────────────────
 
-const USAGE = 'node scripts/loop.mjs pull | list [--json] [-d <decision>] | propose <slug> --rank … --note … --read … | decide <slug> <decision> (--no-push | --yes) | push (--dry-run | --yes) | mine [priority…] --yes | render [--check]';
+const USAGE = 'node scripts/loop.mjs pull [--no-prove] | prove [slug] | list [--json] [-d <decision>] | propose <slug> --rank … [--phase … | --project …] --note … --read … | decide <slug> <decision> (--no-push | --yes) | push (--dry-run | --yes) | mine [priority…] --yes | render [--check]';
 
 /** Run one command. Returns its exit code; prints to `log` and `err`. */
 export async function main(argv, { root = ROOT, env = process.env, log = console.log, err = console.error } = {}) {
@@ -707,9 +864,9 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
     parsed = parseArgs({
       args: argv, allowPositionals: true, strict: true,
       options: {
-        rank: { type: 'string' }, phase: { type: 'string' }, lesson: { type: 'string' }, note: { type: 'string' }, read: { type: 'string' },
+        rank: { type: 'string' }, phase: { type: 'string' }, project: { type: 'string' }, lesson: { type: 'string' }, note: { type: 'string' }, read: { type: 'string' },
         decision: { type: 'string', short: 'd' }, json: { type: 'boolean' }, check: { type: 'boolean' }, 'dry-run': { type: 'boolean' },
-        'no-push': { type: 'boolean' }, 'no-render': { type: 'boolean' }, yes: { type: 'boolean' },
+        'no-push': { type: 'boolean' }, 'no-render': { type: 'boolean' }, 'no-prove': { type: 'boolean' }, yes: { type: 'boolean' },
       },
     });
   } catch (e) { err(`${e.message}\n${USAGE}`); return 2; }
@@ -765,7 +922,7 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         for (const f of res.failed ?? []) err(`  Loop refused ${JSON.stringify(f)}`);
       }
     }
-    const payload = contextPayload(findings, phases(root), s.kind);
+    const payload = contextPayload(findings, phases(root), s.kind, s.shape);
     let context = false;
     if (payload.decisions.length) {
       context = await upsertContext(ws, dryRun, {
@@ -808,7 +965,12 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         say('re-filed by Loop under a new id', r.refiled);
         say('Loop now reports resolved — worth checking and marking done', r.resolvedInLoop);
         say('dismissed in Loop with no decision here', r.dismissedInLoop);
-        const owed = pendingDismissals(r.findings, insights);
+        if (!v['no-prove']) {
+          const proof = proveUntriaged({ root, env, s, err });
+          if (proof.proved) { await write(); log(`proved and proposed (${proof.proved}).`); }
+          else if (proof.skipped && r.added.length) log(`prove skipped: ${proof.skipped}`);
+        }
+        const owed = pendingDismissals(loadFindings(DIR), insights);
         if (owed.length) log(`${owed.length} declined id(s) still active in Loop — a person runs: ${s.run} push --yes`);
         return 0;
       }
@@ -823,26 +985,27 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
       case 'propose': {
         const f = find(rest[0] ?? '');
         if (f.decision !== 'untriaged' && f.decision !== 'proposed') throw new LoopError(`${f.slug} is already ${f.decision} — that was a decision, and a proposal does not override it`);
-        applyFields(f, v);
+        applyFields(f, v, s.shape);
         f.decision = 'proposed';
         f.since = today();
         const read = ourRead(f);
         if (!read || read.includes(PLACEHOLDER_READ) || !CITES.test(read)) throw new LoopError(`${f.slug}: --read must say what the code shows, citing file:line (e.g. lib/acme.mjs:42)`);
-        const problems = findingProblems(f);
+        const problems = findingProblems(f, { shape: s.shape, projects: s.shape === 'projects' ? projects(root) : undefined, hedge: s.hedge });
         if (problems.length) throw new LoopError(`${f.slug}: ${problems.join('; ')}`);
         save(f);
         if (!v['no-render']) await write();
-        log(`proposed ${f.slug}: ${f.rank}${f.phase === null ? '' : `, phase ${f.phase}`}`);
+        const home = s.shape === 'projects' ? (f.project === null ? '' : `, ${f.project === 'new' ? 'new project' : `project ${f.project}`}`) : (f.phase === null ? '' : `, phase ${f.phase}`);
+        log(`proposed ${f.slug}: ${f.rank}${home}`);
         return 0;
       }
       case 'decide': {
         const [ref, decision] = rest;
         if (!DECISIONS.includes(decision)) throw new LoopError(`decision is one of ${DECISIONS.join(', ')}`, 2);
         const f = find(ref ?? '');
-        applyFields(f, v);
+        applyFields(f, v, s.shape);
         f.decision = decision;
         f.since = today();
-        const problems = findingProblems(f);
+        const problems = findingProblems(f, { shape: s.shape, projects: s.shape === 'projects' ? projects(root) : undefined, hedge: s.hedge });
         if (problems.length) throw new LoopError(`${f.slug}: ${problems.join('; ')}`);
         if (!v['no-push'] && !v.yes) {
           return needsYes('Deciding', [`would record ${f.slug} as ${decision}, then push every decision to Loop${DISMISSED_BY_US.includes(decision) ? ` (dismissing ${f.loop.length} id(s))` : ''}.`,
@@ -871,6 +1034,12 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         log(`Loop is re-mining. Run \`${s.run} pull\` in 10–20 minutes to see what it found and resolved.`);
         return 0;
       }
+      case 'prove': {
+        const proof = proveUntriaged({ root, env, s, slug: rest[0] ?? null, err });
+        if (proof.skipped) log(`prove skipped: ${proof.skipped}`);
+        else { if (proof.proved) await write(); log(`proved and proposed ${proof.proved} finding(s).`); }
+        return 0;
+      }
       case 'render': {
         if (!v.check) { await write(); log('wrote docs/LOOP.md'); return 0; }
         const r = render(root, { check: true });
@@ -880,7 +1049,7 @@ export async function main(argv, { root = ROOT, env = process.env, log = console
         return r.ok ? 0 : 1;
       }
       default:
-        throw new LoopError(`unknown command "${cmd}" — pull, list, propose, decide, push, mine, render\n${USAGE}`, 2);
+        throw new LoopError(`unknown command "${cmd}" — pull, list, propose, prove, decide, push, mine, render\n${USAGE}`, 2);
     }
   } catch (e) {
     err(e.message);

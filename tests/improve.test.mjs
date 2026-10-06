@@ -51,7 +51,7 @@ async function snapshot(dir, skip = new Set(['.git'])) {
 }
 
 /** A gh stub: --version ok; auth as given; run/pr list answer or fail. */
-async function ghStub(t, { auth = true, runs = '[]', prs = '[]', failRuns = false } = {}) {
+async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues = '[]', failRuns = false } = {}) {
   const dir = await scratch(t, 'keel-gh-');
   const gh = join(dir, 'gh');
   await writeFile(gh, `#!${process.execPath}
@@ -60,6 +60,7 @@ if (a.includes('--version')) console.log('gh version 2.0.0 (stub)');
 else if (a[0] === 'auth') process.exit(${auth ? 0 : 1});
 else if (a[0] === 'run') { if (${failRuns}) { console.error('HTTP 404: Not Found'); process.exit(1); } console.log(${JSON.stringify(runs)}); }
 else if (a[0] === 'pr') console.log(${JSON.stringify(prs)});
+else if (a[0] === 'issue') console.log(${JSON.stringify(issues)});
 else process.exit(1);
 `);
   await chmod(gh, 0o755);
@@ -199,7 +200,9 @@ test('the ratchet tightens to a better value and never loosens', async t => {
 test('--report writes that day\'s page and the bounds, nothing else; the one proposal is deterministic', async t => {
   const dir = await project(t);
   await setConfig(dir, { repo: 'acme/storefront' });
-  const env = { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"failure"},{"conclusion":"success"}]', prs: '[{"headRefName":"keel-night/a"},{"headRefName":"keel-night/b"},{"headRefName":"keel-night/c"},{"headRefName":"renovate/a"},{"headRefName":"renovate/b"}]' }) };
+  // Opened today: none is stale (prs_stale), so the proposal is machine_prs.
+  const prs = JSON.stringify(['keel-night/a', 'keel-night/b', 'keel-night/c', 'renovate/a', 'renovate/b'].map((headRefName, i) => ({ number: i + 1, title: headRefName, createdAt: new Date().toISOString(), headRefName })));
+  const env = { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"failure"},{"conclusion":"success"}]', prs }) };
   await mkdir(join(dir, 'docs', 'health'));
   await writeFile(join(dir, 'docs', 'health', '2020-01-01.md'), 'an older page\n');
   const before = await snapshot(dir);
