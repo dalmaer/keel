@@ -183,6 +183,27 @@ test('a change keel has since made too is behind, not both: render takes keel\'s
   assert.equal(await readFile(join(dir, path), 'utf8'), now);
 });
 
+test('a managed file new in this practice version (absent, never locked) is behind, for update to create; a locked one removed is still the project\'s change', async t => {
+  const dir = await project(t);
+  const lockPath = join(dir, '.keel', 'lock.json');
+  const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+  const path = 'scripts/keel/drain.mjs';
+  assert.ok(lock.files[path], 'the fixture locks it');
+  // As if keel's next release added it: not on disk, not in the lock.
+  await rm(join(dir, path));
+  delete lock.files[path];
+  await writeFile(lockPath, JSON.stringify(lock));
+  let r = doctor(dir);
+  assert.equal(r.code, 0, `a new file is not a finding: ${JSON.stringify(r.data.drift)}`);
+  assert.deepEqual(r.data.drift.filter(d => d.path === path).map(d => [d.state, d.missing]), [['behind', true]]);
+  // The same file removed while the lock knows it: the project's change, a finding.
+  lock.files[path] = { practice: 'night', sha256: 'f'.repeat(64) };
+  await writeFile(lockPath, JSON.stringify(lock));
+  r = doctor(dir);
+  assert.equal(r.code, 1);
+  assert.notEqual(r.data.drift.find(d => d.path === path).state, 'behind');
+});
+
 test('a copied skill outside .agents/skills is a second copy (lesson 1); the symlink is not', async t => {
   const dir = await project(t);
   await mkdir(join(dir, '.codex', 'skills', 'conduct'), { recursive: true });

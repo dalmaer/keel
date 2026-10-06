@@ -47,3 +47,4 @@ None.
 
 - **2026-10-02** — Migrations run once per project, when `applies()` is true; they aren't gated on version. A version gate never reaches a project adopted after the migration's version, and that's every newly adopted project. Found on the real ritmo walk.
 - **2026-10-02** — A gate spawned from inside `node --test` inherits `NODE_TEST_CONTEXT` and passes while running nothing. All spawns go through one helper, and spawned gates must show tests ran (lesson 14).
+- **2026-10-06** — Escape: the first practice release to add managed files to already-adopted projects (v0.8.0) failed every fleet update: doctor read a new file (absent, never locked) as the project's removal ("edited (missing)"), so update refused it. A file keel never wrote here is now behind, for update to create; one the lock knows and is gone stays the project's change.
