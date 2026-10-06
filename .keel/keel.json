@@ -31,5 +31,11 @@
       "minutes": 45
     },
     "schedule": "nightly"
+  },
+  "tend": {
+    "schedule": "weekly",
+    "budget": {
+      "minutes": 30
+    }
   }
 }
