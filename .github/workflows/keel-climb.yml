@@ -1,0 +1,319 @@
+# A climb night (keel practice `climb`; managed: keel render rewrites it).
+#
+# An agent climbs one number (the test suite's wall time, first) under the
+# shared protocol in .agents/climb/PROTOCOL.md, and a person merges what it
+# finds. scripts/keel/climb.mjs makes every measurement and every
+# keep-or-revert, so the numbers are the script's, never the agent's. The
+# rules, as the night's (keel docs/design.md §6):
+#
+#   - Off unless .keel/keel.json has "climb"; with no secret, a notice and green.
+#   - One job a night: climb.mjs pick chooses it, and a job with an open
+#     keel-climb/<job>/ PR waits for a person to read it.
+#   - The agent never pushes and never merges: its tools let git read, stage,
+#     commit and switch, nothing more. It is time-boxed to the budget.
+#   - After it: the gate, and no test dropped (climb.mjs guard); then one PR
+#     on refs/heads/keel-climb/<job>/<date>, never main, never merged here.
+#     A night that keeps nothing opens nothing, and says so.
+#   - A hygiene night that proved no fix files one issue on this repo instead
+#     (climb.mjs report --issue): the workflow files it, never the agent.
+#
+# SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
+# as the claude practice's. Each climb night spends model tokens, up to the
+# configured minutes. No model is pinned here: a pinned model is a fact that ages.
+name: keel-climb
+
+on:
+  schedule:
+    # 09:41 UTC daily, off the night's minute; a weekly climb's pick says
+    # "not tonight" on the other days (cron cannot come from the config).
+    - cron: "41 9 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-climb
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  climb:
+    runs-on: ubuntu-latest
+    # The agent's own step is bounded by the budget (5 to 180 minutes); this
+    # bounds the whole run, measuring and the gate included.
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Is climb on?
+        id: on
+        run: |
+          node -e '
+            const fs = require("fs");
+            let c = {};
+            try { c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8")); } catch {}
+            const on = c.climb !== undefined;
+            if (!on) console.log("climb is off: .keel/keel.json has no \"climb\", so this run does nothing.");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\n`);
+          '
+      - name: Configured?
+        id: configured
+        if: steps.on.outputs.on == 'true'
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
+            echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a climb night to run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.configured.outputs.enabled == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The project's install, as the night's: `setup` when it has one, else
+      # npm ci when a lockfile exists; `env` goes to every later step.
+      - name: Read the config
+        id: config
+        if: steps.configured.outputs.enabled == 'true'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        if: steps.configured.outputs.enabled == 'true'
+        # setupToken (a secret's name in .keel/keel.json) becomes GH_TOKEN here
+        # and in no other step. Absent or unset, the job's own token. Never echoed.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      # The climb config, validated (a bad one is red, naming the key), and
+      # tonight's job: the one tied to the health page's worst measure, else
+      # the next in rotation; a job with an open PR waits. A dispatch runs
+      # even on a weekly climb's off day.
+      - name: Pick tonight's job
+        id: pick
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          node scripts/keel/climb.mjs config --json > "$RUNNER_TEMP/climb-config.json"
+          FORCE=""
+          if [ "$EVENT" = workflow_dispatch ]; then FORCE="--force"; fi
+          node scripts/keel/climb.mjs pick --json $FORCE > "$RUNNER_TEMP/pick.json"
+          node -e '
+            const fs = require("fs");
+            const [cfg, pick, out] = process.argv.slice(1);
+            const c = JSON.parse(fs.readFileSync(cfg, "utf8"));
+            const p = JSON.parse(fs.readFileSync(pick, "utf8"));
+            const lines = [`minutes=${c.minutes}`, `job=${p.job ?? ""}`, `branch=${p.branch ?? ""}`, `day=${p.date}`];
+            fs.appendFileSync(out, `${lines.join("\n")}\n`);
+            console.log(p.job ? `tonight: ${p.job} (${p.why})` : `no climb tonight: ${p.reason}`);
+          ' "$RUNNER_TEMP/climb-config.json" "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
+
+      # Hygiene's number is the test ledger's flaky count: CI's keel-test-runs
+      # artifacts on the default branch, read-only, by name, into
+      # .keel/test-runs, as the night gathers them. None found is a warning;
+      # the baseline then says it cannot tell (exit 2), never a zero.
+      - name: Gather the test ledger
+        if: steps.pick.outputs.job == 'hygiene'
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          mkdir -p .keel/test-runs
+          if ! gh api "repos/$REPO/actions/artifacts?name=keel-test-runs&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:30][] | .id" > "$RUNNER_TEMP/ledger.txt"; then
+            echo "::warning::The test ledger's artifacts could not be listed."
+            exit 0
+          fi
+          n=0
+          while read -r id; do
+            [ -n "$id" ] || continue
+            if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/ledger-$id.zip"; then
+              unzip -o -q "$RUNNER_TEMP/ledger-$id.zip" -d .keel/test-runs && n=$((n + 1))
+            fi
+          done < "$RUNNER_TEMP/ledger.txt"
+          echo "test ledger: $n artifacts read; $(find .keel/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
+
+      # The baseline opens the night's record (.keel/climb/night.json), on the
+      # night's own branch, before the agent changes anything.
+      - name: Baseline
+        if: steps.pick.outputs.job != ''
+        env:
+          JOB: ${{ steps.pick.outputs.job }}
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          git config user.name "keel-climb"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH"
+          node scripts/keel/climb.mjs measure "$JOB" --baseline
+
+      # The brief: the protocol, the job, and the pick, as one prompt.
+      - name: Brief
+        id: brief
+        if: steps.pick.outputs.job != ''
+        env:
+          JOB: ${{ steps.pick.outputs.job }}
+        run: |
+          {
+            cat .agents/climb/PROTOCOL.md
+            echo
+            cat ".agents/climb/jobs/$JOB.md"
+            echo
+            echo "## Tonight (climb.mjs pick)"
+            echo
+            cat "$RUNNER_TEMP/pick.json"
+          } > "$RUNNER_TEMP/prompt.md"
+          eof="KEEL_EOF_$(date +%s%N)"
+          {
+            echo "prompt<<$eof"
+            cat "$RUNNER_TEMP/prompt.md"
+            echo "$eof"
+          } >> "$GITHUB_OUTPUT"
+
+      # The agent, time-boxed to the budget. Its tools cannot push or merge,
+      # and it measures only through climb.mjs. A timeout is not red: what it
+      # kept before the box closed is still judged below.
+      - name: Climb
+        if: steps.pick.outputs.job != ''
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"
+
+      # Judged by the script, not the agent: drop anything no compare kept,
+      # run the gate and check no test was dropped (red if either fails), the
+      # night's base against its end, then the PR body and the night's line.
+      - name: Judge the night
+        id: judge
+        if: steps.pick.outputs.job != ''
+        run: |
+          node scripts/keel/climb.mjs settle
+          node scripts/keel/climb.mjs guard
+          node scripts/keel/climb.mjs compare --final
+          node scripts/keel/climb.mjs report --state --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --json > "$RUNNER_TEMP/report.json"
+          node -e '
+            const fs = require("fs");
+            const [file, out, summary, title] = process.argv.slice(1);
+            const r = JSON.parse(fs.readFileSync(file, "utf8"));
+            // A hygiene night that proved nothing: the issue to file, its title in a file (never an output to escape).
+            if (r.issue) fs.writeFileSync(title, r.issue.title);
+            fs.appendFileSync(out, `kept=${r.kept}\nline=${r.line}\nissue=${r.issue ? "yes" : ""}\n`);
+            fs.appendFileSync(summary, `${r.line}\n`);
+            console.log(r.line);
+          ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
+
+      # One PR, on this workflow's own prefix; a person merges it. A night
+      # that kept nothing pushes nothing.
+      - name: Open the climb's pull request
+        if: steps.pick.outputs.job != ''
+        env:
+          KEPT: ${{ steps.judge.outputs.kept }}
+          LINE: ${{ steps.judge.outputs.line }}
+          JOB: ${{ steps.pick.outputs.job }}
+          DAY: ${{ steps.pick.outputs.day }}
+          BRANCH: ${{ steps.pick.outputs.branch }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$KEPT" = 0 ] || [ -z "$KEPT" ]; then
+            echo "::notice::No PR: $LINE"
+            exit 0
+          fi
+          # The rotation's state rides on the PR, as one more commit.
+          if [ -n "$(git status --porcelain -- .keel/climb.json)" ]; then
+            git add .keel/climb.json
+            git commit -q -m "keel climb: $JOB $DAY, rotation state"
+          fi
+          # The branch is this workflow's alone; a re-run the same day replaces
+          # its own night, so force is safe here and nowhere else.
+          git push --force origin "HEAD:refs/heads/keel-climb/$JOB/$DAY"
+          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            code=0
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel climb: $JOB, $DAY" --body-file "$RUNNER_TEMP/body.md" 2>&1) || code=$?
+            echo "$out"
+            if [ "$code" != 0 ]; then
+              if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+                echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions → \"Allow GitHub Actions to create and approve pull requests\"."
+              else
+                exit "$code"
+              fi
+            fi
+          fi
+          # The PR's number goes in the night's record, for the night's health line.
+          num=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' || true)
+          if [ -n "$num" ]; then
+            node -e '
+              const fs = require("fs");
+              const [file, n] = process.argv.slice(1);
+              const night = JSON.parse(fs.readFileSync(file, "utf8"));
+              night.pr = Number(n);
+              fs.writeFileSync(file, `${JSON.stringify(night, null, 2)}\n`);
+            ' .keel/climb/night.json "$num"
+          fi
+
+      # A hygiene night that proved no fix: one issue on this repo, with the
+      # ledger's evidence, unless one with the same title is already open.
+      - name: File the flaky test
+        if: steps.pick.outputs.job == 'hygiene' && steps.judge.outputs.issue == 'yes'
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          title=$(cat "$RUNNER_TEMP/issue-title.txt")
+          if gh issue list --repo "$REPO" --state open --json title --limit 200 --jq '.[].title' | grep -qxF -- "$title"; then
+            echo "::notice::Already open: $title"
+            exit 0
+          fi
+          gh issue create --repo "$REPO" --title "$title" --body-file "$RUNNER_TEMP/issue.md"
+
+      # The night's record (every attempt, its numbers, the line), kept 30
+      # days, kept or not.
+      - name: Keep the climb's record
+        if: always() && steps.pick.outputs.job != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-climb
+          path: .keel/climb/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30

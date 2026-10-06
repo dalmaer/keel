@@ -16,6 +16,16 @@
     "night",
     "claude",
     "renovate",
-    "reconciliation"
-  ]
+    "reconciliation",
+    "climb"
+  ],
+  "climb": {
+    "jobs": [
+      "test-time"
+    ],
+    "budget": {
+      "minutes": 45
+    },
+    "schedule": "nightly"
+  }
 }
