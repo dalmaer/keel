@@ -170,3 +170,12 @@ test('keel learn appends a row with an empty Where to keel\'s catalogue, and fou
   assert.doesNotMatch(four.text, /\| A test\. \| \|/);
   assert.deepEqual(viewRows(five.text, []).rows.map(r => r.n), [1, 5], 'a new row is universal until a tag pass narrows it');
 });
+
+test('web in a sub-package is the repo\'s web: a workspace (packages/*) or an app folder (web/), never an unrelated dir', async t => {
+  const workspace = await repo(t, { 'package.json': JSON.stringify({ name: 'acme', workspaces: ['packages/*'] }), 'packages/ui/package.json': JSON.stringify({ name: 'acme-ui', dependencies: { react: '^19.0.0' } }) });
+  assert.ok((await detect(workspace)).some(d => d.tag === 'web'), 'a workspace package on react');
+  const app = await repo(t, { 'package.json': JSON.stringify({ name: 'acme' }), 'web/package.json': JSON.stringify({ name: 'acme-web', dependencies: { next: '^15.0.0', react: '^19.0.0' } }) });
+  assert.ok((await detect(app)).some(d => d.tag === 'web'), 'an app folder on react');
+  const stray = await repo(t, { 'package.json': JSON.stringify({ name: 'acme' }), 'fixtures/old/package.json': JSON.stringify({ name: 'acme-old', dependencies: { react: '^19.0.0' } }) });
+  assert.ok(!(await detect(stray)).some(d => d.tag === 'web'), 'a package outside the workspaces and app folders is not the repo\'s');
+});
