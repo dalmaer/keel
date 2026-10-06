@@ -65,8 +65,9 @@ async function treeHash(dir) {
   const h = createHash('sha256');
   const walk = async d => {
     for (const e of (await readdir(d, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (e.name === '.git') continue;
       const p = join(d, e.name), rel = relative(dir, p);
+      // The test ledger's runs: ignored by their own .gitignore, left by every gate run (phase 33).
+      if (e.name === '.git' || rel === join('.keel', 'test-runs')) continue;
       const i = await lstat(p);
       if (i.isSymbolicLink()) h.update(`L ${rel} ${await readlink(p)}\n`);
       else if (i.isDirectory()) { h.update(`D ${rel}\n`); await walk(p); }
@@ -212,7 +213,8 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
   const evidence = await readFile(join(dir, 'docs/evidence/2026-01-05-baseline.md'));
   const r = await run({ dir, local: true });
   assert.equal(r.exitCode ?? 0, 0, r.text);
-  assert.deepEqual(r.data.migrations.map(m => m.id), ['0001-milestone-to-goal']);
+  // 0004 too: acme-groove runs node's test runner, so it gains the test ledger.
+  assert.deepEqual(r.data.migrations.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger']);
   assert.deepEqual(r.data.migrations[0].edits.sort((a, b) => a.path.localeCompare(b.path)), [
     { path: '.keel/keel.json', action: 'write' },
     { path: 'AGENTS.md', action: 'write' },
@@ -251,7 +253,7 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
   assert.equal(cfg.local.phases, undefined);
   assert.ok(cfg.local.ci, 'ci stays the project\'s own');
   assert.equal(cfg.practice, TARGET);
-  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal'], 'the migration is recorded as taken');
+  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal', '0004-test-ledger'], 'the migrations are recorded as taken');
   assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).scripts.roadmap, 'node scripts/roadmap.mjs', 'the roadmap scripts still run, now keel\'s');
 
   // After it, adopt's survey finds phases on, and the project's own gate passes.
@@ -261,7 +263,7 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
   assert.ok(testsRan(gate.stdout + gate.stderr) > 0, gate.stdout + gate.stderr);
   // …and it measures something: npm test runs keel's roadmap tests, not zero tests.
-  assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).scripts.test, 'node --test tests/*.test.js tests/roadmap.test.mjs');
+  assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).scripts.test, 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout tests/*.test.js tests/roadmap.test.mjs', '0001 adds keel\'s roadmap test, then 0004 the test ledger');
   const tests = runCmd('npm', ['test'], { cwd: dir, env: ENV });
   assert.equal(tests.status, 0, tests.stdout + tests.stderr);
   const said = tests.stdout + tests.stderr;
@@ -304,7 +306,7 @@ test('0001 run directly: applies() is idempotent, up() writes nothing', async t 
   const dir = await groove(t);
   const before = await treeHash(dir);
   const { applied, edits } = await collect(dir, await loadMigrations(), { done: [] });
-  assert.deepEqual(applied.map(m => m.id), ['0001-milestone-to-goal']);
+  assert.deepEqual(applied.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger']);
   assert.equal(edits.get('docs/milestones.json'), null);
   assert.equal(await treeHash(dir), before, 'collecting edits performs none');
   // Over its own edits, it no longer applies.
@@ -472,10 +474,10 @@ test('a project adopted on the current practice still gets 0001, and keel next s
   assert.equal(r.code, 0, r.err + r.out);
   const out = JSON.parse(r.out);
   assert.equal(out.changed, true);
-  assert.deepEqual(out.migrations.map(m => m.id), ['0001-milestone-to-goal']);
+  assert.deepEqual(out.migrations.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger']);
   const cfg = await json(join(dir, '.keel/keel.json'));
   assert.ok(cfg.practices.includes('phases'));
-  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal']);
+  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal', '0004-test-ledger']);
   const next = keel(['next'], dir);
   assert.equal(next.code, 0, next.err);
   assert.match(next.out, /^1\. Fair feedback \[planned\]/);
@@ -492,7 +494,7 @@ test('a project adopted on the current practice still gets 0001, and keel next s
 test('a recorded migration is not pending again, even if applies() would say yes', async t => {
   const dir = await groove(t);
   const all = await loadMigrations();
-  const { applied } = await collect(dir, all, { done: ['0001-milestone-to-goal'] });
+  const { applied } = await collect(dir, all, { done: ['0001-milestone-to-goal', '0004-test-ledger'] });
   assert.deepEqual(applied, []);
 });
 

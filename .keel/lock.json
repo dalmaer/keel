@@ -19,7 +19,7 @@
     },
     ".github/workflows/check.yml": {
       "practice": "ci",
-      "sha256": "2c09acc0d5e02f1bfbea6fe1a29707a27987ecbb5e28d8d86be1e86f2323c62d"
+      "sha256": "4d844c005c7a7784f49f0f674fe7326afddf878d0898184c8c0eaf858f41e9b1"
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",
@@ -31,7 +31,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "91d99b02eb332ae1ca275672f63530ca5825cdca7f8a671051f6478b0329b168"
+      "sha256": "03c8ed814229f39cc2d2e28f0e4dfa0b5840e725e5aed4d1bbc9f24a9382af3c"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -48,6 +48,10 @@
     "AGENTS.md#lessons": {
       "practice": "lessons",
       "sha256": "91f880dfda0f8203aace1f6df75547c100dadb59771e80fd52529dc776cb813f"
+    },
+    "AGENTS.md#night": {
+      "practice": "night",
+      "sha256": "e9561083068ffca7ad1f9548a1fe8e56238f9e451e80b9bb79e64ed2a622da81"
     },
     "AGENTS.md#phases": {
       "practice": "phases",
@@ -83,7 +87,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "585aad997411b8aa9cf2474b161c3b4bf901e807eb164009cfe03f1261304b0f"
+      "sha256": "a9203416b2f303f28e109161f8bf6077cc9ed2ea8eb462383a32bb196708ddd4"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -92,6 +96,10 @@
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",
       "sha256": "dc1a6db156a1759a0a6e37a96331bada458806545e7a520c3be4ce8f371f999e"
+    },
+    "scripts/keel/test-ledger.mjs": {
+      "practice": "night",
+      "sha256": "7da83d32dbf1ac9f85f7976ff4bcad400a98860205653465e204b7e55a592382"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",

@@ -21,6 +21,12 @@
 // `broken` and the whole run exits 2. It is never reported as a zero, because
 // a grader that reports zeros when it breaks is believed (lesson 6).
 //
+// The test measures (flaky_tests, slow_tests, and proofs_hold's ledger half)
+// read .keel/test-runs, the test ledger's history (scripts/keel/test-ledger.mjs):
+// the night downloads CI's keel-test-runs artifacts into it, and the gate run
+// here adds one more when the project's test script carries the reporter.
+// Fewer runs than the window is n/a, never a zero.
+//
 // Exit codes: 0 every measure within its bound (or n/a), 1 one outside, 2 one
 // broken. --report also writes <health>/<date>.md (.keel/keel.json `health`,
 // default docs/health) and tightens
@@ -39,6 +45,7 @@ import {
   LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main,
   shapeOf, readProjectRecords, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
 } from './lib.mjs';
+import { RUNS, readRuns, testsConfigOf, flaky, slower, machineClass, lastOutcome, aloneCommand } from './test-ledger.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 /** The default health directory; a project's own is .keel/keel.json `health` (healthDirOf). */
@@ -270,6 +277,21 @@ async function gateWorkflow(ctx) {
   return null;
 }
 
+/** The test ledger's history and settings, read once; a bad .keel/keel.json "tests" is a broken instrument. */
+const ledgerHistory = ctx => once(ctx, 'ledger', async () => ({ opts: testsConfigOf(ctx.config), ...await readRuns(ctx.root) }));
+const tooFew = (n, window, what = `recorded runs in ${RUNS}`) => `${what}: ${n}, fewer than the window of ${window}; n/a until there are ${window} (the gate's own runs and CI's keel-test-runs artifacts fill it), never a zero`;
+const named = t => `${t.file} "${t.name}"`;
+
+/** A built phase's cited tests with a name: [{ file, name }] from its Acceptance (`tests/<file>: "<name>"`). */
+export function citedNames(raw) {
+  const acceptance = /^## Acceptance[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(raw ?? '')?.[1] ?? '';
+  const out = [];
+  for (const m of acceptance.matchAll(/(?<![\w./-])(tests\/[\w./-]*\w):\s*"([^"]+)"/g)) {
+    if (!out.some(x => x.file === m[1] && x.name === m[2])) out.push({ file: m[1], name: m[2] });
+  }
+  return out;
+}
+
 // ---- conduct cost (after isocan's subagent-time.mjs) -----------------------
 
 const READING = /^(cat|sed|head|tail|ls|find|grep|rg|wc|diff|git (log|show|diff|status|ls-files))\b/;
@@ -407,6 +429,38 @@ export const MEASURES = [
     },
   },
   {
+    // After the gate, so its own run (recorded by the reporter) is in the history.
+    id: 'flaky_tests', what: 'tests that both passed and failed on one clean tree, in the newest window of recorded runs (the test ledger)', unit: 'tests', bound: 0, better: 'lower', ratchet: false,
+    async run(ctx) {
+      const { opts, runs, skipped } = await ledgerHistory(ctx);
+      if (runs.length < opts.window) return { na: tooFew(runs.length, opts.window) };
+      const recent = runs.slice(-opts.window);
+      const found = flaky(recent);
+      const trees = new Set(recent.filter(r => r.dirty === false && r.tree).map(r => r.tree)).size;
+      return {
+        value: found.length,
+        detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${opts.window} of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}`,
+        facts: { flaky: found.map(({ file, name, tree, passed, failed }) => ({ file, name, tree, passed, failed })), runs: runs.length, window: opts.window },
+      };
+    },
+  },
+  {
+    id: 'slow_tests', what: 'tests in the newest recorded run above factor × their median over the last window passing runs on the same machine class, and above the floor (the test ledger)', unit: 'tests', bound: 0, better: 'lower', ratchet: false,
+    async run(ctx) {
+      const { opts, runs } = await ledgerHistory(ctx);
+      if (runs.length < opts.window) return { na: tooFew(runs.length, opts.window) };
+      const newest = runs.at(-1), machine = machineClass(newest.machine);
+      const same = runs.filter(r => r !== newest && machineClass(r.machine) === machine).length;
+      if (same < opts.window) return { na: tooFew(same, opts.window, `earlier recorded runs on ${machine}`) };
+      const found = slower(runs, opts, newest);
+      return {
+        value: found.length,
+        detail: `${found.length ? list(found.map(t => `${named(t)} ${Math.round(t.ms)} ms against ${t.median} ms`), 3) : 'none'}; the newest run (${newest.date}) against ${opts.window} before it on ${machine}; ×${opts.factor} and +${opts.floorMs} ms`,
+        facts: { slower: found, factor: opts.factor, floorMs: opts.floorMs, window: opts.window, machine },
+      };
+    },
+  },
+  {
     id: 'roadmap_stale', what: 'the roadmap check fails', unit: '0/1', bound: 0, better: 'lower',
     async run(ctx) {
       const off = phasesOff(ctx);
@@ -483,32 +537,47 @@ export const MEASURES = [
     },
   },
   {
-    // Phase 32. The ledger half (a cited test passed in the last recorded run)
-    // waits for phase 33's test ledger; until then it is n/a, and says so.
-    id: 'proofs_hold', what: 'built or lived-in phases whose proof is lost: Acceptance cites a tests/ path that is gone, or evidence names a missing path', unit: 'phases', bound: 0, better: 'lower', ratchet: false,
+    // Phase 32; its ledger half is phase 33's: a cited `tests/<file>: "<name>"`
+    // that did not pass in the newest recorded run of that file is proof lost.
+    // The name is matched as the test's name or a part of it. No recorded run
+    // of a file is not a pass: it is said, and not counted.
+    id: 'proofs_hold', what: 'built or lived-in phases whose proof is lost: Acceptance cites a tests/ path that is gone or a named test that did not pass in the last recorded run, or evidence names a missing path', unit: 'phases', bound: 0, better: 'lower', ratchet: false,
     async run(ctx) {
       const off = phasesOff(ctx);
       if (off) return { na: off };
       const { parsePhase, DONE } = await roadmapModule(ctx);
       const found = [];
+      const { runs } = await readRuns(ctx.root);
+      const unrun = [];
       // Each file on its own, not the roadmap's collect: a missing evidence file is what this measure names, where collect would stop.
       for (const file of (await notes(ctx, 'docs/phases')) ?? []) {
         let p;
-        try { p = parsePhase(file, await read(join(ctx.root, 'docs', 'phases', file))); } catch { continue; } // the phase lint names it
+        const raw = await read(join(ctx.root, 'docs', 'phases', file));
+        try { p = parsePhase(file, raw); } catch { continue; } // the phase lint names it
         if (!DONE.includes(p.status)) continue;
         if (!Array.isArray(p.tests)) throw new Error('scripts/roadmap.mjs names no cited tests (it predates phase 32); keel update brings it');
         const missing = [];
         for (const t of p.tests) if (!await exists(join(ctx.root, t))) missing.push(t);
         for (const e of p.evidence) if (!await exists(join(ctx.root, 'docs', e))) missing.push(`docs/${e}`);
-        if (missing.length) found.push({ id: p.id, file, missing });
+        const failing = [];
+        for (const c of runs.length ? citedNames(raw) : []) {
+          if (missing.includes(c.file)) continue;
+          const last = lastOutcome(runs, c.file, c.name);
+          if (!last) { unrun.push(`${c.file}: "${c.name}"`); continue; }
+          if (!last.matched.length || last.matched.some(t => t.outcome !== 'pass')) failing.push(`${c.file}: "${c.name}"`);
+        }
+        if (missing.length || failing.length) found.push({ id: p.id, file, missing, ...(failing.length ? { failing } : {}) });
       }
-      const ledger = 'the ledger half (cited tests passed in the last recorded run) is n/a until phase 33\'s test ledger';
+      const ledger = !runs.length
+        ? `the ledger half is n/a: no recorded test run in ${RUNS}`
+        : `cited tests read against ${plural(runs.length, 'recorded run')}${unrun.length ? `; ${list(unrun, 3)} in no recorded run` : ''}`;
+      const lost = f => [f.missing.length ? `${f.missing.join(', ')} missing` : '', f.failing ? `${f.failing.join(', ')} did not pass in the last recorded run` : ''].filter(Boolean).join('; ');
       return {
         value: found.length,
         detail: found.length
-          ? `proof lost: ${list(found.map(f => `phase ${f.id} (${f.missing.join(', ')} missing)`), 3)}; ${ledger}`
+          ? `proof lost: ${list(found.map(f => `phase ${f.id} (${lost(f)})`), 3)}; ${ledger}`
           : `every built phase's cited tests and evidence paths exist; ${ledger}`,
-        facts: { found },
+        facts: { found, ...(unrun.length ? { unrun } : {}) },
       };
     },
   },
@@ -801,7 +870,7 @@ export function proposalText(r, config = {}) {
     case 'prs_stale': return `Merge or close PR #${f.stale[0].number} (open ${f.stale[0].age} days).${f.stale.length > 1 ? ` ${f.stale.length - 1} more after it.` : ''}`;
     case 'lessons_without_guard': return `Name the guard, or the phase that will build it, for lesson${f.ids.length === 1 ? '' : 's'} #${f.ids.join(', #')} in ${f.path ?? LESSONS}.`;
     case 'evidence_placeholders': return `Fill the evidence for phase${f.ids.length === 1 ? '' : 's'} ${f.ids.join(', ')} with what was actually checked, or step ${f.ids.length === 1 ? 'it' : 'them'} back to partial; a blank template proves nothing.`;
-    case 'proofs_hold': return `Phase ${f.found[0].id} has lost its proof (${f.found[0].missing.join(', ')}): re-point the reference if it moved, or step the phase back to partial with the reason. Never write evidence to make it hold.${f.found.length > 1 ? ` ${f.found.length - 1} more after it.` : ''}`;
+    case 'proofs_hold': return `Phase ${f.found[0].id} has lost its proof (${[...f.found[0].missing, ...(f.found[0].failing ?? []).map(x => `${x} did not pass`)].join(', ')}): make the test pass, re-point the reference if it moved, or step the phase back to partial with the reason. Never write evidence to make it hold.${f.found.length > 1 ? ` ${f.found.length - 1} more after it.` : ''}`;
     case 'lessons_unsent': return `Send them home: \`${SEND_LESSONS}\` (${f.ids.length} unsent in ${f.path}; \`--dry-run\` lists them first). Filing on keel's inbox is the owner's step.`;
     case 'drift': return `Settle the project's edits to ${list(f.paths, 3)}: send them home (\`keel lessons\`), or \`keel doctor --fix <path> restore|eject\`.`;
     case 'lint': return `Fix ${f.lint[0].rule} at ${f.lint[0].path} (\`keel doctor\` says how).${f.lint.length > 1 ? ` ${f.lint.length - 1} more after it.` : ''}`;
@@ -816,6 +885,14 @@ export function proposalText(r, config = {}) {
         : `The ${f.worst} queue holds ${n} PRs against ${b} (one per lane): merge or close the ${over} oldest (lesson 9).`;
     }
     case 'dependency_age': return `Update ${list(f.names, 4)}, or let Renovate's lanes take them.`;
+    case 'flaky_tests': {
+      const t = f.flaky[0];
+      return `Fix or file the flaky test ${named(t)}: it passed ${t.passed}, failed ${t.failed} on one clean tree (${String(t.tree).slice(0, 7)}). Run it alone: \`${aloneCommand(t)}\`. Never rerun until green.${f.flaky.length > 1 ? ` ${f.flaky.length - 1} more after it.` : ''}`;
+    }
+    case 'slow_tests': {
+      const t = f.slower[0];
+      return `Fix or file the slower test ${named(t)}: ${Math.round(t.ms)} ms against a median of ${t.median} ms over its last ${t.window} passing runs (${t.machine}). Run it alone: \`${aloneCommand(t)}\`.${f.slower.length > 1 ? ` ${f.slower.length - 1} more after it.` : ''}`;
+    }
     case 'conduct_cost': return `Brief builders to test the files they touched: they ran the whole check or suite ${f.wholeRuns} times (${f.wholeMinutes} min); the conductor runs it once (lesson 5).`;
     default: return `Move ${r.id} back within its bound (${r.value} against ${r.bound}).`;
   }

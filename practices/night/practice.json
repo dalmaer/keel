@@ -1,11 +1,13 @@
 {
   "name": "night",
   "summary": "The night shift: a nightly health page as one PR, its queue drained by machinery, all from scripts in the project's own repo; a red night is a failed workflow.",
-  "requires": ["base"],
+  "requires": ["base", "agents-md"],
   "files": [
     { "path": ".github/workflows/keel-night.yml", "from": ".github/workflows/keel-night.yml", "kind": "managed" },
     { "path": "scripts/keel/improve.mjs", "from": "scripts/keel/improve.mjs", "kind": "managed" },
     { "path": "scripts/keel/drain.mjs", "from": "scripts/keel/drain.mjs", "kind": "managed" },
-    { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" }
+    { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" },
+    { "path": "scripts/keel/test-ledger.mjs", "from": "scripts/keel/test-ledger.mjs", "kind": "managed" },
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "night" }
   ]
 }

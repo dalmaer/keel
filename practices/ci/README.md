@@ -7,6 +7,10 @@
 to `main` and every pull request, on the Node in `.nvmrc`. It has no install step, so it fits a project whose
 check needs no dependencies; a project that installs keeps its own workflow,
 and `keel adopt` leaves `ci` local there. A red check is a failed workflow, which GitHub emails about.
+After the check, red or green, it keeps `.keel/test-runs` (the night
+practice's test ledger) as a `keel-test-runs` artifact for 30 days, which
+the night reads to name a flaky or slower test; a project without the
+reporter has nothing to keep, and the step is a no-op.
 
 **Its files.** `.github/workflows/check.yml` (managed).
 

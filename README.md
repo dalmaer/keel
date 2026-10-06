@@ -56,6 +56,8 @@ A project that uses keel carries `.keel/keel.json`, which records:
 - the practices it has switched on;
 - where its nightly health page goes (`health`, default `docs/health`;
   `keel doctor` flags a directory the project git-ignores);
+- how the test ledger judges a slower test (`tests`: `window` 20, `factor`
+  2, `floorMs` 200);
 - anything it does its own way, as a *local variant* with a reason.
 
 **The practices:**
@@ -68,8 +70,8 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `lessons` | `docs/lessons.md`: failure *shapes*, each with the guard that now catches it | Paying for the same bug twice |
 | `conduct` | The conductor skill: brief a builder, verify the named proof yourself, record, commit | Trusting a subagent's "tests pass" |
 | `agents-md` | `AGENTS.md` sections for each practice; `CLAUDE.md` as a one-line pointer | Instructions copied per harness, ageing |
-| `ci` | A `check` workflow running the project's own gate | A green laptop that isn't the build |
-| `night` | `keel-night.yml` measures the project nightly, opens at most one PR, and goes red only when something is broken | Guards that fire into an empty room |
+| `ci` | A `check` workflow running the project's own gate, keeping each run's test ledger as an artifact | A green laptop that isn't the build |
+| `night` | `keel-night.yml` measures the project nightly, opens at most one PR, and goes red only when something is broken; a test ledger that remembers every `node --test` run and ends it naming any flaky or slower test | Guards that fire into an empty room; a flaky test rerun until green |
 | `claude` *(optional)* | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |

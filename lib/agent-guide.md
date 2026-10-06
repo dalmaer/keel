@@ -454,10 +454,19 @@ first, a model's opinion never: every number comes from a command.
   guard, e.g. `Guard / status`, and unnumbered rows count by position), `evidence_placeholders` (a built phase
   whose evidence is the blank template), `proofs_hold` (proof lost: a built
   phase's Acceptance cites a `tests/` path that is gone, or its `evidence`
-  names a missing file; no ratchet; its ledger half, cited tests passing in
-  the last recorded run, is n/a until phase 33; the proposal is re-point or
-  step back with a reason, never writing evidence), `drift` and `lint` (doctor),
+  names a missing file, or a cited `tests/<file>: "<name>"` (a test whose
+  name is or contains it) did not pass in the newest recorded run of that
+  file; no ratchet; the proposal is make it pass, re-point or step back with
+  a reason, never writing evidence), `drift` and `lint` (doctor),
   `inbox_waiting` (keel only).
+- The test ledger (`.keel/test-runs`, below): `flaky_tests` (a test that
+  passed and failed on one clean tree, in the newest `window` runs) and
+  `slow_tests` (in the newest run, above `factor` × its median over its last
+  `window` passing runs on the same machine class, and more than `floorMs`
+  above it). Bound 0, no ratchet; n/a with fewer than `window` runs, never 0.
+  `"tests": {"window": 20, "factor": 2, "floorMs": 200}` in `.keel/keel.json`
+  overrides each; a bad value is `broken`. The proposal names the test and
+  the command that runs it alone.
 - The projects shape (`"phases": {"shape": "projects"}`: phases in
   `docs/projects/<p>/phases.md` with `**Status:**` lines, the project's
   status and `issue:` in its primary doc's front matter — journey, design,
@@ -505,7 +514,7 @@ its bound, and the smallest change that would move it. Nothing else is
 written: no issue, no PR, no phase. A person decides.
 
 The same measures ship into each project as the `night` practice's
-`scripts/keel/improve.mjs` (with `drain.mjs` and `lib.mjs`): `node
+`scripts/keel/improve.mjs` (with `drain.mjs`, `lib.mjs` and `test-ledger.mjs`): `node
 scripts/keel/improve.mjs [--report] [--json]` runs with no keel at all. What
 a project cannot read alone is never a zero: `drift` there is by
 `.keel/lock.json` only (bytes keel did not write; `behind` needs keel),
@@ -513,6 +522,22 @@ a project cannot read alone is never a zero: `drift` there is by
 claude-md-pointer, second-copy, symlink-replaced), and `inbox_waiting` is
 `n/a` (keel-side only). `keel improve` is the same module with keel's
 doctor and inbox, so it reads the full set.
+
+**The test ledger** (night practice, `scripts/keel/test-ledger.mjs`) is a
+node test reporter used beside the usual one: `node --test
+--test-reporter=spec --test-reporter-destination=stdout
+--test-reporter=./scripts/keel/test-ledger.mjs
+--test-reporter-destination=stdout …`. It never changes the run's exit code
+or output; it writes `.keel/test-runs/<time>-<pid>.json` (commit, tree, dirty,
+machine, node, each top-level test's file, name, outcome, ms; the newest 50
+kept; the directory ignores itself) and ends the run with a hygiene block:
+one line when clean, else each flaky or slower test with its history and
+`node --test --test-name-pattern='^<name>$' <file>`. A hygiene note is work:
+fix it or file it, never rerun until green. `keel init` wires it into a
+node `npm test`; migration 0004 adds it to an adopted project's `node --test`
+script (any other runner is left alone). check.yml keeps each run's ledger
+as a `keel-test-runs` artifact; the night reads the newest of them on the
+default branch before improve, and keeps its own after.
 
 `--selftest` runs every measure on keel's own unhealthy fixture (gh, git and
 npm stubbed; a projects-shaped part under its docs/projects) and exits 1

@@ -22,6 +22,9 @@ Each rule below exists because of a specific failure, recorded in
 <!-- keel:begin conduct -->
 <!-- keel:end conduct -->
 
+<!-- keel:begin night -->
+<!-- keel:end night -->
+
 <!-- keel:begin lessons -->
 <!-- keel:end lessons -->
 

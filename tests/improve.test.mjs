@@ -137,13 +137,15 @@ test('--report writes that day\'s page and the bounds, nothing else; the one pro
   const env = { ...ENV, KEEL_GH: await ghStub(t, { runs: '[{"conclusion":"failure"},{"conclusion":"success"}]', prs }) };
   await mkdir(join(dir, 'docs', 'health'));
   await writeFile(join(dir, 'docs', 'health', '2020-01-01.md'), 'an older page\n');
-  const before = await snapshot(dir);
+  // The gate's own run lands in .keel/test-runs (the test ledger's, git-ignored by itself): not improve's writing.
+  const ours = new Set(['.git', 'test-runs']);
+  const before = await snapshot(dir, ours);
   const r1 = keel(['improve', '--report', '--json'], dir, env);
   assert.equal(r1.code, 1, r1.out);
   const d1 = r1.json();
   // machine_prs is keel-night/ 3 against 1 (margin 2); ci 1 against 0 and phase 0 without an issue (margin 1).
   assert.deepEqual(d1.proposal, { id: 'machine_prs', state: 'outside', text: 'Drain the keel-night/ queue to its newest PR: close the 2 older ones (lesson 9).' });
-  const after = await snapshot(dir);
+  const after = await snapshot(dir, ours);
   const changed = Object.keys(after).filter(k => after[k] !== before[k]).sort();
   assert.deepEqual(changed, ['.keel/bounds.json', d1.report].sort());
   assert.equal(after['docs/health/2020-01-01.md'], 'an older page\n');
@@ -152,6 +154,8 @@ test('--report writes that day\'s page and the bounds, nothing else; the one pro
   assert.match(pageText, /\| `machine_prs` — .* \| 3 \| ≤ 1 \| outside \| keel\/ 0, keel-night\/ 3, keel-loop\/ 0, renovate\/ 2 \|/);
   assert.match(pageText, /## Proposal\n\n\*\*`machine_prs`\*\* \(outside\) — Drain the keel-night\/ queue/);
   assert.equal(pageText.match(/^## Proposal$/gm).length, 1);
+  // The same history as the first reading: the gate's run is one more record each time (the test ledger).
+  await rm(join(dir, '.keel', 'test-runs'), { recursive: true, force: true });
   const r2 = keel(['improve', '--report', '--json'], dir, env);
   assert.deepEqual(r2.json().proposal, d1.proposal);
   assert.equal(await readFile(join(dir, d1.report), 'utf8'), pageText, 'the same day overwrites its own page, identically');
@@ -221,7 +225,8 @@ test('moved away from keel: a fresh project runs its own night steps, improve --
   const usage = run(process.execPath, ['scripts/keel/drain.mjs'], { cwd: dir, env });
   assert.equal(usage.status, 2);
   // The tree is as the project left it: the scripts wrote only what they say.
-  assert.deepEqual(await snapshot(dir), await snapshot(made));
+  const ours = new Set(['.git', 'test-runs']); // the gate's recorded runs (the test ledger) differ by time
+  assert.deepEqual(await snapshot(dir, ours), await snapshot(made, ours));
 });
 
 test('in the project, drift and lint read its own files; from keel, the full set; a measure that needs keel is never a zero', async t => {
@@ -256,7 +261,7 @@ test('in the project, drift and lint read its own files; from keel, the full set
 // lessons-table-split, health, the gate's env and the single measures are
 // tests/improve-measures.test.mjs, so the suite runs them side by side.
 
-test('proofs_hold: a built phase whose cited test or evidence is gone is outside; it changes no file, and the ledger half says n/a', async t => {
+test('proofs_hold: a built phase whose cited test or evidence is gone is outside; it changes no file, and the ledger half reads the gate\'s recorded run', async t => {
   const dir = await project(t);
   const zero = await readFile(join(dir, 'docs', 'phases', '00-first-thing-that-runs.md'), 'utf8');
   const phase = (evidence, cite) => zero.replace(/^---\n[\s\S]*?\n---\n/, ['---', 'status: built', 'since: 2026-10-01', 'goal: G0', 'depends: [0]', 'note: "Acme orders work."', `evidence: ${JSON.stringify(evidence)}`, '---', ''].join('\n'))
@@ -272,22 +277,25 @@ test('proofs_hold: a built phase whose cited test or evidence is gone is outside
     const m = byId(read(), 'proofs_hold');
     assert.equal(m.state, 'ok', m.detail);
     assert.equal(m.value, 0);
-    assert.match(m.detail, /ledger half .* is n\/a until phase 33/);
+    // Each read ran the gate, and the gate's npm test recorded itself (the test ledger): "orders" passed there.
+    assert.match(m.detail, /cited tests read against \d+ recorded runs?$/);
   }
   // The test deleted, and the evidence named a path that is not there.
   await rm(join(dir, 'tests', 'acme-orders.test.mjs'));
   await writeFile(join(dir, 'docs', 'phases', '01-acme-orders.md'), phase(['evidence/2026-10-01-acme-orders.md', 'evidence/2026-10-02-gone.md'], 'tests/acme-orders.test.mjs: "orders"'));
-  const before = await snapshot(dir);
+  // The gate's own runs land in .keel/test-runs (ignored by its own .gitignore): the ledger's, not this measure's.
+  const files = () => snapshot(dir, new Set(['.git', 'test-runs']));
+  const before = await files();
   for (const read of [own, home]) {
     const data = read();
     const m = byId(data, 'proofs_hold');
     assert.equal(m.state, 'outside', m.detail);
     assert.equal(m.value, 1);
     assert.deepEqual(m.facts.found, [{ id: 1, file: '01-acme-orders.md', missing: ['tests/acme-orders.test.mjs', 'docs/evidence/2026-10-02-gone.md'] }]);
-    assert.match(m.detail, /^proof lost: phase 1 \(tests\/acme-orders\.test\.mjs, docs\/evidence\/2026-10-02-gone\.md missing\); the ledger half .* n\/a/);
+    assert.match(m.detail, /^proof lost: phase 1 \(tests\/acme-orders\.test\.mjs, docs\/evidence\/2026-10-02-gone\.md missing\); cited tests read against/);
     assert.match(proposalText(m, {}), /re-point the reference if it moved, or step the phase back to partial with the reason\. Never write evidence/);
   }
-  assert.deepEqual(await snapshot(dir), before, 'proofs_hold changes no file');
+  assert.deepEqual(await files(), before, 'proofs_hold changes no file');
   // Not built: not owed yet.
   await writeFile(join(dir, 'docs', 'phases', '01-acme-orders.md'), phase([], 'tests/acme-orders.test.mjs').replace('status: built', 'status: partial').replace('- [x]', '- [ ]'));
   assert.equal(byId(own(), 'proofs_hold').value, 0);

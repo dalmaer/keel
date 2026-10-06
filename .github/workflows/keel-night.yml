@@ -1,6 +1,7 @@
 # The night shift (keel practice `night`; managed: keel render rewrites it).
 #
-# Each night: measure the practice (scripts/keel/improve.mjs --report), put
+# Each night: gather the test ledger's history (CI's keel-test-runs
+# artifacts), measure the practice (scripts/keel/improve.mjs --report), put
 # the dated health page on a branch of its own, open one pull request, and
 # drain the queue (scripts/keel/drain.mjs) so it never holds more than one
 # open `keel-night/` PR. Both scripts are managed files of this practice, in
@@ -131,6 +132,32 @@ jobs:
         if: steps.self.outputs.self == 'true'
         run: node bin/keel.mjs learn || echo "::warning::keel learn did not finish; see its output above."
 
+      # The test ledger's history (scripts/keel/test-ledger.mjs): the newest
+      # keel-test-runs artifacts on the default branch (check.yml's, and past
+      # nights'), read-only, by name, into .keel/test-runs. The gate improve
+      # runs adds tonight's run to them, so flaky_tests and slow_tests read
+      # more than one night; fewer runs than the window is n/a, never a zero.
+      # Nothing found, or no listing, is a warning, not red.
+      - name: Gather the test ledger
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          mkdir -p .keel/test-runs
+          if ! gh api "repos/$REPO/actions/artifacts?name=keel-test-runs&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:30][] | .id" > "$RUNNER_TEMP/ledger.txt"; then
+            echo "::warning::The test ledger's artifacts could not be listed; tonight reads its own run alone."
+            exit 0
+          fi
+          n=0
+          while read -r id; do
+            [ -n "$id" ] || continue
+            if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/ledger-$id.zip"; then
+              unzip -o -q "$RUNNER_TEMP/ledger-$id.zip" -d .keel/test-runs && n=$((n + 1))
+            fi
+          done < "$RUNNER_TEMP/ledger.txt"
+          echo "test ledger: $n artifacts read; $(find .keel/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
+
       # Before the drain, so machine_prs counts last night's PR.
       - name: Measure
         id: improve
@@ -155,6 +182,18 @@ jobs:
               `The page is \`${r.report ?? "docs/health/"}\`. This PR holds data only. scripts/keel/drain.mjs merges it tonight if the gate passed on this tree; otherwise the next night merges it with the series, or supersedes it if it no longer merges.`,
             ].join("\n"));
           ' "$RUNNER_TEMP/improve.json" "$GITHUB_OUTPUT" "$RUNNER_TEMP/body.md"
+
+      # Tonight's history, gate run included, for tomorrow night: the ledger
+      # persists between nights only as this artifact (it is never committed).
+      - name: Keep the test ledger
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-test-runs
+          path: .keel/test-runs/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
 
       # Porcelain, never `git diff --quiet`: a file created for the first time
       # is not in the index, so diff reads it as no change (ledger's audit

@@ -13,7 +13,8 @@ is a managed file of this practice; it never fetches keel and needs no
 secret (design §6, "Projects run on their own"). `keel-night.yml` runs
 every night at 07:23 UTC (and by hand):
 
-1. `node scripts/keel/improve.mjs --report` measures the practice and writes
+1. The test ledger's history is gathered (CI's `keel-test-runs` artifacts,
+   below); then `node scripts/keel/improve.mjs --report` measures the practice and writes
    `<health>/<date>.md` and `.keel/bounds.json`. `<health>` is `"health"` in
    `.keel/keel.json` (default `docs/health`), read at run time; a directory
    the project git-ignores makes the run red, since its page would never be
@@ -44,11 +45,46 @@ symlink-replaced, health-config, health-ignored), and the inbox is keel's.
 
 **Proof lost.** `proofs_hold` (bound 0, no ratchet) counts the built or
 lived-in phases whose Acceptance cites a `tests/` path that no longer
-exists, or whose `evidence` names a file that is gone; the page names each
-phase and what is missing. Its ledger half (a cited test passed in the last
-recorded run) is n/a until phase 33's test ledger, and says so. The night
-never steps a phase back or writes evidence; its proposal is to re-point the
-reference or step the phase back with a reason, which a person does.
+exists, or a named test (`tests/<file>: "<name>"`) that did not pass in the
+newest recorded run of that file (the test ledger, below), or whose
+`evidence` names a file that is gone; the page names each phase and what is
+lost. A cited test in no recorded run is said, not counted. The night never
+steps a phase back or writes evidence; its proposal is to make the test
+pass, re-point the reference, or step the phase back with a reason, which a
+person does.
+
+**Every test run is remembered** (phase 33). `scripts/keel/test-ledger.mjs`
+is a node test reporter, run beside the usual one:
+
+    node --test --test-reporter=spec --test-reporter-destination=stdout \
+      --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout …
+
+It changes nothing about the run's exit code or output. It records each
+top-level test (file, name, outcome, ms) with the commit, the tree, whether
+the tree was dirty, the machine and node, in `.keel/test-runs/` (the newest
+50 runs; the directory holds a `.gitignore` of `*`, so no project's
+`.gitignore` changes), and ends the run with a hygiene block: one line when
+clean, else each test that is
+
+- **flaky** — passed and failed on one clean tree (a fact, no threshold), or
+- **slower** — above twice its median over its last 20 passing runs on the
+  same machine class, and more than 200 ms above it,
+
+with its history in one line and the command to run it alone. `"tests":
+{"window", "factor", "floorMs"}` in `.keel/keel.json` overrides 20, 2 and
+200. The AGENTS block says what to do with one: **a hygiene note is work** —
+fix it or file it, never rerun until green.
+
+`keel init` wires the reporter into a node project's `npm test`; migration
+0004 adds it to an adopted project's `scripts.test` when it is node's runner
+(`node --test`, or `node --import … --test`) and leaves every other runner
+alone (vitest and JUnit output are deliberately later). The ci practice's
+`check.yml` keeps each run's `.keel/test-runs` as a `keel-test-runs`
+artifact, red or green. The night reads the newest 30 of them on the default
+branch (gh, read-only, by name) into `.keel/test-runs` before improve, its
+gate run adds one more, and it keeps the result as its own artifact.
+`flaky_tests` and `slow_tests` (bound 0, no ratchet) read that history; with
+fewer runs than the window they are n/a, never zero.
 
 Practice updates go out from keel: `keel fleet update` opens the
 `keel/update-v<version>` PR in each project that is behind, with the owner's
@@ -72,7 +108,8 @@ pushes the branch and ends green with a notice). Squash merges allowed, for
 the drain.
 
 **Its files.** `.github/workflows/keel-night.yml`, `scripts/keel/improve.mjs`,
-`scripts/keel/drain.mjs`, `scripts/keel/lib.mjs` (managed). They need the
+`scripts/keel/drain.mjs`, `scripts/keel/lib.mjs`, `scripts/keel/test-ledger.mjs`
+(managed), and the `night` block of `AGENTS.md` (so it needs agents-md). They need the
 phases practice's `scripts/roadmap.mjs` for the phase measures; with phases
 off or local those measures are n/a.
 

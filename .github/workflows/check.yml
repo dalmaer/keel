@@ -31,6 +31,19 @@ jobs:
       # phases; a view that can go stale is how status came to be written in
       # two places that disagreed.
       - run: npm run check
+      # The test ledger's record of this run (scripts/keel/test-ledger.mjs, the
+      # night practice), kept as an artifact even when the check failed: the
+      # night reads the newest ones on the default branch to say which test is
+      # flaky or slower. A project without the reporter has nothing to keep.
+      - name: Keep the test ledger
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-test-runs
+          path: .keel/test-runs/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Reconcile records (optional)
         env:
           GH_TOKEN: ${{ github.token }}
