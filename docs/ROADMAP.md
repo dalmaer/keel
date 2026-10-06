@@ -5,7 +5,7 @@ The mothership: start projects the isocan/ledger way, keep them current, and car
 
 **0 of 30 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
-**Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
+**Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 

@@ -1,3 +1,5 @@
 node_modules/
 .DS_Store
 *.log
+# Claude Code worktrees: a whole checkout each, never part of this one
+.claude/worktrees/

@@ -42,7 +42,7 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 
 ## Next action
 
-Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`); then dispatch one deliberately red night.
+Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
 ## Trajectory
 
