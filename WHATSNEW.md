@@ -5,6 +5,22 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.7.0 — practice 0.7.0 (2026-10-05)
+
+- **Projects-shaped phases are measured.** If your phases live in `docs/projects/<project>/phases.md`, the night now reads them: `phases_without_issue` and `phases_stuck` have values instead of n/a.
+- **Eight new nightly measures**, each n/a (with the reason) when your repo has nothing for it to read:
+  - `records_disagree`, `status_unknown`;
+  - `changelog_gaps`, `research_unindexed`, `verify_owed`;
+  - and, with `repo` set, `issues_unnamed`, `issues_done_open`, `prs_stale`.
+- **`gateWorkflow` counts on the night too.** If `.keel/keel.json` names your gate workflow, `ci_red_streak` reads it.
+- **Loop findings can name a project** (`project:`, `propose --project`), and in a projects-shaped repo `docs/LOOP.md` groups accepted findings by project. Two new options, both off unless you set them:
+  - `loop.intro` sets your page's own opening;
+  - `loop.hedge` rejects a hedged read;
+  - `loop.prove` lets `pull` ask a model to prove findings when `ANTHROPIC_API_KEY` is set.
+- **Renovate is shaped by your project.** Your own workspace packages are never updated as dependencies (one shared scope becomes `@scope/**`), the timezone comes from `.keel/keel.json` `timezone`, and Node moves in one lane together with a Dockerfile's `FROM node:`. With no workspaces and no timezone, the file is unchanged.
+- **The lessons check names every way a table splits**: a blank line, prose between rows, a second header, or a row stranded after the table. `keel doctor` and the night agree.
+- **`keel adopt` reads a claude workflow by its triggers.** A scheduled job that runs claude-code-action no longer counts as an `@claude` responder.
+
 ## v0.6.7 — practice 0.6.7 (2026-10-05)
 
 - **GitHub Actions v7.** keel's workflows move to `actions/checkout@v7` and `actions/setup-node@v7`.
