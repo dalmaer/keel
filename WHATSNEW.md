@@ -5,6 +5,18 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.0 — practice 0.8.0 (2026-10-06)
+
+This update rewrites some of your own files, so its PR is marked a one-way door: read it before merging.
+
+- **Your test runs are remembered.** Migration 0004 adds keel's test-ledger reporter to your `node --test` script. Every run ends with one hygiene line; a test that both passed and failed on the same clean tree is named flaky, and one more than twice its usual time is named slower, each with the command to run it alone. A run where no test executed now fails ("no tests ran"); set `"tests": {"allowEmpty": true}` if that's intended.
+- **The night reads more.** New measures: `flaky_tests`, `slow_tests`, `proofs_hold` (a built phase whose cited tests or evidence files are gone), `escapes` (defects found after a phase was built: `fix:` commits, your own lessons, and `— Escape:` lines in a phase's Trajectory), and `build_time` when you name a build.
+- **Specs say how they'll be proven.** The roadmap check refuses a phase still holding the template's text. New phases (`spec: 2`) name the check behind each acceptance box and their Real surfaces; older phases get a note, never a failure.
+- **Lessons for your stack.** You get `docs/keel-lessons.md`: keel's lessons that apply to your stack (declare `"stack"` in `.keel/keel.json`; `keel doctor` checks it against your files). keel's catalogue now groups its lessons into ten families (`docs/patterns.md` in keel).
+- **Every PR keel opens** (updates, the night's data PR) has a Summary, Evidence and Merge danger section.
+- **New checks:** with `ci`, every workflow `run:` block passes `bash -n` and every inline `node -e` passes `node --check`; with `phases`, a test proves each generated file is rewritten whole by its generator.
+- **Optional, off unless you switch it on:** `climb` (an agent improves one number overnight: test time, flaky tests, build time, your benchmark, lessons, Loop findings; never merges) and `tend` (a weekly pass that keeps your records true). Each spends model tokens within a budget you set, and needs `CLAUDE_CODE_OAUTH_TOKEN`.
+
 ## v0.7.0 — practice 0.7.0 (2026-10-05)
 
 - **Projects-shaped phases are measured.** If your phases live in `docs/projects/<project>/phases.md`, the night now reads them: `phases_without_issue` and `phases_stuck` have values instead of n/a.
