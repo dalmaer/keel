@@ -12,7 +12,16 @@ practice's test ledger) as a `keel-test-runs` artifact for 30 days, which
 the night reads to name a flaky or slower test; a project without the
 reporter has nothing to keep, and the step is a no-op.
 
-**Its files.** `.github/workflows/check.yml` (managed).
+**What runs is what was checked** (keel's lesson 30, standardised 6 Oct
+2026). `tests/keel-workflows.test.mjs`, in the project's own gate, runs
+`bash -n` on every `run:` block of `.github/workflows/*.yml` and `node
+--check` on every inline `node -e '…'` body, and names the file, step and
+line of each failure, so a quote or a missing `then` fails locally, not on
+GitHub. The reader is `scripts/keel/workflows.mjs`, which keel's own tests
+use too. A project whose CI stays local (`ci` not on) does not get it.
+
+**Its files.** `.github/workflows/check.yml`, `scripts/keel/workflows.mjs`
+and `tests/keel-workflows.test.mjs` (managed).
 
 **Lineage.** Keel phase 0, from ledger's and isocan's check workflows.
 

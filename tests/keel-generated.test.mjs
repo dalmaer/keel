@@ -1,0 +1,42 @@
+// keel's generated-file check (keel practice `phases`; managed: keel render
+// rewrites it). Each file this project's practices declare generated is
+// rewritten whole by its generator: a line appended to it does not survive
+// (keel's lesson 52). The list and the probe are scripts/keel/generated.mjs.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { GENERATORS, generatedFiles, survivors, projectConfig } from '../scripts/keel/generated.mjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+test('each generated file is rewritten whole by its generator: a line appended to it does not survive', async () => {
+  const list = generatedFiles(await projectConfig(ROOT));
+  assert.ok(list.some(g => g.path === 'docs/ROADMAP.md'), 'the phases practice declares docs/ROADMAP.md generated');
+  assert.deepEqual(await survivors(ROOT, list), []);
+});
+
+test('the check can fail: a generator that appends instead of rewriting is named; one that rewrites is not', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-generated-acme-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, 'docs'), { recursive: true });
+  await writeFile(join(dir, 'docs', 'ACME.md'), '# Acme\n');
+  await writeFile(join(dir, 'appends.mjs'), "import { appendFileSync } from 'node:fs';\nappendFileSync('docs/ACME.md', '- one more anvil\\n');\n");
+  await writeFile(join(dir, 'rewrites.mjs'), "import { writeFileSync } from 'node:fs';\nwriteFileSync('docs/ACME.md', '# Acme\\n');\n");
+  const appends = await survivors(dir, [{ path: 'docs/ACME.md', args: ['appends.mjs'] }]);
+  assert.equal(appends.length, 1);
+  assert.match(appends[0], /^docs\/ACME\.md: a line appended to it survived `node appends\.mjs`/);
+  assert.deepEqual(await survivors(dir, [{ path: 'docs/ACME.md', args: ['rewrites.mjs'] }]), []);
+  const broken = await survivors(dir, [{ path: 'docs/ACME.md', args: ['missing.mjs'] }]);
+  assert.match(broken[0] ?? '', /its generator `node missing\.mjs` failed/);
+});
+
+test('the list: each practice\'s files only when it is on; keel\'s own files only on keel', () => {
+  const paths = config => generatedFiles(config).map(g => g.path);
+  assert.deepEqual(paths({ practices: ['phases'] }), ['docs/ROADMAP.md']);
+  assert.deepEqual(paths({ practices: ['phases', 'loop', 'lessons'] }), ['docs/ROADMAP.md', 'docs/LOOP.md']);
+  assert.deepEqual(paths({ practices: ['phases', 'lessons'], keel: 'self' }), ['docs/ROADMAP.md', 'docs/keel-lessons.md', 'docs/patterns.md', 'docs/INBOX.md']);
+  assert.ok(GENERATORS.every(g => Object.isFrozen(g) && g.path && g.args.length));
+});

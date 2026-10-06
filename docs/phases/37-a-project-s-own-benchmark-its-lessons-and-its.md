@@ -23,7 +23,7 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
   The protocol as for test-time; the guard adds the project's own perf
   check, if it has one (ledger's `perf --check`), passing.
 - **`lessons`**: phase 31's distill, run in the project on its own table:
-  family, reword and promote proposals in the PR, never applied to the table
+  family, reword and standardise proposals in the PR, never applied to the table
   until the owner accepts them; lessons that belong home are sent with
   `keel lessons`, by the owner.
 - **`loop`**: the loop practice's pull, then the agent's `propose` for each

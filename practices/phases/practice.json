@@ -5,6 +5,8 @@
   "files": [
     { "path": "scripts/roadmap.mjs", "from": "scripts/roadmap.mjs", "kind": "managed" },
     { "path": "tests/roadmap.test.mjs", "from": "tests/roadmap.test.mjs", "kind": "managed" },
+    { "path": "scripts/keel/generated.mjs", "from": "scripts/keel/generated.mjs", "kind": "managed" },
+    { "path": "tests/keel-generated.test.mjs", "from": "tests/keel-generated.test.mjs", "kind": "managed" },
     { "path": "docs/phases/README.md", "from": "docs/phases/README.md", "kind": "managed" },
     { "path": "docs/templates/phase.md", "from": "docs/templates/phase.md", "kind": "managed" },
     { "path": "docs/goals.json", "from": "docs/goals.json", "kind": "seeded" },

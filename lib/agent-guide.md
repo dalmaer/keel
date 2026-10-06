@@ -436,7 +436,7 @@ keel learn distill                 # the worksheet: rows, families, open proposa
 keel learn distill propose --kind family --name "…" --rule "…" --guard "…" --rows 39,40 --read "…"
 keel learn distill propose --kind reword --row N --shape|--cost|--guard "…" --read "…"
 keel learn distill propose --kind tag --row N --where "vercel,gcp"|universal --evidence "<where each happened>" --read "…"
-keel learn distill propose --kind promote --family "<name>" --check "<what it checks>" --practice <name> [--migration] --read "…"
+keel learn distill propose --kind standardise --family "<name>" --check "<what it checks>" --practice <name> [--migration] --read "…"
 ```
 
 - Runs on keel only (`"keel": "self"`); elsewhere exit 2.
@@ -474,7 +474,7 @@ keel learn distill propose --kind promote --family "<name>" --check "<what it ch
   only those words reach `docs/lessons.md`, provenance the project.
   `render --check` compares the counts INBOX.md recorded.
 - **Distill** (phase 31) groups the catalogue into families in
-  `docs/patterns.md`, rewords and tags rows, and promotes a family's guard.
+  `docs/patterns.md`, rewords and tags rows, and standardises a family's guard.
   No model, no `gh`, never the private inbox; run it when the owner asks,
   never from the night. A proposal is a file (`kind: distill`, `outcome` its
   kind, `status: proposed`) citing rows by number: none, an unknown row, tag,
@@ -483,7 +483,7 @@ keel learn distill propose --kind promote --family "<name>" --check "<what it ch
   `decide` takes them, with no `gh`: a family regenerates `docs/patterns.md`;
   a reword replaces the cell and appends the old words (and a shape's old
   fingerprint) to `docs/lessons-history.md`; a tag fills `Where`
-  (`universal`: empty, deliberately); a promote prints the checklist (a stub
+  (`universal`: empty, deliberately); a standardise prints the checklist (a stub
   only with `--migration`). A row changed since the proposal read it is
   refused. A changed catalogue re-renders the practices; exit 1 if that fails.
 
@@ -586,8 +586,10 @@ doctor and inbox, so it reads the full set.
 node test reporter used beside the usual one: `node --test
 --test-reporter=spec --test-reporter-destination=stdout
 --test-reporter=./scripts/keel/test-ledger.mjs
---test-reporter-destination=stdout …`. It never changes the run's exit code
-or output; it writes `.keel/test-runs/<time>-<pid>.json` (commit, tree, dirty,
+--test-reporter-destination=stdout …`. It never changes the run's output,
+and changes its exit code once: a run that executed no test (a file with
+none is the file, not a test) exits 1, "no tests ran", unless
+`"tests": {"allowEmpty": true}` (phase 31, the zero-tests gate). It writes `.keel/test-runs/<time>-<pid>.json` (commit, tree, dirty,
 machine, node, each top-level test's file, name, outcome, ms; the newest 50
 kept; the directory ignores itself) and ends the run with a hygiene block:
 one line when clean, else each flaky or slower test with its history and
@@ -707,7 +709,7 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
   lessons and loop refuse any other path, a changed table row, and a finding
   decided tonight. Exit 1 names the problem.
 - `distill [--json]` — a lessons night's worksheet over the project's own
-  table; `distill propose --kind family|reword|promote … --read "…"` writes
+  table; `distill propose --kind family|reword|standardise … --read "…"` writes
   one proposal under `.keel/climb/lessons/` and commits it. Never the table.
 - `loop-pull` — a loop night's pull (`scripts/loop.mjs pull --no-prove`),
   committed; Loop unreachable is a notice, not red. The agent then runs

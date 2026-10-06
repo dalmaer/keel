@@ -16,7 +16,7 @@
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f]
 //   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
-//   node scripts/keel/climb.mjs distill [propose --kind family|reword|promote … --read "…"]   (lessons)
+//   node scripts/keel/climb.mjs distill [propose --kind family|reword|standardise … --read "…"]   (lessons)
 //   node scripts/keel/climb.mjs loop-pull                   Loop's pull for a loop night (loop)
 //   node scripts/keel/climb.mjs tend-pick|tend-input [--record]|tend-note|tend-report   (scripts/keel/tend.mjs)
 //
@@ -921,18 +921,18 @@ export function lessonsText(w) {
     '## Open proposals', '', ...(w.open.length ? w.open.map(o => `- ${o.file} (${o.kind})${o.note ? `: ${o.note}` : ''}`) : ['None.']), '',
     '## Rows', '',
     ...w.rows.flatMap(r => [`### ${r.n}${w.since.rows.includes(r.n) ? ' (new since the last pass)' : ''}`, `family: ${r.family ?? '—'}; provenance: ${r.provenance || '—'}`, `shape: ${r.shape}`, `cost: ${r.cost}`, `guard: ${r.guard}`, '']),
-    'Propose with node scripts/keel/climb.mjs distill propose --kind family|reword|promote … --read "<a path or sha you checked>". The owner decides; nothing here changes the table.',
+    'Propose with node scripts/keel/climb.mjs distill propose --kind family|reword|standardise … --read "<a path or sha you checked>". The owner decides; nothing here changes the table.',
   ].join('\n');
 }
 
 /**
  * One distill proposal, as a file under .keel/climb/lessons/: family (--name
  * --rule --guard --rows), reword (--row and one of --shape|--cost|--guard) or
- * promote (--family --check). On a lessons night the script commits it, one
+ * standardise (--family --check). On a lessons night the script commits it, one
  * commit per proposal, and records it. It never writes the lessons table.
  */
 export async function proposeLesson({ root, config, opts, now = new Date() }) {
-  const { DistillError, familyFields, rewordFields, promoteFields, formatClaim, proposalText, concrete, oneLine, slugify, DISTILL_KINDS_SHIPPED } = await distillLib();
+  const { DistillError, familyFields, rewordFields, standardiseFields, formatClaim, proposalText, concrete, oneLine, slugify, DISTILL_KINDS_SHIPPED } = await distillLib();
   const kind = opts.kind;
   if (!DISTILL_KINDS_SHIPPED.includes(kind)) throw new ClimbError(`--kind must be one of ${DISTILL_KINDS_SHIPPED.join(', ')}`);
   const read = oneLine(opts.read);
@@ -944,7 +944,7 @@ export async function proposeLesson({ root, config, opts, now = new Date() }) {
   try {
     made = kind === 'family' ? familyFields(opts, { rows, families: w.families, table: w.path, patterns: LESSONS_DIR })
       : kind === 'reword' ? rewordFields(opts, { rows, table: w.path })
-        : promoteFields(opts, { families: w.families });
+        : standardiseFields(opts, { families: w.families });
   } catch (e) { throw e instanceof DistillError ? new ClimbError(e.message.replace(/^climb: /, ''), e.exitCode) : e; }
   const all = await lessonProposals(root);
   const same = all.find(p => p.meta.from === made.from && ['proposed', 'declined'].includes(p.meta.status));
@@ -1284,7 +1284,7 @@ function proposalsReport(night, { proposals, now }) {
     };
     return { kept: n, tried: n, minutes, line, input };
   }
-  const by = ['family', 'reword', 'promote'].map(k => [k, proposals.filter(p => p.kind === k).length]).filter(([, c]) => c).map(([k, c]) => `${c} ${k}`);
+  const by = ['family', 'reword', 'standardise'].map(k => [k, proposals.filter(p => p.kind === k).length]).filter(([, c]) => c).map(([k, c]) => `${c} ${k}`);
   const line = `climb lessons ${night.date}: ${n ? `${n} proposal${n === 1 ? '' : 's'} for the owner (${by.join(', ')}); the table unchanged` : 'proposed nothing'}; ${minutes} min`;
   if (!n) return { kept: 0, tried: night.tried.length, minutes, line, input: null };
   const rowsOf = p => p.fields.rows ?? (p.fields.row !== undefined ? String(p.fields.row) : '—');
@@ -1296,7 +1296,7 @@ function proposalsReport(night, { proposals, now }) {
     evidence: {
       gate: night.gate ?? 'not run: guard did not record a gate line',
       columns: ['Now', 'Proposed'],
-      rows: proposals.map(p => ({ what: p.note, before: p.kind === 'reword' ? `${p.fields.cell}: ${p.fields.old}` : p.kind === 'promote' ? `family "${p.fields.family}"` : `rows ${p.fields.rows}`, after: p.kind === 'reword' ? p.fields.text : p.kind === 'promote' ? p.fields.check : `"${p.fields.name}": ${p.fields.rule}` })),
+      rows: proposals.map(p => ({ what: p.note, before: p.kind === 'reword' ? `${p.fields.cell}: ${p.fields.old}` : p.kind === 'standardise' ? `family "${p.fields.family}"` : `rows ${p.fields.rows}`, after: p.kind === 'reword' ? p.fields.text : p.kind === 'standardise' ? p.fields.check : `"${p.fields.name}": ${p.fields.rule}` })),
     },
     danger: { door: 'two-way', why: `proposal files under ${LESSONS_DIR}/ only; the lessons table is unchanged until the owner applies one`, surfaces: [] },
     notes: [

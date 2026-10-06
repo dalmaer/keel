@@ -3,7 +3,7 @@ status: partial
 since: 2026-10-06
 goal: G3
 depends: [8, 30]
-note: "Built: keel learn distill (a worksheet from files only; family, reword, tag and promote proposals as public docs/inbox files; decide applies them, keeping provenance and the old words in docs/lessons-history.md; docs/patterns.md generated). Waits on the real pass: the conductor proposes over keel's 56 rows, the owner decides, and a release carries it."
+note: "Built: keel learn distill (a worksheet from files only; family, reword, tag and standardise proposals as public docs/inbox files; decide applies them, keeping provenance and the old words in docs/lessons-history.md; docs/patterns.md generated). Waits on the real pass: the conductor proposes over keel's 56 rows, the owner decides, and a release carries it."
 evidence: ["evidence/2026-10-06-distill.md"]
 issue: 9
 ---
@@ -25,11 +25,11 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
   (the catalogue, the current families, rows since the last pass) and
   records proposals made by an agent, as `learn propose` does. Kinds:
   `family`, `reword`, `tag` (with the evidence, where each incident
-  happened), `promote` (a family's guard becomes a practice-change proposal).
+  happened), `standardise` (a family's guard becomes a practice-change proposal).
   Each proposal must cite rows by number; one that cites none is refused.
 - **Decisions.** `keel learn decide` takes them; accepting a `reword` keeps
   the old wording in the row's history line, never silently replaced;
-  accepting `tag` fills the `Where` cell (phase 30); accepting `promote`
+  accepting `tag` fills the `Where` cell (phase 30); accepting `standardise`
   opens the practice checklist.
 - **Cost.** A pass spends model tokens, so it runs when the owner asks (after
   a large inbox), never from the night.
@@ -40,7 +40,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 - [x] Accepting a family writes `docs/patterns.md` with members and keeps every member's number and provenance; accepting a reword keeps the old text in the row's history; both are tested on a synthetic catalogue, with a mutation that drops provenance failing. `tests/distill.test.mjs`
 - [x] Nothing in the pass reads the private inbox: a test runs distill with no gh at all. `tests/distill.test.mjs`
 - [ ] The real pass on keel's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
-- [ ] One accepted `promote` becomes a practice change (its check shipped and released), or the owner declines every promote with a reason.
+- [ ] One accepted `standardise` becomes a practice change (its check shipped and released), or the owner declines every standardise with a reason.
 
 ## Proof
 
@@ -58,7 +58,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Next action
 
-The conductor runs the real pass over keel's catalogue (family, tag, reword and promote proposals in docs/inbox/, each citing rows); ⚑ the owner decides each; then a release carries the catalogue, docs/patterns.md and every project's re-rendered view.
+The conductor runs the real pass over keel's catalogue (family, tag, reword and standardise proposals in docs/inbox/, each citing rows); ⚑ the owner decides each; then a release carries the catalogue, docs/patterns.md and every project's re-rendered view.
 
 ## Trajectory
 

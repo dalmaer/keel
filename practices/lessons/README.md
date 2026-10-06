@@ -37,7 +37,7 @@ prints a worksheet: every catalogue row (number, cells, `Where`, provenance,
 family), the families decided so far, the open proposals, and the rows added
 since the last pass. It is deterministic: no model, no `gh`, never the
 private inbox. An agent reads it and records proposals with `keel learn
-distill propose --kind family|reword|tag|promote`, each citing rows by number
+distill propose --kind family|reword|tag|standardise`, each citing rows by number
 (an unknown row, tag, family or practice is refused, exit 2); a person
 decides each with `keel learn decide`. A **family** (two rows or more, a row
 in one family at most) joins `docs/patterns.md`, generated from the accepted
@@ -45,7 +45,7 @@ proposals and the catalogue: a rule, a guard recipe and the member rows with
 their numbers and provenance. A **reword** replaces one cell; the old words
 are appended to `docs/lessons-history.md` (with the old fingerprint, for a
 shape) and a shape keeps its provenance. A **tag** fills `Where`
-(`universal` leaves it empty, deliberately). A **promote** turns a family's
+(`universal` leaves it empty, deliberately). A **standardise** turns a family's
 guard into a practice change: the checklist, and an inert migration stub only
 when one is needed. A row changed since a proposal read it is refused. A
 decision that changes the catalogue re-renders keel's practices, so

@@ -19,7 +19,7 @@
     },
     ".agents/climb/jobs/lessons.md": {
       "practice": "climb",
-      "sha256": "88816d3d1d036024b60cd5bd55e0a9b35a29a7d608ab5329e2c01cb4811c3aca"
+      "sha256": "84a89a14aedfe236dede9f5c2d3270c2d506902d52fec165e78c2a2ebb7508cc"
     },
     ".agents/climb/jobs/loop.md": {
       "practice": "climb",
@@ -127,15 +127,19 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "1aaea22921eb1b21b8d2260b0ce29171fefa435598f36660ffd3b6c04675bda7"
+      "sha256": "f2e64356a23f998d603a57f08cfc06e2e9795add0db4bdbb7a70c1c1f81e60fb"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
-      "sha256": "d5272ea08b734e8e023b0d61d586d2f022431042077a574133af920854858797"
+      "sha256": "d82bcb49f3e8608579a8c413d3669015ad59cdfdbe68970c8ee9fcc0c027f441"
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
       "sha256": "1e20c77ebecaa8c76737675f01073dfe0297a524cdc0dc64c920b6b8c823614b"
+    },
+    "scripts/keel/generated.mjs": {
+      "practice": "phases",
+      "sha256": "84597747f5a64eaaec040108827f0d0ed3188923b986573bed7c86c96a16b999"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
@@ -159,11 +163,23 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "7da83d32dbf1ac9f85f7976ff4bcad400a98860205653465e204b7e55a592382"
+      "sha256": "2ad01318263684d00d7babd7be70a98a7a412ca74a0b9eb04eb3fdf2f7670bf0"
+    },
+    "scripts/keel/workflows.mjs": {
+      "practice": "ci",
+      "sha256": "52198c1ac575fd45ba176439ceae7aa31eda0dab2f70bfb6158cd0322c643d9f"
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
       "sha256": "b7cc17acc08b87bb39cdb3dc834bb41ef5b8def04a5fd905c1f13e9dc503efec"
+    },
+    "tests/keel-generated.test.mjs": {
+      "practice": "phases",
+      "sha256": "e9638ff60e0d5416d3576eac890cfa5cdd59f5965c53b5d3024247591b9e0671"
+    },
+    "tests/keel-workflows.test.mjs": {
+      "practice": "ci",
+      "sha256": "caa593ab8431dde6849f251b2f7e5c3215ef6ee5f5d589efb84ca787ed949994"
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",

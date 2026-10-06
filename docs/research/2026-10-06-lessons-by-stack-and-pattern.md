@@ -73,7 +73,7 @@ agent proposes, as with `learn propose`. Proposal kinds:
   incident's words stay in the history.
 - **tag**: row N applies to these stacks, with the evidence (where each
   incident happened).
-- **promote**: a family whose guard can ship as a check every project runs
+- **standardise**: a family whose guard can ship as a check every project runs
   (for example, a lint that fails on real-shaped secrets in tracked files)
   becomes a practice-change proposal.
 

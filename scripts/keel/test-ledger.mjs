@@ -10,8 +10,13 @@
 // It writes the run's record itself, to .keel/test-runs/<iso-time>-<pid>.json
 // (a directory that ignores itself: it holds a .gitignore of `*`), keeps the
 // newest KEEP runs, and yields one thing to stdout, at the end: the hygiene
-// block. A clean run is one line. It never changes the run's exit code or the
-// other reporter's output: whatever goes wrong here is a line, never a throw.
+// block. A clean run is one line. It never changes the other reporter's
+// output, and whatever goes wrong here is a line, never a throw. It changes
+// the run's exit code in one case only: a run that executed no test (none
+// passed or failed; a file with no test in it is reported as the file, and
+// is not a test) exits 1, "no tests ran" — a gate that ran nothing would
+// pass anything (keel's lessons 14 and 38). A project with no tests yet
+// says so in .keel/keel.json: "tests": { "allowEmpty": true }.
 //
 // A record: { commit, tree, dirty, machine: { os, arch, cpus }, node, date,
 // tests: [{ file, name, outcome, ms }] } for each top-level test.
@@ -23,13 +28,14 @@
 //   slower  a passing test whose time is above factor × the median of its
 //           last `window` passing runs on the same machine class, AND more
 //           than floorMs above it, so noise on a fast test is not news.
-// window 20, factor 2, floorMs 200; .keel/keel.json "tests" overrides each.
+// window 20, factor 2, floorMs 200; .keel/keel.json "tests" overrides each
+// (and "allowEmpty", above).
 //
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
 import { readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import { join, relative, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { platform, arch, availableParallelism } from 'node:os';
 
 export const RUNS = '.keel/test-runs';
@@ -46,7 +52,8 @@ export function testsConfigProblems(config) {
   if (t === undefined) return [];
   if (!t || typeof t !== 'object' || Array.isArray(t)) return ['"tests" must be an object of window, factor, floorMs'];
   const out = [];
-  for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k)) out.push(`"tests" has an unknown key ${k} (window, factor, floorMs)`);
+  for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k) && k !== 'allowEmpty') out.push(`"tests" has an unknown key ${k} (window, factor, floorMs, allowEmpty)`);
+  if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2)) out.push('"tests".window must be a whole number of runs, 2 or more');
   if (t.factor !== undefined && !(Number.isFinite(t.factor) && t.factor > 1)) out.push('"tests".factor must be a number above 1');
   if (t.floorMs !== undefined && !(Number.isFinite(t.floorMs) && t.floorMs >= 0)) out.push('"tests".floorMs must be a number of milliseconds, 0 or more');
@@ -225,14 +232,31 @@ async function projectConfig(root) {
   try { return JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8')); } catch { return {}; }
 }
 
-/** The reporter: records each top-level test, then yields the hygiene block. */
+/** A top-level entry that is a test file's own (node reports a file with no test in it as the file), not a test. */
+export const fileOwn = (root, d) => Boolean(d?.file) && resolve(root, String(d.name)) === d.file;
+
+export const NO_TESTS = `${LABEL}: no tests ran. A gate that ran nothing passes anything, so this run fails. Add a test, or say there are none yet with "tests": { "allowEmpty": true } in .keel/keel.json.`;
+
+/**
+ * The zero-tests gate: the line to say and whether the run fails, for a run
+ * that executed `ran` tests. allowEmpty is read as written, even beside a bad
+ * window or factor, so a typo elsewhere never turns the gate on or off.
+ */
+export function emptyRun(ran, config) {
+  if (ran > 0 || config?.tests?.allowEmpty === true) return null;
+  return NO_TESTS;
+}
+
+/** The reporter: records each top-level test, then yields the hygiene block; a run that executed no test fails. */
 export default async function* ledger(source) {
   const root = process.cwd();
   const tests = [];
+  let ran = 0;
   for await (const e of source) {
     if ((e.type !== 'test:pass' && e.type !== 'test:fail') || e.data?.nesting !== 0) continue;
     const d = e.data;
     const outcome = d.skip !== undefined && d.skip !== false ? 'skip' : d.todo !== undefined && d.todo !== false ? 'todo' : e.type === 'test:pass' ? 'pass' : 'fail';
+    if ((outcome === 'pass' || outcome === 'fail') && !fileOwn(root, d)) ran++;
     tests.push({
       file: d.file ? relative(root, d.file).split(sep).join('/') : null,
       name: String(d.name),
@@ -240,16 +264,21 @@ export default async function* ledger(source) {
       ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10,
     });
   }
-  if (!tests.length) return; // nothing ran: nothing to remember
+  const config = await projectConfig(root);
+  const empty = emptyRun(ran, config);
+  if (empty && !process.exitCode) process.exitCode = 1;
+  if (!tests.length) { if (empty) yield `${empty}\n`; return; } // nothing reported: nothing to remember
   try {
     const run = { ...where(root), date: new Date().toISOString(), tests };
     await record(root, run);
     let opts;
-    try { opts = testsConfigOf(await projectConfig(root)); }
+    try { opts = testsConfigOf(config); }
     catch (e) { yield `${LABEL}: recorded; not judged: ${e.message}\n`; return; }
     const { runs, skipped } = await readRuns(root);
     yield `${hygiene(runs, opts, { preload: preloads(), skipped }).join('\n')}\n`;
   } catch (e) {
     yield `${LABEL}: could not record this run (${String(e?.message ?? e).split('\n')[0]}).\n`;
+  } finally {
+    if (empty) yield `${empty}\n`;
   }
 }

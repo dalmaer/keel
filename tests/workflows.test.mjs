@@ -12,9 +12,9 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load } from '../lib/practices.mjs';
 import { run } from './helpers/run.mjs';
-import { runBlocks } from './helpers/workflows.mjs';
+import { runBlocks, inlineNode, shellProblems } from './helpers/workflows.mjs';
 
-export { runBlocks };
+export { runBlocks, inlineNode, shellProblems };
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -376,31 +376,6 @@ test('the setupToken secret reaches only the Install step, as GH_TOKEN, and is n
     }
   }
 });
-
-/** The single-quoted JS of each `node [--input-type=module] -e '…'` in a script: [{ module, js }]. */
-export function inlineNode(script) {
-  return [...script.matchAll(/\bnode\s+(--input-type=module\s+)?-e\s+'([^']*)'/g)].map(m => ({ module: Boolean(m[1]), js: m[2] }));
-}
-
-/** What bash -n and node --check say about one workflow's scripts: [string], each naming the step. */
-export async function shellProblems(label, text) {
-  const out = [];
-  const dir = await mkdtemp(join(tmpdir(), 'keel-wf-'));
-  try {
-    for (const b of runBlocks(text)) {
-      const where = `${label}: step "${b.step}" (line ${b.line})`;
-      const sh = run('bash', ['-n'], { input: `${b.script}\n` });
-      if (sh.status !== 0) out.push(`${where}: bash -n: ${sh.stderr.trim().split('\n')[0]}`);
-      for (const [k, n] of inlineNode(b.script).entries()) {
-        const file = join(dir, `b${b.line}-${k}.${n.module ? 'mjs' : 'cjs'}`);
-        await writeFile(file, n.js);
-        const js = run(process.execPath, ['--check', file]);
-        if (js.status !== 0) out.push(`${where}: node -e: ${js.stderr.trim().split('\n').filter(l => /Error|^\S.*:\d+$/.test(l)).join(' | ')}`);
-      }
-    }
-  } finally { await rm(dir, { recursive: true, force: true }); }
-  return out;
-}
 
 test('every run: block in every workflow parses as bash, and every inline node -e \'…\' parses as JS', async () => {
   const files = [];

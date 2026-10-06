@@ -51,7 +51,7 @@ PR are the script's:
   table (`.keel/keel.json` `lessons`, default `docs/lessons.md`), each row
   with its provenance and family, the families the owner accepted, the open
   proposals, the rows since the last pass. `distill propose --kind
-  family|reword|promote … --read "…"` writes one proposal under
+  family|reword|standardise … --read "…"` writes one proposal under
   `.keel/climb/lessons/` (phase 31's rules, from `scripts/keel/distill.mjs`)
   and, on a lessons night, commits it alone. It never writes the table.
 - `loop-pull` is a loop night's pull, in place of keel-loop's that day: the
@@ -140,7 +140,7 @@ value is a red run naming it.
 | `hygiene` | the flaky tests the test ledger names: fix it, or file it | the flaky count (`.keel/test-runs`) | `prove-steady` |
 | `build-time` | the build | `build`, timed | `compare`; output byte-identical or explained |
 | `perf` | the project's own benchmark | `perf.command`'s last line, `better` either way | `compare`; `perf.check` |
-| `lessons` | the lessons table: family, reword, promote | rows since the last distill pass | the owner, who reads each proposal |
+| `lessons` | the lessons table: family, reword, standardise | rows since the last distill pass | the owner, who reads each proposal |
 | `loop` | Loop's findings: pull, then a proposed rank for each | untriaged findings | the owner, who decides each |
 
 **A proposals night's PR** lists what it proposed, for the owner: a lessons

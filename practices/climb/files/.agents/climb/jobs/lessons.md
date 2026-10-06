@@ -19,7 +19,7 @@ each one alone under `.keel/climb/lessons/`):
 - `--kind reword --row 7 --shape|--cost|--guard "…"` — one cell that says the
   incident where it should say the shape, or a guard that is "to write"
   when the code already has one (name it). The old words are kept.
-- `--kind promote --family "…" --check "…"` — a family the owner accepted,
+- `--kind standardise --family "…" --check "…"` — a family the owner accepted,
   whose guard should become a check the project runs.
 
 Propose only what the rows and the code show; nothing is a fine night.

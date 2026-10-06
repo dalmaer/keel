@@ -235,6 +235,7 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
     'M .keel/keel.json', 'M .keel/lock.json', 'M AGENTS.md', 'M package.json',
     'M docs/phases/00-practice-room.md', 'M docs/phases/01-fair-feedback.md', 'M docs/phases/README.md', 'M scripts/roadmap.mjs',
     '?? docs/ROADMAP.md', '?? docs/goals.json', '?? docs/templates/phase.md', '?? tests/roadmap.test.mjs',
+    '?? scripts/keel/generated.mjs', '?? tests/keel-generated.test.mjs',
   ].sort());
   assert.deepEqual(await json(join(dir, 'docs/goals.json')), [
     { id: 'G0', title: 'The practice room', outcome: 'A player opens the room and plays one groove.' },

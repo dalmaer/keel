@@ -1,5 +1,5 @@
 // keel learn distill (phase 31): the catalogue distilled into families, rows
-// reworded and tagged, a family's guard promoted — an agent proposes, a person
+// reworded and tagged, a family's guard standardised — an agent proposes, a person
 // decides. Deterministic: no model, and no gh at all — every CLI run here has a
 // KEEL_GH that logs and fails, and the tests assert it was never called. The
 // catalogue is synthetic (Acme), tests/fixtures/distill/home.
@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { decide, inboxText, proposals, parseProposal } from '../lib/learn.mjs';
 import { parseLessons, lessonFingerprint } from '../lib/lessons.mjs';
 import { distill, patternsText, provenanceOf, parseClaim, PATTERNS, HISTORY } from '../lib/distill.mjs';
+import { parseProposalText, proposalText, DISTILL_KINDS_SHIPPED } from '../practices/climb/files/scripts/keel/distill.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -87,13 +88,13 @@ test('each proposal kind is recorded as a public distill proposal, citing its ro
   const tag = ok(h.keel('learn', 'distill', 'propose', '--kind', 'tag', '--row', '1', '--where', 'node, web', '--evidence', 'acme/notes is a Node web app', READ, CITE, '--json')).json();
   assert.deepEqual(tag.fields, { kind: 'tag', row: 1, old: '', where: 'node, web', evidence: 'acme/notes is a Node web app' });
 
-  // promote needs a decided family
-  const early = h.keel('learn', 'distill', 'propose', '--kind', 'promote', '--family', 'Exit codes hidden', '--check', 'x', '--practice', 'conduct', READ, CITE, '--json');
+  // standardise needs a decided family
+  const early = h.keel('learn', 'distill', 'propose', '--kind', 'standardise', '--family', 'Exit codes hidden', '--check', 'x', '--practice', 'conduct', READ, CITE, '--json');
   assert.equal(early.code, 2);
   assert.match(early.json().error, /no family "Exit codes hidden"/);
   ok(h.keel('learn', 'decide', fam.slug, 'accepted', '--json'));
-  const pro = ok(h.keel('learn', 'distill', 'propose', '--kind', 'promote', '--family', 'exit codes hidden', '--check', 'a lint fails a gate written without pipefail', '--practice', 'conduct', READ, 'docs/patterns.md', '--json')).json();
-  assert.deepEqual(pro.fields, { kind: 'promote', family: 'Exit codes hidden', rows: '2, 3', check: 'a lint fails a gate written without pipefail', practice: 'conduct', migration: 'no' });
+  const pro = ok(h.keel('learn', 'distill', 'propose', '--kind', 'standardise', '--family', 'exit codes hidden', '--check', 'a lint fails a gate written without pipefail', '--practice', 'conduct', READ, 'docs/patterns.md', '--json')).json();
+  assert.deepEqual(pro.fields, { kind: 'standardise', family: 'Exit codes hidden', rows: '2, 3', check: 'a lint fails a gate written without pipefail', practice: 'conduct', migration: 'no' });
 
   // INBOX.md lists them, waiting for a decision
   assert.match(await h.text('docs/INBOX.md'), /\| distill \| reword \|/);
@@ -116,7 +117,7 @@ test('refused, exit 2, writing nothing: no row, an unknown row, an unknown tag, 
     [['learn', 'distill', 'propose', '--kind', 'tag', '--where', 'node', '--evidence', 'e', READ, CITE, '--json'], /cites no row/],
     [['learn', 'distill', 'propose', '--kind', 'reword', '--row', '1', '--cost', 'More general.', READ, 'I looked at it', '--json'], /--read must cite/],
     [['learn', 'distill', 'propose', '--kind', 'reword', '--row', '1', '--cost', 'a', '--guard', 'b', READ, CITE, '--json'], /one cell per proposal/],
-    [['learn', 'distill', 'propose', '--kind', 'promote', '--family', 'Exit codes hidden', '--check', 'x', '--practice', 'nope', READ, CITE, '--json'], /no practices\/nope\/practice.json/],
+    [['learn', 'distill', 'propose', '--kind', 'standardise', '--family', 'Exit codes hidden', '--check', 'x', '--practice', 'nope', READ, CITE, '--json'], /no practices\/nope\/practice.json/],
     [['learn', 'distill', 'propose', '--kind', 'merge', READ, CITE, '--json'], /--kind must be one of/],
   ];
   for (const [args, why] of cases) {
@@ -164,7 +165,7 @@ test('accepting a family writes docs/patterns.md: its rule, guard and every memb
 test('the patterns page renders each member\'s provenance from its row (a renderer that drops it fails here)', () => {
   const rows = parseLessons('| # | The shape of it | What it cost | Guard | Where |\n| --- | --- | --- | --- | --- |\n| 7 | **A thing.** *(acme/one 2)* *(acme/two)* | c | g | node |\n').rows;
   assert.equal(provenanceOf(rows[0].shape), 'acme/one 2; acme/two');
-  const page = patternsText([{ name: 'F', rule: 'r', guard: 'g', rows: [7], file: 'docs/inbox/2026-10-06-distill-family-f.md', promoted: [] }], rows, { pass: 'abcdef1234567890', through: 7 });
+  const page = patternsText([{ name: 'F', rule: 'r', guard: 'g', rows: [7], file: 'docs/inbox/2026-10-06-distill-family-f.md', standardised: [] }], rows, { pass: 'abcdef1234567890', through: 7 });
   assert.match(page, /^\| 7 \| A thing\. \| acme\/one 2; acme\/two \| node \|$/m);
   assert.match(page, /^Last pass: `abcdef123456`, through lesson 7\.$/m);
 });
@@ -228,29 +229,54 @@ test('accepting a tag fills the Where cell; "universal" keeps it empty, delibera
   assert.deepEqual(await h.ghCalls(), []);
 });
 
-test('accepting a promote opens the practice checklist; a stub only when a migration is needed; declining needs a reason', async t => {
+test('accepting a standardise opens the practice checklist; a stub only when a migration is needed; declining needs a reason', async t => {
   const h = await home(t);
   ok(h.keel('learn', 'decide', ok(h.keel(...familyArgs())).json().slug, 'accepted'));
-  const promote = (...extra) => ok(h.keel('learn', 'distill', 'propose', '--kind', 'promote', '--family', 'Exit codes hidden', '--check', 'a lint fails a gate without pipefail', '--practice', 'conduct', ...extra, READ, CITE, '--json')).json();
-  const a = promote();
+  const standardise = (...extra) => ok(h.keel('learn', 'distill', 'propose', '--kind', 'standardise', '--family', 'Exit codes hidden', '--check', 'a lint fails a gate without pipefail', '--practice', 'conduct', ...extra, READ, CITE, '--json')).json();
+  const a = standardise();
   const no = h.keel('learn', 'decide', a.slug, 'declined', '--json');
   assert.equal(no.code, 2);
   assert.match(no.json().error, /declining needs --note/);
   const d = ok(h.keel('learn', 'decide', a.slug, 'accepted', '--json')).json();
   assert.equal(d.migration, null);
   assert.match(d.checklist[0], /^edit practices\/conduct\/ to add the check: a lint fails a gate without pipefail \(family "Exit codes hidden", lessons 2, 3\)$/);
-  assert.match(await h.text(PATTERNS), /^\*\*Promoted\.\*\* a lint fails a gate without pipefail — practice `conduct`/m);
+  assert.match(await h.text(PATTERNS), /^\*\*Standardised\.\*\* a lint fails a gate without pipefail — practice `conduct`/m);
   assert.deepEqual(await readdir(join(h.dir, 'migrations')).catch(() => []), []);
 
-  const b = promote('--migration');
+  const b = standardise('--migration');
   const m = ok(h.keel('learn', 'decide', b.slug, 'accepted', '--json')).json();
   assert.equal(m.migration, 'migrations/0001-conduct-exit-codes-hidden.mjs');
   const stub = await import(join(h.dir, m.migration));
   assert.equal(stub.applies(), false);
-  const c = promote();
+  const c = standardise();
   const declined = ok(h.keel('learn', 'decide', c.slug, 'declined', '--note', 'the gate already runs every file', '--json')).json();
   assert.equal(declined.status, 'declined');
   assert.deepEqual(await h.ghCalls(), []);
+});
+
+test('a proposal written before the rename (outcome: promote) is read as standardise; deciding it writes only standardise', async t => {
+  const h = await home(t);
+  ok(h.keel('learn', 'decide', ok(h.keel(...familyArgs())).json().slug, 'accepted'));
+  const a = ok(h.keel('learn', 'distill', 'propose', '--kind', 'standardise', '--family', 'Exit codes hidden', '--check', 'a lint fails a gate without pipefail', '--practice', 'conduct', READ, CITE, '--json')).json();
+  const file = join(h.dir, a.file);
+  const old = (await readFile(file, 'utf8')).replace('outcome: standardise', 'outcome: promote').replace('kind: standardise\n', 'kind: promote\n');
+  assert.match(old, /^outcome: promote$/m);
+  await writeFile(file, old);
+  const w = ok(h.keel('learn', 'distill', '--json')).json();
+  assert.equal(w.open[0].kind, 'standardise');
+  const d = ok(h.keel('learn', 'decide', a.slug, 'accepted', '--json')).json();
+  assert.equal(d.kind, 'standardise');
+  assert.match(d.checklist[0], /^edit practices\/conduct\/ to add the check/);
+  assert.match(await readFile(file, 'utf8'), /^outcome: standardise$/m);
+  assert.match(await h.text(PATTERNS), /^\*\*Standardised\.\*\* a lint fails a gate without pipefail/m);
+});
+
+test('the shipped reader takes a project\'s old promote proposal as standardise, and writes only standardise', () => {
+  assert.ok(DISTILL_KINDS_SHIPPED.includes('standardise') && !DISTILL_KINDS_SHIPPED.includes('promote'));
+  const old = proposalText({ meta: { kind: 'distill', from: 'distill:promote:f', status: 'accepted', outcome: 'promote' }, title: 'distill promote: f', claim: 'kind: promote\nfamily: F\ncheck: a lint' });
+  const p = parseProposalText(old);
+  assert.equal(p.meta.outcome, 'standardise');
+  assert.equal(p.fields.kind, 'standardise');
 });
 
 test('nothing in a pass reads the private inbox: worksheet, proposals and decisions with no gh at all; the private counts stay', async t => {

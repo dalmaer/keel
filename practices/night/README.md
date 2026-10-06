@@ -80,7 +80,12 @@ is a node test reporter, run beside the usual one:
     node --test --test-reporter=spec --test-reporter-destination=stdout \
       --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout …
 
-It changes nothing about the run's exit code or output. It records each
+It changes nothing about the run's output, and its exit code in one case:
+**a run that executed no test fails**, "no tests ran" (keel's lessons 14
+and 38: a gate that ran nothing passed). A test passed or failed counts; a
+skipped one, and a file with no test in it (node reports the file itself),
+do not. A project with no tests yet says so: `"tests": {"allowEmpty": true}`
+in `.keel/keel.json`. It records each
 top-level test (file, name, outcome, ms) with the commit, the tree, whether
 the tree was dirty, the machine and node, in `.keel/test-runs/` (the newest
 50 runs; the directory holds a `.gitignore` of `*`, so no project's
@@ -93,7 +98,7 @@ clean, else each test that is
 
 with its history in one line and the command to run it alone. `"tests":
 {"window", "factor", "floorMs"}` in `.keel/keel.json` overrides 20, 2 and
-200. The AGENTS block says what to do with one: **a hygiene note is work** —
+200 (and `allowEmpty`, above). The AGENTS block says what to do with one: **a hygiene note is work** —
 fix it or file it, never rerun until green.
 
 `keel init` wires the reporter into a node project's `npm test`; migration

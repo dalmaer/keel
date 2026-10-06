@@ -1,7 +1,7 @@
 // keel distill, the shipped half (keel practice `climb`; managed: keel render
 // rewrites it). Phase 31's distill turns a lessons table's rows into
 // patterns: an agent proposes a family (two rows or more that share a shape),
-// a reword (one cell of one row) or a promote (a family's guard, as a check);
+// a reword (one cell of one row) or a standardise (a family's guard, as a check);
 // a person decides. This file is the part a project runs on its own table,
 // with no keel at runtime (keel phase 37): the pure rules, and the proposal
 // file's format. keel's lib/distill.mjs re-exports it, so the rules have one
@@ -12,8 +12,11 @@
 // writes each proposal as a file there on the climb branch. Nothing here
 // writes a lessons table: deciding is the owner's (lesson 53).
 
-export const DISTILL_KINDS_SHIPPED = Object.freeze(['family', 'reword', 'promote']);
+export const DISTILL_KINDS_SHIPPED = Object.freeze(['family', 'reword', 'standardise']);
 export const CELLS = Object.freeze(['shape', 'cost', 'guard']);
+/** A kind's old name, still read in a proposal file written before the rename (written only as the new). */
+export const KIND_ALIASES = Object.freeze({ promote: 'standardise' });
+export const kindOf = k => (Object.hasOwn(KIND_ALIASES, k) ? KIND_ALIASES[k] : k);
 
 export class DistillError extends Error {
   constructor(message, exitCode = 2) { super(message); this.exitCode = exitCode; }
@@ -109,18 +112,18 @@ export function rewordFields(opts, { rows, table }) {
 }
 
 /**
- * A promote proposal's fields in a project, pure: a decided family's guard,
- * named as the check the project would add. (keel's own promote also names a
+ * A standardise proposal's fields in a project, pure: a decided family's guard,
+ * named as the check the project would add. (keel's own standardise also names a
  * practice; a project's check is its own.)
  */
-export function promoteFields(opts, { families = [] }) {
+export function standardiseFields(opts, { families = [] }) {
   const name = oneLine(opts.family);
-  if (!name) throw new DistillError('--kind promote needs --family');
+  if (!name) throw new DistillError('--kind standardise needs --family');
   const f = families.find(f => f.name.toLowerCase() === name.toLowerCase());
-  if (!f) throw new DistillError(`no decided family "${name}"; a family is decided before its guard is promoted`);
+  if (!f) throw new DistillError(`no decided family "${name}"; a family is decided before its guard is standardised`);
   const check = oneLine(opts.check);
-  if (!check) throw new DistillError('--kind promote needs --check');
-  return { fields: { kind: 'promote', family: f.name, rows: f.rows.join(', '), check }, from: `distill:promote:${slugify(f.name)}`, slug: `distill-promote-${slugify(f.name, 40)}`, note: `promote "${f.name}" to a check` };
+  if (!check) throw new DistillError('--kind standardise needs --check');
+  return { fields: { kind: 'standardise', family: f.name, rows: f.rows.join(', '), check }, from: `distill:standardise:${slugify(f.name)}`, slug: `distill-standardise-${slugify(f.name, 40)}`, note: `standardise "${f.name}" as a check` };
 }
 
 // ---- the proposal file (the same layout as keel's docs/inbox/ proposals) -------
@@ -154,7 +157,10 @@ export function parseProposalText(text) {
   const rest = text.slice(m[0].length);
   const title = /^# (.*)$/m.exec(rest)?.[1] ?? '';
   const claim = /## Claim\n\n(`{3,})\n([\s\S]*?)\n\1\n/.exec(rest)?.[2] ?? '';
-  return { meta, title, claim, fields: parseClaim(claim) };
+  if (meta.outcome !== undefined) meta.outcome = kindOf(meta.outcome);
+  const fields = parseClaim(claim);
+  if (fields.kind !== undefined) fields.kind = kindOf(fields.kind);
+  return { meta, title, claim, fields };
 }
 
 /** The families a project's owner accepted (status: accepted on a family proposal): [{ name, rule, guard, rows }]. */

@@ -823,13 +823,13 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
   assert.deepEqual(night.tried.map(a => a.verdict), ['keep', 'keep']);
 
-  // Refused: the same family again, a family over one row, a promote with no decided family, a read that cites nothing.
+  // Refused: the same family again, a family over one row, a standardise with no decided family, a read that cites nothing.
   for (const [args, re] of [
     [['--kind', 'family', '--name', 'A cache trusted after its source moved', '--rule', 'r', '--guard', 'g', '--rows', '1,2', '--read', READ_LESSONS], /already proposes this/],
     [['--kind', 'family', '--name', 'One', '--rule', 'r', '--guard', 'g', '--rows', '3', '--read', READ_LESSONS], /a family needs two rows or more/],
-    [['--kind', 'promote', '--family', 'A cache trusted after its source moved', '--check', 'a lint', '--read', READ_LESSONS], /no decided family/],
+    [['--kind', 'standardise', '--family', 'A cache trusted after its source moved', '--check', 'a lint', '--read', READ_LESSONS], /no decided family/],
     [['--kind', 'reword', '--row', '9', '--cost', 'x', '--read', READ_LESSONS], /docs\/lessons\.md has no lesson 9/],
-    [['--kind', 'tag', '--row', '1', '--read', READ_LESSONS], /--kind must be one of family, reword, promote/],
+    [['--kind', 'tag', '--row', '1', '--read', READ_LESSONS], /--kind must be one of family, reword, standardise/],
     [['--kind', 'reword', '--row', '1', '--cost', 'x', '--read', 'I looked'], /--read must cite something checked/],
   ]) {
     const r = propose(...args);
@@ -853,7 +853,7 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   assert.match(rep.stdout, /^\| reword lesson 2's guard \| guard: to write \| a test that renames a widget under a warm cache \|$/m);
   assert.match(rep.stdout, /```keel-impact\n\{"version":1,.*"reconciliation":"none"/);
 
-  // The owner accepts the family (status: accepted in its file): it is a family now, and its guard can be promoted.
+  // The owner accepts the family (status: accepted in its file): it is a family now, and its guard can be standardised.
   const famFile = join(dir, json(fam).file);
   await writeFile(famFile, (await readFile(famFile, 'utf8')).replace('status: proposed', 'status: accepted'));
   git(dir, ['commit', '-q', '-am', 'acme: the owner accepts the family']);

@@ -124,6 +124,41 @@ test('a file that cannot load is recorded as the file, failed; a broken ledger d
   assert.match(r.stdout, /keel test ledger: could not record this run \(/);
 });
 
+test('a run that executed no test fails, "no tests ran" (an empty file is the file, not a test); allowEmpty lets it pass; a run with one test is untouched', async t => {
+  const { dir } = await acmeRepo(t);
+  const empty = () => run(process.execPath, ['--test', ...WITH, 'tests/empty.test.mjs'], { cwd: dir, env: { ...process.env } });
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), '// Acme has no tests yet.\n');
+  const plain = run(process.execPath, ['--test', '--test-reporter=spec', 'tests/empty.test.mjs'], { cwd: dir, env: { ...process.env } });
+  assert.equal(plain.status, 0, 'node alone passes a run of no tests: the shape this gate catches');
+  const r = empty();
+  assert.equal(r.status, 1, `no tests ran, so the run fails:\n${r.stdout}`);
+  assert.ok(r.stdout.trimEnd().endsWith(ledger.NO_TESTS), r.stdout);
+  // Only skipped tests: nothing executed either.
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), "import { test } from 'node:test';\ntest.skip('a crate for later', () => {});\n");
+  assert.equal(empty().status, 1, 'a run of skipped tests executed none');
+  // The project says it has none yet.
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { allowEmpty: true } }));
+  const allowed = empty();
+  assert.equal(allowed.status, 0, allowed.stdout);
+  assert.doesNotMatch(allowed.stdout, /no tests ran/);
+  // A run with tests is untouched.
+  await rm(join(dir, '.keel', 'keel.json'));
+  const one = nodeTest(dir, WITH);
+  assert.equal(one.status, 0);
+  assert.doesNotMatch(one.stdout, /no tests ran/);
+  assert.equal(ledger.emptyRun(0, { tests: { allowEmpty: 'yes' } }), ledger.NO_TESTS, 'only true allows it');
+  assert.ok(testsConfigProblems({ tests: { allowEmpty: 'yes' } }).length);
+  assert.deepEqual(testsConfigProblems({ tests: { allowEmpty: true } }), []);
+
+  // Mutation: a reporter that lets a run of nothing pass silently fails this.
+  const text = await readFile(SOURCE, 'utf8');
+  const target = 'if (empty && !process.exitCode) process.exitCode = 1;';
+  assert.ok(text.includes(target));
+  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), text.replace(target, ''));
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), '// Acme has no tests yet.\n');
+  assert.equal(empty().status, 0, 'the mutant lets a run of nothing pass: the assertion above is what catches it');
+});
+
 test('record keeps the newest runs and prunes the rest', async t => {
   const dir = await scratch(t);
   for (let i = 0; i < 5; i++) await record(dir, runOf({ tests: { a: ['pass', 1] } }), { keep: 3 });

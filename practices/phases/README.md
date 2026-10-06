@@ -9,9 +9,20 @@ matter owns its status. `docs/ROADMAP.md` is derived from the phases and
 a claim lacks evidence, or when a dependency loops. A phase names its *Done
 when* and *Proof* before it starts.
 
+**A generated file is rewritten whole** (keel's lesson 52, standardised
+6 Oct 2026). `tests/keel-generated.test.mjs` copies the project to a
+temporary directory, appends a marker line to each file its practices
+declare generated (`docs/ROADMAP.md`; `docs/LOOP.md` with `loop`), runs that
+file's generator, and fails if the marker survives: a generator that appends,
+or keeps lines it did not write, would keep a hand edit in a file nobody is
+to edit. The list is `GENERATORS` in `scripts/keel/generated.mjs`, one place.
+On keel it also holds `docs/patterns.md`, `docs/INBOX.md` and
+`docs/keel-lessons.md`; that last is a managed file keel renders, so its
+renderer must refuse the edit and name the file, never keep or overwrite it.
+
 **Its files.** `scripts/roadmap.mjs` and its test, the phase contract and
-template (managed); `docs/goals.json` (seeded); the `phases` block of
-`AGENTS.md`.
+template, `scripts/keel/generated.mjs` and `tests/keel-generated.test.mjs`
+(managed); `docs/goals.json` (seeded); the `phases` block of `AGENTS.md`.
 
 **Lineage.** isocan → ledger (`scripts/roadmap.ts`) → cajones/ritmo
 (`scripts/roadmap.mjs`, evidence and dependency checks) → keel.

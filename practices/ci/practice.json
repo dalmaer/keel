@@ -4,6 +4,8 @@
   "requires": ["base"],
   "secrets": [],
   "files": [
-    { "path": ".github/workflows/check.yml", "from": ".github/workflows/check.yml", "kind": "managed" }
+    { "path": ".github/workflows/check.yml", "from": ".github/workflows/check.yml", "kind": "managed" },
+    { "path": "scripts/keel/workflows.mjs", "from": "scripts/keel/workflows.mjs", "kind": "managed" },
+    { "path": "tests/keel-workflows.test.mjs", "from": "tests/keel-workflows.test.mjs", "kind": "managed" }
   ]
 }

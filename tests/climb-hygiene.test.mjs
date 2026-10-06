@@ -95,10 +95,11 @@ test('prove-steady: N runs of one test on one clean worktree; steady only with N
   assert.match(json(steady).why, /^acme\.test\.mjs "acme counts" passed 5 of 5 on one clean tree [0-9a-f]{7}$/);
   assert.equal(git(dir, ['worktree', 'list']).split('\n').length, 1, 'prove-steady removes its worktree');
 
-  // A name that matches no test never ran: exit 2, never a pass.
+  // A name that matches no test never ran: exit 2, never a pass. The ledger fails a run that
+  // executed no test, so prove-steady stops at the first.
   const typo = climb(dir, ['prove-steady', '--test', 'acme.test.mjs: acme count', '--runs', '2', '--json'], await counter(t));
   assert.equal(typo.status, 2);
-  assert.match(json(typo).error, /"acme count" never ran in 2 runs: .*prove-steady cannot tell/);
+  assert.match(json(typo).error, /"acme count" never ran in 1 run: .*prove-steady cannot tell/);
   for (const [args, re] of [[['--test', 'acme counts'], /--test is "<file>: <name>"/], [['--test', spec, '--runs', '51'], /--runs must be a whole number from 1 to 50/], [['--test', 'acme.missing.mjs: x'], /acme\.missing\.mjs is not in/]]) {
     const r = climb(dir, ['prove-steady', ...args, '--json']);
     assert.equal(r.status, 2, args.join(' '));
