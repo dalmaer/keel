@@ -1,10 +1,10 @@
 ---
-status: partial
+status: built
 since: 2026-10-06
 goal: G0
 spec: 2
 depends: [0, 1]
-note: "Built and proven in keel: template text and empty sections fail roadmap --check; spec 2 phases name a check per box and their Real surfaces; old phases get an acceptance-unchecked note; proofs_hold runs nightly. Waits on its own Real surface: cajones updated to the release that carries it (owner merges)."
+note: "Built and walked: the roadmap check refuses template text; spec 2 phases name a check per box and their Real surfaces; proofs_hold runs nightly; cajones (and the fleet) updated to v0.8.0 with their own checks green."
 evidence: ["evidence/2026-10-06-spec-rigor-checks.md"]
 issue: 10
 ---
@@ -48,7 +48,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 - [x] A phase naming a Real surface with no proof line for it fails; `none` passes with no proof line. `tests/roadmap.test.mjs`
 - [x] `proofs_hold` flags a built phase whose cited test was deleted or failed in the last ledger run, or whose evidence names a missing path, and changes no phase file. Without a ledger (before phase 33) it checks the cited test files and evidence paths only, and says the ledger half is n/a, never zero. `tests/improve.test.mjs`
 - [x] keel's own phases (39) pass, with every lint listed in the evidence file rather than fixed by rewriting. `npm run check`
-- [ ] ⚑ by hand: cajones taken through `keel fleet update` to the release carrying this phase, its own `npm run check:all` green on the update PR, and the owner merges it.
+- [x] ⚑ by hand: cajones taken through `keel fleet update` to the release carrying this phase, its own `npm run check:all` green on the update PR, and the owner merges it.
 
 ## Real surfaces
 
@@ -67,7 +67,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Next action
 
-Release the practice, take cajones through `keel fleet update` to it, and walk its own `npm run check:all` on the update PR (the owner merges); then this phase is built.
+None. Lived-in after a few weeks of real use.
 
 ## Trajectory
 

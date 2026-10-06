@@ -25,3 +25,9 @@ Against the working tree on `9a97f08` (the phase's commit is titled "phase 33: e
 | Dispatched keel-night, run 37505860555 | exit 0; "test ledger: 1 artifacts read; 1 runs"; Measure: `flaky_tests` and `slow_tests` n/a, "recorded runs: 2, fewer than the window of 20" |
 
 The once-in-five failure of 6 Oct did not recur in these ten runs.
+
+## Walked at the fleet release (v0.8.0, 6 Oct)
+
+| Did | Observed |
+| --- | --- |
+| Migration 0004 in the v0.8.0 update PRs | duo#63, cajones#36, ledger#55 rewrote their `node --test` scripts to add the reporter; each PR's own checks green; merged at the owner's instruction |

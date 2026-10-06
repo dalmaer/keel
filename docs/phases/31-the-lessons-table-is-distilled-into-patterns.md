@@ -1,9 +1,9 @@
 ---
-status: partial
+status: built
 since: 2026-10-06
 goal: G3
 depends: [8, 30]
-note: "Built: keel learn distill (a worksheet from files only; family, reword, tag and standardise proposals as public docs/inbox files; decide applies them, keeping provenance and the old words in docs/lessons-history.md; docs/patterns.md generated). Waits on the real pass: the conductor proposes over keel's 56 rows, the owner decides, and a release carries it."
+note: "Built and used: the first pass decided by the owner (10 families, 2 tags, 2 rewords, 3 standardise shipped as checks), released in v0.8.0."
 evidence: ["evidence/2026-10-06-distill.md"]
 issue: 9
 ---
@@ -39,7 +39,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 - [x] `distill` writes the worksheet and records each proposal kind; a proposal citing no row, or an unknown row, or an unknown tag, is refused (exit 2). `tests/distill.test.mjs`
 - [x] Accepting a family writes `docs/patterns.md` with members and keeps every member's number and provenance; accepting a reword keeps the old text in the row's history; both are tested on a synthetic catalogue, with a mutation that drops provenance failing. `tests/distill.test.mjs`
 - [x] Nothing in the pass reads the private inbox: a test runs distill with no gh at all. `tests/distill.test.mjs`
-- [ ] The real pass on keel's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
+- [x] The real pass on keel's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
 - [x] One accepted `standardise` becomes a practice change (its check shipped and released), or the owner declines every standardise with a reason.
 
 ## Proof
@@ -58,7 +58,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Next action
 
-The conductor runs the real pass over keel's catalogue (family, tag, reword and standardise proposals in docs/inbox/, each citing rows); ⚑ the owner decides each; then a release carries the catalogue, docs/patterns.md and every project's re-rendered view.
+None. Lived-in after a few weeks of real use.
 
 ## Trajectory
 

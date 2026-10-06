@@ -1,9 +1,9 @@
 ---
-status: partial
+status: built
 since: 2026-10-06
 goal: G3
 depends: [7, 8]
-note: "Built in keel: a closed stack vocabulary with file evidence, the Where column in keel's catalogue (all 56 rows universal until phase 31 tags them), a project's stack (adopt detects, doctor checks), and a managed docs/keel-lessons.md filtered by it. Waits on ledger and isocan declaring their stacks through the fleet release."
+note: "Built and walked: the stack vocabulary, Where column, project stacks (detection reads workspace and app-folder packages, c4edbb6) and docs/keel-lessons.md; ledger (node, web, vercel, github-actions) and isocan (node, web, gcp, github-actions) declared theirs."
 evidence: ["evidence/2026-10-06-lessons-by-stack.md"]
 issue: 8
 ---
@@ -39,7 +39,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 - [x] Detection: a synthetic repo with `vercel.json` and a workflow is detected as vercel and github-actions; one with neither is not; `stack-evidence` fires both ways (declared without evidence, evidence without declaration). `tests/stacks.test.mjs`, `tests/doctor.test.mjs`, `tests/adopt.test.mjs`
 - [x] The view: for a catalogue with universal, vercel-only and gcp-only rows, a vercel project's view holds the universal and vercel rows and no gcp row; an untagged row reaches every project. Mutation: a filter that drops untagged rows fails the test. `tests/stacks.test.mjs`, `tests/package.test.mjs`
 - [x] A project's own lessons table, its fingerprints and `.keel/sent.json` are byte-identical before and after (keel lessons sends nothing new). `tests/lessons.test.mjs`, `tests/stacks.test.mjs`
-- [ ] ledger and isocan declare their stacks through `keel fleet update`, and each repo's `docs/keel-lessons.md` is checked against its stack by hand.
+- [x] ledger and isocan declare their stacks through `keel fleet update`, and each repo's `docs/keel-lessons.md` is checked against its stack by hand.
 
 ## Proof
 
@@ -58,7 +58,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Next action
 
-At the fleet release: ledger and isocan declare their stacks through `keel fleet update`, and each repo's `docs/keel-lessons.md` is read against its stack.
+None. Lived-in after a few weeks of real use.
 
 ## Trajectory
 

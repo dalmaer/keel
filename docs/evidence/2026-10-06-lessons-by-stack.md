@@ -15,3 +15,10 @@ Against the working tree on `b6362a4` (the phase's commit is titled "phase 30: e
 **Not done yet:** ⚑ ledger and isocan declare their stacks through the fleet release, and their views are read against their stacks.
 
 **Docs updated in the same change:** practices/lessons/README.md and AGENTS block (names docs/keel-lessons.md), README.md, the agent guide (the release scope; lessons topic).
+
+## Walked at the fleet release (v0.8.0, 6 Oct)
+
+| Did | Observed |
+| --- | --- |
+| ledger#56, isocan#404: `"stack"` declared from keel's detection, `docs/keel-lessons.md` re-rendered | checks green, merged; doctor clean; each view holds 56 of 56 (the two web rows apply to both; no row is tagged for vercel or gcp yet, so neither view excludes anything: the filter is proven by tests, not yet by data) |
+| Detection first missed `web` in both (their UIs are in web/ and packages/web) | fixed in c4edbb6 before declaring, with a test |

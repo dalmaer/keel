@@ -16,3 +16,10 @@ Against the working tree on `779dd63` (the phase's commit is titled "phase 32: a
 **Not done yet:** the Real surface. cajones, taken through `keel fleet update` to the release that carries this, with its own `npm run check:all` green on the update PR (⚑ the owner merges). The phase stays `partial` until then.
 
 **Docs updated in the same change:** README (the phases row), the phases practice README, the night practice README (`proofs_hold`), the conduct skill (brief carries Real surfaces; verify walks one proof per surface), the agent guide's topics.
+
+## Walked at the fleet release (v0.8.0, 6 Oct)
+
+| Did | Observed |
+| --- | --- |
+| `keel fleet update --yes` (after fixing new-file drift, 64696ea) | cajones#36, duo#63, isocan#403 opened; ledger#55 after documenting two env vars; every PR's checks green (cajones: `npm run check:all` in its Pages workflow) |
+| Merged at the owner's instruction ("take the build to all of the users") | all four merged; `keel fleet`: every project on 0.8.0, current, green |

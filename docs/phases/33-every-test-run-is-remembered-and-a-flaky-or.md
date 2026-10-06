@@ -1,10 +1,10 @@
 ---
-status: partial
+status: built
 since: 2026-10-06
 goal: G4
 spec: 2
 depends: [10, 11]
-note: "Built in keel and walked there: ten clean-tree runs (375 tests each, no flaky), CI's keel-test-runs artifact on b910f1f, and a dispatched night reading it (n/a below 20 runs). Waits on one adopted project's update with migration 0004 at the fleet release (owner merges)."
+note: "Built and walked: the ledger reporter on npm test, flaky and slower named as hygiene, flaky_tests and slow_tests on the night, proofs_hold's ledger half, migration 0004 carried into duo, cajones and ledger by v0.8.0 with their checks green."
 evidence: ["evidence/2026-10-06-test-ledger.md"]
 issue: 11
 ---
@@ -47,7 +47,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 - [x] Slower: a test at 2.5x its median and +300 ms is named; one at 2.5x but +50 ms (under the floor) is not; mutation: dropping the floor fails the test. `tests/test-ledger.test.mjs`
 - [x] The night's measures read the CI artifacts and are n/a, never zero, when there are fewer than N runs. `tests/improve.test.mjs`
 - [x] ⚑ by hand: the conductor runs keel's suite ten times, reads the hygiene block, and fixes or files what it names.
-- [ ] ⚑ by hand: one adopted project's update PR carries migration 0004 (its `npm test` gains the reporter), its own check is green on the PR, and the owner merges it.
+- [x] ⚑ by hand: one adopted project's update PR carries migration 0004 (its `npm test` gains the reporter), its own check is green on the PR, and the owner merges it.
 - [x] On keel's pushed commit, `check.yml` uploads `keel-test-runs`, and the next night's improve reads it (`flaky_tests`/`slow_tests` in its health page, n/a until enough runs). `node scripts/keel/improve.mjs --report`
 
 ## Real surfaces
@@ -70,7 +70,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Next action
 
-At the fleet release: one adopted project's update PR carries migration 0004, its check green on the PR (the owner merges); then this phase is built.
+None. Lived-in after a few weeks of real use.
 
 ## Trajectory
 
