@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 30 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 32 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -77,7 +77,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 
 A lesson learned in any project, or a practice improved upstream, reaches keel, is decided by a person, and ships to the rest of the fleet.
 
-5/5 built or lived-in; 0/5 lived-in.
+5/7 built or lived-in; 0/7 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -86,12 +86,16 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 | [17. Anyone can install keel, and nothing private comes with it](phases/17-keel-is-public.md) | built | 2026-10-03 | [15](phases/15-projects-run-on-their-own.md) | Public under Apache-2.0 after an audit the owner approved; git clone and npm install -g work with an empty HOME and no GitHub login. |
 | [21. A private project's lessons come home without being published](phases/21-lessons-home-privately.md) | built | 2026-10-04 | [7](phases/07-lessons-go-home.md), [8](phases/08-learn-at-home.md) | ledger's 33 lessons went to the private keel-inbox, were proposed on and decided there (9 accepted, 5 linked, 19 declined), and only the owner-approved general wording reached keel's lessons table (rows 19–27). |
 | [25. A project's new lessons are noticed without anyone remembering to send them](phases/25-lessons-dont-wait.md) | built | 2026-10-04 | [11](phases/11-keel-improve.md), [21](phases/21-lessons-home-privately.md), [24](phases/24-loose-ends.md) | The night counts unsent lessons (lessons_unsent), loose-ends lists them with the send command, and duo's and cajones' 8 went home, were triaged and decided (lesson 29). |
+| [30. Each project reads the lessons that apply to its stack](phases/30-each-project-reads-the-lessons-that-apply-to.md) | planned | 2026-10-06 | [7](phases/07-lessons-go-home.md), [8](phases/08-learn-at-home.md) | Specced 6 Oct after a 131-item inbox: tag keel's catalogue by stack (evidence-backed, universal by default), declare each project's stack, ship the filtered view. Design: research/2026-10-06-lessons-by-stack-and-pattern.md. · [#8](https://github.com/dalmaer/keel/issues/8) |
+| [31. The lessons table is distilled into patterns, and patterns become guards](phases/31-the-lessons-table-is-distilled-into-patterns.md) | planned | 2026-10-06 | [8](phases/08-learn-at-home.md), [30](phases/30-each-project-reads-the-lessons-that-apply-to.md) | Specced 6 Oct: an agent-proposed, owner-decided pass that groups rows into families, rewords them generally, tags them by stack with evidence, and promotes guards that can ship. Design: research/2026-10-06-lessons-by-stack-and-pattern.md. · [#9](https://github.com/dalmaer/keel/issues/9) |
 
 - **7 done when:** `keel lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/keel` labelled `lesson`, and never files the same one twice.
 - **8 done when:** `keel learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.
 - **17 done when:** `dalmaer/keel` is public under Apache-2.0, a plain `git clone` and `npm install -g` work on a machine with no GitHub login, and a review shows nothing in the tree or its history that the owner wouldn't publish.
 - **21 done when:** `keel lessons` from ledger files into the private `dalmaer/keel-inbox`, `keel learn` proposes and records decisions there, and the only thing that reaches public keel is a lesson row the owner accepted, written in general terms.
 - **25 done when:** The nightly health page counts a project's unsent lessons as a measure, `keel loose-ends` lists them with the command to send them, and duo's and cajones' lessons have gone to the private inbox and been triaged.
+- **30 done when:** An agent in ledger (node, vercel) and one in isocan (node, gcp) each read a `docs/keel-lessons.md` holding every universal row of keel's catalogue plus the rows tagged for their own stack, and neither holds a row tagged only for the other's.
+- **31 done when:** One distilling pass over keel's catalogue has been proposed by an agent and decided by the owner: `docs/patterns.md` holds its families, every row is tagged or deliberately universal, and at least one family's guard has been proposed as a practice check that every project runs.
 
 ## G4 — The night shift keeps it working
 
