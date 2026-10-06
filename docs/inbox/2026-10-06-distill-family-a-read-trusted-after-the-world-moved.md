@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-read-trusted-after-the-world-moved"
-status: proposed
+status: accepted
 outcome: family
-note: "Check-then-use, locks that don't match their state, values computed once and trusted after their inputs changed."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: Check-then-use, locks that don't match their state, values computed once and trusted after their inputs changed.
@@ -25,3 +27,5 @@ rows: 41, 42, 43
 docs/lessons.md rows 41, 42, 43 (all dglazkov/isocan)
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

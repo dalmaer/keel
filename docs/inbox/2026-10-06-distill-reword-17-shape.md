@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:reword:17:shape"
-status: proposed
+status: accepted
 outcome: reword
-note: "row 17's second sentence describes keel's CLI-version incident; said as the shape, it covers the live-world recurrence its own cost cell records"
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill reword: row 17's second sentence describes keel's CLI-version incident; said as the shape, it covers the live-world recurrence its own cost cell records
@@ -25,3 +27,5 @@ text: **A test whose injected value doesn't reach every path is green only while
 docs/lessons.md row 17
 
 ## Decision
+
+- 2026-10-06: accepted (reword): lesson 17 in docs/lessons.md — The owner accepted the first distill pass (6 Oct).

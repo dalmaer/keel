@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-copy-of-a-fact-drifts-from-its-source"
-status: proposed
+status: accepted
 outcome: family
-note: "A hand-ported skill, status in two files, a CI fact restated, a README verb table: hand-kept copies that aged."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: A hand-ported skill, status in two files, a CI fact restated, a README verb table: hand-kept copies that aged.
@@ -25,3 +27,5 @@ rows: 1, 2, 7, 16
 docs/lessons.md rows 1, 2, 7, 16; guards tests/docs.test.mjs and the roadmap check
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

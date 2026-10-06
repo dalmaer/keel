@@ -22,29 +22,14 @@ Their proposals and decisions stay on those issues; only counts are shown here.
 | Status | Count |
 | --- | --- |
 | untriaged | 0 |
-| proposed | 14 |
-| accepted | 0 |
+| proposed | 0 |
+| accepted | 14 |
 | declined | 0 |
 | linked | 0 |
 
 ## Waiting for a decision
 
-| Proposal | Kind | Proposed | Note |
-| --- | --- | --- | --- |
-| [distill-family-a-check-that-cannot-fail](inbox/2026-10-06-distill-family-a-check-that-cannot-fail.md) | distill | family | Six rows where a green said nothing: a tail's exit code, a grader's zeros, a child runner running no files, a finished run called a success, an assertion never reached, a guard cell nothing runs. |
-| [distill-family-a-copy-of-a-fact-drifts-from-its-source](inbox/2026-10-06-distill-family-a-copy-of-a-fact-drifts-from-its-source.md) | distill | family | A hand-ported skill, status in two files, a CI fact restated, a README verb table: hand-kept copies that aged. |
-| [distill-family-a-failure-nobody-is-told-about-in-time](inbox/2026-10-06-distill-family-a-failure-nobody-is-told-about-in-time.md) | distill | family | Red CI found by accident, a third-party setting that switched a feature off silently, the trunk as the first place a failure shows. |
-| [distill-family-a-read-trusted-after-the-world-moved](inbox/2026-10-06-distill-family-a-read-trusted-after-the-world-moved.md) | distill | family | Check-then-use, locks that don't match their state, values computed once and trusted after their inputs changed. |
-| [distill-family-a-rule-tested-alone](inbox/2026-10-06-distill-family-a-rule-tested-alone.md) | distill | family | Precedence, a second door, a sibling axis, a nested condition: each rule was right alone and wrong among the others. |
-| [distill-family-a-test-that-does-not-own-its-inputs](inbox/2026-10-06-distill-family-a-test-that-does-not-own-its-inputs.md) | distill | family | Three flakes with one cause: a real date, a random draw, a process outliving its test. |
-| [distill-family-a-wait-not-sized-to-what-it-waits-on](inbox/2026-10-06-distill-family-a-wait-not-sized-to-what-it-waits-on.md) | distill | family | Deadlines from defaults, exact versions waited for, budgets checked between hung attempts, timeouts a person outlasts. |
-| [distill-family-a-write-destroys-what-it-does-not-own](inbox/2026-10-06-distill-family-a-write-destroys-what-it-does-not-own.md) | distill | family | A renderer, an editor, Renovate, a defaulted path, a merge over a generated file and a probe in a shared checkout each wrote over something that was not theirs. |
-| [distill-family-lost-reads-as-empty](inbox/2026-10-06-distill-family-lost-reads-as-empty.md) | distill | family | A first-time file, an item no view selects, missing data parsed as empty, typed text cleared before the save: each loss looked like nothing. |
-| [distill-family-what-you-test-is-not-what-runs](inbox/2026-10-06-distill-family-what-you-test-is-not-what-runs.md) | distill | family | The checkout, the in-process value, the dispatched event, the fake, the text of a YAML file: each was tested in place of what ran. |
-| [distill-reword-14-shape](inbox/2026-10-06-distill-reword-14-shape.md) | distill | reword | row 14's second sentence names Node's NODE_TEST_CONTEXT, the incident; the shape also covered a global git config the same day |
-| [distill-reword-17-shape](inbox/2026-10-06-distill-reword-17-shape.md) | distill | reword | row 17's second sentence describes keel's CLI-version incident; said as the shape, it covers the live-world recurrence its own cost cell records |
-| [distill-tag-11](inbox/2026-10-06-distill-tag-11.md) | distill | tag | tag lesson 11: web |
-| [distill-tag-35](inbox/2026-10-06-distill-tag-35.md) | distill | tag | tag lesson 35: web |
+Nothing is waiting for a decision.
 
 ## Waiting for a proposal
 

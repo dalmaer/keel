@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:reword:14:shape"
-status: proposed
+status: accepted
 outcome: reword
-note: "row 14's second sentence names Node's NODE_TEST_CONTEXT, the incident; the shape also covered a global git config the same day"
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill reword: row 14's second sentence names Node's NODE_TEST_CONTEXT, the incident; the shape also covered a global git config the same day
@@ -25,3 +27,5 @@ text: **A check spawned from inside a test runner inherits the runner's context 
 docs/lessons.md row 14; tests/helpers/run.mjs and tests/helpers/hermetic.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (reword): lesson 14 in docs/lessons.md — The owner accepted the first distill pass (6 Oct).

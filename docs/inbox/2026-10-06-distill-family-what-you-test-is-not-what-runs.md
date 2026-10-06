@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:what-you-test-is-not-what-runs"
-status: proposed
+status: accepted
 outcome: family
-note: "The checkout, the in-process value, the dispatched event, the fake, the text of a YAML file: each was tested in place of what ran."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: The checkout, the in-process value, the dispatched event, the fake, the text of a YAML file: each was tested in place of what ran.
@@ -25,3 +27,5 @@ rows: 8, 11, 17, 18, 28, 30
 docs/lessons.md rows 8, 11, 17, 18, 28, 30; guards tests/package.test.mjs, tests/workflows.test.mjs, tests/loop.test.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

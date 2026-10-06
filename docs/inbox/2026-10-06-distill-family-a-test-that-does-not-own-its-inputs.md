@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-test-that-does-not-own-its-inputs"
-status: proposed
+status: accepted
 outcome: family
-note: "Three flakes with one cause: a real date, a random draw, a process outliving its test."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: Three flakes with one cause: a real date, a random draw, a process outliving its test.
@@ -25,3 +27,5 @@ rows: 25, 39, 56
 docs/lessons.md rows 25, 39, 56; 56's guard is tests/loose-ends.test.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-rule-tested-alone"
-status: proposed
+status: accepted
 outcome: family
-note: "Precedence, a second door, a sibling axis, a nested condition: each rule was right alone and wrong among the others."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: Precedence, a second door, a sibling axis, a nested condition: each rule was right alone and wrong among the others.
@@ -25,3 +27,5 @@ rows: 33, 34, 37, 47
 docs/lessons.md rows 33, 34, 37, 47 (all dglazkov/isocan)
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

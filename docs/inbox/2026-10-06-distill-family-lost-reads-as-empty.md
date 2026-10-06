@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:lost-reads-as-empty"
-status: proposed
+status: accepted
 outcome: family
-note: "A first-time file, an item no view selects, missing data parsed as empty, typed text cleared before the save: each loss looked like nothing."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: A first-time file, an item no view selects, missing data parsed as empty, typed text cleared before the save: each loss looked like nothing.
@@ -25,3 +27,5 @@ rows: 10, 22, 26, 35
 docs/lessons.md rows 10, 22, 26, 35
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

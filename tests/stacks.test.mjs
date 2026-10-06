@@ -77,8 +77,9 @@ test('the Where column: parsed when present, absent from a project\'s four colum
   const text = await read('docs/lessons.md');
   const four = text.split('\n').map(l => l.endsWith(' | Where |') ? l.slice(0, -' Where |'.length)
     : l === '| --- | --- | --- | --- | --- |' ? '| --- | --- | --- | --- |'
-    : /^\| \d+ \|.* \| \|$/.test(l) ? l.slice(0, -2) : l).join('\n');
-  const tagged = text.replace(/ \| \|$/gm, ' | vercel, gcp |');
+    // A numbered row drops its last cell, Where, whatever it holds: tagged rows (11 and 35, web) included.
+    : /^\| \d+ \|/.test(l) ? l.replace(/\|[^|]*\|$/, '|') : l).join('\n');
+  const tagged = text.replace(/\|[^|]*\|$/gm, m => /^\|\s*(-+|Where)\s*\|$/.test(m) ? m : '| vercel, gcp |');
   const prints = t => parseLessons(t).rows.map(r => [lessonFingerprint('dalmaer/keel', r), r.guard]);
   assert.equal(parseLessons(four).where, -1, 'the four-column form has no Where');
   assert.ok(prints(text).length >= 56);

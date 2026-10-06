@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-failure-nobody-is-told-about-in-time"
-status: proposed
+status: accepted
 outcome: family
-note: "Red CI found by accident, a third-party setting that switched a feature off silently, the trunk as the first place a failure shows."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: Red CI found by accident, a third-party setting that switched a feature off silently, the trunk as the first place a failure shows.
@@ -25,3 +27,5 @@ rows: 3, 20, 49
 docs/lessons.md rows 3, 20, 49; practices/ci/files/.github/workflows/check.yml
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

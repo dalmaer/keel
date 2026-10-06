@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-check-that-cannot-fail"
-status: proposed
+status: accepted
 outcome: family
-note: "Six rows where a green said nothing: a tail's exit code, a grader's zeros, a child runner running no files, a finished run called a success, an assertion never reached, a guard cell nothing runs."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: Six rows where a green said nothing: a tail's exit code, a grader's zeros, a child runner running no files, a finished run called a success, an assertion never reached, a guard cell nothing runs.
@@ -25,3 +27,5 @@ rows: 4, 6, 14, 29, 38, 55
 docs/lessons.md rows 4, 6, 14, 29, 38, 55: each verdict was produced without the claim being evaluated; 14's guard is tests/helpers.test.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

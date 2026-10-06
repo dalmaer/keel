@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-wait-not-sized-to-what-it-waits-on"
-status: proposed
+status: accepted
 outcome: family
-note: "Deadlines from defaults, exact versions waited for, budgets checked between hung attempts, timeouts a person outlasts."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: Deadlines from defaults, exact versions waited for, budgets checked between hung attempts, timeouts a person outlasts.
@@ -25,3 +27,5 @@ rows: 23, 36, 40, 44
 docs/lessons.md rows 23, 36, 40, 44: each wait ran out (or never did) on a limit nobody measured
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).

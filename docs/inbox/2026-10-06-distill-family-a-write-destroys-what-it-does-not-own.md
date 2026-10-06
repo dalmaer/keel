@@ -1,9 +1,11 @@
 ---
 kind: distill
 from: "distill:family:a-write-destroys-what-it-does-not-own"
-status: proposed
+status: accepted
 outcome: family
-note: "A renderer, an editor, Renovate, a defaulted path, a merge over a generated file and a probe in a shared checkout each wrote over something that was not theirs."
+note: "The owner accepted the first distill pass (6 Oct)."
+pass: "18e44862160e7be432905a2e102c290fae018f5f"
+through: 56
 ---
 
 # distill family: A renderer, an editor, Renovate, a defaulted path, a merge over a generated file and a probe in a shared checkout each wrote over something that was not theirs.
@@ -25,3 +27,5 @@ rows: 13, 27, 31, 32, 52, 54
 docs/lessons.md rows 13, 27, 31, 32, 52, 54; 13 and 31 are guarded in tests/doctor.test.mjs
 
 ## Decision
+
+- 2026-10-06: accepted (family) — The owner accepted the first distill pass (6 Oct).
