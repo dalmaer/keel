@@ -144,7 +144,7 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
     const text = await read(join(ctx.root, lessons));
     lint.push(...lessonsTableSplit(text, lessons), ...lessonsTableShapes(text, lessons));
   }
-  lint.push(...healthLints(ctx.root, ctx.config));
+  lint.push(...await healthLints(ctx.root, ctx.config));
   return { keel: false, drift, lint };
 });
 export const PROJECT_LINTS = ['phase', 'goal-without-phase', 'claude-md-pointer', 'second-copy', 'symlink-replaced', 'lessons-table-split', 'health-config', 'health-ignored'];

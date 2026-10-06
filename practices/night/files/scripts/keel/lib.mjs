@@ -31,7 +31,8 @@
 //                            read it; one reader)
 //   healthLints(root, config)  a bad `health` (health-config), or a health
 //                            directory git ignores (health-ignored): the night
-//                            writes its page and never commits it
+//                            writes its page and never commits it (a promise:
+//                            git answers while the caller reads on)
 //   readProjectRecords(root) the projects shape, read only: docs/projects/<p>/
 //                            with its primary doc's status and issue, and its
 //                            phases.md's sections (phaseSections); with
@@ -40,7 +41,7 @@
 //   gateWorkflowOf(config)   the gate workflow a project names (gateWorkflow)
 //   main(meta, fn)           run a script: --json or text, and its exit code
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { readFile, readdir, lstat, readlink } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
@@ -545,13 +546,13 @@ export function healthDirOf(config) {
  * so the night writes the page and its PR never carries it (ledger, phase 33).
  * Outside a git repository there is nothing to ignore.
  */
-export function healthLints(root, config) {
+export async function healthLints(root, config) {
   if (!(config?.practices ?? []).includes('night') && config?.health === undefined) return [];
   const problems = healthProblems(config);
   if (problems.length) return problems.map(message => ({ rule: 'health-config', path: '.keel/keel.json', message }));
   const dir = healthDirOf(config);
-  const r = spawnSync('git', ['check-ignore', '-q', '--', `${dir}/x.md`], { cwd: root, encoding: 'utf8' });
-  if (r.status !== 0) return [];
+  const ignored = await new Promise(done => execFile('git', ['check-ignore', '-q', '--', `${dir}/x.md`], { cwd: root, encoding: 'utf8' }, e => done(!e)));
+  if (!ignored) return [];
   return [{ rule: 'health-ignored', path: dir, message: `${dir} is git-ignored here, so the night writes its health page and never commits it; set "health" in .keel/keel.json to a directory that is not ignored (like ".keel/health")` }];
 }
 
