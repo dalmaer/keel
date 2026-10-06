@@ -15,6 +15,8 @@ npm run check     # tests + roadmap guard; run before pushing (CI runs it too)
 npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 ```
 
+This machine's shell is zsh: quote globs and `==` in commands (an unmatched glob or a bare `==` is an error, not a literal).
+
 ## The map
 
 | Path | What |

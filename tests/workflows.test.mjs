@@ -696,3 +696,50 @@ test('the night gathers the newest keel-climb record, read-only, from the defaul
     assert.ok(climbGatherProblems(text).length, `${why}: expected a problem`);
   }
 });
+
+/**
+ * Every action used at two majors across the given workflows (phase 40's
+ * retro: a builder wrote upload-artifact@v6 from memory while keel was on
+ * v7). `files` is [{ file, text }]; v7 and v7.0.1 agree, v6 and v7 do not; a
+ * ref that is not a version (a SHA, a branch) is left alone. [string].
+ */
+export function actionMajorProblems(files) {
+  const seen = new Map(); // owner/repo → Map(major → Set(file))
+  for (const { file, text } of files) {
+    for (const { line } of code(text)) {
+      const m = /^\s*(?:-\s+)?uses:\s*["']?([\w.-]+\/[\w.-]+)(?:\/[^@\s"']*)?@v?(\d+)(?:\.[\w.-]*)?["']?\s*$/.exec(line);
+      if (!m) continue;
+      const [, action, major] = m;
+      if (!seen.has(action)) seen.set(action, new Map());
+      const majors = seen.get(action);
+      if (!majors.has(major)) majors.set(major, new Set());
+      majors.get(major).add(file);
+    }
+  }
+  const out = [];
+  for (const [action, majors] of seen) {
+    if (majors.size < 2) continue;
+    const parts = [...majors].sort(([a], [b]) => a - b).map(([v, fs]) => `v${v} in ${[...fs].sort().join(', ')}`);
+    out.push(`${action} is used at ${majors.size} majors: ${parts.join('; ')}`);
+  }
+  return out;
+}
+
+test('one major version per action across every workflow keel ships and keel\'s rendered copies', async () => {
+  const files = (await shipped()).map(w => ({ file: `practices/${w.practice}/files/${w.path}`, text: w.template }));
+  for (const n of (await readdir(join(KEEL, '.github/workflows'))).filter(n => /\.ya?ml$/.test(n))) {
+    files.push({ file: `.github/workflows/${n}`, text: await readFile(join(KEEL, '.github/workflows', n), 'utf8') });
+  }
+  assert.ok(files.some(f => /uses: actions\/upload-artifact@v\d/.test(f.text)), 'no workflow uses upload-artifact; the mutation below would prove nothing');
+  assert.deepEqual(actionMajorProblems(files), []);
+  // v7 and v7.0.1 agree.
+  assert.deepEqual(actionMajorProblems([{ file: 'a.yml', text: '      - uses: actions/checkout@v7\n' }, { file: 'b.yml', text: '        uses: actions/checkout@v7.0.1\n' }]), []);
+  // Mutation: one template on another major fails, naming the action and both files.
+  const i = files.findIndex(f => /uses: actions\/upload-artifact@v\d+/.test(f.text));
+  const mutated = files.map((f, j) => j === i ? { ...f, text: f.text.replace(/uses: actions\/upload-artifact@v\d+/, 'uses: actions/upload-artifact@v6') } : f);
+  assert.notDeepEqual(mutated[i].text, files[i].text, 'the mutation did not apply');
+  const p = actionMajorProblems(mutated);
+  assert.equal(p.length, 1, p.join('\n'));
+  assert.match(p[0], /^actions\/upload-artifact is used at 2 majors: v6 in /);
+  assert.ok(p[0].includes(files[i].file), p[0]);
+});

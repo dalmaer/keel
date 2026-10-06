@@ -1,10 +1,10 @@
 ---
-status: partial
+status: built
 since: 2026-10-06
 goal: G3
 spec: 2
 depends: [8, 24, 32]
-note: "Built: keel retro (worksheet from the session and its subagents' transcripts, counts and pointers only), the conduct skill's step 5, real work = the range changed more than docs. Waits on use: two conducted phases' retros, the owner's picks, and one picked check shipped."
+note: "Built and used: retros at the end of phases 40, 39 and 35 gave six candidates; the owner picked all six; five shipped as checks or an AGENTS line and one as lesson 56."
 evidence: ["evidence/2026-10-06-retro.md"]
 issue: 18
 ---
@@ -41,7 +41,7 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
 - [x] The worksheet counts each signal from a synthetic transcript (Acme) and writes no transcript text to any file; mutation: copying a message into the worksheet fails the test. `tests/retro.test.mjs`
 - [x] A docs-only commit is not real work (the retro says so and stops); a commit touching `lib/` or `practices/` is. `tests/retro.test.mjs`
 - [x] The conduct skill's step 5 names the worksheet, the seven areas, the candidate types and "the owner picks". `tests/skill.test.mjs`
-- [ ] ⚑ by hand: two phases' retros in their reports; the owner's picks recorded; one picked check shipped.
+- [x] ⚑ by hand: two phases' retros in their reports; the owner's picks recorded; one picked check shipped.
 
 ## Real surfaces
 
@@ -61,7 +61,7 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
 
 ## Next action
 
-Run the retro at the end of each conducted phase from 39 on, put the candidates in the phase report, and record the owner's picks here; ship the first picked check.
+None. Lived-in after the owner has picked from retros across a few more phases.
 
 ## Trajectory
 

@@ -75,10 +75,27 @@ test('a word list announces one command per word', () => {
 
 // The cap is "one screen". It was 2,500 at seven verbs; at sixteen (phase 9),
 // with each verb family on one line and details in topics, it is 3,200.
-test(`the cold start stays under ${COLD_START_LIMIT} characters`, async () => {
+// Near the cap is said before it is a failure (phase 40's retro): above 95%
+// the test still passes, but prints the size and what to trim. Over the cap
+// stays red. A function of two numbers, so it is deterministic.
+export function coldStartHeadroom(length, limit = COLD_START_LIMIT) {
+  if (length < limit * 0.95) return null;
+  return `cold start is ${length}/${limit} characters (${(length / limit * 100).toFixed(1)}%, ${limit - length} left): `
+    + 'before adding to lib/agent-guide.md, trim it — move a detail into a topic, or fold a verb family onto one line';
+}
+
+test('the cold start\'s headroom: silent under 95% of the cap, said from 95%', () => {
+  assert.equal(coldStartHeadroom(3039, 3200), null);
+  assert.match(coldStartHeadroom(3040, 3200), /^cold start is 3040\/3200 characters \(95\.0%, 160 left\): .*trim/);
+  assert.match(coldStartHeadroom(3188, 3200), /12 left/);
+});
+
+test(`the cold start stays under ${COLD_START_LIMIT} characters`, async t => {
   const { coldStart } = parseGuide(await readFile(GUIDE, 'utf8'));
   assert.equal(COLD_START_LIMIT, 3200);
   assert.ok(coldStart.length < COLD_START_LIMIT, `cold start is ${coldStart.length} characters`);
+  const near = coldStartHeadroom(coldStart.length);
+  if (near) t.diagnostic(near);
   const r = keel(['--agent-help']);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out.trim(), coldStart);

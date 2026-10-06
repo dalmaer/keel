@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 41 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 41 phases lived in; 28 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -81,7 +81,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 
 A lesson learned in any project, or a practice improved upstream, reaches keel, is decided by a person, and ships to the rest of the fleet.
 
-5/8 built or lived-in; 0/8 lived-in.
+6/8 built or lived-in; 0/8 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -92,7 +92,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 | [25. A project's new lessons are noticed without anyone remembering to send them](phases/25-lessons-dont-wait.md) | built | 2026-10-04 | [11](phases/11-keel-improve.md), [21](phases/21-lessons-home-privately.md), [24](phases/24-loose-ends.md) | The night counts unsent lessons (lessons_unsent), loose-ends lists them with the send command, and duo's and cajones' 8 went home, were triaged and decided (lesson 29). |
 | [30. Each project reads the lessons that apply to its stack](phases/30-each-project-reads-the-lessons-that-apply-to.md) | planned | 2026-10-06 | [7](phases/07-lessons-go-home.md), [8](phases/08-learn-at-home.md) | Specced 6 Oct after a 131-item inbox: tag keel's catalogue by stack (evidence-backed, universal by default), declare each project's stack, ship the filtered view. Design: research/2026-10-06-lessons-by-stack-and-pattern.md. · [#8](https://github.com/dalmaer/keel/issues/8) |
 | [31. The lessons table is distilled into patterns, and patterns become guards](phases/31-the-lessons-table-is-distilled-into-patterns.md) | planned | 2026-10-06 | [8](phases/08-learn-at-home.md), [30](phases/30-each-project-reads-the-lessons-that-apply-to.md) | Specced 6 Oct: an agent-proposed, owner-decided pass that groups rows into families, rewords them generally, tags them by stack with evidence, and promotes guards that can ship. Design: research/2026-10-06-lessons-by-stack-and-pattern.md. · [#9](https://github.com/dalmaer/keel/issues/9) |
-| [40. A phase that did real work ends with a retro, and what it finds becomes a check](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | partial | 2026-10-06 | [8](phases/08-learn-at-home.md), [24](phases/24-loose-ends.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built: keel retro (worksheet from the session and its subagents' transcripts, counts and pointers only), the conduct skill's step 5, real work = the range changed more than docs. Waits on use: two conducted phases' retros, the owner's picks, and one picked check shipped. · [#18](https://github.com/dalmaer/keel/issues/18) |
+| [40. A phase that did real work ends with a retro, and what it finds becomes a check](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | built | 2026-10-06 | [8](phases/08-learn-at-home.md), [24](phases/24-loose-ends.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built and used: retros at the end of phases 40, 39 and 35 gave six candidates; the owner picked all six; five shipped as checks or an AGENTS line and one as lesson 56. · [#18](https://github.com/dalmaer/keel/issues/18) |
 
 - **7 done when:** `keel lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/keel` labelled `lesson`, and never files the same one twice.
 - **8 done when:** `keel learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.

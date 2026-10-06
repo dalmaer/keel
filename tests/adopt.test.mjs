@@ -57,6 +57,20 @@ async function tree(dir) {
 }
 
 const states = data => Object.fromEntries(data.practices.map(p => [p.name, p.state]));
+
+/**
+ * The files an adopt writes, derived from the practices' practice.json: every
+ * managed or seeded file (or link) of a switched-on practice the project did
+ * not already have, plus keel's own fixed files. Blocks land in a file that is
+ * there or written by its practice. `have` is the project's paths before. [path], sorted.
+ */
+function shippedFiles(practices, on, have) {
+  const out = new Set(['.keel/keel.json', '.keel/lock.json', REPORT]);
+  for (const p of practices.values()) if (on[p.name] === 'on') {
+    for (const f of p.files) if (f.kind !== 'block' && !(f.path in have)) out.add(f.path);
+  }
+  return [...out].sort();
+}
 const status = (data, path) => data.files.find(f => (f.block ? `${f.path}#${f.block}` : f.path) === path)?.status;
 
 test('a dry run changes nothing, for either fixture', async () => {
@@ -163,8 +177,16 @@ test('adopting acme-fold writes no phase, evidence, check or claude file and kee
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
-  assert.deepEqual(added, ['.agents/skills/conduct/SKILL.md', '.agents/skills/keel/SKILL.md', '.claude/skills/conduct', '.claude/skills/keel', '.github/workflows/keel-night.yml', '.keel/keel.json', '.keel/lock.json', 'docs/keel-adoption.md', 'renovate.json', 'scripts/keel/drain.mjs', 'scripts/keel/improve.mjs', 'scripts/keel/lib.mjs', 'scripts/keel/pr-body.mjs', 'scripts/keel/test-ledger.mjs'],
-    'the night shift and Renovate beside its own workflows; never a second claude.yml or check.yml');
+  // The expected list is derived from the practices' practice.json, never hand-kept
+  // (phase 40's retro: phases 33 and 39 each had to edit a list here).
+  const { data } = await adopt({ dir: join(FIXTURES, 'acme-fold'), dryRun: true }, { version: VERSION });
+  const expected = shippedFiles(await load(), states(data), before);
+  assert.deepEqual(added, expected, 'adopt writes exactly the switched-on practices\' files it lacked, and keel\'s own');
+  assert.ok(expected.includes('.github/workflows/keel-night.yml') && expected.includes('renovate.json'), 'the night shift and Renovate beside its own workflows');
+  for (const own of ['.github/workflows/claude.yml', '.github/workflows/check.yml']) assert.ok(!expected.includes(own), `never a second ${own}`);
+  // Mutation, both ways: one file more, or one fewer, than the practices say fails.
+  assert.notDeepEqual([...added, 'scripts/keel/acme.mjs'].sort(), expected, 'an extra file would pass');
+  assert.notDeepEqual(added.filter(p => p !== 'scripts/keel/drain.mjs'), expected, 'a missing file would pass');
   const gate = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
   assert.ok(testsRan(gate.stdout + gate.stderr) > 0, `the gate ran no tests:\n${gate.stdout}${gate.stderr}`);
