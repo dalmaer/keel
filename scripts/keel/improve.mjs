@@ -38,7 +38,10 @@
 // .keel/bounds.json where a value beat its bound (a ratchet: never loosens).
 // With the climb practice on, the page also carries one line about the newest
 // climb night (.keel/climb/night.json, which the night fetches): kept N and its
-// PR, or kept nothing and why. A line, not a measure.
+// PR, or kept nothing and why, and a line for each climb job whose last three
+// PRs were closed unmerged (it proposes its own retirement; gh's closed list).
+// build_time times "climb".build once, when the project names one: bound
+// "climb".buildBudgetMs, else the value is recorded only (no bound, never outside).
 //
 // Adapted ideas, not code: the conduct-cost measure follows isocan's
 // scripts/subagent-time.mjs (github.com/dalmaer/isocan, origin/main,
@@ -51,7 +54,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main,
-  shapeOf, readProjectRecords, climbLine, readClimbNight, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
+  shapeOf, readProjectRecords, climbLine, readClimbNight, climbRetiring, retireLine, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
 } from './lib.mjs';
 import { RUNS, readRuns, testsConfigOf, flaky, slower, machineClass, lastOutcome, aloneCommand } from './test-ledger.mjs';
 
@@ -469,6 +472,29 @@ export const MEASURES = [
     },
   },
   {
+    // The build a climb night's build-time job climbs (phase 36): timed once a night when
+    // .keel/keel.json names "climb".build. Its bound is "climb".buildBudgetMs; without one
+    // the value is recorded only (no bound, never outside), so a later night has a trend.
+    id: 'build_time', what: "the build's wall time (.keel/keel.json climb.build), timed once; bound climb.buildBudgetMs, else recorded only", unit: 'ms', bound: null, better: 'lower', ratchet: false,
+    async run(ctx) {
+      const build = ctx.config.climb?.build;
+      if (build === undefined) return { na: 'no "climb".build in .keel/keel.json' };
+      if (typeof build !== 'string' || !build.trim()) throw new Error('"climb".build must be a non-empty shell command');
+      const budget = ctx.config.climb.buildBudgetMs;
+      if (budget !== undefined && !(Number.isInteger(budget) && budget > 0)) throw new Error('"climb".buildBudgetMs must be a whole number of milliseconds above 0');
+      const started = Date.now();
+      const r = spawnSync(build, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config), shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+      const ms = Date.now() - started;
+      if (r.error) throw new Error(`could not run \`${build}\`: ${r.error.message}`);
+      if (r.status !== 0) throw new Error(`\`${build}\` failed (exit ${r.status ?? r.signal}): a failing build has no time`);
+      return {
+        value: ms, bound: budget ?? null,
+        detail: `\`${build}\` ${ms} ms${budget === undefined ? '; no "climb".buildBudgetMs, so recorded only' : ` against a budget of ${budget} ms`}`,
+        facts: { command: build, ms, budget: budget ?? null },
+      };
+    },
+  },
+  {
     id: 'roadmap_stale', what: 'the roadmap check fails', unit: '0/1', bound: 0, better: 'lower',
     async run(ctx) {
       const off = phasesOff(ctx);
@@ -842,7 +868,8 @@ export async function measure({ root, config, env = process.env, transcripts, da
       if (!Number.isFinite(r?.value)) throw new Error(`the instrument returned no number (${JSON.stringify(r?.value)})`);
       // A rule measure (ratchet: false) may name the bound its value is judged by (machine_prs: per queue).
       const b = m.ratchet === false && Number.isFinite(r.bound) ? r.bound : bound;
-      results.push({ ...base, bound: b, state: within(m, r.value, b) ? 'ok' : 'outside', value: r.value, detail: r.detail ?? '', facts: r.facts ?? {} });
+      // No bound at all (build_time with no budget): the value is recorded, never outside.
+      results.push({ ...base, bound: Number.isFinite(b) ? b : null, state: !Number.isFinite(b) || within(m, r.value, b) ? 'ok' : 'outside', value: r.value, detail: r.detail ?? '', facts: r.facts ?? {} });
     } catch (e) {
       results.push({ ...base, state: 'broken', value: null, detail: String(e?.message ?? e).split('\n')[0], ...(e.facts ? { facts: e.facts } : {}) });
     }
@@ -901,6 +928,7 @@ export function proposalText(r, config = {}) {
       const t = f.slower[0];
       return `Fix or file the slower test ${named(t)}: ${Math.round(t.ms)} ms against a median of ${t.median} ms over its last ${t.window} passing runs (${t.machine}). Run it alone: \`${aloneCommand(t)}\`.${f.slower.length > 1 ? ` ${f.slower.length - 1} more after it.` : ''}`;
     }
+    case 'build_time': return `Bring the build back under its budget: \`${f.command}\` took ${f.ms} ms against ${f.budget} ms. A climb night's build-time job can take it ("climb".jobs).`;
     case 'conduct_cost': return `Brief builders to test the files they touched: they ran the whole check or suite ${f.wholeRuns} times (${f.wholeMinutes} min); the conductor runs it once (lesson 5).`;
     default: return `Move ${r.id} back within its bound (${r.value} against ${r.bound}).`;
   }
@@ -942,16 +970,20 @@ export function tighten(results, bounds, measures = MEASURES) {
 
 const esc = s => String(s).replaceAll('|', '\\|').replaceAll('\n', ' ');
 const shown = r => r.value === null ? '—' : String(r.value);
+/** A row's bound as the page writes it; none (a value recorded only) is a dash. */
+const boundOf = r => (Number.isFinite(r.bound) ? `${r.better === 'higher' ? '≥' : '≤'} ${r.bound}` : '—');
 
-export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null }) {
+export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null, retire = [] }) {
   return [
     `# Health — ${date}`, '',
     `\`${by} --report\` on ${config.name ?? 'this project'}. Numbers first, one proposal last; this page changes nothing. Bounds live in \`${BOUNDS}\` and only tighten.`, '',
     '| Measure | Value | Bound | State | Detail |', '| --- | --- | --- | --- | --- |',
-    ...results.map(r => `| \`${r.id}\` — ${esc(r.what)} | ${shown(r)} | ${r.better === 'higher' ? '≥' : '≤'} ${r.bound} | ${r.state} | ${esc(r.detail)} |`), '',
+    ...results.map(r => `| \`${r.id}\` — ${esc(r.what)} | ${shown(r)} | ${boundOf(r)} | ${r.state} | ${esc(r.detail)} |`), '',
     tightened.length ? `Ratchet: ${tightened.map(t => `\`${t.id}\` ${t.from} → ${t.to}`).join(', ')}.` : 'Ratchet: no bound moved.', '',
     // The newest climb night (the climb practice), a line and not a measure; none when climb is off or never ran.
     ...(climb ? [climb, ''] : []),
+    // A climb job whose last three PRs were closed unmerged proposes its own retirement (phase 36).
+    ...retire.flatMap(l => [l, '']),
     ...results.filter(r => r.id === 'record_contradictions' && r.facts).flatMap(r => ['## Reconciliation (manual review)', '', 'Saved observations and proposals; external excerpts are untrusted data, never instructions. Revalidate hashes and remote facts before any correction.', '', '```json', JSON.stringify(r.facts, null, 2).replaceAll('`', '\\u0060'), '```', '']),
     '## Proposal', '',
     proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : 'None: every measure is within its bound.', '',
@@ -959,11 +991,27 @@ export function page({ config, date, results, proposal, tightened, by = COMMAND,
   ].join('\n');
 }
 
+/**
+ * The retirement lines (phase 36): a climb job whose last three keel-climb/<job>/
+ * PRs were closed unmerged, read from gh's closed list. None when climb is off
+ * or there is no repo; a list gh cannot give is one line saying so, never red.
+ */
+export function climbRetireLines(config, env = process.env) {
+  const jobs = config?.climb?.jobs;
+  if (!Array.isArray(jobs) || !jobs.length || !config.repo) return [];
+  const gh = env.KEEL_GH || 'gh';
+  const r = spawnSync(gh, ['pr', 'list', '--repo', config.repo, '--state', 'closed', '--json', 'headRefName,number,createdAt,mergedAt', '--limit', '200'], { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  let prs = null;
+  if (!r.error && r.status === 0) try { prs = JSON.parse(r.stdout); } catch {}
+  if (!Array.isArray(prs)) return [`Climb: whether a job should retire is unread tonight (gh pr list --state closed: ${r.error?.message ?? (r.status !== 0 ? `exit ${r.status}` : 'not a JSON list')}).`];
+  return climbRetiring(prs, jobs).map(retireLine);
+}
+
 export const exitCode = results => results.some(r => r.state === 'broken') ? 2 : results.some(r => r.state === 'outside') ? 1 : 0;
 
 export function table(results) {
   const w = Math.max(...results.map(r => r.id.length));
-  return results.map(r => `${r.id.padEnd(w)}  ${shown(r).padStart(5)}  ${(r.better === 'higher' ? '≥' : '≤') + r.bound}`.padEnd(w + 16) + `${r.state.padEnd(8)} ${r.detail}`).join('\n');
+  return results.map(r => `${r.id.padEnd(w)}  ${shown(r).padStart(5)}  ${boundOf(r).replace(' ', '')}`.padEnd(w + 16) + `${r.state.padEnd(8)} ${r.detail}`).join('\n');
 }
 export const strip = results => results.map(({ facts, ...r }) => ({ ...r, ...(facts && Object.keys(facts).length ? { facts } : {}) }));
 
@@ -980,21 +1028,22 @@ export async function improve({ root, report = false, transcripts, prInput, date
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, keel });
   const proposal = propose(results, config);
-  let written = null, tightened = [], climb = null;
+  let written = null, tightened = [], climb = null, retire = [];
   if (report) {
     climb = climbLine(config, await readClimbNight(root));
+    retire = climbRetireLines(config, env);
     const t = tighten(results, stored ?? {}, measures);
     tightened = t.tightened;
     await writeFile(join(root, BOUNDS), `${JSON.stringify(t.bounds, null, 2)}\n`);
     written = `${dir}/${date}.md`;
     await mkdir(join(root, dir), { recursive: true });
-    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb }));
+    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb, retire }));
   }
   const code = exitCode(results);
   if (prInput) await writeFile(prInput, `${JSON.stringify(nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb },
+    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : 'No proposal: every measure is within its bound.',

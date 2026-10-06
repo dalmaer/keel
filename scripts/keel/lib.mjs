@@ -583,9 +583,35 @@ export function climbLine(config, night) {
   if (typeof night !== 'object' || !Array.isArray(night.tried) || typeof night.job !== 'string' || typeof night.date !== 'string') return `Climb: the newest record (${CLIMB_NIGHT}) is unreadable; see the last keel-climb run.`;
   const kept = night.tried.filter(a => a?.verdict === 'keep').length;
   if (kept) return `Climb: ${night.date} ${night.job}: kept ${kept}, ${Number.isInteger(night.pr) ? `PR #${night.pr}` : `no PR opened${night.gate ? '' : ' (the guard did not pass)'}`}.`;
-  const why = night.tried.length ? `${night.tried.length} tried, none beat the noise${Number.isFinite(night.margin) ? ` (margin ${Math.round(night.margin * 100)}%)` : ''}` : 'nothing was tried';
+  const none = night.job === 'hygiene' ? 'none proven steady' : `none beat the noise${Number.isFinite(night.margin) ? ` (margin ${Math.round(night.margin * 100)}%)` : ''}`;
+  const why = night.tried.length ? `${night.tried.length} tried, ${none}` : 'nothing was tried';
   return `Climb: ${night.date} ${night.job}: kept nothing (${why}).`;
 }
+
+/** A climb job's PR branch prefix. */
+export const CLIMB_PREFIX = 'keel-climb/';
+/** Closed-unmerged PRs in a row that make a climb job propose its own retirement (phase 36). */
+export const RETIRE_AFTER = 3;
+
+/**
+ * The climb jobs whose last RETIRE_AFTER `keel-climb/<job>/` PRs (newest by
+ * createdAt, from gh's closed list) were all closed unmerged: [{ job, prs }].
+ * A person reading three and merging none is the verdict; reopening one, or
+ * merging the next, lifts it. `prs`: [{ headRefName, number, createdAt, mergedAt }].
+ */
+export function climbRetiring(prs, jobs) {
+  const out = [];
+  for (const job of jobs) {
+    const mine = prs.filter(p => typeof p?.headRefName === 'string' && p.headRefName.startsWith(`${CLIMB_PREFIX}${job}/`))
+      .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
+      .slice(0, RETIRE_AFTER);
+    if (mine.length === RETIRE_AFTER && mine.every(p => !p.mergedAt)) out.push({ job, prs: mine.map(p => p.number) });
+  }
+  return out;
+}
+
+/** The health page's line for a job that proposes its own retirement. */
+export const retireLine = ({ job, prs }) => `Climb: \`${job}\` proposes its own retirement: its last ${RETIRE_AFTER} ${CLIMB_PREFIX}${job}/ PRs (${prs.map(n => `#${n}`).join(', ')}) were closed unmerged. Remove it from "climb".jobs, or reopen one; until then climb nights skip it.`;
 
 /** The climb night's record under root: the object, undefined when absent, 'unreadable' otherwise. */
 export async function readClimbNight(root) {

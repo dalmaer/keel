@@ -1,6 +1,6 @@
 {
   "name": "climb",
-  "summary": "Climb nights: on a schedule, an agent improves one number (the test suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR.",
+  "summary": "Climb nights: on a schedule, an agent improves one number (the suite's time, a flaky test, the build's time) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR.",
   "optional": true,
   "requires": ["night"],
   "secrets": [
@@ -11,6 +11,8 @@
     { "path": ".github/workflows/keel-climb.yml", "from": ".github/workflows/keel-climb.yml", "kind": "managed" },
     { "path": "scripts/keel/climb.mjs", "from": "scripts/keel/climb.mjs", "kind": "managed" },
     { "path": ".agents/climb/PROTOCOL.md", "from": ".agents/climb/PROTOCOL.md", "kind": "managed" },
-    { "path": ".agents/climb/jobs/test-time.md", "from": ".agents/climb/jobs/test-time.md", "kind": "managed" }
+    { "path": ".agents/climb/jobs/test-time.md", "from": ".agents/climb/jobs/test-time.md", "kind": "managed" },
+    { "path": ".agents/climb/jobs/hygiene.md", "from": ".agents/climb/jobs/hygiene.md", "kind": "managed" },
+    { "path": ".agents/climb/jobs/build-time.md", "from": ".agents/climb/jobs/build-time.md", "kind": "managed" }
   ]
 }

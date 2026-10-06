@@ -87,6 +87,15 @@ gate run adds one more, and it keeps the result as its own artifact.
 `flaky_tests` and `slow_tests` (bound 0, no ratchet) read that history; with
 fewer runs than the window they are n/a, never zero.
 
+**The build, timed** (phase 36). When `.keel/keel.json` names
+`"climb": { "build": "<command>" }`, the night runs it once as `build_time`:
+its wall time in ms, bound `"climb".buildBudgetMs` (no ratchet), else
+recorded only (no bound, never outside, so the pages keep a trend). No
+`build` is n/a; a failing build is broken, never a time. With the climb
+practice on, the page also says when a climb job's last three
+`keel-climb/<job>/` PRs were closed unmerged: that job proposes its own
+retirement (gh's closed list, read-only).
+
 **Every PR keel opens can be judged in a minute** (phase 39).
 `scripts/keel/pr-body.mjs` builds the body from structured input,
 deterministically, in three sections in this order: **Summary**, a picture

@@ -14,6 +14,8 @@
 #   - After it: the gate, and no test dropped (climb.mjs guard); then one PR
 #     on refs/heads/keel-climb/<job>/<date>, never main, never merged here.
 #     A night that keeps nothing opens nothing, and says so.
+#   - A hygiene night that proved no fix files one issue on this repo instead
+#     (climb.mjs report --issue): the workflow files it, never the agent.
 #
 # SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
 # as the claude practice's. Each climb night spends model tokens, up to the
@@ -34,6 +36,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   id-token: write
   actions: read
 
@@ -143,6 +146,31 @@ jobs:
             console.log(p.job ? `tonight: ${p.job} (${p.why})` : `no climb tonight: ${p.reason}`);
           ' "$RUNNER_TEMP/climb-config.json" "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
 
+      # Hygiene's number is the test ledger's flaky count: CI's keel-test-runs
+      # artifacts on the default branch, read-only, by name, into
+      # .keel/test-runs, as the night gathers them. None found is a warning;
+      # the baseline then says it cannot tell (exit 2), never a zero.
+      - name: Gather the test ledger
+        if: steps.pick.outputs.job == 'hygiene'
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          mkdir -p .keel/test-runs
+          if ! gh api "repos/$REPO/actions/artifacts?name=keel-test-runs&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:30][] | .id" > "$RUNNER_TEMP/ledger.txt"; then
+            echo "::warning::The test ledger's artifacts could not be listed."
+            exit 0
+          fi
+          n=0
+          while read -r id; do
+            [ -n "$id" ] || continue
+            if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/ledger-$id.zip"; then
+              unzip -o -q "$RUNNER_TEMP/ledger-$id.zip" -d .keel/test-runs && n=$((n + 1))
+            fi
+          done < "$RUNNER_TEMP/ledger.txt"
+          echo "test ledger: $n artifacts read; $(find .keel/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
+
       # The baseline opens the night's record (.keel/climb/night.json), on the
       # night's own branch, before the agent changes anything.
       - name: Baseline
@@ -204,15 +232,17 @@ jobs:
           node scripts/keel/climb.mjs settle
           node scripts/keel/climb.mjs guard
           node scripts/keel/climb.mjs compare --final
-          node scripts/keel/climb.mjs report --state --body "$RUNNER_TEMP/body.md" --json > "$RUNNER_TEMP/report.json"
+          node scripts/keel/climb.mjs report --state --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --json > "$RUNNER_TEMP/report.json"
           node -e '
             const fs = require("fs");
-            const [file, out, summary] = process.argv.slice(1);
+            const [file, out, summary, title] = process.argv.slice(1);
             const r = JSON.parse(fs.readFileSync(file, "utf8"));
-            fs.appendFileSync(out, `kept=${r.kept}\nline=${r.line}\n`);
+            // A hygiene night that proved nothing: the issue to file, its title in a file (never an output to escape).
+            if (r.issue) fs.writeFileSync(title, r.issue.title);
+            fs.appendFileSync(out, `kept=${r.kept}\nline=${r.line}\nissue=${r.issue ? "yes" : ""}\n`);
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
-          ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
 
       # One PR, on this workflow's own prefix; a person merges it. A night
       # that kept nothing pushes nothing.
@@ -261,6 +291,20 @@ jobs:
               fs.writeFileSync(file, `${JSON.stringify(night, null, 2)}\n`);
             ' .keel/climb/night.json "$num"
           fi
+
+      # A hygiene night that proved no fix: one issue on this repo, with the
+      # ledger's evidence, unless one with the same title is already open.
+      - name: File the flaky test
+        if: steps.pick.outputs.job == 'hygiene' && steps.judge.outputs.issue == 'yes'
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          title=$(cat "$RUNNER_TEMP/issue-title.txt")
+          if gh issue list --repo "$REPO" --state open --json title --limit 200 --jq '.[].title' | grep -qxF -- "$title"; then
+            echo "::notice::Already open: $title"
+            exit 0
+          fi
+          gh issue create --repo "$REPO" --title "$title" --body-file "$RUNNER_TEMP/issue.md"
 
       # The night's record (every attempt, its numbers, the line), kept 30
       # days, kept or not.

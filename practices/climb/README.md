@@ -13,22 +13,39 @@ keep-or-revert, deterministically and with no model, so the numbers in the
 PR are the script's:
 
 - `pick` chooses tonight's job: the one tied to the newest health page's
-  worst measure outside its bound (`slow_tests` → `test-time`), else the
-  next in rotation (`.keel/climb.json`, carried by the climb PR). A job with
-  an open `keel-climb/<job>/` PR waits for a person to read it.
+  worst measure outside its bound (`slow_tests` → `test-time`, `build_time`
+  → `build-time`), with `flaky_tests` → `hygiene` ahead of every other, else
+  the next in rotation (`.keel/climb.json`, carried by the climb PR; hygiene
+  never runs by rotation). A job with an open `keel-climb/<job>/` PR waits
+  for a person to read it. A job whose last three `keel-climb/<job>/` PRs
+  were closed unmerged proposes its own retirement on the health page, and
+  pick skips it until the owner removes it from `jobs` or reopens one.
 - `measure <job> [--baseline]` is the job's number: median and spread over k
   runs. `--baseline` opens the night's record (`.keel/climb/night.json`).
 - `compare` runs base and candidate alternately, in worktrees outside the
   repo, for two rounds or more, and keeps a change only when it beats the
   base by the margin in every round. `--decide` acts on it: the numbers go
   into the commit, or the branch resets to the base.
+- `prove-steady --test "<file>: <name>" [--runs n] [--decide]` judges a
+  hygiene fix: the one test, n times (default 20, at most 50) on one clean
+  worktree, through the test ledger; steady only with n passes and no fail.
+  A name that matches no test is exit 2, never a pass.
 - `guard` runs the project's gate and, with the night's test ledger
   (`scripts/keel/test-ledger.mjs`), checks that every test the base ran
-  still ran: none dropped, none skipped.
+  still ran: none dropped, none skipped. Then the job's own guard:
+  `hygiene` refuses a diff that, in the flaky test's file, only changes a
+  timeout or adds a retry, naming the line (a fix that also changes other
+  lines passes, with a note for the person); `build-time` builds base and
+  candidate and hashes every file under `buildOutput`: byte-identical, or
+  each changed path has a reason (`harmless --path p --why "…"`) that the
+  PR's Merge danger prints.
 - `revert --why` and `settle` drop what no compare kept.
 - `report` writes the PR body through `scripts/keel/pr-body.mjs` (the
   before-and-after table, each kept change with its numbers, what was tried
   and reverted, the gate line, a two-way door) and the night's one line.
+  `--issue f`: a hygiene night that proved nothing writes the issue instead
+  (the test, its passes and fails on its tree, the command to run it alone,
+  what was tried), and the workflow files it on this repo.
 
 `.github/workflows/keel-climb.yml` runs it: pick, the baseline, then
 `anthropics/claude-code-action` with the protocol, the job's brief and the
@@ -46,12 +63,17 @@ notice, in the run's summary, and in the `keel-climb` artifact.
 
 `jobs` from the table below; `budget.minutes` 5 to 180; `schedule`
 `nightly` or `weekly` (Mondays, UTC; a dispatch runs any day); `margin` 0.01
-to 0.5; `attempts` 1 to 50; `testCommand` (default `npm test`). A bad value
-is a red run naming it.
+to 0.5; `attempts` 1 to 50; `testCommand` (default `npm test`); for
+`build-time`, `build` (the command) and `buildOutput` (the file or directory
+it writes), and optionally `buildBudgetMs` (the night's `build_time` bound;
+without it the night records the time, unbounded). A bad value is a red run
+naming it.
 
-| Job | Climbs | Its number |
-| --- | --- | --- |
-| `test-time` | the suite's wall time, slowest files first | `testCommand`, timed |
+| Job | Climbs | Its number | Judged by |
+| --- | --- | --- | --- |
+| `test-time` | the suite's wall time, slowest files first | `testCommand`, timed | `compare` |
+| `hygiene` | the flaky tests the test ledger names: fix it, or file it | the flaky count (`.keel/test-runs`) | `prove-steady` |
+| `build-time` | the build | `build`, timed | `compare`; output byte-identical or explained |
 
 **What it needs (⚑).** The `claude` practice's secret,
 `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`); until one is set the
@@ -66,9 +88,11 @@ than pass.
 for itself until its owner says so with a budget.
 
 **Its files.** `.github/workflows/keel-climb.yml`, `scripts/keel/climb.mjs`,
-`.agents/climb/PROTOCOL.md`, `.agents/climb/jobs/test-time.md` (all
-managed). It reads the `night` practice's `lib.mjs`, `test-ledger.mjs` and
+`.agents/climb/PROTOCOL.md`, `.agents/climb/jobs/test-time.md`,
+`hygiene.md` and `build-time.md` (all managed). A hygiene night gathers
+CI's `keel-test-runs` artifacts first, and its workflow may file one issue
+(`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs` and
 `pr-body.mjs`.
 
-**Lineage.** Keel phase 35, from the 6 October 2026 hill-climb on keel's own
+**Lineage.** Keel phases 35 and 36, from the 6 October 2026 hill-climb on keel's own
 suite; design in keel's `docs/research/2026-10-06-climb-nights.md`.

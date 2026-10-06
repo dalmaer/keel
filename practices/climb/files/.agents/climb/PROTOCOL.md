@@ -25,11 +25,17 @@ numbers go in the message, and `compare --decide` writes them there for you.
    keeps the change only when it beats the base by the margin in both. On
    keep it adds the numbers to your commit; on revert it resets the branch to
    the base. Its verdict is final: do not re-run it hoping for a better one.
+   A job whose number is not a time says how it judges instead: hygiene's
+   is `prove-steady --test "<file>: <name>" --decide` (the one test, every
+   run passing on one clean tree).
 4. **Behaviour unchanged.** After a kept change, run
    `node scripts/keel/climb.mjs guard --json`: the project's gate passes, and
-   every test that ran on the night's base still ran (the test ledger). If it
-   fails, run `node scripts/keel/climb.mjs revert --why "<what failed>"`. No
-   output, exit code or file format changes; no dependency is added.
+   every test that ran on the night's base still ran (the test ledger), and
+   the job's own guard (hygiene: no timeout or retry as the fix; build-time:
+   the build's output byte-identical, or a `harmless` reason per changed
+   path). If it fails, run
+   `node scripts/keel/climb.mjs revert --why "<what failed>"`. No output,
+   exit code or file format changes; no dependency is added.
 5. **Bounded.** Stop when `compare` or `revert` prints `stop` (the attempt
    limit, or three misses in a row), or when the budget is nearly spent. A
    change you have not decided when time runs out is dropped, not kept.
@@ -37,7 +43,8 @@ numbers go in the message, and `compare --decide` writes them there for you.
    on `keel-climb/<job>/<date>`, from `climb.mjs report`: the before-and-after
    table, each kept change with its numbers, and what was tried and reverted,
    with why. A night that keeps nothing opens nothing, and that is a fine
-   night.
+   night. (A hygiene night that keeps nothing files one issue instead; the
+   workflow files it, not you.)
 
 ## What you may run
 

@@ -18,5 +18,11 @@
   ],
   "tests": {
     "window": 3
+  },
+  "climb": {
+    "jobs": ["build-time"],
+    "build": "node -e \"\"",
+    "buildOutput": "dist",
+    "buildBudgetMs": 1
   }
 }

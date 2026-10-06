@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G4
 spec: 2
 depends: [33, 35]
-note: "Two more climb jobs on the shared protocol: hygiene (fix or file a flaky test the ledger named) and build-time (a project's build command, timed). Design: research/2026-10-06-climb-nights.md."
-evidence: []
+note: "Built: the hygiene job (picked first when a test is flaky; prove-steady N runs on one clean tree; timeout- or retry-only fixes refused; an issue when nothing is proven), the build-time job (output hashed, each change needs a harmless reason), a build_time night measure, and retirement after three closed PRs. Waits on a real hygiene night on keel and a build-time night on ledger."
+evidence: ["evidence/2026-10-06-climb-hygiene-build.md"]
 issue: 14
 ---
 
@@ -33,9 +33,9 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 ## Acceptance
 
-- [ ] `pick` chooses hygiene when the ledger names a flaky test, ahead of every other job. `tests/climb.test.mjs: "pick"`
-- [ ] The hygiene guard refuses a candidate whose diff only raises a timeout or adds a retry around the flaky test; mutation: removing that refusal fails the test. `tests/climb.test.mjs: "hygiene guard"`
-- [ ] `build-time`'s guard fails when the build output changes and the report names no reason. `tests/climb.test.mjs: "build guard"`
+- [x] `pick` chooses hygiene when the ledger names a flaky test, ahead of every other job. `tests/climb.test.mjs: "pick"`
+- [x] The hygiene guard refuses a candidate whose diff only raises a timeout or adds a retry around the flaky test; mutation: removing that refusal fails the test. `tests/climb.test.mjs: "hygiene guard"`
+- [x] `build-time`'s guard fails when the build output changes and the report names no reason. `tests/climb.test.mjs: "build guard"`
 - [ ] ⚑ by hand: one real hygiene night on keel, the flaky test it targets named by the ledger, and its PR or issue read by the owner.
 
 ## Real surfaces
@@ -56,4 +56,10 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 ## Next action
 
-Blocked on phases 33 (the ledger) and 35 (the protocol).
+With climb on for keel, the first night the ledger names a flaky test runs hygiene; read its PR or issue. A build-time night on ledger comes with phase 37's ledger climb.
+
+## Trajectory
+
+- **2026-10-06** — The hygiene check judges an in-place edit by what changed in the line: its first version passed `() =>` becoming `{ timeout: 9000 }, () =>`, because the removed line counted as a real change.
+- **2026-10-06** — Hygiene is never picked by rotation, only when `flaky_tests` is outside, and then ahead of everything, even a broken measure.
+- **2026-10-06** — A builder's regex with nested quantifiers over `\n` (`(?:\s+.+\n)*\s+`) backtracked catastrophically over a workflow's text and hung a test file at 100% CPU with no child process; caught and rewritten before landing.

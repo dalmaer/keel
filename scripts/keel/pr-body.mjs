@@ -11,7 +11,8 @@
 //                    the section is never dropped.
 //   ## Merge danger  a two-way door (reverting the merge restores everything)
 //                    or a one-way door (something leaves the repo), and the
-//                    blast radius in Real surfaces terms (phase 32).
+//                    blast radius in Real surfaces terms (phase 32), and
+//                    any changed output with why it is harmless (phase 36).
 //
 // then the caller's notes, then the keel-impact block (phase 26) last.
 //
@@ -114,7 +115,13 @@ function danger(d) {
   if (!Array.isArray(surfaces)) fail('danger.surfaces must be a list of Real surfaces terms');
   const named = surfaces.map(s => SURFACES.find(k => k.toLowerCase() === String(s).trim().toLowerCase()) ?? fail(`"${s}" is not a surface; use one of ${SURFACES.join(', ')}, or none`));
   const radius = named.length ? [...new Set(named)].join(', ') : `this repo's ${d.within ? text(d.within, 'danger.within') : 'files'} only`;
-  return [`${DOORS[d.door]}: ${why}`, '', `Blast radius: ${radius}.`];
+  // A changed output the person must judge (a climb build-time night's build output): each path with why it is harmless.
+  const changed = d.changed ?? [];
+  if (!Array.isArray(changed)) fail('danger.changed must be a list of { path, why }');
+  const listed = changed.map((c, i) => `- \`${text(c?.path, `danger.changed[${i}].path`)}\`: ${text(c?.why, `danger.changed[${i}].why`)}`);
+  const lead = d.changedLead ? text(d.changedLead, 'danger.changedLead') : 'Changed, and why it is harmless (the person decides):';
+  const door = [`${DOORS[d.door]}: ${why}`, '', `Blast radius: ${radius}.`];
+  return listed.length ? [...door, '', lead, '', ...listed] : door;
 }
 
 function notes(n) {

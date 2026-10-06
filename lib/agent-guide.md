@@ -628,12 +628,15 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
 `node scripts/keel/climb.mjs` makes every measurement and keep-or-revert.
 **Every number comes from the script; never time things yourself.**
 
-- `config` — `.keel/keel.json` `"climb"`: `jobs` (`test-time`), `budget.minutes`
-  (5–180), `schedule` (`nightly`|`weekly`), `margin` (0.01–0.5), `attempts`,
-  `testCommand` (default `npm test`). No `climb`, no climb night.
+- `config` — `.keel/keel.json` `"climb"`: `jobs` (`test-time`, `hygiene`,
+  `build-time`), `budget.minutes` (5–180), `schedule` (`nightly`|`weekly`),
+  `margin` (0.01–0.5), `attempts`, `testCommand` (default `npm test`);
+  `build`, `buildOutput`, `buildBudgetMs` for `build-time`. No `climb`, no climb night.
 - `pick [--date d] [--force]` — the job tied to the newest health page's worst
-  measure (`slow_tests` → `test-time`), else rotation (`.keel/climb.json`); a
-  job with an open `keel-climb/<job>/` PR waits. gh is `KEEL_GH` or `gh`.
+  measure (`flaky_tests` → `hygiene` first; `slow_tests` → `test-time`;
+  `build_time` → `build-time`), else rotation (`.keel/climb.json`; never
+  hygiene); a job with an open `keel-climb/<job>/` PR waits, one with three
+  closed unmerged is skipped (retiring). gh is `KEEL_GH` or `gh`.
 - `measure <job> [--runs k] [--baseline]` — median and spread; `--baseline`
   opens `.keel/climb/night.json`.
 - `compare [--base r] [--candidate r] [--rounds n] [--decide] [--final]` —
@@ -641,11 +644,15 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
   round beats the margin. `--decide` judges HEAD: keep amends its numbers
   into the commit, revert resets. Prints `stop` at the attempt limit or three
   misses in a row.
-- `guard [--base r]` — the gate, and every test the base ran still ran (the
-  test ledger); exit 1 names the dropped or skipped test, 2 when there is no
-  ledger to tell.
+- `prove-steady --test "<file>: <name>" [--runs n] [--decide]` — hygiene's
+  judge: one test n times (20) on one clean worktree; steady only if all pass.
+- `guard [--base r] [--job j]` — the gate, and every test the base ran still
+  ran (the test ledger); hygiene refuses a timeout- or retry-only diff in the
+  flaky test's file; build-time needs `buildOutput` byte-identical or a
+  `harmless --path p --why "…"` per changed path. Exit 1 names the problem.
 - `revert --why "…"`, `settle` — drop an undecided change; drop all of them.
-- `report [--body f] [--state]` — the PR body (pr-body.mjs) and the night's line.
+- `report [--body f] [--state] [--issue f]` — the PR body (pr-body.mjs), the
+  night's line; `--issue`, a hygiene night's issue when nothing was proven.
 
 Exit: 0 ok, 1 a failing gate or a dropped test, 2 usage, bad config, or an
 instrument that cannot tell. The workflow pushes only

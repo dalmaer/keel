@@ -56,13 +56,17 @@ const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts
 const json = r => { try { return JSON.parse(r.stdout); } catch { assert.fail(`not JSON (exit ${r.status}): ${r.stdout}${r.stderr}`); } };
 const load = dir => import(pathToFileURL(join(dir, 'scripts/keel/climb.mjs')).href);
 
-/** A stub gh whose `pr list` prints these open heads (or exits 1 when `heads` is null). */
-async function stubGh(t, heads) {
+/**
+ * A stub gh: `pr list --state open` prints these open heads (or exits 1 when
+ * `heads` is null); `pr list --state closed` prints `closed`
+ * ([{ headRefName, number, createdAt, mergedAt }]).
+ */
+async function stubGh(t, heads, closed = []) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-climb-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const gh = join(dir, 'gh');
-  const body = heads === null ? 'echo "gh: acme is unreachable" >&2\nexit 1' : `echo '${JSON.stringify(heads.map(h => ({ headRefName: h })))}'\nexit 0`;
-  await writeFile(gh, `#!/bin/sh\nif [ "$1 $2" = "pr list" ]; then\n${body}\nfi\nexit 1\n`, { mode: 0o755 });
+  const open = heads === null ? 'echo "gh: acme is unreachable" >&2\nexit 1' : `echo '${JSON.stringify(heads.map(h => ({ headRefName: h })))}'\nexit 0`;
+  await writeFile(gh, `#!/bin/sh\nif [ "$1 $2 $3 $4" = "pr list --state closed" ]; then\necho '${JSON.stringify(closed)}'\nexit 0\nfi\nif [ "$1 $2" = "pr list" ]; then\n${open}\nfi\nexit 1\n`, { mode: 0o755 });
   return gh;
 }
 
@@ -331,7 +335,164 @@ test('off: with no climb key the workflow does nothing; with no secret the run e
   assert.ok(after.length >= 8);
   for (const s of after) {
     const cond = /(?:^ {6}- |\n {8})if: (.+)/.exec(s)?.[1] ?? '';
-    assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.job != ''/, `step without the guard: ${s.split('\n')[0]}`);
+    // A step for one job (hygiene's gather, its issue) runs only when that job was picked: a job, so climb is on.
+    assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.job != ''|steps\.pick\.outputs\.job == '[a-z-]+'/, `step without the guard: ${s.split('\n')[0]}`);
   }
   assert.match(steps.find(s => s.includes('name: Configured?')), /if: steps\.on\.outputs\.on == 'true'/);
+});
+
+// ---- phase 36: hygiene and build-time ---------------------------------------------
+
+/** Synthetic test ledger runs (the ledger's record shape) for `tree`, written under dir's .keel/test-runs. */
+async function ledgerRuns(dir, { commit, tree, outcomes, file = 'acme.test.mjs', name = 'acme waits', others = ['acme adds'] }) {
+  await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
+  await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
+  for (const [i, outcome] of outcomes.entries()) {
+    const run = { commit, tree, dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: 'v24.0.0', date: `2026-10-05T0${i}:00:00.000Z`, tests: [...others.map(n => ({ file, name: n, outcome: 'pass', ms: 1 })), { file, name, outcome, ms: 2 }] };
+    await writeFile(join(dir, `.keel/test-runs/2026-10-05T0${i}-00-00-000Z-${i}.json`), JSON.stringify(run));
+  }
+}
+
+test('pick: hygiene goes ahead of every other job when the ledger names a flaky test, never by rotation, and waits like any job', async t => {
+  const dir = await acme(t, { climb: { jobs: ['test-time', 'build-time', 'hygiene'], build: 'node -e ""', buildOutput: 'dist' } });
+  const m = await load(dir);
+  const jobs = ['test-time', 'build-time', 'hygiene'];
+  const flakyRow = { id: 'flaky_tests', value: 1, bound: 0, op: '≤', state: 'outside' };
+  // Every other measure further outside, one even broken: a flaky test still goes first. (Mutation: pick not preferring hygiene fails here.)
+  const worse = [{ id: 'slow_tests', value: null, bound: 0, op: '≤', state: 'broken' }, { id: 'build_time', value: 90000, bound: 1000, op: '≤', state: 'outside' }, flakyRow];
+  assert.deepEqual([m.choose({ jobs, rows: worse }).job, m.choose({ jobs, rows: worse }).by], ['hygiene', 'measure']);
+  assert.match(m.choose({ jobs, rows: worse }).why, /^flaky_tests is outside/);
+  assert.equal(m.choose({ jobs, rows: worse.slice(0, 2) }).job, 'test-time', 'with no flaky test, broken beats outside as before');
+  assert.equal(m.choose({ jobs, rows: [worse[1]] }).job, 'build-time', 'build_time outside sends the night to build-time');
+  assert.equal(m.choose({ jobs, rows: worse, waiting: new Set(['hygiene']) }).job, 'test-time', 'hygiene with an open PR waits');
+  // Rotation never lands on hygiene: with no flaky test there is nothing to fix.
+  assert.equal(m.choose({ jobs, rows: [], last: 'build-time' }).job, 'test-time');
+  assert.equal(m.choose({ jobs: ['hygiene'], rows: [] }).job, null);
+  assert.match(m.choose({ jobs: ['hygiene'], rows: [] }).reason, /hygiene \(only when its measure is outside\)/);
+
+  // The command line, from the health page the night writes.
+  await write(dir, { 'docs/health/2026-10-05.md': page([['slow_tests', 9, '≤ 0', 'outside'], ['flaky_tests', 1, '≤ 0', 'outside'], ['build_time', 4000, '≤ 1000', 'outside']]) });
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, []) }));
+  assert.equal(p.job, 'hygiene', JSON.stringify(p));
+  assert.equal(p.branch, 'keel-climb/hygiene/2026-10-06');
+  assert.equal(p.command, 'the test ledger (.keel/test-runs)');
+  // A build_time with no bound (recorded only) is a dash on the page: never a reason to climb.
+  assert.deepEqual(m.healthRows(page([['build_time', 4000, '—', 'ok']])), []);
+});
+
+test('retirement: a job whose last three PRs were closed unmerged is skipped by pick until one is reopened or merged', async t => {
+  const { climbRetiring, retireLine } = await import(pathToFileURL(join(NIGHT, 'lib.mjs')).href);
+  const pr = (n, job, merged = false) => ({ headRefName: `keel-climb/${job}/2026-10-0${n}`, number: n, createdAt: `2026-10-0${n}T10:00:00Z`, mergedAt: merged ? `2026-10-0${n}T12:00:00Z` : null });
+  const three = [pr(1, 'test-time'), pr(2, 'test-time'), pr(3, 'test-time'), pr(4, 'build-time')];
+  assert.deepEqual(climbRetiring(three, ['test-time', 'build-time']), [{ job: 'test-time', prs: [3, 2, 1] }]);
+  assert.deepEqual(climbRetiring([pr(1, 'test-time'), pr(2, 'test-time', true), pr(3, 'test-time')], ['test-time']), [], 'one merged among the last three');
+  assert.deepEqual(climbRetiring([pr(1, 'test-time', true), pr(2, 'test-time'), pr(3, 'test-time'), pr(4, 'test-time')], ['test-time']).map(r => r.prs), [[4, 3, 2]], 'an older merge does not save it');
+  assert.deepEqual(climbRetiring(three.slice(0, 2), ['test-time']), [], 'two is not three');
+  assert.match(retireLine({ job: 'test-time', prs: [3, 2, 1] }), /^Climb: `test-time` proposes its own retirement: its last 3 keel-climb\/test-time\/ PRs \(#3, #2, #1\) were closed unmerged\. Remove it from "climb"\.jobs, or reopen one/);
+
+  // pick, against gh's closed list: test-time is skipped, the rotation goes on. (Mutation: ignoring three closed PRs fails here.)
+  const dir = await acme(t, { climb: { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' }, files: { 'docs/health/2026-10-05.md': page([['slow_tests', 3, '≤ 0', 'outside']]) } });
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, [], three) }));
+  assert.equal(p.job, 'build-time', JSON.stringify(p));
+  assert.deepEqual(p.retiring, [{ job: 'test-time', prs: [3, 2, 1] }]);
+  // The owner removes build-time too, or both retire: nothing runs, and pick says why.
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'] } }));
+  const none = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, [], three) }));
+  assert.equal(none.job, null);
+  assert.match(none.reason, /test-time \(retiring: its last three PRs were closed unmerged\)/);
+  // Reopened: the PR is open, so the job waits for the person, and is not retired.
+  const reopened = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, ['keel-climb/test-time/2026-10-03'], three.slice(0, 2)) }));
+  assert.deepEqual([reopened.job, reopened.waiting, reopened.retiring], [null, ['test-time'], []]);
+});
+
+/** A flaky test with a timeout, as a person might first write it. */
+const WAITING = `import { test } from 'node:test';
+test('acme adds', () => {});
+test('acme waits', { timeout: 100 }, async () => {
+  const id = Math.random().toString(36).slice(2, 6);
+  if (id.length > 4) throw new Error('acme');
+});
+`;
+
+test('hygiene guard: refuses a diff that only raises a timeout or wraps a retry around the flaky test, naming the line; a real fix that also changes a timeout passes, with a note', async t => {
+  const dir = await acme(t, { climb: { jobs: ['hygiene'], testCommand: LEDGER_TEST }, config: { check: LEDGER_TEST }, files: { 'acme.test.mjs': WAITING } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  await ledgerRuns(dir, { commit: base, tree: git(dir, ['rev-parse', 'HEAD^{tree}']), outcomes: ['pass', 'fail', 'pass'] });
+  const baseline = json(climb(dir, ['measure', 'hygiene', '--baseline', '--json']));
+  assert.equal(baseline.median, 1);
+  assert.deepEqual(baseline.flaky.map(f => [f.file, f.name, f.passed, f.failed]), [['acme.test.mjs', 'acme waits', 2, 1]]);
+  assert.match(baseline.flaky[0].alone, /^node --test --test-name-pattern='\^acme waits\$' acme\.test\.mjs$/);
+  const at = async (branch, text) => { git(dir, ['checkout', '-q', '-b', branch, base]); return commit(dir, { 'acme.test.mjs': text }, `acme: ${branch}`); };
+  const guard = () => climb(dir, ['guard', '--json']);
+
+  // A longer timeout and nothing else: refused, naming the line. (Mutation: removing the refusal fails here.)
+  await at('longer', WAITING.replace('{ timeout: 100 }', '{ timeout: 5000 }'));
+  const longer = guard();
+  assert.equal(longer.status, 1, longer.stdout + longer.stderr);
+  assert.match(json(longer).problems[0], /^acme\.test\.mjs:3 `test\('acme waits', \{ timeout: 5000 \}, async \(\) => \{`: in the flaky test's file this diff only changes a timeout or a retry/);
+  assert.equal(json(longer).refused[0].line, 3);
+
+  // A retry wrapped around the body (its lines re-indented): still only a retry.
+  await at('retry', WAITING.replace("  const id = Math.random().toString(36).slice(2, 6);\n  if (id.length > 4) throw new Error('acme');\n",
+    "  for (let attempt = 0; attempt < 3; attempt++) {\n    try {\n      const id = Math.random().toString(36).slice(2, 6);\n      if (id.length > 4) throw new Error('acme');\n      break;\n    } catch {}\n  }\n"));
+  const retry = guard();
+  assert.equal(retry.status, 1, retry.stdout);
+  assert.match(json(retry).problems[0], /^acme\.test\.mjs:4 `for \(let attempt = 0; attempt < 3; attempt\+\+\) \{`: .*only changes a timeout or a retry/);
+
+  // The cause fixed, and the timeout changed too: it passes, and says so for the person.
+  await at('fixed', WAITING.replace('{ timeout: 100 }', '{ timeout: 500 }').replace('.slice(2, 6)', '.slice(2, 6).padEnd(4, "0").slice(0, 4)'));
+  const fixed = guard();
+  assert.equal(fixed.status, 0, fixed.stdout + fixed.stderr);
+  assert.match(json(fixed).noted[0].message, /^acme\.test\.mjs:3 .*changes a timeout or a retry beside 2 other changed lines: a real fix that also changes a timeout passes/);
+  assert.match(fixed.stdout, /"line": "`node --test/);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8')).hygieneNotes.length, 1);
+  // The same check by name, against an explicit base.
+  assert.equal(climb(dir, ['guard', '--job', 'hygiene', '--base', base, '--json']).status, 0);
+});
+
+test('build guard: fails when the build output changes and no harmless reason names the path; passes byte-identical, or explained, and the PR names each reason', async t => {
+  const build = text => `import { mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('dist/css', { recursive: true });\nwriteFileSync('dist/app.txt', ${JSON.stringify(text)});\nwriteFileSync('dist/css/acme.css', 'body{}\\n');\n`;
+  const cfg = { jobs: ['build-time'], build: 'node build.mjs', buildOutput: 'dist/', testCommand: LEDGER_TEST };
+  const dir = await acme(t, { climb: cfg, config: { check: LEDGER_TEST }, files: { 'build.mjs': build('acme anvils\n'), '.gitignore': 'dist/\n', 'acme.test.mjs': suite('acme adds') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const m = await load(dir);
+  json(climb(dir, ['measure', 'build-time', '--baseline', '--runs', '1', '--json']));
+  const at = async (branch, text) => { git(dir, ['checkout', '-q', '-b', branch, base]); return commit(dir, { 'build.mjs': text }, `acme: ${branch}`); };
+
+  await at('same', `// one pass, not two\n${build('acme anvils\n')}`);
+  const same = climb(dir, ['guard', '--json']);
+  assert.equal(same.status, 0, same.stdout + same.stderr);
+  assert.deepEqual([json(same).build.output, json(same).build.files, json(same).build.changes], ['dist', 2, []]);
+
+  // The output changed and nothing says why: the guard fails, naming the path. (Mutation: accepting it fails here.)
+  await at('changed', build('acme anvils, faster\n'));
+  const changed = climb(dir, ['guard', '--json']);
+  assert.equal(changed.status, 1, changed.stdout + changed.stderr);
+  assert.deepEqual(json(changed).build.changes, [{ path: 'dist/app.txt', how: 'changed' }]);
+  assert.match(json(changed).problems[0], /^build output changed: dist\/app\.txt differs from the base [0-9a-f]{7}'s and has no harmless reason \(climb\.mjs harmless --path dist\/app\.txt/);
+  // A reason for another path is not a reason for this one.
+  climb(dir, ['harmless', '--path', 'dist/css/acme.css', '--why', 'acme']);
+  assert.equal(climb(dir, ['guard', '--json']).status, 1);
+  const h = climb(dir, ['harmless', '--path', 'dist/app.txt', '--why', 'the banner text only; no code changes', '--json']);
+  assert.equal(h.status, 0, h.stderr);
+  const explained = climb(dir, ['guard', '--json']);
+  assert.equal(explained.status, 0, explained.stdout + explained.stderr);
+  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  assert.deepEqual(night.build.changes, [{ path: 'dist/app.txt', how: 'changed', why: 'the banner text only; no code changes' }]);
+
+  // The PR names it under Merge danger, for the person to judge.
+  const { prBody } = await import(pathToFileURL(join(NIGHT, 'pr-body.mjs')).href);
+  const kept = { what: 'acme: one pass', verdict: 'keep', why: 'beat', candidate: 'a'.repeat(40), rounds: [{ base: 2000, candidate: 1000, change: -0.5 }] };
+  const body = prBody(m.reportOf({ ...night, tried: [kept], final: null }).input);
+  const danger = body.slice(body.indexOf('## Merge danger'));
+  assert.match(danger, /^The build's output \(dist\) differs from the base's; each path with why it is harmless, for the person to judge:\n\n- `dist\/app\.txt \(changed\)`: the banner text only; no code changes$/m);
+  const identical = prBody(m.reportOf({ ...night, build: { output: 'dist', files: 2, changes: [] }, tried: [kept], final: null }).input);
+  assert.match(identical, /^The build's output \(dist, 2 files\) is byte-identical to the base's/m);
+  assert.doesNotMatch(identical.slice(identical.indexOf('## Merge danger')), /harmless/);
+
+  // build-time needs its command and what it writes.
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['build-time'], buildOutput: '../x', buildBudgetMs: 0 } }));
+  const bad = climb(dir, ['config', '--json']);
+  assert.equal(bad.status, 2);
+  for (const re of [/build-time, so "climb"\.build must name the build command/, /buildOutput must be a path inside the repo/, /buildBudgetMs must be a whole number/]) assert.match(json(bad).error, re);
 });
