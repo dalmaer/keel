@@ -63,7 +63,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | Practice | What it gives a project | The failure it prevents |
 | --- | --- | --- |
 | `base` | The project's skeleton: Node pinned in `.nvmrc`, a `package.json` whose `check` is the gate, an ignore file | Each project starting from a different floor |
-| `phases` | One file per phase in `docs/phases/`, owning its status; `docs/goals.json`; a generated roadmap that CI checks | Status written in two places, drifting |
+| `phases` | One file per phase in `docs/phases/`, owning its status; `docs/goals.json`; a generated roadmap that CI checks, which also refuses a phase still holding the template's text; a new phase names the check behind each acceptance box and where it runs for real | Status written in two places, drifting; a spec that cannot be proven |
 | `evidence` | `built` needs an evidence file that says what was actually checked | Claiming what was never run |
 | `lessons` | `docs/lessons.md`: failure *shapes*, each with the guard that now catches it | Paying for the same bug twice |
 | `conduct` | The conductor skill: brief a builder, verify the named proof yourself, record, commit | Trusting a subagent's "tests pass" |

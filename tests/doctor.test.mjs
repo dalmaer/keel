@@ -368,8 +368,9 @@ test('a README older than the newest built phase is a readme-behind note, never 
   const { code, data } = doctor(dir);
   assert.equal(code, 0, JSON.stringify(data));
   assert.deepEqual(data.lint, []);
-  assert.deepEqual(data.notes.map(n => `${n.rule} ${n.path}`), ['readme-behind README.md']);
-  assert.match(data.notes[0].message, /2020-01-02.*01-acme-search\.md.*2020-01-05/);
+  const behind = d => d.notes.filter(n => n.rule === 'readme-behind');
+  assert.deepEqual(behind(data).map(n => `${n.rule} ${n.path}`), ['readme-behind README.md']);
+  assert.match(behind(data)[0].message, /2020-01-02.*01-acme-search\.md.*2020-01-05/);
   const text = keel(['doctor'], dir);
   assert.equal(text.code, 0);
   assert.match(text.out, /Notes \(information; never changes the exit code\):\n {2}readme-behind/);
@@ -377,16 +378,44 @@ test('a README older than the newest built phase is a readme-behind note, never 
   // A README committed on or after that day: no note.
   await writeFile(join(dir, 'README.md'), '# Acme Notes\n\nAcme Notes keeps and finds meeting notes.\n');
   git(['commit', '-q', '-am', 'Acme readme, search'], { GIT_AUTHOR_DATE: '2020-01-05T12:00:00Z', GIT_COMMITTER_DATE: '2020-01-05T12:00:00Z' });
-  assert.deepEqual(doctor(dir).data.notes, []);
+  assert.deepEqual(behind(doctor(dir).data), []);
 
   // Not a git repo: skipped silently.
   await writeFile(join(dir, 'README.md'), '# Acme Notes\n');
   git(['commit', '-q', '-am', 'Acme readme, short'], { GIT_AUTHOR_DATE: '2020-01-02T12:00:00Z', GIT_COMMITTER_DATE: '2020-01-02T12:00:00Z' });
-  assert.equal(doctor(dir).data.notes.length, 1);
+  assert.equal(behind(doctor(dir).data).length, 1);
   await rm(join(dir, '.git'), { recursive: true, force: true });
   const bare = doctor(dir);
   assert.equal(bare.code, 0);
-  assert.deepEqual(bare.data.notes, []);
+  assert.deepEqual(behind(bare.data), []);
+});
+
+test('acceptance-unchecked: an old built phase whose boxes name no check is a note, never a finding, and no file changes', async t => {
+  const dir = await project(t);
+  const zero = await readFile(join(dir, 'docs', 'phases', '00-first-thing-that-runs.md'), 'utf8');
+  const built = (status, extra = '') => zero.replace(/^---\n[\s\S]*?\n---\n/, [
+    '---', `status: ${status}`, 'since: 2020-01-05', 'goal: G0', ...(extra ? [extra] : []), 'depends: [0]', 'note: "Acme search works."', 'evidence: ["evidence/2020-01-05-acme-search.md"]', '---', '',
+  ].join('\n')).replaceAll('- [ ]', '- [x]').replace('# First thing that runs', '# Acme search');
+  await mkdir(join(dir, 'docs', 'evidence'), { recursive: true });
+  await writeFile(join(dir, 'docs', 'evidence', '2020-01-05-acme-search.md'), '# Acme search\n\nChecked by hand.\n');
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-search.md'), built('built'));
+  const before = await tree(dir);
+  const { code, data } = doctor(dir);
+  assert.equal(code, 0, JSON.stringify(data.lint));
+  const unchecked = data.notes.filter(n => n.rule === 'acceptance-unchecked');
+  assert.deepEqual(unchecked.map(n => n.path), ['docs/phases/01-acme-search.md']);
+  assert.match(unchecked[0].message, /^1 of 2 acceptance boxes name no check/);
+  assert.match(keel(['doctor'], dir).out, /Notes \(information; never changes the exit code\):[\s\S]*acceptance-unchecked +docs\/phases\/01-acme-search\.md/);
+  assert.deepEqual(await tree(dir), before, 'doctor rewrote nothing');
+
+  // Unfinished, it is not yet owed; with spec: 2, the same box is the check's failure, so a finding.
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-search.md'), built('partial').replace('- [x] `npm run check`', '- [ ] `npm run check`'));
+  assert.deepEqual(doctor(dir).data.notes.filter(n => n.rule === 'acceptance-unchecked'), []);
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-search.md'), built('partial', 'spec: 2').replace('- [x] `npm run check`', '- [ ] `npm run check`').replace('## Proof', '## Real surfaces\n\nnone\n\n## Proof'));
+  const strict = doctor(dir);
+  assert.equal(strict.code, 1);
+  assert.deepEqual(rules(strict.data), ['phase docs/phases/01-acme-search.md']);
+  assert.match(strict.data.lint[0].message, /## Acceptance: ".*" names no check/);
 });
 
 test('--fix eject asks first, then hands the file to the project for good', async t => {

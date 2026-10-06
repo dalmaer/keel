@@ -2,6 +2,7 @@
 status: planned
 since: 2026-10-06
 goal: G4
+spec: 2
 depends: [10, 15, 33]
 note: "The 6 Oct hill-climb (suite 48s → 23s) as a repeatable, opt-in night: one shared protocol, one job a night within a budget, one PR a person merges. First job: test-time, on keel. Design: research/2026-10-06-climb-nights.md."
 evidence: []

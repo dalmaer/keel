@@ -3,7 +3,7 @@
   "files": {
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "86810dabee64883d2a089a019725fc9a64f0019a927a4aeae75a9eb34c2f4a50"
+      "sha256": "f1c8e75c6d2cc8e3511b6511e794b0e2f1223f3abd3b0b94b301198b053a87b7"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -59,7 +59,7 @@
     },
     "docs/phases/README.md": {
       "practice": "phases",
-      "sha256": "6f1a8f29717fc4516e8d82a28a14f88067b1c65d61ba92d0b4bf2bd4245548f6"
+      "sha256": "9abebfac20fa330522a58ca0eb1f290f1e635b9340ec6e5e42045bcada2c1f46"
     },
     "docs/reconciliation.md": {
       "practice": "reconciliation",
@@ -71,7 +71,7 @@
     },
     "docs/templates/phase.md": {
       "practice": "phases",
-      "sha256": "2389742bb73c805ccce9cd7ece960839dbc14f07d1f80c6f8da2db5c1a21e0fd"
+      "sha256": "6ac6085cd00bddc00ff6ded9f730951e4269db48d89e133cefe46a1254c0632a"
     },
     "renovate.json": {
       "practice": "renovate",
@@ -83,11 +83,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "14e1bcb56ceda75bf37f424f45287ffb73edf639d09eee5a894be350612b766a"
+      "sha256": "585aad997411b8aa9cf2474b161c3b4bf901e807eb164009cfe03f1261304b0f"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "fc102055c318812ec0544f11b75667fd26d37f3cc6f8c015d8ba4ffe87064f4e"
+      "sha256": "7d067a69ba5689a42cc65287852d42a02593a51c047f60065e654c430aa97f34"
     },
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",
@@ -95,11 +95,11 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "10b375dc9e4406189c6766c9601e4243b115a38465617165856f15be4e12191c"
+      "sha256": "b7cc17acc08b87bb39cdb3dc834bb41ef5b8def04a5fd905c1f13e9dc503efec"
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "4e2e14b075f3f5e2e8ba60834496c221f5170be14de4a411a5b779244fc1225b"
+      "sha256": "565005acff301c85e72e7d8c324dcbd86dbe65128b3f28de1f953ef6f93fa245"
     }
   }
 }

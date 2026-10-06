@@ -2,6 +2,7 @@
 status: planned
 since: 2026-10-06
 goal: G5
+spec: 2
 depends: [11, 13, 32, 33]
 note: "Climb escapes per built phase: defects found after a phase was built, read from what is already written (a lesson with the project's own provenance, a fix commit, a trajectory correction). Each rigour change is an experiment against it. Design: research/2026-10-06-spec-rigor.md."
 evidence: []

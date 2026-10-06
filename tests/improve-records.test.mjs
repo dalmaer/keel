@@ -14,7 +14,7 @@ import { phaseSections, recordsDisagree, statusUnknown, changelogGaps, issuesNam
 
 const DATE = '2026-03-31';
 const NEW = ['records_disagree', 'status_unknown', 'changelog_gaps', 'research_unindexed', 'verify_owed', 'issues_unnamed', 'issues_done_open', 'prs_stale'];
-const PHASES = ['phases_without_issue', 'phases_stuck', 'roadmap_stale', 'evidence_placeholders'];
+const PHASES = ['phases_without_issue', 'phases_stuck', 'roadmap_stale', 'evidence_placeholders', 'proofs_hold'];
 
 async function scratch(t, prefix = 'keel-records-') {
   const dir = await mkdtemp(join(tmpdir(), prefix));
@@ -177,7 +177,7 @@ test('the projects shape: phases_stuck and phases_without_issue have values; the
   // anvils/2 (NOT STARTED) and traps/2 (PART-DONE) are open, in files last committed 1 Feb: 58 days.
   assert.equal(r.phases_stuck.state, 'outside');
   assert.deepEqual(r.phases_stuck.facts.stuck.map(s => [s.id, s.status, s.since, s.days]), [['anvils/2', 'planned', '2026-02-01', 58], ['traps/2', 'partial', '2026-02-01', 58]]);
-  for (const id of ['roadmap_stale', 'evidence_placeholders']) {
+  for (const id of ['roadmap_stale', 'evidence_placeholders', 'proofs_hold']) {
     assert.equal(r[id].state, 'n/a', id);
     assert.match(r[id].detail, /projects shape/, id);
   }

@@ -2,6 +2,7 @@
 status: planned
 since: 2026-10-06
 goal: G4
+spec: 2
 depends: [10, 11]
 note: "The owner's example: after a test run, the agent hears 'this test is flaky over the last N runs' or 'much slower than its last N runs', as hygiene work. A zero-dependency node reporter records each test; flaky is a fact (mixed outcomes on one clean tree), slower needs 2x the median and a floor. Design: research/2026-10-06-spec-rigor.md."
 evidence: []

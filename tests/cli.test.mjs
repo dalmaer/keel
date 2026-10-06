@@ -118,7 +118,8 @@ test('--json parses for every verb and flag; human text never mixes in', async (
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
-    for (const name of names()) {
+    // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
+    for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
       const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, { ...env, KEEL_GH: emptyGh, KEEL_CLAUDE_DIR: join(dir, 'no-transcripts') });
       assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);

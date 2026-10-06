@@ -139,8 +139,16 @@ keel goal retire G1 --reason "Nobody exports" --phases supersede --yes
   focus. Unbuilt phases need `--phases supersede` (status superseded, note
   "Goal <id> retired: <reason>") or `--phases move:<Gm>`, and `--yes`.
 - `phase new` writes `NN-<slug>.md` from `docs/templates/phase.md`: status
-  planned, since today, note "Drafted by keel phase new.", sections as the
-  template has them. The number is the highest in `docs/phases` plus one, at
+  planned, since today, `spec: 2` (when the template has it), note "Drafted
+  by keel phase new.", sections as the template has them. The draft lists,
+  but `scripts/roadmap.mjs --check` (and `keel doctor`'s `phase` lint)
+  refuses it until no template text is left: write Done when, Acceptance,
+  Real surfaces and Proof. With `spec: 2`, each Acceptance box names its
+  check (`tests/<file>: "<test name>"`, a command in backticks, or `⚑ by
+  hand: <who>`), and `## Real surfaces` lists `- <surface>: <its proof>`
+  from published package, workflow shell, adopted project, owner's
+  machine, GitHub API, fleet over time, or is the single line `none`. A
+  superseded phase is not checked for template text. The number is the highest in `docs/phases` plus one, at
   the project's width. Another branch's phase is invisible to it: when two
   branches take the same number, the roadmap check and `keel doctor` name
   both files; renumber one.
@@ -294,7 +302,9 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   keel's tags or a matching hash it stays `both`.
 - Lints: `second-copy` (a `SKILL.md` naming a managed skill outside
   `.agents/skills/`, not through a symlink), `claude-md-pointer` (more than 3
-  non-empty lines), `phase` (the roadmap parser's error), `goal-without-phase`,
+  non-empty lines), `phase` (the roadmap parser's error, or what its
+  `--check` refuses: template text, a `spec: 2` box naming no check, a Real
+  surfaces line off its list), `goal-without-phase`,
   `symlink-replaced` (a managed doorway that became a real directory),
   `lessons-path` (a `lessons` config naming no file), `lessons-table-split`
   (the lessons table ends early, so the rows after it are not counted: a
@@ -313,7 +323,10 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   phases that name no evidence while phases or evidence is local.
 - `notes` never change the exit code and are not lints (improve's `lint`
   measure does not count them): `readme-behind` fires when README.md's last
-  commit is older than the newest built or lived-in phase's `since`.
+  commit is older than the newest built or lived-in phase's `since`;
+  `acceptance-unchecked`, per built or lived-in phase without `spec`, counts
+  its boxes that name no check. Never rewrite the phase for it; bring it up
+  to date when it is next edited.
 - `--fix <path> restore` rewrites it from the template; `--fix <path> eject`
   drops it from the lock and adds it to `.keel/keel.json` `ejected`, which
   render honours forever. Each needs `--yes`, or exits 3 with the plan.
@@ -439,15 +452,19 @@ first, a model's opinion never: every number comes from a command.
   older than 21 days), `lessons_without_guard` (empty, "to write", or planned
   with no phase; the `lessons` path; the guard column is the header naming a
   guard, e.g. `Guard / status`, and unnumbered rows count by position), `evidence_placeholders` (a built phase
-  whose evidence is the blank template), `drift` and `lint` (doctor),
+  whose evidence is the blank template), `proofs_hold` (proof lost: a built
+  phase's Acceptance cites a `tests/` path that is gone, or its `evidence`
+  names a missing file; no ratchet; its ledger half, cited tests passing in
+  the last recorded run, is n/a until phase 33; the proposal is re-point or
+  step back with a reason, never writing evidence), `drift` and `lint` (doctor),
   `inbox_waiting` (keel only).
 - The projects shape (`"phases": {"shape": "projects"}`: phases in
   `docs/projects/<p>/phases.md` with `**Status:**` lines, the project's
   status and `issue:` in its primary doc's front matter — journey, design,
   plan, then phases.md). `phases_without_issue` counts NOT STARTED and
   PART-DONE phases in a project with no `issue:`; `phases_stuck` ages them by
-  their phases.md's last commit (there is no `since`). `roadmap_stale` and
-  `evidence_placeholders` are `n/a` there.
+  their phases.md's last commit (there is no `since`). `roadmap_stale`,
+  `evidence_placeholders` and `proofs_hold` are `n/a` there.
 - Records, wherever their source exists (else `n/a` with why, never 0):
   `records_disagree` (docs/projects front matter `built` with a phase open,
   or `partial`/`designed` with every phase CLOSED or RETIRED);

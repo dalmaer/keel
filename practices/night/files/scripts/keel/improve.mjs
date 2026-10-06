@@ -133,7 +133,10 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
   const lock = await readLock(ctx.root);
   if (!lock) return { na: `no ${LOCK}: nothing records what keel wrote here` };
   const { drift, lint } = await lockDrift(ctx.root);
-  if ((ctx.config.practices ?? []).includes('phases')) lint.push(...await phaseLints(ctx.root, (await roadmapModule(ctx)).parsePhase));
+  if ((ctx.config.practices ?? []).includes('phases')) {
+    const { parsePhase, specProblems } = await roadmapModule(ctx);
+    lint.push(...await phaseLints(ctx.root, parsePhase, specProblems));
+  }
   if (lock.files['CLAUDE.md']) {
     const claude = claudeMdLint(await read(join(ctx.root, 'CLAUDE.md')));
     if (claude) lint.push(claude);
@@ -480,6 +483,36 @@ export const MEASURES = [
     },
   },
   {
+    // Phase 32. The ledger half (a cited test passed in the last recorded run)
+    // waits for phase 33's test ledger; until then it is n/a, and says so.
+    id: 'proofs_hold', what: 'built or lived-in phases whose proof is lost: Acceptance cites a tests/ path that is gone, or evidence names a missing path', unit: 'phases', bound: 0, better: 'lower', ratchet: false,
+    async run(ctx) {
+      const off = phasesOff(ctx);
+      if (off) return { na: off };
+      const { parsePhase, DONE } = await roadmapModule(ctx);
+      const found = [];
+      // Each file on its own, not the roadmap's collect: a missing evidence file is what this measure names, where collect would stop.
+      for (const file of (await notes(ctx, 'docs/phases')) ?? []) {
+        let p;
+        try { p = parsePhase(file, await read(join(ctx.root, 'docs', 'phases', file))); } catch { continue; } // the phase lint names it
+        if (!DONE.includes(p.status)) continue;
+        if (!Array.isArray(p.tests)) throw new Error('scripts/roadmap.mjs names no cited tests (it predates phase 32); keel update brings it');
+        const missing = [];
+        for (const t of p.tests) if (!await exists(join(ctx.root, t))) missing.push(t);
+        for (const e of p.evidence) if (!await exists(join(ctx.root, 'docs', e))) missing.push(`docs/${e}`);
+        if (missing.length) found.push({ id: p.id, file, missing });
+      }
+      const ledger = 'the ledger half (cited tests passed in the last recorded run) is n/a until phase 33\'s test ledger';
+      return {
+        value: found.length,
+        detail: found.length
+          ? `proof lost: ${list(found.map(f => `phase ${f.id} (${f.missing.join(', ')} missing)`), 3)}; ${ledger}`
+          : `every built phase's cited tests and evidence paths exist; ${ledger}`,
+        facts: { found },
+      };
+    },
+  },
+  {
     id: 'records_disagree', what: "projects whose front matter status contradicts their phases (built with a phase open, partial with all closed)", unit: 'projects', bound: 0, better: 'lower',
     async run(ctx) {
       const projects = ((await projectRecords(ctx)) ?? []).filter(p => p.phases?.length);
@@ -768,6 +801,7 @@ export function proposalText(r, config = {}) {
     case 'prs_stale': return `Merge or close PR #${f.stale[0].number} (open ${f.stale[0].age} days).${f.stale.length > 1 ? ` ${f.stale.length - 1} more after it.` : ''}`;
     case 'lessons_without_guard': return `Name the guard, or the phase that will build it, for lesson${f.ids.length === 1 ? '' : 's'} #${f.ids.join(', #')} in ${f.path ?? LESSONS}.`;
     case 'evidence_placeholders': return `Fill the evidence for phase${f.ids.length === 1 ? '' : 's'} ${f.ids.join(', ')} with what was actually checked, or step ${f.ids.length === 1 ? 'it' : 'them'} back to partial; a blank template proves nothing.`;
+    case 'proofs_hold': return `Phase ${f.found[0].id} has lost its proof (${f.found[0].missing.join(', ')}): re-point the reference if it moved, or step the phase back to partial with the reason. Never write evidence to make it hold.${f.found.length > 1 ? ` ${f.found.length - 1} more after it.` : ''}`;
     case 'lessons_unsent': return `Send them home: \`${SEND_LESSONS}\` (${f.ids.length} unsent in ${f.path}; \`--dry-run\` lists them first). Filing on keel's inbox is the owner's step.`;
     case 'drift': return `Settle the project's edits to ${list(f.paths, 3)}: send them home (\`keel lessons\`), or \`keel doctor --fix <path> restore|eject\`.`;
     case 'lint': return `Fix ${f.lint[0].rule} at ${f.lint[0].path} (\`keel doctor\` says how).${f.lint.length > 1 ? ` ${f.lint.length - 1} more after it.` : ''}`;

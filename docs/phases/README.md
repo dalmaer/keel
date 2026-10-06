@@ -28,6 +28,7 @@ general YAML. Strings bare or JSON-quoted; lists are JSON arrays.
 status: planned
 since: 2026-10-02
 goal: G1
+spec: 2
 depends: [0]
 note: "One line: why it stands where it does."
 evidence: []
@@ -48,9 +49,40 @@ person must do), **Deliberately open** (decisions postponed on purpose — settl
 them in place, dated), **Next action** (one concrete step; `npm run next`
 prints it; once the phase is built, `None.` or what lived-in needs).
 
+With `spec: 2`, also **Real surfaces** (below).
+
 Optional: **Trajectory**, after Next action — written by the conductor, only
 for what changed the course: `- **YYYY-MM-DD** — Claim. Evidence.` A phase
 that went as planned says so in one line. Work done is not trajectory; git holds it.
 
 Use [the template](../templates/phase.md). After editing: `npm run roadmap`,
 then `npm run check`.
+
+## A spec says how it will be proven
+
+`npm run roadmap` lists a phase as soon as it parses; `--check` (CI) also
+reads it as a spec:
+
+- **Template text fails, at any status** but superseded: a line of the
+  template's placeholder text left in any section, or its title. The check
+  and the template share one list (`PLACEHOLDERS` in `scripts/roadmap.mjs`).
+  An empty Done when, Acceptance or Proof fails too.
+- **`spec: 2`** (the template writes it, so `keel phase new` does) holds a
+  phase to two more rules:
+  - Each Acceptance box names its check: a cited test,
+    `tests/<file>: "<test name>"`; a command in backticks (a program and its
+    arguments, like `` `npm run check` ``); or `⚑ by hand: <who>`.
+  - A **Real surfaces** section lists where the change runs for real, one
+    `- <surface>: <its proof>` line each, from a closed list: published
+    package, workflow shell, adopted project, owner's machine, GitHub API,
+    fleet over time. A surface with no proof after the colon fails, and so
+    does a word off the list. A change that runs nowhere new (a doc, a
+    test) says the single line `none`.
+- A phase without `spec` is held to neither rule. When it is built and a
+  box names no check, `keel doctor` notes it (`acceptance-unchecked`,
+  information); bring it up to date when it is next edited, never by
+  rewriting a built phase for the lint.
+
+A built phase's cited tests and evidence paths are watched by the night
+(`proofs_hold`): one that disappears is *proof lost*, for a person to
+re-point or to step the phase back.

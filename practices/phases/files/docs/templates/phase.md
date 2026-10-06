@@ -2,6 +2,7 @@
 status: planned
 since: YYYY-MM-DD
 goal: G0
+spec: 2
 depends: []
 note: "What is known, and what remains."
 evidence: []
@@ -19,7 +20,11 @@ The smallest useful slice, and its boundaries.
 
 ## Acceptance
 
-- [ ] Observable behaviour, including the failure path.
+- [ ] Observable behaviour, including the failure path, and the check that proves it: `tests/<file>: "<test name>"`, a command in backticks, or ⚑ by hand: <who>.
+
+## Real surfaces
+
+- <surface>: <its proof>, one line for each place this runs for real (published package, workflow shell, adopted project, owner's machine, GitHub API, fleet over time); or the single line none.
 
 ## Proof
 

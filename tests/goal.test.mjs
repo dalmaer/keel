@@ -62,8 +62,9 @@ test('goal add with no phase: the roadmap still generates, doctor reports it unt
 
   assert.equal(keel(dir, 'phase', 'new', 'Export one meeting', '--goal', 'G1').code, 0);
   const after = keel(dir, 'doctor', '--json');
-  assert.equal(after.code, 0, after.out);
-  assert.deepEqual(after.data.lint, []);
+  // The goal is served; the draft itself is a finding until its template text is replaced (phase 32).
+  assert.ok(!after.data.lint.some(l => l.rule === 'goal-without-phase'), after.out);
+  assert.ok(after.data.lint.length && after.data.lint.every(l => l.rule === 'phase' && l.path === 'docs/phases/01-export-one-meeting.md' && /template's/.test(l.message)), after.out);
 
   // The next id is max + 1, never a reuse.
   assert.equal(keel(dir, 'goal', 'add', 'Later', '--outcome', 'Later.', '--json').data.goal.id, 'G2');
@@ -140,7 +141,9 @@ test('retire --phases move:<Gm> gives the unbuilt phases to another goal', async
   assert.match(phase, /^status: planned$/m);
   assert.deepEqual(keel(dir, 'goal', 'show', 'G0', '--json').data.phases.map(p => p.id), [0, 1]);
   assert.match(await read(dir, 'docs/ROADMAP.md'), /### G1 — Export[\s\S]*No phases\./);
-  assert.equal(check(dir).status, 0);
+  // Moved, the draft is still a draft: the check refuses its template text until it is written.
+  assert.equal(check(dir).status, 1);
+  assert.match(check(dir).stderr, /docs\/phases\/01-export-one-meeting\.md: ## Done when still holds the template's text/);
 });
 
 test('phase new picks max + 1, keeps the template, and validates', async t => {
@@ -153,10 +156,14 @@ test('phase new picks max + 1, keeps the template, and validates', async t => {
   const phase = await read(dir, r.data.path);
   const template = await read(dir, 'docs/templates/phase.md');
   assert.equal(phase.slice(0, phase.indexOf('\n---\n') + 5),
-    `---\nstatus: planned\nsince: ${today()}\ngoal: G0\ndepends: [0,7]\nnote: "Drafted by keel phase new."\nevidence: []\n---\n`);
+    `---\nstatus: planned\nsince: ${today()}\ngoal: G0\nspec: 2\ndepends: [0,7]\nnote: "Drafted by keel phase new."\nevidence: []\n---\n`);
   assert.equal(phase.slice(phase.indexOf('\n## Done when')), template.slice(template.indexOf('\n## Done when')), 'sections as the template has them');
   assert.match(phase, /^# Acme: export, one meeting!$/m);
-  assert.equal(check(dir).status, 0);
+  // A draft lists, and the check refuses it until it is written (phase 32), naming the file and the section.
+  const c = check(dir);
+  assert.equal(c.status, 1);
+  assert.match(c.stderr, /docs\/phases\/08-acme-export-one-meeting\.md: ## Done when still holds the template's text/);
+  assert.match(c.stderr, /docs\/phases\/08-acme-export-one-meeting\.md: ## Real surfaces still holds the template's text/);
   assert.equal(keel(dir, 'phase', 'list', '--json').data.map(p => p.id).join(), '0,7,8');
 
   assert.equal(keel(dir, 'phase', 'new', 'X', '--goal', 'G7').code, 2);

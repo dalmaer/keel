@@ -140,6 +140,15 @@ test('a render into an empty directory, plus one phase, passes its own npm run c
     await writeFile(join(dir, 'docs/phases/00-acme-starts.md'), template.replace('YYYY-MM-DD', '2026-10-02'));
     const npm = (...a) => spawnRun('npm', a, { cwd: dir });
     assert.equal(npm('run', 'roadmap').status, 0);
+    // The template as it stands is refused by the project's own check (phase 32), naming the section.
+    const draft = npm('run', 'roadmap:check');
+    assert.notEqual(draft.status, 0);
+    assert.match(draft.stdout + draft.stderr, /docs\/phases\/00-acme-starts\.md: ## Done when still holds the template's text/);
+    const written = template.replace('YYYY-MM-DD', '2026-10-02').replace(/^# .+$/m, '# Acme starts')
+      .replace(/## Done when\n\n[\s\S]*?(?=## Proof)/, '## Done when\n\nAcme prints its name.\n\n## Scope\n\nOne command.\n\n## Acceptance\n\n- [ ] It prints "Acme". `node acme.mjs`\n\n## Real surfaces\n\nnone\n\n')
+      .replace(/## Proof\n\n[\s\S]*$/, '## Proof\n\n`node acme.mjs`.\n\n## Deliberately open\n\nNothing yet.\n\n## Next action\n\nWrite acme.mjs.\n');
+    await writeFile(join(dir, 'docs/phases/00-acme-starts.md'), written);
+    assert.equal(npm('run', 'roadmap').status, 0);
     const check = npm('run', 'check');
     assert.equal(check.status, 0, check.stdout + check.stderr);
     assert.ok(testsRan(check.stdout + check.stderr) > 0, `the gate ran no tests:\n${check.stdout}${check.stderr}`);

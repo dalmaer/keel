@@ -6,6 +6,11 @@
 //   node scripts/roadmap.mjs --check    fail if invalid or stale (CI runs this)
 //   node scripts/roadmap.mjs --next     the next phase to conduct, and its next action
 //   node scripts/roadmap.mjs --json     everything, for an agent; never parse the markdown
+//
+// --check also reads each phase as a spec (specProblems): text left from the
+// template fails at any status, and a phase with `spec: 2` must name the
+// check behind every acceptance box and list its Real surfaces. Writing the
+// roadmap does not: a phase just drafted by `keel phase new` still lists.
 import { readFile, readdir, writeFile, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +19,114 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const STATUSES = ['planned', 'designed', 'partial', 'built', 'lived-in', 'superseded'];
 export const DONE = ['built', 'lived-in'];
 const SECTIONS = ['Done when', 'Scope', 'Acceptance', 'Proof', 'Deliberately open', 'Next action'];
-const FIELDS = ['status', 'since', 'goal', 'depends', 'note', 'evidence', 'issue'];
+const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue'];
+/** The newest spec version this script knows. A phase with `spec: 2` names its checks and its Real surfaces. */
+export const SPEC = 2;
+/**
+ * The phase template's placeholder text (docs/templates/phase.md), one entry
+ * per line, list and checkbox markers stripped. A phase still holding one
+ * fails --check at any status; tests/roadmap.test.mjs reads the template and
+ * fails when a line in it is missing here, so the two cannot drift apart.
+ */
+export const PLACEHOLDER_TITLE = 'Outcome, as the person who uses it would say it';
+export const PLACEHOLDERS = Object.freeze([
+  'One independently checkable outcome.',
+  'The smallest useful slice, and its boundaries.',
+  'Observable behaviour, including the failure path, and the check that proves it: `tests/<file>: "<test name>"`, a command in backticks, or ⚑ by hand: <who>.',
+  '<surface>: <its proof>, one line for each place this runs for real (published package, workflow shell, adopted project, owner\'s machine, GitHub API, fleet over time); or the single line none.',
+  'Automated: exact commands and what each one proves.',
+  'By hand: who does what, and what would change the design.',
+  '⚑ Anything that creates a resource, spends money or needs a login — with the price.',
+  'An unsettled decision, why it is open, and what will settle it.',
+  'One concrete action that advances this phase.',
+  '**YYYY-MM-DD** — Claim. Evidence.',
+]);
+/** Where a change runs for real (a closed list; `none` is a full answer). */
+export const SURFACES = Object.freeze(['published package', 'workflow shell', 'adopted project', "owner's machine", 'GitHub API', 'fleet over time']);
+/** A cited test: tests/<path>, not a path that merely ends in tests/. */
+const TEST_PATH = /(?<![\w./-])tests\/[\w./-]*\w/g;
+const strip = line => line.trim().replace(/^- \[[ x]\]\s*/, '').replace(/^-\s+/, '').trim();
+
+/** A phase body's `## Name` sections: { name: text }. */
+export function sectionsOf(body) {
+  const out = {};
+  for (const m of body.matchAll(/^## (.+?)[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/gm)) out[m[1]] ??= m[2].trim();
+  return out;
+}
+
+/** Acceptance's boxes: [{ checked, text }], a box's wrapped lines joined to it. */
+export function boxes(acceptance = '') {
+  const out = [];
+  for (const line of acceptance.split(/\r?\n/)) {
+    const box = /^- \[([ x])\]\s*(.*)$/.exec(line);
+    if (box) out.push({ checked: box[1] === 'x', text: box[2] });
+    else if (out.length && /^\s+\S/.test(line)) out.at(-1).text += ` ${line.trim()}`;
+  }
+  return out;
+}
+
+/** Whether a box names its check: a tests/ path, a command in backticks (a program and its arguments), or ⚑ by hand. */
+export function namesCheck(text) {
+  if (text.match(TEST_PATH)) return true;
+  if (/⚑\s*by hand/i.test(text)) return true;
+  return [...text.matchAll(/`([^`]+)`/g)].some(m => /^[\w.\/-]+\s+\S/.test(m[1].trim()));
+}
+
+/** The tests/ paths a phase's Acceptance cites. */
+export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH) ?? []))];
+
+/**
+ * What --check refuses in a phase that parses: template text left in a
+ * section (any status but superseded), and for `spec: 2` a box naming no check or a Real
+ * surfaces section off its vocabulary. [] when it reads as a spec.
+ */
+export function specProblems(file, raw) {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
+  if (!block) return [];
+  // A superseded phase is retired, not proven: a draft retired with its goal
+  // is never owed the words it was never given.
+  if (/^status:\s*superseded\s*$/m.test(block[1])) return [];
+  const spec = Number(/^spec:\s*(\d+)\s*$/m.exec(block[1])?.[1] ?? 0);
+  const body = block[2];
+  const where = section => `docs/phases/${file}: ## ${section}`;
+  const problems = [];
+  if (/^# (.+)$/m.exec(body)?.[1]?.trim() === PLACEHOLDER_TITLE) problems.push(`docs/phases/${file}: the title is the template's; name the outcome`);
+  const sections = sectionsOf(body), templated = new Set();
+  for (const [section, text] of Object.entries(sections)) {
+    const left = text.split(/\r?\n/).map(strip).filter(line => PLACEHOLDERS.some(p => line.includes(p)));
+    if (!left.length) continue;
+    templated.add(section);
+    problems.push(`${where(section)} still holds the template's text ("${left[0]}"); ${section === 'Trajectory' ? 'delete the section until something changes the course' : 'write what this phase means'}`);
+  }
+  if (spec < 2) return problems;
+  if (!templated.has('Acceptance')) for (const box of boxes(sections.Acceptance)) {
+    if (!namesCheck(box.text)) problems.push(`${where('Acceptance')}: "${box.text.slice(0, 60)}${box.text.length > 60 ? '…' : ''}" names no check; end it with tests/<file>: "<test name>", a command in backticks, or ⚑ by hand: <who>`);
+  }
+  const surfaces = sections['Real surfaces'];
+  if (surfaces === undefined || !surfaces) {
+    problems.push(`${where('Real surfaces')} is missing or empty (spec: 2); list each place this runs for real as "- <surface>: <its proof>", or write none`);
+    return problems;
+  }
+  if (templated.has('Real surfaces') || /^none\.?$/i.test(surfaces)) return problems;
+  const known = SURFACES.map(s => s.toLowerCase());
+  for (const line of surfaces.split(/\r?\n/)) {
+    if (!line.trim() || /^\s+\S/.test(line)) continue; // a wrapped line belongs to the bullet above
+    const bullet = /^- ([^:]+):(.*)$/.exec(line.trim());
+    if (!bullet) { problems.push(`${where('Real surfaces')}: "${line.trim().slice(0, 60)}" is not "- <surface>: <its proof>"; or the section is the single line none`); continue; }
+    const term = bullet[1].trim().replaceAll('\u2019', "'").toLowerCase();
+    if (!known.includes(term)) problems.push(`${where('Real surfaces')}: "${bullet[1].trim()}" is not a surface; use one of ${SURFACES.join(', ')}, or none`);
+    else if (!bullet[2].trim()) problems.push(`${where('Real surfaces')}: ${bullet[1].trim()} names no proof; say the one proof that runs there`);
+  }
+  return problems;
+}
+
+/** A phase without `spec` whose boxes name no check: the count, for doctor's acceptance-unchecked note. */
+export function uncheckedBoxes(raw) {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
+  if (!block || /^spec:/m.test(block[1])) return null;
+  const all = boxes(sectionsOf(block[2]).Acceptance);
+  return { boxes: all.length, unchecked: all.filter(b => !namesCheck(b.text)).length };
+}
 const fail = message => { throw new Error(message); };
 const cell = value => String(value).replaceAll('|', '&#124;').replaceAll('\n', ' ');
 
@@ -31,7 +143,7 @@ export function parsePhase(file, raw) {
     const [, key, value] = pair;
     if (Object.hasOwn(meta, key)) fail(`${file}: duplicate ${key}`);
     try {
-      meta[key] = ['depends', 'evidence', 'issue'].includes(key) || value.startsWith('"')
+      meta[key] = ['depends', 'evidence', 'issue', 'spec'].includes(key) || value.startsWith('"')
         ? JSON.parse(value) : value;
     } catch { fail(`${file}: invalid JSON value for ${key}`); }
   }
@@ -49,6 +161,7 @@ export function parsePhase(file, raw) {
       || !/^evidence\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.md$/.test(p))) fail(`${file}: invalid evidence paths`);
   if (DONE.includes(meta.status) && !meta.evidence.length) fail(`${file}: ${meta.status} requires evidence`);
   if (meta.issue !== undefined && (!Number.isSafeInteger(meta.issue) || meta.issue <= 0)) fail(`${file}: invalid issue`);
+  if (meta.spec !== undefined && (!Number.isSafeInteger(meta.spec) || meta.spec < 1 || meta.spec > SPEC)) fail(`${file}: spec ${meta.spec} is not one this script knows (1–${SPEC}); keel update brings a newer one`);
   const body = block[2];
   const title = /^# (.+)$/m.exec(body)?.[1]?.trim();
   if (!title) fail(`${file}: missing title`);
@@ -66,6 +179,7 @@ export function parsePhase(file, raw) {
   }
   return {
     file, id: Number(number[1]), title, ...meta,
+    tests: citedTests(sections.Acceptance),
     done: sections['Done when'].replace(/\s+/g, ' '),
     next: sections['Next action'].replace(/\s+/g, ' '),
   };
@@ -123,8 +237,11 @@ export async function collect(root = ROOT) {
   const docs = resolve(root, 'docs');
   const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
   const names = (await readdir(resolve(docs, 'phases'))).filter(n => n.endsWith('.md') && n !== 'README.md');
-  const phases = await Promise.all(names.map(async file => parsePhase(file, await readFile(resolve(docs, 'phases', file), 'utf8'))));
+  const raws = await Promise.all(names.map(async file => [file, await readFile(resolve(docs, 'phases', file), 'utf8')]));
+  const phases = raws.map(([file, raw]) => parsePhase(file, raw));
   phases.sort((a, b) => a.id - b.id);
+  // What --check refuses; listing and writing the roadmap go on without it.
+  const problems = raws.sort(([a], [b]) => a.localeCompare(b)).flatMap(([file, raw]) => specProblems(file, raw));
   const goals = JSON.parse(await readFile(resolve(docs, 'goals.json'), 'utf8'));
   validateGraph(phases, goals);
   for (const p of phases) for (const evidence of p.evidence) {
@@ -138,7 +255,7 @@ export async function collect(root = ROOT) {
   for (const [label, file] of [['Design', 'design.md'], ['Lessons', 'lessons.md']]) {
     if ((await stat(resolve(docs, file)).catch(() => null))?.isFile()) links.push([label, file]);
   }
-  return { config, phases, goals, links };
+  return { config, phases, goals, links, problems };
 }
 
 export function render({ config, phases, goals, links = [] }) {
@@ -192,6 +309,7 @@ export async function run({ root = ROOT, mode = 'write' } = {}) {
   }
   const output = render(data), path = resolve(root, 'docs/ROADMAP.md');
   if (mode === 'check') {
+    if (data.problems.length) fail(`${data.problems.length} phase spec problem${data.problems.length === 1 ? '' : 's'}:\n${data.problems.map(p => `  ${p}`).join('\n')}`);
     if (await readFile(path, 'utf8').catch(() => '') !== output) fail('docs/ROADMAP.md is stale — run npm run roadmap');
     return `Checked roadmap: ${data.phases.length} phases, ${data.goals.length} goals`;
   }

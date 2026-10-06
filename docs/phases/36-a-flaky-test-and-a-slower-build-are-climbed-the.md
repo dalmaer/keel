@@ -2,6 +2,7 @@
 status: planned
 since: 2026-10-06
 goal: G4
+spec: 2
 depends: [33, 35]
 note: "Two more climb jobs on the shared protocol: hygiene (fix or file a flaky test the ledger named) and build-time (a project's build command, timed). Design: research/2026-10-06-climb-nights.md."
 evidence: []

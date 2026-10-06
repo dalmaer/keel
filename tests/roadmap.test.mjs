@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parsePhase, validateGraph, nextPhase, focus, render, run } from '../scripts/roadmap.mjs';
+import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, uncheckedBoxes, sectionsOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
 
 const phase = ({ status = 'planned', since = '2026-10-02', goal = 'G0', depends = '[]', evidence = '[]', acceptance = '- [ ] Something observable.', extra = '' } = {}) => `---
 status: ${status}
@@ -56,6 +56,111 @@ test('an optional Trajectory after Next action parses, and stays out of the next
   assert.match(template, /## Next action[\s\S]*## Trajectory\n\n<!-- Optional\./, 'the template carries Trajectory after Next action, marked optional');
   const filled = template.replace('since: YYYY-MM-DD', 'since: 2026-10-03');
   assert.equal(parsePhase('04-template.md', filled).next, 'One concrete action that advances this phase.');
+});
+
+// Phase 32: a spec says how it will be proven.
+const template = async () => (await import('node:fs/promises')).readFile(new URL('../docs/templates/phase.md', import.meta.url), 'utf8');
+const lines = text => text.split('\n').map(l => l.trim().replace(/^- \[[ x]\]\s*/, '').replace(/^-\s+/, '').trim()).filter(l => l && !l.startsWith('<!--'));
+
+test('every placeholder line in the template is one the check knows (one source)', async () => {
+  const t = await template();
+  const body = t.replace(/^---\n[\s\S]*?\n---\n/, '');
+  assert.equal(/^# (.+)$/m.exec(body)[1], PLACEHOLDER_TITLE);
+  const placeholders = Object.values(sectionsOf(body)).flatMap(lines);
+  assert.ok(placeholders.length >= 8, 'the template has its placeholder lines');
+  for (const line of placeholders) assert.ok(PLACEHOLDERS.includes(line), `template line not in PLACEHOLDERS: ${line}`);
+  assert.match(t, /^spec: 2$/m, 'a phase drafted from the template is held to spec 2');
+});
+
+test('a phase still holding the template text fails --check at any status, naming the file and section', async () => {
+  const t = (await template()).replace('since: YYYY-MM-DD', 'since: 2026-10-03');
+  for (const status of ['planned', 'designed', 'partial']) {
+    const raw = t.replace('status: planned', `status: ${status}`).replace(/^# .+$/m, '# Acme ships');
+    assert.ok(parsePhase('04-acme.md', raw), 'it still parses, so the roadmap lists it');
+    const problems = specProblems('04-acme.md', raw);
+    for (const section of ['Done when', 'Scope', 'Acceptance', 'Real surfaces', 'Proof', 'Deliberately open', 'Next action']) {
+      assert.ok(problems.some(p => p.startsWith(`docs/phases/04-acme.md: ## ${section} still holds the template's text`)), `${status}: ${section}`);
+    }
+  }
+  // One placeholder line left among the project's own words is still template text.
+  const built = phase({ status: 'built', evidence: '["evidence/x.md"]', acceptance: '- [x] Did it.' }).replace('A command.', 'A command.\nBy hand: who does what, and what would change the design.');
+  assert.match(specProblems('04-acme.md', built).join('\n'), /## Proof still holds the template's text/);
+  assert.match(specProblems('04-acme.md', t).join('\n'), /the title is the template's/);
+  // Retired with its goal, a draft owes nothing.
+  assert.deepEqual(specProblems('04-acme.md', t.replace('status: planned', 'status: superseded')), []);
+
+  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  try {
+    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, 'docs/phases'), { recursive: true });
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
+    await writeFile(join(root, 'docs/phases/00-start.md'), phase());
+    await writeFile(join(root, 'docs/phases/01-drafted.md'), t.replace(/^# .+$/m, '# Drafted'));
+    await run({ root }); // writing the roadmap lists a draft
+    await assert.rejects(run({ root, mode: 'check' }), /docs\/phases\/01-drafted\.md: ## Done when still holds the template's text/);
+    await writeFile(join(root, 'docs/phases/01-drafted.md'), phase({ extra: 'spec: 2\n', acceptance: '- [ ] It runs. `npm run check`' }).replace('## Proof', '## Real surfaces\n\nnone\n\n## Proof'));
+    await run({ root });
+    assert.match(await run({ root, mode: 'check' }), /2 phases/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('an empty Done when, Acceptance or Proof fails, naming the section', () => {
+  for (const [section, text] of [['Done when', 'One checkable sentence.'], ['Acceptance', '- [ ] Something observable.'], ['Proof', 'A command.']]) {
+    assert.throws(() => parsePhase('01-x.md', phase().replace(`## ${section}\n\n${text}\n`, `## ${section}\n\n`)), new RegExp(`01-x\\.md: missing or empty ## ${section}`));
+  }
+});
+
+const spec2 = ({ acceptance = '- [ ] It runs. `npm run check`', surfaces = 'none' } = {}) => {
+  const raw = phase({ extra: 'spec: 2\n', acceptance });
+  return surfaces === null ? raw : raw.replace('## Proof', `## Real surfaces\n\n${surfaces}\n\n## Proof`);
+};
+
+test('spec 2: every acceptance box names its check', () => {
+  const ok = [
+    '- [ ] It runs. `tests/acme.test.mjs`',
+    '- [ ] It runs. tests/acme.test.mjs: "orders an anvil"',
+    '- [ ] It runs. `node scripts/acme.mjs --check`',
+    '- [ ] ⚑ by hand: the owner orders an anvil.',
+    '- [ ] It runs, and keeps running\n  when wrapped. `npm test`',
+  ];
+  for (const acceptance of ok) assert.deepEqual(specProblems('05-x.md', spec2({ acceptance })), [], acceptance);
+  const bad = [
+    '- [ ] It runs.',
+    '- [ ] `acme_hold` flags it.', // a name in backticks is not a command
+    '- [ ] It runs. practices/x/tests/acme.test.mjs', // a path that only ends in tests/ is not a cited test
+    '- [ ] It runs. `npm test`\n- [ ] And this one names nothing.',
+  ];
+  for (const acceptance of bad) assert.match(specProblems('05-x.md', spec2({ acceptance })).join('\n'), /docs\/phases\/05-x\.md: ## Acceptance: ".*" names no check/, acceptance);
+  // A phase without spec is not held to it; doctor counts its boxes instead.
+  assert.deepEqual(specProblems('05-x.md', phase({ acceptance: '- [x] It runs.' })), []);
+  assert.deepEqual(uncheckedBoxes(phase({ acceptance: '- [x] It runs.\n- [x] `npm test` passes.' })), { boxes: 2, unchecked: 1 });
+  assert.equal(uncheckedBoxes(spec2()), null);
+});
+
+test('spec 2: Real surfaces from the closed list, each with its proof, or none', () => {
+  assert.deepEqual(specProblems('05-x.md', spec2({ surfaces: 'none' })), []);
+  assert.deepEqual(specProblems('05-x.md', spec2({ surfaces: 'None.' })), []);
+  assert.deepEqual(specProblems('05-x.md', spec2({ surfaces: SURFACES.map(s => `- ${s.toUpperCase()}: one run there.`).join('\n') })), []);
+  assert.deepEqual(specProblems('05-x.md', spec2({ surfaces: "- Owner’s machine: a fresh clone\n  on the owner's laptop." })), []);
+  const cases = [
+    [null, /## Real surfaces is missing or empty/],
+    ['- Adopted project:', /Adopted project names no proof/],
+    ['- Adopted project:   ', /Adopted project names no proof/],
+    ['- The cloud: it runs there.', /"The cloud" is not a surface/],
+    ['Adopted project, somewhere.', /is not "- <surface>: <its proof>"/],
+  ];
+  for (const [surfaces, re] of cases) assert.match(specProblems('05-x.md', spec2({ surfaces })).join('\n'), re, String(surfaces));
+  assert.throws(() => parsePhase('05-x.md', phase({ extra: 'spec: 3\n' })), /spec 3 is not one this script knows/);
+  assert.throws(() => parsePhase('05-x.md', phase({ extra: 'spec: two\n' })), /invalid JSON value for spec/);
+  assert.equal(parsePhase('05-x.md', spec2()).spec, 2);
+});
+
+test('a phase lists the tests its Acceptance cites', () => {
+  const p = parsePhase('05-x.md', phase({ acceptance: '- [ ] A. `tests/a.test.mjs`, tests/b.test.mjs: "b"\n- [ ] C. `tests/a.test.mjs` and `tests/*.test.mjs`' }));
+  assert.deepEqual(p.tests, ['tests/a.test.mjs', 'tests/b.test.mjs']);
 });
 
 test('rejects what would let the roadmap lie', () => {

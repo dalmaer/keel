@@ -19,7 +19,7 @@ The order form and nothing past it.
 
 ## Acceptance
 
-- [x] An order is taken.
+- [x] An order is taken. `tests/order.test.mjs`
 
 ## Proof
 

@@ -7,8 +7,9 @@
 //   lockDrift(root)          managed files whose bytes are not what keel wrote
 //                            (.keel/lock.json); `behind` needs keel's templates
 //                            and is keel-side only (keel doctor)
-//   phaseLints(root, parse)  a phase the roadmap parser rejects, a duplicate
-//                            phase number, a goal no phase serves
+//   phaseLints(root, parse, specProblems)  a phase the roadmap parser rejects
+//                            or its --check refuses, a duplicate phase
+//                            number, a goal no phase serves
 //   claudeMdLint(text)       a CLAUDE.md that is more than a pointer
 //   lessonsTableShapes(text, path)  prose between numbered rows, a second
 //                            header row, a stranded row (keel doctor reads
@@ -308,15 +309,21 @@ export async function unsentLessons(root, config) {
   return { path, project, rows: rows.length, unsent };
 }
 
-/** Phases the roadmap's parser rejects, duplicate numbers, and goals with no phase. */
-export async function phaseLints(root, parsePhase) {
+/**
+ * Phases the roadmap's parser rejects, or its --check refuses as a spec
+ * (specProblems, when the project's roadmap.mjs has it: template text, a
+ * spec: 2 box naming no check), duplicate numbers, and goals with no phase.
+ */
+export async function phaseLints(root, parsePhase, specProblems) {
   const lint = [];
   const dir = join(root, 'docs', 'phases');
   const names = (await readdir(dir).catch(() => [])).filter(n => n.endsWith('.md') && n !== 'README.md').sort();
   const phases = [];
   for (const file of names) {
-    try { phases.push(parsePhase(file, await read(join(dir, file)))); }
-    catch (e) { lint.push({ rule: 'phase', path: `docs/phases/${file}`, message: e.message }); }
+    const raw = await read(join(dir, file));
+    try { phases.push(parsePhase(file, raw)); }
+    catch (e) { lint.push({ rule: 'phase', path: `docs/phases/${file}`, message: e.message }); continue; }
+    for (const message of specProblems?.(file, raw) ?? []) lint.push({ rule: 'phase', path: `docs/phases/${file}`, message });
   }
   let goals = [];
   try { goals = JSON.parse((await read(join(root, 'docs', 'goals.json'))) ?? '[]'); } catch { goals = []; }

@@ -2,6 +2,7 @@
 status: planned
 since: 2026-10-06
 goal: G4
+spec: 2
 depends: [14, 20, 31, 35]
 note: "The last three climb jobs, proven on ledger: perf (the project's own benchmark), lessons (phase 31's distill, in the project) and loop (pull Stitch Loop's findings and propose a rank for each; a person decides). Design: research/2026-10-06-climb-nights.md."
 evidence: []
@@ -43,7 +44,7 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 - Adopted project: ledger, through its update PR and three real climb nights.
 - Workflow shell: the climb workflow on ledger's Actions, with its setup (`setupToken`) and env.
-- GitHub API and Stitch: Loop's pull with the project's `STITCH_API_KEY`.
+- GitHub API: Loop's pull, through Stitch, with the project's `STITCH_API_KEY`.
 
 ## Proof
 

@@ -10,7 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fill } from '../lib/practices.mjs';
 import { firstSentence, goalTitle, init, npmName, phaseZero, readme, DRAFT, PHASE0_TITLE } from '../lib/init.mjs';
-import { parsePhase } from '../practices/phases/files/scripts/roadmap.mjs';
+import { parsePhase, specProblems } from '../practices/phases/files/scripts/roadmap.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -291,6 +291,9 @@ test('phase 0 comes from the phase template and parses', async () => {
   assert.equal(p.title, PHASE0_TITLE);
   assert.equal(p.goal, 'G0');
   assert.equal(p.since, '2026-10-02');
+  // No spec and no Real surfaces: phase 0 is not held to spec 2, and leaves no template text for the check to refuse.
+  assert.deepEqual(specProblems('00-first-thing-that-runs.md', phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' })), []);
+  assert.equal(p.spec, undefined);
   assert.match(p.done, /^Following README\.md's "How to run it" from a clean checkout of the committed tree/);
   assert.doesNotMatch(p.done, /fresh clone/);
   assert.match(phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' }), /walked from a clean checkout of the committed tree after the phase's commit; its result goes into the evidence in the next commit/);

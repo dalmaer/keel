@@ -42,6 +42,14 @@ drift there is by `.keel/lock.json` (bytes keel did not write are `edited`;
 (phase, goal-without-phase, claude-md-pointer, second-copy,
 symlink-replaced, health-config, health-ignored), and the inbox is keel's.
 
+**Proof lost.** `proofs_hold` (bound 0, no ratchet) counts the built or
+lived-in phases whose Acceptance cites a `tests/` path that no longer
+exists, or whose `evidence` names a file that is gone; the page names each
+phase and what is missing. Its ledger half (a cited test passed in the last
+recorded run) is n/a until phase 33's test ledger, and says so. The night
+never steps a phase back or writes evidence; its proposal is to re-point the
+reference or step the phase back with a reason, which a person does.
+
 Practice updates go out from keel: `keel fleet update` opens the
 `keel/update-v<version>` PR in each project that is behind, with the owner's
 own `gh` login. A person merges it. (`keel-update.yml`, which pulled keel

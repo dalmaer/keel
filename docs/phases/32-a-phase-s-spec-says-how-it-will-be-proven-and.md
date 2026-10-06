@@ -1,10 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G0
+spec: 2
 depends: [0, 1]
-note: "From the spec-rigour analysis: 1 of 139 acceptance boxes names a test, and a phase left as the template passes the roadmap check. Lints for observable specs, checks named per box, a Real surfaces section scaled to where the change runs, and a nightly proofs_hold measure. Design: research/2026-10-06-spec-rigor.md."
-evidence: []
+note: "Built and proven in keel: template text and empty sections fail roadmap --check; spec 2 phases name a check per box and their Real surfaces; old phases get an acceptance-unchecked note; proofs_hold runs nightly. Waits on its own Real surface: cajones updated to the release that carries it (owner merges)."
+evidence: ["evidence/2026-10-06-spec-rigor-checks.md"]
 issue: 10
 ---
 
@@ -42,15 +43,16 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Acceptance
 
-- [ ] A phase holding template text, or with an empty Done when, Acceptance or Proof, fails `node scripts/roadmap.mjs --check` with the section named; mutation: an empty placeholder list lets it pass and fails the test. `tests/roadmap.test.mjs`
-- [ ] A new phase's box naming no test, command or ⚑ fails the check; an old phase's is reported as `acceptance-unchecked` by `keel doctor` and changes no file. `tests/roadmap.test.mjs`, `tests/doctor.test.mjs`
-- [ ] A phase naming a Real surface with no proof line for it fails; `none` passes with no proof line. `tests/roadmap.test.mjs`
-- [ ] `proofs_hold` flags a built phase whose cited test was deleted or failed in the last ledger run, or whose evidence names a missing path, and changes no phase file. Without a ledger (before phase 33) it checks the cited test files and evidence paths only, and says the ledger half is n/a, never zero. `tests/improve.test.mjs`
-- [ ] keel's own 34 phases pass, with every lint listed in the evidence file rather than fixed by rewriting. `npm run check`
+- [x] A phase holding template text, or with an empty Done when, Acceptance or Proof, fails `node scripts/roadmap.mjs --check` with the section named; mutation: an empty placeholder list lets it pass and fails the test. `tests/roadmap.test.mjs`
+- [x] A new phase's box naming no test, command or ⚑ fails the check; an old phase's is reported as `acceptance-unchecked` by `keel doctor` and changes no file. `tests/roadmap.test.mjs`, `tests/doctor.test.mjs`
+- [x] A phase naming a Real surface with no proof line for it fails; `none` passes with no proof line. `tests/roadmap.test.mjs`
+- [x] `proofs_hold` flags a built phase whose cited test was deleted or failed in the last ledger run, or whose evidence names a missing path, and changes no phase file. Without a ledger (before phase 33) it checks the cited test files and evidence paths only, and says the ledger half is n/a, never zero. `tests/improve.test.mjs`
+- [x] keel's own phases (39) pass, with every lint listed in the evidence file rather than fixed by rewriting. `npm run check`
+- [ ] ⚑ by hand: cajones taken through `keel fleet update` to the release carrying this phase, its own `npm run check:all` green on the update PR, and the owner merges it.
 
 ## Real surfaces
 
-- Adopted projects: the phases practice's `scripts/roadmap.mjs` ships to every project with phases on; proof is one adopted project (cajones) updated and its roadmap check green.
+- Adopted project: the phases practice's `scripts/roadmap.mjs` ships to every project with phases on; proof is one adopted project (cajones) updated and its roadmap check green.
 
 ## Proof
 
@@ -65,4 +67,11 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Next action
 
-Collect the template's placeholder sentences into one exported list in `scripts/roadmap.mjs`, and write the failing test for a template-only phase.
+Release the practice, take cajones through `keel fleet update` to it, and walk its own `npm run check:all` on the update PR (the owner merges); then this phase is built.
+
+## Trajectory
+
+- **2026-10-06** — Spec problems fail `roadmap --check` only; writing and listing the roadmap still read a draft, so `keel phase new` keeps working and a draft is never rolled back. Builder's call, kept.
+- **2026-10-06** — Superseded phases are exempt from the template-text rule: a draft retired with its goal (`goal retire --phases supersede`) owes nothing. Builder's call, kept.
+- **2026-10-06** — New and old phases are told apart by `spec: 2` in front matter, written by the template; keel's 27 older built phases get an `acceptance-unchecked` note, never a failure or a rewrite.
+- **2026-10-06** — A Real surfaces bullet's proof is the text after its colon (`- Workflow shell: <the proof>`); the check can hold that mechanically, where "a matching Proof line" it could not.

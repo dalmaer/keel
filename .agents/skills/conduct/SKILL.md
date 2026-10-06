@@ -105,6 +105,7 @@ Aim for under 600 words.
 # <project> phase <N>: <title>
 
 Contract: docs/phases/<NN-name>.md. Design: <doc> <sections>.
+Real surfaces: <the phase's list, word for word, or none>; build so each one can be proven there.
 Trajectory that binds you: <one line each, only ones that change what you build>.
 Decided here, not in the docs: <…>
 
@@ -166,6 +167,13 @@ as written, from the repo root, and read exit codes, not tails.
   `.env`, nothing under `docs/phases/`.
 - The named Proof, command by command. Not yet the whole check: that runs
   once, after the record (§3), so it covers the tree you will commit.
+- One proof per Real surface, run in that place: the published package
+  installed, the workflow's shell run, the adopted project updated, the
+  owner's machine, a real GitHub API call, the fleet read over nights. A
+  fixture is not the surface. `none` needs nothing here. A surface not yet
+  walked keeps the phase short of built; say which in the evidence.
+- Each acceptance box's named check: the test it cites exists and asserts
+  the box, the command runs, the ⚑ by hand step is walked or written down.
 - The walk, when the phase has one: a real browser, a real device, a real
   `gh` call. A phase with a walk isn't built until the walk is walked. If a
   person must walk it, write the steps into the evidence file.

@@ -9,7 +9,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import {
-  MEASURES, selftest, measure, propose, tighten, conductCost, commandKind, exitCode, FIXTURE,
+  MEASURES, selftest, measure, propose, proposalText, tighten, conductCost, commandKind, exitCode, FIXTURE,
 } from '../lib/improve.mjs';
 import { KEEL, BIN, ENV, keel, byId, scratch, project, snapshot, ghStub, setConfig } from './helpers/improve.mjs';
 
@@ -255,3 +255,40 @@ test('in the project, drift and lint read its own files; from keel, the full set
 });
 // lessons-table-split, health, the gate's env and the single measures are
 // tests/improve-measures.test.mjs, so the suite runs them side by side.
+
+test('proofs_hold: a built phase whose cited test or evidence is gone is outside; it changes no file, and the ledger half says n/a', async t => {
+  const dir = await project(t);
+  const zero = await readFile(join(dir, 'docs', 'phases', '00-first-thing-that-runs.md'), 'utf8');
+  const phase = (evidence, cite) => zero.replace(/^---\n[\s\S]*?\n---\n/, ['---', 'status: built', 'since: 2026-10-01', 'goal: G0', 'depends: [0]', 'note: "Acme orders work."', `evidence: ${JSON.stringify(evidence)}`, '---', ''].join('\n'))
+    .replace(/## Acceptance\n\n[\s\S]*?(?=## )/, `## Acceptance\n\n- [x] An anvil is ordered. \`${cite}\`\n\n`);
+  await mkdir(join(dir, 'docs', 'evidence'), { recursive: true });
+  await writeFile(join(dir, 'docs', 'evidence', '2026-10-01-acme-orders.md'), '# Acme orders\n\nOrdered one; it arrived.\n');
+  await writeFile(join(dir, 'tests', 'acme-orders.test.mjs'), "import { test } from 'node:test';\ntest('orders', () => {});\n");
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-orders.md'), phase(['evidence/2026-10-01-acme-orders.md'], 'tests/acme-orders.test.mjs: "orders"'));
+  // In the project, with its own scripts/roadmap.mjs, and from keel: the same reading.
+  const own = () => JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env: ENV }).stdout);
+  const home = () => keel(['improve', '--json'], dir).json();
+  for (const read of [own, home]) {
+    const m = byId(read(), 'proofs_hold');
+    assert.equal(m.state, 'ok', m.detail);
+    assert.equal(m.value, 0);
+    assert.match(m.detail, /ledger half .* is n\/a until phase 33/);
+  }
+  // The test deleted, and the evidence named a path that is not there.
+  await rm(join(dir, 'tests', 'acme-orders.test.mjs'));
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-orders.md'), phase(['evidence/2026-10-01-acme-orders.md', 'evidence/2026-10-02-gone.md'], 'tests/acme-orders.test.mjs: "orders"'));
+  const before = await snapshot(dir);
+  for (const read of [own, home]) {
+    const data = read();
+    const m = byId(data, 'proofs_hold');
+    assert.equal(m.state, 'outside', m.detail);
+    assert.equal(m.value, 1);
+    assert.deepEqual(m.facts.found, [{ id: 1, file: '01-acme-orders.md', missing: ['tests/acme-orders.test.mjs', 'docs/evidence/2026-10-02-gone.md'] }]);
+    assert.match(m.detail, /^proof lost: phase 1 \(tests\/acme-orders\.test\.mjs, docs\/evidence\/2026-10-02-gone\.md missing\); the ledger half .* n\/a/);
+    assert.match(proposalText(m, {}), /re-point the reference if it moved, or step the phase back to partial with the reason\. Never write evidence/);
+  }
+  assert.deepEqual(await snapshot(dir), before, 'proofs_hold changes no file');
+  // Not built: not owed yet.
+  await writeFile(join(dir, 'docs', 'phases', '01-acme-orders.md'), phase([], 'tests/acme-orders.test.mjs').replace('status: built', 'status: partial').replace('- [x]', '- [ ]'));
+  assert.equal(byId(own(), 'proofs_hold').value, 0);
+});
