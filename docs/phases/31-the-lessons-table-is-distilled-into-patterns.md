@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G3
 depends: [8, 30]
-note: "Specced 6 Oct: an agent-proposed, owner-decided pass that groups rows into families, rewords them generally, tags them by stack with evidence, and promotes guards that can ship. Design: research/2026-10-06-lessons-by-stack-and-pattern.md."
-evidence: []
+note: "Built: keel learn distill (a worksheet from files only; family, reword, tag and promote proposals as public docs/inbox files; decide applies them, keeping provenance and the old words in docs/lessons-history.md; docs/patterns.md generated). Waits on the real pass: the conductor proposes over keel's 56 rows, the owner decides, and a release carries it."
+evidence: ["evidence/2026-10-06-distill.md"]
 issue: 9
 ---
 
@@ -36,9 +36,9 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Acceptance
 
-- [ ] `distill` writes the worksheet and records each proposal kind; a proposal citing no row, or an unknown row, or an unknown tag, is refused (exit 2).
-- [ ] Accepting a family writes `docs/patterns.md` with members and keeps every member's number and provenance; accepting a reword keeps the old text in the row's history; both are tested on a synthetic catalogue, with a mutation that drops provenance failing.
-- [ ] Nothing in the pass reads the private inbox: a test runs distill with no gh at all.
+- [x] `distill` writes the worksheet and records each proposal kind; a proposal citing no row, or an unknown row, or an unknown tag, is refused (exit 2). `tests/distill.test.mjs`
+- [x] Accepting a family writes `docs/patterns.md` with members and keeps every member's number and provenance; accepting a reword keeps the old text in the row's history; both are tested on a synthetic catalogue, with a mutation that drops provenance failing. `tests/distill.test.mjs`
+- [x] Nothing in the pass reads the private inbox: a test runs distill with no gh at all. `tests/distill.test.mjs`
 - [ ] The real pass on keel's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
 - [ ] One accepted `promote` becomes a practice change (its check shipped and released), or the owner declines every promote with a reason.
 
@@ -58,4 +58,9 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Next action
 
-Blocked on phase 30 (the `Where` column and tag vocabulary). Then: the worksheet format and `docs/patterns.md`'s shape, with a synthetic catalogue test.
+The conductor runs the real pass over keel's catalogue (family, tag, reword and promote proposals in docs/inbox/, each citing rows); ⚑ the owner decides each; then a release carries the catalogue, docs/patterns.md and every project's re-rendered view.
+
+## Trajectory
+
+- **2026-10-06** — Rewording keel's own rows cannot break `keel lessons` dedupe: keel's rows are never sent home (keel is home); a shape reword still records the old fingerprint in docs/lessons-history.md.
+- **2026-10-06** — A decide that changes the catalogue re-renders keel's own view itself, so a decision never leaves keel's check red; a distill proposal's claim is the agent's own words, though it still carries learn's generic "data sent from elsewhere" line.

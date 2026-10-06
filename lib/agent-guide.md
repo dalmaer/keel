@@ -106,7 +106,13 @@ stderr as one line beginning `keel:`.
   decided}, open: [{issue, title, status, outcome, project, flag}]`;
   propose/decide return `{ok, issue, repo, private, status, outcome, …,
   plan: [{what}]}`, exit 3 with `needs: "yes"` until `--yes`.
-  `learn render` → `{ok, check, path, counts, waiting, private?: {inbox, counts}}`
+  `learn render` → `{ok, check, path, counts, waiting, private?: {inbox, counts},
+  patterns: {ok, check, path, families}}`. `learn distill` → `{ok, summary:
+  {rows, families, inFamilies, untagged, open, since}, tags, families, open,
+  since: {pass, through, rows, by}, rows: [{n, shape, cost, guard, where,
+  universal, provenance, family}]}`; `distill propose` → `{ok, slug, file,
+  status, kind, note, fields}`; deciding one → `{ok, slug, file, status,
+  kind, lesson, migration, checklist, patterns, rendered, notes}`
 - `drain` → `{ok, prefix, repo, newest, actions: [{number, head, createdAt,
   action, why, done?, error?}]}`; `action` is `merge|close|leave`. Without
   `--yes` and something to merge or close: exit 3, `needs: "yes"`, nothing
@@ -425,7 +431,12 @@ keel lessons --since v1.2 --json  # practice commits from a ref, not from adopti
 keel learn                         # gather: open `lesson` issues + every pinned source; new proposals only
 keel learn propose <slug|issue#> --outcome lesson|practice|decline|link --note "<one line>" --read "<read citing a path or sha>" [--link <n>] [--yes]
 keel learn decide <slug|issue#> accepted|declined [--note "<why>"] [--shape "…" --cost "…" --guard "…"] [--yes]   # the person's verb, never the agent's
-keel learn render [--check]        # docs/INBOX.md, generated; npm run check runs --check
+keel learn render [--check]        # docs/INBOX.md and docs/patterns.md, generated; npm run check runs --check
+keel learn distill                 # the worksheet: rows, families, open proposals, rows since the last pass
+keel learn distill propose --kind family --name "…" --rule "…" --guard "…" --rows 39,40 --read "…"
+keel learn distill propose --kind reword --row N --shape|--cost|--guard "…" --read "…"
+keel learn distill propose --kind tag --row N --where "vercel,gcp"|universal --evidence "<where each happened>" --read "…"
+keel learn distill propose --kind promote --family "<name>" --check "<what it checks>" --practice <name> [--migration] --read "…"
 ```
 
 - Runs on keel only (`"keel": "self"`); elsewhere exit 2.
@@ -462,6 +473,19 @@ keel learn render [--check]        # docs/INBOX.md, generated; npm run check run
   `practice` needs `--shape --cost --guard` in general terms (else exit 2):
   only those words reach `docs/lessons.md`, provenance the project.
   `render --check` compares the counts INBOX.md recorded.
+- **Distill** (phase 31) groups the catalogue into families in
+  `docs/patterns.md`, rewords and tags rows, and promotes a family's guard.
+  No model, no `gh`, never the private inbox; run it when the owner asks,
+  never from the night. A proposal is a file (`kind: distill`, `outcome` its
+  kind, `status: proposed`) citing rows by number: none, an unknown row, tag,
+  family or practice exits 2; `--note` is optional, `--read` must cite. A row
+  joins one family at most. A reword's shape keeps its provenance.
+  `decide` takes them, with no `gh`: a family regenerates `docs/patterns.md`;
+  a reword replaces the cell and appends the old words (and a shape's old
+  fingerprint) to `docs/lessons-history.md`; a tag fills `Where`
+  (`universal`: empty, deliberately); a promote prints the checklist (a stub
+  only with `--migration`). A row changed since the proposal read it is
+  refused. A changed catalogue re-renders the practices; exit 1 if that fails.
 
 <!-- topic: improve | is the practice working here: measures, bounds, a ratchet, one proposal -->
 

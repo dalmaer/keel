@@ -32,6 +32,26 @@ it, so a tag only narrows. A project's own table keeps four columns, and its
 fingerprints and `.keel/sent.json` never move for any of this. Reader:
 `lib/stacks.mjs`.
 
+**From rows to patterns (phase 31, keel only).** `keel learn distill`
+prints a worksheet: every catalogue row (number, cells, `Where`, provenance,
+family), the families decided so far, the open proposals, and the rows added
+since the last pass. It is deterministic: no model, no `gh`, never the
+private inbox. An agent reads it and records proposals with `keel learn
+distill propose --kind family|reword|tag|promote`, each citing rows by number
+(an unknown row, tag, family or practice is refused, exit 2); a person
+decides each with `keel learn decide`. A **family** (two rows or more, a row
+in one family at most) joins `docs/patterns.md`, generated from the accepted
+proposals and the catalogue: a rule, a guard recipe and the member rows with
+their numbers and provenance. A **reword** replaces one cell; the old words
+are appended to `docs/lessons-history.md` (with the old fingerprint, for a
+shape) and a shape keeps its provenance. A **tag** fills `Where`
+(`universal` leaves it empty, deliberately). A **promote** turns a family's
+guard into a practice change: the checklist, and an inert migration stub only
+when one is needed. A row changed since a proposal read it is refused. A
+decision that changes the catalogue re-renders keel's practices, so
+`docs/keel-lessons.md` is never stale. A pass spends an agent's tokens, so it
+runs when the owner asks, never from the night. Reader: `lib/distill.mjs`.
+
 **Lineage.** ledger's lessons table, carried by duo and cajones.
 
 **Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this

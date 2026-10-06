@@ -1,0 +1,7 @@
+{
+  "name": "Acme Keel",
+  "repo": "acme/keel",
+  "keel": "self",
+  "practice": "0.3.0",
+  "practices": ["conduct"]
+}

@@ -13,6 +13,11 @@ from them by `keel learn render` and checked by `npm run check`.
   - `## Our read` — the agent's, written by `keel learn propose`. It cites a
     file path or a commit sha that was actually checked.
   - `## Decision` — the person's, written by `keel learn decide`.
+- `<YYYY-MM-DD>-distill-<slug>.md` — a **distill proposal** (phase 31): `kind:
+  distill`, `outcome` one of family, reword, tag, promote, written `proposed`
+  by `keel learn distill propose`. Its claim is the agent's own proposal as
+  `key: value` lines, citing catalogue rows by number. An accepted one also
+  records `pass` (HEAD) and `through` (the last row) for the next worksheet.
 - `<YYYY-MM-DD>-<slug>.upstream.txt` — beside a `source` proposal: the
   upstream file's text at its new head, for diffing against the practice. Data.
 
