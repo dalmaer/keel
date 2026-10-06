@@ -7,8 +7,10 @@ The point is the shape, not the incident. A bug that can only happen once
 is not a lesson. A bug whose shape recurs is. Read this before adding a guard,
 because the shape is usually already here.
 
-Each row says where it was paid for. A guard marked *planned* names the phase
-that builds it; nothing is claimed as guarded until it is.
+Each row says where it was paid for. A guard names only something an automated
+run invokes (a test, a lint, a check in CI); a guard marked *planned* names the
+phase that builds it, and one a person keeps is marked *habit*. Nothing is
+claimed as guarded until it is.
 
 | # | The shape of it | What it cost | Guard |
 | --- | --- | --- | --- |

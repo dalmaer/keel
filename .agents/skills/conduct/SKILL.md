@@ -308,6 +308,8 @@ it's yours.
   Fixtures are synthetic.
 - The conductor proved a drift guard by editing a file, then undid it with
   `git checkout`, which also threw away the builder's uncommitted change to
-  that file. Probe a temp copy, never the tree a builder has written.
+  that file. Probe a temp copy or a separate git worktree, never the tree a
+  builder or another session is using: a mutation there is lost, committed,
+  or tested by someone else.
 - The shell's cwd was reset between commands. Use absolute paths in every
   command you give a subagent.

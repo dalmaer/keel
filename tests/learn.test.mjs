@@ -356,3 +356,12 @@ test('a proposal round-trips: a claim full of fences and headings survives parse
   assert.equal(back.decision, '');
   assert.deepEqual(back.meta, p.meta);
 });
+
+test('a read may cite a dotfile path (.nvmrc, .gitignore); prose and a bare word still do not count', async () => {
+  const { concrete } = await import('../lib/learn.mjs');
+  assert.ok(concrete('practices/base/files/.nvmrc pins the runtime'));
+  assert.ok(concrete('checked keel/.gitignore'));
+  assert.ok(concrete('docs/lessons.md row 6'));
+  assert.ok(!concrete('Looks right to me.'));
+  assert.ok(!concrete('the .nvmrc file'), 'a bare dotfile name with no directory is not a path');
+});
