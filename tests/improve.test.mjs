@@ -84,16 +84,8 @@ test('selftest: every measure reports outside on the unhealthy fixture', async (
   assert.equal(cli.json().ok, true);
 });
 
-test('selftest fails when any one measure is made to report a neutral value, n/a, or to break', async () => {
-  for (const m of MEASURES) {
-    for (const [how, fake] of [['neutral', () => ({ value: m.bound, detail: 'fine' })], ['n/a', () => ({ na: 'mutated' })], ['throws', () => { throw new Error('mutated'); }]]) {
-      const measures = MEASURES.map(x => x.id === m.id ? { ...x, run: fake } : x);
-      const r = await selftest({ measures });
-      assert.equal(r.exitCode, 1, `${m.id} ${how}: selftest passed`);
-      assert.deepEqual(r.data.missed.map(x => x.id), [m.id], `${m.id} ${how}`);
-    }
-  }
-});
+// The mutation test (the selftest fails when any one measure is made to say
+// "fine") is tests/improve-selftest.test.mjs, so the suite runs it side by side.
 
 test('a healthy fresh project: within bounds, exit 0, and every n/a says why', async t => {
   const dir = await project(t);
