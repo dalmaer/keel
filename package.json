@@ -17,7 +17,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "test": "node --import ./tests/helpers/hermetic.mjs --test tests/*.test.mjs",
+    "test": "node --import ./tests/helpers/hermetic.mjs --test --test-concurrency=32 tests/*.test.mjs",
     "keel": "node bin/keel.mjs",
     "roadmap": "node scripts/roadmap.mjs",
     "roadmap:check": "node scripts/roadmap.mjs --check",
