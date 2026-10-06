@@ -1,13 +1,27 @@
-#!/usr/bin/env node
-// An npm for keel improve --selftest: only `npm outdated --json`, which exits 1
-// when anything is outdated, as real npm does. Synthetic packages.
-const argv = process.argv.slice(2);
-if (argv[0] === 'outdated' && argv.includes('--json')) {
-  console.log(JSON.stringify({
-    'acme-anvil': { current: '1.0.0', wanted: '1.0.0', latest: '3.0.0', location: 'node_modules/acme-anvil' },
-    'acme-rocket': { current: '0.1.0', wanted: '0.1.4', latest: '0.2.0', location: 'node_modules/acme-rocket' },
-  }, null, 2));
-  process.exit(1);
+#!/bin/sh
+# An npm for keel improve --selftest: only `npm outdated --json`, which exits 1
+# when anything is outdated, as real npm does. Synthetic packages. Plain sh,
+# not node: the selftest runs it often.
+json=''
+for a in "$@"; do [ "$a" = --json ] && json=1; done
+if [ "$1" = outdated ] && [ -n "$json" ]; then
+  cat <<'EOF'
+{
+  "acme-anvil": {
+    "current": "1.0.0",
+    "wanted": "1.0.0",
+    "latest": "3.0.0",
+    "location": "node_modules/acme-anvil"
+  },
+  "acme-rocket": {
+    "current": "0.1.0",
+    "wanted": "0.1.4",
+    "latest": "0.2.0",
+    "location": "node_modules/acme-rocket"
+  }
 }
-console.error(`stub npm: unknown ${argv.join(' ')}`);
-process.exit(1);
+EOF
+  exit 1
+fi
+echo "stub npm: unknown $*" >&2
+exit 1

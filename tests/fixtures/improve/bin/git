@@ -1,11 +1,17 @@
-#!/usr/bin/env node
-// A git for keel improve --selftest: the fixture lives inside keel's own repo,
-// so a real git would read keel's history. Answers the calls improve makes.
-// Synthetic: main has commits on the two days before today (no changelog page
-// for either), and every file was last committed on 2020-01-06.
-const argv = process.argv.slice(2);
-const day = n => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
-if (argv[0] === 'rev-parse') console.log(argv.includes('--git-dir') ? '.git' : '0000000000000000000000000000000000000000');
-else if (argv[0] === 'log' && argv.includes('-1')) console.log('2020-01-06');
-else if (argv[0] === 'log') console.log([day(1), day(1), day(2)].join('\n'));
-else { console.error(`stub git: unknown ${argv.join(' ')}`); process.exit(1); }
+#!/bin/sh
+# A git for keel improve --selftest: the fixture lives inside keel's own repo,
+# so a real git would read keel's history. Answers the calls improve makes.
+# Synthetic: main has commits on the two days before today (no changelog page
+# for either), and every file was last committed on 2020-01-06. Plain sh, not
+# node: the selftest runs it often.
+day() { # the UTC date $1 days ago: GNU date, else BSD date
+  t=$(( $(date +%s) - $1 * 86400 ))
+  date -u -d "@$t" +%Y-%m-%d 2>/dev/null || date -u -r "$t" +%Y-%m-%d
+}
+has() { w=$1; shift; for a in "$@"; do [ "$a" = "$w" ] && return 0; done; return 1; }
+if [ "$1" = rev-parse ]; then
+  if has --git-dir "$@"; then echo .git; else echo 0000000000000000000000000000000000000000; fi
+elif [ "$1" = log ] && has -1 "$@"; then echo 2020-01-06
+elif [ "$1" = log ]; then d1=$(day 1); printf '%s\n%s\n%s\n' "$d1" "$d1" "$(day 2)"
+else echo "stub git: unknown $*" >&2; exit 1
+fi
