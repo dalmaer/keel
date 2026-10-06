@@ -3,7 +3,7 @@ status: planned
 since: 2026-10-06
 goal: G4
 spec: 2
-depends: [10, 15, 33]
+depends: [10, 15, 33, 39]
 note: "The 6 Oct hill-climb (suite 48s → 23s) as a repeatable, opt-in night: one shared protocol, one job a night within a budget, one PR a person merges. First job: test-time, on keel. Design: research/2026-10-06-climb-nights.md."
 evidence: []
 issue: 13
@@ -42,6 +42,7 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
   the picked job, time-boxed to the budget; the agent uses `climb.mjs` for
   every measurement and every keep-or-revert, so its numbers are the
   script's, not its own. Then the PR, on its own prefix only.
+- **Its PR body** comes from `scripts/keel/pr-body.mjs` (phase 39): Summary, Evidence (the before-and-after), Merge danger.
 - **The first job, `test-time`**: the gate's test command timed; with the
   ledger, the slowest files first.
 

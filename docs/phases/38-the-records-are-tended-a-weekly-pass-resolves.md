@@ -3,7 +3,7 @@ status: planned
 since: 2026-10-06
 goal: G4
 spec: 2
-depends: [26, 32, 33, 35]
+depends: [26, 32, 33, 35, 39]
 note: "A third pass beside measure and climb: an agent resolves the night's record findings (lost proofs, reconciliation's proposals, stale next actions, docs behind code, drift, loose ends) in one weekly PR a person merges. Never writes evidence, never deletes. Design: research/2026-10-06-tend-pass.md."
 evidence: []
 issue: 16
@@ -34,6 +34,7 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
   send home for a drifted file; closing a merged branch or abandoned PR.
 - **May never**: write evidence; mark built, lived-in or accepted; delete a
   branch, PR or data; merge.
+- **Its PR body** comes from `scripts/keel/pr-body.mjs` (phase 39): Summary, Evidence (the before-and-after), Merge danger.
 - **Unresolved findings** stay on the health page with what tend tried.
 
 ## Acceptance
