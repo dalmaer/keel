@@ -491,13 +491,14 @@ async function nightCommit(t, night, { health, ignore = '' }) {
   for (const d of [dir, bin, temp, join(dir, 'scripts/keel'), join(dir, '.keel')]) await mkdir(d, { recursive: true });
   git(['init', '-q', '--bare', origin], base);
   git(['init', '-q', '-b', 'main']);
-  await writeFile(join(dir, 'scripts/keel/lib.mjs'), await readFile(join(KEEL, 'practices/night/files/scripts/keel/lib.mjs'), 'utf8'));
+  for (const f of ['lib.mjs', 'pr-body.mjs']) await writeFile(join(dir, 'scripts/keel', f), await readFile(join(KEEL, 'practices/night/files/scripts/keel', f), 'utf8'));
   await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme', ...(health ? { health } : {}) })}\n`);
   await writeFile(join(dir, '.gitignore'), ignore);
   git(['add', '-A']);
   git(['commit', '-q', '-m', 'acme']);
   git(['remote', 'add', 'origin', origin]);
-  await writeFile(join(bin, 'gh'), '#!/bin/sh\nif [ "$1 $2" = "pr list" ]; then exit 0; fi\necho https://github.test/acme/acme/pull/1\n', { mode: 0o755 });
+  // gh keeps the body it is handed (--body-file), for the reader's check.
+  await writeFile(join(bin, 'gh'), `#!/bin/sh\nif [ "$1 $2" = "pr list" ]; then exit 0; fi\nwhile [ $# -gt 0 ]; do if [ "$1" = --body-file ]; then cp "$2" "${join(base, 'body.md')}"; fi; shift; done\necho https://github.test/acme/acme/pull/1\n`, { mode: 0o755 });
   // The night's writes: a page where the config says, the bounds, and something that is not data.
   const out = join(temp, 'out');
   await writeFile(out, '');
@@ -509,10 +510,14 @@ async function nightCommit(t, night, { health, ignore = '' }) {
   await writeFile(join(dir, health ?? 'docs/health', '2026-10-05.md'), '# Health — 2026-10-05\n');
   await writeFile(join(dir, '.keel/bounds.json'), '{}\n');
   await writeFile(join(dir, 'acme-scratch.txt'), 'setup left this\n');
-  await writeFile(join(temp, 'body.md'), 'body\n');
+  // improve's --pr-input, as improve writes it (nightPr), for a night with a measure outside.
+  const { nightPr } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  await writeFile(join(temp, 'pr.json'), JSON.stringify(nightPr({ date: '2026-10-05', report: `${page}/2026-10-05.md`, proposal: { id: 'prs_stale', state: 'outside', text: 'Close or merge the Acme PRs.' },
+    results: [{ id: 'gate', state: 'ok', detail: 'npm test passed, 12 tests', bound: 0, better: 'lower', value: 0 }, { id: 'prs_stale', state: 'outside', detail: '2 stale', bound: 0, better: 'lower', value: 2 }] })));
   const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', BASE: 'main', HEALTH: page ?? '' } });
   const pushed = run('git', ['--git-dir', origin, 'show', '--name-only', '--format=', 'refs/heads/keel-night/2026-10-05']);
-  return { page, status: o.status, out: o.stdout + o.stderr, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null };
+  const body = await readFile(join(base, 'body.md'), 'utf8').catch(() => null);
+  return { page, status: o.status, out: o.stdout + o.stderr, body, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null };
 }
 
 test('the night commits its page from the configured health dir (read at run time), only data, and goes red on an ignored one', async t => {
@@ -522,6 +527,21 @@ test('the night commits its page from the configured health dir (read at run tim
   assert.equal(own.page, '.keel/health');
   assert.equal(own.status, 0, own.out);
   assert.deepEqual(own.files, ['.keel/bounds.json', '.keel/health/2026-10-05.md'], 'the page and the bounds; never what is not data');
+  // The body is pr-body.mjs's: the commit's files as the picture, the gate and what is outside, a two-way door over data.
+  const at = ['## Summary', '## Evidence', '## Merge danger'].map(h => own.body?.indexOf(`${h}\n`) ?? -1);
+  assert.ok(at[0] === 0 && at[0] < at[1] && at[1] < at[2], own.body);
+  assert.match(own.body, /```text\n└── \.keel\/\n    ├── health\/\n    │   └── 2026-10-05\.md\n    └── bounds\.json\n```/);
+  assert.match(own.body, /^Gate: ok: npm test passed, 12 tests/m);
+  assert.match(own.body, /^\| prs_stale \(outside\) \| ≤0 \| 2 \|$/m);
+  assert.match(own.body, /^Two-way door: data only/m);
+  assert.match(own.body, /^Blast radius: this repo's data files only\.$/m);
+  assert.match(own.body, /\*\*Proposal \(`prs_stale`, outside\):\*\* Close or merge the Acme PRs\./);
+  assert.ok(own.body.trimEnd().endsWith('```') && own.body.indexOf('```keel-impact') > at[2], 'the keel-impact block is last');
+  // No body is built in inline JS: the open step calls pr-body.mjs, and no node -e writes body.md.
+  const blocks = runBlocks(night);
+  assert.match(blocks.find(b => b.step === "Open the night's pull request").script, /node scripts\/keel\/pr-body\.mjs --input "\$RUNNER_TEMP\/pr\.json" --files [^\n]*> "\$RUNNER_TEMP\/body\.md"/);
+  assert.match(blocks.find(b => b.step === 'Measure').script, /improve\.mjs --report --json --pr-input "\$RUNNER_TEMP\/pr\.json"/);
+  for (const b of blocks) for (const n of inlineNode(b.script)) assert.doesNotMatch(n.js, /body|Proposal|keel-impact/, `step "${b.step}" builds a PR body in inline JS`);
   // The default, with nothing ignored.
   const def = await nightCommit(t, night, {});
   assert.equal(def.page, 'docs/health');

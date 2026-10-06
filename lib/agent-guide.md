@@ -359,8 +359,12 @@ The order is the rule (design §3):
 6. The project's `check` runs. If it fails, every byte update touched is put
    back, exit 1.
 7. Commit on the branch (the current branch is left as it was), or `--local`.
-   ⚑ Push and PR need `--yes`; the PR body is WHATSNEW's entries between the
-   versions. Re-running with `--yes` resumes from the branch.
+   ⚑ Push and PR need `--yes`; the PR body is `scripts/keel/pr-body.mjs`'s:
+   Summary (the changed files as a tree), Evidence (the gate's line, the
+   practice before → after), Merge danger (one-way when a migration rewrote
+   the project's own files, its paths named; two-way for a re-render), then
+   WHATSNEW's entries between the versions and the commit as notes, and the
+   keel-impact block last. Re-running with `--yes` resumes from the branch.
 
 `keel release` cuts a version of keel itself: package.json's version, a
 WHATSNEW entry written for the person receiving it, a commit and a local tag.
@@ -515,8 +519,11 @@ its bound, and the smallest change that would move it. Nothing else is
 written: no issue, no PR, no phase. A person decides.
 
 The same measures ship into each project as the `night` practice's
-`scripts/keel/improve.mjs` (with `drain.mjs`, `lib.mjs` and `test-ledger.mjs`): `node
-scripts/keel/improve.mjs [--report] [--json]` runs with no keel at all. What
+`scripts/keel/improve.mjs` (with `drain.mjs`, `lib.mjs`, `test-ledger.mjs` and
+`pr-body.mjs`): `node scripts/keel/improve.mjs [--report] [--pr-input <file>]
+[--json]` runs with no keel at all; `--pr-input` writes the night PR's body
+input for `node scripts/keel/pr-body.mjs --input <file> [--files <list>]`,
+which prints Summary, Evidence and Merge danger (see `update`). What
 a project cannot read alone is never a zero: `drift` there is by
 `.keel/lock.json` only (bytes keel did not write; `behind` needs keel),
 `lint` is the rules its own files show (phase, goal-without-phase,

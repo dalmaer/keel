@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G2
 spec: 2
 depends: [6, 22, 32]
-note: "From Matt Pocock's /pr (skills v1.3), in keel's terms: every PR keel opens has a Summary (a picture), Evidence (before and after) and Merge danger (two-way or one-way door, blast radius from Real surfaces), from one deterministic script. Design: research/2026-10-06-pr-and-retro.md."
-evidence: []
+note: "Built: scripts/keel/pr-body.mjs writes Summary, Evidence, Merge danger for keel update / fleet update PRs and the night's data PR; an update whose migration rewrote project files is a one-way door. Waits on its real PRs: the night's on GitHub (after the commit) and an adopted project's update at the fleet release."
+evidence: ["evidence/2026-10-06-pr-body.md"]
 issue: 17
 ---
 
@@ -37,10 +37,11 @@ The design is [The PR a person reads](../research/2026-10-06-pr-and-retro.md).
 
 ## Acceptance
 
-- [ ] `pr-body.mjs` writes the three sections in order from structured input; a missing evidence row is written as "none recorded", never dropped; mutation: dropping Merge danger fails the test. `tests/pr-body.test.mjs`
-- [ ] A fleet update whose migrations rewrite project files is marked one-way, a re-render only two-way. `tests/update.test.mjs`
-- [ ] The night's data PR body comes from `pr-body.mjs`, and its inline script passes `bash -n` and `node --check`. `tests/workflows.test.mjs`
+- [x] `pr-body.mjs` writes the three sections in order from structured input; a missing evidence row is written as "none recorded", never dropped; mutation: dropping Merge danger fails the test. `tests/pr-body.test.mjs`
+- [x] A fleet update whose migrations rewrite project files is marked one-way, a re-render only two-way. `tests/update.test.mjs`
+- [x] The night's data PR body comes from `pr-body.mjs`, and its inline script passes `bash -n` and `node --check`. `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: one real fleet update PR, in an adopted project, read by the owner in that form.
+- [ ] On GitHub, the next keel night's data PR has the three sections. `gh pr view <n> -R dalmaer/keel --json body`
 
 ## Real surfaces
 
@@ -60,4 +61,10 @@ The design is [The PR a person reads](../research/2026-10-06-pr-and-retro.md).
 
 ## Next action
 
-Write `pr-body.mjs` and its test from a synthetic fleet update's input.
+Dispatch keel's night on the committed tree and read its PR body; then an adopted project's update PR at the fleet release (the owner reads and merges).
+
+## Trajectory
+
+- **2026-10-06** — An update's door is decided from the commit itself: `keel update` writes each migration's edits as a `rewrites:` line in its commit message, and the PR body reads them back, so a resumed `--yes` gets the door right too.
+- **2026-10-06** — `pr-body.mjs` keeps its own copy of phase 32's surface list, because the night practice does not require phases; a test holds the two equal.
+- **2026-10-06** — Migration 0004 (phase 33) adds AGENTS night markers, which makes the next fleet update a one-way door for every adopted project. Strict, and correct by the rule: say so in the release notes.

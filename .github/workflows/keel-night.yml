@@ -158,16 +158,18 @@ jobs:
           done < "$RUNNER_TEMP/ledger.txt"
           echo "test ledger: $n artifacts read; $(find .keel/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
 
-      # Before the drain, so machine_prs counts last night's PR.
+      # Before the drain, so machine_prs counts last night's PR. improve also
+      # writes the PR body's input (--pr-input); scripts/keel/pr-body.mjs
+      # turns it into the body below, so no body is built in inline JS.
       - name: Measure
         id: improve
         run: |
           code=0
-          node scripts/keel/improve.mjs --report --json > "$RUNNER_TEMP/improve.json" || code=$?
+          node scripts/keel/improve.mjs --report --json --pr-input "$RUNNER_TEMP/pr.json" > "$RUNNER_TEMP/improve.json" || code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
           node -e '
             const fs = require("fs");
-            const [file, out, body] = process.argv.slice(1);
+            const [file, out] = process.argv.slice(1);
             let r = {};
             try { r = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
             const gate = (r.measures ?? []).find(m => m.id === "gate");
@@ -175,13 +177,7 @@ jobs:
             fs.appendFileSync(out, `gate=${gate?.state ?? "missing"}\nday=${day}\n`);
             for (const m of r.measures ?? []) console.log(`${m.id.padEnd(22)} ${String(m.value ?? "-").padStart(6)}  ${m.state.padEnd(8)} ${m.detail}`);
             if (r.error) console.log(`improve: ${r.error}`);
-            fs.writeFileSync(body, [
-              `The night shift measured the practice on ${day}: \`node scripts/keel/improve.mjs --report\`.`, "",
-              r.proposal ? `**Proposal (\`${r.proposal.id}\`, ${r.proposal.state}):** ${r.proposal.text}` : "**Proposal:** none; every measure is within its bound.", "",
-              "```keel-impact", JSON.stringify({version:1, phases:[], decisions:[], supersedes:[], evidence:[], reconciliation:"none", reason:"Health observations and bounds only; no working record correction is applied."}), "```", "",
-              `The page is \`${r.report ?? "docs/health/"}\`. This PR holds data only. scripts/keel/drain.mjs merges it tonight if the gate passed on this tree; otherwise the next night merges it with the series, or supersedes it if it no longer merges.`,
-            ].join("\n"));
-          ' "$RUNNER_TEMP/improve.json" "$GITHUB_OUTPUT" "$RUNNER_TEMP/body.md"
+          ' "$RUNNER_TEMP/improve.json" "$GITHUB_OUTPUT"
 
       # Tonight's history, gate run included, for tomorrow night: the ledger
       # persists between nights only as this artifact (it is never committed).
@@ -201,6 +197,9 @@ jobs:
       # the configured health directory, the inbox and the bounds. A health
       # directory the project ignores is red: its page would never be
       # committed (ledger lost its pages that way). The push names its own branch.
+      # The body is scripts/keel/pr-body.mjs's (Summary: the commit's files;
+      # Evidence: the gate and the measures outside; Merge danger: two-way,
+      # data only), from improve's --pr-input.
       - name: Open the night's pull request
         env:
           DAY: ${{ steps.improve.outputs.day }}
@@ -229,6 +228,8 @@ jobs:
           git checkout -q -b "$BRANCH"
           git add -A -- "${PATHS[@]}"
           git commit -q -m "keel night: $DAY"
+          git show --name-only --format= HEAD > "$RUNNER_TEMP/files.txt"
+          node scripts/keel/pr-body.mjs --input "$RUNNER_TEMP/pr.json" --files "$RUNNER_TEMP/files.txt" > "$RUNNER_TEMP/body.md"
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own reading, so force is safe here and nowhere else.
           git push --force origin "HEAD:refs/heads/keel-night/$DAY"

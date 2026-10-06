@@ -31,7 +31,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "03c8ed814229f39cc2d2e28f0e4dfa0b5840e725e5aed4d1bbc9f24a9382af3c"
+      "sha256": "5c2ec9891098c5417cd1aab511e819e68f5d30914876aaebfded015a5f9c9232"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -87,11 +87,15 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "a9203416b2f303f28e109161f8bf6077cc9ed2ea8eb462383a32bb196708ddd4"
+      "sha256": "b34630e63ac0d593cb7be4266590fd3fcc506659643ce18cf6354e5083bd0433"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
       "sha256": "7d067a69ba5689a42cc65287852d42a02593a51c047f60065e654c430aa97f34"
+    },
+    "scripts/keel/pr-body.mjs": {
+      "practice": "night",
+      "sha256": "136608a0cee343bbe9d21601010a3cdbabff2d8ef1d577e56fff6dacf1fea4a7"
     },
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",

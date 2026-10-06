@@ -2,7 +2,12 @@
 // proposal last, and nothing changed (keel docs/design.md §6, "The night
 // shift"). keel practice `night`; managed: keel render rewrites it.
 //
-//   node scripts/keel/improve.mjs [--report] [--transcripts <dir>] [--json]
+//   node scripts/keel/improve.mjs [--report] [--transcripts <dir>] [--pr-input <file>] [--json]
+//
+// --pr-input writes the night PR's body input for scripts/keel/pr-body.mjs
+// (nightPr): the gate's line and the measures outside as evidence, a two-way
+// door over data files, the proposal as a note. The night's workflow builds
+// its PR body from it, never from inline JS (keel phase 39).
 //
 // It runs from the project's own checkout with Node built-ins, git, gh and npm
 // (KEEL_GIT, KEEL_GH, KEEL_NPM stand in for them),
@@ -962,7 +967,7 @@ export const strip = results => results.map(({ facts, ...r }) => ({ ...r, ...(fa
  * (roadmap, diagnose, proposals) when keel runs this; without them, only
  * what the project's own files can say.
  */
-export async function improve({ root, report = false, transcripts, date = today() }, { env = process.env, measures = MEASURES, keel, by = keel ? 'keel improve' : COMMAND } = {}) {
+export async function improve({ root, report = false, transcripts, prInput, date = today() }, { env = process.env, measures = MEASURES, keel, by = keel ? 'keel improve' : COMMAND } = {}) {
   const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
   // Where the page goes, settled before anything is written: a bad `health` is a broken instrument.
   let dir = null;
@@ -980,6 +985,7 @@ export async function improve({ root, report = false, transcripts, date = today(
     await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by }));
   }
   const code = exitCode(results);
+  if (prInput) await writeFile(prInput, `${JSON.stringify(nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
     data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened },
@@ -991,6 +997,28 @@ export async function improve({ root, report = false, transcripts, date = today(
   };
 }
 
+/**
+ * The night PR's body input (scripts/keel/pr-body.mjs): its summary's files
+ * come from the commit (pr-body --files), so the picture is what was pushed.
+ */
+export function nightPr({ date, results, proposal, report }) {
+  const gate = results.find(r => r.id === 'gate');
+  const off = results.filter(r => r.state === 'outside' || r.state === 'broken');
+  return {
+    summary: { lead: `The night shift measured the practice on ${date}: \`${COMMAND} --report\`; the page is \`${report}\`.`, files: [] },
+    evidence: {
+      ...(gate ? { gate: `${gate.state}${gate.detail ? `: ${gate.detail}` : ''} (the project's check, run on this tree)` } : {}),
+      columns: ['Bound', 'Tonight'],
+      rows: off.map(r => ({ what: `${r.id} (${r.state})`, before: `${r.better === 'higher' ? '≥' : '≤'}${r.bound}`, after: r.value ?? '-' })),
+    },
+    danger: { door: 'two-way', why: 'data only (the health page, the inbox, the bounds); reverting the merge restores them.', surfaces: [], within: 'data files' },
+    notes: [
+      proposal ? `**Proposal (\`${proposal.id}\`, ${proposal.state}):** ${proposal.text}` : '**Proposal:** none; every measure is within its bound.',
+      'scripts/keel/drain.mjs merges this PR tonight if the gate passed on this tree; otherwise the next night merges it with the series, or supersedes it if it no longer merges.',
+    ],
+    impact: { declaration: { version: 1, phases: [], decisions: [], supersedes: [], evidence: [], reconciliation: 'none', reason: 'Health observations and bounds only; no working record correction is applied.' } },
+  };
+}
 
 // ---- the script --------------------------------------------------------------
 
@@ -1007,16 +1035,16 @@ async function instrumentsFor(root) {
 }
 
 export function parseArgs(args) {
-  const flags = ['--report'], valued = ['--transcripts'];
+  const flags = ['--report'], valued = { '--transcripts': 'transcripts', '--pr-input': 'prInput' };
   const out = { report: args.includes('--report') };
   for (let i = 0; i < args.length; i++) {
     if (flags.includes(args[i])) continue;
-    if (valued.includes(args[i])) {
+    if (Object.hasOwn(valued, args[i])) {
       if (args[i + 1] === undefined || args[i + 1].startsWith('--')) throw new ImproveError(`${args[i]} needs a value`, 2);
-      out.transcripts = resolve(args[++i]);
+      out[valued[args[i]]] = resolve(args[++i]);
       continue;
     }
-    throw new ImproveError(`unexpected argument: ${args[i]}; usage: ${COMMAND} [--report] [--transcripts <dir>] [--json]`, 2);
+    throw new ImproveError(`unexpected argument: ${args[i]}; usage: ${COMMAND} [--report] [--transcripts <dir>] [--pr-input <file>] [--json]`, 2);
   }
   return out;
 }

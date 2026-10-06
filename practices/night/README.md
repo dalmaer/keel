@@ -25,7 +25,8 @@ every night at 07:23 UTC (and by hand):
    health directory, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`;
    nothing else a gate run leaves behind), it is committed on
    `keel-night/<date>`, pushed to that branch only, and opened as one PR
-   whose body carries the page's proposal.
+   whose body is `scripts/keel/pr-body.mjs`'s (below), with the page's
+   proposal as its note.
 3. `node scripts/keel/drain.mjs keel-night/ --yes` keeps the queue at one:
    each older PR is merged when it holds only data (the health directory,
    `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`) and still merges, and
@@ -86,6 +87,22 @@ gate run adds one more, and it keeps the result as its own artifact.
 `flaky_tests` and `slow_tests` (bound 0, no ratchet) read that history; with
 fewer runs than the window they are n/a, never zero.
 
+**Every PR keel opens can be judged in a minute** (phase 39).
+`scripts/keel/pr-body.mjs` builds the body from structured input,
+deterministically, in three sections in this order: **Summary**, a picture
+(a file tree of the changed paths, or a table; never prose); **Evidence**,
+the gate's line and rows of before and after ("Evidence: none recorded."
+when there are none; the section is never dropped); **Merge danger**, a
+two-way door (a revert restores everything) or a one-way door (something
+leaves the repo), with the blast radius in Real surfaces terms (phase 32;
+none is "this repo's … only"). Notes follow, and the keel-impact block
+stays last. The night writes its input with `improve.mjs --pr-input` and
+the commit's files: two-way, data files only. `keel update` and `keel
+fleet update` use it too: the changed files, the gate and the practice
+before → after, two-way when it only re-renders keel's files, one-way when
+a migration rewrote the project's own files. Bad input (an unknown door
+or surface, a summary that is not a picture) is exit 2.
+
 Practice updates go out from keel: `keel fleet update` opens the
 `keel/update-v<version>` PR in each project that is behind, with the owner's
 own `gh` login. A person merges it. (`keel-update.yml`, which pulled keel
@@ -108,8 +125,8 @@ pushes the branch and ends green with a notice). Squash merges allowed, for
 the drain.
 
 **Its files.** `.github/workflows/keel-night.yml`, `scripts/keel/improve.mjs`,
-`scripts/keel/drain.mjs`, `scripts/keel/lib.mjs`, `scripts/keel/test-ledger.mjs`
-(managed), and the `night` block of `AGENTS.md` (so it needs agents-md). They need the
+`scripts/keel/drain.mjs`, `scripts/keel/lib.mjs`, `scripts/keel/test-ledger.mjs`,
+`scripts/keel/pr-body.mjs` (managed), and the `night` block of `AGENTS.md` (so it needs agents-md). They need the
 phases practice's `scripts/roadmap.mjs` for the phase measures; with phases
 off or local those measures are n/a.
 

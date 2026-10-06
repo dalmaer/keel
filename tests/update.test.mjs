@@ -362,6 +362,70 @@ console.log('https://github.test/acme/notes/pull/1');
   assert.doesNotMatch(body, /Not for this project/);
 });
 
+/**
+ * Open the update PR for the project at dir with a stub gh, through `mod`'s
+ * update (the real module, or a mutant). Returns the body gh was handed.
+ */
+async function prOf(t, dir, extra = {}, mod = { update }) {
+  const tmp = await scratch(t, 'keel-gh-');
+  const origin = join(tmp, 'origin.git');
+  git(tmp, 'init', '-q', '--bare', origin);
+  git(dir, 'remote', 'add', 'origin', origin);
+  git(dir, 'push', '-q', 'origin', 'main');
+  const gh = join(tmp, 'gh'), body = join(tmp, 'body.md');
+  await writeFile(gh, `#!${process.execPath}
+const a = process.argv.slice(2);
+require('node:fs').writeFileSync(${JSON.stringify(body)}, require('node:fs').readFileSync(a[a.indexOf('--body-file') + 1]));
+console.log('https://github.test/acme/notes/pull/2');
+`);
+  await chmod(gh, 0o755);
+  const r = await mod.update({ dir, yes: true, selfUpdate: false }, deps({ env: { ...ENV, KEEL_GH: gh }, ...extra }));
+  assert.equal(r.exitCode ?? 0, 0, r.text);
+  return readFile(body, 'utf8');
+}
+
+/** lib/update.mjs with one rule edited out, its imports pointed back at keel: a mutant the assertions must catch. */
+async function mutantUpdate(t, from, to) {
+  const text = await readFile(join(KEEL, 'lib', 'update.mjs'), 'utf8');
+  assert.ok(text.includes(from), `the mutation's target is still in the source: ${from}`);
+  const dir = await scratch(t, 'keel-update-mutant-');
+  const lib = pathToFileURL(join(KEEL, 'lib')).href;
+  await writeFile(join(dir, 'update.mjs'), text.replace(from, to).replaceAll("from './", `from '${lib}/`).replaceAll("from '../", `from '${pathToFileURL(KEEL).href}/`));
+  return import(pathToFileURL(join(dir, 'update.mjs')).href);
+}
+
+/** A synthetic migration that rewrites one of the project's own files. */
+const REWRITES = { id: '0099-acme-notes-index', to: TARGET, summary: 'Acme notes gain an index', applies: async () => true, up: async () => [{ path: 'docs/notes-index.md', content: '# Acme notes\n' }] };
+
+test('the update PR reads in a minute: Summary as a tree, Evidence, Merge danger; one-way when a migration rewrote project files, two-way for a re-render', async t => {
+  const sections = body => ['## Summary', '## Evidence', '## Merge danger'].map(h => body.indexOf(`${h}\n`));
+  // A re-render only: two-way.
+  const plain = await prOf(t, await oldProject(t), { migrations: [] });
+  const at = sections(plain);
+  assert.ok(at[0] >= 0 && at[0] < at[1] && at[1] < at[2], plain);
+  assert.match(plain, /```text\n[\s\S]*\.agents\/skills\/conduct\/\n[\s\S]*SKILL\.md[\s\S]*```/, 'the changed files, as a tree');
+  assert.match(plain, /^Gate: `npm run check` exit 0 on this change/m);
+  assert.match(plain, new RegExp(`^\\| keel practice \\(\\.keel/keel\\.json\\) \\| 0\\.0\\.0 \\| ${TARGET.replaceAll('.', '\\.')} \\|$`, 'm'));
+  assert.match(plain, /^Two-way door: re-renders keel's own files; reverting the merge restores them\.$/m);
+  assert.match(plain, /^Blast radius: adopted project\.$/m);
+  assert.ok(plain.indexOf('```keel-impact') > at[2], 'the keel-impact block comes after the three sections');
+
+  // A migration that rewrote the project's own file: one-way, the file named, and marked in the tree.
+  const dir = await oldProject(t);
+  const rewrote = await prOf(t, dir, { migrations: [REWRITES] });
+  assert.match(rewrote, /^One-way door: migration 0099-acme-notes-index rewrote docs\/notes-index\.md\./m);
+  assert.match(rewrote, /notes-index\.md {2}\(migration 0099-acme-notes-index\)/);
+  assert.match(git(dir, 'log', '-1', '--format=%B', BRANCH(TARGET)), /^0099-acme-notes-index: Acme notes gain an index\n {2}rewrites: docs\/notes-index\.md$/m);
+
+  // Mutation: the door no longer reads the migrations; a rewriting update says two-way, and is caught.
+  const blind = await mutantUpdate(t, 'danger: rewrites.length', 'danger: false');
+  const wrong = await prOf(t, await oldProject(t), { migrations: [REWRITES] }, blind);
+  assert.doesNotMatch(wrong, /^One-way door:/m, 'the mutant marks a migration-rewriting update two-way');
+  // Mutation: the commit stops naming a migration's edits; the resumed PR could not tell.
+  const silent = await mutantUpdate(t, "...(m.edits.length ? [`  rewrites: ${m.edits.map(e => e.path).join(', ')}`] : [])", '');
+  assert.doesNotMatch(await prOf(t, await oldProject(t), { migrations: [REWRITES] }, silent), /^One-way door:/m);
+});
+
 test('self-update: a behind checkout is pulled and re-run once; KEEL_SELF_UPDATED stops a second time', async t => {
   const tmp = await scratch(t, 'keel-self-');
   const origin = join(tmp, 'origin.git'), work = join(tmp, 'work'), cli = join(tmp, 'cli');

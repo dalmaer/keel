@@ -8,6 +8,7 @@
     { "path": "scripts/keel/drain.mjs", "from": "scripts/keel/drain.mjs", "kind": "managed" },
     { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" },
     { "path": "scripts/keel/test-ledger.mjs", "from": "scripts/keel/test-ledger.mjs", "kind": "managed" },
+    { "path": "scripts/keel/pr-body.mjs", "from": "scripts/keel/pr-body.mjs", "kind": "managed" },
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "night" }
   ]
 }
