@@ -15,3 +15,13 @@ Against the working tree on `9a97f08` (the phase's commit is titled "phase 33: e
 **Not done yet (needs the commit):** ten runs on the committed clean tree read by the conductor; the pushed commit's `check.yml` artifact and the next night reading it; one adopted project's update PR with migration 0004 (⚑ the owner merges).
 
 **Docs updated in the same change:** the night and ci practice READMEs, the night AGENTS block (a hygiene note is work), `lib/agent-guide.md` topics, `README.md`.
+
+## Walked after the commit (b910f1f)
+
+| Did | Observed |
+| --- | --- |
+| Ten runs of `npm test` in a clean worktree of `b910f1f` (outside the working checkout) | all exit 0; each ended "keel test ledger: no flaky or slower test (n runs)"; the ten records: dirty false, one tree hash, 375 tests each, 0 failures. Flaky was judged (clean tree) and found nothing; slower stays unjudged below 20 runs |
+| CI `check` run 37505442975 on `b910f1f` | success; artifact `keel-test-runs` (15,456 B): one run, commit b910f1f, dirty false, linux x64 4 CPUs, 375 tests, 0 failed |
+| Dispatched keel-night, run 37505860555 | exit 0; "test ledger: 1 artifacts read; 1 runs"; Measure: `flaky_tests` and `slow_tests` n/a, "recorded runs: 2, fewer than the window of 20" |
+
+The once-in-five failure of 6 Oct did not recur in these ten runs.

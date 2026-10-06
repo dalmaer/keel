@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [10, 11]
-note: "Built in keel: the ledger reporter on npm test, flaky and slower named in a hygiene block, flaky_tests and slow_tests on the night (from CI and night artifacts), proofs_hold's ledger half, migration 0004 for adopted projects. Waits on walks that need the commit: ten clean-tree runs, a real CI artifact read by the night, and one adopted project updated."
+note: "Built in keel and walked there: ten clean-tree runs (375 tests each, no flaky), CI's keel-test-runs artifact on b910f1f, and a dispatched night reading it (n/a below 20 runs). Waits on one adopted project's update with migration 0004 at the fleet release (owner merges)."
 evidence: ["evidence/2026-10-06-test-ledger.md"]
 issue: 11
 ---
@@ -46,9 +46,9 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 - [x] Flaky: a synthetic history with one test passing and failing on the same clean tree is named flaky; the same mix across different trees, or on a dirty tree, is not. `tests/test-ledger.test.mjs`
 - [x] Slower: a test at 2.5x its median and +300 ms is named; one at 2.5x but +50 ms (under the floor) is not; mutation: dropping the floor fails the test. `tests/test-ledger.test.mjs`
 - [x] The night's measures read the CI artifacts and are n/a, never zero, when there are fewer than N runs. `tests/improve.test.mjs`
-- [ ] ⚑ by hand: the conductor runs keel's suite ten times, reads the hygiene block, and fixes or files what it names.
+- [x] ⚑ by hand: the conductor runs keel's suite ten times, reads the hygiene block, and fixes or files what it names.
 - [ ] ⚑ by hand: one adopted project's update PR carries migration 0004 (its `npm test` gains the reporter), its own check is green on the PR, and the owner merges it.
-- [ ] On keel's pushed commit, `check.yml` uploads `keel-test-runs`, and the next night's improve reads it (`flaky_tests`/`slow_tests` in its health page, n/a until enough runs). `node scripts/keel/improve.mjs --report`
+- [x] On keel's pushed commit, `check.yml` uploads `keel-test-runs`, and the next night's improve reads it (`flaky_tests`/`slow_tests` in its health page, n/a until enough runs). `node scripts/keel/improve.mjs --report`
 
 ## Real surfaces
 
@@ -70,7 +70,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Next action
 
-On the committed (clean) tree: run keel's suite ten times and read the hygiene block; confirm the pushed commit's `check.yml` uploads `keel-test-runs`; then the adopted project's update with migration 0004 at the fleet release.
+At the fleet release: one adopted project's update PR carries migration 0004, its check green on the PR (the owner merges); then this phase is built.
 
 ## Trajectory
 
