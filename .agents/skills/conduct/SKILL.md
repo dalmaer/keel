@@ -274,6 +274,35 @@ Land on `main`, no pull request:
 Write a short report between phases (the phase, its new status, the proof and
 what it printed, what changed course). Don't wait for a reply.
 
+## 5. Retro
+
+After the commit, when the phase did real work (its commit changed more than
+`docs/`), look at how the session went, not only what it built:
+
+```sh
+keel retro --worksheet --since <the brief's base commit>   # the commit before the phase's first
+```
+
+The worksheet holds counts and transcript pointers, never transcript text:
+failed commands retried, tool errors, permission denials, files read three or
+more times, tool calls over a minute, edits reverted. A docs-only range says
+so in one line; then there is no retro.
+
+Answer the **seven areas** it lists, a line each: navigation, automatable
+checks, missing standards, AGENTS.md health, tool economy, no-op
+instructions, information gaps. Then put **at most five candidates** in the
+phase report, most serious first, each typed:
+
+- **check**: anything mechanical (a lint, a test, a guard in a script).
+  Mechanical violations get deterministic checks;
+- **AGENTS/skill line**: a judgment call only;
+- **lesson**: a failure shape, through `keel learn`.
+
+**The owner picks.** Nothing is applied unpicked: candidates live in the
+report, not the repo, until the owner picks one; a picked check is built as
+its own small change (or a phase). Never run a retro from the night or a
+climb: unattended, it finds false positives and keeps fixing them.
+
 ## Stopping
 
 The conductor stops for a person, and for nothing else. Record the stop first,

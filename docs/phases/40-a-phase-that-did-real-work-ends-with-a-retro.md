@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G3
 spec: 2
 depends: [8, 24, 32]
-note: "From Matt Pocock's /retro (skills v1.3), in keel's terms and at the owner's ask: run when a session did real work, at the end of a phase that changed code. A deterministic worksheet from the session's transcript, seven areas, candidates the owner picks; mechanical findings become checks. Never from the night. Design: research/2026-10-06-pr-and-retro.md."
-evidence: []
+note: "Built: keel retro (worksheet from the session and its subagents' transcripts, counts and pointers only), the conduct skill's step 5, real work = the range changed more than docs. Waits on use: two conducted phases' retros, the owner's picks, and one picked check shipped."
+evidence: ["evidence/2026-10-06-retro.md"]
 issue: 18
 ---
 
@@ -38,9 +38,9 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
 
 ## Acceptance
 
-- [ ] The worksheet counts each signal from a synthetic transcript (Acme) and writes no transcript text to any file; mutation: copying a message into the worksheet fails the test. `tests/retro.test.mjs`
-- [ ] A docs-only commit is not real work (the retro says so and stops); a commit touching `lib/` or `practices/` is. `tests/retro.test.mjs`
-- [ ] The conduct skill's step 5 names the worksheet, the seven areas, the candidate types and "the owner picks". `tests/skill.test.mjs`
+- [x] The worksheet counts each signal from a synthetic transcript (Acme) and writes no transcript text to any file; mutation: copying a message into the worksheet fails the test. `tests/retro.test.mjs`
+- [x] A docs-only commit is not real work (the retro says so and stops); a commit touching `lib/` or `practices/` is. `tests/retro.test.mjs`
+- [x] The conduct skill's step 5 names the worksheet, the seven areas, the candidate types and "the owner picks". `tests/skill.test.mjs`
 - [ ] ⚑ by hand: two phases' retros in their reports; the owner's picks recorded; one picked check shipped.
 
 ## Real surfaces
@@ -61,4 +61,10 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
 
 ## Next action
 
-Write `keel retro --worksheet` against a synthetic transcript, reusing loose-ends' transcript reader.
+Run the retro at the end of each conducted phase from 39 on, put the candidates in the phase report, and record the owner's picks here; ship the first picked check.
+
+## Trajectory
+
+- **2026-10-06** — The retro reads the builders' transcripts (`<session>/subagents/*.jsonl`) beside the main session: that is where a phase's friction is. Builder's call, kept.
+- **2026-10-06** — Step 5 runs `keel retro --since <the brief's base commit>`, not the phase's first commit: `since..HEAD` excludes `since` itself.
+- **2026-10-06** — Its first real worksheet (phase 33's range) counted the owner's interrupt as a permission denial: a false positive, which is why candidates are picked by a person and the retro never runs unattended.

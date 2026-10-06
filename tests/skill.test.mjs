@@ -142,3 +142,26 @@ test('the conduct skill covers no remote, missing docs, small phases, and record
   assert.match(section(3), /once it\s+is built, `None\.` \(or what lived-in needs\)/);
   assert.match(section(4), /`phase <N>: <heading>`, where the heading is the phase file's\s+`# ` heading, word for word: it is the source/);
 });
+
+// The retro after real work (phase 40): step 5, after the commit.
+test('the conduct skill ends real work with a retro: the worksheet, the seven areas, typed candidates, the owner picks', async () => {
+  const text = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const at = text.indexOf('\n## 5. Retro');
+  assert.ok(at > text.indexOf('\n## 4. Commit'), '§5 comes after §4');
+  const five = text.slice(at, text.indexOf('\n## ', at + 1));
+  assert.match(five, /keel retro --worksheet --since/);
+  assert.match(five, /more than\s+`docs\/`/);
+  for (const area of ['navigation', 'automatable\\s+checks', 'missing standards', 'AGENTS\\.md health', 'tool economy', 'no-op\\s+instructions', 'information gaps']) {
+    assert.match(five, new RegExp(area), area);
+  }
+  assert.match(five, /\*\*seven areas\*\*/);
+  assert.match(five, /at most five candidates/);
+  assert.match(five, /most serious first/);
+  assert.match(five, /\*\*check\*\*/);
+  assert.match(five, /\*\*AGENTS\/skill line\*\*/);
+  assert.match(five, /\*\*lesson\*\*[\s\S]*keel learn/);
+  assert.match(five, /\*\*The owner picks\.\*\* Nothing is applied unpicked/);
+  assert.match(five, /Never run a retro from the night or a\s+climb/);
+  // The sections before it are intact.
+  for (const n of [0, 1, 2, 3, 4]) assert.ok(text.includes(`\n## ${n}.`), `§${n} kept`);
+});

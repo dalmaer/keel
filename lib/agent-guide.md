@@ -10,24 +10,25 @@ Verbs (every one takes `--json`; parse that, never the prose):
 
 - `keel status` — goals, built and lived-in counts, the next phase
 - `keel next` — the next phase to conduct: its file, done-when, next action; `--project <p>`
-- `keel goal list|show|add|retire` — goals and their progress; add and retire edit `docs/goals.json`
+- `keel goal list|show|add|retire` — goals and progress; add and retire edit `docs/goals.json`
 - `keel phase new|list` — scaffold the next free phase under a goal; list them
-- `keel render` — render the project's practices onto it; `--check` writes nothing, exits 1 on a difference
+- `keel render` — render the practices onto the project; `--check` writes nothing, exits 1 if it differs
 - `keel init [dir] --description "<paragraph>"` — a new project in an empty dir; `--github` plans a private repo (exit 3)
-- `keel adopt [dir]` — bring an existing repo under keel: on only what it satisfies, the rest local; `--dry-run` writes nothing
-- `keel doctor` — drift (the project's edits to keel's files) and practice lints; exit 1 on findings; `--fix <path> restore|eject` (exit 3)
+- `keel adopt [dir]` — bring an existing repo under keel, on what it satisfies; `--dry-run` writes nothing
+- `keel doctor` — drift from keel's files and practice lints; exit 1 on findings; `--fix <path> restore|eject` (exit 3)
 - `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3), or `--local`
-- `keel lessons` — send new lessons, drift and practice commits home as issues, once each; exit 3
+- `keel lessons` — send lessons, drift and practice commits home as issues, once each; exit 3
 - `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`
 - `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
-- `keel drain <prefix>` — one open PR per machine queue: older data PRs merged, the rest superseded; newest only `--gate-passed`; exit 3
-- `keel fleet` — keel only, read-only: each project in `fleet.json`: practice, health, CI, unsent lessons
+- `keel drain <prefix>` — one open PR per machine queue: older data PRs merged, the rest closed; newest only `--gate-passed`; exit 3
+- `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI, lessons
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished chats, files, branches, PRs, owner steps; `mark <id> resume|park|drop`
+- `keel retro` — after real work: the session's friction, counted
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — this text; `<topic>` opens one, `all` prints all
-- `keel --version` — CLI version, commit, and practice version
+- `keel --version` — CLI version, commit, practice version
 
 Rules that bite:
 
@@ -42,7 +43,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `fleet`, `loose-ends`, `install`, `coming`, `reconciliation`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `fleet`, `loose-ends`, `retro`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -705,6 +706,39 @@ reach stdout only.
 kind, fingerprint, title, detail, phase, at, age, move, commands, state,
 mark?, session?, ending?, name?, files?, url?}]}], shown, hidden}`; `mark`
 → `{ok, id, project, file, mark}`. Exit 0; 2 on usage or an unknown id.
+
+<!-- topic: retro | the worksheet for a retro after a phase that did real work -->
+
+`keel retro [--worksheet] [--since <commit>] [--session <id>]` is the last
+step of `/conduct` for a phase whose commit changed more than `docs/`, and a
+person can run it any time. It reads only, writes nothing, and exits 0: it is
+a worksheet, not a gate.
+
+- **Real work** — the range `<since>..HEAD` (or HEAD's own commit) changed a
+  file outside `docs/`. If not, it prints one line, `docs only: no retro`.
+- **Session** — `--session <id>`, or the newest transcript in this repo's
+  Claude Code directory (`~/.claude/projects/…`, or `KEEL_CLAUDE_DIR`), with
+  its subagents' transcripts. `--since` keeps what came after that commit's
+  time: pass the brief's base, the commit before the phase.
+- **Signals**, counted, each with pointers (`main:<line>` or
+  `agent-<id>:<line>`, a tool name, a command head with quoted text and
+  paths beyond the repo cut, a repo-relative file): failed Bash commands
+  retried within 5 calls, tool errors, permission denials, files read 3+
+  times, calls over 60 s (Agent and AskUserQuestion wait by design), edits
+  reverted. Never a message or a tool's output.
+- **Seven areas** to answer: navigation, automatable checks, missing
+  standards, AGENTS.md health, tool economy, no-op instructions, information
+  gaps. Then at most five candidates in the phase report, most serious
+  first, each a **check**, an **AGENTS/skill line** or a **lesson** (`keel
+  learn`). The owner picks; nothing is applied unpicked. Never from the
+  night or a climb.
+
+`--json` → `{realWork, range, changed, outsideDocs, since, sinceAt, session,
+subagents, counts: {retried, errors, denials, rereads, slow, reverted},
+signals: {<signal>: [{source, line, tool, head?, file?, …}]}, areas: [{key,
+title, question, signals, counts}]}`; docs-only → `{realWork: false, range,
+changed, outsideDocs, since}`. Exit 0; 2 on usage, an unknown commit or
+session.
 
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 

@@ -109,7 +109,7 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // the world changes, as fleet update did once ledger was adopted). Every verb runs with a gh
     // that prints [], and fleet.json is a synthetic, empty fleet; tests/night.test.mjs,
     // tests/fleet.test.mjs and tests/learn.test.mjs cover those verbs against a stub gh; loose-ends
-    // reads no one's transcripts (tests/loose-ends.test.mjs covers it).
+    // and retro read no one's transcripts (tests/loose-ends.test.mjs and tests/retro.test.mjs cover them).
     const emptyGh = join(dir, 'empty-gh');
     await writeFile(emptyGh, `#!${process.execPath}\nconsole.log('[]');\n`, { mode: 0o755 });
     await writeFile(join(dir, 'fleet.json'), '[]\n');

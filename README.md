@@ -144,6 +144,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
 | `keel lessons` | Send what this project learned home to keel |
 | `keel drain <prefix>` | Keep one open PR per machine queue (the nightly runs this) |
+| `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
 
 **At home, in keel's own checkout:**
 
