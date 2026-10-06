@@ -46,9 +46,19 @@ numbers go in the message, and `compare --decide` writes them there for you.
    night. (A hygiene night that keeps nothing files one issue instead; the
    workflow files it, not you.)
 
+## A night of proposals
+
+`lessons` and `loop` change no code. Their work is proposals for the owner:
+a distill proposal (`climb.mjs distill propose`, which commits it) or a
+proposed rank for a Loop finding (`node scripts/loop.mjs propose`, then
+commit it). Rules 3 and 4 become one: `guard` refuses any other path, any
+change to the lessons table, and any finding decided tonight. You never
+decide: that is the person's, always.
+
 ## What you may run
 
-Read, Edit, Write, Glob, Grep; `node scripts/keel/climb.mjs …`; `npm test`
+Read, Edit, Write, Glob, Grep; `node scripts/keel/climb.mjs …`;
+`node scripts/loop.mjs list …` and `propose …` (a loop night); `npm test`
 and `npm run …`; git `status`, `diff`, `log`, `show`, `add`, `commit`,
 `switch` and `worktree`. Not `git push`, not `gh`, not anything that
 reaches outside the repository.

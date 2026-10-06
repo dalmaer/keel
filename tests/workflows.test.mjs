@@ -615,6 +615,8 @@ export function climbWorkflowProblems(text) {
       if (/\bpush\b|\bmerge\b|\brebase\b|\breset\b/.test(t)) out.push(`the agent may run ${t}`);
       if (/^Bash\(git( \*|:\*|\*)\)$/.test(t) || t === 'Bash' || t === 'Bash(*)') out.push(`the agent may run any git or shell command (${t})`);
       if (/^Bash\(gh\b/.test(t)) out.push(`the agent may run gh (${t})`);
+      // A loop night proposes; deciding, pushing to Loop and re-mining are a person's (phase 37, lesson 53).
+      if (/^Bash\(node scripts\/loop\.mjs/.test(t) && !/^Bash\(node scripts\/loop\.mjs (?:list|propose)\b/.test(t)) out.push(`the agent may run loop.mjs beyond list and propose (${t})`);
     }
     if (!list.includes('Bash(node scripts/keel/climb.mjs *)')) out.push('the agent cannot run climb.mjs, so its numbers would be its own');
   }
@@ -642,12 +644,16 @@ test('keel-climb.yml: the agent cannot push or merge, is time-boxed by the budge
   const t = w.template;
   assert.deepEqual(climbWorkflowProblems(t), []);
   assert.match(t, /git push --force origin "HEAD:refs\/heads\/keel-climb\/\$JOB\/\$DAY"/);
-  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
+  // STITCH_API_KEY: a loop night's pull (phase 37), in its own step only.
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'STITCH_API_KEY']);
+  assert.deepEqual(t.split(/\n(?= {6}- )/).filter(s => s.includes('secrets.STITCH_API_KEY')).map(s => /name: (.+)/.exec(s)[1]), ["Pull Loop's findings"]);
   const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
   for (const [why, text] of [
     ['git push allowed', t.replace(tools, `${tools},Bash(git push*)`)],
     ['any git allowed', t.replace(tools, `${tools},Bash(git *)`)],
     ['gh allowed', t.replace(tools, `${tools},Bash(gh pr merge *)`)],
+    ['loop decide allowed', t.replace(tools, `${tools},Bash(node scripts/loop.mjs decide *)`)],
+    ['any loop verb allowed', t.replace('Bash(node scripts/loop.mjs propose *)', 'Bash(node scripts/loop.mjs *)')],
     ['climb.mjs not allowed', t.replace('Bash(node scripts/keel/climb.mjs *),', '')],
     ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.pick\.outputs\.minutes\) \}\}/, '')],
     ['no guard', t.replace('          node scripts/keel/climb.mjs guard\n', '')],

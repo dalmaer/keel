@@ -14,9 +14,12 @@ PR are the script's:
 
 - `pick` chooses tonight's job: the one tied to the newest health page's
   worst measure outside its bound (`slow_tests` → `test-time`, `build_time`
-  → `build-time`), with `flaky_tests` → `hygiene` ahead of every other, else
-  the next in rotation (`.keel/climb.json`, carried by the climb PR; hygiene
-  never runs by rotation). A job with an open `keel-climb/<job>/` PR waits
+  → `build-time`, a `perf` row → `perf`, `lessons_without_guard` →
+  `lessons`), or to what the repo itself shows (`lessons_since_distill`: the
+  table's rows since the last distill pass → `lessons`; `loop_untriaged`:
+  Loop's untriaged findings → `loop`), with `flaky_tests` → `hygiene` ahead
+  of every other, else the next in rotation (`.keel/climb.json`, carried by
+  the climb PR; `hygiene`, `lessons` and `loop` never run by rotation). A job with an open `keel-climb/<job>/` PR waits
   for a person to read it. A job whose last three `keel-climb/<job>/` PRs
   were closed unmerged proposes its own retirement on the health page, and
   pick skips it until the owner removes it from `jobs` or reopens one.
@@ -38,8 +41,26 @@ PR are the script's:
   lines passes, with a note for the person); `build-time` builds base and
   candidate and hashes every file under `buildOutput`: byte-identical, or
   each changed path has a reason (`harmless --path p --why "…"`) that the
-  PR's Merge danger prints.
-- `revert --why` and `settle` drop what no compare kept.
+  PR's Merge danger prints; `perf` also runs `perf.check` when the config
+  names one. A proposals night (`lessons`, `loop`) runs the gate and refuses,
+  naming each: any path but its proposals (`.keel/climb/lessons/`; the
+  findings, `docs/LOOP.md` and loop's `afterRenderWrites`), any change to
+  the lessons table (by row), a proposal edited, a finding decided tonight
+  or a decided finding changed. Deciding is the owner's.
+- `distill [--json]` is a lessons night's worksheet: the project's own
+  table (`.keel/keel.json` `lessons`, default `docs/lessons.md`), each row
+  with its provenance and family, the families the owner accepted, the open
+  proposals, the rows since the last pass. `distill propose --kind
+  family|reword|promote … --read "…"` writes one proposal under
+  `.keel/climb/lessons/` (phase 31's rules, from `scripts/keel/distill.mjs`)
+  and, on a lessons night, commits it alone. It never writes the table.
+- `loop-pull` is a loop night's pull, in place of keel-loop's that day: the
+  loop practice's `pull --no-prove`, committed by the script. Loop
+  unreachable (no `STITCH_API_KEY`, no stitch, a failing pull) is a notice
+  and the night's line, never red; the agent then proposes for the findings
+  already here, with `node scripts/loop.mjs propose`.
+- `revert --why` and `settle` drop what no compare kept (a proposals night's
+  `settle` keeps its commits and drops only what was never committed).
 - `report` writes the PR body through `scripts/keel/pr-body.mjs` (the
   before-and-after table, each kept change with its numbers, what was tried
   and reverted, the gate line, a two-way door) and the night's one line.
@@ -107,14 +128,27 @@ record as the `keel-tend` artifact.
 to 0.5; `attempts` 1 to 50; `testCommand` (default `npm test`); for
 `build-time`, `build` (the command) and `buildOutput` (the file or directory
 it writes), and optionally `buildBudgetMs` (the night's `build_time` bound;
-without it the night records the time, unbounded). A bad value is a red run
-naming it.
+without it the night records the time, unbounded); for `perf`, `perf`:
+`{ "command": "…", "better": "lower"|"higher", "unit": "ms", "check": "…" }`
+(the command prints one number on its last line; `check` is the project's
+own perf check, run by the guard). `loop` needs the `loop` practice. A bad
+value is a red run naming it.
 
 | Job | Climbs | Its number | Judged by |
 | --- | --- | --- | --- |
 | `test-time` | the suite's wall time, slowest files first | `testCommand`, timed | `compare` |
 | `hygiene` | the flaky tests the test ledger names: fix it, or file it | the flaky count (`.keel/test-runs`) | `prove-steady` |
 | `build-time` | the build | `build`, timed | `compare`; output byte-identical or explained |
+| `perf` | the project's own benchmark | `perf.command`'s last line, `better` either way | `compare`; `perf.check` |
+| `lessons` | the lessons table: family, reword, promote | rows since the last distill pass | the owner, who reads each proposal |
+| `loop` | Loop's findings: pull, then a proposed rank for each | untriaged findings | the owner, who decides each |
+
+**A proposals night's PR** lists what it proposed, for the owner: a lessons
+night, each proposal file (decide it by applying it to the table yourself
+and setting its `status:` to accepted or declined; a declined one is never
+proposed again; a lesson that belongs home is sent by you, with `keel
+lessons`); a loop night, each finding with its proposed rank and why (decide
+with `node scripts/loop.mjs decide`). Nothing proposed opens nothing.
 
 **What it needs (⚑).** The `claude` practice's secret,
 `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`); until one is set the
@@ -130,13 +164,15 @@ than pass.
 for itself until its owner says so with a budget.
 
 **Its files.** `.github/workflows/keel-climb.yml`, `keel-tend.yml`,
-`scripts/keel/climb.mjs`, `tend.mjs`, `.agents/climb/PROTOCOL.md`,
-`TEND.md`, `.agents/climb/jobs/test-time.md`, `hygiene.md` and
-`build-time.md` (all managed). A hygiene night gathers
+`scripts/keel/climb.mjs`, `tend.mjs`, `distill.mjs` (phase 31's rules, which
+keel's `lib/distill.mjs` re-exports), `.agents/climb/PROTOCOL.md`,
+`TEND.md`, `.agents/climb/jobs/test-time.md`, `hygiene.md`,
+`build-time.md`, `perf.md`, `lessons.md` and `loop.md` (all managed). A
+loop night reads `STITCH_API_KEY`, the loop practice's secret. A hygiene night gathers
 CI's `keel-test-runs` artifacts first, and its workflow may file one issue
 (`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs`,
 `pr-body.mjs` and (tend) `improve.mjs`.
 
-**Lineage.** Keel phases 35, 36 and 38 (tend), from the 6 October 2026 hill-climb on keel's own
+**Lineage.** Keel phases 35, 36, 37 (perf, lessons, loop) and 38 (tend), from the 6 October 2026 hill-climb on keel's own
 suite; design in keel's `docs/research/2026-10-06-climb-nights.md` and
 `docs/research/2026-10-06-tend-pass.md`.

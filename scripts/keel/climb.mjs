@@ -16,6 +16,8 @@
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f]
 //   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
+//   node scripts/keel/climb.mjs distill [propose --kind family|reword|promote … --read "…"]   (lessons)
+//   node scripts/keel/climb.mjs loop-pull                   Loop's pull for a loop night (loop)
 //   node scripts/keel/climb.mjs tend-pick|tend-input [--record]|tend-note|tend-report   (scripts/keel/tend.mjs)
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 ran and found a failure (a
@@ -49,21 +51,45 @@
 // run that did nothing never reports success (lesson 29); a budget timeout is
 // not red, and what was kept is judged. Phase 38's tend pass (tend.mjs) shares
 // this script, the workflow's rights and this check.
+//
+// Phase 37 adds three jobs. `perf` times nothing: its number is the last line
+// of the project's own benchmark ("climb".perf.command), and "better" says
+// which way is up; compare keeps a change only when the number moves that way
+// past the margin in every round, and guard adds "climb".perf.check. `lessons`
+// and `loop` change no code: their number is proposals for the owner (kind
+// `proposals`). A lessons night runs phase 31's distill on the project's own
+// table (distill.mjs, shipped here), each proposal a file under
+// .keel/climb/lessons/ committed by this script; a loop night pulls Loop
+// (loop-pull) and the agent proposes a rank for each untriaged finding with
+// scripts/loop.mjs propose. Their guard refuses any other path, any change to
+// the lessons table, and any finding decided tonight: deciding is the owner's
+// (lesson 53). Loop unreachable is a notice, never red.
 import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { join, resolve, isAbsolute, normalize, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
 import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS } from './tend.mjs';
+import { parseLessons, lessonsPathOf } from './lib.mjs';
+// distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
+let distillModule = null;
+const distillLib = async () => (distillModule ??= await import('./distill.mjs'));
 
 export const STATE = '.keel/climb.json';
 export const NIGHT_DIR = '.keel/climb';
 export const NIGHT = `${NIGHT_DIR}/night.json`;
+/** A lessons night's proposals: committed on the climb branch, never the table itself. */
+export const LESSONS_DIR = `${NIGHT_DIR}/lessons`;
+/** Loop's findings (the loop practice): one file each, our decision in its front matter. */
+export const FINDINGS_DIR = 'docs/loop';
+/** A finding a person decided: no climb night writes one (lesson 53). */
+export const DECIDED = Object.freeze(['accepted', 'declined', 'stale', 'done']);
 export const PREFIX = 'keel-climb/';
 export const CHECK = 'npm run check';
 /** A weekly climb runs on this UTC weekday (1, Monday). */
@@ -106,7 +132,36 @@ export const JOBS = Object.freeze({
     kind: 'timed',
     command: config => config?.climb?.build,
   }),
+  // The project's own benchmark: the number its command prints last, not its wall time.
+  perf: Object.freeze({
+    number: 'the number the perf command prints on its last line',
+    better: config => config?.climb?.perf?.better ?? 'lower',
+    measures: Object.freeze(['perf']),
+    kind: 'timed',
+    reads: 'output',
+    command: config => config?.climb?.perf?.command,
+  }),
+  // Proposals for the owner: these change no code, and decide nothing.
+  lessons: Object.freeze({
+    number: 'lesson rows since the last distill pass',
+    better: 'lower',
+    measures: Object.freeze(['lessons_since_distill', 'lessons_without_guard']),
+    kind: 'proposals',
+    onlyWhenOutside: true,
+    command: config => `a distill pass over ${lessonsPathOf(config)}`,
+  }),
+  loop: Object.freeze({
+    number: "Loop's untriaged findings (docs/loop/)",
+    better: 'lower',
+    measures: Object.freeze(['loop_untriaged']),
+    kind: 'proposals',
+    onlyWhenOutside: true,
+    command: () => 'node scripts/loop.mjs pull, then propose for each untriaged finding',
+  }),
 });
+
+/** Which way the job's number is better: 'lower' or 'higher' (perf's comes from the config). */
+export const betterOf = (job, config) => (typeof JOBS[job]?.better === 'function' ? JOBS[job].better(config) : JOBS[job]?.better ?? 'lower');
 /** prove-steady's default runs, and its most (the ledger keeps KEEP runs). */
 export const STEADY_RUNS = 20;
 
@@ -122,7 +177,7 @@ export function climbProblems(config) {
   if (c === undefined) return [];
   if (!c || typeof c !== 'object' || Array.isArray(c)) return ['"climb" must be an object: { jobs, budget: { minutes }, schedule, margin, attempts }'];
   const out = [];
-  const known = ['jobs', 'budget', 'schedule', 'margin', 'attempts', 'testCommand', 'build', 'buildOutput', 'buildBudgetMs'];
+  const known = ['jobs', 'budget', 'schedule', 'margin', 'attempts', 'testCommand', 'build', 'buildOutput', 'buildBudgetMs', 'perf'];
   for (const k of Object.keys(c)) if (!known.includes(k)) out.push(`"climb" has an unknown key ${k} (${known.join(', ')})`);
   if (!Array.isArray(c.jobs) || !c.jobs.length) out.push(`"climb".jobs must list one job or more (${Object.keys(JOBS).join(', ')})`);
   else {
@@ -141,6 +196,19 @@ export function climbProblems(config) {
   if (c.build !== undefined && (typeof c.build !== 'string' || !c.build.trim())) out.push('"climb".build must be a non-empty shell command');
   if (c.buildOutput !== undefined && !safeRelative(c.buildOutput)) out.push('"climb".buildOutput must be a path inside the repo (a file or directory the build writes), not absolute and never ..');
   if (c.buildBudgetMs !== undefined && !(Number.isInteger(c.buildBudgetMs) && c.buildBudgetMs > 0)) out.push('"climb".buildBudgetMs must be a whole number of milliseconds above 0');
+  if (c.perf !== undefined) {
+    const p = c.perf;
+    if (!p || typeof p !== 'object' || Array.isArray(p)) out.push('"climb".perf must be { command, better, unit, check }');
+    else {
+      for (const k of Object.keys(p)) if (!['command', 'better', 'unit', 'check'].includes(k)) out.push(`"climb".perf has an unknown key ${k} (command, better, unit, check)`);
+      if (typeof p.command !== 'string' || !p.command.trim()) out.push('"climb".perf.command must be a shell command that prints one number on its last line');
+      if (!['lower', 'higher'].includes(p.better)) out.push(`"climb".perf.better must be "lower" or "higher" (got ${JSON.stringify(p.better)})`);
+      if (p.unit !== undefined && (typeof p.unit !== 'string' || !p.unit.trim())) out.push('"climb".perf.unit must be a short non-empty text (ms, ops/s)');
+      if (p.check !== undefined && (typeof p.check !== 'string' || !p.check.trim())) out.push('"climb".perf.check must be a non-empty shell command (the project\'s own perf check)');
+    }
+  }
+  if (Array.isArray(c.jobs) && c.jobs.includes('perf') && c.perf === undefined) out.push('"climb".jobs names perf, so "climb".perf must name its command and which way is better: { "command": "…", "better": "lower" }');
+  if (Array.isArray(c.jobs) && c.jobs.includes('loop') && Array.isArray(config.practices) && !config.practices.includes('loop')) out.push('"climb".jobs names loop, so "practices" must include loop (its scripts/loop.mjs and docs/loop/)');
   if (Array.isArray(c.jobs) && c.jobs.includes('build-time')) {
     if (c.build === undefined) out.push('"climb".jobs names build-time, so "climb".build must name the build command');
     if (c.buildOutput === undefined) out.push('"climb".jobs names build-time, so "climb".buildOutput must name what the build writes (its guard hashes it)');
@@ -164,6 +232,7 @@ export function climbConfigOf(config) {
     ...(c.build !== undefined ? { build: c.build } : {}),
     ...(c.buildOutput !== undefined ? { buildOutput: normalize(c.buildOutput).replace(/[\\/]+$/, '') } : {}),
     ...(c.buildBudgetMs !== undefined ? { buildBudgetMs: c.buildBudgetMs } : {}),
+    ...(c.perf !== undefined ? { perf: { ...c.perf } } : {}),
   };
 }
 
@@ -188,6 +257,10 @@ const isAncestor = (root, a, b) => git(root, ['merge-base', '--is-ancestor', a, 
 const median = xs => { const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
 const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
 export const fmtMs = ms => (ms >= 10_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
+/** A perf number: as printed, at most four significant digits, with its unit. */
+export const fmtNum = (v, unit) => `${Number.isInteger(v) ? v : Number(Number(v).toPrecision(4))}${unit ? ` ${unit}` : ''}`;
+/** The job's number, formatted: a time, or perf's own number in its unit. */
+export const fmtFor = (job, config) => (JOBS[job]?.reads === 'output' ? v => fmtNum(v, config?.climb?.perf?.unit) : fmtMs);
 export const fmtPct = f => `${f < 0 ? '−' : '+'}${Math.abs(Math.round(f * 1000) / 10)}%`;
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -202,7 +275,8 @@ async function readNight(root, path = join(root, NIGHT)) {
 }
 async function writeNight(root, night) {
   await mkdir(join(root, NIGHT_DIR), { recursive: true });
-  await writeFile(join(root, NIGHT_DIR, '.gitignore'), '*\n');
+  // The record ignores itself; a lessons night's proposals (lessons/) are committed.
+  await writeFile(join(root, NIGHT_DIR, '.gitignore'), '/*\n!/lessons/\n');
   await writeFile(join(root, NIGHT), `${JSON.stringify(night, null, 2)}\n`);
 }
 
@@ -256,7 +330,7 @@ export function choose({ jobs, rows = [], waiting = new Set(), last = null, tabl
   tied.sort((a, b) => (Number(Boolean(table[b.job]?.first)) - Number(Boolean(table[a.job]?.first))) || distance(b.r) - distance(a.r));
   if (tied.length) {
     const { job, r } = tied[0];
-    return { job, by: 'measure', why: `${r.id} is ${r.state} on the newest health page (${r.value ?? '—'} against ${r.op} ${r.bound})` };
+    return { job, by: 'measure', why: `${r.id} is ${r.state} ${r.from ? `in ${r.from}` : 'on the newest health page'} (${r.value ?? '—'} against ${r.op} ${r.bound})` };
   }
   const start = jobs.indexOf(last) + 1;
   for (let i = 0; i < jobs.length; i++) {
@@ -290,9 +364,32 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   const retiring = new Set(retired.map(r => r.job));
   const health = await newestHealth(root, config);
   const last = (await readJson(join(root, STATE)))?.last?.job ?? null;
-  const chosen = choose({ jobs: c.jobs, rows: health?.rows ?? [], waiting, last, retiring });
+  // The proposals jobs' own signals, read from the repo: rows since the last distill, Loop's untriaged findings.
+  const signals = await signalsOf(root, config, c.jobs);
+  const chosen = choose({ jobs: c.jobs, rows: [...(health?.rows ?? []), ...signals], waiting, last, retiring });
   const out = { ...chosen, date, health: health?.file ?? null, waiting: [...waiting].filter(j => c.jobs.includes(j)), retiring: retired, minutes: c.minutes, margin: c.margin, attempts: c.attempts };
   if (chosen.job) Object.assign(out, { branch: `${PREFIX}${chosen.job}/${date}`, command: JOBS[chosen.job].command(config), number: JOBS[chosen.job].number });
+  return out;
+}
+
+/**
+ * The rows pick reads from the repo itself, beside the health page's: for
+ * `lessons`, the table's rows since the last distill pass
+ * (lessons_since_distill); for `loop`, Loop's untriaged findings
+ * (loop_untriaged). A source that cannot be read gives no row: the job then
+ * waits, since neither runs by rotation.
+ */
+export async function signalsOf(root, config, jobs) {
+  const out = [];
+  const row = (id, value, from) => ({ id, value, bound: 0, op: '≤', state: value > 0 ? 'outside' : 'ok', from });
+  if (jobs.includes('lessons')) {
+    const w = await lessonsWorksheet(root, config).catch(e => (e instanceof ClimbError ? null : Promise.reject(e)));
+    if (w) out.push(row('lessons_since_distill', w.since.rows.length, `${w.path} since the last distill pass`));
+  }
+  if (jobs.includes('loop')) {
+    const f = await findingsAt(root).catch(e => (e instanceof ClimbError ? null : Promise.reject(e)));
+    if (f) out.push(row('loop_untriaged', f.filter(x => x.decision === 'untriaged').length, `${FINDINGS_DIR}/`));
+  }
   return out;
 }
 
@@ -301,7 +398,7 @@ export async function pick({ root, config, env = process.env, date = today(), fo
 /** Run the job's command `runs` times in `cwd`: { median, spread, times }. A failing run throws (exit 2): a failing suite has no time. */
 export function measureIn(cwd, { config, job, runs, env = process.env }) {
   if (!Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
-  if (JOBS[job].kind !== 'timed') throw new ClimbError(`${job} is not timed: its number is ${JOBS[job].number}, and its changes are judged by prove-steady`);
+  if (JOBS[job].kind !== 'timed') throw new ClimbError(`${job} is not timed: its number is ${JOBS[job].number}, and its changes are judged by ${JOBS[job].kind === 'proposals' ? 'the owner, who reads its proposals' : 'prove-steady'}`);
   const command = JOBS[job].command(config);
   if (!command) throw new ClimbError(`${job} has no command to time (.keel/keel.json "climb")`);
   const times = [];
@@ -311,10 +408,24 @@ export function measureIn(cwd, { config, job, runs, env = process.env }) {
     const r = spawnSync(command, { cwd, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
     const ms = performance.now() - t0;
     if (r.error) throw new ClimbError(`could not run \`${command}\`: ${r.error.message}`);
-    if (r.status !== 0) throw new ClimbError(`\`${command}\` failed (exit ${r.status ?? r.signal}) in ${cwd}: a failing suite has no time. ${`${r.stdout}\n${r.stderr}`.trim().split('\n').slice(-3).join(' | ')}`);
-    times.push(Math.round(ms * 10) / 10);
+    if (r.status !== 0) throw new ClimbError(`\`${command}\` failed (exit ${r.status ?? r.signal}) in ${cwd}: a failing ${JOBS[job].reads === 'output' ? 'benchmark has no number' : 'suite has no time'}. ${`${r.stdout}\n${r.stderr}`.trim().split('\n').slice(-3).join(' | ')}`);
+    if (JOBS[job].reads === 'output') {
+      // perf: the number the project's own benchmark prints last, never the wall time around it.
+      const n = lastNumber(r.stdout);
+      if (n === null) throw new ClimbError(`\`${command}\` printed no single number on its last line in ${cwd} (it printed: ${JSON.stringify(String(r.stdout).trim().split('\n').at(-1)?.slice(0, 120) ?? '')}): perf cannot tell`);
+      times.push(n);
+    } else times.push(Math.round(ms * 10) / 10);
   }
-  return { job, command, runs, times, median: median(times), spread: Math.max(...times) - Math.min(...times) };
+  return { job, command, runs, times, median: median(times), spread: Math.max(...times) - Math.min(...times), ...(JOBS[job].reads === 'output' ? { better: betterOf(job, config), unit: config?.climb?.perf?.unit ?? null } : {}) };
+}
+
+/** The one number on the last non-empty line of `stdout` ("1234", "12.5 ms", "p95: 3e2"), or null when it has none or more than one. */
+export function lastNumber(stdout) {
+  const line = String(stdout ?? '').split('\n').map(l => l.trim()).filter(Boolean).at(-1) ?? '';
+  const nums = line.match(/[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?/gi) ?? [];
+  if (nums.length !== 1) return null;
+  const n = Number(nums[0]);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -344,17 +455,30 @@ export async function flakyNow(root, config) {
 export async function measure({ root, config, env, job, runs = DEFAULTS.runs, baseline = false }) {
   const c = on(config);
   if (!Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
-  const m = JOBS[job].kind === 'ledger' ? await flakyNow(root, config) : measureIn(root, { config, job, runs, env });
+  const kind = JOBS[job].kind;
+  const m = kind === 'ledger' ? await flakyNow(root, config) : kind === 'proposals' ? await proposalsNow(root, config, job) : measureIn(root, { config, job, runs, env });
   if (baseline) {
     await writeNight(root, {
-      job, date: today(), started: new Date().toISOString(), base: sha(root, 'HEAD'),
+      job, kind, date: today(), started: new Date().toISOString(), base: sha(root, 'HEAD'),
       command: m.command, margin: c.margin, attempts: c.attempts, rounds: DEFAULTS.rounds,
+      ...(m.better ? { better: m.better, unit: m.unit, reads: 'output' } : {}),
       baseline: { median: m.median, spread: m.spread, times: m.times },
       ...(m.flaky ? { flaky: m.flaky } : {}),
       tried: [], gate: null, final: null,
     });
   }
   return m;
+}
+
+/** A proposals job's number: lessons, the table's rows since the last distill pass; loop, the untriaged findings. */
+export async function proposalsNow(root, config, job) {
+  if (job === 'lessons') {
+    const w = await lessonsWorksheet(root, config);
+    return { job, command: JOBS.lessons.command(config), runs: 1, times: [w.since.rows.length], median: w.since.rows.length, spread: 0 };
+  }
+  const f = await findingsAt(root);
+  const n = f.filter(x => x.decision === 'untriaged').length;
+  return { job, command: JOBS.loop.command(config), runs: 1, times: [n], median: n, spread: 0 };
 }
 
 // ---- compare -------------------------------------------------------------------
@@ -393,7 +517,8 @@ export async function compareRefs({ root, config, env, base, candidate, rounds =
     git(root, ['worktree', 'prune'], { allowFail: true });
     await rm(tmp, { recursive: true, force: true });
   }
-  const better = JOBS[job].better === 'lower' ? x => x.change <= -margin : x => x.change >= margin;
+  // Which way is better is the job's (perf's, the config's): a flipped direction keeps the wrong change.
+  const better = betterOf(job, config) === 'lower' ? x => x.change <= -margin : x => x.change >= margin;
   const miss = out.find(x => !better(x));
   const verdict = miss ? 'revert' : 'keep';
   const changes = out.map(x => fmtPct(x.change)).join(', ');
@@ -412,7 +537,7 @@ export function stopping(night) {
   return null;
 }
 
-const numbersLine = (job, res, margin) => `climb ${job}: ${res.rounds.map(x => `${fmtMs(x.base)} → ${fmtMs(x.candidate)} (${fmtPct(x.change)})`).join('; ')}; margin ${Math.round(margin * 100)}%, base ${res.base.slice(0, 7)}`;
+const numbersLine = (job, res, margin, fmt = fmtMs) => `climb ${job}: ${res.rounds.map(x => `${fmt(x.base)} → ${fmt(x.candidate)} (${fmtPct(x.change)})`).join('; ')}; margin ${Math.round(margin * 100)}%, base ${res.base.slice(0, 7)}`;
 
 /** Reset to `target`, never below the night's base, and only from a tree with no uncommitted tracked change. */
 function resetTo(root, night, target) {
@@ -427,8 +552,10 @@ export async function compare({ root, config, env, base, candidate = 'HEAD', rou
   if ((decide || final) && !night) throw new ClimbError(`no night is open (${NIGHT}): run measure <job> --baseline first`);
   const job = night?.job ?? c.jobs[0];
   if (JOBS[job]?.kind !== 'timed') {
-    // Hygiene has no timing to compare: its changes were each proven steady already.
-    if (final) { night.final = null; await writeNight(root, night); return { job, same: true, rounds: [], verdict: 'same', why: `${job} is judged by prove-steady, not timed` }; }
+    // Hygiene has no timing to compare: its changes were each proven steady already. A proposals job changes no code.
+    const judged = JOBS[job]?.kind === 'proposals' ? 'by the owner, who reads its proposals' : 'by prove-steady';
+    if (final) { night.final = null; await writeNight(root, night); return { job, same: true, rounds: [], verdict: 'same', why: `${job} is judged ${judged}, not timed` }; }
+    if (JOBS[job]?.kind === 'proposals') throw new ClimbError(`${job} writes proposals and changes no code: nothing to compare; guard judges what it wrote`);
     throw new ClimbError(`${job} is judged by prove-steady, not by timing: node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" --decide`);
   }
   if (final) { base ??= night.base; candidate = 'HEAD'; }
@@ -450,7 +577,7 @@ export async function compare({ root, config, env, base, candidate = 'HEAD', rou
     if (res.verdict === 'keep') {
       // The numbers go in the commit, from here: never typed by the agent.
       const message = git(root, ['log', '-1', '--format=%B', 'HEAD']).trimEnd();
-      git(root, ['commit', '--quiet', '--amend', '-m', `${message}\n\n${numbersLine(job, res, c.margin)}`]);
+      git(root, ['commit', '--quiet', '--amend', '-m', `${message}\n\n${numbersLine(job, res, c.margin, fmtFor(job, config))}`]);
       kept = sha(root, 'HEAD');
     } else {
       resetTo(root, night, res.base);
@@ -485,9 +612,15 @@ export async function settle({ root, config }) {
   on(config);
   const night = await readNight(root);
   if (!night) throw new ClimbError(`no night is open (${NIGHT})`);
-  const target = night.tried.filter(a => a.verdict === 'keep').at(-1)?.candidate ?? night.base;
   const head = sha(root, 'HEAD');
   const dirty = git(root, ['status', '--porcelain']);
+  if (JOBS[night.job]?.kind === 'proposals') {
+    // Proposals are commits (each a file for the owner): settle drops only what was never committed; guard judges the commits.
+    if (!isAncestor(root, night.base, head)) throw new ClimbError(`HEAD ${head.slice(0, 7)} is not on top of the night's base ${night.base.slice(0, 7)}: the branch moved outside climb.mjs`);
+    if (dirty) { git(root, ['reset', '--quiet', '--hard', 'HEAD']); git(root, ['clean', '--quiet', '-fd']); }
+    return { head, dropped: Boolean(dirty) };
+  }
+  const target = night.tried.filter(a => a.verdict === 'keep').at(-1)?.candidate ?? night.base;
   if (head === target && !dirty) return { head, dropped: false };
   if (!isAncestor(root, target, head)) throw new ClimbError(`HEAD ${head.slice(0, 7)} is not on top of the last decision ${target.slice(0, 7)}: the branch moved outside climb.mjs`);
   git(root, ['reset', '--quiet', '--hard', target]);
@@ -737,6 +870,234 @@ export async function harmless({ root, config, path, why }) {
   return { path: path.trim(), why: why.trim(), harmless: night.harmless };
 }
 
+// ---- lessons: phase 31's distill, on the project's own table ----------------------
+
+async function readText(path) {
+  try { return await readFile(path, 'utf8'); } catch (e) { if (['ENOENT', 'ENOTDIR', 'EISDIR'].includes(e.code)) return null; throw e; }
+}
+
+/** The project's distill proposals (.keel/climb/lessons/*.md), oldest first: [{ file, meta, title, claim, fields }]. */
+export async function lessonProposals(root) {
+  let names;
+  try { names = (await readdir(join(root, LESSONS_DIR))).filter(n => /^\d{4}-\d{2}-\d{2}-.+\.md$/.test(n)).sort(); }
+  catch (e) { if (['ENOENT', 'ENOTDIR'].includes(e.code)) return []; throw e; }
+  const { parseProposalText } = await distillLib();
+  const out = [];
+  for (const n of names) {
+    try { out.push({ file: `${LESSONS_DIR}/${n}`, ...parseProposalText(await readFile(join(root, LESSONS_DIR, n), 'utf8')) }); }
+    catch (e) { throw new ClimbError(`${LESSONS_DIR}/${n}: ${e.message}`); }
+  }
+  return out;
+}
+
+/**
+ * The distill worksheet for the project's own table: every row with its
+ * cells, provenance and family; the families its owner accepted; the open
+ * proposals; the rows since the last pass (the newest proposal's `through`).
+ * Reads files only. No table, or one with no rows: it cannot tell (exit 2).
+ */
+export async function lessonsWorksheet(root, config) {
+  const path = lessonsPathOf(config);
+  const text = await readText(join(root, path));
+  if (text === null) throw new ClimbError(`no ${path}: the lessons job has no table to distill (.keel/keel.json "lessons" names it)`);
+  const table = parseLessons(text);
+  if (!table.rows.length) throw new ClimbError(`${path} has no lessons table rows to distill`);
+  const { familiesOf, lastThrough, provenanceOf } = await distillLib();
+  const all = await lessonProposals(root);
+  const families = familiesOf(all);
+  const through = lastThrough(all);
+  const since = through === null ? table.rows.map(r => r.n) : table.rows.filter(r => r.n > through).map(r => r.n);
+  const open = all.filter(p => p.meta.status === 'proposed').map(p => ({ file: p.file, kind: p.meta.outcome, note: p.meta.note ?? null, ...p.fields }));
+  const rows = table.rows.map(r => ({ n: r.n, shape: r.shape, cost: r.cost, guard: r.guard, where: r.where, provenance: provenanceOf(r.shape), family: families.find(f => f.rows.includes(r.n))?.name ?? null }));
+  return { path, numbered: table.numbered, rows, families, open, since: { through, rows: since }, summary: { rows: rows.length, families: families.length, open: open.length, since: since.length } };
+}
+
+export function lessonsText(w) {
+  return [
+    `# Distill worksheet — ${w.path}`, '',
+    `rows: ${w.summary.rows}; families: ${w.summary.families}; open proposals: ${w.summary.open}`,
+    w.since.through === null ? 'last pass: none yet; every row is new' : `last pass: through lesson ${w.since.through}; since then: ${w.since.rows.length ? w.since.rows.join(', ') : 'none'}`, '',
+    '## Families', '', ...(w.families.length ? w.families.map(f => `- ${f.name}: rows ${f.rows.join(', ')}\n  rule: ${f.rule}\n  guard: ${f.guard}`) : ['None yet.']), '',
+    '## Open proposals', '', ...(w.open.length ? w.open.map(o => `- ${o.file} (${o.kind})${o.note ? `: ${o.note}` : ''}`) : ['None.']), '',
+    '## Rows', '',
+    ...w.rows.flatMap(r => [`### ${r.n}${w.since.rows.includes(r.n) ? ' (new since the last pass)' : ''}`, `family: ${r.family ?? '—'}; provenance: ${r.provenance || '—'}`, `shape: ${r.shape}`, `cost: ${r.cost}`, `guard: ${r.guard}`, '']),
+    'Propose with node scripts/keel/climb.mjs distill propose --kind family|reword|promote … --read "<a path or sha you checked>". The owner decides; nothing here changes the table.',
+  ].join('\n');
+}
+
+/**
+ * One distill proposal, as a file under .keel/climb/lessons/: family (--name
+ * --rule --guard --rows), reword (--row and one of --shape|--cost|--guard) or
+ * promote (--family --check). On a lessons night the script commits it, one
+ * commit per proposal, and records it. It never writes the lessons table.
+ */
+export async function proposeLesson({ root, config, opts, now = new Date() }) {
+  const { DistillError, familyFields, rewordFields, promoteFields, formatClaim, proposalText, concrete, oneLine, slugify, DISTILL_KINDS_SHIPPED } = await distillLib();
+  const kind = opts.kind;
+  if (!DISTILL_KINDS_SHIPPED.includes(kind)) throw new ClimbError(`--kind must be one of ${DISTILL_KINDS_SHIPPED.join(', ')}`);
+  const read = oneLine(opts.read);
+  if (!read) throw new ClimbError('--read "<our read>" is required');
+  if (!concrete(read)) throw new ClimbError(`--read must cite something checked: a file path (${lessonsPathOf(config)}) or a commit sha. An unverified read is not a read.`);
+  const w = await lessonsWorksheet(root, config);
+  const rows = (parseLessons(await readFile(join(root, w.path), 'utf8'))).rows;
+  let made;
+  try {
+    made = kind === 'family' ? familyFields(opts, { rows, families: w.families, table: w.path, patterns: LESSONS_DIR })
+      : kind === 'reword' ? rewordFields(opts, { rows, table: w.path })
+        : promoteFields(opts, { families: w.families });
+  } catch (e) { throw e instanceof DistillError ? new ClimbError(e.message.replace(/^climb: /, ''), e.exitCode) : e; }
+  const all = await lessonProposals(root);
+  const same = all.find(p => p.meta.from === made.from && ['proposed', 'declined'].includes(p.meta.status));
+  if (same) throw new ClimbError(`${same.file} already ${same.meta.status === 'declined' ? 'had this declined by the owner' : 'proposes this'}; propose something else`);
+  const note = oneLine(opts.note) || made.note;
+  const date = now.toISOString().slice(0, 10);
+  const through = Math.max(...rows.map(r => r.n));
+  let slug = slugify(made.slug), k = 2;
+  const taken = new Set(all.map(p => p.file));
+  while (taken.has(`${LESSONS_DIR}/${date}-${slug}.md`)) slug = `${slugify(made.slug)}-${k++}`;
+  const file = `${LESSONS_DIR}/${date}-${slug}.md`;
+  await mkdir(join(root, LESSONS_DIR), { recursive: true });
+  await writeFile(join(root, file), proposalText({ meta: { kind: 'distill', from: made.from, status: 'proposed', outcome: kind, note, through, date }, title: `distill ${kind}: ${note}`, claim: formatClaim(made.fields), read }), { flag: 'wx' });
+  const night = await readNight(root);
+  const out = { file, kind, note, fields: made.fields };
+  if (night?.job === 'lessons') {
+    // The proposal is its own commit, made here: the agent never edits the table, and settle keeps commits.
+    git(root, ['add', '-f', '--', file]);
+    git(root, ['commit', '--quiet', '-m', `climb lessons: propose ${kind}: ${note}`.slice(0, 200), '--', file]);
+    const commit = sha(root, 'HEAD');
+    night.tried.push({ what: `${kind}: ${note}`, verdict: 'keep', why: 'a proposal, for the owner', base: sha(root, 'HEAD~1'), candidate: commit, file, rounds: [], at: new Date().toISOString() });
+    await writeNight(root, night);
+    Object.assign(out, { commit, stop: stopping(night) });
+  }
+  return out;
+}
+
+// ---- loop: Loop's findings, pulled, and a rank proposed for each ------------------
+
+/** The loop practice's script in this repo, loaded only for a loop night. */
+async function loopModule(root) {
+  const path = join(root, 'scripts/loop.mjs');
+  if (!existsSync(path)) throw new ClimbError('no scripts/loop.mjs: the loop job needs the loop practice');
+  return import(pathToFileURL(path).href);
+}
+
+/** The findings at `ref` (a commit), or in the working tree: [{ slug, decision, rank, … }]. */
+export async function findingsAt(root, ref = null) {
+  const loop = await loopModule(root);
+  if (!ref) return loop.loadFindings(join(root, FINDINGS_DIR));
+  const names = git(root, ['ls-tree', '--name-only', `${ref}:${FINDINGS_DIR}`], { allowFail: true });
+  if (names.status !== 0) return [];
+  return names.stdout.split('\n').filter(n => n.endsWith('.md') && n !== 'README.md').sort()
+    .map(n => loop.parseFinding(git(root, ['show', `${ref}:${FINDINGS_DIR}/${n}`]), n.replace(/\.md$/, '')));
+}
+
+/** The paths a loop pull writes: the findings, their page, and what the project's afterRender rewrites. */
+const loopPaths = config => [FINDINGS_DIR, 'docs/LOOP.md', ...(Array.isArray(config?.loop?.afterRenderWrites) ? config.loop.afterRenderWrites.filter(p => typeof p === 'string' && p) : [])];
+
+/**
+ * A loop night's pull, in place of keel-loop.yml's that night: the loop
+ * practice's `pull --no-prove` (the agent proposes, not a model inside the
+ * pull), committed by this script. Loop unreachable (no STITCH_API_KEY, no
+ * stitch, a pull that fails) is a notice, never red: the night proposes for
+ * the findings already here, and the record says why it did not pull.
+ */
+export async function loopPull({ root, config, env = process.env, now = new Date() }) {
+  const night = await readNight(root);
+  if (!night || night.job !== 'loop') throw new ClimbError(`loop-pull runs on a loop night: run measure loop --baseline first (${NIGHT})`);
+  const date = now.toISOString().slice(0, 10);
+  let res;
+  if (!env.STITCH_API_KEY) res = { pulled: false, why: 'no STITCH_API_KEY' };
+  else if (!existsSync(join(root, 'scripts/loop.mjs'))) res = { pulled: false, why: 'no scripts/loop.mjs (the loop practice)' };
+  else {
+    const r = spawnSync(process.execPath, ['scripts/loop.mjs', 'pull', '--no-prove'], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60_000 });
+    if (r.error || r.status !== 0) {
+      const said = `${r.stderr ?? ''}\n${r.stdout ?? ''}`.trim().split('\n').filter(Boolean).at(-1) ?? r.error?.message ?? '';
+      res = { pulled: false, why: `the pull failed (exit ${r.status ?? r.error?.code}): ${said.slice(0, 200)}` };
+      // A half-written pull leaves nothing behind.
+      git(root, ['reset', '--quiet', '--hard', 'HEAD']);
+      git(root, ['clean', '--quiet', '-fd', '--', ...loopPaths(config)]);
+    } else {
+      const paths = loopPaths(config);
+      res = { pulled: true, date, said: String(r.stdout).trim().split('\n').slice(0, 6) };
+      if (git(root, ['status', '--porcelain', '--', ...paths])) {
+        git(root, ['add', '-A', '--', ...paths]);
+        git(root, ['commit', '--quiet', '-m', `Loop: findings pulled ${date} (climb loop night, in place of keel-loop's pull)`]);
+        res.commit = sha(root, 'HEAD');
+      }
+    }
+  }
+  const findings = await findingsAt(root);
+  res.untriaged = findings.filter(f => f.decision === 'untriaged').map(f => f.slug);
+  night.loop = res;
+  await writeNight(root, night);
+  return res;
+}
+
+// ---- the proposals guard ---------------------------------------------------------
+
+/** Changed paths between two commits: [{ status, path }] (no renames: a move is a delete and an add). */
+const changedPaths = (root, base, head) => git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [status, ...p] = l.split('\t'); return { status: status[0], path: p.join('\t') }; });
+const under = (path, dir) => path === dir || path.startsWith(`${dir}/`);
+
+/** The rows of the lessons table that differ between two commits: [n]. */
+function rowsChanged(root, path, base, head) {
+  const at = ref => { const r = git(root, ['show', `${ref}:${path}`], { allowFail: true }); return r.status === 0 ? parseLessons(r.stdout).rows : []; };
+  const a = new Map(at(base).map(r => [r.n, JSON.stringify([r.shape, r.cost, r.guard, r.where])]));
+  const b = new Map(at(head).map(r => [r.n, JSON.stringify([r.shape, r.cost, r.guard, r.where])]));
+  return [...new Set([...a.keys(), ...b.keys()])].filter(n => a.get(n) !== b.get(n)).sort((x, y) => x - y);
+}
+
+/** Our fields of a finding: what a decision sets. Loop's own (loop_*) a pull may refresh. */
+const OURS = ['decision', 'rank', 'phase', 'project', 'lesson', 'note'];
+
+/**
+ * What a proposals night may not commit, pure over the diff: [problem]. A
+ * lessons night adds files under .keel/climb/lessons/ and nothing else; the
+ * lessons table above all stays as it was. A loop night touches the findings,
+ * their page and the afterRender's files, and decides nothing: a finding
+ * decided tonight, or a decided finding changed, is refused.
+ */
+export async function proposalsProblems({ root, config, job, base, head }) {
+  const out = [];
+  const changed = changedPaths(root, base, head);
+  if (job === 'lessons') {
+    const table = lessonsPathOf(config);
+    for (const c of changed) {
+      if (c.path === table) {
+        const rows = rowsChanged(root, table, base, head);
+        out.push(`${table} changed${rows.length ? ` (lesson ${rows.join(', ')})` : ''}: a lessons night proposes, and only the owner changes the table (lesson 53)`);
+      } else if (!under(c.path, LESSONS_DIR) || !c.path.endsWith('.md')) out.push(`${c.path} is outside ${LESSONS_DIR}/: a lessons night only adds proposals`);
+      else if (c.status !== 'A') out.push(`${c.path} ${c.status === 'D' ? 'deleted' : 'changed'}: a lessons night adds proposals and never edits one (the owner's decision lives in it)`);
+    }
+    return out;
+  }
+  const allowed = loopPaths(config);
+  for (const c of changed) if (!allowed.some(a => under(c.path, a))) out.push(`${c.path} is outside ${allowed.join(', ')}: a loop night only proposes`);
+  const before = new Map((await findingsAt(root, base)).map(f => [f.slug, f]));
+  const after = new Map((await findingsAt(root, head)).map(f => [f.slug, f]));
+  for (const c of changed.filter(c => under(c.path, FINDINGS_DIR) && c.path.endsWith('.md') && !c.path.endsWith('/README.md'))) {
+    const slug = c.path.slice(FINDINGS_DIR.length + 1).replace(/\.md$/, '');
+    const b = before.get(slug), a = after.get(slug);
+    if (!a) { out.push(`${c.path} deleted: a loop night never removes a finding`); continue; }
+    if (DECIDED.includes(a.decision) && b?.decision !== a.decision) out.push(`${c.path} is ${a.decision} tonight: deciding is the owner's (scripts/loop.mjs decide), never a climb night's (lesson 53)`);
+    else if (b && DECIDED.includes(b.decision) && OURS.some(k => JSON.stringify(b[k]) !== JSON.stringify(a[k]))) out.push(`${c.path} was ${b.decision} and its ${OURS.filter(k => JSON.stringify(b[k]) !== JSON.stringify(a[k])).join(', ')} changed tonight: a proposal never overrides a decision`);
+  }
+  return out;
+}
+
+async function proposalsGuard({ root, config, env, night, base, head, job }) {
+  const problems = await proposalsProblems({ root, config, job, base, head });
+  if (problems.length) return { ok: false, job, problems };
+  const gate = config.check ?? CHECK;
+  const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+  if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
+  if (r.status !== 0) return { ok: false, job, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const n = changedPaths(root, base, head).length;
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; proposals only (${n} file${n === 1 ? '' : 's'} under ${job === 'lessons' ? `${LESSONS_DIR}/` : loopPaths(config).join(', ')}), no code changed, nothing decided`;
+  if (night) { night.gate = line; await writeNight(root, night); }
+  return { ok: true, job, gate, line, problems: [] };
+}
+
 // ---- guard ---------------------------------------------------------------------
 
 const key = t => `${t.file ?? ''}\u0000${t.name}`;
@@ -766,6 +1127,7 @@ export async function guard({ root, config, env = process.env, base, job }) {
   if (job !== undefined && !Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
   const head = sha(root, 'HEAD'), b = sha(root, base);
   if (head === b) return { ok: true, skipped: true, line: 'nothing kept: HEAD is the base, so there is nothing to guard', problems: [] };
+  if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job });
   const extra = {};
   if (job === 'hygiene') {
     // Lesson 40: a longer wait or a retry around the flaky test is not a fix.
@@ -783,6 +1145,15 @@ export async function guard({ root, config, env = process.env, base, job }) {
     if (unexplained.length) return { ok: false, job, build: built, problems: unexplained.map(x => `build output ${x.how}: ${x.path} differs from the base ${b.slice(0, 7)}'s and has no harmless reason (climb.mjs harmless --path ${x.path} --why "<why>"), so the change is not the same build`) };
     extra.build = built;
     if (night) night.build = { output: built.output, files: built.files, changes: built.changes.map(x => ({ ...x, why: reasons[x.path] })) };
+  }
+  if (job === 'perf' && config.climb?.perf?.check) {
+    // The project's own perf check (ledger's `perf --check`) passes on the candidate, beside the gate.
+    const check = config.climb.perf.check;
+    const pc = spawnSync(check, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+    if (pc.error) throw new ClimbError(`could not run the perf check \`${check}\`: ${pc.error.message}`);
+    if (pc.status !== 0) return { ok: false, job, problems: [`the project's own perf check \`${check}\` failed (exit ${pc.status ?? pc.signal}) on ${head.slice(0, 7)}`] };
+    extra.perfCheck = `\`${check}\` exit 0`;
+    if (night) night.perfCheck = extra.perfCheck;
   }
   const gate = config.check ?? CHECK;
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
@@ -811,7 +1182,7 @@ export async function guard({ root, config, env = process.env, base, job }) {
   const missing = missingTests(baseRun, cand);
   const count = (cand.tests ?? []).filter(ran).length;
   if (missing.length) return { ok: false, gate, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
-  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)`;
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}`;
   if (night) { night.gate = line; await writeNight(root, night); }
   return { ok: true, gate, line, problems: [], ...(job ? { job } : {}), ...extra };
 }
@@ -828,7 +1199,8 @@ export function surfacesOf(files, pkg) {
 }
 
 /** The PR body's input (scripts/keel/pr-body.mjs) and the night's line, from the night's record. */
-export function reportOf(night, { files = [], pkg = null, now = new Date() } = {}) {
+export function reportOf(night, { files = [], pkg = null, now = new Date(), proposals = null } = {}) {
+  if (JOBS[night.job]?.kind === 'proposals') return proposalsReport(night, { proposals: proposals ?? [], now });
   const kept = night.tried.filter(a => a.verdict === 'keep');
   const reverted = night.tried.filter(a => a.verdict !== 'keep');
   const minutes = Math.max(0, Math.round((now - new Date(night.started)) / 60_000));
@@ -843,19 +1215,23 @@ export function reportOf(night, { files = [], pkg = null, now = new Date() } = {
   const after = night.final ? mean(night.final.rounds.map(r => r.candidate)) : kept.at(-1).rounds.length ? mean(kept.at(-1).rounds.map(r => r.candidate)) : night.baseline.median;
   const change = after / before - 1;
   const how = night.final ? `the night's base against its last commit, ${night.final.rounds.length} alternated rounds` : 'the baseline against the last kept change';
-  const line = `climb ${night.job} ${night.date}: kept ${kept.length} of ${night.tried.length} tried; \`${night.command}\` ${fmtMs(before)} → ${fmtMs(after)} (${fmtPct(change)}); ${minutes} min`;
+  // perf's number is the benchmark's own, in its unit, and "better" may be higher.
+  const perf = night.reads === 'output';
+  const fmt = perf ? v => fmtNum(v, night.unit) : fmtMs;
+  const what = perf ? `\`${night.command}\`'s number (its last line; ${night.better ?? 'lower'} is better), median` : `\`${night.command}\` wall time, median`;
+  const line = `climb ${night.job} ${night.date}: kept ${kept.length} of ${night.tried.length} tried; \`${night.command}\` ${fmt(before)} → ${fmt(after)} (${fmtPct(change)}${perf ? `, ${night.better ?? 'lower'} is better` : ''}); ${minutes} min`;
   const input = {
     summary: {
       lead: `climb ${night.job}, ${night.date}: ${kept.length} kept of ${night.tried.length} tried, each measured against noise (margin ${pctMargin}, alternated rounds).`,
       table: {
         head: ['Number', 'Before', 'After', 'Change'],
-        rows: [[`\`${night.command}\` wall time, median (${how})`, fmtMs(before), fmtMs(after), fmtPct(change)]],
+        rows: [[`${what} (${how})`, fmt(before), fmt(after), fmtPct(change)]],
       },
     },
     evidence: {
       gate: night.gate ?? 'not run: guard did not record a gate line',
       columns: ['Base, median per round', 'Candidate, median per round'],
-      rows: kept.map(a => ({ what: `${a.what} (${a.candidate.slice(0, 7)})`, before: a.rounds.map(r => fmtMs(r.base)).join(', '), after: `${a.rounds.map(r => fmtMs(r.candidate)).join(', ')} (${a.rounds.map(r => fmtPct(r.change)).join(', ')})` })),
+      rows: kept.map(a => ({ what: `${a.what} (${a.candidate.slice(0, 7)})`, before: a.rounds.map(r => fmt(r.base)).join(', '), after: `${a.rounds.map(r => fmt(r.candidate)).join(', ')} (${a.rounds.map(r => fmtPct(r.change)).join(', ')})` })),
     },
     danger: {
       door: 'two-way',
@@ -867,10 +1243,85 @@ export function reportOf(night, { files = [], pkg = null, now = new Date() } = {
     notes: [
       ...(night.build && !night.build.changes?.length ? [`The build's output (${night.build.output}, ${night.build.files} files) is byte-identical to the base's (sha-256 of every file).`] : []),
       reverted.length ? `Tried and reverted:\n\n${reverted.map(a => `- ${a.what}: ${a.why}`).join('\n')}` : 'Nothing was tried and reverted.',
-      `Every number here is scripts/keel/climb.mjs's (\`${night.command}\`, base and candidate run alternately in one job), never the agent's own timing. Baseline: ${fmtMs(night.baseline.median)}, spread ${fmtMs(night.baseline.spread)} over ${night.baseline.times.length} runs. ${minutes} min. Nothing here merges without a person.`,
+      ...(night.perfCheck ? [`The project's own perf check, ${night.perfCheck}, on the last commit (guard).`] : []),
+      `Every number here is scripts/keel/climb.mjs's (\`${night.command}\`, base and candidate run alternately in one job), never the agent's own ${perf ? 'reading' : 'timing'}. Baseline: ${fmt(night.baseline.median)}, spread ${fmt(night.baseline.spread)} over ${night.baseline.times.length} runs. ${minutes} min. Nothing here merges without a person.`,
     ],
   };
   return { kept: kept.length, tried: night.tried.length, minutes, line, input };
+}
+
+/** The keel-impact declaration of a proposals PR: records proposed, none decided. */
+const proposalsImpact = reason => ({ declaration: { version: 1, phases: [], decisions: [], supersedes: [], evidence: [], reconciliation: 'none', reason } });
+
+/**
+ * A proposals night's report: what it proposed, for the owner, and the line.
+ * proposals: lessons, [{ file, kind, note, fields }]; loop, [{ slug, title,
+ * rank, phase, project, note, file }]. kept is how many: none opens nothing.
+ */
+function proposalsReport(night, { proposals, now }) {
+  const minutes = Math.max(0, Math.round((now - new Date(night.started)) / 60_000));
+  const n = proposals.length;
+  if (night.job === 'loop') {
+    const l = night.loop ?? null;
+    const pulled = !l ? 'Loop not pulled (loop-pull did not run)' : l.pulled ? `Loop pulled${l.commit ? '' : ', nothing new'}` : `Loop unreachable (${l.why}): proposed for the findings already here`;
+    const left = l?.untriaged ? Math.max(0, l.untriaged.length - proposals.filter(p => l.untriaged.includes(p.slug)).length) : null;
+    const line = `climb loop ${night.date}: ${n ? `proposed a rank for ${n} finding${n === 1 ? '' : 's'}` : 'proposed nothing'}; decided none${left === null ? '' : `; ${left} untriaged left`}; ${pulled}; ${minutes} min`;
+    if (!n) return { kept: 0, tried: 0, minutes, line, input: null };
+    const home = p => (p.project ? `project ${p.project}` : p.phase !== null && p.phase !== undefined ? `phase ${p.phase}` : '—');
+    const input = {
+      summary: {
+        lead: `climb loop, ${night.date}: ${n} of Loop's findings read against the code, each given a proposed rank; a person decides each.`,
+        table: { head: ['Finding', 'Proposed rank', 'Home', 'Why'], rows: proposals.map(p => [`${p.title} (\`${p.file}\`)`, p.rank ?? '—', home(p), p.note ?? '—']) },
+      },
+      evidence: { gate: night.gate ?? 'not run: guard did not record a gate line', columns: ['Before', 'After'], rows: proposals.map(p => ({ what: p.slug, before: p.was ?? 'new', after: `proposed, ${p.rank}` })) },
+      danger: { door: 'two-way', why: 'finding files and their page only; nothing is decided and nothing is sent to Loop, so reverting the merge restores the record as it was', surfaces: [] },
+      notes: [
+        `${pulled}${l?.pulled ? ': this night\'s pull stands in for keel-loop\'s that day' : ''}.`,
+        `Each rank is a proposal. Decide each yourself: \`node scripts/loop.mjs decide <slug> accepted|declined|stale --no-push\` (or \`--yes\` to send the decision to Loop, where everyone in the workspace sees it).`,
+        `climb.mjs guard refused any finding decided tonight. ${minutes} min. Nothing here merges without a person.`,
+      ],
+      impact: proposalsImpact('Proposes a rank for Loop findings; no finding is decided and no phase, decision or evidence record changes.'),
+    };
+    return { kept: n, tried: n, minutes, line, input };
+  }
+  const by = ['family', 'reword', 'promote'].map(k => [k, proposals.filter(p => p.kind === k).length]).filter(([, c]) => c).map(([k, c]) => `${c} ${k}`);
+  const line = `climb lessons ${night.date}: ${n ? `${n} proposal${n === 1 ? '' : 's'} for the owner (${by.join(', ')}); the table unchanged` : 'proposed nothing'}; ${minutes} min`;
+  if (!n) return { kept: 0, tried: night.tried.length, minutes, line, input: null };
+  const rowsOf = p => p.fields.rows ?? (p.fields.row !== undefined ? String(p.fields.row) : '—');
+  const input = {
+    summary: {
+      lead: `climb lessons, ${night.date}: ${n} distill proposal${n === 1 ? '' : 's'} over the project's lessons table; none applied.`,
+      table: { head: ['Proposal', 'Kind', 'Rows', 'File'], rows: proposals.map(p => [p.note, p.kind, rowsOf(p), `\`${p.file}\``]) },
+    },
+    evidence: {
+      gate: night.gate ?? 'not run: guard did not record a gate line',
+      columns: ['Now', 'Proposed'],
+      rows: proposals.map(p => ({ what: p.note, before: p.kind === 'reword' ? `${p.fields.cell}: ${p.fields.old}` : p.kind === 'promote' ? `family "${p.fields.family}"` : `rows ${p.fields.rows}`, after: p.kind === 'reword' ? p.fields.text : p.kind === 'promote' ? p.fields.check : `"${p.fields.name}": ${p.fields.rule}` })),
+    },
+    danger: { door: 'two-way', why: `proposal files under ${LESSONS_DIR}/ only; the lessons table is unchanged until the owner applies one`, surfaces: [] },
+    notes: [
+      `To decide: read each file; apply what you accept to the table yourself, and set its \`status:\` to accepted or declined (a declined one is never proposed again). A lesson that belongs home is sent by you, with \`keel lessons\`.`,
+      `climb.mjs guard refused any change to the table and any path outside ${LESSONS_DIR}/. ${minutes} min. Nothing here merges without a person.`,
+    ],
+    impact: proposalsImpact('Proposes distill changes to the lessons table as files for the owner; the table and every phase, decision and evidence record are unchanged.'),
+  };
+  return { kept: n, tried: night.tried.length, minutes, line, input };
+}
+
+/** What a proposals night committed, read from git: lessons, the proposal files added; loop, the findings now proposed. */
+export async function proposalsOf(root, night, config) {
+  if (night.job === 'lessons') {
+    const { parseProposalText } = await distillLib();
+    const out = [];
+    for (const c of changedPaths(root, night.base, 'HEAD').filter(c => c.status === 'A' && under(c.path, LESSONS_DIR) && c.path.endsWith('.md'))) {
+      const p = parseProposalText(await readFile(join(root, c.path), 'utf8'));
+      out.push({ file: c.path, kind: p.meta.outcome, note: p.meta.note ?? p.title, fields: p.fields });
+    }
+    return out;
+  }
+  const before = new Map((await findingsAt(root, night.base)).map(f => [f.slug, f]));
+  return (await findingsAt(root, 'HEAD')).filter(f => f.decision === 'proposed' && OURS.some(k => JSON.stringify(before.get(f.slug)?.[k]) !== JSON.stringify(f[k])))
+    .map(f => ({ slug: f.slug, title: f.title, rank: f.rank, phase: f.phase, project: f.project, note: f.note, file: `${FINDINGS_DIR}/${f.slug}.md`, was: before.get(f.slug)?.decision ?? 'new' }));
 }
 
 const named = t => `${t.file ?? '(no file)'} "${t.name}"`;
@@ -938,7 +1389,12 @@ export async function report({ root, config, input, body, state = false, issue }
   if (!night) throw new ClimbError(`no night record at ${input ?? NIGHT}`);
   const files = git(root, ['diff', '--name-only', night.base, 'HEAD']).split('\n').filter(Boolean);
   const pkg = await readJson(join(root, 'package.json')).catch(() => null);
-  const r = reportOf(night, { files, pkg });
+  const proposals = JOBS[night.job]?.kind === 'proposals' ? await proposalsOf(root, night, config) : null;
+  if (night.job === 'loop' && proposals) {
+    // The night's own record counts each proposal, as the health page's climb line reads it.
+    night.tried = proposals.map(p => ({ what: `${p.slug}: ${p.rank}`, verdict: 'keep', why: 'a proposed rank, for the owner', rounds: [] }));
+  }
+  const r = reportOf(night, { files, pkg, proposals });
   let text = null;
   if (r.input) {
     text = prBody(r.input);
@@ -1015,8 +1471,10 @@ export async function agentRan({ outcome, file, minutes, started, now = Date.now
 
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|report|agent-ran|tend-pick|tend-input|tend-note|tend-report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried' };
+const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-report [--json]';
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried',
+  // distill propose (lessons)
+  '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
 const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
 
 export function parseArgs(args) {
@@ -1082,11 +1540,27 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       const job = o.positional[0];
       if (!job) throw new ClimbError(`measure needs a job; ${USAGE}`);
       const m = await measure({ ...ctx, job, runs: o.runs, baseline: o.baseline });
-      return { data: m, text: `${job}: \`${m.command}\` median ${fmtMs(m.median)}, spread ${fmtMs(m.spread)} over ${m.runs} runs${o.baseline ? `; the night's record is ${NIGHT}` : ''}` };
+      const said = JOBS[job].kind === 'proposals' ? `${m.command}: ${m.median} (${JOBS[job].number})` : `\`${m.command}\` median ${fmtFor(job, config)(m.median)}, spread ${fmtFor(job, config)(m.spread)} over ${m.runs} runs`;
+      return { data: m, text: `${job}: ${said}${o.baseline ? `; the night's record is ${NIGHT}` : ''}` };
+    }
+    case 'distill': {
+      if (o.positional[0] === 'propose') {
+        const r = await proposeLesson({ ...ctx, opts: o });
+        return { data: r, text: `${r.file}: proposed ${r.kind}: ${r.note}${r.commit ? `\ncommitted ${r.commit.slice(0, 7)}` : ''}${r.stop ? `\nstop: ${r.stop}` : ''}\nThe owner decides; the table is unchanged.` };
+      }
+      if (o.positional.length) throw new ClimbError(`distill takes propose or nothing; ${USAGE}`);
+      const w = await lessonsWorksheet(root, config);
+      return { data: w, text: lessonsText(w) };
+    }
+    case 'loop-pull': {
+      const r = await loopPull(ctx);
+      const left = `${r.untriaged.length} untriaged`;
+      return { data: r, text: r.pulled ? `Loop pulled${r.commit ? ` (${r.commit.slice(0, 7)})` : ', nothing new'}; ${left}` : `::notice::Loop unreachable (${r.why}): no pull tonight; the night proposes for the findings already here (${left})` };
     }
     case 'compare': {
       const r = await compare({ ...ctx, base: o.base, candidate: o.candidate, rounds: o.rounds, runs: o.runs, decide: o.decide, final: o.final, what: o.what });
-      const rows = r.rounds.map(x => `  round ${x.round}: base ${fmtMs(x.base)}  candidate ${fmtMs(x.candidate)}  ${fmtPct(x.change)}`);
+      const fmt = fmtFor(r.job, config);
+      const rows = r.rounds.map(x => `  round ${x.round}: base ${fmt(x.base)}  candidate ${fmt(x.candidate)}  ${fmtPct(x.change)}`);
       const head = r.same ? 'same commit: nothing to compare' : `${r.verdict.toUpperCase()}: ${r.what}: ${r.why}`;
       return { data: r, text: [head, ...rows, ...(r.stop ? [`stop: ${r.stop}`] : [])].join('\n') };
     }

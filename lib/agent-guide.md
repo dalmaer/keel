@@ -670,13 +670,16 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
 **Every number comes from the script; never time things yourself.**
 
 - `config` — `.keel/keel.json` `"climb"`: `jobs` (`test-time`, `hygiene`,
-  `build-time`), `budget.minutes` (5–180), `schedule` (`nightly`|`weekly`),
+  `build-time`, `perf`, `lessons`, `loop`), `budget.minutes` (5–180), `schedule` (`nightly`|`weekly`),
   `margin` (0.01–0.5), `attempts`, `testCommand` (default `npm test`);
-  `build`, `buildOutput`, `buildBudgetMs` for `build-time`. No `climb`, no climb night.
+  `build`, `buildOutput`, `buildBudgetMs` for `build-time`; `perf`:
+  `{ command, better: lower|higher, unit?, check? }` (the command prints one
+  number on its last line). `loop` needs the loop practice. No `climb`, no climb night.
 - `pick [--date d] [--force]` — the job tied to the newest health page's worst
   measure (`flaky_tests` → `hygiene` first; `slow_tests` → `test-time`;
-  `build_time` → `build-time`), else rotation (`.keel/climb.json`; never
-  hygiene); a job with an open `keel-climb/<job>/` PR waits, one with three
+  `build_time` → `build-time`; `perf` → `perf`; `lessons_without_guard`, or
+  rows since the last distill → `lessons`; untriaged Loop findings → `loop`),
+  else rotation (`.keel/climb.json`; never hygiene, lessons or loop); a job with an open `keel-climb/<job>/` PR waits, one with three
   closed unmerged is skipped (retiring). gh is `KEEL_GH` or `gh`.
 - `measure <job> [--runs k] [--baseline]` — median and spread; `--baseline`
   opens `.keel/climb/night.json`.
@@ -690,8 +693,18 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
 - `guard [--base r] [--job j]` — the gate, and every test the base ran still
   ran (the test ledger); hygiene refuses a timeout- or retry-only diff in the
   flaky test's file; build-time needs `buildOutput` byte-identical or a
-  `harmless --path p --why "…"` per changed path. Exit 1 names the problem.
-- `revert --why "…"`, `settle` — drop an undecided change; drop all of them.
+  `harmless --path p --why "…"` per changed path; perf runs `perf.check`;
+  lessons and loop refuse any other path, a changed table row, and a finding
+  decided tonight. Exit 1 names the problem.
+- `distill [--json]` — a lessons night's worksheet over the project's own
+  table; `distill propose --kind family|reword|promote … --read "…"` writes
+  one proposal under `.keel/climb/lessons/` and commits it. Never the table.
+- `loop-pull` — a loop night's pull (`scripts/loop.mjs pull --no-prove`),
+  committed; Loop unreachable is a notice, not red. The agent then runs
+  `node scripts/loop.mjs propose <slug> --rank … --read "… file:line"` per
+  untriaged finding; `decide` stays the owner's.
+- `revert --why "…"`, `settle` — drop an undecided change; drop all of them
+  (a proposals night keeps its commits).
 - `report [--body f] [--state] [--issue f]` — the PR body (pr-body.mjs), the
   night's line; `--issue`, a hygiene night's issue when nothing was proven.
 - `agent-ran --outcome o --file f --minutes m --started s` — after the agent's

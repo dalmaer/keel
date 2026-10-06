@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G4
 spec: 2
 depends: [14, 20, 31, 35]
-note: "The last three climb jobs, proven on ledger: perf (the project's own benchmark), lessons (phase 31's distill, in the project) and loop (pull Stitch Loop's findings and propose a rank for each; a person decides). Design: research/2026-10-06-climb-nights.md."
-evidence: []
+note: "Built: perf (the command's last-line number, better lower or higher, the project's perf check as guard), lessons (a distill pass over the project's own table: proposals only, decided by editing their status) and loop (pull, propose a rank for each untriaged finding, decide none; unreachable is a notice). Waits on ledger's climb config and token at the fleet release, and one owner-read night of each."
+evidence: ["evidence/2026-10-06-climb-perf-lessons-loop.md"]
 issue: 15
 ---
 
@@ -35,9 +35,9 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 ## Acceptance
 
-- [ ] `perf` reads `better` and keeps only changes that move the number the right way past the margin; mutation: a flipped direction fails the test. `tests/climb.test.mjs: "perf"`
-- [ ] The `lessons` job writes proposals and changes no row of the project's table. `tests/climb.test.mjs: "lessons"`
-- [ ] The `loop` job proposes for every untriaged finding and decides none; a run with Loop unreachable ends with a notice, not red. `tests/climb.test.mjs: "loop"`
+- [x] `perf` reads `better` and keeps only changes that move the number the right way past the margin; mutation: a flipped direction fails the test. `tests/climb.test.mjs: "perf"`
+- [x] The `lessons` job writes proposals and changes no row of the project's table. `tests/climb.test.mjs: "lessons"`
+- [x] The `loop` job proposes for every untriaged finding and decides none; a run with Loop unreachable ends with a notice, not red. `tests/climb.test.mjs: "loop"`
 - [ ] ⚑ by hand: on ledger, one night of each job, each PR read by the owner.
 
 ## Real surfaces
@@ -59,4 +59,10 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 ## Next action
 
-Blocked on phases 31 (distill) and 35 (the protocol).
+At the fleet release: ledger gains `"climb"` (perf, lessons, loop; 45 minutes) with a working CLAUDE_CODE_OAUTH_TOKEN; settle the perf command first (one number on its last line), and add the test-ledger reporter so a perf night's guard can tell.
+
+## Trajectory
+
+- **2026-10-06** — The distill rules ship to projects as scripts/keel/distill.mjs (no imports); keel's lib/distill.mjs re-exports them: one source. In a project the owner decides a lessons proposal by setting its status; `keel learn decide` stays keel's.
+- **2026-10-06** — ledger's `npm run perf` prints several budget rows, not one number; its perf job needs a one-number command (an awk over the table works but is fragile), and its data must be reachable from compare's temporary worktrees.
+- **2026-10-06** — Loop unreachable reaches the run's notice and step summary but not yet the night's Climb line (night's climbLine); and keel-climb and keel-loop both pull on a day both run: harmless, not yet merged.

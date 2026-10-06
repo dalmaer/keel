@@ -3,7 +3,7 @@
   "files": {
     ".agents/climb/PROTOCOL.md": {
       "practice": "climb",
-      "sha256": "25571e3a051577961384a396beb08bfd011d735bf8b82c6e61f7bc2e209e90e7"
+      "sha256": "1d16218f41a799d2d030feb6488a31b3c8661be5f5ac91fa6ad7c2487c5fb992"
     },
     ".agents/climb/TEND.md": {
       "practice": "climb",
@@ -16,6 +16,18 @@
     ".agents/climb/jobs/hygiene.md": {
       "practice": "climb",
       "sha256": "31608a49daa9e0b703b6124f570754536392d5d37ea4a0a1594a38fdd5a21206"
+    },
+    ".agents/climb/jobs/lessons.md": {
+      "practice": "climb",
+      "sha256": "88816d3d1d036024b60cd5bd55e0a9b35a29a7d608ab5329e2c01cb4811c3aca"
+    },
+    ".agents/climb/jobs/loop.md": {
+      "practice": "climb",
+      "sha256": "d070ca00f61cb5038b0b5226cec0d828f00f8022c237b62009c883e411a5bc03"
+    },
+    ".agents/climb/jobs/perf.md": {
+      "practice": "climb",
+      "sha256": "2611ee2b7557234ab099a250e2aabab323a8f5a9859d4744305e40d2fec07793"
     },
     ".agents/climb/jobs/test-time.md": {
       "practice": "climb",
@@ -47,7 +59,7 @@
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
-      "sha256": "c8555f818c66b8134edc3043f0bf86ce149b2a269ca07ecb464ececfbe78d9d1"
+      "sha256": "fa3ec70357dd38c174ab723f6b05fccc493e932dcbf70e5ae6dc73ada4f5be1f"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -115,7 +127,11 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "517b6f78994224dcdfe9144353cd819e70de5fccc4db21d90ecf22e4df52bbc1"
+      "sha256": "1aaea22921eb1b21b8d2260b0ce29171fefa435598f36660ffd3b6c04675bda7"
+    },
+    "scripts/keel/distill.mjs": {
+      "practice": "climb",
+      "sha256": "d5272ea08b734e8e023b0d61d586d2f022431042077a574133af920854858797"
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",

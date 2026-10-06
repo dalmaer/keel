@@ -16,6 +16,9 @@
 #     A night that keeps nothing opens nothing, and says so.
 #   - A hygiene night that proved no fix files one issue on this repo instead
 #     (climb.mjs report --issue): the workflow files it, never the agent.
+#   - A lessons or a loop night changes no code: it proposes, for the owner,
+#     and its guard refuses anything decided. A loop night pulls Loop first,
+#     in place of keel-loop.yml's pull; Loop unreachable is a notice, not red.
 #
 # SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
 # as the claude practice's. Each climb night spends model tokens, up to the
@@ -184,6 +187,23 @@ jobs:
           git switch -q -c "$BRANCH"
           node scripts/keel/climb.mjs measure "$JOB" --baseline
 
+      # A loop night pulls Loop first, in place of keel-loop.yml's pull that
+      # day (pull --no-prove: the agent proposes, not a model in the pull);
+      # climb.mjs commits it. Loop unreachable (no STITCH_API_KEY, no stitch,
+      # a pull that fails) is a notice, never red: the night proposes for the
+      # findings already here, and its record says why it did not pull.
+      - name: Pull Loop's findings
+        if: steps.pick.outputs.job == 'loop'
+        env:
+          STITCH_API_KEY: ${{ secrets.STITCH_API_KEY }}
+        run: |
+          if [ -n "$STITCH_API_KEY" ]; then
+            if ! { npm install -g @google/stitch@0 && stitch enable loop; }; then
+              echo "::notice::The stitch CLI could not be installed or switched on; the pull says so below."
+            fi
+          fi
+          node scripts/keel/climb.mjs loop-pull
+
       # The brief: the protocol, the job, and the pick, as one prompt.
       - name: Brief
         id: brief
@@ -222,7 +242,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.brief.outputs.prompt }}
           claude_args: |
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/loop.mjs list*),Bash(node scripts/loop.mjs propose *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"
 
       # An agent that failed before its budget ran out (no secret, a bad
       # model: is_error after one turn) is red, and nothing is judged or

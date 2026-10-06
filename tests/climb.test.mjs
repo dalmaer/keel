@@ -717,3 +717,257 @@ test('tend off: with no tend key nothing runs and gh is never asked; with no sec
     assert.match(json(r).error, re);
   }
 });
+
+// ---- phase 37: perf, lessons and loop ------------------------------------------------
+
+const DISTILL = join(KEEL, 'practices/climb/files/scripts/keel/distill.mjs');
+const LOOP = join(KEEL, 'practices/loop/files/scripts/loop.mjs');
+const STITCH = join(KEEL, 'tests/fixtures/loop/stitch.mjs');
+/** A benchmark that prints a line of chatter, then its number: deterministic, never timed. */
+const bench = n => `console.log('acme bench: warming up');\nconsole.log('${n}');\n`;
+const setConfig = (dir, config) => writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`);
+
+test('perf: reads the last line\'s number, honours "better" both ways past the margin, and the project\'s own perf check guards it', async t => {
+  const perf = better => ({ jobs: ['perf'], margin: 0.1, perf: { command: 'node bench.mjs', better, unit: 'ops/s' } });
+  const dir = await acme(t, { climb: perf('higher'), files: { 'bench.mjs': bench(100) } });
+  const m = await load(dir);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const at = async (branch, n) => { git(dir, ['checkout', '-q', '-b', branch, base]); return commit(dir, { 'bench.mjs': bench(n) }, `acme: ${branch}`); };
+  const up = await at('up', 150), down = await at('down', 50), flat = await at('flat', 105);
+  git(dir, ['checkout', '-q', 'main']);
+  const verdict = cand => json(climb(dir, ['compare', '--base', base, '--candidate', cand, '--runs', '1', '--json'])).verdict;
+
+  // Higher is better: 150 is kept, 50 and 105 (inside 10%) are not.
+  assert.deepEqual([verdict(up), verdict(down), verdict(flat)], ['keep', 'revert', 'revert']);
+  const r = json(climb(dir, ['compare', '--base', base, '--candidate', up, '--runs', '1', '--json']));
+  assert.deepEqual(r.rounds.map(x => [x.base, x.candidate]), [[100, 150], [100, 150]], 'the printed number, not the wall time');
+  assert.match(climb(dir, ['compare', '--base', base, '--candidate', up, '--runs', '1']).stdout, /round 1: base 100 ops\/s {2}candidate 150 ops\/s {2}\+50%/);
+  // Flipped: lower is better, so the same two changes swap. (Mutation: a direction ignored, or flipped, fails here.)
+  await setConfig(dir, { climb: perf('lower') });
+  assert.deepEqual([verdict(up), verdict(down), verdict(flat)], ['revert', 'keep', 'revert']);
+  assert.equal(m.betterOf('perf', { climb: perf('higher') }), 'higher');
+  assert.equal(m.betterOf('test-time', {}), 'lower');
+
+  // The number: one, on the last line; anything else cannot tell (exit 2), never a guess.
+  assert.deepEqual(['1234', '12.5 ms', 'mean: 3e2', '  -4  '].map(m.lastNumber), [1234, 12.5, 300, -4]);
+  assert.deepEqual(['', 'fast', 'took 3 of 4', 'p95: 12'].map(m.lastNumber), [null, null, null, null]);
+  git(dir, ['checkout', '-q', '-b', 'chatter', base]);
+  await commit(dir, { 'bench.mjs': "console.log('100');\nconsole.log('done');\n" }, 'acme: chatter last');
+  const blind = climb(dir, ['measure', 'perf', '--runs', '1', '--json']);
+  assert.equal(blind.status, 2);
+  assert.match(json(blind).error, /printed no single number on its last line.*"done".*perf cannot tell/);
+  git(dir, ['checkout', '-q', 'main']);
+
+  // Config: perf names its command and which way is better.
+  for (const [climbCfg, re] of [[{ jobs: ['perf'] }, /names perf, so "climb"\.perf must name its command/], [{ jobs: ['perf'], perf: { command: 'node bench.mjs', better: 'faster' } }, /"climb"\.perf\.better must be "lower" or "higher"/], [{ jobs: ['perf'], perf: { command: '', better: 'lower', acme: 1 } }, /perf\.command must be a shell command.*unknown key acme|unknown key acme.*perf\.command/]]) {
+    await setConfig(dir, { climb: climbCfg });
+    const bad = climb(dir, ['config', '--json']);
+    assert.equal(bad.status, 2, JSON.stringify(climbCfg));
+    assert.match(json(bad).error, re);
+  }
+
+  // A night: the baseline and the decided commit carry the number in its unit; the report says which way is better.
+  await setConfig(dir, { climb: perf('higher'), check: 'node -e ""' });
+  git(dir, ['commit', '-q', '-am', 'acme: perf higher']);
+  const night0 = json(climb(dir, ['measure', 'perf', '--baseline', '--runs', '1', '--json']));
+  assert.deepEqual([night0.median, night0.better, night0.unit], [100, 'higher', 'ops/s']);
+  await commit(dir, { 'bench.mjs': bench(150) }, 'acme: a faster loop');
+  assert.equal(json(climb(dir, ['compare', '--decide', '--runs', '1', '--json'])).verdict, 'keep');
+  assert.match(git(dir, ['log', '-1', '--format=%B']), /\n\nclimb perf: 100 ops\/s → 150 ops\/s \(\+50%\); 100 ops\/s → 150 ops\/s \(\+50%\); margin 10%, base [0-9a-f]{7}$/);
+  const rep = json(climb(dir, ['report', '--json']));
+  assert.match(rep.line, /^climb perf \d{4}-\d{2}-\d{2}: kept 1 of 1 tried; `node bench\.mjs` 100 ops\/s → 150 ops\/s \(\+50%, higher is better\); \d+ min$/);
+  assert.match(climb(dir, ['report']).stdout, /^\| `node bench\.mjs`'s number \(its last line; higher is better\), median \(the baseline against the last kept change\) \| 100 ops\/s \| 150 ops\/s \| \+50% \|$/m);
+
+  // The project's own perf check runs in the guard: failing, the guard fails and names it.
+  await setConfig(dir, { climb: { ...perf('higher'), perf: { ...perf('higher').perf, check: 'node -e "process.exit(4)"' } }, check: 'node -e ""' });
+  const g = climb(dir, ['guard', '--json']);
+  assert.equal(g.status, 1, g.stdout + g.stderr);
+  assert.match(json(g).problems[0], /the project's own perf check `node -e "process\.exit\(4\)"` failed \(exit 4\)/);
+});
+
+/** A synthetic Acme lessons table: four numbered rows, provenance in each shape. */
+const LESSONS_MD = ['# Lessons', '', '| # | The shape of it | What it cost | Guard |', '| --- | --- | --- | --- |',
+  '| 1 | **A cache read after its source moved serves the old value.** *(acme, widgets 3)* | a day | a test that moves the source |',
+  '| 2 | **A cache keyed by name serves a renamed widget\'s old value.** *(acme, widgets 5)* | an hour | to write |',
+  '| 3 | **A gate that pipes its tests through tee reports tee\'s exit code.** *(acme, ci 2)* | a red main | pipefail |',
+  '| 4 | **A sprocket loaded twice registers twice.** *(acme, sprockets 1)* | a week | a test that loads twice |', ''].join('\n');
+const READ_LESSONS = 'docs/lessons.md rows 1 and 2 checked';
+
+test('lessons: a distill pass over the project\'s own table writes proposals, one commit each, and changes no row; the guard refuses a row changed', async t => {
+  const dir = await acme(t, { climb: { jobs: ['test-time', 'lessons'] }, config: { check: 'node -e ""' }, files: { 'docs/lessons.md': LESSONS_MD, 'scripts/keel/distill.mjs': await readFile(DISTILL, 'utf8') } });
+  const gh = await stubGh(t, []);
+  // pick: every row is new (no pass yet), so lessons goes ahead of the rotation.
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: gh }));
+  assert.deepEqual([p.job, p.by], ['lessons', 'measure']);
+  assert.match(p.why, /^lessons_since_distill is outside in docs\/lessons\.md since the last distill pass \(4 against ≤ 0\)/);
+
+  const before = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
+  assert.equal(json(climb(dir, ['measure', 'lessons', '--baseline', '--json'])).median, 4);
+  const w = json(climb(dir, ['distill', '--json']));
+  assert.deepEqual(w.summary, { rows: 4, families: 0, open: 0, since: 4 });
+  assert.deepEqual(w.rows.map(r => r.provenance), ['acme, widgets 3', 'acme, widgets 5', 'acme, ci 2', 'acme, sprockets 1']);
+  assert.match(climb(dir, ['distill']).stdout, /^### 2 \(new since the last pass\)$/m);
+
+  const propose = (...args) => climb(dir, ['distill', 'propose', ...args, '--json']);
+  const fam = propose('--kind', 'family', '--name', 'A cache trusted after its source moved', '--rule', 'A cache names what it was read from, and a test moves that.', '--guard', 'a test that moves or renames the source under a warm cache', '--rows', '1,2', '--read', READ_LESSONS);
+  assert.equal(fam.status, 0, fam.stdout + fam.stderr);
+  assert.match(json(fam).file, /^\.keel\/climb\/lessons\/\d{4}-\d{2}-\d{2}-distill-family-a-cache-trusted-after-its-source-moved\.md$/);
+  const rew = json(propose('--kind', 'reword', '--row', '2', '--guard', 'a test that renames a widget under a warm cache', '--read', READ_LESSONS));
+  assert.deepEqual([rew.fields.cell, rew.fields.old, rew.fields.text], ['guard', 'to write', 'a test that renames a widget under a warm cache']);
+  // Each proposal is its own commit, made by the script; nothing is left uncommitted.
+  assert.equal(git(dir, ['status', '--porcelain']), '');
+  assert.deepEqual(git(dir, ['log', '--format=%s', '-2']).split('\n'), ["climb lessons: propose reword: reword lesson 2's guard", 'climb lessons: propose family: family "A cache trusted after its source moved": lessons 1, 2']);
+  assert.equal(git(dir, ['diff', '--name-only', 'HEAD~2', 'HEAD']).split('\n').every(f => f.startsWith('.keel/climb/lessons/')), true);
+  // The table: not one byte changed.
+  assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), before);
+  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  assert.deepEqual(night.tried.map(a => a.verdict), ['keep', 'keep']);
+
+  // Refused: the same family again, a family over one row, a promote with no decided family, a read that cites nothing.
+  for (const [args, re] of [
+    [['--kind', 'family', '--name', 'A cache trusted after its source moved', '--rule', 'r', '--guard', 'g', '--rows', '1,2', '--read', READ_LESSONS], /already proposes this/],
+    [['--kind', 'family', '--name', 'One', '--rule', 'r', '--guard', 'g', '--rows', '3', '--read', READ_LESSONS], /a family needs two rows or more/],
+    [['--kind', 'promote', '--family', 'A cache trusted after its source moved', '--check', 'a lint', '--read', READ_LESSONS], /no decided family/],
+    [['--kind', 'reword', '--row', '9', '--cost', 'x', '--read', READ_LESSONS], /docs\/lessons\.md has no lesson 9/],
+    [['--kind', 'tag', '--row', '1', '--read', READ_LESSONS], /--kind must be one of family, reword, promote/],
+    [['--kind', 'reword', '--row', '1', '--cost', 'x', '--read', 'I looked'], /--read must cite something checked/],
+  ]) {
+    const r = propose(...args);
+    assert.equal(r.status, 2, `${args.join(' ')}: ${r.stdout}`);
+    assert.match(json(r).error, re);
+  }
+  // The pass is recorded by its proposals: nothing since, so pick does not send another lessons night.
+  assert.deepEqual(json(climb(dir, ['distill', '--json'])).since, { through: 4, rows: [] });
+  const m = await load(dir);
+  assert.deepEqual((await m.signalsOf(dir, {}, ['lessons'])).map(r => [r.id, r.value, r.state]), [['lessons_since_distill', 0, 'ok']]);
+
+  // Judged: settle keeps the commits, guard passes proposals only, and the report lists them for the owner.
+  assert.equal(json(climb(dir, ['settle', '--json'])).dropped, false);
+  const g = climb(dir, ['guard', '--json']);
+  assert.equal(g.status, 0, g.stdout + g.stderr);
+  assert.match(json(g).line, /proposals only \(2 files under \.keel\/climb\/lessons\/\), no code changed, nothing decided/);
+  const rep = climb(dir, ['report']);
+  assert.equal(rep.status, 0, rep.stderr);
+  assert.match(rep.stdout, /^climb lessons \d{4}-\d{2}-\d{2}: 2 proposals for the owner \(1 family, 1 reword\); the table unchanged; \d+ min$/m);
+  assert.match(rep.stdout, /^\| Proposal \| Kind \| Rows \| File \|$/m);
+  assert.match(rep.stdout, /^\| reword lesson 2's guard \| guard: to write \| a test that renames a widget under a warm cache \|$/m);
+  assert.match(rep.stdout, /```keel-impact\n\{"version":1,.*"reconciliation":"none"/);
+
+  // The owner accepts the family (status: accepted in its file): it is a family now, and its guard can be promoted.
+  const famFile = join(dir, json(fam).file);
+  await writeFile(famFile, (await readFile(famFile, 'utf8')).replace('status: proposed', 'status: accepted'));
+  git(dir, ['commit', '-q', '-am', 'acme: the owner accepts the family']);
+  assert.deepEqual(json(climb(dir, ['distill', '--json'])).families.map(f => [f.name, f.rows]), [['A cache trusted after its source moved', [1, 2]]]);
+
+  // Mutations the guard refuses, naming each: a row of the table changed, a proposal edited, a path outside.
+  const refuse = async (files, re) => {
+    const head = git(dir, ['rev-parse', 'HEAD']);
+    await commit(dir, files, 'acme: tonight');
+    const r = climb(dir, ['guard', '--base', head, '--job', 'lessons', '--json']);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(json(r).problems.join('\n'), re);
+    git(dir, ['reset', '-q', '--hard', head]);
+  };
+  await refuse({ 'docs/lessons.md': before.replace('| an hour | to write |', '| an hour | a test that renames a widget under a warm cache |') }, /^docs\/lessons\.md changed \(lesson 2\): a lessons night proposes, and only the owner changes the table/);
+  await refuse({ [rew.file]: 'edited\n' }, /changed: a lessons night adds proposals and never edits one/);
+  await refuse({ 'lib/acme.mjs': 'export {};\n' }, /^lib\/acme\.mjs is outside \.keel\/climb\/lessons\/: a lessons night only adds proposals$/);
+});
+
+/** A finding file as the loop practice writes one. */
+async function findingText(f) {
+  const { serializeFinding } = await import(pathToFileURL(LOOP).href);
+  return serializeFinding({ loop: [], loop_rank: 'P2/S1', loop_state: 'ACTIVE', decision: 'untriaged', rank: null, phase: null, project: null, lesson: null, since: null, note: null, ...f });
+}
+const ALPHA = 'aaaaaaaa-1111-4000-8000-000000000001', BETA = 'bbbbbbbb-2222-4000-8000-000000000002', GAMMA = 'cccccccc-3333-4000-8000-000000000003';
+const loopInsight = (id, title) => ({ id, title, description: `${title}.`, state: 'ACTIVE', priority: 'P2', severity: 'S1', confidence: 80, references: {} });
+
+test('loop: pulls, proposes a rank for every untriaged finding and decides none; Loop unreachable is a notice, not red; the guard refuses a decided finding', async t => {
+  const files = {
+    'scripts/loop.mjs': await readFile(LOOP, 'utf8'),
+    '.stitch.json': '{ "workspace": "acme-0000-workspace" }\n',
+    'lib/widget.mjs': 'export const cache = new Map();\n// the cache never expires\nexport const get = k => cache.get(k);\n',
+    'docs/phases/01-widgets.md': '# Widgets hold their shape\n',
+    'docs/loop/widget-cache-ignores-expiry.md': await findingText({ title: 'Widget cache ignores expiry', loop: [ALPHA], body: '# Widget cache ignores expiry\n\n> **Loop says** (P2/S1): it does.\n\n## Our read\n\nNot yet checked against the code.' }),
+    'docs/loop/sprocket-api-lacks-rate-limit.md': await findingText({ title: 'Sprocket API lacks rate limit', loop: [BETA], decision: 'accepted', rank: 'next', phase: 1, since: '2026-10-01', note: 'real, and cheap', body: '# Sprocket API lacks rate limit\n\n## Our read\n\nlib/widget.mjs:3 has no limit.' }),
+  };
+  const dir = await acme(t, { climb: { jobs: ['loop'] }, config: { practices: ['loop'], check: 'node -e ""' }, files });
+  const env = { KEEL_STITCH: STITCH, STITCH_STUB_LOG: join(dir, '..', `${dir.split('/').pop()}-stitch.log`), STITCH_STUB_STATE: join(dir, '..', `${dir.split('/').pop()}-stitch.json`) };
+  t.after(() => Promise.all([rm(env.STITCH_STUB_LOG, { force: true }), rm(env.STITCH_STUB_STATE, { force: true })]));
+  await writeFile(env.STITCH_STUB_LOG, '');
+  await writeFile(env.STITCH_STUB_STATE, JSON.stringify({ error: { code: 'UNAVAILABLE', message: 'acme: Loop is down' } }));
+  // Relative, as the agent runs it: loop.mjs runs only as its own real path (a temp dir may be a symlink).
+  const loopCmd = (...args) => run(process.execPath, ['scripts/loop.mjs', ...args], { cwd: dir, env: { ...process.env, ...env } });
+
+  // A config naming loop needs the loop practice.
+  await setConfig(dir, { climb: { jobs: ['loop'] }, practices: ['night'] });
+  assert.match(json(climb(dir, ['config', '--json'])).error, /names loop, so "practices" must include loop/);
+  git(dir, ['checkout', '-q', '--', '.keel/keel.json']);
+
+  // pick: one untriaged finding, so a loop night.
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, []) }));
+  assert.deepEqual([p.job, p.by], ['loop', 'measure']);
+  assert.match(p.why, /^loop_untriaged is outside in docs\/loop\/ \(1 against ≤ 0\)/);
+  git(dir, ['switch', '-q', '-c', 'keel-climb/loop/2026-10-06']);
+  assert.equal(json(climb(dir, ['measure', 'loop', '--baseline', '--json'])).median, 1);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+
+  // Unreachable: no key (the workflow's own step), then a key and a Loop that fails. A notice and exit 0, never red; nothing left behind.
+  const noKey = await step(t, dir, "Pull Loop's findings", { ...env, STITCH_API_KEY: '' });
+  assert.equal(noKey.status, 0, noKey.out);
+  assert.match(noKey.out, /^::notice::Loop unreachable \(no STITCH_API_KEY\): no pull tonight; the night proposes for the findings already here \(1 untriaged\)$/m);
+  const down = climb(dir, ['loop-pull', '--json'], { ...env, STITCH_API_KEY: 'acme-key' });
+  assert.equal(down.status, 0, down.stdout + down.stderr);
+  assert.deepEqual([json(down).pulled, /^the pull failed \(exit 1\): .*Loop is down/.test(json(down).why)], [false, true]);
+  assert.equal(git(dir, ['rev-parse', 'HEAD']), base);
+  assert.equal(git(dir, ['status', '--porcelain']), '');
+  // Nothing proposed, Loop unreachable: no PR, and the line says why.
+  const quiet = json(climb(dir, ['report', '--json']));
+  assert.equal(quiet.kept, 0);
+  assert.match(quiet.line, /^climb loop \d{4}-\d{2}-\d{2}: proposed nothing; decided none; 1 untriaged left; Loop unreachable \(the pull failed .*\): proposed for the findings already here; \d+ min$/);
+
+  // Reachable: the pull files a new finding and commits it, by the script.
+  await writeFile(env.STITCH_STUB_STATE, JSON.stringify({ insights: [loopInsight(ALPHA, 'Widget cache ignores expiry'), loopInsight(BETA, 'Sprocket API lacks rate limit'), loopInsight(GAMMA, 'Gear loader drops errors')] }));
+  const up = json(climb(dir, ['loop-pull', '--json'], { ...env, STITCH_API_KEY: 'acme-key' }));
+  assert.equal(up.pulled, true);
+  assert.deepEqual(up.untriaged.sort(), ['gear-loader-drops-errors', 'widget-cache-ignores-expiry']);
+  assert.match(git(dir, ['log', '-1', '--format=%s']), /^Loop: findings pulled \d{4}-\d{2}-\d{2} \(climb loop night, in place of keel-loop's pull\)$/);
+  assert.ok(!JSON.parse(`[${(await readFile(env.STITCH_STUB_LOG, 'utf8')).trim().split('\n').join(',')}]`).some(c => /^(dismiss|create|delete|generate)$/.test(c.args[0])), 'a pull sends nothing to Loop');
+
+  // The agent proposes for each untriaged finding, as the job's brief says, and commits.
+  for (const slug of up.untriaged) {
+    const r = loopCmd('propose', slug, '--rank', 'next', '--phase', '1', '--note', 'real: the code shows it', '--read', 'lib/widget.mjs:2 says the cache never expires');
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, new RegExp(`^proposed ${slug}: next, phase 1$`, 'm'));
+  }
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'loop: propose a rank for each untriaged finding']);
+  assert.equal(json(climb(dir, ['settle', '--json'])).dropped, false);
+  const g = climb(dir, ['guard', '--json']);
+  assert.equal(g.status, 0, g.stdout + g.stderr);
+  const rep = climb(dir, ['report']);
+  assert.equal(rep.status, 0, rep.stderr);
+  assert.match(rep.stdout, /^climb loop \d{4}-\d{2}-\d{2}: proposed a rank for 2 findings; decided none; 0 untriaged left; Loop pulled; \d+ min$/m);
+  assert.match(rep.stdout, /^\| Finding \| Proposed rank \| Home \| Why \|$/m);
+  assert.match(rep.stdout, /^\| Gear loader drops errors \(`docs\/loop\/gear-loader-drops-errors\.md`\) \| next \| phase 1 \| real: the code shows it \|$/m);
+  assert.match(rep.stdout, /Decide each yourself: `node scripts\/loop\.mjs decide <slug>/);
+  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  assert.deepEqual(night.tried.map(a => a.verdict), ['keep', 'keep'], 'the health page\'s climb line counts the proposals');
+  assert.equal(git(dir, ['show', 'HEAD:docs/loop/sprocket-api-lacks-rate-limit.md']).includes('decision: accepted'), true);
+
+  // Mutations the guard refuses: a finding decided tonight, a decided finding's rank changed.
+  const head = git(dir, ['rev-parse', 'HEAD']);
+  const decided = loopCmd('decide', 'gear-loader-drops-errors', 'accepted', '--note', 'real', '--no-push');
+  assert.equal(decided.status, 0, decided.stdout + decided.stderr);
+  git(dir, ['commit', '-q', '-am', 'loop: decide']);
+  const r1 = climb(dir, ['guard', '--json']);
+  assert.equal(r1.status, 1, r1.stdout);
+  assert.match(json(r1).problems.join('\n'), /^docs\/loop\/gear-loader-drops-errors\.md is accepted tonight: deciding is the owner's/m);
+  git(dir, ['reset', '-q', '--hard', head]);
+  const sprocket = join(dir, 'docs/loop/sprocket-api-lacks-rate-limit.md');
+  await writeFile(sprocket, (await readFile(sprocket, 'utf8')).replace('rank: next', 'rank: now'));
+  git(dir, ['commit', '-q', '-am', 'loop: rerank']);
+  const r2 = climb(dir, ['guard', '--json']);
+  assert.equal(r2.status, 1, r2.stdout);
+  assert.match(json(r2).problems.join('\n'), /sprocket-api-lacks-rate-limit\.md was accepted and its rank changed tonight: a proposal never overrides a decision/);
+  git(dir, ['reset', '-q', '--hard', head]);
+});
