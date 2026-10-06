@@ -68,3 +68,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 ## Next action
 
 Write `scripts/keel/test-ledger.mjs` from today's probe (a reporter that yields one JSON line per top-level test) and its test with a synthetic history.
+
+## Trajectory
+
+- **2026-10-06** — The first case, before any of it is built: keel's suite failed once in five runs on an unchanged tree (main at `884dad1`, load average ~80), then passed twice more, and the failing test cannot be named because nothing recorded it. Baseline for "slower": the suite went 48s → 23s on the same day's hill-climb (median of three alternated runs each), so 23s is the starting median.
