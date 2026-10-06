@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 32 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 35 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -13,17 +13,19 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-3/3 built or lived-in; 0/3 lived-in.
+3/4 built or lived-in; 0/4 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [0. Keel is run the way it will tell others to run](phases/00-keel-runs-on-itself.md) | built | 2026-10-02 | — | The practice is installed on keel by hand and holds: check passes locally and on GitHub Actions, and /conduct loads through the .claude/skills symlink. Not yet rendered from practices (phase 1). |
 | [1. The practice is a set of modules keel can install, including on itself](phases/01-practices-as-modules.md) | built | 2026-10-02 | [0](phases/00-keel-runs-on-itself.md) | Seven practices (base, agents-md, phases, evidence, lessons, conduct, ci) render keel's own files; render --self --check in npm run check keeps the two copies one. Not yet rendered into a real project. |
 | [18. What keel tells people can't fall behind what keel does](phases/18-docs-cannot-drift.md) | built | 2026-10-03 | [16](phases/16-keel-learns-its-ancestors.md) | tests/docs.test.mjs checks the README's verb and practice tables against the code, both ways; its first run caught a missing practice row. Conduct's Record step asks about docs; doctor notes a README older than the newest built phase. |
+| [32. A phase's spec says how it will be proven, and an empty one fails the check](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | planned | 2026-10-06 | [0](phases/00-keel-runs-on-itself.md), [1](phases/01-practices-as-modules.md) | From the spec-rigour analysis: 1 of 139 acceptance boxes names a test, and a phase left as the template passes the roadmap check. Lints for observable specs, checks named per box, and a Real surfaces section scaled to where the change runs. Design: research/2026-10-06-spec-rigor.md. · [#10](https://github.com/dalmaer/keel/issues/10) |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
 - **18 done when:** `npm run check` fails when the README's verb or practice tables disagree with the live verb registry or `practices/`, and the conduct skill's Record step names README and the agent guide.
+- **32 done when:** `roadmap --check` refuses a phase that still holds `keel phase new`'s template text or an empty Done when, Acceptance or Proof; every acceptance box in a new phase names its check (a test, a command, or ⚑ by hand); and the phase template asks for its Real surfaces, each needing one proof in that place.
 
 ## G1 — Start a project in one command
 
@@ -101,7 +103,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-4/6 built or lived-in; 0/6 lived-in.
+4/7 built or lived-in; 0/7 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -111,6 +113,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [15. A project's night shift runs from its own repo, and keel is only where the ideas come from](phases/15-projects-run-on-their-own.md) | built | 2026-10-04 | [10](phases/10-the-night-shift.md), [11](phases/11-keel-improve.md) | Night and loop workflows run each project's own scripts/keel/*.mjs with no keel checkout and no token, and update PRs go out from keel: keel fleet update opened duo #48 and cajones #23, both merged. |
 | [26. Phase records agree with delivery facts and current decisions](phases/26-reconciliation.md) | built | 2026-10-04 | [5](phases/05-managed-files-and-drift.md), [15](phases/15-projects-run-on-their-own.md), [18](phases/18-docs-cannot-drift.md) | Shared checks, PR impact declarations and manual proposals ship in doctor, CI and night health. Ledger main and its correction branch audited read-only; merge never advances acceptance. |
 | [27. A project that keeps phases per project is measured, not skipped](phases/27-projects-shape-measured.md) | built | 2026-10-05 | [11](phases/11-keel-improve.md), [15](phases/15-projects-run-on-their-own.md) | improve reads the projects shape (isocan: 23 phases without an issue, 22 stuck) and gains eight record measures from isocan's practice page, each n/a with a reason where its source is absent. |
+| [33. Every test run is remembered, and a flaky or slower test becomes hygiene work](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | planned | 2026-10-06 | [10](phases/10-the-night-shift.md), [11](phases/11-keel-improve.md) | The owner's example: after a test run, the agent hears 'this test is flaky over the last N runs' or 'much slower than its last N runs', as hygiene work. A zero-dependency node reporter records each test; flaky is a fact (mixed outcomes on one clean tree), slower needs 2x the median and a floor. Design: research/2026-10-06-spec-rigor.md. · [#11](https://github.com/dalmaer/keel/issues/11) |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
@@ -118,20 +121,23 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 - **15 done when:** A project made by `keel init` runs its night shift with no keel checkout and no `KEEL_TOKEN`, and the update PR a project receives is opened from keel by `keel fleet update`.
 - **26 done when:** Keel's existing checks detect and propose scoped corrections for merged-PR, completed-next-action and superseded-decision contradictions on an adopted project, without inferring acceptance, production verification or lived-in status from a merge.
 - **27 done when:** `keel improve` on a projects-shaped repo (isocan) reports `phases_stuck`, `phases_without_issue` and the new record measures with values, not `n/a`, and every new measure is `n/a` with a reason, never a zero, where the project has nothing for it to read.
+- **33 done when:** After `npm test` in keel and in one adopted project, the run ends with a hygiene block naming any test that was flaky or got slower over its last N runs, with the command to reproduce it; the night's health page counts both; and one real hygiene item has been found and fixed this way.
 
 ## G5 — Keel knows whether it helps
 
 Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-1/2 built or lived-in; 0/2 lived-in.
+1/3 built or lived-in; 0/3 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [12. One look tells the owner which projects are behind, red, or teaching something](phases/12-the-fleet.md) | built | 2026-10-04 | [4](phases/04-keel-adopt.md), [11](phases/11-keel-improve.md) | keel fleet shows all four projects adopted, with duo and cajones correctly one release behind; silent is proven on the stub, as no project has gone silent. |
 | [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md) | partial | 2026-10-02 | [12](phases/12-the-fleet.md) | Measures and comparison pre-registered and committed before any adoption (45a52ee). The results page is due no earlier than 2026-11-01 and needs two adopted projects. |
+| [34. Keel counts its escapes, and every rigour change is judged by them](phases/34-keel-counts-its-escapes-and-every-rigour-change.md) | planned | 2026-10-06 | [11](phases/11-keel-improve.md), [13](phases/13-does-keel-help.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Climb escapes per built phase: defects found after a phase was built, read from what is already written (a lesson with the project's own provenance, a fix commit, a trajectory correction). Each rigour change is an experiment against it. Design: research/2026-10-06-spec-rigor.md. · [#12](https://github.com/dalmaer/keel/issues/12) |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
 - **13 done when:** A dated research page compares the fleet before and after adoption on measures fixed in advance (red-streak length, time from lesson to guard, phases moved per week, conduct cost per phase) and says plainly what it found.
+- **34 done when:** The night reports `escapes` for keel and each adopted project (defects found after a phase was built, since the last release, each pointing at the phase it escaped where the record names one), the baseline from the spec-rigour analysis is recorded, and phases 32 and 33 each have a before-and-after reading in their evidence.
 
 ## Updating this roadmap
 
