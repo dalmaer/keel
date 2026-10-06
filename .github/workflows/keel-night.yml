@@ -158,6 +158,33 @@ jobs:
           done < "$RUNNER_TEMP/ledger.txt"
           echo "test ledger: $n artifacts read; $(find .keel/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
 
+      # The newest climb night's record (the climb practice's keel-climb
+      # artifact), read-only, by name, from the default branch only, into
+      # .keel/climb, before improve writes its line on the health page. None
+      # (climb off, or never run), or no listing, is no line: never red.
+      - name: Gather the climb's record
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! gh api "repos/$REPO/actions/artifacts?name=keel-climb&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:1][] | .id" > "$RUNNER_TEMP/climb.txt"; then
+            echo "::warning::The keel-climb artifacts could not be listed; the health page has no climb line tonight."
+            exit 0
+          fi
+          id=$(head -n 1 "$RUNNER_TEMP/climb.txt")
+          if [ -z "$id" ]; then
+            echo "climb: no keel-climb record on $BASE"
+            exit 0
+          fi
+          mkdir -p .keel/climb
+          if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/climb-$id.zip"; then
+            unzip -o -q "$RUNNER_TEMP/climb-$id.zip" -d .keel/climb
+            echo "climb: record $id read"
+          else
+            echo "::warning::The keel-climb record $id could not be read; the health page has no climb line tonight."
+          fi
+
       # Before the drain, so machine_prs counts last night's PR. improve also
       # writes the PR body's input (--pr-input); scripts/keel/pr-body.mjs
       # turns it into the body below, so no body is built in inline JS.

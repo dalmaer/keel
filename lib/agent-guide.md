@@ -28,7 +28,7 @@ Verbs (every one takes `--json`; parse that, never the prose):
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — this text; `<topic>` opens one, `all` prints all
-- `keel --version` — CLI version, commit, practice version
+- `keel --version` — CLI, commit and practice versions
 
 Rules that bite:
 
@@ -40,10 +40,10 @@ Rules that bite:
 - ⚑ steps (creating repos, secrets, Pages, issues elsewhere, scheduled model
   spend) wait for the owner's yes.
 
-Exit codes: 0 ok; 1 ran and found a failure; 2 usage, or not in a project;
+Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `fleet`, `loose-ends`, `retro`, `install`, `coming`, `reconciliation`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `retro`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -620,6 +620,38 @@ instructions. The stitch binary is `KEEL_STITCH` or `stitch`, the official
 CLI (`npm install -g @google/stitch@0`). It reads `STITCH_API_KEY`; the
 workspace is `.stitch.json`'s, or `STITCH_WORKSPACE`. The nightly
 `keel-loop.yml` pulls and drains `keel-loop/`; it decides nothing.
+
+<!-- topic: climb | climb nights: an agent climbs one number, a script judges it, a person merges -->
+
+The optional `climb` practice (needs `night`) runs `keel-climb.yml` on a
+schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
+`node scripts/keel/climb.mjs` makes every measurement and keep-or-revert.
+**Every number comes from the script; never time things yourself.**
+
+- `config` — `.keel/keel.json` `"climb"`: `jobs` (`test-time`), `budget.minutes`
+  (5–180), `schedule` (`nightly`|`weekly`), `margin` (0.01–0.5), `attempts`,
+  `testCommand` (default `npm test`). No `climb`, no climb night.
+- `pick [--date d] [--force]` — the job tied to the newest health page's worst
+  measure (`slow_tests` → `test-time`), else rotation (`.keel/climb.json`); a
+  job with an open `keel-climb/<job>/` PR waits. gh is `KEEL_GH` or `gh`.
+- `measure <job> [--runs k] [--baseline]` — median and spread; `--baseline`
+  opens `.keel/climb/night.json`.
+- `compare [--base r] [--candidate r] [--rounds n] [--decide] [--final]` —
+  alternated rounds (two or more) in temp worktrees; keep only when every
+  round beats the margin. `--decide` judges HEAD: keep amends its numbers
+  into the commit, revert resets. Prints `stop` at the attempt limit or three
+  misses in a row.
+- `guard [--base r]` — the gate, and every test the base ran still ran (the
+  test ledger); exit 1 names the dropped or skipped test, 2 when there is no
+  ledger to tell.
+- `revert --why "…"`, `settle` — drop an undecided change; drop all of them.
+- `report [--body f] [--state]` — the PR body (pr-body.mjs) and the night's line.
+
+Exit: 0 ok, 1 a failing gate or a dropped test, 2 usage, bad config, or an
+instrument that cannot tell. The workflow pushes only
+`refs/heads/keel-climb/<job>/<date>`, opens one PR when something was kept,
+and never merges. ⚑ Turning it on spends model tokens up to the budget: the
+owner's yes, with `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) set.
 
 <!-- topic: fleet | every project at once: behind, red, silent, or teaching something -->
 

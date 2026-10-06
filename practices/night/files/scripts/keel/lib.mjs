@@ -563,6 +563,37 @@ export async function healthLints(root, config) {
   return [{ rule: 'health-ignored', path: dir, message: `${dir} is git-ignored here, so the night writes its health page and never commits it; set "health" in .keel/keel.json to a directory that is not ignored (like ".keel/health")` }];
 }
 
+// ---- the climb's night ---------------------------------------------------------
+
+/**
+ * The newest climb night's record (the climb practice's scripts/keel/climb.mjs
+ * writes it; the night's workflow fetches the newest `keel-climb` artifact
+ * from the default branch into this path before improve runs).
+ */
+export const CLIMB_NIGHT = '.keel/climb/night.json';
+
+/**
+ * The health page's one line about the newest climb night, or null when
+ * climb is off (no "climb" in .keel/keel.json) or never ran (no record). Not a
+ * measure: no bound, nothing to ratchet. `night` is the parsed record, or
+ * undefined when the file is absent, or the string 'unreadable'.
+ */
+export function climbLine(config, night) {
+  if (config?.climb === undefined || night === undefined || night === null) return null;
+  if (typeof night !== 'object' || !Array.isArray(night.tried) || typeof night.job !== 'string' || typeof night.date !== 'string') return `Climb: the newest record (${CLIMB_NIGHT}) is unreadable; see the last keel-climb run.`;
+  const kept = night.tried.filter(a => a?.verdict === 'keep').length;
+  if (kept) return `Climb: ${night.date} ${night.job}: kept ${kept}, ${Number.isInteger(night.pr) ? `PR #${night.pr}` : `no PR opened${night.gate ? '' : ' (the guard did not pass)'}`}.`;
+  const why = night.tried.length ? `${night.tried.length} tried, none beat the noise${Number.isFinite(night.margin) ? ` (margin ${Math.round(night.margin * 100)}%)` : ''}` : 'nothing was tried';
+  return `Climb: ${night.date} ${night.job}: kept nothing (${why}).`;
+}
+
+/** The climb night's record under root: the object, undefined when absent, 'unreadable' otherwise. */
+export async function readClimbNight(root) {
+  const text = await read(join(root, CLIMB_NIGHT));
+  if (text === null) return undefined;
+  try { return JSON.parse(text); } catch { return 'unreadable'; }
+}
+
 // ---- the gate's environment -------------------------------------------------
 
 export const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/;

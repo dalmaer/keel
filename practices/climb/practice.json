@@ -1,0 +1,16 @@
+{
+  "name": "climb",
+  "summary": "Climb nights: on a schedule, an agent improves one number (the test suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR.",
+  "optional": true,
+  "requires": ["night"],
+  "secrets": [
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each climb night spends model tokens up to .keel/keel.json climb.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/keel-climb.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-climb.yml" }
+  ],
+  "files": [
+    { "path": ".github/workflows/keel-climb.yml", "from": ".github/workflows/keel-climb.yml", "kind": "managed" },
+    { "path": "scripts/keel/climb.mjs", "from": "scripts/keel/climb.mjs", "kind": "managed" },
+    { "path": ".agents/climb/PROTOCOL.md", "from": ".agents/climb/PROTOCOL.md", "kind": "managed" },
+    { "path": ".agents/climb/jobs/test-time.md", "from": ".agents/climb/jobs/test-time.md", "kind": "managed" }
+  ]
+}

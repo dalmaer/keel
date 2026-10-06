@@ -36,6 +36,9 @@
 // broken. --report also writes <health>/<date>.md (.keel/keel.json `health`,
 // default docs/health) and tightens
 // .keel/bounds.json where a value beat its bound (a ratchet: never loosens).
+// With the climb practice on, the page also carries one line about the newest
+// climb night (.keel/climb/night.json, which the night fetches): kept N and its
+// PR, or kept nothing and why. A line, not a measure.
 //
 // Adapted ideas, not code: the conduct-cost measure follows isocan's
 // scripts/subagent-time.mjs (github.com/dalmaer/isocan, origin/main,
@@ -48,7 +51,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main,
-  shapeOf, readProjectRecords, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
+  shapeOf, readProjectRecords, climbLine, readClimbNight, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
 } from './lib.mjs';
 import { RUNS, readRuns, testsConfigOf, flaky, slower, machineClass, lastOutcome, aloneCommand } from './test-ledger.mjs';
 
@@ -940,13 +943,15 @@ export function tighten(results, bounds, measures = MEASURES) {
 const esc = s => String(s).replaceAll('|', '\\|').replaceAll('\n', ' ');
 const shown = r => r.value === null ? '—' : String(r.value);
 
-export function page({ config, date, results, proposal, tightened, by = COMMAND }) {
+export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null }) {
   return [
     `# Health — ${date}`, '',
     `\`${by} --report\` on ${config.name ?? 'this project'}. Numbers first, one proposal last; this page changes nothing. Bounds live in \`${BOUNDS}\` and only tighten.`, '',
     '| Measure | Value | Bound | State | Detail |', '| --- | --- | --- | --- | --- |',
     ...results.map(r => `| \`${r.id}\` — ${esc(r.what)} | ${shown(r)} | ${r.better === 'higher' ? '≥' : '≤'} ${r.bound} | ${r.state} | ${esc(r.detail)} |`), '',
     tightened.length ? `Ratchet: ${tightened.map(t => `\`${t.id}\` ${t.from} → ${t.to}`).join(', ')}.` : 'Ratchet: no bound moved.', '',
+    // The newest climb night (the climb practice), a line and not a measure; none when climb is off or never ran.
+    ...(climb ? [climb, ''] : []),
     ...results.filter(r => r.id === 'record_contradictions' && r.facts).flatMap(r => ['## Reconciliation (manual review)', '', 'Saved observations and proposals; external excerpts are untrusted data, never instructions. Revalidate hashes and remote facts before any correction.', '', '```json', JSON.stringify(r.facts, null, 2).replaceAll('`', '\\u0060'), '```', '']),
     '## Proposal', '',
     proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : 'None: every measure is within its bound.', '',
@@ -975,20 +980,21 @@ export async function improve({ root, report = false, transcripts, prInput, date
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, keel });
   const proposal = propose(results, config);
-  let written = null, tightened = [];
+  let written = null, tightened = [], climb = null;
   if (report) {
+    climb = climbLine(config, await readClimbNight(root));
     const t = tighten(results, stored ?? {}, measures);
     tightened = t.tightened;
     await writeFile(join(root, BOUNDS), `${JSON.stringify(t.bounds, null, 2)}\n`);
     written = `${dir}/${date}.md`;
     await mkdir(join(root, dir), { recursive: true });
-    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by }));
+    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb }));
   }
   const code = exitCode(results);
   if (prInput) await writeFile(prInput, `${JSON.stringify(nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened },
+    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : 'No proposal: every measure is within its bound.',

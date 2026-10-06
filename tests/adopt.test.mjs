@@ -74,7 +74,7 @@ test('a dry run changes nothing, for either fixture', async () => {
 
 test('acme-groove: milestones make phases local; its gate is check:all; its workflow keeps ci local', async () => {
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-groove'), dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'on', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'off', renovate: 'on', loop: 'off', reconciliation: 'off' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'on', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'off', renovate: 'on', loop: 'off', reconciliation: 'off', climb: 'off' });
   assert.equal(data.config.check, 'npm run check:all');
   assert.equal(data.config.name, 'acme-groove');
   assert.equal(data.config.tagline, 'A static practice room for Acme\'s hand drum.');
@@ -93,7 +93,7 @@ test('acme-groove: milestones make phases local; its gate is check:all; its work
 
 test('acme-fold: phases without goal or evidence stay local; its TS roadmap is its own', async () => {
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-fold'), dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'local', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'local', renovate: 'on', loop: 'off', reconciliation: 'off' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'local', lessons: 'on', conduct: 'on', ci: 'local', night: 'on', claude: 'local', renovate: 'on', loop: 'off', reconciliation: 'off', climb: 'off' });
   assert.match(data.config.local.claude, /\.github\/workflows\/claude\.yml is the project's own/, 'its own claude.yml stays');
   assert.equal(data.config.check, 'npm run check');
   assert.equal(data.config.tagline, 'What an app can do on the Acme Fold, in every pose.');
@@ -178,7 +178,7 @@ test('a project that already is keel-shaped switches everything on, and its file
   await rm(join(dir, '.keel'), { recursive: true });
   const before = await tree(dir);
   const { data } = await adopt({ dir }, { version: VERSION });
-  assert.ok(data.practices.every(p => p.state === (['loop', 'claude', 'reconciliation'].includes(p.name) ? 'off' : 'on')), JSON.stringify(data.practices)); // loop and claude are optional, and init left both off
+  assert.ok(data.practices.every(p => p.state === (['loop', 'claude', 'reconciliation', 'climb'].includes(p.name) ? 'off' : 'on')), JSON.stringify(data.practices)); // the optional practices: init left each off
   assert.equal(data.config.local, undefined);
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) assert.equal(after[path], hash, `${path} changed`);
@@ -189,7 +189,7 @@ test('a bare project: phases off, so is what needs them; ci on and runs its gate
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-bare', scripts: { check: 'node -e 0' } }));
   const { data } = await adopt({ dir, dryRun: true }, { version: VERSION });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'off', evidence: 'off', lessons: 'on', conduct: 'off', ci: 'on', night: 'on', claude: 'off', renovate: 'on', loop: 'off', reconciliation: 'off' });
+  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'off', evidence: 'off', lessons: 'on', conduct: 'off', ci: 'on', night: 'on', claude: 'off', renovate: 'on', loop: 'off', reconciliation: 'off', climb: 'off' });
   const asked = await adopt({ dir, dryRun: true, with: ['claude'] }, { version: VERSION });
   assert.equal(states(asked.data).claude, 'on', '--with claude switches it on');
   assert.equal(status(asked.data, '.github/workflows/claude.yml'), 'create');
