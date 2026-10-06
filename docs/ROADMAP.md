@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 35 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 38 phases lived in; 27 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -103,7 +103,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-4/7 built or lived-in; 0/7 lived-in.
+4/10 built or lived-in; 0/10 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -114,6 +114,9 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [26. Phase records agree with delivery facts and current decisions](phases/26-reconciliation.md) | built | 2026-10-04 | [5](phases/05-managed-files-and-drift.md), [15](phases/15-projects-run-on-their-own.md), [18](phases/18-docs-cannot-drift.md) | Shared checks, PR impact declarations and manual proposals ship in doctor, CI and night health. Ledger main and its correction branch audited read-only; merge never advances acceptance. |
 | [27. A project that keeps phases per project is measured, not skipped](phases/27-projects-shape-measured.md) | built | 2026-10-05 | [11](phases/11-keel-improve.md), [15](phases/15-projects-run-on-their-own.md) | improve reads the projects shape (isocan: 23 phases without an issue, 22 stuck) and gains eight record measures from isocan's practice page, each n/a with a reason where its source is absent. |
 | [33. Every test run is remembered, and a flaky or slower test becomes hygiene work](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | planned | 2026-10-06 | [10](phases/10-the-night-shift.md), [11](phases/11-keel-improve.md) | The owner's example: after a test run, the agent hears 'this test is flaky over the last N runs' or 'much slower than its last N runs', as hygiene work. A zero-dependency node reporter records each test; flaky is a fact (mixed outcomes on one clean tree), slower needs 2x the median and a floor. Design: research/2026-10-06-spec-rigor.md. · [#11](https://github.com/dalmaer/keel/issues/11) |
+| [35. A project can send an agent to climb one number overnight, and only a person merges what it finds](phases/35-a-project-can-send-an-agent-to-climb-one-number.md) | planned | 2026-10-06 | [10](phases/10-the-night-shift.md), [15](phases/15-projects-run-on-their-own.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | The 6 Oct hill-climb (suite 48s → 23s) as a repeatable, opt-in night: one shared protocol, one job a night within a budget, one PR a person merges. First job: test-time, on keel. Design: research/2026-10-06-climb-nights.md. · [#13](https://github.com/dalmaer/keel/issues/13) |
+| [36. A flaky test and a slower build are climbed the same way](phases/36-a-flaky-test-and-a-slower-build-are-climbed-the.md) | planned | 2026-10-06 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md) | Two more climb jobs on the shared protocol: hygiene (fix or file a flaky test the ledger named) and build-time (a project's build command, timed). Design: research/2026-10-06-climb-nights.md. · [#14](https://github.com/dalmaer/keel/issues/14) |
+| [37. A project's own benchmark, its lessons and its Loop findings are climbed overnight](phases/37-a-project-s-own-benchmark-its-lessons-and-its.md) | planned | 2026-10-06 | [14](phases/14-stitch-loop.md), [20](phases/20-keel-runs-ledger.md), [31](phases/31-the-lessons-table-is-distilled-into-patterns.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md) | The last three climb jobs, proven on ledger: perf (the project's own benchmark), lessons (phase 31's distill, in the project) and loop (pull Stitch Loop's findings and propose a rank for each; a person decides). Design: research/2026-10-06-climb-nights.md. · [#15](https://github.com/dalmaer/keel/issues/15) |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
@@ -122,6 +125,9 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 - **26 done when:** Keel's existing checks detect and propose scoped corrections for merged-PR, completed-next-action and superseded-decision contradictions on an adopted project, without inferring acceptance, production verification or lived-in status from a merge.
 - **27 done when:** `keel improve` on a projects-shaped repo (isocan) reports `phases_stuck`, `phases_without_issue` and the new record measures with values, not `n/a`, and every new measure is `n/a` with a reason, never a zero, where the project has nothing for it to read.
 - **33 done when:** After `npm test` in keel and in one adopted project, the run ends with a hygiene block naming any test that was flaky or got slower over its last N runs, with the command to reproduce it; the night's health page counts both; and one real hygiene item has been found and fixed this way.
+- **35 done when:** A project that opts in (keel first) gets, on a scheduled night, one `keel-climb/test-time/<date>` PR made by an agent under the shared protocol: a baseline, kept changes each with numbers measured against noise, a list of what was tried and reverted, the gate green; or, when nothing beat the noise, no PR and a line on the health page saying so. Nothing it opens merges without a person.
+- **36 done when:** A climb night picks `hygiene` when the ledger names a flaky test and opens a PR that makes it pass reliably (its fix shown by the ledger over repeated runs on one clean tree) or files an issue saying why it could not; and a project that names a `build` command gets `build-time` PRs under the same protocol.
+- **37 done when:** On ledger, climb nights have run each of `perf` (its own benchmark command, measured under the protocol), `lessons` (a distill pass over ledger's table, proposals for the owner) and `loop` (Loop's new findings pulled and each given a proposed rank), each opening at most one PR that the owner reads, and none deciding anything a person decides.
 
 ## G5 — Keel knows whether it helps
 
