@@ -11,7 +11,8 @@
 //   tend-input [--record]           the worksheet: every record finding, or n/a with why
 //   tend-note --finding id --propose "…" | --tried "…"   what tend leaves to the owner
 //   guard --job tend [--base r]     the tend guard, then the gate
-//   tend-report [--body f]          the measures again on the branch, the PR body, the line
+//   tend-report [--body f]          the measures again on the branch, the owner's page
+//                                   (docs/tend/<date>.md, when it proposed), the PR body, the line
 //
 // It never writes evidence, never marks built, lived-in or accepted, never
 // deletes, never merges: the guard refuses the first three, naming the line;
@@ -97,6 +98,18 @@ export function sandboxProblems(root, base, head) {
   }
   return out;
 }
+
+/**
+ * What a tend pass may change at all: its surfaces, as .agents/climb/TEND.md's
+ * "You may" names them (ledger#92). Records and agent-facing text only: any
+ * Markdown under docs/ but docs/evidence/ (the phases, the roadmap, the
+ * decisions and research reconciliation reads, docs/projects), a README in
+ * any directory, AGENTS.md, CLAUDE.md, and Markdown under .agents/. A change
+ * anywhere else is refused, whether or not a commit cites a finding.
+ */
+export const TEND_SURFACES = Object.freeze(['docs/**/*.md (never docs/evidence/)', 'README.md', 'AGENTS.md', 'CLAUDE.md', '.agents/**/*.md']);
+export const tendSurface = path => (/^docs\/.+\.md$/.test(path) && !path.startsWith('docs/evidence/'))
+  || /(^|\/)README\.md$/.test(path) || path === 'AGENTS.md' || path === 'CLAUDE.md' || /^\.agents\/.+\.md$/.test(path);
 
 // ---- small tools ---------------------------------------------------------------
 
@@ -350,8 +363,9 @@ const firstAdded = (root, base, head, path) => {
  * The tend guard over base..head: { refused: [string] }. Refuses, naming the
  * line: any file added or edited under docs/evidence/; a front-matter status
  * changed to built, lived-in or accepted; an acceptance box ticked; any
- * tracked file deleted (a rename is a deletion here); and a commit that cites
- * no finding (`Tend: <id>`) from the worksheet.
+ * tracked file deleted (a rename is a deletion here); any file outside
+ * TEND_SURFACES; and a commit that cites no finding (`Tend: <id>`) from the
+ * worksheet.
  */
 export function tendCheck(root, base, head, { findings = null } = {}) {
   const refused = [];
@@ -359,7 +373,7 @@ export function tendCheck(root, base, head, { findings = null } = {}) {
   for (const { status, path } of changes) {
     if (status.startsWith('D')) { refused.push(`${path}: deleted; tend never deletes a tracked file (a branch, a PR or data alike): propose it for the owner instead`); continue; }
     if (path.startsWith('docs/evidence/')) { refused.push(`${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; tend never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
-    if (!path.endsWith('.md')) continue;
+    if (!tendSurface(path)) { refused.push(`${path}: outside tend's surfaces (${TEND_SURFACES.join(', ')}); tend changes records and agent-facing text only, cited or not`); continue; }
     const before = showAt(root, base, path), after = showAt(root, head, path);
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; tend never marks a phase built, lived-in or accepted (it may only propose a step back to partial)`);
@@ -392,7 +406,7 @@ export async function tendGuard({ root, config, env = process.env, base, check =
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new TendError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, job: 'tend', problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
-  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the tend guard passed (no evidence written, no status marked built, lived-in or accepted, no box ticked, nothing deleted, every commit cites a finding)`;
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the tend guard passed (no evidence written, no status marked built, lived-in or accepted, no box ticked, nothing deleted, nothing outside its surfaces, every commit cites a finding)`;
   if (pass) { pass.gate = line; await writePass(root, pass); }
   return { ok: true, job: 'tend', line, problems: [] };
 }
@@ -416,25 +430,64 @@ export function tendImpact(files) {
     : { version: 1, phases: [], decisions: [], supersedes: [], evidence: [], reconciliation: 'none', reason: 'The weekly tend pass edits no phase or decision record.' };
 }
 
+/** Where a pass's proposals for the owner go: a dated page the PR carries, so a pass that only proposes still reaches a person. */
+export const TEND_PAGES = 'docs/tend';
+export const proposalsPageOf = date => `${TEND_PAGES}/${date}.md`;
+
+/**
+ * The finding ids the re-run on the branch still reports, and whether it
+ * could tell for a finding: { still: Set, ran(finding) }. A source that did
+ * not run after (n/a, or no re-run) cannot tell, so nothing it owns is resolved.
+ */
+function remeasured(after) {
+  const still = new Set();
+  const told = new Set();
+  for (const m of after?.measures ?? []) {
+    if (m.state === 'n/a') continue;
+    const fs = m.findings ?? (m.value > 0 ? null : []);
+    if (!fs) continue;
+    told.add(m.id);
+    for (const f of fs) still.add(f.id);
+  }
+  if (after?.reconciliation?.state === 'ok') { told.add('reconciliation'); for (const f of after.reconciliation.findings ?? []) still.add(f.id); }
+  return { still, ran: f => told.has(f.measure) };
+}
+
 /**
  * The PR body's input (scripts/keel/pr-body.mjs) and the pass's line, from the
  * pass record, its commits, the files they change, and the record measures
- * run again on the branch (`after`, the same shape as the worksheet's).
+ * run again on the branch (`after`, the same shape as the worksheet's). A
+ * finding is resolved when a commit cites it and the re-run no longer reports
+ * it; cited but still reported, it was tried (ledger#92). Loose ends are the
+ * machine's, not re-measured: citing one resolves it. `page` is the proposals
+ * page this pass committed, when it proposed anything.
  */
-export function tendReportOf(pass, { commits = [], files = [], after = null, now = new Date() } = {}) {
+export function tendReportOf(pass, { commits = [], files = [], after = null, now = new Date(), page = null } = {}) {
   const w = pass.worksheet;
   const minutes = Math.max(0, Math.round((now - new Date(pass.started)) / 60_000));
   const byId = new Map(w.findings.map(f => [f.id, f]));
-  const resolved = new Map();
-  for (const c of commits) for (const id of c.cites) if (byId.has(id)) resolved.set(id, [...(resolved.get(id) ?? []), c]);
+  const cited = new Map();
+  for (const c of commits) for (const id of c.cites) if (byId.has(id)) cited.set(id, [...(cited.get(id) ?? []), c]);
+  const { still, ran } = remeasured(after);
+  const resolved = new Map(), stillThere = new Map();
+  for (const [id, cs] of cited) {
+    const f = byId.get(id);
+    if (f.measure === 'loose-ends' || (ran(f) && !still.has(id))) resolved.set(id, cs);
+    else stillThere.set(id, cs);
+  }
   const notes = pass.notes ?? [];
   const proposed = notes.filter(n => n.kind === 'proposed' && !resolved.has(n.finding));
   const tried = new Map(notes.filter(n => n.kind === 'tried').map(n => [n.finding, n.text]));
-  const unresolved = w.findings.filter(f => !resolved.has(f.id) && !proposed.some(p => p.finding === f.id)).map(f => ({ id: f.id, what: f.what, tried: tried.get(f.id) ?? null }));
+  const triedText = id => {
+    const cs = stillThere.get(id);
+    const by = cs ? `${cs.map(c => `${c.sha.slice(0, 7)} ("${c.subject}")`).join(', ')} cited it, but ${ran(byId.get(id)) ? 'the re-run on the branch still reports it' : 'its measure did not run again on the branch, so it is not shown resolved'}.` : null;
+    return [by, tried.get(id)].filter(Boolean).join(' ') || null;
+  };
+  const unresolved = w.findings.filter(f => !resolved.has(f.id) && !proposed.some(p => p.finding === f.id)).map(f => ({ id: f.id, what: f.what, tried: triedText(f.id) }));
   const before = w.count, afterCount = after ? recordCount(after) : null;
   const countText = `record count ${before} → ${afterCount ?? '?'}`;
   const line = `Tend ${pass.date}: resolved ${resolved.size} of ${w.findings.length} finding${w.findings.length === 1 ? '' : 's'} (${countText}); ${proposed.length} proposed for the owner; ${unresolved.length} unresolved${unresolved.length ? `: ${unresolved.slice(0, 5).map(u => u.id).join(', ')}${unresolved.length > 5 ? ', …' : ''}` : ''}; ${minutes} min`;
-  const summary = { pass: { date: pass.date, resolved: [...resolved.keys()], proposed: proposed.map(p => ({ finding: p.finding, text: p.text })), unresolved, before, after: afterCount } };
+  const summary = { pass: { date: pass.date, resolved: [...resolved.keys()], proposed: proposed.map(p => ({ finding: p.finding, text: p.text })), unresolved, before, after: afterCount, ...(page ? { page } : {}) } };
   if (!commits.length) return { ...summary, minutes, line, input: null };
   const measureRows = w.measures.map(m => {
     const a = after?.measures.find(x => x.id === m.id);
@@ -444,14 +497,18 @@ export function tendReportOf(pass, { commits = [], files = [], after = null, now
   const rec = s => (s?.state === 'ok' ? String(s.findings.length) : 'n/a');
   const input = {
     summary: {
-      lead: `tend ${pass.date}: ${resolved.size} of ${w.findings.length} record findings resolved, each commit citing its finding; the owner merges.`,
+      lead: `tend ${pass.date}: ${resolved.size} of ${w.findings.length} record findings resolved (each cited by its commit and gone from the re-run)${proposed.length ? `, ${proposed.length} proposed for the owner${page ? ` in ${page}` : ''}` : ''}; the owner merges.`,
       table: {
         head: ['Finding', 'What was done'],
-        rows: [...resolved].map(([id, cs]) => [`\`${id}\`: ${byId.get(id).what}`, cs.map(c => `${c.subject} (${c.sha.slice(0, 7)})`).join('; ')]),
+        rows: [
+          ...[...resolved].map(([id, cs]) => [`\`${id}\`: ${byId.get(id).what}`, cs.map(c => `${c.subject} (${c.sha.slice(0, 7)})`).join('; ')]),
+          ...[...stillThere].map(([id, cs]) => [`\`${id}\`: ${byId.get(id).what}`, `tried, not resolved: ${cs.map(c => `${c.subject} (${c.sha.slice(0, 7)})`).join('; ')}; the re-run still reports it`]),
+          ...(page ? proposed.map(p => [`\`${p.finding}\`: ${byId.get(p.finding)?.what ?? p.finding}`, `proposed for the owner in ${page}`]) : []),
+        ],
       },
     },
     evidence: {
-      gate: pass.gate ?? 'not run: the tend guard did not record a gate line',
+      gate: pass.gate ?? (commits.some(c => c.cites.length) ? 'not run: the tend guard did not record a gate line' : 'not run: the agent committed nothing, so there was nothing to gate'),
       columns: ['Before (the worksheet)', 'After (this branch)'],
       rows: [...measureRows, { what: 'reconciliation findings', before: rec(w.reconciliation), after: rec(after?.reconciliation) }, { what: '**record count**', before: String(before), after: afterCount === null ? '—' : String(afterCount) }],
     },
@@ -471,19 +528,44 @@ export function tendReportOf(pass, { commits = [], files = [], after = null, now
   return { ...summary, minutes, line, input };
 }
 
+/** The proposals page a pass commits: what tend leaves to the owner, as a checklist. */
+export function proposalsPage(pass, proposed) {
+  const what = new Map(pass.worksheet.findings.map(f => [f.id, f.what]));
+  return [
+    `# Tend ${pass.date}: for the owner`, '',
+    'The weekly tend pass found these on its worksheet and may only propose them (`.agents/climb/TEND.md`): each is yours to choose. `scripts/keel/climb.mjs tend-report` wrote this page from the pass\'s notes; the pass\'s pull request carries it.', '',
+    ...proposed.map(p => `- [ ] \`${p.finding}\`: ${what.get(p.finding) ?? ''}\n  Proposed: ${p.text.replace(/\s*\n\s*/g, ' ')}`), '',
+  ].join('\n');
+}
+
 export async function tendReport({ root, config, env = process.env, body, input }) {
   const pass = await readPass(root, input);
   if (!pass) throw new TendError(`no pass record at ${input ?? PASS}`);
-  const commits = tendCommits(root, pass.base);
-  const files = git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
-  const after = commits.length ? { measures: await recordMeasures(root, config, env), reconciliation: reconciliationOf(root, config, env) } : null;
-  const r = tendReportOf(pass, { commits, files, after });
+  const changed = () => git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
+  let commits = tendCommits(root, pass.base);
+  const proposing = (pass.notes ?? []).some(n => n.kind === 'proposed');
+  const after = commits.length || proposing ? { measures: await recordMeasures(root, config, env), reconciliation: reconciliationOf(root, config, env) } : null;
+  let r = tendReportOf(pass, { commits, files: changed(), after });
+  // What tend leaves to the owner reaches the owner: the judge (never the
+  // agent) commits it as a page, so a pass that only proposed opens a PR too.
+  let page = null;
+  if (r.pass.proposed.length) {
+    page = proposalsPageOf(pass.date);
+    await mkdir(join(root, TEND_PAGES), { recursive: true });
+    await writeFile(join(root, page), proposalsPage(pass, r.pass.proposed));
+    if (git(root, ['status', '--porcelain', '--', page])) {
+      git(root, ['add', '--', page]);
+      git(root, ['commit', '-q', '-m', `keel tend: ${pass.date}, ${plural(r.pass.proposed.length, 'proposal')} for the owner`, '--', page]);
+    }
+    commits = tendCommits(root, pass.base);
+    r = tendReportOf(pass, { commits, files: changed(), after, page });
+  }
   let text = null;
   if (r.input) {
     text = prBody(r.input);
     if (body) await writeFile(body, text);
   }
-  Object.assign(pass, { line: r.line, resolved: r.pass.resolved, proposed: r.pass.proposed, unresolved: r.pass.unresolved, after: r.pass.after, commits: commits.length });
+  Object.assign(pass, { line: r.line, resolved: r.pass.resolved, proposed: r.pass.proposed, unresolved: r.pass.unresolved, after: r.pass.after, commits: commits.length, ...(page ? { page } : {}) });
   await writePass(root, pass);
   return { date: pass.date, commits: commits.length, line: r.line, text, body: text && body ? body : null, ...r.pass };
 }

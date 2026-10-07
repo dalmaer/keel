@@ -136,6 +136,56 @@ test('pick: the job tied to the worst measure, rotation when none is outside, an
   assert.equal(json(climb(dir, ['pick', '--date', '2026-10-06', '--force', '--json'], { KEEL_GH: none })).job, 'test-time');
 });
 
+test('rotation: a night that keeps nothing is remembered by its record (the keel-climb artifact), so the next night moves on; .keel/climb.json never has to reach main (ledger#92)', async t => {
+  const dir = await acme(t, { climb: { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' } });
+  const gh = await stubGh(t, []);
+  const pickWith = (args = []) => json(climb(dir, ['pick', '--date', '2026-10-07', ...args, '--json'], { KEEL_GH: gh }));
+  assert.equal(pickWith().job, 'test-time', 'no memory: the first job');
+  // The state on main says build-time ran on the 5th (its PR merged); the 6th was test-time and kept nothing.
+  await write(dir, { '.keel/climb.json': JSON.stringify({ last: { job: 'build-time', date: '2026-10-05', kept: 1 } }) });
+  assert.equal(pickWith().job, 'test-time', '.keel/climb.json alone: after build-time');
+  const record = join(dir, '..', `${dir.split('/').pop()}-night.json`);
+  t.after(() => rm(record, { force: true }));
+  await writeFile(record, JSON.stringify({ job: 'test-time', date: '2026-10-06', base: 'x', tried: [] }));
+  const p = pickWith(['--last-night', record]);
+  assert.equal(p.job, 'build-time', 'the newer record wins: after test-time (mutation: pick ignoring --last-night picks test-time again)');
+  assert.deepEqual(p.last, { job: 'test-time', date: '2026-10-06', from: "the last night's record" });
+  // An older record than the state, or one that is not a night's: the state.
+  await writeFile(record, JSON.stringify({ job: 'test-time', date: '2026-10-01' }));
+  assert.equal(pickWith(['--last-night', record]).job, 'test-time');
+  await writeFile(record, 'not json');
+  assert.equal(pickWith(['--last-night', record]).job, 'test-time');
+  assert.equal(pickWith(['--last-night', join(dir, 'no-such.json')]).job, 'test-time');
+
+  // The workflow: the record, fetched read-only from the newest keel-climb artifact, reaches pick.
+  const bin = await mkdtemp(join(tmpdir(), 'keel-climb-artifacts-'));
+  t.after(() => rm(bin, { recursive: true, force: true }));
+  await mkdir(join(bin, 'record'));
+  await writeFile(join(bin, 'record/night.json'), JSON.stringify({ job: 'test-time', date: '2026-10-06' }));
+  assert.equal(run('zip', ['-q', '-j', join(bin, 'night.zip'), join(bin, 'record/night.json')]).status, 0);
+  await writeFile(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> "${bin}/calls"\ncase "$2" in\n  *artifacts\\?name=keel-climb*) echo 7 ;;\n  */artifacts/7/zip) cat "${bin}/night.zip" ;;\n  *) exit 1 ;;\nesac\n`, { mode: 0o755 });
+  const temp = join(bin, 'runner');
+  await mkdir(temp);
+  const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', BASE: 'main', KEEL_GH: gh, EVENT: 'schedule' };
+  const read = await step(t, dir, "Read the last night's record", env);
+  assert.equal(read.status, 0, read.out);
+  assert.match(read.out, /the last night's record: artifact 7/);
+  assert.match(await readFile(join(bin, 'calls'), 'utf8'), /^api repos\/acme\/anvils\/actions\/artifacts\?name=keel-climb&per_page=100 --jq .*select\(\.workflow_run\.head_branch == "main"\)/m);
+  const picked = await step(t, dir, "Pick tonight's job", env);
+  assert.equal(picked.status, 0, picked.out);
+  assert.equal(picked.outputs.job, 'build-time', 'the workflow passes the record to pick');
+  // No record to read: a plain line, green, and pick reads .keel/climb.json alone.
+  await writeFile(join(bin, 'gh'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  await rm(join(temp, 'last-night'), { recursive: true, force: true });
+  const none = await step(t, dir, "Read the last night's record", env);
+  assert.equal(none.status, 0, none.out);
+  assert.match(none.out, /No earlier night's record/);
+  await writeFile(join(bin, 'gh'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const blind = await step(t, dir, "Read the last night's record", env);
+  assert.equal(blind.status, 0, blind.out);
+  assert.match(blind.out, /^::notice::The last night's record could not be listed/m);
+});
+
 test('config: a bad climb is an error naming each key; the defaults fill the rest', async t => {
   const dir = await acme(t, { climb: { jobs: ['test-time', 'acme-time'], budget: { minutes: 4 }, margin: 0.6, schedule: 'hourly', acme: 1 } });
   const bad = climb(dir, ['config', '--json']);
@@ -704,6 +754,10 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   refusedLike(await attempt('delete', () => rm(join(dir, 'tests/acme-ships.test.mjs'))), /^tests\/acme-ships\.test\.mjs: deleted; tend never deletes/, 'a deletion');
   refusedLike(await attempt('uncited', () => write(dir, { 'README.md': 'Acme sells anvils, and ships them.\n' }), 'acme: readme'), /"acme: readme": cites no finding/, 'no citation');
   refusedLike(await attempt('unknown', () => write(dir, { 'README.md': 'Acme.\n' }), 'acme: readme\n\nTend: lint:acme'), /cites lint:acme, which is not on the worksheet/, 'an unknown finding');
+  // Outside tend's surfaces (records and agent-facing text) is refused, cited or not (ledger#92).
+  refusedLike(await attempt('code', () => write(dir, { 'lib/acme.mjs': 'export const anvil = 1;\n' })), /^lib\/acme\.mjs: outside tend's surfaces/, 'code, though cited');
+  refusedLike(await attempt('docs-json', () => write(dir, { 'docs/goals.json': '{}\n' })), /^docs\/goals\.json: outside tend's surfaces/, 'a docs file that is not Markdown');
+  assert.deepEqual(await attempt('surfaces', () => write(dir, { 'AGENTS.md': '# Acme agents\n', 'CLAUDE.md': 'Read AGENTS.md.\n', '.agents/acme/NOTE.md': 'note\n', 'docs/decisions/0001-acme.md': '# Anvils\n', 'packages/anvil/README.md': '# Anvil\n' })), [], 'every surface passes');
   assert.deepEqual(await attempt('fix', () => writeFile(join(dir, 'README.md'), '# Acme\n\nAcme sells anvils.\n')), [], 'a cited README fix passes');
   assert.deepEqual(await attempt('step-back', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('Ship one.', 'Ship one anvil to the first customer.'))), [], 'a refreshed next action passes');
   // The command line: the guard, then the gate; a refusal is exit 1 naming the line.
@@ -1027,4 +1081,32 @@ test('loop: pulls, proposes a rank for every untriaged finding and decides none;
   assert.equal(r2.status, 1, r2.stdout);
   assert.match(json(r2).problems.join('\n'), /sprocket-api-lacks-rate-limit\.md was accepted and its rank changed tonight: a proposal never overrides a decision/);
   git(dir, ['reset', '-q', '--hard', head]);
+});
+
+test('a loop night and keel-loop.yml never both pull: where keel-loop.yml is installed the night pulls nothing, says so, and proposes for the findings already here (ledger#92)', async t => {
+  const files = {
+    'scripts/loop.mjs': await readFile(LOOP, 'utf8'),
+    '.stitch.json': '{ "workspace": "acme-0000-workspace" }\n',
+    '.github/workflows/keel-loop.yml': 'name: keel-loop\n',
+    'docs/loop/widget-cache-ignores-expiry.md': await findingText({ title: 'Widget cache ignores expiry', loop: [ALPHA], body: '# Widget cache ignores expiry\n\n## Our read\n\nNot yet checked.' }),
+  };
+  const dir = await acme(t, { climb: { jobs: ['loop'] }, config: { practices: ['loop'], check: 'node -e ""' }, files });
+  const env = { KEEL_STITCH: STITCH, STITCH_API_KEY: 'acme-key', STITCH_STUB_LOG: join(dir, '..', `${dir.split('/').pop()}-stitch.log`), STITCH_STUB_STATE: join(dir, '..', `${dir.split('/').pop()}-stitch.json`) };
+  t.after(() => Promise.all([rm(env.STITCH_STUB_LOG, { force: true }), rm(env.STITCH_STUB_STATE, { force: true })]));
+  await writeFile(env.STITCH_STUB_LOG, '');
+  await writeFile(env.STITCH_STUB_STATE, JSON.stringify({ insights: [loopInsight(ALPHA, 'Widget cache ignores expiry'), loopInsight(GAMMA, 'Gear loader drops errors')] }));
+  assert.equal(json(climb(dir, ['pick', '--json'], { KEEL_GH: await stubGh(t, []) })).job, 'loop');
+  git(dir, ['switch', '-q', '-c', 'keel-climb/loop/2026-10-07']);
+  climb(dir, ['measure', 'loop', '--baseline', '--json']);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  // The workflow's own step, with a Loop key: no stitch install, and the script says why there is no pull.
+  const s = await step(t, dir, "Pull Loop's findings", env);
+  assert.equal(s.status, 0, s.out);
+  assert.doesNotMatch(s.out, /npm|stitch enable/);
+  assert.match(s.out, /^No pull tonight: \.github\/workflows\/keel-loop\.yml pulls Loop here every day, so this night does not \(the two never both pull\); the night proposes for the findings already here \(1 untriaged\)$/m);
+  assert.equal((await readFile(env.STITCH_STUB_LOG, 'utf8')).trim(), '', 'Loop was never asked (mutation: a night that pulls here calls stitch)');
+  assert.equal(git(dir, ['rev-parse', 'HEAD']), base, 'nothing pulled, nothing committed');
+  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  assert.deepEqual([night.loop.pulled, night.loop.elsewhere], [false, true]);
+  assert.match(json(climb(dir, ['report', '--json'])).line, /; Loop pulled by keel-loop\.yml, not this night: proposed for the findings already here; \d+ min$/);
 });

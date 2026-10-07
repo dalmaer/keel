@@ -1,9 +1,10 @@
 # Job: loop
 
-**The number:** Loop's untriaged findings in `docs/loop/`. The workflow has
-already pulled Loop (`climb.mjs loop-pull`, in place of keel-loop's pull
-today) and committed it; if Loop was unreachable, you work on the findings
-already here. This job changes no code: it proposes, and the owner decides.
+**The number:** Loop's untriaged findings in `docs/loop/`. Where
+keel-loop.yml is installed, it pulls Loop every day and this night does not;
+elsewhere the workflow has already pulled Loop (`climb.mjs loop-pull`) and
+committed it. Either way, or if Loop was unreachable, you work on the
+findings here. This job changes no code: it proposes, and the owner decides.
 
 **For each untriaged finding** (`node scripts/loop.mjs list -d untriaged`):
 read it, then read the code it names, and prove or disprove the claim. Then

@@ -19,11 +19,14 @@
 #     climb.mjs sandbox first (no workflow, scripts/keel/ or .keel/keel.json
 #     changed), then the tend guard (no evidence written, no status marked
 #     built, lived-in or accepted, no acceptance box ticked, nothing deleted,
-#     every commit citing its finding) and the gate. `publish` holds the
-#     write token, runs no code of the branch's, checks the sandbox again,
-#     and opens one PR on refs/heads/keel-tend/<date>, never main, never
-#     merged here. A pass that changed nothing opens nothing, and its line
-#     says what was left.
+#     every commit citing its finding, nothing outside its surfaces) and
+#     the gate. `publish` holds the write token, runs no code of the
+#     branch's, checks the sandbox again, and opens one PR on
+#     refs/heads/keel-tend/<date>, never main, never merged here.
+#   - What the pass proposes reaches the owner: the judge (never the agent)
+#     commits it as docs/tend/<date>.md, so a pass that only proposed opens
+#     a PR too. A pass with neither commits nor proposals opens nothing, and
+#     its line says what was left.
 #
 # SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
 # as the climb's. Each pass spends model tokens, up to "tend".budget.minutes.
@@ -277,6 +280,9 @@ jobs:
             head=$(git rev-parse FETCH_HEAD)
           fi
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          # The judge's own commit (the owner's page of proposals) is keel-tend's.
+          git config user.name "keel-tend"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -q -c "$BRANCH" "$head"
           # The pass's record, as data: nothing else of the agent's tree.
           mkdir -p .keel/tend
@@ -326,7 +332,8 @@ jobs:
 
       # Judged by the script, not the agent: anything uncommitted goes; the
       # tend guard and the gate (red if either fails); then the measures again
-      # on the branch, the PR body and the pass's line.
+      # on the branch, the owner's page of proposals (one commit, the
+      # judge's), the PR body and the pass's line.
       - name: Judge the pass
         id: judge
         run: |
@@ -400,8 +407,8 @@ jobs:
           name: keel-tend-agent
           path: ${{ runner.temp }}/pass
 
-      # One PR, on this workflow's own prefix; a person merges it. A pass that
-      # committed nothing pushes nothing.
+      # One PR, on this workflow's own prefix; a person merges it. A pass with
+      # no commit (neither the agent's nor the judge's page) pushes nothing.
       - name: Open the tend pull request
         if: needs.judge.result == 'success'
         env:

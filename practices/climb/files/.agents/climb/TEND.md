@@ -31,8 +31,9 @@ finding has an id. Work on nothing that is not on it.
 ## You may only propose
 
 Record each with `node scripts/keel/climb.mjs tend-note --finding <id>
---propose "<what the owner chooses, and why>"`; the PR lists them as a
-checklist for the owner:
+--propose "<what the owner chooses, and why>"`; after you stop, the
+judge writes them as a checklist to `docs/tend/<date>.md`, which the PR
+carries, so a pass that only proposes still reaches the owner:
 
 - stepping a phase back to `partial` (a lost proof), with the reason;
 - keep (eject), restore, or send home, for each drifted file, with its reason
@@ -41,6 +42,9 @@ checklist for the owner:
 
 ## You may never
 
+- change anything outside your surfaces: Markdown under `docs/` (but
+  `docs/evidence/`), a README, `AGENTS.md`, `CLAUDE.md`, and Markdown under
+  `.agents/`; anything else is refused, cited or not;
 - write or edit anything under `docs/evidence/`;
 - mark a phase `built`, `lived-in` or `accepted`, or tick an acceptance box;
 - delete a file, a branch, a PR or data;
@@ -56,7 +60,9 @@ the line; you can run it yourself before you stop.
    subject that says what it does and a last line citing the finding it
    resolves: `Tend: <finding id>` (one line per finding, if one change
    resolves two). A commit that cites no finding from the worksheet is
-   refused, and so is the whole pass.
+   refused, and so is the whole pass. A finding counts resolved only when
+   the measures, run again on your branch, no longer report it; cited but
+   still reported, it was tried.
 2. **Check what you touched.** `node scripts/roadmap.mjs --check` after a
    phase edit; the project's tests on what you changed. The guard runs the
    gate after you.

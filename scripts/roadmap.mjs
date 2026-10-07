@@ -97,8 +97,30 @@ export function items(text) {
 /** The measures an item names: the code span after each "measure"/"measured", and the one just before a "measure". */
 const measureNames = item => [...new Set([...item.matchAll(/\bmeasure[sd]?\b[^`]*?`([a-z]\w*)`/gi), ...item.matchAll(/`([a-z]\w*)`\s+(?:night\s+)?measure/gi)].map(m => m[1]))];
 
-/** "night" said of the measure, not denied ("not a night measure", "no night"). */
-const NIGHT = /(?<!\b(?:not|no|never)\s+(?:an?\s+|the\s+)?)\bnight/i;
+/** The night is named, and not only to deny it: "not a night measure" / "isn't the night's" is a study's or a product's measure. */
+const nightMeant = item => /\bnight/i.test(item.replace(/\b(?:not|isn't|is not)\s+(?:an?\s+|the\s+)?night(?:'s)?(?:\s+measure)?/gi, ''));
+
+/** The phrase that says "no bound", on its own: a clause holding it is unbounded. */
+const NO_BOUND = /\b(no bound|unbounded|recorded only|recorded-only|without (a )?bound)\b/i;
+
+/**
+ * The measures an item asks for with no bound, clause by clause (split on
+ * "." and ";"): a clause with the no-bound phrase governs the measures it
+ * names, or, naming none, those of the clause before it ("No night measure
+ * `x` has a bound; it is recorded only"). A bounded measure in another clause
+ * of the same item is not governed.
+ */
+function unboundedNames(item) {
+  let before = [];
+  const out = [];
+  let found = false;
+  for (const clause of item.split(/[.;](?:\s+|$)/)) {
+    const names = measureNames(clause);
+    if (NO_BOUND.test(clause) && (/\bmeasure/i.test(clause) || before.length)) { found = true; out.push(...(names.length ? names : before)); }
+    before = names.length ? names : before;
+  }
+  return found ? [...new Set(out)] : null;
+}
 
 /**
  * spec 2: a Scope or Acceptance item asking for a night measure with no bound.
@@ -112,9 +134,10 @@ function unboundedMeasures(sections, where) {
   const out = [];
   for (const section of ['Scope', 'Acceptance']) for (const item of items(sections[section] ?? '')) {
     // The night's measures only: a product's or a study's "recorded only" is not the selftest's business.
-    if (!UNBOUNDED_MEASURE.test(item) || !NIGHT.test(item)) continue;
-    // Every measure the item names must be faced; an item naming none is not.
-    const names = measureNames(item);
+    if (!nightMeant(item)) continue;
+    // Every measure the unbounded clauses govern must be faced; an unbounded clause naming none is not.
+    const names = unboundedNames(item);
+    if (!names) continue;
     if (names.length && names.every(n => faced.some(l => l.includes(`\`${n}\``)))) continue;
     const text = item.replace(/^\s*(- (\[[ x]\] )?)?/, '').trim();
     out.push(`${where(section)}: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}" asks for a measure with no bound, and the night's selftest refuses a measure its unhealthy fixture never puts outside; give it an optional bound the selftest fixture sets (as build_time has), or make it a line on the health page instead of a measure`);

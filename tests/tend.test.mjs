@@ -96,7 +96,10 @@ test('a tend pass: the worksheet, one cited fix, a proposal and a tried note; th
   assert.equal(g.status, 0, g.stdout + g.stderr);
   const body = join(dir, '..', 'body.md');
   const r = json(climb(dir, ['tend-report', '--body', body, '--json']));
-  assert.equal(r.commits, 1);
+  assert.equal(r.commits, 2, 'the agent\'s fix, and the judge\'s page of proposals');
+  assert.equal(r.page, 'docs/tend/2026-10-12.md');
+  assert.match(git(dir, ['log', '-1', '--format=%s']), /^keel tend: 2026-10-12, 1 proposal for the owner$/);
+  assert.match(await readFile(join(dir, 'docs/tend/2026-10-12.md'), 'utf8'), /^- \[ \] `proofs_hold:1`: phase 1 .*\n {2}Proposed: Step phase 1 back to partial/m);
   assert.deepEqual(r.resolved, ['roadmap_stale']);
   assert.equal(r.before, before);
   assert.equal(r.after, before - 1, 'the roadmap check passes on the branch');
@@ -117,6 +120,56 @@ test('a tend pass: the worksheet, one cited fix, a proposal and a tried note; th
   // The pass's record carries what the night's line needs.
   const pass = JSON.parse(await readFile(join(dir, '.keel/tend/pass.json'), 'utf8'));
   assert.deepEqual([pass.resolved, pass.proposed.map(p => p.finding), pass.unresolved.map(u => u.id)], [['roadmap_stale'], ['proofs_hold:1'], others]);
+});
+
+test('a pass that only proposes still reaches the owner: the judge commits its proposals as docs/tend/<date>.md, so a PR opens; a pass with neither commits nor proposals opens nothing (ledger#92)', async t => {
+  const dir = await acme(t);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['switch', '-q', '-c', 'keel-tend/2026-10-12']);
+  const w = json(climb(dir, ['tend-input', '--record', '--date', '2026-10-12', '--json']));
+  // Nothing proposed, nothing committed: no page, no PR body, nothing to publish.
+  const quiet = json(climb(dir, ['tend-report', '--body', join(dir, '..', 'quiet.md'), '--json']));
+  assert.deepEqual([quiet.commits, quiet.body, quiet.page], [0, null, undefined]);
+  assert.equal(git(dir, ['rev-parse', 'HEAD']), base);
+  // The agent only proposes (stepping phase 1 back is the owner's), and commits nothing.
+  assert.equal(climb(dir, ['tend-note', '--finding', 'proofs_hold:1', '--propose', 'Step phase 1 back to partial: its test is gone.']).status, 0);
+  assert.equal(json(climb(dir, ['guard', '--job', 'tend', '--json'])).skipped, true, 'the agent committed nothing');
+  const body = join(dir, '..', 'body.md');
+  const r = json(climb(dir, ['tend-report', '--body', body, '--json']));
+  assert.equal(r.commits, 1, 'the judge\'s page is the PR\'s one commit (mutation: no page commit leaves 0, and publish opens nothing)');
+  assert.equal(r.page, 'docs/tend/2026-10-12.md');
+  assert.deepEqual(git(dir, ['diff', '--name-only', base, 'HEAD']).split('\n'), ['docs/tend/2026-10-12.md'], 'the page and nothing else');
+  assert.equal(git(dir, ['status', '--porcelain', '--untracked-files=no']), '', 'the judge\'s tree is clean after');
+  assert.deepEqual(r.proposed.map(p => p.finding), ['proofs_hold:1']);
+  const text = await readFile(body, 'utf8');
+  assert.match(text, /^\| `proofs_hold:1`: phase 1 .* \| proposed for the owner in docs\/tend\/2026-10-12\.md \|$/m);
+  assert.match(text, /^- \[ \] `proofs_hold:1`: Step phase 1 back to partial/m);
+  assert.match(text, /^Gate: not run: the agent committed nothing, so there was nothing to gate$/m);
+  assert.match(text, /"reconciliation":"none"/, 'the page is no phase or decision record');
+  // A re-run of the report makes no second commit.
+  assert.equal(json(climb(dir, ['tend-report', '--json'])).commits, 1);
+  assert.ok(w.findings.length >= 2);
+});
+
+test('resolved by measure, not by citation: a cited finding the re-run still reports was tried; a loose end, not re-measured, is resolved by its citation (ledger#92)', () => {
+  const worksheet = { count: 2, findings: [{ id: 'roadmap_stale', measure: 'roadmap_stale', what: 'the roadmap check fails' }, { id: 'lint:phase:docs/phases/02-acme.md', measure: 'lint', what: 'phase in docs/phases/02-acme.md' }, { id: 'loose:branch:acme-old', measure: 'loose-ends', what: 'branch: acme-old' }], measures: [{ id: 'roadmap_stale', state: 'outside', value: 1 }, { id: 'lint', state: 'outside', value: 1 }], reconciliation: { state: 'n/a', why: 'off', findings: [] } };
+  const pass = { date: '2026-10-12', started: '2026-10-12T09:42:00Z', worksheet, notes: [], gate: 'ok' };
+  const commits = [
+    { sha: 'a'.repeat(40), subject: 'Touch the roadmap', cites: ['roadmap_stale'] },
+    { sha: 'b'.repeat(40), subject: 'Fix the phase section', cites: ['lint:phase:docs/phases/02-acme.md'] },
+    { sha: 'c'.repeat(40), subject: 'Note the merged branch', cites: ['loose:branch:acme-old'] },
+  ];
+  const after = { measures: [{ id: 'roadmap_stale', state: 'outside', value: 1, findings: [{ id: 'roadmap_stale' }] }, { id: 'lint', state: 'ok', value: 0, findings: [] }], reconciliation: worksheet.reconciliation };
+  const r = tendReportOf(pass, { commits, files: ['docs/ROADMAP.md'], after, now: new Date('2026-10-12T10:00:00Z') });
+  assert.deepEqual(r.pass.resolved, ['lint:phase:docs/phases/02-acme.md', 'loose:branch:acme-old']);
+  assert.deepEqual(r.pass.unresolved.map(u => u.id), ['roadmap_stale']);
+  assert.match(r.pass.unresolved[0].tried, /^aaaaaaa \("Touch the roadmap"\) cited it, but the re-run on the branch still reports it\.$/);
+  assert.match(r.line, /^Tend 2026-10-12: resolved 2 of 3 findings \(record count 2 → 1\); 0 proposed for the owner; 1 unresolved: roadmap_stale;/);
+  assert.match(prBody(r.input), /^\| `roadmap_stale`: the roadmap check fails \| tried, not resolved: Touch the roadmap \(aaaaaaa\); the re-run still reports it \|$/m);
+  // A measure that could not run again cannot show its finding gone: tried, not resolved.
+  const blind = tendReportOf(pass, { commits, after: { ...after, measures: [after.measures[0], { id: 'lint', state: 'n/a', value: null, findings: [] }] } });
+  assert.deepEqual(blind.pass.resolved, ['loose:branch:acme-old']);
+  assert.match(blind.pass.unresolved.find(u => u.id === 'lint:phase:docs/phases/02-acme.md').tried, /its measure did not run again on the branch/);
 });
 
 test('the PR body: a phase edit is declared in the keel-impact block; a pass with no commit has no PR body', () => {

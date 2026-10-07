@@ -6,7 +6,8 @@
 // dependency: Node built-ins, git and gh (KEEL_GH stands in for gh).
 //
 //   node scripts/keel/climb.mjs config                      the climb config, validated
-//   node scripts/keel/climb.mjs pick [--date d] [--force]   tonight's job, or why none
+//   node scripts/keel/climb.mjs pick [--date d] [--force] [--last-night f]   tonight's job, or why none
+//                                   (f: the last night's night.json, from its keel-climb record)
 //   node scripts/keel/climb.mjs measure <job> [--runs k] [--baseline]
 //   node scripts/keel/climb.mjs compare [--base r] [--candidate r] [--rounds n] [--runs k] [--decide] [--final]
 //   node scripts/keel/climb.mjs revert --why "<why>"        drop HEAD's change, logged
@@ -354,7 +355,24 @@ function ghPrs(root, env, state, fields) {
 }
 const openHeads = (root, env) => ghPrs(root, env, 'open', 'headRefName').map(p => p?.headRefName).filter(h => typeof h === 'string');
 
-export async function pick({ root, config, env = process.env, date = today(), force = false }) {
+/**
+ * The rotation's last job: the newer of .keel/climb.json (it rides on a
+ * night's PR, so it reaches the default branch only when one is merged) and
+ * the last night's own record (`lastNight`: its night.json, from the
+ * keel-climb artifact every night keeps, kept or not). A night that keeps
+ * nothing opens no PR, so without the record the next night picks the same
+ * job again (ledger#92). { job, date, from } or null.
+ */
+export async function lastJob(root, lastNight) {
+  const state = (await readJson(join(root, STATE)))?.last;
+  const fromState = typeof state?.job === 'string' ? { job: state.job, date: String(state.date ?? ''), from: STATE } : null;
+  const night = lastNight ? await readJson(lastNight).catch(() => null) : null;
+  const fromNight = typeof night?.job === 'string' && Object.hasOwn(JOBS, night.job) && /^\d{4}-\d{2}-\d{2}$/.test(night.date ?? '') ? { job: night.job, date: night.date, from: 'the last night\'s record' } : null;
+  if (fromNight && (!fromState || fromNight.date >= fromState.date)) return fromNight;
+  return fromState;
+}
+
+export async function pick({ root, config, env = process.env, date = today(), force = false, lastNight }) {
   const c = climbConfigOf(config);
   if (!c) return { job: null, date, reason: 'climb is off: .keel/keel.json has no "climb"' };
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -364,11 +382,12 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   const retired = climbRetiring(ghPrs(root, env, 'all', 'headRefName,number,createdAt,mergedAt,state'), c.jobs);
   const retiring = new Set(retired.map(r => r.job));
   const health = await newestHealth(root, config);
-  const last = (await readJson(join(root, STATE)))?.last?.job ?? null;
+  const lastRun = await lastJob(root, lastNight);
+  const last = lastRun?.job ?? null;
   // The proposals jobs' own signals, read from the repo: rows since the last distill, Loop's untriaged findings.
   const signals = await signalsOf(root, config, c.jobs);
   const chosen = choose({ jobs: c.jobs, rows: [...(health?.rows ?? []), ...signals], waiting, last, retiring });
-  const out = { ...chosen, date, health: health?.file ?? null, waiting: [...waiting].filter(j => c.jobs.includes(j)), retiring: retired, minutes: c.minutes, margin: c.margin, attempts: c.attempts };
+  const out = { ...chosen, date, health: health?.file ?? null, last: lastRun, waiting: [...waiting].filter(j => c.jobs.includes(j)), retiring: retired, minutes: c.minutes, margin: c.margin, attempts: c.attempts };
   if (chosen.job) Object.assign(out, { branch: `${PREFIX}${chosen.job}/${date}`, command: JOBS[chosen.job].command(config), number: JOBS[chosen.job].number });
   return out;
 }
@@ -995,19 +1014,27 @@ export async function findingsAt(root, ref = null) {
 /** The paths a loop pull writes: the findings, their page, and what the project's afterRender rewrites. */
 const loopPaths = config => [FINDINGS_DIR, 'docs/LOOP.md', ...(Array.isArray(config?.loop?.afterRenderWrites) ? config.loop.afterRenderWrites.filter(p => typeof p === 'string' && p) : [])];
 
+/** keel-loop.yml, the loop practice's daily pull: where it is installed, a loop night never pulls. */
+export const KEEL_LOOP_YML = '.github/workflows/keel-loop.yml';
+
 /**
- * A loop night's pull, in place of keel-loop.yml's that night: the loop
+ * A loop night's pull, where keel-loop.yml is not installed: the loop
  * practice's `pull --no-prove` (the agent proposes, not a model inside the
- * pull), committed by this script. Loop unreachable (no STITCH_API_KEY, no
- * stitch, a pull that fails) is a notice, never red: the night proposes for
- * the findings already here, and the record says why it did not pull.
+ * pull), committed by this script. Where keel-loop.yml is (the loop
+ * practice's own workflow, which pulls every day), the night does not pull,
+ * so the two never both pull on one day (ledger#92); it proposes for the
+ * findings that workflow already brought. Loop unreachable (no
+ * STITCH_API_KEY, no stitch, a pull that fails) is a notice, never red: the
+ * night proposes for the findings already here, and the record says why it
+ * did not pull.
  */
 export async function loopPull({ root, config, env = process.env, now = new Date() }) {
   const night = await readNight(root);
   if (!night || night.job !== 'loop') throw new ClimbError(`loop-pull runs on a loop night: run measure loop --baseline first (${NIGHT})`);
   const date = now.toISOString().slice(0, 10);
   let res;
-  if (!env.STITCH_API_KEY) res = { pulled: false, why: 'no STITCH_API_KEY' };
+  if (existsSync(join(root, KEEL_LOOP_YML))) res = { pulled: false, elsewhere: true, why: `${KEEL_LOOP_YML} pulls Loop here every day, so this night does not` };
+  else if (!env.STITCH_API_KEY) res = { pulled: false, why: 'no STITCH_API_KEY' };
   else if (!existsSync(join(root, 'scripts/loop.mjs'))) res = { pulled: false, why: 'no scripts/loop.mjs (the loop practice)' };
   else {
     const r = spawnSync(process.execPath, ['scripts/loop.mjs', 'pull', '--no-prove'], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60_000 });
@@ -1267,7 +1294,7 @@ function proposalsReport(night, { proposals, now }) {
   const n = proposals.length;
   if (night.job === 'loop') {
     const l = night.loop ?? null;
-    const pulled = !l ? 'Loop not pulled (loop-pull did not run)' : l.pulled ? `Loop pulled${l.commit ? '' : ', nothing new'}` : `Loop unreachable (${l.why}): proposed for the findings already here`;
+    const pulled = !l ? 'Loop not pulled (loop-pull did not run)' : l.pulled ? `Loop pulled${l.commit ? '' : ', nothing new'}` : l.elsewhere ? 'Loop pulled by keel-loop.yml, not this night: proposed for the findings already here' : `Loop unreachable (${l.why}): proposed for the findings already here`;
     const left = l?.untriaged ? Math.max(0, l.untriaged.length - proposals.filter(p => l.untriaged.includes(p.slug)).length) : null;
     const line = `climb loop ${night.date}: ${n ? `proposed a rank for ${n} finding${n === 1 ? '' : 's'}` : 'proposed nothing'}; decided none${left === null ? '' : `; ${left} untriaged left`}; ${pulled}; ${minutes} min`;
     if (!n) return { kept: 0, tried: 0, minutes, line, input: null };
@@ -1476,7 +1503,7 @@ export async function agentRan({ outcome, file, minutes, started, now = Date.now
 // ---- the command line ------------------------------------------------------------
 
 const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried',
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
 const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
@@ -1537,7 +1564,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     case 'pick': {
-      const p = await pick({ ...ctx, date: o.date, force: o.force });
+      const p = await pick({ ...ctx, date: o.date, force: o.force, lastNight: o.lastNight ? resolve(o.lastNight) : undefined });
       return { data: p, text: p.job ? `tonight: ${p.job} (${p.why}); branch ${p.branch}` : `no climb tonight: ${p.reason}` };
     }
     case 'measure': {
@@ -1559,7 +1586,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     case 'loop-pull': {
       const r = await loopPull(ctx);
       const left = `${r.untriaged.length} untriaged`;
-      return { data: r, text: r.pulled ? `Loop pulled${r.commit ? ` (${r.commit.slice(0, 7)})` : ', nothing new'}; ${left}` : `::notice::Loop unreachable (${r.why}): no pull tonight; the night proposes for the findings already here (${left})` };
+      return { data: r, text: r.pulled ? `Loop pulled${r.commit ? ` (${r.commit.slice(0, 7)})` : ', nothing new'}; ${left}` : r.elsewhere ? `No pull tonight: ${r.why} (the two never both pull); the night proposes for the findings already here (${left})` : `::notice::Loop unreachable (${r.why}): no pull tonight; the night proposes for the findings already here (${left})` };
     }
     case 'compare': {
       const r = await compare({ ...ctx, base: o.base, candidate: o.candidate, rounds: o.rounds, runs: o.runs, decide: o.decide, final: o.final, what: o.what });

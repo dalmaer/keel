@@ -18,8 +18,12 @@ PR are the script's:
   `lessons`), or to what the repo itself shows (`lessons_since_distill`: the
   table's rows since the last distill pass → `lessons`; `loop_untriaged`:
   Loop's untriaged findings → `loop`), with `flaky_tests` → `hygiene` ahead
-  of every other, else the next in rotation (`.keel/climb.json`, carried by
-  the climb PR; `hygiene`, `lessons` and `loop` never run by rotation). A job with an open `keel-climb/<job>/` PR waits
+  of every other, else the next in rotation after the last night's job
+  (the newer of `.keel/climb.json`, carried by the climb PR, and the last
+  night's record, the `keel-climb` artifact the workflow reads and passes
+  as `--last-night`, so a night that kept nothing still moves the rotation
+  on without anything pushed to main; `hygiene`, `lessons` and `loop` never
+  run by rotation). A job with an open `keel-climb/<job>/` PR waits
   for a person to read it. A job whose last three `keel-climb/<job>/` PRs
   were closed unmerged proposes its own retirement on the health page, and
   pick skips it until the owner removes it from `jobs` or reopens one.
@@ -59,8 +63,10 @@ PR are the script's:
   family|reword|standardise … --read "…"` writes one proposal under
   `.keel/climb/lessons/` (phase 31's rules, from `scripts/keel/distill.mjs`)
   and, on a lessons night, commits it alone. It never writes the table.
-- `loop-pull` is a loop night's pull, in place of keel-loop's that day: the
-  loop practice's `pull --no-prove`, committed by the script. Loop
+- `loop-pull` is a loop night's pull where `keel-loop.yml` is not
+  installed: the loop practice's `pull --no-prove`, committed by the
+  script. Where `keel-loop.yml` is, its daily pull stands and the night
+  pulls nothing, saying so in its line, so the two never both pull. Loop
   unreachable (no `STITCH_API_KEY`, no stitch, a failing pull) is a notice
   and the night's line, never red; the agent then proposes for the findings
   already here, with `node scripts/loop.mjs propose`.
@@ -124,17 +130,24 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
   drifted file, closing a branch or a PR), or what was tried and left.
 - `guard --job tend` — refuses, naming the line: any file added or edited
   under `docs/evidence/`, a front-matter status changed to built, lived-in
-  or accepted, an acceptance box ticked, any tracked file deleted, and a
-  commit that cites no worksheet finding (`Tend: <id>`); then the gate.
-- `tend-report [--body f]` — the record measures again on the branch; the
-  PR body through `pr-body.mjs` (Summary: finding → what was done;
+  or accepted, an acceptance box ticked, any tracked file deleted, any file
+  outside tend's surfaces (Markdown under `docs/` but `docs/evidence/`, a
+  README, `AGENTS.md`, `CLAUDE.md`, Markdown under `.agents/`), cited or
+  not, and a commit that cites no worksheet finding (`Tend: <id>`); then
+  the gate.
+- `tend-report [--body f]` — the record measures again on the branch (a
+  finding is resolved when a commit cites it and the re-run no longer
+  reports it; cited but still reported, it was tried; a loose end, not
+  re-measured, is resolved by its citation); the proposals, committed by
+  the judge as `docs/tend/<date>.md`; the PR body through `pr-body.mjs` (Summary: finding → what was done;
   Evidence: the record count before and after; Merge danger: a two-way
   door over records and docs; Notes: the owner's checklist and what is
   unresolved; the keel-impact block naming any phase it edits) and the
   pass's line, which the night's health page carries as its Tend line.
 
-A pass that committed nothing opens nothing. The workflow keeps the pass's
-record as the `keel-tend` artifact.
+A pass that only proposed opens a PR carrying its page of proposals; a
+pass with neither commits nor proposals opens nothing. The workflow keeps
+the pass's record as the `keel-tend` artifact.
 
 **The Budget line.** With climb, tend or cross-review on, the night's
 health page carries one `Budget:` line: for each pass, its agent step's

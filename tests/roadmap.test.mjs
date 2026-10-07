@@ -195,6 +195,11 @@ test('spec 2: a measure asked for with no bound is a problem, unless the phase f
   assert.match(specProblems('05-x.md', scoped(two, facedShare)).join('\n'), unbounded, 'acme_drop is not faced');
   assert.deepEqual(specProblems('05-x.md', scoped(two, facedShare.replace('`acme_share`', '`acme_share` and `acme_drop`'))), []);
   assert.deepEqual(specProblems('05-x.md', scoped('- Measure buyer preference, recorded only: not a night measure.')), [], 'not a night measure');
+  // Codex on cajones#49: "no night measure … has a bound" is still the night's; a bounded measure in another clause is not governed.
+  assert.match(specProblems('05-x.md', scoped('- No night measure `acme_share` has a bound; it is recorded only.')).join('\n'), unbounded, 'a "no" that does not deny the night');
+  const mixed = '- The night measures `acme_share`, recorded only; a canary measures `acme_drop` against a bound of 3.';
+  assert.deepEqual(specProblems('05-x.md', scoped(mixed, facedShare)), [], 'the bounded acme_drop needs no selftest line');
+  assert.match(specProblems('05-x.md', scoped(mixed)).join('\n'), unbounded, 'acme_share still does');
   // A phase without spec 2 is not held to it.
   assert.deepEqual(specProblems('05-x.md', phase().replace('Small.', scope)), []);
 });

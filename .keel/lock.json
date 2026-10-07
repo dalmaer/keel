@@ -7,7 +7,7 @@
     },
     ".agents/climb/TEND.md": {
       "practice": "climb",
-      "sha256": "3558e6908bee8b4e151616a34750c8673ba9a8307e56024f225475fe96d4abdb"
+      "sha256": "ffd603a70e1094aff47099d1cac5b84896b09aee50e505065d037f27538f20e0"
     },
     ".agents/climb/jobs/build-time.md": {
       "practice": "climb",
@@ -23,7 +23,7 @@
     },
     ".agents/climb/jobs/loop.md": {
       "practice": "climb",
-      "sha256": "d070ca00f61cb5038b0b5226cec0d828f00f8022c237b62009c883e411a5bc03"
+      "sha256": "7aeff2a4b2e36f4f75e08c935a87bf9b2ca25dda58d52622d4fd6745da0a5cf4"
     },
     ".agents/climb/jobs/perf.md": {
       "practice": "climb",
@@ -59,7 +59,7 @@
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
-      "sha256": "14fe12bd3b4692a9366e221e85ca78800440289459c0c56f5ea09c0d1afb866d"
+      "sha256": "3bd274188650b5a3c50d28812a1f2de7b42231279ea7335f75b9ad324a14546d"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -71,7 +71,7 @@
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
-      "sha256": "50999640a7ac60279f2869bdcfcb747fbba3badbb82e8bb51c4f69c37ace2ede"
+      "sha256": "9b1f93edb53b7acd9152181abc2482b3af34023f7786213ab76a564a61214f63"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -127,7 +127,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "356afe0717a5523ea2cdd0fa596ec1a38b6fef5d9c04e72907490a9b882aad7b"
+      "sha256": "31c8d5f0c5682b2963408f6635ecf2e327c9c7c8fc5f588c927813882664dbcd"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -159,7 +159,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "046be28e7543dadb0a16f537814828e630a0ff32bd27f80cc95ae390aefc7922"
+      "sha256": "e926b83f86297cfe22b409a12604815e07eec89a67d46e1f87be504c66e7205d"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
@@ -171,7 +171,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "1ee1a382b53b7b731962c329d1a3527c1612a74b59ff760b24ea5ad2a2f91e3d"
+      "sha256": "85deb2d6e2f1121f99dd175a1a240f1bdb01366f01658717f3ea6464ff575ced"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -183,7 +183,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "0e9fbba8f1c8aada54c2adff5262557d5a49d7358285ee539c5bf1e98c92b6d1"
+      "sha256": "b4b24611ac822e5875b39a9951e7d2e50df08dfed7c6bf019a1ea4139be5cd6f"
     }
   }
 }

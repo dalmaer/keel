@@ -26,8 +26,12 @@
 #   - A hygiene night that proved no fix files one issue on this repo instead
 #     (climb.mjs report --issue): the workflow files it, never the agent.
 #   - A lessons or a loop night changes no code: it proposes, for the owner,
-#     and its guard refuses anything decided. A loop night pulls Loop first,
-#     in place of keel-loop.yml's pull; Loop unreachable is a notice, not red.
+#     and its guard refuses anything decided. A loop night pulls Loop first
+#     only where keel-loop.yml is not installed; where it is, that workflow's
+#     daily pull stands and the night proposes for what it brought, so the
+#     two never both pull. Loop unreachable is a notice, not red.
+#   - The rotation remembers a night that kept nothing from its record (the
+#     keel-climb artifact), never by pushing to main.
 #
 # SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
 # as the claude practice's. Each climb night spends model tokens, up to the
@@ -140,10 +144,41 @@ jobs:
             npm ci
           fi
 
+      # The rotation's memory: the last night's record (the keel-climb
+      # artifact every night keeps, kept or not), read-only, by name, on the
+      # default branch. .keel/climb.json rides on a night's PR, so a night
+      # that keeps nothing never reaches main; without this the next night
+      # would pick the same job (ledger#92). Nothing is pushed to main for it.
+      # None found, or unreadable: a notice, and the rotation reads
+      # .keel/climb.json alone.
+      - name: Read the last night's record
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/last-night"
+          if ! id=$(gh api "repos/$REPO/actions/artifacts?name=keel-climb&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | last | .id // empty"); then
+            echo "::notice::The last night's record could not be listed; the rotation reads .keel/climb.json alone."
+            exit 0
+          fi
+          if [ -z "$id" ]; then
+            echo "No earlier night's record: the rotation reads .keel/climb.json alone."
+            exit 0
+          fi
+          if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/last-night.zip" \
+            && unzip -o -q "$RUNNER_TEMP/last-night.zip" -d "$RUNNER_TEMP/last-night"; then
+            echo "the last night's record: artifact $id"
+          else
+            echo "::notice::The last night's record (artifact $id) could not be read; the rotation reads .keel/climb.json alone."
+          fi
+
       # The climb config, validated (a bad one is red, naming the key), and
       # tonight's job: the one tied to the health page's worst measure, else
-      # the next in rotation; a job with an open PR waits. A dispatch runs
-      # even on a weekly climb's off day.
+      # the next in rotation after the last night's; a job with an open PR
+      # waits. A dispatch runs even on a weekly climb's off day.
       - name: Pick tonight's job
         id: pick
         if: steps.configured.outputs.enabled == 'true'
@@ -152,9 +187,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           node scripts/keel/climb.mjs config --json > "$RUNNER_TEMP/climb-config.json"
-          FORCE=""
-          if [ "$EVENT" = workflow_dispatch ]; then FORCE="--force"; fi
-          node scripts/keel/climb.mjs pick --json $FORCE > "$RUNNER_TEMP/pick.json"
+          set --
+          if [ "$EVENT" = workflow_dispatch ]; then set -- "$@" --force; fi
+          if [ -f "$RUNNER_TEMP/last-night/night.json" ]; then set -- "$@" --last-night "$RUNNER_TEMP/last-night/night.json"; fi
+          node scripts/keel/climb.mjs pick --json "$@" > "$RUNNER_TEMP/pick.json"
           node -e '
             const fs = require("fs");
             const [cfg, pick, out] = process.argv.slice(1);
@@ -204,17 +240,19 @@ jobs:
           git switch -q -c "$BRANCH"
           node scripts/keel/climb.mjs measure "$JOB" --baseline
 
-      # A loop night pulls Loop first, in place of keel-loop.yml's pull that
-      # day (pull --no-prove: the agent proposes, not a model in the pull);
-      # climb.mjs commits it. Loop unreachable (no STITCH_API_KEY, no stitch,
-      # a pull that fails) is a notice, never red: the night proposes for the
-      # findings already here, and its record says why it did not pull.
+      # A loop night pulls Loop first where keel-loop.yml is not installed
+      # (pull --no-prove: the agent proposes, not a model in the pull);
+      # climb.mjs commits it. Where keel-loop.yml is, its daily pull stands
+      # and climb.mjs says so: the two never both pull. Loop unreachable (no
+      # STITCH_API_KEY, no stitch, a pull that fails) is a notice, never red:
+      # the night proposes for the findings already here, and its record
+      # says why it did not pull.
       - name: Pull Loop's findings
         if: steps.pick.outputs.job == 'loop'
         env:
           STITCH_API_KEY: ${{ secrets.STITCH_API_KEY }}
         run: |
-          if [ -n "$STITCH_API_KEY" ]; then
+          if [ -n "$STITCH_API_KEY" ] && [ ! -f .github/workflows/keel-loop.yml ]; then
             if ! { npm install -g @google/stitch@0 && stitch enable loop; }; then
               echo "::notice::The stitch CLI could not be installed or switched on; the pull says so below."
             fi
@@ -412,7 +450,9 @@ jobs:
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
-          # The rotation's state rides on the PR, as one more commit, when there is one.
+          # The rotation's state rides on the PR, as one more commit, when there
+          # is one; a night that keeps nothing is remembered by its record (the
+          # keel-climb artifact), which the next night's pick reads.
           kept=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).kept ?? 0)' "$RUNNER_TEMP/report.json")
           if [ "$kept" != 0 ] && [ -n "$(git status --porcelain -- .keel/climb.json)" ]; then
             git add .keel/climb.json

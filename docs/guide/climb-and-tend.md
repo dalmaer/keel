@@ -101,9 +101,11 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
   reverted, the gate's line, and the merge danger (a two-way door).
 - **A proposals night's PR** lists each proposal or proposed rank; you
   decide each.
-- **A tend PR** on `keel-tend/<date>`: each finding and what was done, the
+- **A tend PR** on `keel-tend/<date>`: each finding and what was done
+  (resolved only when the measures, run again, no longer report it), the
   record count before and after, and a checklist of what only you can
-  choose.
+  choose, also committed as `docs/tend/<date>.md`. A pass that only
+  proposed still opens one.
 - **Nothing**, when a night kept nothing. Its one line is on the run's
   summary and the next health page. That is a result, not a failure.
 - **A red run** only when the agent failed before its budget ran out (a
@@ -138,8 +140,10 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
   the branch's code. A branch that changes `.github/`, `scripts/keel/` or
   `.keel/keel.json` is refused before anything runs.
 - Tend never writes or edits evidence, never sets a status to built,
-  lived-in or accepted, never ticks an acceptance box and never deletes a
-  file; its guard refuses each, naming the line.
+  lived-in or accepted, never ticks an acceptance box, never deletes a
+  file and never changes anything but records and agent-facing text
+  (Markdown under `docs/`, a README, `AGENTS.md`, `CLAUDE.md`, `.agents/`);
+  its guard refuses each, naming the line.
 - A lessons night never edits the lessons table; a loop night never
   decides a finding.
 - Neither runs a retro: an unattended retro finds false positives and keeps
