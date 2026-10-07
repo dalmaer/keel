@@ -1,4 +1,4 @@
-# The review gate: no merge with an unread review
+# Answering reviews: every comment validated, then answered
 
 Design, 6 October 2026. Phase 41 builds it.
 
@@ -14,8 +14,12 @@ because the owner asked whether the comments had been seen. On v0.8.1's PRs
 the reviews were read before merging, and found four more (fixed in v0.8.2).
 
 The shape is lesson 49's family, *a failure nobody is told about in time*:
-the reviewer spoke, and the merge path was not listening. Green CI is one
-gate; a reviewer's comment is another, and keel had only the first.
+the reviewer spoke, and nobody was listening.
+
+**Not a gate (the owner, 6 Oct):** "it doesn't have to be a gate… just if
+you see reviews always answer them… validating first." Merges are not
+blocked by open threads. What is required is that no review goes unread or
+unanswered: each comment is validated against the code, then answered.
 
 ## What changes
 
@@ -33,11 +37,11 @@ few minutes after CI. `--wait` waits until each named reviewer has posted a
 review on the PR's head commit, or the configured minutes pass; a timeout is
 said, never read as "no comments".
 
-**3. Every keel merge path goes through it.** `keel fleet update`'s merge
-step (when it merges), drain (the night's data PRs, climb and tend PRs are
-merged by a person, so they only need the read), and the conductor skill's
-merge step all run `keel review --wait` and refuse to merge while a thread
-is open. The refusal names each open thread and its first line.
+**3. Every agent that opens or merges a PR answers its reviews.** The
+conduct skill, the fleet update's report and the climb and tend briefs say:
+after a PR's reviewer has posted, read every comment, validate it against the
+code, then answer it. A merge is never refused for an open thread; a thread
+is never left without an answer.
 
 **4. Closing a thread has two honest forms.**
 - *Valid*: fixed, and the reply names the commit or release; or tracked, and
@@ -46,23 +50,18 @@ is open. The refusal names each open thread and its first line.
 - *Not valid*: the reply says why, citing the code. The thread is resolved
   with the reply.
 `keel review --close <thread> --fixed <commit>|--tracked <issue|version>|--not-valid "<why>"`
-posts the reply and resolves only in the first and third cases; a tracked
-thread stays open until its fix is recorded, and blocks no merge of the PR
-it was raised on only if the reply names where it is tracked (an explicit,
-visible exception, never silence).
+posts the reply and resolves in the first and third cases; a tracked thread
+stays open until its fix is recorded, then is resolved with the commit.
 
-**5. What GitHub can enforce.** Branch protection's "Require conversation
-resolution before merging" makes GitHub refuse the merge too, whoever
-merges. It is a repository setting, so it is the owner's (⚑ per repo);
-`keel doctor` notes when a fleet repo with a named reviewer lacks it.
-
-**6. Seen nightly.** The night gains `review_threads_open`: open review
-threads on the project's open PRs older than a day; `keel loose-ends` lists
+**5. Seen nightly.** The night gains `reviews_unanswered`: review comments
+on the project's PRs (open, or merged in the last week) with no reply, older
+than a day; `keel loose-ends` lists
 them with the command to read them.
 
 ## Deliberately not
 
-- No model in the gate: reading threads is deterministic; judging a comment
+- No gate: nothing refuses a merge for an open thread.
+- No model in the read: reading threads is deterministic; judging a comment
   valid or not is the conductor's (or a person's), recorded in the reply.
 - No auto-resolve: a thread is never closed without a reply saying which of
   the two forms it is.
