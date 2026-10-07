@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.21 — practice 0.8.21 (2026-10-07)
+
+- **Cross-review runs its agent with a read-only token.** The workflow is now two jobs: `review` (the agent, reading only; Claude's action is handed the job's read-only token, so it needs no GitHub App token) and `publish` (no agent, nothing from the PR's branch: it validates the findings with your default branch's script and posts the review). Reviews look the same on the PR.
+
 ## v0.8.20 — practice 0.8.20 (2026-10-07)
 
 - **Cross-review refuses a prefix that matches a provider's branches and others** (`"claude"` also matches `claude-fix`): name the branch exactly (`claude/`) or use a prefix no provider shares.
