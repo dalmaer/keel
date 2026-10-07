@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.14 — practice 0.8.14 (2026-10-07)
+
+- **Climb's temporary checkouts sit beside yours**, under a hidden name removed afterwards, so a gate that reads a sibling folder (ledger's `../ledger-data`) works in them.
+- **Tend's proposals page resolves nothing:** an owner's proposal stays a proposal in the report.
+- **The conductor reads a PR's reviews right before answering them:** `keel review --close` refuses any comment the latest read did not show, and any that arrived since.
+
 ## v0.8.13 — practice 0.8.13 (2026-10-07)
 
 - **Climb's dropped-test guard counts only what this run's gate ran**, and runs the base's gate fresh: tests the agent ran by hand, or a forged record, can no longer stand in for a suite the change removed. Each guard now runs your gate twice (base and candidate).
