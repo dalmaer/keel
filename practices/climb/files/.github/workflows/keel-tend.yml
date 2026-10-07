@@ -26,7 +26,8 @@
 #     branch's, checks the sandbox again, and opens one PR on
 #     refs/heads/keel-tend/<date>, never main, never merged here.
 #   - What the pass proposes reaches the owner: the judge (never the agent)
-#     commits it as docs/tend/<date>.md, so a pass that only proposed opens
+#     commits it as docs/tend/<date>.md (the run's date, before the guard, so
+#     the gate sees it), so a pass that only proposed opens
 #     a PR too. A pass with neither commits nor proposals opens nothing, and
 #     its line says what was left.
 #
@@ -36,8 +37,8 @@ name: keel-tend
 
 on:
   schedule:
-    # 09:42 UTC on Mondays, a minute after the climb's.
-    - cron: "42 9 * * 1"
+    # 10:18 UTC on Mondays, a minute after the climb's.
+    - cron: "18 10 * * 1"
   workflow_dispatch: {}
 
 concurrency:
@@ -165,12 +166,13 @@ jobs:
         if: steps.pick.outputs.run == 'yes'
         env:
           BRANCH: ${{ steps.pick.outputs.branch }}
+          DAY: ${{ steps.pick.outputs.day }}
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "keel-tend"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -q -c "$BRANCH"
-          node scripts/keel/climb.mjs tend-input --record
+          node scripts/keel/climb.mjs tend-input --record --date "$DAY"
 
       # The brief: TEND.md and the worksheet, as one prompt.
       - name: Brief
@@ -339,18 +341,22 @@ jobs:
           done
 
       # Judged by the script, not the agent: anything uncommitted goes; the
-      # tend guard and the gate (red if either fails); then the measures again
-      # on the branch, the owner's page of proposals (one commit, the
-      # judge's), the PR body and the pass's line.
+      # owner's page of proposals (one commit, the judge's), before the guard
+      # so the gate sees the tree that is pushed; the tend guard and the gate
+      # (red if either fails); then the measures again on the branch, the PR
+      # body and the pass's line.
       - name: Judge the pass
         id: judge
+        env:
+          DAY: ${{ needs.agent.outputs.day }}
         run: |
           git reset -q --hard HEAD
           git clean -q -fd
-          # The base is the run's commit, never the record's (the agent wrote
-          # the record): a pass naming another base is refused.
+          # The base and the day are the run's, never the record's (the agent
+          # wrote the record): a pass naming another is refused.
+          node scripts/keel/climb.mjs tend-page --base "$GITHUB_SHA" --date "$DAY"
           node scripts/keel/climb.mjs guard --job tend --base "$GITHUB_SHA"
-          node scripts/keel/climb.mjs tend-report --body "$RUNNER_TEMP/body.md" --base "$GITHUB_SHA" --json > "$RUNNER_TEMP/report.json"
+          node scripts/keel/climb.mjs tend-report --body "$RUNNER_TEMP/body.md" --base "$GITHUB_SHA" --date "$DAY" --json > "$RUNNER_TEMP/report.json"
           node -e '
             const fs = require("fs");
             const [file, out, summary] = process.argv.slice(1);

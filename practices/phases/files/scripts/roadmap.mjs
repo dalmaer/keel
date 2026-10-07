@@ -98,7 +98,7 @@ export function items(text) {
 const measureNames = item => [...new Set([...item.matchAll(/\bmeasure[sd]?\b[^`]*?`([a-z]\w*)`/gi), ...item.matchAll(/`([a-z]\w*)`\s+(?:night\s+)?measure/gi)].map(m => m[1]))];
 
 /** The night is named, and not only to deny it: "not a night measure" / "isn't the night's" is a study's or a product's measure. */
-const nightMeant = item => /\bnight/i.test(item.replace(/\b(?:not|isn't|is not)\s+(?:an?\s+|the\s+)?night(?:'s)?(?:\s+measure)?/gi, ''));
+const nightMeant = item => /\bnight/i.test(item.replace(/\b(?:not|never|isn't|is not)\s+(?:an?\s+|the\s+)?night(?:'s)?(?:\s+measure)?/gi, ''));
 
 /** The phrase that says "no bound", on its own: a clause holding it is unbounded. */
 const NO_BOUND = /\b(no bound|unbounded|recorded only|recorded-only|without (a )?bound)\b/i;
@@ -116,7 +116,9 @@ function unboundedNames(item) {
   let found = false;
   for (const clause of item.split(/[.;](?:\s+|$)/)) {
     const names = measureNames(clause);
-    if (NO_BOUND.test(clause) && (/\bmeasure/i.test(clause) || before.length)) { found = true; out.push(...(names.length ? names : before)); }
+    // A clause naming no measure continues the one before only when its subject is a pronoun ("it is recorded only").
+    const continues = /^\s*(?:and\s+)?(?:it|this|that|which)\b/i.test(clause);
+    if (NO_BOUND.test(clause) && (/\bmeasure/i.test(clause) || (continues && before.length))) { found = true; out.push(...(names.length ? names : before)); }
     before = names.length ? names : before;
   }
   return found ? [...new Set(out)] : null;
@@ -146,9 +148,22 @@ function unboundedMeasures(sections, where) {
 }
 
 /**
+ * What --check notes but never refuses: for `spec: 2`, a night measure asked
+ * for with no bound. The check reads prose, so it can misjudge a sentence; a
+ * misjudgement must never fail a project's CI (five rounds of review found
+ * wordings it got wrong), so it advises and the person decides.
+ */
+export function specNotes(file, raw) {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
+  if (!block || /^status:\s*superseded\s*$/m.test(block[1])) return [];
+  if (Number(/^spec:\s*(\d+)\s*$/m.exec(block[1])?.[1] ?? 0) < 2) return [];
+  return unboundedMeasures(sectionsOf(block[2]), section => `docs/phases/${file}: ## ${section}`);
+}
+
+/**
  * What --check refuses in a phase that parses: template text left in a
  * section (any status but superseded), and for `spec: 2` a box naming no check, a Real
- * surfaces section off its vocabulary, or a measure asked for with no bound. [] when it reads as a spec.
+ * surfaces section off its vocabulary. [] when it reads as a spec. (A measure with no bound is a note: specNotes.)
  */
 export function specProblems(file, raw) {
   const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
@@ -169,7 +184,6 @@ export function specProblems(file, raw) {
     problems.push(`${where(section)} still holds the template's text ("${left[0]}"); ${section === 'Trajectory' ? 'delete the section until something changes the course' : 'write what this phase means'}`);
   }
   if (spec < 2) return problems;
-  problems.push(...unboundedMeasures(sections, where));
   if (!templated.has('Acceptance')) for (const box of boxes(sections.Acceptance)) {
     if (!namesCheck(box.text)) problems.push(`${where('Acceptance')}: "${box.text.slice(0, 60)}${box.text.length > 60 ? '…' : ''}" names no check; end it with tests/<file>: "<test name>", a command in backticks, or ⚑ by hand: <who>`);
   }
@@ -314,6 +328,7 @@ export async function collect(root = ROOT) {
   phases.sort((a, b) => a.id - b.id);
   // What --check refuses; listing and writing the roadmap go on without it.
   const problems = raws.sort(([a], [b]) => a.localeCompare(b)).flatMap(([file, raw]) => specProblems(file, raw));
+  const notes = raws.flatMap(([file, raw]) => specNotes(file, raw));
   const goals = JSON.parse(await readFile(resolve(docs, 'goals.json'), 'utf8'));
   validateGraph(phases, goals);
   for (const p of phases) for (const evidence of p.evidence) {
@@ -327,7 +342,7 @@ export async function collect(root = ROOT) {
   for (const [label, file] of [['Design', 'design.md'], ['Lessons', 'lessons.md']]) {
     if ((await stat(resolve(docs, file)).catch(() => null))?.isFile()) links.push([label, file]);
   }
-  return { config, phases, goals, links, problems };
+  return { config, phases, goals, links, problems, notes };
 }
 
 export function render({ config, phases, goals, links = [] }) {
@@ -383,7 +398,8 @@ export async function run({ root = ROOT, mode = 'write' } = {}) {
   if (mode === 'check') {
     if (data.problems.length) fail(`${data.problems.length} phase spec problem${data.problems.length === 1 ? '' : 's'}:\n${data.problems.map(p => `  ${p}`).join('\n')}`);
     if (await readFile(path, 'utf8').catch(() => '') !== output) fail('docs/ROADMAP.md is stale — run npm run roadmap');
-    return `Checked roadmap: ${data.phases.length} phases, ${data.goals.length} goals`;
+    const notes = data.notes?.length ? `\n${data.notes.length} note${data.notes.length === 1 ? '' : 's'} (advice, not a failure):\n${data.notes.map(n => `  ${n}`).join('\n')}` : '';
+    return `Checked roadmap: ${data.phases.length} phases, ${data.goals.length} goals${notes}`;
   }
   await writeFile(path, output);
   return `Generated roadmap: ${data.phases.length} phases, ${data.goals.length} goals`;

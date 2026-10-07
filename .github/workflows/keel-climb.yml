@@ -42,9 +42,11 @@ name: keel-climb
 
 on:
   schedule:
-    # 09:41 UTC daily, off the night's minute; a weekly climb's pick says
-    # "not tonight" on the other days (cron cannot come from the config).
-    - cron: "41 9 * * *"
+    # 10:17 UTC daily, off the night's minute, and after keel-loop.yml's pull
+    # (09:43, its job bounded at 30 minutes), so a loop night proposes on
+    # today's findings, not yesterday's (ledger#94); a weekly climb's pick
+    # says "not tonight" on the other days (cron cannot come from the config).
+    - cron: "17 10 * * *"
   workflow_dispatch: {}
 
 concurrency:

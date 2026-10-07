@@ -23,7 +23,7 @@
 //   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
 //   node scripts/keel/climb.mjs distill [propose --kind family|reword|standardise … --read "…"]   (lessons)
 //   node scripts/keel/climb.mjs loop-pull                   Loop's pull for a loop night (loop)
-//   node scripts/keel/climb.mjs tend-pick|tend-input [--record]|tend-note|tend-report   (scripts/keel/tend.mjs)
+//   node scripts/keel/climb.mjs tend-pick|tend-input [--record]|tend-note|tend-page|tend-report   (scripts/keel/tend.mjs)
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 ran and found a failure (a
 // failing gate, a dropped test); 2 usage, a bad config, or an instrument that
@@ -80,7 +80,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -1186,7 +1186,8 @@ export function missingTests(base, candidate) {
 }
 
 /**
- * Every test the ledger saw run on `commit`, as one record, or null. A gate
+ * Every test `runs` saw run on `commit`, as one record, or null; the guard
+ * passes only the records its own gate run wrote. A gate
  * records a run per suite it runs (ledger's check:all: the root's, then
  * web's), each its own lane; the newest alone would be one suite. A test is
  * keyed by its root-relative file and name, so suites never collide, and it
@@ -1201,6 +1202,13 @@ export function ranOn(runs, commit) {
     if (!had || (!ran(had) && ran(t))) tests.set(key(t), t);
   }
   return { commit, runs: mine.length, tests: [...tests.values()] };
+}
+
+/** Run the gate in `cwd`: the spawn's result, and `runs`, the ledger records this run wrote (none that were there before it). */
+async function gateRun(cwd, gate, { env, config }) {
+  const before = new Set((await readRuns(cwd)).runs.map(x => x.id));
+  const r = spawnSync(gate, { cwd, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+  return { ...r, runs: (await readRuns(cwd)).runs.filter(x => !before.has(x.id)) };
 }
 
 export async function guard({ root, config, env = process.env, base, job }) {
@@ -1246,29 +1254,31 @@ export async function guard({ root, config, env = process.env, base, job }) {
     if (night) night.perfCheck = extra.perfCheck;
   }
   const gate = config.check ?? CHECK;
-  const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+  // Only this gate run's records count (ledger#94): a record written before
+  // it (the agent testing a file at the same commit, a CI run, a record the
+  // agent's job handed back) could hold a suite the candidate's gate no
+  // longer runs. The ledger's files before the run are set aside by name.
+  const r = await gateRun(root, gate, { env, config });
   if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
-  const cand = ranOn((await readRuns(root)).runs, head);
+  const cand = ranOn(r.runs, head);
   if (!cand) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for ${head.slice(0, 7)}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
-  let baseRun = ranOn((await readRuns(root)).runs, b);
-  if (!baseRun) {
-    // The base's names, from its own run of the test command, in a worktree outside the tree.
-    const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-guard-'));
-    const dir = join(tmp, 'base');
-    try {
-      await worktree(root, dir, b);
-      const command = JOBS['test-time'].command(config);
-      const t = spawnSync(command, { cwd: dir, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
-      if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s \`${command}\` did not pass (exit ${t.status}); guard has no base to compare against`);
-      baseRun = ranOn((await readRuns(dir)).runs, b);
-    } finally {
-      git(root, ['worktree', 'remove', '--force', dir], { allowFail: true });
-      git(root, ['worktree', 'prune'], { allowFail: true });
-      await rm(tmp, { recursive: true, force: true });
-    }
-    if (!baseRun) throw new ClimbError(`the base ${b.slice(0, 7)} recorded no test ledger run: guard cannot tell a dropped test without one`);
+  // The base's names, from the base's own gate, run now in a worktree outside
+  // the tree: never a record read from the ledger, which the agent's job hands back.
+  let baseRun = null;
+  const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-guard-'));
+  const dir = join(tmp, 'base');
+  try {
+    await worktree(root, dir, b);
+    const t = await gateRun(dir, gate, { env, config });
+    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
+    baseRun = ranOn(t.runs, b);
+  } finally {
+    git(root, ['worktree', 'remove', '--force', dir], { allowFail: true });
+    git(root, ['worktree', 'prune'], { allowFail: true });
+    await rm(tmp, { recursive: true, force: true });
   }
+  if (!baseRun) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate recorded no test ledger run: guard cannot tell a dropped test without one`);
   const missing = missingTests(baseRun, cand);
   const count = (cand.tests ?? []).filter(ran).length;
   if (missing.length) return { ok: false, gate, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
@@ -1564,7 +1574,7 @@ export async function agentRan({ outcome, file, minutes, started, now = Date.now
 
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-report [--json]';
+const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-page|tend-report [--json]';
 const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
@@ -1621,8 +1631,12 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       const n = await tendNote({ root, finding: o.finding, propose: o.propose, tried: o.tried });
       return { data: n, text: `${n.kind}: ${n.finding}: ${n.text}` };
     }
+    case 'tend-page': {
+      const r = await tendPage({ root, input: o.input ? resolve(o.input) : undefined, base: o.base, date: o.date });
+      return { data: r, text: r.page ? `${r.committed ? 'committed' : 'unchanged'}: ${r.page} (${r.proposed} proposal${r.proposed === 1 ? '' : 's'} for the owner)` : 'no page: the pass proposed nothing' };
+    }
     case 'tend-report': {
-      const r = await tendReport({ ...ctx, body: o.body ? resolve(o.body) : undefined, input: o.input ? resolve(o.input) : undefined, base: o.base });
+      const r = await tendReport({ ...ctx, body: o.body ? resolve(o.body) : undefined, input: o.input ? resolve(o.input) : undefined, base: o.base, date: o.date });
       return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     case 'pick': {

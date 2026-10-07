@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, uncheckedBoxes, sectionsOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
+import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, uncheckedBoxes, sectionsOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
 
 const phase = ({ status = 'planned', since = '2026-10-02', goal = 'G0', depends = '[]', evidence = '[]', acceptance = '- [ ] Something observable.', extra = '' } = {}) => `---
 status: ${status}
@@ -165,43 +165,48 @@ test('spec 2: Real surfaces from the closed list, each with its proof, or none',
   assert.equal(parsePhase('05-x.md', spec2()).spec, 2);
 });
 
-test('spec 2: a measure asked for with no bound is a problem, unless the phase faced the selftest', () => {
+test('spec 2: a measure asked for with no bound is a note (never a failure), unless the phase faced the selftest', () => {
   const unbounded = /## Scope: ".*" asks for a measure with no bound.*optional bound the selftest fixture sets.*a line on the health page instead/;
   const scoped = (scope, rest = '') => spec2().replace('## Scope\n\nSmall.\n', `## Scope\n\n${scope}\n`) + rest;
   for (const scope of [
     '- **Measured**: `acme_share` on the night: the share of anvils dropped, recorded, no bound.',
     '- A night measure `acme_share`, recorded only.',
     '- The night measures `acme_share` without a bound.',
-  ]) assert.match(specProblems('05-x.md', scoped(scope)).join('\n'), unbounded, scope);
+  ]) assert.match(specNotes('05-x.md', scoped(scope)).join('\n'), unbounded, scope);
   // A bound, or a line on the health page, is fine; so is a bound with no measure in the sentence.
   for (const scope of [
     '- **Measured**: `acme_share` on the night, bound 0.8; the selftest fixture sets it.',
     '- A line on the health page: the share of anvils dropped. No bound needed.',
-  ]) assert.deepEqual(specProblems('05-x.md', scoped(scope)), [], scope);
+  ]) assert.deepEqual(specNotes('05-x.md', scoped(scope)), [], scope);
   // In Acceptance too.
-  assert.match(specProblems('05-x.md', spec2({ acceptance: '- [ ] The night measures `acme_share`, no bound. `npm test`' })).join('\n'), /## Acceptance: ".*" asks for a measure with no bound/);
+  assert.match(specNotes('05-x.md', spec2({ acceptance: '- [ ] The night measures `acme_share`, no bound. `npm test`' })).join('\n'), /## Acceptance: ".*" asks for a measure with no bound/);
   // Faced: Deliberately open or Trajectory names the measure with the selftest.
   const scope = '- **Measured**: `acme_share` on the night, recorded, no bound.';
-  assert.deepEqual(specProblems('05-x.md', scoped(scope, '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses an unbounded measure.\n')), []);
-  assert.match(specProblems('05-x.md', scoped(scope, '\n## Trajectory\n\n- **2026-10-06** — `acme_other` is not in MEASURES: the selftest refuses it.\n')).join('\n'), unbounded, 'another measure faced is not this one');
+  assert.deepEqual(specNotes('05-x.md', scoped(scope, '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses an unbounded measure.\n')), []);
+  assert.match(specNotes('05-x.md', scoped(scope, '\n## Trajectory\n\n- **2026-10-06** — `acme_other` is not in MEASURES: the selftest refuses it.\n')).join('\n'), unbounded, 'another measure faced is not this one');
   // Codex on cajones#47: the night's measures only; a wrapped bullet is one item; only the measure's own name is faced.
-  assert.deepEqual(specProblems('05-x.md', scoped('- Measure which anvil buyers prefer, recorded only, for the study.')), [], 'not a night measure');
-  assert.match(specProblems('05-x.md', scoped('- A night measure `acme_share` is\n  recorded only, with no bound.')).join('\n'), unbounded, 'wrapped');
+  assert.deepEqual(specNotes('05-x.md', scoped('- Measure which anvil buyers prefer, recorded only, for the study.')), [], 'not a night measure');
+  assert.match(specNotes('05-x.md', scoped('- A night measure `acme_share` is\n  recorded only, with no bound.')).join('\n'), unbounded, 'wrapped');
   const grouped = '- The night measures `acme_share` grouped by `branch`, recorded only.';
-  assert.deepEqual(specProblems('05-x.md', scoped(grouped, '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses it.\n')), [], 'a field beside the measure is not a measure');
+  assert.deepEqual(specNotes('05-x.md', scoped(grouped, '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses it.\n')), [], 'a field beside the measure is not a measure');
   // Codex on cajones#48: every measure an item names is faced, not only the first; a denied night is not the night.
   const two = '- The night measures `acme_share` and measures `acme_drop`, both recorded only.';
   const facedShare = '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses it.\n';
-  assert.match(specProblems('05-x.md', scoped(two, facedShare)).join('\n'), unbounded, 'acme_drop is not faced');
-  assert.deepEqual(specProblems('05-x.md', scoped(two, facedShare.replace('`acme_share`', '`acme_share` and `acme_drop`'))), []);
-  assert.deepEqual(specProblems('05-x.md', scoped('- Measure buyer preference, recorded only: not a night measure.')), [], 'not a night measure');
+  assert.match(specNotes('05-x.md', scoped(two, facedShare)).join('\n'), unbounded, 'acme_drop is not faced');
+  assert.deepEqual(specNotes('05-x.md', scoped(two, facedShare.replace('`acme_share`', '`acme_share` and `acme_drop`'))), []);
+  assert.deepEqual(specNotes('05-x.md', scoped('- Measure buyer preference, recorded only: not a night measure.')), [], 'not a night measure');
   // Codex on cajones#49: "no night measure … has a bound" is still the night's; a bounded measure in another clause is not governed.
-  assert.match(specProblems('05-x.md', scoped('- No night measure `acme_share` has a bound; it is recorded only.')).join('\n'), unbounded, 'a "no" that does not deny the night');
+  assert.match(specNotes('05-x.md', scoped('- No night measure `acme_share` has a bound; it is recorded only.')).join('\n'), unbounded, 'a "no" that does not deny the night');
   const mixed = '- The night measures `acme_share`, recorded only; a canary measures `acme_drop` against a bound of 3.';
-  assert.deepEqual(specProblems('05-x.md', scoped(mixed, facedShare)), [], 'the bounded acme_drop needs no selftest line');
-  assert.match(specProblems('05-x.md', scoped(mixed)).join('\n'), unbounded, 'acme_share still does');
+  assert.deepEqual(specNotes('05-x.md', scoped(mixed, facedShare)), [], 'the bounded acme_drop needs no selftest line');
+  assert.match(specNotes('05-x.md', scoped(mixed)).join('\n'), unbounded, 'acme_share still does');
+  // Codex on cajones#50: "never a night measure" denies the night; a later clause inherits a name only as a continuation.
+  assert.deepEqual(specNotes('05-x.md', scoped('- Measure `buyer_pref`, recorded only; never a night measure.')), []);
+  assert.deepEqual(specNotes('05-x.md', scoped('- The night measure `latency` has a bound of 3. Diagnostics are recorded only.')), [], 'diagnostics are another subject');
+  // A note, never a problem: --check passes (the old failure is advice now).
+  assert.deepEqual(specProblems('05-x.md', scoped('- A night measure `acme_share`, recorded only.')), []);
   // A phase without spec 2 is not held to it.
-  assert.deepEqual(specProblems('05-x.md', phase().replace('Small.', scope)), []);
+  assert.deepEqual(specNotes('05-x.md', phase().replace('Small.', scope)), []);
 });
 
 test('a phase lists the tests its Acceptance cites', () => {

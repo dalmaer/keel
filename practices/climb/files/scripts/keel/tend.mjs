@@ -11,8 +11,9 @@
 //   tend-input [--record]           the worksheet: every record finding, or n/a with why
 //   tend-note --finding id --propose "…" | --tried "…"   what tend leaves to the owner
 //   guard --job tend [--base r]     the tend guard, then the gate
-//   tend-report [--body f] [--base r]  the measures again on the branch, the owner's page
-//                                   (docs/tend/<date>.md, when it proposed), the PR body, the line
+//   tend-page [--base r] [--date d]   the owner's page (docs/tend/<date>.md), committed before the guard
+//   tend-report [--body f] [--base r] [--date d]  the measures again on the branch, the PR body,
+//                                   the line (it checks the page is committed, and writes no file of the tree)
 //
 // It never writes evidence, never marks built, lived-in or accepted, never
 // deletes, never merges: the guard refuses the first three, naming the line;
@@ -482,7 +483,27 @@ export function tendImpact(files) {
 
 /** Where a pass's proposals for the owner go: a dated page the PR carries, so a pass that only proposes still reaches a person. */
 export const TEND_PAGES = 'docs/tend';
-export const proposalsPageOf = date => `${TEND_PAGES}/${date}.md`;
+/** A pass's date: exactly YYYY-MM-DD, a real day. */
+export const isDay = d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+/**
+ * The page's path, directly under docs/tend/. The date is the pass record's,
+ * which the agent's job hands back, so it is held to a day (ledger#94: a date
+ * of "../evidence/x" would write evidence), and the judge passes the run's
+ * own (--date) and refuses a record naming another.
+ */
+export function proposalsPageOf(date) {
+  if (!isDay(date)) throw new TendError(`the pass's date ${JSON.stringify(date)} is not a day (YYYY-MM-DD): no page is written from it`);
+  return `${TEND_PAGES}/${date}.md`;
+}
+/** The pass's date, held to a day and, with `given` (the run's), to the run's. */
+export function passDate(pass, given, record = PASS) {
+  if (given !== undefined && given !== null && !isDay(given)) throw new TendError(`--date ${JSON.stringify(given)} is not a day (YYYY-MM-DD)`);
+  if (!isDay(pass.date)) throw new TendError(`${record} names its date ${JSON.stringify(pass.date)}, which is not a day (YYYY-MM-DD)`);
+  if (given && pass.date !== given) throw new TendError(`${record} names its date ${pass.date}, not the run's ${given} (--date): a record's date is the agent's to write, so the judge trusts only the run's`);
+  return pass.date;
+}
+/** What the page carries: every proposal the pass's notes make, in their order. */
+export const pageProposals = pass => (pass.notes ?? []).filter(n => n.kind === 'proposed');
 
 /**
  * The finding ids the re-run on the branch still reports, and whether it
@@ -583,36 +604,58 @@ export function proposalsPage(pass, proposed) {
   const what = new Map(pass.worksheet.findings.map(f => [f.id, f.what]));
   return [
     `# Tend ${pass.date}: for the owner`, '',
-    'The weekly tend pass found these on its worksheet and may only propose them (`.agents/climb/TEND.md`): each is yours to choose. `scripts/keel/climb.mjs tend-report` wrote this page from the pass\'s notes; the pass\'s pull request carries it.', '',
+    'The weekly tend pass found these on its worksheet and may only propose them (`.agents/climb/TEND.md`): each is yours to choose. `scripts/keel/climb.mjs tend-page` wrote this page from the pass\'s notes; the pass\'s pull request carries it.', '',
     ...proposed.map(p => `- [ ] \`${p.finding}\`: ${what.get(p.finding) ?? ''}\n  Proposed: ${p.text.replace(/\s*\n\s*/g, ' ')}`), '',
   ].join('\n');
 }
 
-export async function tendReport({ root, config, env = process.env, body, input, base }) {
+/**
+ * tend-page: what tend leaves to the owner reaches the owner. The judge
+ * (never the agent) commits it as docs/tend/<date>.md, before the guard, so
+ * the tend guard and the gate see the tree that is pushed (ledger#94), and a
+ * pass that only proposed opens a PR too. The commit cites each finding it
+ * proposes for. { page, committed, proposed }.
+ */
+export async function tendPage({ root, input, base, date }) {
+  const pass = await readPass(root, input);
+  if (!pass) throw new TendError(`no pass record at ${input ?? PASS}`);
+  const trusted = recordBase(root, base, pass.base, input ?? PASS);
+  if (trusted.problem) throw new TendError(trusted.problem);
+  const day = passDate(pass, date, input ?? PASS);
+  const proposed = pageProposals(pass);
+  if (!proposed.length) return { page: null, committed: false, proposed: 0 };
+  const page = proposalsPageOf(day);
+  await mkdir(join(root, TEND_PAGES), { recursive: true });
+  await writeFile(join(root, page), proposalsPage(pass, proposed));
+  let committed = false;
+  if (git(root, ['status', '--porcelain', '--', page])) {
+    git(root, ['add', '--', page]);
+    const cites = [...new Set(proposed.map(p => p.finding))].map(f => `Tend: ${f}`).join('\n');
+    git(root, ['commit', '-q', '-m', `keel tend: ${day}, ${plural(proposed.length, 'proposal')} for the owner\n\n${cites}`, '--', page]);
+    committed = true;
+  }
+  return { page, committed, proposed: proposed.length };
+}
+
+export async function tendReport({ root, config, env = process.env, body, input, base, date }) {
   const pass = await readPass(root, input);
   if (!pass) throw new TendError(`no pass record at ${input ?? PASS}`);
   const trusted = recordBase(root, base, pass.base, input ?? PASS);
   if (trusted.problem) throw new TendError(trusted.problem);
   pass.base = trusted.base;
-  const changed = () => git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
-  let commits = tendCommits(root, pass.base);
-  const proposing = (pass.notes ?? []).some(n => n.kind === 'proposed');
-  const after = commits.length || proposing ? { measures: await recordMeasures(root, config, env), reconciliation: reconciliationOf(root, config, env) } : null;
-  let r = tendReportOf(pass, { commits, files: changed(), after });
-  // What tend leaves to the owner reaches the owner: the judge (never the
-  // agent) commits it as a page, so a pass that only proposed opens a PR too.
+  const day = passDate(pass, date, input ?? PASS);
+  // The page is tend-page's, committed before the guard: the report writes
+  // nothing to the tree, so what is pushed is what was gated.
   let page = null;
-  if (r.pass.proposed.length) {
-    page = proposalsPageOf(pass.date);
-    await mkdir(join(root, TEND_PAGES), { recursive: true });
-    await writeFile(join(root, page), proposalsPage(pass, r.pass.proposed));
-    if (git(root, ['status', '--porcelain', '--', page])) {
-      git(root, ['add', '--', page]);
-      git(root, ['commit', '-q', '-m', `keel tend: ${pass.date}, ${plural(r.pass.proposed.length, 'proposal')} for the owner`, '--', page]);
-    }
-    commits = tendCommits(root, pass.base);
-    r = tendReportOf(pass, { commits, files: changed(), after, page });
+  if (pageProposals(pass).length) {
+    page = proposalsPageOf(day);
+    if (showAt(root, 'HEAD', page) !== proposalsPage(pass, pageProposals(pass))) throw new TendError(`${page} is not committed as the pass's notes say: climb.mjs tend-page runs before the guard`);
   }
+  const changed = () => git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
+  const commits = tendCommits(root, pass.base);
+  const proposing = Boolean(page);
+  const after = commits.length || proposing ? { measures: await recordMeasures(root, config, env), reconciliation: reconciliationOf(root, config, env) } : null;
+  const r = tendReportOf(pass, { commits, files: changed(), after, page });
   let text = null;
   if (r.input) {
     text = prBody(r.input);

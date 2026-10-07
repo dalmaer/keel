@@ -895,8 +895,50 @@ export function tendWorkflowProblems(text) {
   if (!(steps[0]?.startsWith('actions/checkout') && steps[1] === 'Is tend on?')) out.push('"Is tend on?" is not the first step after checkout');
   if (!/tend is off/.test(text)) out.push('tend off is not said');
   if (!/^ {4}- cron: "\d+ \d+ \* \* 1"$/m.test(text)) out.push('tend is not weekly on Mondays');
+  // ledger#94: the proposals page is the judge's commit before the guard, so the gate sees the pushed tree;
+  // its date is the run's (the pick's day), never the record's.
+  const page = at('node scripts/keel/climb.mjs tend-page'), guard = at('node scripts/keel/climb.mjs guard --job tend');
+  if (page < 0 || guard < 0 || page > guard) out.push('the proposals page is not committed (tend-page) before the tend guard: the gate would not see the pushed tree');
+  for (const verb of ['tend-input --record', 'tend-page', 'tend-report']) {
+    const line = code(text).find(l => l.line.includes(`node scripts/keel/climb.mjs ${verb}`))?.line ?? '';
+    if (!/ --date "\$DAY"(?: |$)/.test(line)) out.push(`climb.mjs ${verb} does not take the run's day (--date "$DAY"): the record's date would name the page`);
+  }
   return out;
 }
+
+/** Minutes past midnight UTC of a cron "m h dom mon dow" with one minute and one hour; null otherwise. */
+const cronAt = expr => { const m = /^(\d+) (\d+) /.exec(expr); return m ? Number(m[2]) * 60 + Number(m[1]) : null; };
+
+/**
+ * A loop night proposes on the findings keel-loop.yml pulled (b5944cc), so
+ * keel-climb.yml runs after that pull is done: its cron is later than
+ * keel-loop's on every day loop runs, by more than keel-loop's job timeout
+ * (ledger#94). [string].
+ */
+export function climbAfterLoopProblems(climb, loop) {
+  const c = /^ {4}- cron: "([^"]+)"$/m.exec(climb)?.[1], l = /^ {4}- cron: "([^"]+)"$/m.exec(loop)?.[1];
+  if (!c || !l) return ['no cron in keel-climb.yml or keel-loop.yml'];
+  const days = e => e.split(' ').slice(2).join(' ');
+  if (days(c) !== days(l)) return [`keel-climb.yml runs on "${days(c)}" and keel-loop.yml on "${days(l)}": not the same days`];
+  const bound = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(loop)?.[1] ?? NaN);
+  if (!Number.isFinite(bound)) return ['keel-loop.yml\'s job has no timeout-minutes'];
+  return cronAt(c) > cronAt(l) + bound ? [] : [`keel-climb.yml (${c}) does not run after keel-loop.yml's pull (${l}, up to ${bound} min): a loop night would propose on yesterday's findings`];
+}
+
+test('keel-climb.yml runs after keel-loop.yml\'s pull, on the same days, so a loop night proposes on today\'s findings (ledger#94)', async () => {
+  const all = await shipped();
+  const climb = all.find(w => w.name === 'keel-climb.yml').template, loop = all.find(w => w.name === 'keel-loop.yml').template;
+  assert.deepEqual(climbAfterLoopProblems(climb, loop), []);
+  assert.deepEqual(climbAfterLoopProblems(await readFile(join(KEEL, '.github/workflows/keel-climb.yml'), 'utf8'), loop), [], "keel's keel-climb.yml");
+  for (const [why, text] of [
+    ['before the pull, as it was', climb.replace('cron: "17 10 * * *"', 'cron: "41 9 * * *"')],
+    ['inside the pull\'s bound', climb.replace('cron: "17 10 * * *"', 'cron: "50 9 * * *"')],
+    ['weekly while loop is daily', climb.replace('cron: "17 10 * * *"', 'cron: "17 10 * * 1"')],
+  ]) {
+    assert.notEqual(text, climb, `${why}: the mutation did not apply`);
+    assert.ok(climbAfterLoopProblems(text, loop).length, `${why}: expected a problem`);
+  }
+});
 
 test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge, no delete; the agent time-boxed; the guard and the report before one PR', async () => {
   const w = (await shipped()).find(x => x.name === 'keel-tend.yml');
@@ -926,7 +968,10 @@ test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge,
     ['a branch deleted', t.replace(push, `${push}\n          git push origin --delete refs/heads/keel-tend/old`)],
     ['a PR closed', t.replace(push, `${push}\n          gh pr close 3`)],
     ['tend off said late', t.replace('      - name: Is tend on?\n', '      - name: Acme first\n        run: true\n      - name: Is tend on?\n')],
-    ['daily', t.replace('cron: "42 9 * * 1"', 'cron: "42 9 * * *"')],
+    ['daily', t.replace('cron: "18 10 * * 1"', 'cron: "18 10 * * *"')],
+    ['the page after the guard', t.replace(/( {10}node scripts\/keel\/climb\.mjs tend-page [^\n]*\n)( {10}node scripts\/keel\/climb\.mjs guard --job tend [^\n]*\n)/, '$2$1')],
+    ['the page named by the record\'s date', t.replace(/(climb\.mjs tend-page [^\n]*?) --date "\$DAY"/, '$1')],
+    ['the report trusts the record\'s date', t.replace(/(climb\.mjs tend-report [^\n]*?) --date "\$DAY"/, '$1')],
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     const found = rule === 'problems' ? problems('keel-tend.yml', text, w.declared) : tendWorkflowProblems(text);

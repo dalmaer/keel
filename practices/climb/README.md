@@ -40,9 +40,12 @@ PR are the script's:
   A name that matches no test is exit 2, never a pass.
 - `guard` runs the project's gate and, with the night's test ledger
   (`scripts/keel/test-ledger.mjs`), checks that every test the base ran
-  still ran: none dropped, none skipped. Each side is every record of its
-  commit, not the newest: a gate that runs several suites (the root's, then
-  `web/`'s) records one per suite. Then the job's own guard:
+  still ran: none dropped, none skipped. Each side is every record its own
+  gate run wrote, not the newest, and nothing older: a gate that runs
+  several suites (the root's, then `web/`'s) records one per suite, and a
+  record left at the same commit (the agent testing one file, a record
+  handed back from its job) never counts. The base's side is the base's
+  gate, run then in a worktree. Then the job's own guard:
   `hygiene` refuses a diff that, in the flaky test's file, only changes a
   timeout or adds a retry, naming the line (a fix that also changes other
   lines passes, with a note for the person); `build-time` builds base and
@@ -64,10 +67,12 @@ PR are the script's:
   workflows' judge and publish jobs run it before they take the commits or
   push them.
 - The judge passes `--base "$GITHUB_SHA"` (the run's commit) to `settle`,
-  `guard`, `compare --final`, `report` and `tend-report`: the night's or the
-  pass's record comes back from the agent's job, so a record naming any
-  other base is refused, and every commit since the run's is guarded. Without
-  `--base`, a person's own run keeps the record's base.
+  `guard`, `compare --final`, `report`, `tend-page` and `tend-report`, and
+  the pick's day (`--date "$DAY"`) to `tend-page` and `tend-report`: the
+  night's or the pass's record comes back from the agent's job, so a record
+  naming any other base or day is refused, and every commit since the run's
+  is guarded. Without them, a person's own run keeps the record's (a pass's
+  date is always held to YYYY-MM-DD, so its page stays in `docs/tend/`).
 - `distill [--json]` is a lessons night's worksheet: the project's own
   table (`.keel/keel.json` `lessons`, default `docs/lessons.md`), each row
   with its provenance and family, the families the owner accepted, the open
@@ -91,7 +96,9 @@ PR are the script's:
   (the test, its passes and fails on its tree, the command to run it alone,
   what was tried), and the workflow files it on this repo.
 
-`.github/workflows/keel-climb.yml` runs it: pick, the baseline, then
+`.github/workflows/keel-climb.yml` runs it at 10:17 UTC (after `keel-loop.yml`'s
+09:43 pull and its 30-minute bound, so a loop night proposes on today's
+findings; `keel-tend.yml` a minute later on Mondays): pick, the baseline, then
 `anthropics/claude-code-action` with the protocol, the job's brief and the
 pick, time-boxed to the budget, its tools unable to push or merge; then
 `settle`, `guard`, a final `compare` of the night's base against its end,
@@ -149,11 +156,14 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
   README, `AGENTS.md`, `CLAUDE.md`, Markdown under `.agents/`), cited or
   not, and a commit that cites no worksheet finding (`Tend: <id>`); then
   the gate.
+- `tend-page [--base r] [--date d]` — the proposals, committed by the judge
+  as `docs/tend/<date>.md` before the guard (the commit cites each finding),
+  so the tend guard and the gate run over the tree that is pushed.
 - `tend-report [--body f]` — the record measures again on the branch (a
   finding is resolved when a commit cites it and the re-run no longer
   reports it; cited but still reported, it was tried; a loose end, not
-  re-measured, is resolved by its citation); the proposals, committed by
-  the judge as `docs/tend/<date>.md`; the PR body through `pr-body.mjs` (Summary: finding → what was done;
+  re-measured, is resolved by its citation); it writes nothing to the tree
+  and refuses a page `tend-page` did not commit; the PR body through `pr-body.mjs` (Summary: finding → what was done;
   Evidence: the record count before and after; Merge danger: a two-way
   door over records and docs; Notes: the owner's checklist and what is
   unresolved; the keel-impact block naming any phase it edits) and the

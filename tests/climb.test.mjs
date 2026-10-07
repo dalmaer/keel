@@ -1240,3 +1240,25 @@ test('guard: a gate that records a run per suite (the root\'s, then web\'s) is c
   assert.deepEqual(r.tests.map(x => [x.file, x.outcome]), [['a', 'pass'], ['web/b', 'pass']]);
   assert.equal(m.ranOn([], 'c'), null);
 });
+
+test('guard: only the records its own gate run wrote count; a suite the candidate dropped from its gate is not masked by a record the agent left at that commit (ledger#94)', async t => {
+  const reporter = dest => `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${dest}scripts/keel/test-ledger.mjs --test-reporter-destination=stdout`;
+  const ROOT = `node --test ${reporter('./')} acme.test.mjs`, WEB = `cd web && node --test ${reporter('../')} web.test.mjs`;
+  // The gate is the project's own script (as ledger's `npm run check`): a branch may change what it runs.
+  const gateFile = suites => `const { execSync } = require('node:child_process');\n${suites.map(c => `execSync(${JSON.stringify(c)}, { stdio: 'inherit' });`).join('\n')}\n`;
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: 'node gate.cjs' }, config: { check: 'node gate.cjs' }, files: { 'gate.cjs': gateFile([ROOT, WEB]), 'acme.test.mjs': suite('acme adds'), 'web/web.test.mjs': suite('acme renders') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  // A ledger record of the base the agent's job handed back, naming a test the base never ran: not read.
+  await ledgerRuns(dir, { commit: base, tree: git(dir, ['rev-parse', 'HEAD^{tree}']), outcomes: ['pass'], file: 'acme.test.mjs', name: 'acme forged', others: [] });
+  git(dir, ['checkout', '-q', '-b', 'narrow']);
+  const head = await commit(dir, { 'gate.cjs': gateFile([ROOT]) }, 'acme: a faster gate');
+  // The agent tests the web suite directly at the candidate, as the protocol tells it to test what it touched.
+  assert.equal(run('sh', ['-c', WEB], { cwd: dir }).status, 0);
+  const runs = (await import(pathToFileURL(join(dir, 'scripts/keel/test-ledger.mjs')).href)).readRuns;
+  assert.ok((await runs(dir)).runs.some(r => r.commit === head && r.tests.some(x => x.name === 'acme renders')), 'a record at the candidate holds web\'s test');
+  // Mutation: counting every record at the candidate SHA passes here.
+  const g = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(g.status, 1, g.stdout + g.stderr);
+  assert.deepEqual(json(g).missing, [{ file: 'web/web.test.mjs', name: 'acme renders', how: 'dropped' }]);
+  assert.doesNotMatch(g.stdout, /acme forged/, 'the base is its own gate run, never a handed-back record');
+});

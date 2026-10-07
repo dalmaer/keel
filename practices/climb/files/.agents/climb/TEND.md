@@ -49,7 +49,7 @@ carries, so a pass that only proposes still reaches the owner:
 - mark a phase `built`, `lived-in` or `accepted`, or tick an acceptance box;
 - delete a file, a branch, a PR or data;
 - merge, push, or open the PR (the workflow opens it, from `climb.mjs
-  tend-report`).
+  tend-page` and `tend-report`).
 
 `node scripts/keel/climb.mjs guard --job tend` refuses each of these, naming
 the line; you can run it yourself before you stop.

@@ -91,7 +91,8 @@ test('a tend pass: the worksheet, one cited fix, a proposal and a tried note; th
   assert.equal(climb(dir, ['tend-note', '--finding', 'proofs_hold:1']).status, 2, 'neither --propose nor --tried');
   const others = ids.filter(id => !['roadmap_stale', 'proofs_hold:1'].includes(id));
   for (const id of others) assert.equal(climb(dir, ['tend-note', '--finding', id, '--tried', 'Read it; out of budget.']).status, 0);
-  // The guard and the gate, then the report.
+  // The judge's page of proposals, then the guard and the gate over it, then the report.
+  assert.equal(climb(dir, ['tend-page', '--date', '2026-10-12']).status, 0);
   const g = climb(dir, ['guard', '--job', 'tend']);
   assert.equal(g.status, 0, g.stdout + g.stderr);
   const body = join(dir, '..', 'body.md');
@@ -133,9 +134,21 @@ test('a pass that only proposes still reaches the owner: the judge commits its p
   assert.equal(git(dir, ['rev-parse', 'HEAD']), base);
   // The agent only proposes (stepping phase 1 back is the owner's), and commits nothing.
   assert.equal(climb(dir, ['tend-note', '--finding', 'proofs_hold:1', '--propose', 'Step phase 1 back to partial: its test is gone.']).status, 0);
-  assert.equal(json(climb(dir, ['guard', '--job', 'tend', '--json'])).skipped, true, 'the agent committed nothing');
+  // The report never writes the page: it refuses a page tend-page did not commit.
+  const early = climb(dir, ['tend-report', '--json']);
+  assert.equal(early.status, 2, early.stdout);
+  assert.match(json(early).error, /docs\/tend\/2026-10-12\.md is not committed as the pass's notes say: climb\.mjs tend-page runs before the guard/);
+  const page = json(climb(dir, ['tend-page', '--base', base, '--date', '2026-10-12', '--json']));
+  assert.deepEqual(page, { page: 'docs/tend/2026-10-12.md', committed: true, proposed: 1 });
+  assert.match(git(dir, ['log', '-1', '--format=%B']), /^keel tend: 2026-10-12, 1 proposal for the owner\n\nTend: proofs_hold:1/);
+  // The guard and the gate run over the page (ledger#94: the pushed tree is the gated tree).
+  const g = json(climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']));
+  assert.equal(g.ok, true, JSON.stringify(g));
+  assert.equal(g.skipped, undefined, 'the page is guarded and gated, never skipped');
+  const gated = git(dir, ['rev-parse', 'HEAD']);
   const body = join(dir, '..', 'body.md');
-  const r = json(climb(dir, ['tend-report', '--body', body, '--json']));
+  const r = json(climb(dir, ['tend-report', '--body', body, '--base', base, '--date', '2026-10-12', '--json']));
+  assert.equal(git(dir, ['rev-parse', 'HEAD']), gated, 'the report commits nothing after the gate');
   assert.equal(r.commits, 1, 'the judge\'s page is the PR\'s one commit (mutation: no page commit leaves 0, and publish opens nothing)');
   assert.equal(r.page, 'docs/tend/2026-10-12.md');
   assert.deepEqual(git(dir, ['diff', '--name-only', base, 'HEAD']).split('\n'), ['docs/tend/2026-10-12.md'], 'the page and nothing else');
@@ -144,9 +157,10 @@ test('a pass that only proposes still reaches the owner: the judge commits its p
   const text = await readFile(body, 'utf8');
   assert.match(text, /^\| `proofs_hold:1`: phase 1 .* \| proposed for the owner in docs\/tend\/2026-10-12\.md \|$/m);
   assert.match(text, /^- \[ \] `proofs_hold:1`: Step phase 1 back to partial/m);
-  assert.match(text, /^Gate: not run: the agent committed nothing, so there was nothing to gate$/m);
+  assert.match(text, /^Gate: `node -e "process\.exit\(0\)"` exit 0 on [0-9a-f]{7}; the tend guard passed/m);
   assert.match(text, /"reconciliation":"none"/, 'the page is no phase or decision record');
-  // A re-run of the report makes no second commit.
+  // A re-run of the page or the report makes no second commit.
+  assert.equal(json(climb(dir, ['tend-page', '--json'])).committed, false);
   assert.equal(json(climb(dir, ['tend-report', '--json'])).commits, 1);
   assert.ok(w.findings.length >= 2);
 });
@@ -219,4 +233,30 @@ test('the tend brief says what tend may do, may only propose, and may never do, 
   for (const re of [/docs\/evidence\//, /`built`, `lived-in` or `accepted`/, /acceptance box/, /delete a file, a branch, a PR or data/, /merge/]) assert.match(never, re);
   assert.match(brief, /`Tend: <finding id>`/, 'every change cites its finding');
   assert.ok(pathToFileURL(join(KEEL, 'practices/climb/files/scripts/keel/tend.mjs')));
+});
+
+test('the page\'s date is a day and the run\'s: a record dated "../evidence/x" or another day writes nothing (ledger#94)', async t => {
+  const dir = await acme(t);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['switch', '-q', '-c', 'keel-tend/2026-10-12']);
+  json(climb(dir, ['tend-input', '--record', '--date', '2026-10-12', '--json']));
+  assert.equal(climb(dir, ['tend-note', '--finding', 'proofs_hold:1', '--propose', 'Step phase 1 back to partial.']).status, 0);
+  const passFile = join(dir, '.keel/tend/pass.json');
+  const pass = JSON.parse(await readFile(passFile, 'utf8'));
+  const evidence = await readFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), 'utf8');
+  for (const [date, re] of [['../evidence/2026-10-01-acme-orders', /names its date "\.\.\/evidence\/2026-10-01-acme-orders", which is not a day/], ['2026-10-13', /names its date 2026-10-13, not the run's 2026-10-12 \(--date\)/], ['2026-02-30', /not a day/]]) {
+    await writeFile(passFile, JSON.stringify({ ...pass, date }));
+    for (const verb of ['tend-page', 'tend-report']) {
+      const r = climb(dir, [verb, '--base', base, '--date', '2026-10-12', '--json']);
+      assert.equal(r.status, 2, `${verb} ${date}: ${r.stdout}`);
+      assert.match(json(r).error, re, `${verb} ${date}`);
+    }
+    assert.equal(await readFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), 'utf8'), evidence, 'evidence untouched');
+    assert.equal(git(dir, ['rev-parse', 'HEAD']), base, 'nothing committed');
+  }
+  // Without --date (a person's own run), the record's date must still be a day: the path never leaves docs/tend/.
+  await writeFile(passFile, JSON.stringify({ ...pass, date: '../evidence/2026-10-01-acme-orders' }));
+  assert.equal(climb(dir, ['tend-page', '--json']).status, 2);
+  assert.equal(git(dir, ['status', '--porcelain']), '');
+  assert.equal(climb(dir, ['tend-page', '--date', '../x', '--json']).status, 2, 'a --date that is not a day');
 });
