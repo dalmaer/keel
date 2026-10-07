@@ -1,0 +1,115 @@
+# Bring a project under keel
+
+## When you'd reach for this
+
+A repo already exists, with its own history and its own way of working, and
+you want keel's practice in it: the night's health page, the lessons going
+home, updates arriving as PRs. Perhaps it already has a version of the
+practice, copied by hand from another project, and the copy has drifted.
+
+For an empty directory, [Start a project](start-a-project.md) is shorter.
+
+## What it does, and why it works that way
+
+`keel adopt` surveys the repo and switches a practice **on only where the
+project already satisfies it**. Every practice ends up in one of three
+states:
+
+- **on**: keel installs its files.
+- **local**: the project has its own version. Keel installs nothing for it,
+  and records why in `.keel/keel.json` `local`, with a proposal for how the
+  two could converge in `docs/keel-adoption.md`.
+- **off**: nothing is there to build on (no phases means no phases, no
+  evidence and no conductor).
+
+The reason is the rule keel holds above all others: never overwrite a
+project's own work. A project's phases may be in a shape its history can't
+be rewritten into; its built phases may carry no evidence. Adopt never
+rewrites the first and never invents the second, because a placeholder
+evidence page would pass the check without being the thing (lesson 6's
+family, "a check that cannot fail"). Converging is a migration the owner
+accepts later, or a decision to leave it local.
+
+The same rule decides the smaller cases. A file the project already has
+where keel would write one is **keep-local**, and makes its practice local.
+A project with its own CI workflow keeps `ci` local, because keel would
+otherwise add a second workflow running the same gate. `AGENTS.md` keeps
+every byte; keel's sections are appended under a heading of their own, and
+any rule the file already states in its own words is skipped rather than
+said twice.
+
+What stays local is never a failure. `keel doctor` lists local variants as
+information, and says when one would now switch on if adopted again.
+
+## The commands
+
+Read first. A dry run writes nothing and prints the whole plan:
+
+```bash
+keel adopt ../acme-app --dry-run
+```
+
+Then, on a branch, for a PR a person merges:
+
+```bash
+keel adopt ../acme-app --check "npm run check:all"
+```
+
+Each flag, by why you'd pass it:
+
+- `--dry-run`. Always first. It shows the gate it found, the stack, each
+  practice's state with the reason, and each file it would create or keep.
+- `--check "<command>"`. The project's gate, when adopt can't find it or
+  finds the wrong one. Without it, adopt takes an existing `check` from
+  `.keel/keel.json`, then a `check:all` script, then a `check` script; with none, the dry run says `Gate: none
+  found` and a real run refuses (exit 2). **Adopt never invents a gate**,
+  because a gate keel guessed would be green on things the project never
+  checks. Keel's `check.yml`, the night and `keel update` all run this one
+  command.
+- `--setup "<command>"`. When the gate needs an install step that is not
+  `npm ci` (a workspace build, a private clone). The night runs it before
+  measuring, read at run time, so changing it later needs no re-render.
+- `--env KEY=VALUE`, repeatable. Variables set wherever keel runs the gate.
+  The usual reason is a gate that would otherwise do something outward, for
+  example `--env ACME_AUTOSYNC=0`, so a keel run never syncs or pushes.
+- `--with <practice>`, repeatable. Asks for an optional practice. On a
+  project already adopted it adds only that practice: its files, its
+  `AGENTS.md` section and its lock rows, and every other byte stays. If the
+  project has its own version, adopt exits 1, says why, and writes nothing:
+  retire the project's own version first.
+
+Running adopt again is a no-op, which makes it safe to re-run after you
+change something to see what would now switch on.
+
+## What you'll see
+
+The dry run's survey: `Gate:`, `Lessons:`, `Stack:`, `Repo:`, then
+`Practices:` with `on`, `local` or `off` and the reason for each, then
+`Files:` with `create`, `same`, `keep-local` or `conflict`, then the secrets
+the switched-on practices need, each a ⚑ step for the owner.
+
+- **0**: surveyed (dry run), or written.
+- **1**: `--with` asked for a practice the project has its own version of.
+  Nothing was written.
+- **2**: usage, or no gate found on a run that would write.
+
+The exact config fields adopt records (`setupToken`, `gateWorkflow`,
+`health`, `stack`, the projects shape) are in `keel --agent-help adopt`.
+
+## What it never does
+
+- It never commits, branches or opens a PR. Landing the adoption is the
+  owner's step.
+- It never rewrites a phase file, writes evidence, or steps a phase back.
+- It never replaces a file the project already has.
+- It never invents a gate, and never adds a second workflow running the one
+  the project has.
+
+## See also
+
+- [When something is red](when-something-is-red.md): reading `keel doctor`
+  after adoption.
+- [Keep the fleet current](keep-the-fleet-current.md): how the adopted
+  project gets later versions.
+- [`practices/phases/README.md`](../../practices/phases/README.md): what
+  happens to a project whose phases are in another shape.
