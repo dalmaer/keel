@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 44 phases lived in; 33 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 45 phases lived in; 33 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-4/4 built or lived-in; 0/4 lived-in.
+4/5 built or lived-in; 0/5 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -21,11 +21,13 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [1. The practice is a set of modules keel can install, including on itself](phases/01-practices-as-modules.md) | built | 2026-10-02 | [0](phases/00-keel-runs-on-itself.md) | Seven practices (base, agents-md, phases, evidence, lessons, conduct, ci) render keel's own files; render --self --check in npm run check keeps the two copies one. Not yet rendered into a real project. |
 | [18. What keel tells people can't fall behind what keel does](phases/18-docs-cannot-drift.md) | built | 2026-10-03 | [16](phases/16-keel-learns-its-ancestors.md) | tests/docs.test.mjs checks the README's verb and practice tables against the code, both ways; its first run caught a missing practice row. Conduct's Record step asks about docs; doctor notes a README older than the newest built phase. |
 | [32. A phase's spec says how it will be proven, and an empty one fails the check](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | built | 2026-10-06 | [0](phases/00-keel-runs-on-itself.md), [1](phases/01-practices-as-modules.md) | Built and walked: the roadmap check refuses template text; spec 2 phases name a check per box and their Real surfaces; proofs_hold runs nightly; cajones (and the fleet) updated to v0.8.0 with their own checks green. · [#10](https://github.com/dalmaer/keel/issues/10) |
+| [44. A walk owed does not block the next phase, and lived-in is a project's choice](phases/44-a-walk-owed-does-not-block-the-next-phase.md) | planned | 2026-10-07 | [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | The owner: lived-in feels like it slows a fast project down. It blocks nothing; partial does, when a phase's building is done and its rest is a walk or time. Lived-in becomes opt-in; owes: walk lets dependents proceed while built still means proven. Design: research/2026-10-07-walks-and-lived-in.md. · [#28](https://github.com/dalmaer/keel/issues/28) |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
 - **18 done when:** `npm run check` fails when the README's verb or practice tables disagree with the live verb registry or `practices/`, and the conduct skill's Record step names README and the agent guide.
 - **32 done when:** `roadmap --check` refuses a phase that still holds `keel phase new`'s template text or an empty Done when, Acceptance or Proof; every acceptance box in a new phase names its check (a test, a command, or ⚑ by hand); and the phase template asks for its Real surfaces, each needing one proof in that place.
+- **44 done when:** keel's own roadmap runs with lived-in off (its headline counts built, not lived-in), every keel phase whose building is done and whose rest is a walk or time is marked `owes: walk`, and `keel next` names the next buildable phase instead of one waiting on a walk; no phase is built that was not proven.
 
 ## G1 — Start a project in one command
 
