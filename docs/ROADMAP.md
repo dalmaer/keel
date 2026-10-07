@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 43 phases lived in; 33 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 44 phases lived in; 33 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -111,7 +111,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-5/11 built or lived-in; 0/11 lived-in.
+5/12 built or lived-in; 0/12 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -126,6 +126,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [36. A flaky test and a slower build are climbed the same way](phases/36-a-flaky-test-and-a-slower-build-are-climbed-the.md) | partial | 2026-10-06 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md) | Built: the hygiene job (picked first when a test is flaky; prove-steady N runs on one clean tree; timeout- or retry-only fixes refused; an issue when nothing is proven), the build-time job (output hashed, each change needs a harmless reason), a build_time night measure, and retirement after three closed PRs. Waits on a real hygiene night on keel and a build-time night on ledger. · [#14](https://github.com/dalmaer/keel/issues/14) |
 | [37. A project's own benchmark, its lessons and its Loop findings are climbed overnight](phases/37-a-project-s-own-benchmark-its-lessons-and-its.md) | partial | 2026-10-06 | [14](phases/14-stitch-loop.md), [20](phases/20-keel-runs-ledger.md), [31](phases/31-the-lessons-table-is-distilled-into-patterns.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md) | Built: perf (the command's last-line number, better lower or higher, the project's perf check as guard), lessons (a distill pass over the project's own table: proposals only, decided by editing their status) and loop (pull, propose a rank for each untriaged finding, decide none; unreachable is a notice). Waits on ledger's climb config and token at the fleet release, and one owner-read night of each. · [#15](https://github.com/dalmaer/keel/issues/15) |
 | [38. The records are tended: a weekly pass resolves what the night found, and a person merges it](phases/38-the-records-are-tended-a-weekly-pass-resolves.md) | partial | 2026-10-06 | [26](phases/26-reconciliation.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | Built and on for keel (weekly, 30 minutes): keel-tend.yml, tend.mjs, the tend guard, the Tend line. The first pass opened keel#22; it missed phase 35's stale next action and leaked a runner path into its loose-ends text. Waits on the owner merging or closing #22, and one adopted project's pass. · [#16](https://github.com/dalmaer/keel/issues/16) |
+| [43. Each budgeted pass shows what it used, and says when to extend or shorten](phases/43-each-budgeted-pass-shows-what-it-used.md) | planned | 2026-10-06 | [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [38](phases/38-the-records-are-tended-a-weekly-pass-resolves.md), [42](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | The owner set tend at 30 minutes and asked to track its use, to extend or shorten it. A Budget line on the night: the agent step's minutes per run from GitHub's record, which ran out, and a suggestion; never a change. Design: research/2026-10-06-budget-use.md. · [#25](https://github.com/dalmaer/keel/issues/25) |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
@@ -138,6 +139,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 - **36 done when:** A climb night picks `hygiene` when the ledger names a flaky test and opens a PR that makes it pass reliably (its fix shown by the ledger over repeated runs on one clean tree) or files an issue saying why it could not; and a project that names a `build` command gets `build-time` PRs under the same protocol.
 - **37 done when:** On ledger, climb nights have run each of `perf` (its own benchmark command, measured under the protocol), `lessons` (a distill pass over ledger's table, proposals for the owner) and `loop` (Loop's new findings pulled and each given a proposed rank), each opening at most one PR that the owner reads, and none deciding anything a person decides.
 - **38 done when:** On keel and one adopted project, a scheduled tend pass has read the night's record findings and opened one `keel-tend/<date>` PR that resolves them (corrections applied, lost proofs repaired or proposed back to partial, docs brought in line, drift and loose ends described for the owner to choose), the owner has merged it, and the next night's record findings fell to what the PR left, each of those named on the health page with what was tried.
+- **43 done when:** keel's health page shows a Budget line for tend and climb: the agent step's minutes in each of the last runs (at most 8), which ran out, and a suggestion (extend, shorten to N, hold, or too few to say), read from GitHub's record of the runs; and the owner has read tend's line and kept or changed its budget by it.
 
 ## G5 — Keel knows whether it helps
 
