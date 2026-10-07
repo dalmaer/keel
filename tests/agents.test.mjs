@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { load } from '../lib/practices.mjs';
-import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems } from '../practices/night/files/scripts/keel/lib.mjs';
+import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
@@ -235,18 +235,28 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
   const dir = await mkdtemp(join(tmpdir(), 'keel-agents-default-'));
   try {
     await mkdir(join(dir, '.keel'), { recursive: true });
+    await mkdir(join(dir, 'scripts/keel'), { recursive: true });
+    await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(dir, 'scripts/keel/cross-review.mjs'));
+    await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/keel/lib.mjs'));
     const on = runBlocks(w.crossReview.text).find(b => b.step === 'Is cross-review on?');
-    const outputs = async config => {
+    const step = async config => {
       await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', ...config }));
       const out = join(dir, 'out');
       await writeFile(out, '');
       const r = run('bash', ['-e', '-c', on.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out } });
-      assert.equal(r.status, 0, r.stderr);
-      return Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(Boolean).map(l => l.split('=')));
+      return { ...r, outputs: Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(Boolean).map(l => l.split('='))) };
     };
+    const outputs = async config => { const r = await step(config); assert.equal(r.status, 0, r.stdout + r.stderr); return r.outputs; };
     assert.deepEqual(await outputs({ crossReview: { for: ['codex/'] } }), { on: 'true', agents: 'claude' });
     assert.deepEqual(await outputs({ agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/', 'claude/'] } }), { on: 'true', agents: 'claude,codex' });
-    assert.deepEqual(await outputs({ agents: { 'x"; rm -rf /': {}, codex: {} }, crossReview: { for: ['claude/'] } }), { on: 'true', agents: 'codex' }, 'never an odd value in an output; the config check refuses it');
+    assert.deepEqual(await outputs({}), { on: 'false' });
+    // ledger#101: a typo in "agents" is red here, before the secret gate could end the run green and quiet.
+    for (const agents of [{ claud: {} }, { 'x"; rm -rf /': {}, codex: {} }]) {
+      const bad = await step({ agents, crossReview: { for: ['claude/'] } });
+      assert.equal(bad.status, 1, JSON.stringify(agents));
+      assert.match(bad.stdout, /^::error::cross-review: \.keel\/keel\.json: "agents" names an unknown provider/m);
+      assert.deepEqual(bad.outputs, {}, 'no output: the secret gate and everything after it never run');
+    }
   } finally { await rm(dir, { recursive: true, force: true }); }
   const { cross } = await scripts();
   const pr = { number: 7, headRefName: 'codex/lid', headRefOid: 'a'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' };
@@ -329,7 +339,7 @@ test('the Budget line finds the agent step whichever provider ran it: both carry
 
 // ---- the owner's rule: a PR is reviewed by a provider other than its author ----------
 
-test('the reviewer is never the author: codex/ PRs go to Claude, claude/ PRs to Codex (when listed), the first other provider "agents" lists', async () => {
+test('the reviewer is another provider whenever one is available: codex/ PRs go to Claude, claude/ PRs to Codex (when listed, its secret set), the first other provider "agents" lists', async () => {
   // The branches each provider's PRs use: claude-code-action's branch_prefix default, Codex cloud's fixed codex/<slug>.
   assert.equal(AGENTS.claude.branch, 'claude/');
   assert.equal(AGENTS.codex.branch, 'codex/');
@@ -344,19 +354,56 @@ test('the reviewer is never the author: codex/ PRs go to Claude, claude/ PRs to 
   // No "agents" key: claude alone, and today's codex/ config is reviewed by Claude, unchanged.
   const today = { crossReview: { for: ['codex/'], budget: { minutes: 15 } } };
   assert.deepEqual(passAgentProblems(today, 'crossReview'), []);
-  assert.deepEqual(reviewerOf({ config: today, head: 'codex/lid' }), { author: 'codex', reviewer: 'claude', why: 'written by codex (codex/): reviewed by claude, the first other provider "agents" lists' });
+  assert.deepEqual(reviewerOf({ config: today, head: 'codex/lid' }), { author: 'codex', reviewer: 'claude', self: false, why: 'written by codex (codex/): reviewed by claude, the first other provider "agents" lists' });
   // A prefix no provider's branch names: "crossReview".agent, default claude.
   assert.equal(reviewerOf({ config: { crossReview: { for: ['acme/'] } }, head: 'acme/x' }).reviewer, 'claude');
   assert.equal(reviewerOf({ config: { agents: { codex: {} }, crossReview: { for: ['acme/'], agent: 'codex' } }, head: 'acme/x' }).reviewer, 'codex');
-  // The rule holds per PR in the script, for every listed order and head.
+  // The rule holds per PR in the script, for every listed order and head, with every secret set.
   const { cross } = await scripts();
   const pr = head => ({ number: 7, headRefName: head, headRefOid: 'b'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' });
   for (const config of [both, codexFirst, today]) for (const head of config.crossReview.for.map(p => `${p}lid`)) {
-    const r = cross.shouldReview({ config, event: { name: 'pull_request', action: 'opened' }, pr: pr(head) });
+    const r = cross.shouldReview({ config, event: { name: 'pull_request', action: 'opened' }, pr: pr(head), has: { claude: true, codex: true } });
     assert.equal(r.review, true);
-    assert.notEqual(r.agent, r.author, `${head}: reviewed by its own provider`);
+    assert.notEqual(r.agent, r.author, `${head}: reviewed by its own provider while another was available`);
+    assert.equal(r.self, false);
     assert.equal(r.author, authorOf(head));
   }
+});
+
+test('its own provider reviews a PR only when no other is available: none other listed, or none with its secret; it says so, in a notice and in the review', async () => {
+  const both = { agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/', 'claude/'] } };
+  // Listed, but its secret is not set: the author reviews.
+  assert.deepEqual(reviewerOf({ config: both, head: 'claude/lid', has: { claude: true, codex: false } }), { author: 'claude', reviewer: 'claude', self: true, why: 'written by claude (claude/): reviewed by claude, its own provider: no other is configured' });
+  // Not listed: claude alone, a claude/ PR. Valid config now (the fallback), and Claude reviews it.
+  const alone = { crossReview: { for: ['claude/'] } };
+  assert.deepEqual(passAgentProblems(alone, 'crossReview'), []);
+  assert.equal(reviewerOf({ config: alone, head: 'claude/lid' }).self, true);
+  // Nobody with a secret: the first other is named, so the caller says which secret to add.
+  assert.deepEqual([reviewerOf({ config: both, head: 'claude/lid', has: { claude: false, codex: false } }).reviewer, reviewerOf({ config: both, head: 'claude/lid', has: { claude: false, codex: false } }).self], ['codex', false]);
+  // The script: a self-review is a review, flagged; with no secret at all, a notice and no review.
+  const { cross } = await scripts();
+  const pr = { number: 7, headRefName: 'claude/lid', headRefOid: 'd'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' };
+  const ev = { name: 'pull_request', action: 'opened' };
+  const self = cross.shouldReview({ config: both, event: ev, pr, has: { claude: true, codex: false } });
+  assert.deepEqual([self.review, self.agent, self.author, self.self], [true, 'claude', 'claude', true]);
+  const none = cross.shouldReview({ config: both, event: ev, pr, has: { claude: false, codex: false } });
+  assert.deepEqual([none.review, none.notice], [false, true]);
+  assert.match(none.why, /add the OPENAI_API_KEY secret for it to run/);
+  // The review says it, under the summary.
+  const review = cross.summaryReview({ result: { is_error: false, result: 'Checked the lid.' }, agent: 'claude', author: 'claude', pr, minutes: 15 });
+  assert.match(review.body, /Reviewed by claude, its own provider: no other is configured\./);
+  assert.doesNotMatch(cross.summaryReview({ result: { is_error: false, result: 'Checked.' }, agent: 'claude', author: 'codex', pr, minutes: 15 }).body, /its own provider/);
+  // The last guard: its own provider while another is available (a bug in the choice) is red, and no agent runs.
+  const stub = () => ({ author: 'claude', reviewer: 'claude', self: true, why: 'acme' });
+  assert.throws(() => cross.shouldReview({ config: both, event: ev, pr, has: { claude: true, codex: true }, choose: stub }),
+    e => e.exitCode === 2 && /claude would review its own provider's PR while codex is available; no agent runs/.test(e.message));
+  assert.throws(() => cross.shouldReview({ config: both, event: ev, pr, choose: stub }), e => e.exitCode === 2, 'no secrets said: every listed provider counts as available');
+  assert.equal(cross.shouldReview({ config: both, event: ev, pr, has: { claude: true, codex: false }, choose: stub }).self, true, 'with codex unavailable it is the fallback, not red');
+  assert.throws(() => cross.shouldReview({ config: both, event: ev, pr, choose: () => ({ author: 'claude', reviewer: null, why: 'none listed' }) }), e => e.exitCode === 2 && /none listed; no agent runs/.test(e.message));
+  // The workflow says so in a notice, and hands the author to the summary.
+  const w = await workflows();
+  assert.match(w.crossReview.text, /console\.log\(w\.review \? `\$\{w\.self \? "::notice::" : ""\}review: \$\{w\.why\}`/);
+  assert.match(w.crossReview.text, /summary --agent "\$\{AGENT:-claude\}" --author "\$AUTHOR"/);
 });
 
 test('a third provider: the first listed that is not the author reviews; a pass\'s configured agent never overrides the author rule', () => {
@@ -369,35 +416,47 @@ test('a third provider: the first listed that is not the author reviews; a pass\
   assert.equal(reviewerOf({ config, head: 'codex/x', agents }).reviewer, 'acmebot');
   assert.equal(reviewerOf({ config, head: 'claude/x', agents }).reviewer, 'acmebot');
   assert.equal(reviewerOf({ config, head: 'acmebot/x', agents }).reviewer, 'codex', 'the first listed after skipping the author');
+  assert.equal(reviewerOf({ config, head: 'acmebot/x', agents, has: { acmebot: true, codex: false, claude: true } }).reviewer, 'claude', 'the first other with its secret');
   // "agent" is ignored for a PR whose author is known.
   assert.equal(reviewerOf({ config: { ...config, crossReview: { ...config.crossReview, agent: 'claude' } }, head: 'acmebot/x', agents }).reviewer, 'codex');
   assert.deepEqual(crossReviewerProblems(config, { agents }), []);
-  assert.match(crossReviewerProblems({ agents: { acmebot: {} }, crossReview: { for: ['acmebot/'] } }, { agents })[0], /acmebot\/ PRs need another provider to review them \(never acmebot, who wrote them\): list claude or codex in "agents"$/);
+  assert.deepEqual(crossReviewerProblems({ agents: { acmebot: {} }, crossReview: { for: ['acmebot/'] } }, { agents }), [], 'alone, it reviews its own');
 });
 
-test('config: a prefix whose author has no other provider listed, and an "agent" that is the author of a prefix in "for", are errors', async () => {
-  const one = passAgentProblems({ crossReview: { for: ['claude/'] } }, 'crossReview');
-  assert.deepEqual(one, ['"crossReview".for has claude/: claude/ PRs need another provider to review them (never claude, who wrote them): list codex in "agents"']);
-  assert.match(passAgentProblems({ agents: { codex: {} }, crossReview: { for: ['codex/'] } }, 'crossReview')[0], /codex\/ PRs need another provider to review them \(never codex, who wrote them\): list claude in "agents"/);
+test('config: an "agent" that writes a prefix in "for" is an error only while another provider is listed; a prefix that names a provider partly is seen as that provider\'s (ledger#101)', async () => {
   const self = passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }, 'crossReview');
   assert.equal(self.length, 1, JSON.stringify(self));
-  assert.match(self[0], /^"crossReview"\.agent is codex, who writes the codex\/ PRs "for" names: a PR is never reviewed by its author's provider/);
+  assert.match(self[0], /^"crossReview"\.agent is codex, who writes the codex\/ PRs "for" names, and another provider is listed to review them/);
+  assert.deepEqual(passAgentProblems({ agents: { codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }, 'crossReview'), [], 'codex alone: the fallback anyway');
+  assert.deepEqual(passAgentProblems({ crossReview: { for: ['claude/'] } }, 'crossReview'), [], 'claude alone reviews its own claude/ PRs');
+  // A prefix without the slash ("claude") matches claude/ heads: validation sees claude as its author.
+  assert.deepEqual(prefixAuthors('claude'), { authors: ['claude'], unknown: true });
+  assert.deepEqual(prefixAuthors('c'), { authors: ['claude', 'codex'], unknown: true });
+  assert.deepEqual(prefixAuthors('codex/fix-'), { authors: ['codex'], unknown: false });
+  assert.deepEqual(prefixAuthors('acme/'), { authors: [], unknown: true });
+  const partial = passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['claude'], agent: 'claude' } }, 'crossReview');
+  assert.match(partial[0], /^"crossReview"\.agent is claude, who writes the claude PRs "for" names, and another provider is listed/);
+  assert.match(passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['c'], agent: 'codex' } }, 'crossReview')[0], /agent is codex, who writes the c PRs/, '"c" can be codex\'s');
+  // A partial prefix can match a head no provider names: its fallback agent must be listed.
+  assert.match(passAgentProblems({ agents: { codex: {} }, crossReview: { for: ['claude'] } }, 'crossReview')[0], /"crossReview" reviews claude with claude \(the default/);
   // Both listed, both prefixes: clean (the owner's example).
   assert.deepEqual(passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/', 'claude/'], budget: { minutes: 15 } } }, 'crossReview'), []);
-  // The script refuses them (exit 2 naming the key), so `which` is red and no agent runs.
   const { cross } = await scripts();
-  assert.throws(() => cross.crossReviewConfigOf({ crossReview: { for: ['claude/'] } }), e => e.exitCode === 2 && /claude\/ PRs need another provider/.test(e.message));
-  assert.throws(() => cross.shouldReview({ config: { crossReview: { for: ['claude/'] } }, event: { name: 'pull_request', action: 'opened' }, pr: { number: 7, headRefName: 'claude/x', headRefOid: 'c'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' } }), e => e.exitCode === 2);
-  // The last guard: a reviewer that would be its author's provider (a bug in the choice) is red, and no review is chosen.
-  const head = { number: 7, headRefName: 'codex/x', headRefOid: 'c'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' };
-  const ev = { name: 'pull_request', action: 'opened' };
-  assert.throws(() => cross.shouldReview({ config: { crossReview: { for: ['codex/'] } }, event: ev, pr: head, choose: () => ({ author: 'codex', reviewer: 'codex', why: 'acme' }) }),
-    e => e.exitCode === 2 && /codex would review its own provider's PR; no agent runs/.test(e.message));
-  assert.throws(() => cross.shouldReview({ config: { crossReview: { for: ['codex/'] } }, event: ev, pr: head, choose: () => ({ author: 'codex', reviewer: null, why: 'none listed' }) }), e => e.exitCode === 2 && /none listed; no agent runs/.test(e.message));
+  assert.throws(() => cross.crossReviewConfigOf({ agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }), e => e.exitCode === 2 && /another provider is listed/.test(e.message));
   // The workflow: every agent step waits on Which's review output, set only by a review the script chose.
   const w = await workflows();
   for (const provider of Object.keys(AGENTS)) assert.match(agentSteps(w.crossReview.text, provider)[0], /\n {8}if: steps\.which\.outputs\.review == 'true' && steps\.which\.outputs\.agent == '[a-z]+'\n/);
   assert.match(w.crossReview.text, /HAS_CODEX: \$\{\{ secrets\.OPENAI_API_KEY != '' \}\}/, 'the reviewer\'s secret is checked by presence, never its value');
+});
+
+test('ledger#101: Codex\'s step lets exactly the other providers\' bots start it (a claude/ PR opened by Claude\'s app), by allow-bot-users, never a wildcard', async () => {
+  const w = await workflows();
+  const [step] = agentSteps(w.crossReview.text, 'codex');
+  const inputs = withOf(step);
+  const others = Object.entries(AGENTS).filter(([n, a]) => n !== 'codex' && a.login).map(([, a]) => a.login);
+  assert.deepEqual(others, ['claude[bot]']);
+  assert.equal(inputs['allow-bot-users'], others.join(','));
+  for (const k of ['allow-bots', 'allow-users']) assert.ok(!(k in inputs), k);
 });
 
 test('a budget timeout never swallows a short budget: on a one-minute budget a failure at 5 s is red, at 58 s it ran out (duo#83, cajones#56)', async () => {

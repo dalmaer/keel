@@ -929,9 +929,9 @@ answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
 Codex reviews Claude Code's. `.keel/keel.json` `"crossReview": {"for":
 ["codex/", "claude/"], "budget": {"minutes": 15}}` with `"agents":
 {"claude": {}, "codex": {}}` (minutes 5–60, default 15; a PR is reviewed
-by the first listed provider that did not write it, by branch; no `agents`
-is claude alone; climb and tend take `agent`, claude only; an unknown key,
-an empty `for` or a prefix with no other provider is red; no key, no reviews). A PR is reviewed when its
+by the first listed provider that did not write it (by branch) with its
+secret, else by its own, said; no `agents` is claude alone; climb and tend
+take `agent`, claude only; an unknown key or provider, or an empty `for`, is red; no key, no reviews). A PR is reviewed when its
 head branch starts with a prefix and lives in this repo (never a fork), on
 `opened` and `ready_for_review`, and on a `/review` comment from an OWNER,
 MEMBER or COLLABORATOR (never a bot); never on a push.

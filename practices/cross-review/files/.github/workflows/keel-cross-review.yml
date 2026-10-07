@@ -1,8 +1,10 @@
 # Cross-review (keel practice `cross-review`; managed: keel render rewrites it).
 #
-# An agent reviews the pull requests another model wrote, never its own
-# provider's (keel phase 45): Claude reviews Codex's codex/ PRs, Codex
-# Claude's claude/ PRs, the reviewer chosen per PR from "agents": findings
+# An agent reviews the pull requests another model wrote (keel phase 45):
+# Claude reviews Codex's codex/ PRs, Codex Claude's claude/ PRs, the
+# reviewer chosen per PR from "agents" (the first other provider with its
+# secret; its own provider only when no other is available, said in a
+# notice and in the review): findings
 # tagged P1/P2/P3, each validated against the code before it is written,
 # and a one-paragraph summary, posted by this workflow as one COMMENT review
 # with the findings inline. The brief is
@@ -86,20 +88,23 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      # The config, validated before the secret gate (a bad one, "agents"
+      # with a typo too, is red, naming the key, never a quiet notice), and
+      # the providers it lists, as the script read them.
       - name: Is cross-review on?
         id: on
         run: |
+          if ! config=$(node scripts/keel/cross-review.mjs config --json); then
+            node -e 'let e; try { e = JSON.parse(process.argv[1]).error; } catch {} console.log(`::error::${e ?? process.argv[1]}`);' "$config"
+            exit 1
+          fi
           node -e '
             const fs = require("fs");
-            let c = {};
-            try { c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8")); } catch {}
-            const on = c.crossReview !== undefined;
-            if (!on) console.log("cross-review is off: .keel/keel.json has no \"crossReview\", so this run does nothing.");
-            // The providers listed (whose secrets to look for); the next steps validate the config.
-            const a = c.agents && typeof c.agents === "object" && !Array.isArray(c.agents) ? Object.keys(c.agents) : ["claude"];
-            const agents = a.filter(n => /^[a-z][a-z0-9-]*$/.test(n)).join(",") || "claude";
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\nagents=${agents}\n`);
-          '
+            const c = JSON.parse(process.argv[1]);
+            if (!c.on) console.log("cross-review is off: .keel/keel.json has no \"crossReview\", so this run does nothing.");
+            const agents = (c.agents ?? ["claude"]).join(",");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${c.on}\n${c.on ? `agents=${agents}\n` : ""}`);
+          ' "$config"
       - name: Configured?
         id: configured
         if: steps.on.outputs.on == 'true'
@@ -151,7 +156,8 @@ jobs:
             const [file, out] = process.argv.slice(1);
             const w = JSON.parse(fs.readFileSync(file, "utf8"));
             fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\n`);
-            console.log(w.review ? `review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
+            // Its own provider reviews only when no other is available: said, never silent.
+            console.log(w.review ? `${w.self ? "::notice::" : ""}review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
           ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
 
       # The brief, from the default branch: REVIEW.md, this PR, the project's
@@ -219,6 +225,10 @@ jobs:
           output-file: ${{ runner.temp }}/codex-final-message.md
           sandbox: read-only
           safety-strategy: drop-sudo
+          # The other providers' bots open the PRs Codex reviews (a claude/ PR
+          # by Claude's app): the action refuses a bot actor unless named.
+          # Their logins only (lib.mjs AGENTS login), never "*" or allow-bots.
+          allow-bot-users: claude[bot]
 
       # An agent that failed before its budget ran out (no secret, a bad
       # model: is_error after one turn) is red, printing only the error line,
@@ -247,12 +257,13 @@ jobs:
         if: steps.which.outputs.review == 'true'
         env:
           AGENT: ${{ steps.which.outputs.agent }}
+          AUTHOR: ${{ steps.which.outputs.author }}
           EXECUTION: ${{ steps.review.outputs.execution_file }}
           MINUTES: ${{ steps.which.outputs.minutes }}
         run: |
           file="${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}"
           if [ "$AGENT" = codex ]; then file="$RUNNER_TEMP/codex-final-message.md"; fi
-          node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary --agent "${AGENT:-claude}" --file "$file" --pr "$RUNNER_TEMP/pr.json" --diff "$RUNNER_TEMP/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
+          node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary --agent "${AGENT:-claude}" --author "$AUTHOR" --file "$file" --pr "$RUNNER_TEMP/pr.json" --diff "$RUNNER_TEMP/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
           if ! gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review.json" --jq '"posted review \(.id) (\(.state))"'; then
             echo "::warning::GitHub refused the review with its inline comments; posting it with the findings in its summary."
             gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-plain.json" --jq '"posted review \(.id) (\(.state))"'

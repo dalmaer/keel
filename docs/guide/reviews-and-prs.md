@@ -129,10 +129,12 @@ Set `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or
 with a notice; without the `crossReview` key nothing is reviewed. The
 review is posted by the workflow itself (`github-actions[bot]`).
 
-**Choosing the agent.** The reviewer is always another provider than the
-one that wrote the PR: Claude reviews Codex's `codex/` PRs, Codex reviews
+**Choosing the agent.** The reviewer is another provider than the one
+that wrote the PR: Claude reviews Codex's `codex/` PRs, Codex reviews
 Claude's `claude/` PRs. List every provider you use, and each PR goes to
-the first one listed that did not write it:
+the first one listed that did not write it and has its secret set. Only
+when none is available does the author's own provider review it, with a
+notice and a line in the review saying so:
 
 ```json
 "agents": { "claude": {}, "codex": {} },
@@ -140,17 +142,18 @@ the first one listed that did not write it:
 ```
 
 With no `"agents"`, Claude alone is listed, and `"for": ["codex/"]` is
-reviewed by Claude exactly as before; `"for": ["claude/"]` then is red
-until you list codex. `"agent"` on `crossReview` is only for a prefix no
-provider's branch names. Codex (`openai/codex-action`)
+reviewed by Claude exactly as before; `"for": ["claude/"]` is reviewed by
+Claude too, as its own provider, until you list codex. `"agent"` on
+`crossReview` is only for a prefix no provider's branch names. Codex (`openai/codex-action`)
 reviews in its read-only sandbox, with sudo dropped so its key is out of
 its reach, and no GitHub token; its secret is `OPENAI_API_KEY`. Codex's
 spend has no subscription path: every review is billed per token to the
 OpenAI API account, so the Budget line's minutes are a bound on dollars you
-pay by the token. codex-action runs only for an actor with write access: a
-PR opened by a bot is refused (the run is red). A provider keel does not
-know is red, naming the key; a reviewer whose secret is missing is a
-notice and green.
+pay by the token. codex-action runs only for an actor with write access or
+a bot it names: keel names the other providers' bots (`claude[bot]`), so a
+PR Claude's app opened is reviewed. A provider keel does not know (a typo
+in `"agents"`) is red before anything else runs, naming the key; no
+reviewer's secret set is a notice and green.
 
 **Cost.** Each reviewed PR spends model tokens, up to the budget's minutes
 (5 to 60, default 15). `/review` asks again after new pushes; nothing else

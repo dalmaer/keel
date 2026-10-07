@@ -14,7 +14,7 @@
 //                                                              review this PR, or why not
 //   node scripts/keel/cross-review.mjs brief --pr <pr.json> --out <prompt.md> [--agent a --diff <pr.diff>]
 //   node scripts/keel/cross-review.mjs agent-ran [--agent a] --outcome o --file f --minutes m --started s
-//   node scripts/keel/cross-review.mjs summary [--agent a] --file f --pr <pr.json> [--diff <pr.diff>] --minutes m --out <review.json>
+//   node scripts/keel/cross-review.mjs summary [--agent a] [--author a] --file f --pr <pr.json> [--diff <pr.diff>] --minutes m --out <review.json>
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 the agent failed to start
 // (agent-ran); 2 usage or a bad config.
@@ -139,13 +139,17 @@ export function shouldReview({ config, event, pr, has, choose = reviewerOf }) {
   const prefix = c.for.find(p => head.startsWith(p));
   if (!prefix) return no(`#${pr.number}'s branch ${head || '(none)'} matches no "${KEY}".for prefix (${c.for.join(', ')})`);
   if (!/^[0-9a-f]{40}$/.test(String(pr.headRefOid ?? ''))) return no(`#${pr.number} came back without its head commit`);
-  const who = choose({ config, head });
-  if (!who.reviewer || who.reviewer === who.author) throw new CrossReviewError(`#${pr.number} on ${head}: ${who.reviewer ? `${who.reviewer} would review its own provider's PR` : who.why}; no agent runs (a PR is never reviewed by its author's provider)`);
+  const who = choose({ config, head, has });
+  if (!who.reviewer) throw new CrossReviewError(`#${pr.number} on ${head}: ${who.why}; no agent runs`);
+  // Its own provider reviews a PR only when no other is available: listed, able to review, its secret set.
+  const other = c.agents.find(n => n !== who.author && AGENTS[n]?.passes.includes(KEY) && (!has || has[n] !== false));
+  if (who.reviewer === who.author && other) throw new CrossReviewError(`#${pr.number} on ${head}: ${who.reviewer} would review its own provider's PR while ${other} is available; no agent runs (a PR is reviewed by its own provider only when no other is)`);
   if (has && has[who.reviewer] === false) {
     const secret = who.reviewer === 'claude' ? 'CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY)' : AGENTS[who.reviewer].secrets.join(' or ');
     return { review: false, notice: true, why: `Skipped: #${pr.number} on ${head} is reviewed by ${AGENTS[who.reviewer].name} (${who.why}); add the ${secret} secret for it to run.` };
   }
-  return { review: true, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}; ${who.why}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: who.reviewer, author: who.author };
+  const self = Boolean(who.author) && who.reviewer === who.author;
+  return { review: true, self, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}; ${who.why}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: who.reviewer, author: who.author };
 }
 
 /** Which providers' secrets are set, from the step's HAS_<PROVIDER> ("true"/"false"); none given: undefined (not checked). */
@@ -281,6 +285,31 @@ export function findingsOf(text) {
 }
 
 /**
+ * A path as a diff header writes it, as the file is named: Git quotes a path
+ * with a byte outside printable ASCII (core.quotePath), a quote or a
+ * backslash ("b/caf\303\251.txt"), escaping it C-style, each non-ASCII byte
+ * in octal; unquoted, a trailing tab and what follows are not the path. Pure.
+ */
+export function gitPath(text) {
+  const t = String(text ?? '');
+  if (!t.startsWith('"')) return t.replace(/\t.*$/, '');
+  const end = t.lastIndexOf('"');
+  const body = end > 0 ? t.slice(1, end) : t.slice(1);
+  const bytes = [];
+  const named = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92 };
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch !== '\\') { bytes.push(...Buffer.from(ch, 'utf8')); continue; }
+    const oct = /^[0-7]{1,3}/.exec(body.slice(i + 1));
+    if (oct) { bytes.push(parseInt(oct[0], 8) & 0xff); i += oct[0].length; continue; }
+    const next = body[i + 1];
+    if (next !== undefined && Object.hasOwn(named, next)) { bytes.push(named[next]); i++; continue; }
+    bytes.push(92);
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
+
+/**
  * The lines a review comment may sit on, from a unified diff (gh pr diff):
  * Map(path → [[first, last], …]), each hunk's lines on the new side (context
  * and added), the only lines GitHub takes with side RIGHT. A deleted file or
@@ -292,7 +321,7 @@ export function diffRanges(diff) {
   for (const l of String(diff ?? '').split('\n')) {
     if (l.startsWith('diff --git ')) { path = null; range = null; left = 0; continue; }
     if (left === 0 && l.startsWith('+++ ')) {
-      const to = l.slice(4).replace(/\t.*$/, '');
+      const to = gitPath(l.slice(4));
       path = to === '/dev/null' ? null : to.replace(/^b\//, '');
       if (path && !out.has(path)) out.set(path, []);
       continue;
@@ -346,7 +375,7 @@ export const findingBody = f => `${FINDING_MARKER}\n**${f.severity}** ${f.body}`
  * result message; `message` Codex's final message. With `inline: false`
  * (GitHub refused the comments), the findings are listed in the body. Pure.
  */
-export function summaryReview({ result, message, agent = 'claude', pr, minutes, diff = null, inline = true }) {
+export function summaryReview({ result, message, agent = 'claude', author = null, pr, minutes, diff = null, inline = true }) {
   const final = agent === 'claude' ? (typeof result?.result === 'string' && !result.is_error ? result.result : '') : (typeof message === 'string' ? message : '');
   const { summary, findings, problem } = findingsOf(final);
   const { kept, dropped } = diff === null && findings.length
@@ -357,6 +386,7 @@ export function summaryReview({ result, message, agent = 'claude', pr, minutes, 
   const body = said || `The review ran out its ${minutes}-minute budget before writing a summary; the inline comments are what it found.`;
   const where = d => (d.path ? `\`${d.path}${d.line ? `:${d.line}` : ''}\`` : `finding ${d.at + 1}`);
   const notes = [
+    ...(author && author === agent ? ['', `Reviewed by ${agent}, its own provider: no other is configured.`] : []),
     ...(problem ? ['', `Its findings could not be read: ${problem}; none is posted inline.`] : []),
     ...(dropped.length ? ['', `Dropped (${dropped.length}, not posted inline):`, ...dropped.map(d => `- ${where(d)}: ${d.why}`)] : []),
     ...(!inline && kept.length ? ['', `GitHub refused the inline comments; the findings (${kept.length}), to answer here:`, ...kept.map(f => `- \`${f.path}:${f.line}\` **${f.severity}** ${f.body.replace(/\s+/g, ' ')}`)] : []),
@@ -368,8 +398,8 @@ export function summaryReview({ result, message, agent = 'claude', pr, minutes, 
 
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/cross-review.mjs config | which --pr f --event e | brief --pr f --out f [--agent a --diff f] | agent-ran [--agent a] --outcome o --file f --minutes m --started s | summary [--agent a] --file f --pr f [--diff f] --minutes m --out f [--plain f] [--json]';
-const FLAGS = { '--pr': 'pr', '--event': 'event', '--out': 'out', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--repo': 'repo', '--agent': 'agent', '--diff': 'diff', '--plain': 'plain' };
+const USAGE = 'usage: node scripts/keel/cross-review.mjs config | which --pr f --event e | brief --pr f --out f [--agent a --diff f] | agent-ran [--agent a] --outcome o --file f --minutes m --started s | summary [--agent a] [--author a] --file f --pr f [--diff f] --minutes m --out f [--plain f] [--json]';
+const FLAGS = { '--pr': 'pr', '--event': 'event', '--out': 'out', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--repo': 'repo', '--agent': 'agent', '--diff': 'diff', '--plain': 'plain', '--author': 'author' };
 
 export function parseArgs(args) {
   const [verb, ...rest] = args;
@@ -381,6 +411,9 @@ export function parseArgs(args) {
     opts[FLAGS[a]] = rest[++i];
   }
   if (opts.agent !== undefined && !Object.hasOwn(AGENTS, opts.agent)) throw new CrossReviewError(`--agent must be one of ${Object.keys(AGENTS).join(', ')}`);
+  // The author is the which step's output: empty for a PR no provider's branch names.
+  if (opts.author === '') delete opts.author;
+  if (opts.author !== undefined && !Object.hasOwn(AGENTS, opts.author)) throw new CrossReviewError(`--author must be one of ${Object.keys(AGENTS).join(', ')}`);
   for (const k of ['minutes', 'started']) if (opts[k] !== undefined) {
     if (!/^\d+(\.\d+)?$/.test(opts[k])) throw new CrossReviewError(`--${k} must be a number`);
     opts[k] = Number(opts[k]);
@@ -408,7 +441,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     }
     case 'which': {
       const r = shouldReview({ config, event: eventOf(o.event, env), pr: await readPr(o.pr), has: hasOf(env) });
-      return { data: r, text: r.review ? `review: ${r.why}` : r.notice ? `::notice::${r.why}` : `no review: ${r.why}` };
+      return { data: r, text: r.review ? `${r.self ? '::notice::' : ''}review: ${r.why}` : r.notice ? `::notice::${r.why}` : `no review: ${r.why}` };
     }
     case 'brief': {
       if (!o.out) throw new CrossReviewError(`brief needs --out <file>; ${USAGE}`);
@@ -426,7 +459,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       const agent = o.agent ?? 'claude';
       const text = await readText(o.file ? resolve(o.file) : undefined);
       const diff = o.diff ? await readText(resolve(o.diff)) : null;
-      const args = { ...(agent === 'claude' ? { result: lastResult(text) } : { message: text }), agent, pr: await readPr(o.pr), minutes: o.minutes, diff: diff || null };
+      const args = { ...(agent === 'claude' ? { result: lastResult(text) } : { message: text }), agent, author: o.author ?? null, pr: await readPr(o.pr), minutes: o.minutes, diff: diff || null };
       const review = summaryReview(args);
       await writeFile(resolve(o.out), `${JSON.stringify(review, null, 2)}\n`);
       // The same review with the findings in its body: posted when GitHub refuses the inline comments.

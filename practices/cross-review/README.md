@@ -10,14 +10,18 @@ not.
 
 **The rule.** `.github/workflows/keel-cross-review.yml` runs an agent on a
 pull request whose head branch starts with a configured prefix, under the
-brief `.agents/cross-review/REVIEW.md`. **A PR is always reviewed by a
-different provider than the one that wrote it** (the owner's rule, keel
-phase 45): Claude (`anthropics/claude-code-action`) reviews Codex's
+brief `.agents/cross-review/REVIEW.md`. **A PR is reviewed by a
+different provider than the one that wrote it, whenever one is available**
+(the owner's rule, keel phase 45): Claude (`anthropics/claude-code-action`) reviews Codex's
 `codex/` PRs, Codex (`openai/codex-action`) reviews Claude's `claude/` PRs.
 The author is the provider whose branch the head starts with (`claude/` is
 claude-code-action's default branch prefix; Codex's cloud always names its
 branches `codex/<slug>`); the reviewer, chosen per PR, is the first
-provider `"agents"` lists that is not the author:
+provider `"agents"` lists that is not the author and has its secret set.
+Only when no other is available (none listed, or none with its secret) does
+the author's own provider review it: the run says so in a notice, and the
+review's summary says "reviewed by claude, its own provider: no other is
+configured":
 
 - **Which PRs.** A head branch starting with a prefix in
   `"crossReview".for` (Codex opens PRs under the owner's account, so the
@@ -81,13 +85,16 @@ so. It is recorded with no bound.
 List every provider you use in `"agents"`: each prefix's PRs are reviewed
 by the first other one listed. No `"agents"` means claude alone, so
 today's `"for": ["codex/"]` is reviewed by Claude, unchanged. No key, no
-reviews: the workflow ends at its first step. Red, naming the key: an
-unknown key, an empty `for`, minutes outside 5–60, a prefix whose author
-has no other provider listed (`"for": ["claude/"]` with claude alone:
-list codex), and an `"agent"` that wrote a prefix in `for`. `"agent"` is
-optional, and only for a prefix no provider's branch names (a person's
-`acme/`, say); default claude. A reviewer whose secret is not set is a
-notice for that PR, and green; a reviewer that would be the author is red,
+reviews: the workflow ends at its first step. The config is checked
+before the secret gate, so a bad one is red, naming the key, never a quiet
+green: an unknown key, an unknown provider in `"agents"` (a typo like
+`"claud"`), an empty `for`, minutes outside 5–60, and an `"agent"` that
+writes a prefix in `for` while another provider is listed. A prefix that
+names a provider only partly (`"claude"` without the slash) is read as that
+provider's. `"agent"` is optional, and only for a prefix no provider's
+branch names (a person's `acme/`, say); default claude. With no reviewer's
+secret set, the PR gets a notice and the run is green; a choice that would
+put the author's provider on its own PR while another is available is red,
 and no agent runs.
 
 **What it needs (⚑).** The chosen agent's secret. Claude:
@@ -96,7 +103,9 @@ and no agent runs.
 OIDC exchange needs the Claude GitHub App installed on the repo. Codex:
 `OPENAI_API_KEY`, always billed per token to the OpenAI API account (there
 is no subscription path), and codex-action runs only for an actor with
-write access (a PR opened by a bot is refused, and the run is red). Each
+write access, or a bot it is told to trust: the step names the other
+providers' bots (`allow-bot-users: claude[bot]`, so a `claude/` PR Claude's
+app opened is reviewed), never a wildcard or `allow-bots`. Each
 reviewed PR spends model tokens, up to the budget. Until the secret is set
 the run ends green with a notice. The review and its inline comments are
 posted by the workflow's own step (`github-actions[bot]`), whichever agent

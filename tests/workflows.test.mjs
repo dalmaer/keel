@@ -12,6 +12,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load } from '../lib/practices.mjs';
 import { run } from './helpers/run.mjs';
+import { AGENTS } from '../practices/night/files/scripts/keel/lib.mjs';
 import { runBlocks, inlineNode, shellProblems } from './helpers/workflows.mjs';
 
 export { runBlocks, inlineNode, shellProblems };
@@ -1250,7 +1251,12 @@ export function codexStepProblems(text, { sandbox }) {
     if (!/\n\s+continue-on-error: true/.test(step)) out.push(`${name}: Codex's step is not continue-on-error, so its check never says whether it ran`);
     if (w.sandbox !== sandbox) out.push(`${name}: Codex's sandbox is ${w.sandbox ?? '(the action\'s default, workspace-write)'}, not ${sandbox}`);
     if (w['safety-strategy'] !== 'drop-sudo') out.push(`${name}: Codex's safety-strategy is ${w['safety-strategy'] ?? '(unset)'}, not drop-sudo: with sudo it can read its key`);
-    for (const k of ['allow-users', 'allow-bots', 'allow-bot-users']) if (k in w) out.push(`${name}: ${k} lets someone without write access start Codex`);
+    for (const k of ['allow-users', 'allow-bots']) if (k in w) out.push(`${name}: ${k} lets someone without write access start Codex`);
+    // ledger#101: the other providers' bots open the PRs Codex reviews; only their logins (lib.mjs AGENTS), by name.
+    if ('allow-bot-users' in w) {
+      const allowed = Object.entries(AGENTS).filter(([n, a]) => n !== 'codex' && a.login).map(([, a]) => a.login);
+      for (const login of w['allow-bot-users'].split(',').map(x => x.trim())) if (!allowed.includes(login)) out.push(`${name}: allow-bot-users names ${login || '(nothing)'}: only another provider's bot (${allowed.join(', ')})`);
+    }
     for (const k of ['codex-args', 'permission-profile', 'codex-home', 'codex-user']) if (k in w) out.push(`${name}: ${k} is a way around the sandbox inputs`);
     if (/danger-full-access|\bunsafe\b/.test(step)) out.push(`${name}: danger-full-access or unsafe`);
     if (env.GH_TOKEN !== '') out.push(`${name}: Codex's step does not blank GH_TOKEN, so it holds the job's token`);
@@ -1418,6 +1424,9 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     ['Codex unsafe', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: unsafe\n')],
     ['Codex keeps sudo', t.replace('          safety-strategy: drop-sudo\n', '')],
     ['Codex for bots', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-bots: true\n')],
+    ['Codex for any bot', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: "*"\n')],
+    ['Codex for another bot', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: claude[bot],acme-deploy[bot]\n')],
+    ['Codex for a bot by an empty entry', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: claude[bot],\n')],
     ['Codex for anyone', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-users: "*"\n')],
     ['Codex args around the sandbox', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          codex-args: --dangerously-bypass-approvals-and-sandbox\n')],
     ['Codex holds the token', t.replace('        env:\n          GH_TOKEN: ""\n', '')],

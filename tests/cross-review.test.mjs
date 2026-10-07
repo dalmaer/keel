@@ -447,10 +447,16 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
   const temp = join(dir, 'runner');
   await mkdir(temp, { recursive: true });
   const env = { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils' };
-  const skipped = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'false' });
+  // Codex's secret missing: no other provider is available, so Claude reviews its own PR, and says so.
+  const own = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'false' });
+  assert.equal(own.status, 0, own.out);
+  assert.deepEqual([own.outputs.review, own.outputs.agent, own.outputs.author], ['true', 'claude', 'claude']);
+  assert.match(own.out, /^::notice::review: #7 on claude\/anvil-lid \(claude\/\), head aaaaaaa; written by claude \(claude\/\): reviewed by claude, its own provider: no other is configured$/m);
+  // No secret at all: a notice naming the first other's, and no review.
+  const skipped = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'false', HAS_CODEX: 'false' });
   assert.equal(skipped.status, 0, skipped.out);
   assert.equal(skipped.outputs.review, 'false');
-  assert.match(skipped.out, /^::notice::Skipped: #7 on claude\/anvil-lid is reviewed by Codex \(written by claude \(claude\/\): reviewed by codex, the first other provider "agents" lists\); add the OPENAI_API_KEY secret for it to run\.$/m);
+  assert.match(skipped.out, /^::notice::Skipped: #7 on claude\/anvil-lid is reviewed by Codex \(written by claude \(claude\/\): reviewed by codex, but no provider listed has its secret set\); add the OPENAI_API_KEY secret for it to run\.$/m);
   const which = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'true' });
   assert.equal(which.status, 0, which.out);
   assert.equal(which.outputs.agent, 'codex');
@@ -518,4 +524,26 @@ test('the workflow with Claude: its findings JSON is posted inline by keel\'s st
   const brief = await readFile(join(PRACTICE, '.agents/cross-review/REVIEW.md'), 'utf8');
   assert.match(brief, /```json\n\[\n  \{ "path": "src\/lid\.js", "line": 42, "severity": "P2", "body": /);
   assert.doesNotMatch(brief, /mcp__github_inline_comment/);
+});
+
+test('ledger#101: a path Git quotes in the diff (non-ASCII, a quote, a backslash) is decoded, so a finding on it is kept and posted with the real path', async t => {
+  const m = await load(t);
+  assert.equal(m.gitPath('"b/caf\\303\\251.txt"'), 'b/café.txt');
+  assert.equal(m.gitPath('"b/say \\"hi\\".md"'), 'b/say "hi".md');
+  assert.equal(m.gitPath('"b/back\\\\slash\\ttab.md"'), 'b/back\\slash\ttab.md');
+  assert.equal(m.gitPath('"b/\\346\\227\\245\\346\\234\\254.md"'), 'b/日本.md');
+  assert.equal(m.gitPath('b/plain.js\t2026-10-07'), 'b/plain.js');
+  assert.equal(m.gitPath('/dev/null'), '/dev/null');
+  const diff = [
+    'diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"',
+    '--- "a/caf\\303\\251.txt"',
+    '+++ "b/caf\\303\\251.txt"',
+    '@@ -1,1 +1,2 @@',
+    ' crème',
+    '+brûlée',
+    '',
+  ].join('\n');
+  assert.deepEqual([...m.diffRanges(diff)], [['café.txt', [[1, 2]]]]);
+  const review = m.summaryReview({ message: 'Checked.\n```json\n[{"path": "café.txt", "line": 2, "severity": "P3", "body": "Spelled out."}]\n```', agent: 'codex', pr: prJson(), minutes: 15, diff });
+  assert.deepEqual(review.comments?.map(c => [c.path, c.line]), [['café.txt', 2]]);
 });
