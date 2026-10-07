@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.11 — practice 0.8.11 (2026-10-07)
+
+- **Climb and tend agents can no longer reach a token that writes to your repo.** Each workflow is now three jobs: `agent` (read-only; the Claude action is handed that read-only token), `judge` (read-only, no agent: checks that the commits touch no `.github/`, `scripts/keel/` or `.keel/keel.json`, then runs the guard and your gate) and `publish` (pushes and opens the PR, running nothing from the branch). Found by Claude's cross-review of ledger#92. Runs take a little longer (the judge installs again) and keep two more artifacts for 7 days.
+- **Cross-review keeps a person's `/review` queued**: a bot's comment on the PR no longer replaces it.
+- **The unbounded-measure check** reads every measure an item names, and skips "not a night measure".
+
 ## v0.8.10 — practice 0.8.10 (2026-10-07)
 
 - **The unbounded-measure check is narrower:** it applies only to the night's measures (a product's "recorded only" is not its business), reads a wrapped bullet as one item, and is satisfied by a Deliberately open or Trajectory line naming the measure itself, not every code span beside it.
