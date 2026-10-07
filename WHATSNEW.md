@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.10 — practice 0.8.10 (2026-10-07)
+
+- **The unbounded-measure check is narrower:** it applies only to the night's measures (a product's "recorded only" is not its business), reads a wrapped bullet as one item, and is satisfied by a Deliberately open or Trajectory line naming the measure itself, not every code span beside it.
+- **The Budget line treats a pass that was off as off**, so switching a pass back on doesn't count runs from the earlier time it was on.
+
 ## v0.8.9 — practice 0.8.9 (2026-10-07)
 
 - **A failed update says whether your main already fails.** When your check fails after `keel update` in `keel fleet update`, keel runs it once more without the update and says "main fails the same check without the update: not this update", or "main passes without the update: the update, or a test that fails only sometimes".
