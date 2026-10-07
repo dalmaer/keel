@@ -1,11 +1,10 @@
 ---
-status: partial
-owes: walk
-since: 2026-10-06
+status: built
+since: 2026-10-07
 goal: G2
 spec: 2
 depends: [6, 10, 39]
-note: "Built and used: keel review (read, --wait, --close; --gate only for the opt-in), reviews_unanswered on the night, the rule in conduct and the climb/tend briefs. Every Codex comment on the 0.8.3, 0.8.4 and 0.8.5 fleet PRs validated and answered; Codex named as reviewer in ledger, duo, cajones; ledger's 26 past comments answered (21 issues). Waits on the owner reading one PR's threads."
+note: "Built and read: keel review (read, --wait, --close; --gate only for the opt-in; --close only what the latest read showed), reviews_unanswered on the night, the rule in conduct and the climb/tend briefs. Every Codex comment on the fleet releases v0.8.3 to v0.8.20 validated and answered; the owner read cajones#41's answered threads and approved them (2026-10-07)."
 evidence: ["evidence/2026-10-06-answering-reviews.md"]
 issue: 23
 ---
@@ -34,7 +33,7 @@ The design is [Answering reviews](../research/2026-10-06-answering-reviews.md). 
 - [x] Nothing in keel refuses a merge because of an open thread (fleet update and drain merge as before). `tests/review.test.mjs`
 - [x] The conduct skill and the climb and tend briefs say: validate each review comment, then answer it with one of the three replies. `tests/skill.test.mjs`
 - [x] The night's `reviews_unanswered` counts comments with no reply older than a day, n/a when GitHub can't be read. `tests/improve.test.mjs`
-- [ ] ⚑ by hand: the next fleet release's update PRs, every reviewer comment validated and answered; the owner reads one PR's threads.
+- [x] ⚑ by hand: the next fleet release's update PRs, every reviewer comment validated and answered; the owner reads one PR's threads.
 
 ## Real surfaces
 
@@ -55,7 +54,7 @@ The design is [Answering reviews](../research/2026-10-06-answering-reviews.md). 
 
 ## Next action
 
-⚑ Owner: read one PR's answered threads (cajones#41: five Codex findings, each answered "fixed in dalmaer/keel@7eb26d3") and judge the answers; then built.
+None.
 
 ## Trajectory
 
@@ -65,3 +64,4 @@ The design is [Answering reviews](../research/2026-10-06-answering-reviews.md). 
 - **2026-10-06** — The first real read: ledger has 27 unanswered comments across 10 PRs merged in the week, beyond keel's own (all answered); the night's first `reviews_unanswered` there will be outside.
 - **2026-10-06** — Used across three releases: v0.8.3's 12 comments answered as tracked, then fixed in v0.8.4 and closed; v0.8.4's 12 (five distinct findings) fixed in v0.8.5 before merging; v0.8.5's PRs had none. ledger's past 26: 21 valid became issues #60–#80, 3 already fixed, 2 not valid; the 11 keel-side issues were fixed and closed.
 - **2026-10-06** — Escape: `keel review --wait` timed out on every PR Codex found clean: Codex then posts no review, only a 👍 and a status board naming the commit "Completed"; fixed in f3c317d (the reviewer's own completed line for the head counts).
+- **2026-10-07** — The owner read cajones#41's five answered threads (Codex's v0.8.4 findings, each answered "fixed in dalmaer/keel@7eb26d3") and judged them: "Looks good." Built.

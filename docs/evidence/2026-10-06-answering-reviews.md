@@ -12,3 +12,10 @@ Against the working tree on `779bef4` (the phase's commit is titled "phase 41: e
 **Not done yet:** ⚑ the next fleet release with every reviewer comment validated and answered; Codex named as reviewer in ledger, duo and cajones; ledger's 27 earlier unanswered comments answered.
 
 **Docs updated in the same change:** README (the verb row), the agent guide (cold start 3,190/3,200 and a `review` topic), the conduct skill and its AGENTS block, the climb and tend briefs, the night and phases practice READMEs, docs/guide/reviews-and-prs.md.
+
+## The owner's read (2026-10-07)
+
+| Did | Expected | Observed | Proves / does not prove |
+| --- | --- | --- | --- |
+| The owner read cajones#41's answered threads | each Codex finding validated and answered with the commit that fixed it | The owner: "I read https://github.com/dalmaer/cajones/pull/41. Looks good." | The by-hand box: the answers hold up to the owner's read |
+| Every fleet release v0.8.3 to v0.8.20 | every reviewer comment validated and answered before or at merge | Answered fixed, tracked (then fixed) or not valid, with the read-before-close check from 23d3024 on | The rule held across eighteen releases |
