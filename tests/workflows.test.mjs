@@ -1145,3 +1145,60 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     assert.ok(crossReviewProblems(text).length, `${why}: expected a problem`);
   }
 });
+
+/**
+ * A workflow's budgeted agent steps (phase 43): each step that uses
+ * claude-code-action time-boxed by a budget (`timeout-minutes` from a step's
+ * `minutes` output): { agent, check }, its `name:` and the name of the step
+ * right after it (null when either has none).
+ */
+export function budgetedAgentSteps(text) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^\s*uses:\s*anthropics\/claude-code-action@/.test(lines[i])) continue;
+    let start = i;
+    while (start >= 0 && !/^\s*- /.test(lines[start])) start--;
+    if (start < 0) continue;
+    const indent = /^(\s*)- /.exec(lines[start])[1].length;
+    const body = [lines[start].replace(/^(\s*)- /, '$1  ')];
+    let j = start + 1;
+    for (; j < lines.length && !(lines[j].trim() && /^(\s*)/.exec(lines[j])[1].length <= indent); j++) body.push(lines[j]);
+    const step = body.join('\n');
+    if (!/^\s*timeout-minutes:\s*\$\{\{\s*fromJSON\(steps\.[\w-]+\.outputs\.minutes\)\s*\}\}/m.test(step)) continue;
+    const nameOf = l => /^\s*(?:- )?name:\s*["']?(.+?)["']?\s*$/.exec(l ?? '')?.[1] ?? null;
+    // The next step starts at the same indent with `- `; its name is on that line or the step's own lines.
+    let next = null;
+    while (j < lines.length && /^\s*(#.*)?$/.test(lines[j])) j++;
+    if (j < lines.length && new RegExp(`^\\s{${indent}}- `).test(lines[j])) {
+      next = nameOf(lines[j]);
+      for (let k = j + 1; next === null && k < lines.length && !(lines[k].trim() && /^(\s*)/.exec(lines[k])[1].length <= indent); k++) if (/^\s*name:/.test(lines[k])) next = nameOf(lines[k]);
+    }
+    out.push({ agent: nameOf(step.split('\n').find(l => /^\s*name:/.test(l))), check: next });
+  }
+  return out;
+}
+
+test('the Budget line\'s step map equals each shipped workflow\'s budgeted claude-code-action step, as a template and as rendered on keel', async () => {
+  const { BUDGET_STEPS, BUDGET_PASSES } = await import('../practices/night/files/scripts/keel/lib.mjs');
+  const all = await shipped();
+  const found = {};
+  for (const w of all) {
+    const names = budgetedAgentSteps(w.template);
+    assert.ok(names.length <= 1, `${w.path}: one budgeted agent step`);
+    if (names.length) found[w.name] = { ...names[0] };
+    if (w.optional || !names.length) continue;
+    const rendered = await readFile(join(KEEL, w.path), 'utf8').catch(() => null);
+    if (rendered !== null) assert.deepEqual(budgetedAgentSteps(rendered), names, `keel's ${w.path}`);
+  }
+  assert.deepEqual(found, Object.fromEntries(Object.entries(BUDGET_STEPS).map(([k, v]) => [k, { ...v }])));
+  assert.deepEqual(BUDGET_PASSES.map(p => p.workflow).sort(), Object.keys(BUDGET_STEPS).sort());
+
+  // The reader sees a rename (the step's name is what GitHub's record of a run carries).
+  const tend = all.find(w => w.name === 'keel-tend.yml').template;
+  assert.match(tend, /^ {6}- name: Tend$/m);
+  assert.deepEqual(budgetedAgentSteps(tend.replace(/^ {6}- name: Tend$/m, '      - name: Tend the repo')), [{ agent: 'Tend the repo', check: 'Did the agent run?' }]);
+  assert.deepEqual(budgetedAgentSteps(tend.replace(/^ {6}- name: Did the agent run\?$/m, '      - name: Did Claude run?')), [{ agent: 'Tend', check: 'Did Claude run?' }]);
+  // An unbudgeted claude-code-action (claude.yml's) is not a budgeted pass.
+  assert.deepEqual(budgetedAgentSteps(all.find(w => w.name === 'claude.yml').template), []);
+});

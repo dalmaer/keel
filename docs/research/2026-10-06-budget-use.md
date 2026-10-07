@@ -39,14 +39,21 @@ Budget: tend 2, 3, 30⏱ of 30 min (last 3 runs; too few to say) · climb 41⏱,
 
 ## Where the numbers come from
 
-`gh api` on the workflow's runs on the default branch (completed, newest
-first), then each run's jobs, finding the agent step by name. The night's
+`gh api` on the workflow's completed runs, newest first (on the default
+branch for climb and tend; on every branch for cross-review, whose runs are
+on each PR's branch), then each run's jobs, finding the agent step by name. The night's
 script keeps a map from workflow to that step's name (keel-climb.yml →
-"Climb", keel-tend.yml → "Tend", keel-cross-review.yml → "Review"), and a
-test holds the map equal to each shipped workflow's step that uses
-claude-code-action. A run that never reached the agent step (no secret, the
+"Climb", keel-tend.yml → "Tend", keel-cross-review.yml → "Review") and to
+the step right after it, "Did the agent run?", and a test holds the map
+equal to each shipped workflow's step that uses claude-code-action and the
+step after it. A run that never reached the agent step (no secret, the
 pass not picked, a non-matching PR) is not a run of the budget, and is
-skipped.
+skipped. So is a run whose agent never started (a refused secret, a bad
+model): the agent step is continue-on-error, so it says `success` even
+then, and its "Did the agent run?" step's `failure` is what says so. A run
+without that step (from before it existed) is counted.
+(Settled 2026-10-07: keel's climb runs 37528477651 and 37522297684 had
+Climb `success` in 16–17 s and "Did the agent run?" `failure`.)
 
 ## Judged by
 

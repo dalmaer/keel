@@ -109,6 +109,21 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 - **A red run** only when the agent failed before its budget ran out (a
   refused secret, a bad model), with that error's text. A budget timeout is
   not red: what was kept is still judged.
+- **A Budget line** on the health page, to tell whether a budget you set by
+  guess was right:
+
+  ```
+  Budget: tend 2, 3, 30⏱ of 30 min (last 3 runs; too few to say) · climb 41⏱, 45⏱, 44⏱, 45⏱ of 45 min (last 4: 4 ran out; extend)
+  ```
+
+  Each number is the minutes the agent step itself took in one run, newest
+  first, from GitHub's own record of the run (not the agent's report, and
+  not setup or the PR, which are keel's time). ⏱ means it ran out: cut off
+  by its timeout, or within a minute of the budget. Over the last 4 to 8
+  runs, *extend* means the agent is often cut off mid-work; *shorten to N*
+  means no run used half its budget; *hold* means the budget fits. It never
+  changes `budget.minutes` itself: that is money, and you set it. A run that
+  never reached the agent (no secret, nothing picked) is not counted.
 
 ## What it never does
 

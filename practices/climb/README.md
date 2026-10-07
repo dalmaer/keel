@@ -117,6 +117,17 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
 A pass that committed nothing opens nothing. The workflow keeps the pass's
 record as the `keel-tend` artifact.
 
+**The Budget line.** With climb, tend or cross-review on, the night's
+health page carries one `Budget:` line: for each pass, its agent step's
+minutes in its last runs (at most 8, newest first, from GitHub's record of
+the workflow's runs: the `Climb`, `Tend` or `Review` step's start to end),
+⏱ on each that ran out (cancelled, or used the budget less one minute), and
+a suggestion against today's budget: *extend* when half or more ran out,
+*shorten to N* when none used more than half (N the most used, rounded up
+to 5), *hold* otherwise, *too few to say* below 4 runs. n/a with why when
+gh cannot read the runs. A suggestion, never a change: `budget.minutes` is
+the owner's to set.
+
 **Config** (`.keel/keel.json`; no `climb`, no climb night):
 
 ```json

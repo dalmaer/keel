@@ -1,0 +1,144 @@
+// The health page's Budget line (phase 43): each budgeted pass that is on
+// (climb, tend, cross-review) shows its agent step's minutes in its last runs,
+// from GitHub's record of the workflow's runs and jobs, which ran out, and a
+// suggestion: extend, shorten to N, hold, or too few to say. A line, never a
+// measure, and never a change. Synthetic runs: Acme's.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, writeFile, rm, mkdir, realpath } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
+import { budgetUse, budgetPasses, stepUse, BUDGET_RUNS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { ENV, ghStub } from './helpers/improve.mjs';
+
+const T0 = Date.parse('2026-10-01T09:42:00Z');
+/**
+ * A run's jobs whose agent step (`step`) used `min` minutes and ended
+ * `conclusion`; 'skipped' never ran it. `ran`: its "Did the agent run?"
+ * step's conclusion, or none (a run from before that step).
+ */
+const run = (min, { step = 'Tend', conclusion = 'success', camel = false, ran } = {}) => ({
+  jobs: [{ name: 'acme', steps: [
+    { name: 'Set up job', conclusion: 'success', started_at: new Date(T0 - 60_000).toISOString(), completed_at: new Date(T0).toISOString() },
+    conclusion === 'skipped'
+      ? { name: step, conclusion: 'skipped', started_at: null, completed_at: null }
+      : { name: step, conclusion, [camel ? 'startedAt' : 'started_at']: new Date(T0).toISOString(), [camel ? 'completedAt' : 'completed_at']: new Date(T0 + min * 60_000).toISOString() },
+    ...(ran ? [{ name: 'Did the agent run?', conclusion: ran, started_at: new Date(T0 + min * 60_000).toISOString(), completed_at: new Date(T0 + min * 60_000 + 1000).toISOString() }] : []),
+  ] }],
+});
+const tend = { step: 'Tend', check: 'Did the agent run?', minutes: 30 };
+
+test('budgetUse: minutes from the agent step, a cancelled or full step ran out, a run without the step skipped', () => {
+  const u = budgetUse([run(2), run(3, { camel: true }), run(12, { conclusion: 'cancelled' }), run(29.5), run(0, { conclusion: 'skipped' }), { jobs: [{ steps: [{ name: 'Brief', conclusion: 'success' }] }] }], tend);
+  assert.deepEqual(u.used, [{ minutes: 2, ranOut: false }, { minutes: 3, ranOut: false }, { minutes: 12, ranOut: true }, { minutes: 30, ranOut: true }]);
+  assert.equal(u.ranOut, 2);
+  assert.equal(stepUse(run(28.9).jobs, tend).ranOut, false, 'under the budget less one minute');
+  assert.equal(stepUse(run(29).jobs, tend).ranOut, true, 'the budget less one minute');
+  assert.equal(stepUse(run(5, { conclusion: 'timed_out' }).jobs, tend).ranOut, true);
+  assert.equal(stepUse(run(5, { step: 'Climb' }).jobs, tend), null, 'another pass\'s step is not this one');
+});
+
+test('budgetUse: a run whose agent never started is skipped: its agent step says success (continue-on-error), its check step failure', () => {
+  const never = run(17 / 60, { ran: 'failure' });
+  assert.equal(never.jobs[0].steps[1].conclusion, 'success');
+  assert.equal(stepUse(never.jobs, tend), null);
+  assert.deepEqual(stepUse(run(4, { ran: 'success' }).jobs, tend), { seconds: 240, ranOut: false }, 'the agent ran');
+  assert.deepEqual(stepUse(run(4).jobs, tend), { seconds: 240, ranOut: false }, 'a run from before the check step is counted');
+  const u = budgetUse([run(3), never, never, never, run(2), run(3), run(4)], tend);
+  assert.deepEqual(u.used.map(x => x.minutes), [3, 2, 3, 4]);
+  assert.equal(u.suggestion, 'shorten to 5');
+});
+
+test('budgetUse: the suggestion over the last runs (at most 8): extend, shorten to N, hold, too few to say', () => {
+  assert.equal(budgetUse([run(30), run(2), run(3)], tend).suggestion, 'too few to say', 'three runs');
+  assert.equal(budgetUse([], tend).suggestion, 'too few to say');
+  assert.equal(budgetUse([run(30), run(29), run(3), run(4)], tend).suggestion, 'extend', 'half ran out');
+  assert.equal(budgetUse([run(30, { conclusion: 'cancelled' }), run(29), run(3), run(4), run(5)], tend).suggestion, 'hold', 'two of five ran out');
+  assert.equal(budgetUse([run(2), run(11.2), run(3), run(4)], tend).suggestion, 'shorten to 15', 'none above half: the most, rounded up to 5');
+  assert.equal(budgetUse([run(1), run(2), run(1), run(0)], tend).suggestion, 'shorten to 5', 'at least 5');
+  assert.equal(budgetUse([run(2), run(16), run(3), run(4)], tend).suggestion, 'hold', 'one above half, none ran out');
+  assert.equal(budgetUse([run(2), run(3), run(2), run(4)], { step: 'Tend', minutes: 5 }).suggestion, 'hold', 'shortening to the budget is no change');
+  // The window: the newest eight that reached the step; older runs are not counted.
+  const nine = [...Array(8).fill(0).map(() => run(2)), run(30), run(30), run(30), run(30), run(30)];
+  const w = budgetUse(nine, tend);
+  assert.equal(w.used.length, BUDGET_RUNS);
+  assert.equal(w.suggestion, 'shorten to 5');
+});
+
+test('budgetPasses: a pass is on by its key, with its budget or the default', () => {
+  assert.deepEqual(budgetPasses({}), []);
+  assert.deepEqual(budgetPasses({ tend: {}, climb: { budget: { minutes: 20 } }, crossReview: { for: ['codex/'] } }).map(p => [p.pass, p.step, p.check, p.minutes]),
+    [['tend', 'Tend', 'Did the agent run?', 30], ['climb', 'Climb', 'Did the agent run?', 20], ['cross-review', 'Review', 'Did the agent run?', 15]]);
+});
+
+/** An Acme repo with this config. */
+async function acme(t, config) {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-improve-budget-')));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], ...config }));
+  return dir;
+}
+const pageOf = async (dir, gh) => {
+  const r = await improve({ root: dir, report: true, date: '2026-10-07' }, { env: { ...ENV, ...(gh ? { KEEL_GH: gh } : {}) }, measures: [] });
+  return { data: r.data, text: await readFile(join(dir, 'docs/health/2026-10-07.md'), 'utf8') };
+};
+const R = 'repos/acme/anvils';
+/** The REST answers for these workflows' runs: { 'keel-tend.yml': [run, …] }, ids numbered. */
+function actions(byWorkflow) {
+  const api = { [R]: { default_branch: 'main' } };
+  let id = 100;
+  for (const [wf, runs] of Object.entries(byWorkflow)) {
+    api[`${R}/actions/workflows/${wf}/runs`] = { workflow_runs: runs.map(r => { const n = id++; api[`${R}/actions/runs/${n}/jobs`] = { jobs: r.jobs }; return { id: n }; }) };
+  }
+  return api;
+}
+
+test('the health page has a Budget entry for each pass that is on and none for one that is off', async t => {
+  const api = actions({
+    'keel-tend.yml': [run(2), run(3), run(30, { conclusion: 'cancelled' })],
+    'keel-climb.yml': [run(41, { step: 'Climb' }), run(45, { step: 'Climb', conclusion: 'cancelled' }), run(44, { step: 'Climb' }), run(0, { step: 'Climb', conclusion: 'skipped' }), run(0.3, { step: 'Climb', ran: 'failure' }), run(45, { step: 'Climb' }), run(44.5, { step: 'Climb' })],
+  });
+  const gh = await ghStub(t, { api });
+  const both = await pageOf(await acme(t, { repo: 'acme/anvils', tend: { budget: { minutes: 30 } }, climb: { jobs: ['test-time'] } }), gh);
+  const line = 'Budget: tend 2, 3, 30⏱ of 30 min (last 3 runs; too few to say) · climb 41, 45⏱, 44⏱, 45⏱, 45⏱ of 45 min (last 5: 4 ran out; extend)';
+  assert.match(both.text, new RegExp(`^${line.replace(/[()]/g, '\\$&')}$`, 'm'));
+  assert.equal(both.data.budget, line);
+  assert.doesNotMatch(both.text, /\| `budget/, 'a line, never a measure row');
+  const asked = await readFile(`${gh}.api.log`, 'utf8');
+  assert.match(asked, /actions\/workflows\/keel-tend\.yml\/runs\?status=completed&per_page=20&branch=main/, 'completed runs on the default branch');
+
+  const tendOnly = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), gh);
+  assert.match(tendOnly.text, /^Budget: tend 2, 3, 30⏱ of 30 min \(last 3 runs; too few to say\)$/m);
+  assert.doesNotMatch(tendOnly.text, /climb/, 'climb off: no entry');
+
+  const none = await pageOf(await acme(t, { repo: 'acme/anvils' }), gh);
+  assert.doesNotMatch(none.text, /Budget:/, 'no pass on, no line');
+  assert.equal(none.data.budget, null);
+});
+
+test('GitHub unreadable is n/a with why, never an empty line', async t => {
+  const unread = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: {} }));
+  assert.match(unread.text, /^Budget: tend n\/a \(gh api repos\/acme\/anvils: exit 1, gh: Not Found \(HTTP 404\)\) of 30 min$/m);
+
+  const noWorkflow = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {}, climb: { jobs: ['test-time'] } }), await ghStub(t, { api: actions({ 'keel-tend.yml': [run(2)] }) }));
+  assert.match(noWorkflow.text, /^Budget: tend 2 of 30 min \(last 1 run; too few to say\) · climb n\/a \(gh api repos\/acme\/anvils\/actions\/workflows\/keel-climb\.yml\/runs: exit 1, gh: Not Found \(HTTP 404\)\) of 45 min$/m, 'one pass unread, the other still said');
+
+  const noRepo = await pageOf(await acme(t, { tend: {} }));
+  assert.match(noRepo.text, /^Budget: tend n\/a \(no repo in \.keel\/keel\.json\) of 30 min$/m);
+
+  const noGh = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), join(tmpdir(), 'keel-no-such-gh'));
+  assert.match(noGh.text, /^Budget: tend n\/a \(gh api: gh is not installed \(.*keel-no-such-gh\)\) of 30 min$/m);
+
+  const empty = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: actions({ 'keel-tend.yml': [] }) }));
+  assert.match(empty.text, /^Budget: tend: no runs yet of 30 min \(too few to say\)$/m);
+});
+
+test('the read is bounded: it stops once eight runs reached the step', async t => {
+  const gh = await ghStub(t, { api: actions({ 'keel-tend.yml': Array(15).fill(0).map(() => run(2)) }) });
+  const p = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), gh);
+  assert.match(p.text, /^Budget: tend 2, 2, 2, 2, 2, 2, 2, 2 of 30 min \(last 8: none ran out; shorten to 5\)$/m);
+  const jobs = (await readFile(`${gh}.api.log`, 'utf8')).split('\n').filter(l => l.includes('/jobs'));
+  assert.equal(jobs.length, 8);
+});
