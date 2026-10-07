@@ -20,8 +20,9 @@ branches `codex/<slug>`); the reviewer, chosen per PR, is the first
 provider `"agents"` lists that is not the author and has its secret set.
 Only when no other is available (none listed, or none with its secret) does
 the author's own provider review it: the run says so in a notice, and the
-review's summary says "reviewed by claude, its own provider: no other is
-configured":
+review's summary says why, exactly ("reviewed by claude, its own provider:
+no other provider is listed", or "…: codex is listed but its secret
+OPENAI_API_KEY is not set"):
 
 - **Which PRs.** A head branch starting with a prefix in
   `"crossReview".for` (Codex opens PRs under the owner's account, so the
@@ -89,9 +90,11 @@ reviews: the workflow ends at its first step. The config is checked
 before the secret gate, so a bad one is red, naming the key, never a quiet
 green: an unknown key, an unknown provider in `"agents"` (a typo like
 `"claud"`), an empty `for`, minutes outside 5–60, and an `"agent"` that
-writes a prefix in `for` while another provider is listed. A prefix that
-names a provider only partly (`"claude"` without the slash) is read as that
-provider's. `"agent"` is optional, and only for a prefix no provider's
+writes a prefix in `for` while another provider is listed, and a prefix
+that matches a provider's branches and others (`"claude"` matches `claude/`
+and `claude-fix`; `"c"`): name the provider's branch exactly (`claude/`,
+or longer, `claude/feature-`) or a prefix no provider's branch shares
+(`custom/`). `"agent"` is optional, and only for a prefix no provider's
 branch names (a person's `acme/`, say); default claude. With no reviewer's
 secret set, the PR gets a notice and the run is green; a choice that would
 put the author's provider on its own PR while another is available is red,
@@ -103,9 +106,11 @@ and no agent runs.
 OIDC exchange needs the Claude GitHub App installed on the repo. Codex:
 `OPENAI_API_KEY`, always billed per token to the OpenAI API account (there
 is no subscription path), and codex-action runs only for an actor with
-write access, or a bot it is told to trust: the step names the other
-providers' bots (`allow-bot-users: claude[bot]`, so a `claude/` PR Claude's
-app opened is reviewed), never a wildcard or `allow-bots`. Each
+write access, or a bot it is told to trust; so does claude-code-action.
+Both steps name exactly the providers' bots (Codex's `allow-bot-users`,
+Claude's `allowed_bots`: `claude[bot]`), so a `claude/` PR Claude's app
+opened is reviewed, by Codex or, as the fallback, by Claude; never a
+wildcard or `allow-bots`. Each
 reviewed PR spends model tokens, up to the budget. Until the secret is set
 the run ends green with a notice. The review and its inline comments are
 posted by the workflow's own step (`github-actions[bot]`), whichever agent

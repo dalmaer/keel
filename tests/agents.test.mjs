@@ -223,7 +223,13 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
   const [review] = agentSteps(w.crossReview.text, 'claude');
   const expected = CLAUDE_BEFORE.crossReview
     .replace("if: steps.which.outputs.review == 'true'", "if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'")
-    .replace(',mcp__github_inline_comment__create_inline_comment', '');
+    .replace(',mcp__github_inline_comment__create_inline_comment', '')
+    // duo#84: a provider's bot may open the PR Claude reviews (its own, the fallback); the adapters' logins, by name.
+    .replace('          prompt: ${{ steps.brief.outputs.prompt }}\n', `          prompt: \${{ steps.brief.outputs.prompt }}
+          # A provider's bot may open the PR (claude[bot]: Claude reviewing its
+          # own, the fallback); the action allows no bot unless named. The
+          # adapters' logins only (lib.mjs AGENTS login), never "*".
+          allowed_bots: claude[bot]\n`);
   assert.equal(review, expected);
   // climb and tend have one agent step, Claude's, and their "Configured?" still asks for Claude's secret alone.
   for (const key of ['climb', 'tend']) {
@@ -373,11 +379,13 @@ test('the reviewer is another provider whenever one is available: codex/ PRs go 
 test('its own provider reviews a PR only when no other is available: none other listed, or none with its secret; it says so, in a notice and in the review', async () => {
   const both = { agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/', 'claude/'] } };
   // Listed, but its secret is not set: the author reviews.
-  assert.deepEqual(reviewerOf({ config: both, head: 'claude/lid', has: { claude: true, codex: false } }), { author: 'claude', reviewer: 'claude', self: true, why: 'written by claude (claude/): reviewed by claude, its own provider: no other is configured' });
-  // Not listed: claude alone, a claude/ PR. Valid config now (the fallback), and Claude reviews it.
+  // duo#84: the reason names the provider and the secret it lacks.
+  assert.deepEqual(reviewerOf({ config: both, head: 'claude/lid', has: { claude: true, codex: false } }), { author: 'claude', reviewer: 'claude', self: true, reason: 'codex is listed but its secret OPENAI_API_KEY is not set', why: 'written by claude (claude/): reviewed by claude, its own provider: codex is listed but its secret OPENAI_API_KEY is not set' });
+  assert.equal(reviewerOf({ config: both, head: 'codex/lid', has: { claude: false, codex: true } }).reason, 'claude is listed but its secret CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) is not set');
+  // Not listed: claude alone, a claude/ PR. Valid config now (the fallback), and Claude reviews it, saying no other is listed.
   const alone = { crossReview: { for: ['claude/'] } };
   assert.deepEqual(passAgentProblems(alone, 'crossReview'), []);
-  assert.equal(reviewerOf({ config: alone, head: 'claude/lid' }).self, true);
+  assert.deepEqual([reviewerOf({ config: alone, head: 'claude/lid' }).self, reviewerOf({ config: alone, head: 'claude/lid' }).reason], [true, 'no other provider is listed']);
   // Nobody with a secret: the first other is named, so the caller says which secret to add.
   assert.deepEqual([reviewerOf({ config: both, head: 'claude/lid', has: { claude: false, codex: false } }).reviewer, reviewerOf({ config: both, head: 'claude/lid', has: { claude: false, codex: false } }).self], ['codex', false]);
   // The script: a self-review is a review, flagged; with no secret at all, a notice and no review.
@@ -385,13 +393,15 @@ test('its own provider reviews a PR only when no other is available: none other 
   const pr = { number: 7, headRefName: 'claude/lid', headRefOid: 'd'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' };
   const ev = { name: 'pull_request', action: 'opened' };
   const self = cross.shouldReview({ config: both, event: ev, pr, has: { claude: true, codex: false } });
-  assert.deepEqual([self.review, self.agent, self.author, self.self], [true, 'claude', 'claude', true]);
+  assert.deepEqual([self.review, self.agent, self.author, self.self, self.reason], [true, 'claude', 'claude', true, 'codex is listed but its secret OPENAI_API_KEY is not set']);
+  assert.equal(cross.shouldReview({ config: both, event: ev, pr: { ...pr, headRefName: 'codex/lid' }, has: { claude: true, codex: true } }).reason, undefined, 'no reason when another reviews');
   const none = cross.shouldReview({ config: both, event: ev, pr, has: { claude: false, codex: false } });
   assert.deepEqual([none.review, none.notice], [false, true]);
   assert.match(none.why, /add the OPENAI_API_KEY secret for it to run/);
   // The review says it, under the summary.
-  const review = cross.summaryReview({ result: { is_error: false, result: 'Checked the lid.' }, agent: 'claude', author: 'claude', pr, minutes: 15 });
-  assert.match(review.body, /Reviewed by claude, its own provider: no other is configured\./);
+  const review = cross.summaryReview({ result: { is_error: false, result: 'Checked the lid.' }, agent: 'claude', author: 'claude', reason: self.reason, pr, minutes: 15 });
+  assert.match(review.body, /Reviewed by claude, its own provider: codex is listed but its secret OPENAI_API_KEY is not set\./);
+  assert.match(cross.summaryReview({ result: { is_error: false, result: 'Checked.' }, agent: 'claude', author: 'claude', reason: 'no other provider is listed', pr, minutes: 15 }).body, /its own provider: no other provider is listed\./);
   assert.doesNotMatch(cross.summaryReview({ result: { is_error: false, result: 'Checked.' }, agent: 'claude', author: 'codex', pr, minutes: 15 }).body, /its own provider/);
   // The last guard: its own provider while another is available (a bug in the choice) is red, and no agent runs.
   const stub = () => ({ author: 'claude', reviewer: 'claude', self: true, why: 'acme' });
@@ -423,22 +433,24 @@ test('a third provider: the first listed that is not the author reviews; a pass\
   assert.deepEqual(crossReviewerProblems({ agents: { acmebot: {} }, crossReview: { for: ['acmebot/'] } }, { agents }), [], 'alone, it reviews its own');
 });
 
-test('config: an "agent" that writes a prefix in "for" is an error only while another provider is listed; a prefix that names a provider partly is seen as that provider\'s (ledger#101)', async () => {
+test('config: an "agent" that writes a prefix in "for" is an error only while another provider is listed; a prefix that matches a provider\'s branches and others is refused (duo#84)', async () => {
   const self = passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }, 'crossReview');
   assert.equal(self.length, 1, JSON.stringify(self));
   assert.match(self[0], /^"crossReview"\.agent is codex, who writes the codex\/ PRs "for" names, and another provider is listed to review them/);
   assert.deepEqual(passAgentProblems({ agents: { codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }, 'crossReview'), [], 'codex alone: the fallback anyway');
   assert.deepEqual(passAgentProblems({ crossReview: { for: ['claude/'] } }, 'crossReview'), [], 'claude alone reviews its own claude/ PRs');
-  // A prefix without the slash ("claude") matches claude/ heads: validation sees claude as its author.
+  // duo#84: a prefix that matches a provider's branches and others ("claude" matches claude/ and claude-fix) is refused, whatever the agents.
   assert.deepEqual(prefixAuthors('claude'), { authors: ['claude'], unknown: true });
   assert.deepEqual(prefixAuthors('c'), { authors: ['claude', 'codex'], unknown: true });
   assert.deepEqual(prefixAuthors('codex/fix-'), { authors: ['codex'], unknown: false });
   assert.deepEqual(prefixAuthors('acme/'), { authors: [], unknown: true });
-  const partial = passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['claude'], agent: 'claude' } }, 'crossReview');
-  assert.match(partial[0], /^"crossReview"\.agent is claude, who writes the claude PRs "for" names, and another provider is listed/);
-  assert.match(passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['c'], agent: 'codex' } }, 'crossReview')[0], /agent is codex, who writes the c PRs/, '"c" can be codex\'s');
-  // A partial prefix can match a head no provider names: its fallback agent must be listed.
-  assert.match(passAgentProblems({ agents: { codex: {} }, crossReview: { for: ['claude'] } }, 'crossReview')[0], /"crossReview" reviews claude with claude \(the default/);
+  for (const agents of [undefined, { claude: {} }, { claude: {}, codex: {} }]) {
+    const config = { ...(agents ? { agents } : {}), crossReview: { for: ['claude'] } };
+    assert.deepEqual(passAgentProblems(config, 'crossReview'), [`"crossReview".for has claude: claude matches claude's branches and others (e.g. claude-fix); name the provider's branch exactly (claude/) or a prefix no provider's branch shares`], JSON.stringify(agents));
+  }
+  assert.deepEqual(passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['c'] } }, 'crossReview'), [`"crossReview".for has c: c matches claude's branches and codex's branches and others (e.g. c-fix); name the provider's branch exactly (claude/, codex/) or a prefix no provider's branch shares`]);
+  // Exact provider prefixes, longer ones, and prefixes no provider shares stay valid.
+  for (const p of ['claude/', 'codex/', 'claude/feature-', 'custom/']) assert.deepEqual(passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: [p] } }, 'crossReview'), [], p);
   // Both listed, both prefixes: clean (the owner's example).
   assert.deepEqual(passAgentProblems({ agents: { claude: {}, codex: {} }, crossReview: { for: ['codex/', 'claude/'], budget: { minutes: 15 } } }, 'crossReview'), []);
   const { cross } = await scripts();
@@ -449,14 +461,18 @@ test('config: an "agent" that writes a prefix in "for" is an error only while an
   assert.match(w.crossReview.text, /HAS_CODEX: \$\{\{ secrets\.OPENAI_API_KEY != '' \}\}/, 'the reviewer\'s secret is checked by presence, never its value');
 });
 
-test('ledger#101: Codex\'s step lets exactly the other providers\' bots start it (a claude/ PR opened by Claude\'s app), by allow-bot-users, never a wildcard', async () => {
+test('ledger#101, duo#84: each agent step lets exactly the providers\' bots start it (a claude/ PR opened by Claude\'s app), by allow-bot-users and allowed_bots, never a wildcard', async () => {
   const w = await workflows();
   const [step] = agentSteps(w.crossReview.text, 'codex');
   const inputs = withOf(step);
-  const others = Object.entries(AGENTS).filter(([n, a]) => n !== 'codex' && a.login).map(([, a]) => a.login);
-  assert.deepEqual(others, ['claude[bot]']);
-  assert.equal(inputs['allow-bot-users'], others.join(','));
+  // duo#84: every provider's bot, since a provider may review its own bot-opened PR as the fallback.
+  const logins = Object.values(AGENTS).map(a => a.login).filter(Boolean);
+  assert.deepEqual(logins, ['claude[bot]']);
+  assert.equal(inputs['allow-bot-users'], logins.join(','));
   for (const k of ['allow-bots', 'allow-users']) assert.ok(!(k in inputs), k);
+  // And Claude's step, by claude-code-action's allowed_bots (default: no bot).
+  const [claude] = agentSteps(w.crossReview.text, 'claude');
+  assert.equal(withOf(claude).allowed_bots, logins.join(','));
 });
 
 test('a budget timeout never swallows a short budget: on a one-minute budget a failure at 5 s is red, at 58 s it ran out (duo#83, cajones#56)', async () => {

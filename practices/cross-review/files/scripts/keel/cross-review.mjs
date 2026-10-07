@@ -14,7 +14,7 @@
 //                                                              review this PR, or why not
 //   node scripts/keel/cross-review.mjs brief --pr <pr.json> --out <prompt.md> [--agent a --diff <pr.diff>]
 //   node scripts/keel/cross-review.mjs agent-ran [--agent a] --outcome o --file f --minutes m --started s
-//   node scripts/keel/cross-review.mjs summary [--agent a] [--author a] --file f --pr <pr.json> [--diff <pr.diff>] --minutes m --out <review.json>
+//   node scripts/keel/cross-review.mjs summary [--agent a] [--author a] [--reason r] --file f --pr <pr.json> [--diff <pr.diff>] --minutes m --out <review.json>
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 the agent failed to start
 // (agent-ran); 2 usage or a bad config.
@@ -149,7 +149,7 @@ export function shouldReview({ config, event, pr, has, choose = reviewerOf }) {
     return { review: false, notice: true, why: `Skipped: #${pr.number} on ${head} is reviewed by ${AGENTS[who.reviewer].name} (${who.why}); add the ${secret} secret for it to run.` };
   }
   const self = Boolean(who.author) && who.reviewer === who.author;
-  return { review: true, self, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}; ${who.why}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: who.reviewer, author: who.author };
+  return { review: true, self, ...(self ? { reason: who.reason ?? 'no other is available' } : {}), why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}; ${who.why}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: who.reviewer, author: who.author };
 }
 
 /** Which providers' secrets are set, from the step's HAS_<PROVIDER> ("true"/"false"); none given: undefined (not checked). */
@@ -375,7 +375,7 @@ export const findingBody = f => `${FINDING_MARKER}\n**${f.severity}** ${f.body}`
  * result message; `message` Codex's final message. With `inline: false`
  * (GitHub refused the comments), the findings are listed in the body. Pure.
  */
-export function summaryReview({ result, message, agent = 'claude', author = null, pr, minutes, diff = null, inline = true }) {
+export function summaryReview({ result, message, agent = 'claude', author = null, reason = null, pr, minutes, diff = null, inline = true }) {
   const final = agent === 'claude' ? (typeof result?.result === 'string' && !result.is_error ? result.result : '') : (typeof message === 'string' ? message : '');
   const { summary, findings, problem } = findingsOf(final);
   const { kept, dropped } = diff === null && findings.length
@@ -386,7 +386,7 @@ export function summaryReview({ result, message, agent = 'claude', author = null
   const body = said || `The review ran out its ${minutes}-minute budget before writing a summary; the inline comments are what it found.`;
   const where = d => (d.path ? `\`${d.path}${d.line ? `:${d.line}` : ''}\`` : `finding ${d.at + 1}`);
   const notes = [
-    ...(author && author === agent ? ['', `Reviewed by ${agent}, its own provider: no other is configured.`] : []),
+    ...(author && author === agent ? ['', `Reviewed by ${agent}, its own provider: ${reason || 'no other is available'}.`] : []),
     ...(problem ? ['', `Its findings could not be read: ${problem}; none is posted inline.`] : []),
     ...(dropped.length ? ['', `Dropped (${dropped.length}, not posted inline):`, ...dropped.map(d => `- ${where(d)}: ${d.why}`)] : []),
     ...(!inline && kept.length ? ['', `GitHub refused the inline comments; the findings (${kept.length}), to answer here:`, ...kept.map(f => `- \`${f.path}:${f.line}\` **${f.severity}** ${f.body.replace(/\s+/g, ' ')}`)] : []),
@@ -399,7 +399,7 @@ export function summaryReview({ result, message, agent = 'claude', author = null
 // ---- the command line ------------------------------------------------------------
 
 const USAGE = 'usage: node scripts/keel/cross-review.mjs config | which --pr f --event e | brief --pr f --out f [--agent a --diff f] | agent-ran [--agent a] --outcome o --file f --minutes m --started s | summary [--agent a] [--author a] --file f --pr f [--diff f] --minutes m --out f [--plain f] [--json]';
-const FLAGS = { '--pr': 'pr', '--event': 'event', '--out': 'out', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--repo': 'repo', '--agent': 'agent', '--diff': 'diff', '--plain': 'plain', '--author': 'author' };
+const FLAGS = { '--pr': 'pr', '--event': 'event', '--out': 'out', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--repo': 'repo', '--agent': 'agent', '--diff': 'diff', '--plain': 'plain', '--author': 'author', '--reason': 'reason' };
 
 export function parseArgs(args) {
   const [verb, ...rest] = args;
@@ -459,7 +459,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       const agent = o.agent ?? 'claude';
       const text = await readText(o.file ? resolve(o.file) : undefined);
       const diff = o.diff ? await readText(resolve(o.diff)) : null;
-      const args = { ...(agent === 'claude' ? { result: lastResult(text) } : { message: text }), agent, author: o.author ?? null, pr: await readPr(o.pr), minutes: o.minutes, diff: diff || null };
+      const args = { ...(agent === 'claude' ? { result: lastResult(text) } : { message: text }), agent, author: o.author ?? null, reason: o.reason || null, pr: await readPr(o.pr), minutes: o.minutes, diff: diff || null };
       const review = summaryReview(args);
       await writeFile(resolve(o.out), `${JSON.stringify(review, null, 2)}\n`);
       // The same review with the findings in its body: posted when GitHub refuses the inline comments.

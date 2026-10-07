@@ -150,8 +150,10 @@ its reach, and no GitHub token; its secret is `OPENAI_API_KEY`. Codex's
 spend has no subscription path: every review is billed per token to the
 OpenAI API account, so the Budget line's minutes are a bound on dollars you
 pay by the token. codex-action runs only for an actor with write access or
-a bot it names: keel names the other providers' bots (`claude[bot]`), so a
-PR Claude's app opened is reviewed. A provider keel does not know (a typo
+a bot it names: keel names the providers' bots (`claude[bot]`, in Codex's
+and Claude's steps alike), so a PR Claude's app opened is reviewed. A `for`
+prefix must name a provider's branch exactly (`claude/`) or none
+(`custom/`): `"claude"` alone, which also matches `claude-fix`, is red. A provider keel does not know (a typo
 in `"agents"`) is red before anything else runs, naming the key; no
 reviewer's secret set is a notice and green.
 

@@ -451,7 +451,8 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
   const own = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'false' });
   assert.equal(own.status, 0, own.out);
   assert.deepEqual([own.outputs.review, own.outputs.agent, own.outputs.author], ['true', 'claude', 'claude']);
-  assert.match(own.out, /^::notice::review: #7 on claude\/anvil-lid \(claude\/\), head aaaaaaa; written by claude \(claude\/\): reviewed by claude, its own provider: no other is configured$/m);
+  assert.match(own.out, /^::notice::review: #7 on claude\/anvil-lid \(claude\/\), head aaaaaaa; written by claude \(claude\/\): reviewed by claude, its own provider: codex is listed but its secret OPENAI_API_KEY is not set$/m);
+  assert.equal(own.outputs.reason, 'codex is listed but its secret OPENAI_API_KEY is not set', 'the summary step is handed the reason');
   // No secret at all: a notice naming the first other's, and no review.
   const skipped = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'false', HAS_CODEX: 'false' });
   assert.equal(skipped.status, 0, skipped.out);
@@ -520,6 +521,12 @@ test('the workflow with Claude: its findings JSON is posted inline by keel\'s st
   const [call] = await gh.calls();
   assert.deepEqual(call.input.comments, [{ path: 'src/lid.js', line: 42, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P3** NEW is never read.' }]);
   assert.match(call.input.body, /by Claude of aaaaaaa/);
+  assert.doesNotMatch(call.input.body, /its own provider/, 'Codex wrote this one: no self-review line');
+  // duo#84: Claude reviewing its own PR (the fallback): the step hands the which step's author and reason to the summary.
+  const own = await stubGh(t, pr, { diff: DIFF });
+  const o = await step(t, dir, 'Post the summary', { PATH: `${own.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', AUTHOR: 'claude', REASON: 'codex is listed but its secret OPENAI_API_KEY is not set', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
+  assert.equal(o.status, 0, o.out);
+  assert.match((await own.calls())[0].input.body, /Reviewed by claude, its own provider: codex is listed but its secret OPENAI_API_KEY is not set\./);
   // The brief tells the agent how to write them, and no longer names the comment tool.
   const brief = await readFile(join(PRACTICE, '.agents/cross-review/REVIEW.md'), 'utf8');
   assert.match(brief, /```json\n\[\n  \{ "path": "src\/lid\.js", "line": 42, "severity": "P2", "body": /);

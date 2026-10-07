@@ -1252,11 +1252,8 @@ export function codexStepProblems(text, { sandbox }) {
     if (w.sandbox !== sandbox) out.push(`${name}: Codex's sandbox is ${w.sandbox ?? '(the action\'s default, workspace-write)'}, not ${sandbox}`);
     if (w['safety-strategy'] !== 'drop-sudo') out.push(`${name}: Codex's safety-strategy is ${w['safety-strategy'] ?? '(unset)'}, not drop-sudo: with sudo it can read its key`);
     for (const k of ['allow-users', 'allow-bots']) if (k in w) out.push(`${name}: ${k} lets someone without write access start Codex`);
-    // ledger#101: the other providers' bots open the PRs Codex reviews; only their logins (lib.mjs AGENTS), by name.
-    if ('allow-bot-users' in w) {
-      const allowed = Object.entries(AGENTS).filter(([n, a]) => n !== 'codex' && a.login).map(([, a]) => a.login);
-      for (const login of w['allow-bot-users'].split(',').map(x => x.trim())) if (!allowed.includes(login)) out.push(`${name}: allow-bot-users names ${login || '(nothing)'}: only another provider's bot (${allowed.join(', ')})`);
-    }
+    // ledger#101, duo#84: providers' bots open the PRs Codex reviews; only the adapters' logins (lib.mjs AGENTS), by name.
+    if ('allow-bot-users' in w) out.push(...botListProblems(`${name}: allow-bot-users`, w['allow-bot-users']));
     for (const k of ['codex-args', 'permission-profile', 'codex-home', 'codex-user']) if (k in w) out.push(`${name}: ${k} is a way around the sandbox inputs`);
     if (/danger-full-access|\bunsafe\b/.test(step)) out.push(`${name}: danger-full-access or unsafe`);
     if (env.GH_TOKEN !== '') out.push(`${name}: Codex's step does not blank GH_TOKEN, so it holds the job's token`);
@@ -1266,8 +1263,20 @@ export function codexStepProblems(text, { sandbox }) {
   return out;
 }
 
+/** The adapters' bot logins (lib.mjs AGENTS login): the only bots an agent step may let start it. */
+export const ADAPTER_LOGINS = Object.freeze(Object.values(AGENTS).map(a => a.login).filter(Boolean));
+/** What is wrong with a comma list of bots an action lets start it: anything but an adapter's login. */
+export function botListProblems(where, value) {
+  return String(value ?? '').split(',').map(x => x.trim()).filter(login => !ADAPTER_LOGINS.includes(login))
+    .map(login => `${where} names ${login || '(nothing)'}: only the providers' bots (${ADAPTER_LOGINS.join(', ')})`);
+}
+
 export function crossReviewProblems(text) {
   const out = [];
+  // duo#84: Claude's step lets a provider's bot open the PR it reviews (its own, the fallback): the adapters' logins only.
+  const claudeStep = stepsOf(text).find(st => /\n\s+uses:\s*anthropics\/claude-code-action@/.test(`\n${st}`)) ?? '';
+  const claudeWith = stepMap(claudeStep, 'with');
+  if ('allowed_bots' in claudeWith) out.push(...botListProblems('Review: allowed_bots', claudeWith.allowed_bots));
   const on = /\non:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
   const events = [...on.matchAll(/^ {2}([a-z_]+):/gm)].map(m => m[1]);
   if (events.join(',') !== 'pull_request,issue_comment') out.push(`triggers are ${events.join(', ') || 'none'}; only pull_request and issue_comment`);
@@ -1424,6 +1433,8 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     ['Codex unsafe', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: unsafe\n')],
     ['Codex keeps sudo', t.replace('          safety-strategy: drop-sudo\n', '')],
     ['Codex for bots', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-bots: true\n')],
+    ['Claude for any bot', t.replace('          allowed_bots: claude[bot]\n', '          allowed_bots: "*"\n')],
+    ['Claude for another bot', t.replace('          allowed_bots: claude[bot]\n', '          allowed_bots: claude[bot],acme-deploy[bot]\n')],
     ['Codex for any bot', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: "*"\n')],
     ['Codex for another bot', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: claude[bot],acme-deploy[bot]\n')],
     ['Codex for a bot by an empty entry', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: claude[bot],\n')],

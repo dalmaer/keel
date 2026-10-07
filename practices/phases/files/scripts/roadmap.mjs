@@ -103,14 +103,17 @@ export function isWalk(text) {
 }
 
 /**
- * A command in backticks: a path to run (`./scripts/build.sh`), a known tool
- * and its arguments (`npm run build`, `make release`), or any lowercase word
- * followed by a flag (`pytest -q`, `git diff --check`). A bare name (`codex/`),
- * a label of several words (`Start practice`: Codex on cajones#56) and a JSON
- * setting are not.
+ * A command in backticks, read conservatively (when unsure, it is work to
+ * build): a path to run (`./scripts/build.sh`), a known tool and its
+ * arguments (`npm run build`), a word followed by a flag (`pytest -q`), or
+ * any span of two words or more that starts lowercase, listed tool or not
+ * (`keel doctor`, `make release`: Codex on duo#84). A label starting with a
+ * capital (`Start practice`: cajones#56), a single bare name (`codex/`,
+ * `machine_prs`) and a JSON setting are not.
  */
 const RUNNERS = /^(?:npm|npx|node|pnpm|yarn|bun|deno|make|bash|sh|cargo|go|python3?|pip|uv|tsc|vitest|jest|pytest|git|docker)\s+\S/;
-const COMMAND = { test: s => /^\.{0,2}\/\S/.test(s) || RUNNERS.test(s) || /^[a-z][\w.-]*(?:\s+\S+)*?\s+--?[a-z]/.test(s) };
+const WORDS = /^[a-z][\w.-]*\s+\S/;
+const COMMAND = { test: s => /^\.{0,2}\/\S/.test(s) || RUNNERS.test(s) || /^[a-z][\w.-]*(?:\s+\S+)*?\s+--?[a-z]/.test(s) || WORDS.test(s) };
 
 /** The tests/ paths a phase's Acceptance cites. */
 export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH) ?? []))];

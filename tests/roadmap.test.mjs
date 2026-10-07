@@ -432,6 +432,9 @@ test('any command but a gh check makes a box buildable; names and JSON do not; a
 test('a label of several words is a walk\'s text, not a command; a retired goal\'s phase row owes nothing', () => {
   assert.equal(isWalk('⚑ by hand: verify the `Start practice` button on a phone.'), true);
   assert.equal(isWalk('⚑ by hand after `make release`.'), false);
+  // duo#84: an unlisted command is a command: two lowercase words or more. A capitalised label and a single name stay names.
+  for (const box of ['⚑ by hand after `keel doctor`.', '⚑ by hand: run `acme-cli sync now`, then read it.', '⚑ by hand once `keel update --yes` ran.']) assert.equal(isWalk(box), false, box);
+  for (const box of ['⚑ by hand: verify the `Start practice` button on a phone.', '⚑ by hand: `machine_prs` stays at 1.', '⚑ by hand: the next `codex/` PR is read.', '⚑ by hand: the owner sets `"tend": {"schedule": "weekly"}`.', '⚑ by hand: the `Run checks` page reads green.']) assert.equal(isWalk(box), true, box);
   const walkBoxes = '- [x] Built.\n- [ ] ⚑ by hand: the owner reads it.';
   const gone = parsePhase('05-y.md', phase({ status: 'partial', goal: 'G1', acceptance: walkBoxes, extra: 'owes: walk\n' }));
   const goals = [{ id: 'G0', title: 'Acme', outcome: 'x' }, { id: 'G1', title: 'Old Acme', outcome: 'y', retired: '2026-10-01' }];

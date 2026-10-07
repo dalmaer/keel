@@ -155,7 +155,7 @@ jobs:
             const fs = require("fs");
             const [file, out] = process.argv.slice(1);
             const w = JSON.parse(fs.readFileSync(file, "utf8"));
-            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\n`);
+            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\nreason=${w.reason ?? ""}\n`);
             // Its own provider reviews only when no other is available: said, never silent.
             console.log(w.review ? `${w.self ? "::notice::" : ""}review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
           ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
@@ -209,6 +209,10 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.brief.outputs.prompt }}
+          # A provider's bot may open the PR (claude[bot]: Claude reviewing its
+          # own, the fallback); the action allows no bot unless named. The
+          # adapters' logins only (lib.mjs AGENTS login), never "*".
+          allowed_bots: claude[bot]
           claude_args: |
             --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*)"
       - name: Review
@@ -225,9 +229,9 @@ jobs:
           output-file: ${{ runner.temp }}/codex-final-message.md
           sandbox: read-only
           safety-strategy: drop-sudo
-          # The other providers' bots open the PRs Codex reviews (a claude/ PR
-          # by Claude's app): the action refuses a bot actor unless named.
-          # Their logins only (lib.mjs AGENTS login), never "*" or allow-bots.
+          # Providers' bots open the PRs it reviews (a claude/ PR by Claude's
+          # app): the action refuses a bot actor unless named. The adapters'
+          # logins only (lib.mjs AGENTS login), never "*" or allow-bots.
           allow-bot-users: claude[bot]
 
       # An agent that failed before its budget ran out (no secret, a bad
@@ -258,12 +262,13 @@ jobs:
         env:
           AGENT: ${{ steps.which.outputs.agent }}
           AUTHOR: ${{ steps.which.outputs.author }}
+          REASON: ${{ steps.which.outputs.reason }}
           EXECUTION: ${{ steps.review.outputs.execution_file }}
           MINUTES: ${{ steps.which.outputs.minutes }}
         run: |
           file="${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}"
           if [ "$AGENT" = codex ]; then file="$RUNNER_TEMP/codex-final-message.md"; fi
-          node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary --agent "${AGENT:-claude}" --author "$AUTHOR" --file "$file" --pr "$RUNNER_TEMP/pr.json" --diff "$RUNNER_TEMP/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
+          node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary --agent "${AGENT:-claude}" --author "$AUTHOR" --reason "$REASON" --file "$file" --pr "$RUNNER_TEMP/pr.json" --diff "$RUNNER_TEMP/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
           if ! gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review.json" --jq '"posted review \(.id) (\(.state))"'; then
             echo "::warning::GitHub refused the review with its inline comments; posting it with the findings in its summary."
             gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-plain.json" --jq '"posted review \(.id) (\(.state))"'
