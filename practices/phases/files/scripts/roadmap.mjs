@@ -94,8 +94,11 @@ export function items(text) {
   return out.filter(Boolean);
 }
 
-/** The measure an item names: the first code span after "measure"/"measured", else the one just before "measure". */
-const measureName = item => (/\bmeasure[sd]?\b[^`]*?`([a-z]\w*)`/i.exec(item) ?? /`([a-z]\w*)`\s+(?:night\s+)?measure/i.exec(item))?.[1] ?? null;
+/** The measures an item names: the code span after each "measure"/"measured", and the one just before a "measure". */
+const measureNames = item => [...new Set([...item.matchAll(/\bmeasure[sd]?\b[^`]*?`([a-z]\w*)`/gi), ...item.matchAll(/`([a-z]\w*)`\s+(?:night\s+)?measure/gi)].map(m => m[1]))];
+
+/** "night" said of the measure, not denied ("not a night measure", "no night"). */
+const NIGHT = /(?<!\b(?:not|no|never)\s+(?:an?\s+|the\s+)?)\bnight/i;
 
 /**
  * spec 2: a Scope or Acceptance item asking for a night measure with no bound.
@@ -109,9 +112,10 @@ function unboundedMeasures(sections, where) {
   const out = [];
   for (const section of ['Scope', 'Acceptance']) for (const item of items(sections[section] ?? '')) {
     // The night's measures only: a product's or a study's "recorded only" is not the selftest's business.
-    if (!UNBOUNDED_MEASURE.test(item) || !/\bnight/i.test(item)) continue;
-    const name = measureName(item);
-    if (name && faced.some(l => l.includes(`\`${name}\``))) continue;
+    if (!UNBOUNDED_MEASURE.test(item) || !NIGHT.test(item)) continue;
+    // Every measure the item names must be faced; an item naming none is not.
+    const names = measureNames(item);
+    if (names.length && names.every(n => faced.some(l => l.includes(`\`${n}\``)))) continue;
     const text = item.replace(/^\s*(- (\[[ x]\] )?)?/, '').trim();
     out.push(`${where(section)}: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}" asks for a measure with no bound, and the night's selftest refuses a measure its unhealthy fixture never puts outside; give it an optional bound the selftest fixture sets (as build_time has), or make it a line on the health page instead of a measure`);
   }

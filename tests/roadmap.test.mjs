@@ -189,6 +189,12 @@ test('spec 2: a measure asked for with no bound is a problem, unless the phase f
   assert.match(specProblems('05-x.md', scoped('- A night measure `acme_share` is\n  recorded only, with no bound.')).join('\n'), unbounded, 'wrapped');
   const grouped = '- The night measures `acme_share` grouped by `branch`, recorded only.';
   assert.deepEqual(specProblems('05-x.md', scoped(grouped, '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses it.\n')), [], 'a field beside the measure is not a measure');
+  // Codex on cajones#48: every measure an item names is faced, not only the first; a denied night is not the night.
+  const two = '- The night measures `acme_share` and measures `acme_drop`, both recorded only.';
+  const facedShare = '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses it.\n';
+  assert.match(specProblems('05-x.md', scoped(two, facedShare)).join('\n'), unbounded, 'acme_drop is not faced');
+  assert.deepEqual(specProblems('05-x.md', scoped(two, facedShare.replace('`acme_share`', '`acme_share` and `acme_drop`'))), []);
+  assert.deepEqual(specProblems('05-x.md', scoped('- Measure buyer preference, recorded only: not a night measure.')), [], 'not a night measure');
   // A phase without spec 2 is not held to it.
   assert.deepEqual(specProblems('05-x.md', phase().replace('Small.', scope)), []);
 });
