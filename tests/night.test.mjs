@@ -157,10 +157,15 @@ test('--yes: oldest first, merge squashes and keeps the branch, close says how t
 test('a project whose .keel/keel.json names `health`: PRs holding only pages there are data, beside the default', async t => {
   const OWN = d => [`.keel/health/2026-09-${d}.md`, '.keel/bounds.json'];
   const extra = extraData({ health: '.keel/health' }, 'keel-night/');
-  assert.deepEqual(extra, ['.keel/health/']);
+  assert.equal(extra.length, 1);
   assert.ok(isData('.keel/health/2026-09-30.md', 'keel-night/', extra));
   assert.ok(isData('docs/health/2026-09-30.md', 'keel-night/', extra), 'the default stays data');
-  for (const p of ['.keel/healthy.md', '.keel/keel.json', '.keel/health']) assert.ok(!isData(p, 'keel-night/', extra), p);
+  for (const p of ['.keel/healthy.md', '.keel/keel.json', '.keel/health', '.keel/health/notes.md', '.keel/health/2026-09-30.md.bak', '.keel/health/x/2026-09-30.md']) assert.ok(!isData(p, 'keel-night/', extra), p);
+  // A shared directory (ledger #76: "health": "scripts" or "docs"): only its dated pages are the night's, never its other files.
+  const shared = extraData({ health: 'scripts' }, 'keel-night/');
+  assert.ok(isData('scripts/2026-09-30.md', 'keel-night/', shared));
+  for (const p of ['scripts/deploy.mjs', 'scripts/keel/lib.mjs', 'scripts/README.md']) assert.ok(!isData(p, 'keel-night/', shared), p);
+  for (const bad of [':(top)x', ':!scripts']) assert.deepEqual(extraData({ health: bad }, 'keel-night/'), [], bad);
   for (const bad of ['../x', '/x', '.keel', 'a b', 'docs/health']) assert.deepEqual(extraData({ health: bad }, 'keel-night/'), [], bad);
   assert.deepEqual(extraData({ health: '.keel/health' }, 'keel-loop/'), [], 'the loop queue keeps its own data');
   const prs = () => [pr(11, 'keel-night/2026-09-27', 27, 'MERGEABLE', OWN(27)), pr(14, 'keel-night/2026-09-30', 30, 'MERGEABLE', OWN(30))];

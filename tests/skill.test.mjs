@@ -188,3 +188,21 @@ test('the conduct skill and the climb and tend briefs say: validate each review 
     assert.match(text, /keel review <repo>#<n>/, brief);
   }
 });
+
+// ledger #60, #73, #74: the conduct skill assumes nothing a project with its own roadmap lacks, and agrees with the AGENTS block.
+test('the conduct skill reads the project\'s roadmap command, says whose check guards a stale status, and the AGENTS block names the small-phase exception', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
+  // §0: keel's commands only when keel's phases practice is on; a local roadmap is read from the project's own scripts.
+  assert.match(section(0), /The roadmap command is the project's, never assumed/);
+  assert.match(section(0), /`"practices"` lists `phases`[\s\S]*?`npm run\s+next`/);
+  assert.match(section(0), /`"local"` names `phases`[\s\S]*?`package\.json`[\s\S]*?`next`, else `roadmap`/);
+  assert.doesNotMatch(section(0), /```sh\nnpm run next/, 'no bare npm run next for every project');
+  // §3: the stale-status guard is keel's roadmap check's, and a project's own roadmap is checked by hand.
+  assert.match(section(3), /keel's roadmap check \(`scripts\/roadmap\.mjs`\) fails a\s+phase whose boxes are all checked/);
+  assert.match(section(3), /a project's own roadmap may not check it, so check it\s+yourself/);
+  // #74: both say a small phase may be built by the conductor.
+  assert.match(skill, /\*\*Small phases\.\*\*[\s\S]*built by the conductor/);
+  const block = await readFile(join(KEEL, 'practices', 'conduct', 'files', 'AGENTS.block.md'), 'utf8');
+  assert.match(block, /briefs\s+a builder \(a phase of a file or two it may build itself: the skill's \*Small\s+phases\*\)/);
+});

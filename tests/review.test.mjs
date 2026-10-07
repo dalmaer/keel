@@ -21,7 +21,8 @@ const OLD = 'def5678def5678def5678def5678def5678def5';
 
 /**
  * A gh for keel review. State: head, threads [{id, isResolved, path, line,
- * comments: [{databaseId, author, body, createdAt}]}], comments (conversation),
+ * comments: [{databaseId, author, body, createdAt}], more?}], comments (conversation),
+ * bodies (reviews' top-level bodies, GraphQL), more{Threads,Comments,Reviews},
  * reviews [{user, commit_id, state, after?}] (a review with `after: k` appears
  * from the k-th reviews read on), contents (the repo's .keel/keel.json, or
  * absent: 404), down (every call fails), writes (posts and mutations allowed).
@@ -52,8 +53,10 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
   } else if (s.noPr) console.log(JSON.stringify({ data: { repository: { pullRequest: null } } }));
   else console.log(JSON.stringify({ data: { repository: { pullRequest: {
     number: 3, title: 'Acme rocket skates', url: 'https://github.com/acme/app/pull/3', state: 'OPEN', mergedAt: null, headRefOid: s.head,
-    reviewThreads: { pageInfo: { hasNextPage: !!s.moreThreads }, nodes: s.threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: t.path ?? null, line: t.line ?? null, comments: { nodes: t.comments.map(node) } })) },
-    comments: { pageInfo: { hasNextPage: false }, nodes: s.comments.map(c => ({ id: c.id, ...node(c) })) },
+    author: { login: 'acme-owner' },
+    reviewThreads: { pageInfo: { hasNextPage: !!s.moreThreads }, nodes: s.threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: t.path ?? null, line: t.line ?? null, comments: { pageInfo: { hasNextPage: !!t.more }, nodes: t.comments.map(node) } })) },
+    comments: { pageInfo: { hasNextPage: !!s.moreComments }, nodes: s.comments.map(c => ({ id: c.id, ...node(c) })) },
+    reviews: { pageInfo: { hasNextPage: !!s.moreReviews }, nodes: (s.bodies ?? []).map(r => ({ id: r.id, databaseId: r.databaseId, author: { login: r.author }, body: r.body, state: 'COMMENTED', submittedAt: r.createdAt, url: 'https://github.com/acme/app/pull/3#pullrequestreview-' + r.databaseId })) },
   } } } }));
 } else if (argv[0] === 'api' && argv[1] === '-X' && argv[2] === 'POST') {
   if (!s.writes) deny();
@@ -95,7 +98,7 @@ const keel = (cwd, gh, args, env = {}) => {
 const c = (databaseId, author, body, day = '2026-10-05') => ({ databaseId, author, body, createdAt: `${day}T09:00:00Z` });
 const UNANSWERED = { id: 'PRRT_open', path: 'skates.js', line: 12, comments: [c(11, 'acme-reviewer', '**P1** The skates have no brakes.\n\nDetails follow.')] };
 const ANSWERED = { id: 'PRRT_done', path: 'rocket.js', line: 3, comments: [c(21, 'acme-reviewer', 'The fuse is short.'), c(22, 'acme-owner', 'Fixed in abc1234.')] };
-const RESOLVED = { id: 'PRRT_resolved', isResolved: true, comments: [c(31, 'acme-reviewer', 'Rename the anvil.')] };
+const RESOLVED = { id: 'PRRT_resolved', isResolved: true, comments: [c(31, 'acme-reviewer', 'Rename the anvil.'), c(32, 'acme-owner', 'Renamed in abc1234.')] };
 const SELF_REPLY = { id: 'PRRT_self', comments: [c(41, 'acme-reviewer', 'Also the paint.'), c(42, 'acme-reviewer', 'And the wheels.')] };
 const ON_HEAD = { user: 'acme-reviewer[bot]', commit_id: HEAD };
 
@@ -122,7 +125,7 @@ test('one answered and one unanswered comment: exit 1, the unanswered one named 
 test('every comment answered: exit 0, and a reviewer\'s conversation comment counts too', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [ANSWERED, RESOLVED], reviews: [ON_HEAD],
-    comments: [{ id: 'IC_1', ...c(51, 'acme-reviewer', 'Codex review: two findings.', '2026-10-05') }, { id: 'IC_2', ...c(52, 'acme-owner', 'Both answered.', '2026-10-06') }] });
+    comments: [{ id: 'IC_1', ...c(51, 'acme-reviewer', 'Codex review: two findings.', '2026-10-05') }, { id: 'IC_2', ...c(52, 'acme-owner', '> Codex review: two findings.\n\nBoth answered.', '2026-10-06') }] });
   const r = keel(dir, gh, ['acme/app#3', '--json']);
   assert.equal(r.code, 0, r.out);
   assert.deepEqual(r.json().comments.map(x => [x.id, x.kind, x.answered]), [['PRRT_done', 'thread', true], ['PRRT_resolved', 'thread', true], ['IC_1', 'comment', true]]);
@@ -132,7 +135,7 @@ test('every comment answered: exit 0, and a reviewer\'s conversation comment cou
   assert.equal(a.code, 1);
   assert.deepEqual(a.json().comments.map(x => [x.id, x.answered]), [['IC_1', false]]);
   // A reviewer's status board (a sticky comment opening with a hidden marker) is listed and owes no answer.
-  const board = await stubGh(t, { reviews: [ON_HEAD], threads: [{ id: 'PRRT_badge', isResolved: true, comments: [c(81, 'acme-reviewer', '**<sub><sub>![P1 Badge](https://img.acme.test/p1.svg)</sub></sub>  Close the hatch**')] }],
+  const board = await stubGh(t, { reviews: [ON_HEAD], threads: [{ id: 'PRRT_badge', isResolved: true, comments: [c(81, 'acme-reviewer', '**<sub><sub>![P1 Badge](https://img.acme.test/p1.svg)</sub></sub>  Close the hatch**'), c(82, 'acme-owner', 'Closed in abc1234.')] }],
     comments: [{ id: 'IC_board', ...c(91, 'acme-reviewer', '<!-- acme-review-summary -->\n\n## Acme Review Summary\n\n| Review | Status |') }] });
   const b = keel(dir, board, ['acme/app#3', '--json']);
   assert.equal(b.code, 0, b.out);
@@ -274,4 +277,78 @@ test('nothing in keel refuses a merge because of an open thread: drain, fleet up
   // The rule's own reader never gates: an unanswered comment is a count and a name, not a refusal.
   const pr = { number: 3, reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [{ id: 'PRRT_x', isResolved: false, comments: { nodes: [{ databaseId: 1, author: { login: 'acme-reviewer' }, body: 'x', createdAt: '2026-10-05T00:00:00Z' }] } }] } };
   assert.deepEqual(reviewComments(pr).map(x => [x.id, x.answered]), [['PRRT_x', false]]);
+});
+
+// ---- what counts as an answer (Codex's review of v0.8.3) ------------------------------
+
+/** A PR as the GraphQL read returns it, from threads, conversation comments and review bodies (the stub's shapes). */
+const prOf = ({ threads = [], comments = [], bodies = [], author = 'acme-owner' } = {}) => {
+  const node = x => ({ databaseId: x.databaseId, author: { login: x.author }, body: x.body, createdAt: x.createdAt, url: `https://github.com/acme/app/pull/3#c${x.databaseId}` });
+  return { number: 3, author: { login: author },
+    reviewThreads: { pageInfo: { hasNextPage: false }, nodes: threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: null, line: null, comments: { pageInfo: { hasNextPage: !!t.more }, nodes: t.comments.map(node) } })) },
+    comments: { pageInfo: { hasNextPage: false }, nodes: comments.map(x => ({ id: x.id, ...node(x) })) },
+    reviews: { pageInfo: { hasNextPage: false }, nodes: bodies.map(r => ({ id: r.id, databaseId: r.databaseId, author: { login: r.author }, body: r.body, state: 'COMMENTED', submittedAt: r.createdAt, url: `https://github.com/acme/app/pull/3#pullrequestreview-${r.databaseId}` })) } };
+};
+const answered = (pr, reviewers = ['acme-reviewer[bot]']) => Object.fromEntries(reviewComments(pr, reviewers).map(x => [x.id, x.answered]));
+
+test('a thread is answered by a reply after the reviewer\'s newest comment: resolved alone is not, a reviewer\'s follow-up reopens it', () => {
+  const resolvedOnly = { id: 'T_resolved', isResolved: true, comments: [c(1, 'acme-reviewer', 'Rename the anvil.')] };
+  const followUp = { id: 'T_followup', comments: [c(2, 'acme-reviewer', 'The fuse is short.'), c(3, 'acme-owner', 'Fixed in abc1234.', '2026-10-05'), c(4, 'acme-reviewer', 'Still short at line 9.', '2026-10-06')] };
+  const namedLast = { id: 'T_named', comments: [c(5, 'acme-owner', 'Is this safe?'), c(6, 'acme-reviewer', 'No: the lid sticks.', '2026-10-06')] };
+  const settled = { id: 'T_settled', isResolved: true, comments: [c(7, 'acme-reviewer', 'Paint it.'), c(8, 'acme-reviewer', 'Red, please.'), c(9, 'acme-owner', 'Painted red in abc1234.', '2026-10-06')] };
+  assert.deepEqual(answered(prOf({ threads: [resolvedOnly, followUp, namedLast, settled] })),
+    { T_resolved: false, T_followup: false, T_named: false, T_settled: true });
+});
+
+test('a review\'s top-level body owes an answer: a later comment that quotes, links or names it; a status board, an empty body or the author\'s own does not', () => {
+  const body = { id: 'PRR_1', databaseId: 71, author: 'acme-reviewer', body: '### Acme Review\n\nThe crate has no lid.\n\nDetails in the threads.', createdAt: '2026-10-05T09:00:00Z' };
+  const others = [
+    { id: 'PRR_status', databaseId: 72, author: 'acme-reviewer', body: '<!-- acme-summary -->\n## Summary', createdAt: '2026-10-05T09:00:00Z' },
+    { id: 'PRR_empty', databaseId: 73, author: 'acme-reviewer', body: '  ', createdAt: '2026-10-05T09:00:00Z' },
+    { id: 'PRR_own', databaseId: 74, author: 'acme-owner', body: 'Ready for another look.', createdAt: '2026-10-05T09:00:00Z' },
+    { id: 'PRR_person', databaseId: 75, author: 'wile-e', body: 'Use the bigger anvil.', createdAt: '2026-10-05T09:00:00Z' },
+  ];
+  const read = (comments, reviewers) => reviewComments(prOf({ bodies: [body, ...others], comments }), reviewers);
+  const none = read([], []);
+  assert.deepEqual(none.map(x => [x.id, x.kind, x.status, x.answered]), [['PRR_1', 'review', false, false], ['PRR_status', 'review', true, true], ['PRR_person', 'review', false, false]],
+    'any reviewer\'s body is read, a reviewer named or not; empty and the PR author\'s own are not');
+  assert.equal(none[0].text, 'Acme Review');
+  const by = (body, id = 'IC_a') => [{ id, ...c(90, 'acme-owner', body, '2026-10-06') }];
+  assert.equal(read(by('> The crate has no lid.\n\nFixed in abc1234.'), [])[0].answered, true, 'a quote of a line');
+  assert.equal(read(by('Answered: https://github.com/acme/app/pull/3#pullrequestreview-71'), [])[0].answered, true, 'its link');
+  assert.equal(read(by('PRR_1: fixed in abc1234.'), [])[0].answered, true, 'its id');
+  assert.equal(read(by('Merging now.'), [])[0].answered, false, 'an unrelated comment is not an answer');
+  assert.equal(read([{ id: 'IC_r', ...c(91, 'acme-reviewer', '> The crate has no lid.\n\nStill true.', '2026-10-06') }], [])[0].answered, false, 'the reviewer quoting itself is not an answer');
+});
+
+test('a reviewer\'s conversation comment is answered only by a later comment that references it, never by an unrelated one', () => {
+  const finding = { id: 'IC_find', ...c(51, 'acme-reviewer', 'Codex: the README is wrong.\nIt names the old flag.', '2026-10-05') };
+  const later = body => ({ id: 'IC_later', ...c(52, 'acme-owner', body, '2026-10-06') });
+  for (const [body, want] of [['Thanks, merging.', false], ['> It names the old flag.\n\nFixed in abc1234.', true], ['See https://github.com/acme/app/pull/3#c51: fixed.', true], ['IC_find is not valid: the flag is current.', true], ['> ok', false]]) {
+    assert.equal(answered(prOf({ comments: [finding, later(body)] })).IC_find, want, body);
+  }
+  const before = { id: 'IC_before', ...c(50, 'acme-owner', '> Codex: the README is wrong.', '2026-10-04') };
+  assert.equal(answered(prOf({ comments: [before, finding] })).IC_find, false, 'a quote from before it is not an answer to it');
+});
+
+test('a thread with more comments than one page is an incomplete read: keel review exits 2, never a count', async t => {
+  assert.throws(() => reviewComments(prOf({ threads: [{ id: 'T_long', more: true, comments: [c(1, 'acme-reviewer', 'One.'), c(2, 'acme-owner', 'Two.')] }] })), e => e.incomplete === true && /more comments in a review thread than one page/.test(e.message));
+  const dir = await project(t);
+  for (const state of [{ threads: [{ ...ANSWERED, more: true }] }, { moreReviews: true }, { moreComments: true }]) {
+    const r = keel(dir, await stubGh(t, { reviews: [ON_HEAD], ...state }), ['acme/app#3', '--json']);
+    assert.equal(r.code, 2, JSON.stringify(state) + r.out);
+    assert.match(r.json().error, /GitHub could not be read: #3 has more .* than one page; the read is incomplete/);
+  }
+});
+
+test('--close on a review body posts a comment that quotes and links it, so the read sees it answered', async t => {
+  const dir = await project(t);
+  const gh = await stubGh(t, { reviews: [ON_HEAD], writes: true, bodies: [{ id: 'PRR_9', databaseId: 77, author: 'acme-reviewer', body: '**Acme Review**: the crate has no lid.', createdAt: '2026-10-05T09:00:00Z' }] });
+  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1);
+  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRR_9', '--fixed', 'abc1234']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /PRR_9: replied \(a review body has no thread to resolve\)/);
+  const [post] = writesIn(await gh.calls());
+  assert.equal(post.at(-1), 'body=> Acme Review: the crate has no lid.\n\n**Fixed** in abc1234. Validated against the code first.\n\nhttps://github.com/acme/app/pull/3#pullrequestreview-77');
+  assert.equal(keel(dir, gh, ['acme/app#3']).code, 0);
 });

@@ -558,7 +558,7 @@ first, a model's opinion never: every number comes from a command.
   previous release's count (from git; `--report` stores it), none with no
   release before; no ratchet. Detail adds each phase built since the tag:
   days planned → built, words. Shallow clone, no repo or no commits: n/a.
-- `dependency_age` — `npm outdated`, only with a `package-lock.json`.
+- `dependency_age` — `npm outdated` in the root and each app or workspace folder (`web/`, `app/`, `client/`, `frontend/`, the root's workspaces) with its own `package-lock.json`; n/a with none.
 - `conduct_cost` — only with `--transcripts <dir>` of Claude Code subagent
   transcripts (`*.jsonl`, `*.output`): whole-check and whole-suite runs by
   builders (lesson 5), and minutes per kind of command.
@@ -625,7 +625,7 @@ is never in a queue, whatever its branch is called; nothing outside the
 prefix is touched.
 
 - Each older PR, oldest first: merged (squash, branch kept) when every file
-  is data (`docs/health/` and the configured `health` directory,
+  is data (`docs/health/` and the dated pages in the configured `health` directory,
   `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`; for `keel-loop/`, `docs/loop/` and `docs/LOOP.md`
   instead) and GitHub says `MERGEABLE`; otherwise closed with a
   comment naming the newest and saying how to recover it. A merge that fails
@@ -852,15 +852,17 @@ mark?, session?, ending?, name?, files?, url?}]}], shown, hidden}`; `mark`
 
 `keel review <owner/repo>#<n>` (or a PR URL, or `#<n>` for the project's own
 `repo`) reads every review thread (GraphQL `reviewThreads`, with
-`isResolved`), the PR's reviews (`gh api repos/{r}/pulls/{n}/reviews`) and
-each named reviewer's conversation comments. A thread is **answered** when it
-is resolved or someone other than its first comment's author replied in it;
-a reviewer's conversation comment when someone else commented after it (a
-bot's status board, a comment opening with a hidden `<!-- marker -->` that
-it edits in place, like Codex's review summary, is listed as `status` and
-owes no answer: its findings are the threads). Exit
-0 every comment answered, 1 any unanswered (each named, with its first line
-and id), 2 GitHub unreadable or usage: never 0 on a failed or incomplete read.
+`isResolved`), every review's top-level body, the PR's reviews (`gh api
+repos/{r}/pulls/{n}/reviews`, for the head commit) and each named reviewer's
+conversation comments. A thread is **answered** when someone other than its
+reviewer replied after the reviewer's newest comment (resolved alone is not
+answered; a reviewer's follow-up reopens it); a review body or a reviewer's
+conversation comment when a later comment from someone else quotes a line
+of it (`> `), links it or names its id (`--close` does). A body opening with
+a hidden `<!-- marker -->` (a bot's status board) is listed as `status` and
+owes no answer. Exit 0 every comment answered, 1 any unanswered (each named,
+with its first line and id), 2 GitHub unreadable or usage: never 0 on a
+failed or incomplete read (any list longer than its page).
 
 **The rule, for every agent that opens or merges a PR** (the conductor, fleet
 update's PRs, climb and tend PRs, whoever answers them): when a PR has
@@ -882,7 +884,7 @@ several ids comma-separated in one call: never loop over them in the shell
 ["<login>"], "wait": <minutes>}` (default: none named, 10 minutes; a bad
 value exits 2): the project here when its `repo` is the PR's, else the PR's
 repo's own `.keel/keel.json` on GitHub; `--reviewer <login>` overrides. With
-none named, only threads are read and nothing is waited for. `codex` and
+none named, conversation comments are not read and nothing is waited for. `codex` and
 `codex[bot]` are the same login.
 
 `--wait` polls (every 30 s; `KEEL_REVIEW_POLL_MS`) until each named reviewer
@@ -899,8 +901,8 @@ reviewed the head commit (1 until then).
 
 `--json` → `{repo, number, title, url, state, head, reviewers, reviewersFrom,
 wait, reviewed: [{reviewer, head, newest}], notReviewed, waited, gate,
-comments: [{kind, id, author, at, path, line, text, url, resolved,
-status?, answered}], unanswered, answered, ok}`; `--close --json` → `{repo, number,
+comments: [{kind: thread|review|comment, id, author, at, path, line, text,
+url, resolved, status?, answered}], unanswered, answered, ok}`; `--close --json` → `{repo, number,
 answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
 
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->

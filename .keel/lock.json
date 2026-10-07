@@ -35,7 +35,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "bd3620d4040bcc527da88a4810961ae1ec94226225e061f55ff9c4ae257019b7"
+      "sha256": "f836cfe4ddb4a818451ebb3b1c4f0398693351d90265795b4f1a949b2510caf6"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -67,7 +67,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "cbe2828dd12d7b312bb39d06a1d0bf2cdca1abf7edc4ac6b3618d121134e7c42"
+      "sha256": "a1023067fa1e12d9e051da8e7ae388a04f8cb0d9c708da693a49da82ba2f512c"
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
@@ -79,7 +79,7 @@
     },
     "AGENTS.md#conduct": {
       "practice": "conduct",
-      "sha256": "7de54f1de8fab2b95a71f5a367a58e50d4389be95478bdb5d6beb7f072de3432"
+      "sha256": "2b70e69cb57ee1f8bade2600184ea227d10a68aa4518fe5c35380dbbc71cd634"
     },
     "AGENTS.md#evidence": {
       "practice": "evidence",
@@ -135,7 +135,7 @@
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
-      "sha256": "1e20c77ebecaa8c76737675f01073dfe0297a524cdc0dc64c920b6b8c823614b"
+      "sha256": "207d7563f7d5a5022820af228b8e4ef977cfb03e16a16abbc1b192c7463cc765"
     },
     "scripts/keel/generated.mjs": {
       "practice": "phases",
@@ -143,11 +143,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "43a99e2bd0df0a695448801dd0e7dd2bcb374282c446f4cb35d6ff4e86f6139f"
+      "sha256": "b1757630d4b9c3889ab6eca456555612888a226c4a5de4a952c4ee70451bbf88"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "d5d2ec71009733c7c652c97038b30a6abef15ebb55faa57873bc4657a8694467"
+      "sha256": "4588b6bf19a966de32dcf0a001316abcff5e6e930bd44023b0cd4e49b91d3c80"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -163,7 +163,7 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "7f32e92d99b3f4935a36329123c154d3dfb66f1a00e90d3ae1811ce6ac1f44d2"
+      "sha256": "f9ea2d368cac44da48d5fc5aa92890f4e9a7c8322b0dce08f54a73f244695249"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

@@ -229,7 +229,8 @@ async function world(t, { marker = 'Acme' } = {}) {
         open: [{ number: 1, title: 'Acme phase 7: the widget', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', mergedAt: null, headRefOid: 'abc1234',
           reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [
             { id: 'PRRT_1', isResolved: false, comments: { nodes: [{ databaseId: 1, author: { login: 'acme-reviewer' }, body: 'The widget leaks.', createdAt: new Date(Date.now() - 3 * DAY).toISOString() }] } },
-            { id: 'PRRT_2', isResolved: true, comments: { nodes: [{ databaseId: 2, author: { login: 'acme-reviewer' }, body: 'Settled.', createdAt: new Date(Date.now() - 3 * DAY).toISOString() }] } },
+            { id: 'PRRT_2', isResolved: true, comments: { nodes: [{ databaseId: 2, author: { login: 'acme-reviewer' }, body: 'Settled.', createdAt: new Date(Date.now() - 3 * DAY).toISOString() },
+              { databaseId: 3, author: { login: 'acme-owner' }, body: 'Fixed in abc1234.', createdAt: new Date(Date.now() - 2 * DAY).toISOString() }] } },
           ] }, comments: { pageInfo: { hasNextPage: false }, nodes: [] } }],
         merged: [],
       },

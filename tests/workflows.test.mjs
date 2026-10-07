@@ -6,7 +6,7 @@
 // that breaks it must fail.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir, mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, writeFile, rm, mkdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -417,7 +417,7 @@ test('every run: block in every workflow parses as bash, and every inline node -
  * bare origin and a stub gh. Returns { dir, files: the paths the pushed
  * branch's commit carries, out }.
  */
-async function nightCommit(t, night, { health, ignore = '' }) {
+async function nightCommit(t, night, { health, ignore = '', tracked = {}, before = async () => {}, after = async () => {} }) {
   const steps = runBlocks(night);
   const where = steps.find(b => b.step === 'Where the health page goes');
   const open = steps.find(b => b.step === "Open the night's pull request");
@@ -432,9 +432,11 @@ async function nightCommit(t, night, { health, ignore = '' }) {
   for (const f of ['lib.mjs', 'pr-body.mjs']) await writeFile(join(dir, 'scripts/keel', f), await readFile(join(KEEL, 'practices/night/files/scripts/keel', f), 'utf8'));
   await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme', ...(health ? { health } : {}) })}\n`);
   await writeFile(join(dir, '.gitignore'), ignore);
+  for (const [f, text] of Object.entries(tracked)) { await mkdir(dirname(join(dir, f)), { recursive: true }); await writeFile(join(dir, f), text); }
   git(['add', '-A']);
   git(['commit', '-q', '-m', 'acme']);
   git(['remote', 'add', 'origin', origin]);
+  await before(dir, base);
   // gh keeps the body it is handed (--body-file), for the reader's check.
   await writeFile(join(bin, 'gh'), `#!/bin/sh\nif [ "$1 $2" = "pr list" ]; then exit 0; fi\nwhile [ $# -gt 0 ]; do if [ "$1" = --body-file ]; then cp "$2" "${join(base, 'body.md')}"; fi; shift; done\necho https://github.test/acme/acme/pull/1\n`, { mode: 0o755 });
   // The night's writes: a page where the config says, the bounds, and something that is not data.
@@ -442,12 +444,13 @@ async function nightCommit(t, night, { health, ignore = '' }) {
   await writeFile(out, '');
   const env = { ...process.env, GITHUB_OUTPUT: out, RUNNER_TEMP: temp, PATH: `${bin}:${process.env.PATH}` };
   const w = run('bash', ['-e', '-c', where.script], { cwd: dir, env });
-  assert.equal(w.status, 0, w.stderr);
+  if (w.status !== 0) return { where: w.status, out: w.stdout + w.stderr, files: null };
   const page = /^dir=(.*)$/m.exec(await readFile(out, 'utf8'))?.[1];
   await mkdir(join(dir, health ?? 'docs/health'), { recursive: true });
   await writeFile(join(dir, health ?? 'docs/health', '2026-10-05.md'), '# Health — 2026-10-05\n');
   await writeFile(join(dir, '.keel/bounds.json'), '{}\n');
   await writeFile(join(dir, 'acme-scratch.txt'), 'setup left this\n');
+  await after(dir);
   // improve's --pr-input, as improve writes it (nightPr), for a night with a measure outside.
   const { nightPr } = await import('../practices/night/files/scripts/keel/improve.mjs');
   await writeFile(join(temp, 'pr.json'), JSON.stringify(nightPr({ date: '2026-10-05', report: `${page}/2026-10-05.md`, proposal: { id: 'prs_stale', state: 'outside', text: 'Close or merge the Acme PRs.' },
@@ -455,7 +458,9 @@ async function nightCommit(t, night, { health, ignore = '' }) {
   const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', BASE: 'main', HEALTH: page ?? '' } });
   const pushed = run('git', ['--git-dir', origin, 'show', '--name-only', '--format=', 'refs/heads/keel-night/2026-10-05']);
   const body = await readFile(join(base, 'body.md'), 'utf8').catch(() => null);
-  return { page, status: o.status, out: o.stdout + o.stderr, body, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null };
+  const show = run('git', ['--git-dir', origin, 'show', '--name-status', '--format=', 'refs/heads/keel-night/2026-10-05']);
+  return { page, where: 0, status: o.status, out: o.stdout + o.stderr, body, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null,
+    changes: show.status === 0 ? show.stdout.trim().split('\n').filter(Boolean).sort() : null };
 }
 
 test('the night commits its page from the configured health dir (read at run time), only data, and goes red on an ignored one', async t => {
@@ -490,15 +495,58 @@ test('the night commits its page from the configured health dir (read at run tim
   assert.match(lost.out, /docs\/health is git-ignored.*set \\?"health\\?" in \.keel\/keel\.json/);
   assert.equal(lost.files, null);
   // Mutation: the commit step hard-codes docs/health instead of the configured dir.
-  const hard = night.replace('for p in "$HEALTH" docs/inbox', 'for p in docs/health docs/inbox');
+  const hard = night.replace('PAGE="$HEALTH/$DAY.md"', 'PAGE="docs/health/$DAY.md"');
   assert.notEqual(hard, night);
   const m = await nightCommit(t, hard, { health: '.keel/health', ignore: '/docs/health/\n' });
   assert.ok(!(m.files ?? []).includes('.keel/health/2026-10-05.md'), `a hard-coded docs/health loses the page: ${JSON.stringify(m.files)}`);
   // Mutation: the dir is not read from the config.
-  const fixed = night.replace('const dir = healthDirOf(JSON.parse(readFileSync(".keel/keel.json", "utf8")));', 'const dir = "docs/health";');
+  const fixed = night.replace('const dir = healthDirIn(".", JSON.parse(readFileSync(".keel/keel.json", "utf8")));', 'const dir = "docs/health";');
   assert.notEqual(fixed, night);
   const f = await nightCommit(t, fixed, { health: '.keel/health', ignore: '/docs/health/\n' });
   assert.ok(!(f.files ?? []).includes('.keel/health/2026-10-05.md'), `a fixed dir loses the page: ${JSON.stringify(f.files)}`);
+});
+
+// ledger #76–#80: what the night stages from the health directory, and what it refuses.
+test('the night stages only tonight\'s page and its own data (deletions kept), probes a dated page for ignores, and refuses a symlinked or magic health dir', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  // #76: a shared health dir ("scripts"): the night's page, never the project's other changes under it.
+  const shared = await nightCommit(t, night, { health: 'scripts', tracked: { 'scripts/deploy.mjs': 'v1\n' }, after: dir => writeFile(join(dir, 'scripts/deploy.mjs'), 'v2, half-done\n') });
+  assert.equal(shared.status, 0, shared.out);
+  assert.deepEqual(shared.files, ['.keel/bounds.json', 'scripts/2026-10-05.md'], 'only the dated page and the bounds');
+  // #76 too: a stray file in the default dir is not the night's.
+  const stray = await nightCommit(t, night, { after: dir => writeFile(join(dir, 'docs/health/notes.md'), 'a person\'s notes\n') });
+  assert.deepEqual(stray.files, ['.keel/bounds.json', 'docs/health/2026-10-05.md']);
+  // #78: a tracked data path that is gone is staged as its deletion.
+  const gone = await nightCommit(t, night, { tracked: { 'docs/INBOX.md': '# Inbox\n', 'docs/inbox/1.md': 'x\n' }, after: async dir => { await rm(join(dir, 'docs/INBOX.md')); await rm(join(dir, 'docs/inbox'), { recursive: true }); } });
+  assert.equal(gone.status, 0, gone.out);
+  assert.deepEqual(gone.changes, ['A\t.keel/bounds.json', 'A\tdocs/health/2026-10-05.md', 'D\tdocs/INBOX.md', 'D\tdocs/inbox/1.md']);
+  // #77: an ignore rule for dated pages (not the directory) is caught: red, nothing pushed.
+  const dated = await nightCommit(t, night, { ignore: 'docs/health/20*.md\n' });
+  assert.notEqual(dated.status, 0);
+  assert.match(dated.out, /docs\/health is git-ignored \(docs\/health\/2026-10-05\.md\)/);
+  assert.equal(dated.files, null);
+  // #79: a health dir that is a symlink out of the repo is refused before anything is written.
+  const out = await nightCommit(t, night, { health: '.keel/health', before: async (dir, base) => { await mkdir(join(base, 'elsewhere'), { recursive: true }); await symlink(join(base, 'elsewhere'), join(dir, '.keel/health')); } });
+  assert.notEqual(out.where, 0, 'the health step refuses it');
+  assert.match(out.out, /resolves outside the repo/);
+  // A symlink inside the repo is still the repo's.
+  const inside = await nightCommit(t, night, { health: '.keel/health', before: async dir => { await mkdir(join(dir, 'acme-pages'), { recursive: true }); await symlink('../acme-pages', join(dir, '.keel/health')); } });
+  assert.equal(inside.where, 0, inside.out);
+  // #80: pathspec magic in "health" is refused.
+  for (const health of [':(top)docs/health', ':!docs']) {
+    const magic = await nightCommit(t, night, { health });
+    assert.notEqual(magic.where, 0, health);
+    assert.match(magic.out, /pathspec magic/, health);
+  }
+  // Mutations: each of the old shapes fails one of the checks above.
+  const whole = await nightCommit(t, night.replace('for p in "$PAGE" docs/inbox', 'for p in "$HEALTH" docs/inbox'), { health: 'scripts', tracked: { 'scripts/deploy.mjs': 'v1\n' }, after: dir => writeFile(join(dir, 'scripts/deploy.mjs'), 'v2, half-done\n') });
+  assert.ok(whole.files.includes('scripts/deploy.mjs'), `staging the whole dir carries the project's file: ${JSON.stringify(whole.files)}`);
+  const exists = await nightCommit(t, night.replace('if [ -e "$p" ] || [ -n "$(git ls-files -- "$p")" ]; then', 'if [ -e "$p" ]; then'), { tracked: { 'docs/INBOX.md': '# Inbox\n' }, after: dir => rm(join(dir, 'docs/INBOX.md')) });
+  assert.ok(!exists.changes.includes('D\tdocs/INBOX.md'), `-e alone drops the deletion: ${JSON.stringify(exists.changes)}`);
+  const probe = await nightCommit(t, night.replace('PAGE="$HEALTH/$DAY.md"\n', 'PAGE="$HEALTH/$DAY.md"\n          PROBE="$HEALTH/x.md"\n').replace('git check-ignore -q -- "$PAGE"', 'git check-ignore -q -- "$PROBE"'), { ignore: 'docs/health/20*.md\n' });
+  assert.doesNotMatch(probe.out, /is git-ignored \(/, 'an x.md probe misses a rule for dated pages');
+  const lexical = await nightCommit(t, night.replace('import { healthDirIn } from', 'import { healthDirOf as healthDirIn } from'), { health: '.keel/health', before: async (dir, base) => { await mkdir(join(base, 'elsewhere'), { recursive: true }); await symlink(join(base, 'elsewhere'), join(dir, '.keel/health')); } });
+  assert.equal(lexical.where, 0, 'a lexical check alone lets the symlink through');
 });
 
 test('the PR description is re-checked on edit by keel-impact.yml alone; check.yml never runs it', async () => {

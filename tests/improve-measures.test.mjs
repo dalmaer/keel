@@ -3,7 +3,7 @@
 // single measures read on their own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile, cp, realpath } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile, cp, realpath, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -254,4 +254,113 @@ test('lessons_unsent: the project is the repo, else the name; n/a without a tabl
   await writeFile(join(torn, '.keel', 'sent.json'), '{ torn');
   x = await unsentResult(torn);
   assert.equal(x.state, 'broken', 'an unreadable sent.json is never a zero');
+});
+
+// ---- ledger's Codex reviews, keel's side (#61, #62, #70, #75, #77, #79, #80) ----
+
+const one = id => MEASURES.filter(m => m.id === id);
+const readConfig = async dir => JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+
+test('a malformed .keel/bounds.json is a broken instrument (exit 2), never a measure outside its bound (exit 1)', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: '/nonexistent/gh' };
+  for (const [bounds, why] of [['{ not json', /is not JSON/], ['[1, 2]', /must be an object/], ['7', /must be an object/]]) {
+    await writeFile(join(dir, '.keel', 'bounds.json'), bounds);
+    const r = run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env });
+    assert.equal(r.status, 2, `${bounds}: ${r.stdout}${r.stderr}`);
+    assert.match(JSON.parse(r.stdout).error, why);
+  }
+});
+
+test('ci_red_streak reads enough runs that cancelled ones cannot hide a verdict; a full page of none is n/a, never green', async t => {
+  const dir = await project(t);
+  await setConfig(dir, { repo: 'acme/storefront' });
+  const config = await readConfig(dir);
+  const on = async runs => (await measure({ root: dir, config, env: { ...ENV, KEEL_GH: await ghStub(t, { runs: JSON.stringify(runs) }) }, measures: one('ci_red_streak') }))[0];
+  const cancelled = n => Array.from({ length: n }, () => ({ conclusion: 'cancelled' }));
+  // 25 cancelled runs, then the failure: a limit of 20 runs read before the filter saw no verdict and said 0.
+  let m = await on([...cancelled(25), { conclusion: 'failure' }, { conclusion: 'success' }]);
+  assert.equal(m.value, 1, m.detail);
+  assert.equal(m.state, 'outside');
+  // A whole page of cancelled runs says nothing: n/a.
+  m = await on([...cancelled(150), { conclusion: 'failure' }]);
+  assert.equal(m.state, 'n/a', m.detail);
+  assert.match(m.detail, /no verdict in the newest 100 runs/);
+  // A full page whose every verdict failed: the streak is at least that.
+  m = await on(Array.from({ length: 100 }, (_, i) => ({ conclusion: i % 2 ? 'failure' : 'cancelled' })));
+  assert.equal(m.value, 50);
+  assert.match(m.detail, /at least 50 failed runs in a row/);
+});
+
+test('dependency_age reads each app or workspace folder with its own package-lock.json, not only the root', async t => {
+  const dir = await project(t);
+  const bin = await scratch(t, 'keel-npm-');
+  const npm = join(bin, 'npm');
+  // A stub npm: what is outdated depends on the folder it runs in.
+  await writeFile(npm, `#!${process.execPath}
+const cwd = process.cwd().replaceAll('\\\\', '/');
+const out = cwd.endsWith('/web') ? { next: { current: '14.0.0', latest: '15.0.0' } }
+  : cwd.endsWith('/packages/acme-ui') ? { react: [{ current: '18.0.0', latest: '19.0.0' }] }
+  : { 'acme-left-pad': { current: '1.0.0', latest: '2.0.0' } };
+console.log(JSON.stringify(out)); process.exit(1);
+`);
+  await chmod(npm, 0o755);
+  const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ ...pkg, workspaces: ['packages/*'] }));
+  for (const d of ['.', 'web', 'packages/acme-ui', 'client']) await mkdir(join(dir, d), { recursive: true });
+  for (const d of ['.', 'web', 'packages/acme-ui']) await writeFile(join(dir, d, 'package-lock.json'), '{}\n');
+  const m = (await measure({ root: dir, config: await readConfig(dir), env: { ...ENV, KEEL_NPM: npm }, measures: one('dependency_age') }))[0];
+  assert.equal(m.state, 'outside', m.detail);
+  assert.deepEqual(m.facts.names, ['acme-left-pad', 'next (web)', 'react (packages/acme-ui)']);
+  assert.deepEqual(m.facts.dirs, ['.', 'web', 'packages/acme-ui'], 'client/ has no lockfile: not read');
+  // Only an app folder's lockfile: still read, not n/a.
+  await rm(join(dir, 'package-lock.json'));
+  const web = (await measure({ root: dir, config: await readConfig(dir), env: { ...ENV, KEEL_NPM: npm }, measures: one('dependency_age') }))[0];
+  assert.deepEqual(web.facts.names, ['next (web)', 'react (packages/acme-ui)']);
+});
+
+test('the health dir: a dated-page ignore rule is health-ignored, a symlink out of the repo and pathspec magic break the report', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: '/nonexistent/gh' };
+  const lint = async () => byId(JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env }).stdout), 'lint').facts.lint.filter(l => l.rule.startsWith('health'));
+  // #77: a rule for the pages, not the directory: an x.md probe missed it.
+  await writeFile(join(dir, '.gitignore'), 'docs/health/20*.md\n');
+  assert.deepEqual(await lint(), [{ rule: 'health-ignored', path: 'docs/health' }]);
+  await writeFile(join(dir, '.gitignore'), '');
+  // #79: a symlink that leaves the repo: lint, and --report writes nothing there.
+  const elsewhere = await scratch(t, 'keel-elsewhere-');
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await symlink(elsewhere, join(dir, '.keel', 'health'));
+  await setConfig(dir, { health: '.keel/health' });
+  assert.deepEqual(await lint(), [{ rule: 'health-config', path: '.keel/health' }]);
+  const r = run(process.execPath, ['scripts/keel/improve.mjs', '--report', '--json'], { cwd: dir, env });
+  assert.equal(r.status, 2, r.stdout);
+  assert.match(JSON.parse(r.stdout).error, /resolves outside the repo/);
+  assert.deepEqual(await readdir(elsewhere), [], 'nothing written outside the repo');
+  // A symlink to a folder inside the repo is the repo's.
+  await rm(join(dir, '.keel', 'health'));
+  await mkdir(join(dir, 'acme-pages'));
+  await symlink('../acme-pages', join(dir, '.keel', 'health'));
+  assert.deepEqual(await lint(), []);
+  // #80: git pathspec magic in "health".
+  for (const bad of [':(top)docs/health', ':!docs']) {
+    await setConfig(dir, { health: bad });
+    assert.deepEqual((await lint()).map(l => l.rule), ['health-config'], bad);
+    const b = run(process.execPath, ['scripts/keel/improve.mjs', '--report', '--json'], { cwd: dir, env });
+    assert.equal(b.status, 2, bad);
+    assert.match(JSON.parse(b.stdout).error, /pathspec magic/, bad);
+  }
+});
+
+test('lessons-table-split: a row an unescaped | splits into more cells than the header is lint, an escaped \\| is not', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: '/nonexistent/gh' };
+  const lessons = join(dir, 'docs', 'lessons.md');
+  const table = cell => `# Lessons\n\n| # | Shape | Cost | Guard |\n| --- | --- | --- | --- |\n| 1 | **Acme reads ${cell}.** | A day. | A test. |\n| 2 | **Acme gears slip.** | A week. | planned |\n`;
+  await writeFile(lessons, table('`a || b`'));
+  const mine = JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env }).stdout);
+  assert.deepEqual(byId(mine, 'lint').facts.lint, [{ rule: 'lessons-table-split', path: 'docs/lessons.md' }]);
+  await writeFile(lessons, table('`a \\|\\| b`'));
+  const fixed = JSON.parse(run(process.execPath, ['scripts/keel/improve.mjs', '--json'], { cwd: dir, env }).stdout);
+  assert.deepEqual(byId(fixed, 'lint').facts.lint, []);
 });

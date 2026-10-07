@@ -62,8 +62,11 @@ improve` is its reference. By family:
 - **Are the tests healthy?** `flaky_tests` and `slow_tests`, from the test
   ledger (below).
 - **Is the work reaching people?** `ci_red_streak`, `machine_prs` (each
-  queue against its own bound), `prs_stale`, `phases_without_issue`; these
-  read GitHub and are n/a without a `repo` or gh auth, saying which.
+  queue against its own bound), `prs_stale`, `phases_without_issue`,
+  `reviews_unanswered` (a review comment nobody answered: a reply after the
+  reviewer's newest word, or a comment that quotes or links it; resolving
+  alone is not one); these read GitHub and are n/a without a `repo` or gh
+  auth, saying which, and n/a, never a number, when a read is incomplete.
 - **Is the project teaching keel?** `lessons_unsent`: lesson rows not yet
   sent home. The night only counts; sending is the owner's
   ([Lessons and learning](lessons-and-learning.md)).
@@ -83,7 +86,11 @@ about the run's output. It remembers every run in `.keel/test-runs/` (which
 ignores itself) and ends each run with a hygiene block: one line when
 clean, else each **flaky** test (passed and failed on one clean tree: a
 fact, no threshold) and each **slower** one (well above its own median on
-the same kind of machine), with the command that runs it alone.
+the same kind of machine), with the command that runs it alone. A config
+variable's value is never written down: the command takes it from your
+shell (`NAME="${NAME:?set NAME as it was in the run}"`), and stops saying
+so when it is not set. Each lane (a suite's folder and config) keeps its own
+newest runs, so a busy lane never pushes out a quiet one's history.
 
 **Never rerun until green.** A rerun hides the flake, and the next person
 pays for it. Fix the test, or file it. The thresholds for "slower" are in

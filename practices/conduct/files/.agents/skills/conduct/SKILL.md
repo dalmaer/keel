@@ -53,10 +53,17 @@ step below: the walk ends at the local commit on `main`. Say so in the report.
 
 ## 0. Orient
 
-```sh
-npm run next                          # the next phase whose dependencies are built, and its next action
-node scripts/roadmap.mjs --json       # everything, if you need more
-```
+The roadmap command is the project's, never assumed. Read it first:
+
+- `.keel/keel.json` `"practices"` lists `phases` (keel's roadmap): `npm run
+  next` says the next phase whose dependencies are built, and its next
+  action; `node scripts/roadmap.mjs --json` says everything.
+- `.keel/keel.json` `"local"` names `phases` (the project keeps its own
+  roadmap, and keel's `scripts/roadmap.mjs` is not installed): use the
+  scripts its `package.json` names (`next`, else `roadmap`, else what
+  `"loop"` `"afterRender"` runs). If none says which phase is next, read the
+  phase files' front matter: the lowest-numbered phase not built whose
+  `depends:` are built.
 
 Then read, in this order:
 
@@ -207,8 +214,10 @@ When the proof holds, and only then, write the record, all in one change:
   with what waits), with `since` (today) and a `note` saying in one line why
   it stands there. Add the evidence path, relative to `docs/`
   (`evidence/<date>-<slug>.md`). Check the Acceptance boxes that the proof
-  actually showed. The roadmap check fails a phase whose boxes are all
-  checked and evidence named but whose status wasn't moved.
+  actually showed. keel's roadmap check (`scripts/roadmap.mjs`) fails a
+  phase whose boxes are all checked and evidence named but whose status
+  wasn't moved; a project's own roadmap may not check it, so check it
+  yourself there.
 - **The evidence file**, `docs/evidence/<date>-<slug>.md`, from
   `docs/templates/evidence.md`: what was run, with exit codes, against the
   phase's commit by its title (it doesn't exist yet), or the base commit and 'working tree'; what was
@@ -238,7 +247,7 @@ When the proof holds, and only then, write the record, all in one change:
   same commit. A test catches the tables; nothing catches the prose but you.
 - **Other phases** this one changed the facts for: `grep -rn` the term across
   `docs/` and fix each mention.
-- `npm run roadmap`.
+- The project's roadmap command (§0; `npm run roadmap` with keel's).
 
 Then **the whole check, once**, on the final tree, record included:
 `{{check}}`. It is the only full run, and it comes last so it covers what

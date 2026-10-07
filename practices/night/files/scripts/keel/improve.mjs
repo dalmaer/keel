@@ -56,9 +56,9 @@ import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthLints, HEALTH_DIR, isMain, rootOf, main,
+  LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthDirIn, healthPage, healthLints, HEALTH_DIR, isMain, rootOf, main,
   shapeOf, readProjectRecords, climbLine, readClimbNight, tendLine, readTendPass, climbRetiring, retireLine, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
-  reviewConfigOf, repoReviewQuery, unansweredPrs, REVIEW_DAYS, REVIEW_PRS,
+  reviewConfigOf, repoReviewArgs, readRepoReviews, unansweredPrs, REVIEW_DAYS, REVIEW_PRS, REVIEW_PAGES,
 } from './lib.mjs';
 import { RUNS, readRuns, testsConfigOf, flaky, slower, comparable, machineClass, lastOutcome, aloneCommand, nightOnly, NIGHT_ONLY } from './test-ledger.mjs';
 
@@ -71,8 +71,10 @@ export const STUCK_DAYS = 21;
 export const STALE_PR_DAYS = 14;
 /** The changelog window: days back from today, today itself not owed yet (changelog_gaps). */
 export const CHANGELOG_DAYS = 30;
-/** reviews_unanswered reads open PRs and those merged in the last REVIEW_DAYS days, REVIEW_PRS of each at most (lib.mjs). */
-export { REVIEW_DAYS, REVIEW_PRS };
+/** ci_red_streak reads the newest RED_RUNS runs of the gate workflow, then keeps the verdicts among them. */
+export const RED_RUNS = 100;
+/** reviews_unanswered reads open PRs and those merged in the last REVIEW_DAYS days, REVIEW_PAGES pages of REVIEW_PRS each at most (lib.mjs). */
+export { REVIEW_DAYS, REVIEW_PRS, REVIEW_PAGES };
 /**
  * Each machine queue's bound: the open PRs it may hold. keel's own queues
  * hold one, the newest (lesson 9; the drain keeps them there). Renovate keeps
@@ -101,6 +103,31 @@ const days = (from, to) => Math.floor((Date.parse(to) - Date.parse(from)) / 86_4
 const list = (xs, n = 5) => xs.length > n ? `${xs.slice(0, n).join(', ')} and ${xs.length - n} more` : xs.join(', ');
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const exists = path => stat(path).then(s => s, () => null);
+/**
+ * The folders whose package.json counts beside the root's: the usual app
+ * folders, and the root's workspaces (`dir/*` read one level). The same rule
+ * as keel's lib/stacks.mjs packageDirs; the night ships no lib/, so it reads
+ * them itself. Relative, existing directories only.
+ */
+export const APP_DIRS = ['web', 'app', 'client', 'frontend'];
+export async function packageDirs(root) {
+  const dirs = new Set(APP_DIRS);
+  let pkg = null;
+  try { pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')); } catch {}
+  const ws = Array.isArray(pkg?.workspaces) ? pkg.workspaces : Array.isArray(pkg?.workspaces?.packages) ? pkg.workspaces.packages : [];
+  for (const w of ws) {
+    if (typeof w !== 'string') continue;
+    const star = /^([\w.-]+(?:\/[\w.-]+)*)\/\*$/.exec(w);
+    if (star) {
+      const names = await readdir(join(root, star[1]), { withFileTypes: true }).catch(() => []);
+      for (const e of names) if (e.isDirectory()) dirs.add(`${star[1]}/${e.name}`);
+    } else if (/^[\w.-]+(\/[\w.-]+)*$/.test(w)) dirs.add(w);
+  }
+  const out = [];
+  for (const d of dirs) if (!d.split('/').includes('..') && (await exists(join(root, d)))?.isDirectory()) out.push(d);
+  return out;
+}
+
 const stripTest = env => Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
 const unfinished = (p, done) => !done.includes(p.status) && p.status !== 'superseded';
 
@@ -942,15 +969,21 @@ export const MEASURES = [
       if (ready.na) return { na: ready.na };
       const workflow = await gateWorkflow(ctx);
       if (!workflow) return { na: 'no workflow in .github/workflows runs the gate, and .keel/keel.json names no gateWorkflow' };
-      const runs = ghJson(ctx, ready.gh, ['run', 'list', '--repo', ctx.config.repo, '--branch', 'main', '--workflow', workflow, '--json', 'conclusion', '--limit', '20']);
+      // The limit counts runs, not verdicts: read enough that cancelled runs cannot hide one.
+      const runs = ghJson(ctx, ready.gh, ['run', 'list', '--repo', ctx.config.repo, '--branch', 'main', '--workflow', workflow, '--json', 'conclusion', '--limit', String(RED_RUNS)]);
       // Only verdicts count: a running, cancelled, skipped, neutral or stale run says
       // nothing about the code (cancel-in-progress makes most runs cancelled), so it
       // neither breaks a streak nor adds to one.
       const FAILED = ['failure', 'timed_out', 'startup_failure'];
       const verdicts = runs.filter(r => r?.conclusion === 'success' || FAILED.includes(r?.conclusion));
+      const full = runs.length >= RED_RUNS;
+      // A full page with no verdict says nothing: an older failure may be behind it.
+      if (!verdicts.length && full) return { na: `${workflow}: no verdict in the newest ${runs.length} runs (all cancelled, skipped or running)` };
       let streak = 0;
       while (streak < verdicts.length && FAILED.includes(verdicts[streak].conclusion)) streak++;
-      const now = streak ? `${plural(streak, 'failed run')} in a row` : verdicts.length ? 'the latest verdict is green' : 'no verdict yet';
+      // Every verdict on a full page failed: the streak is at least this long.
+      const least = full && streak === verdicts.length ? 'at least ' : '';
+      const now = streak ? `${least}${plural(streak, 'failed run')} in a row` : verdicts.length ? 'the latest verdict is green' : 'no verdict yet';
       return { value: streak, detail: `${workflow}: ${now} (${runs.length} read, ${verdicts.length} verdicts)`, facts: { workflow, streak } };
     },
   },
@@ -1017,36 +1050,50 @@ export const MEASURES = [
       if (ready.na) return { na: ready.na };
       const rc = reviewConfigOf(ctx.config);
       if (rc.problem) throw new Error(rc.problem);
-      const [owner, name] = String(ctx.config.repo).split('/');
-      const r = spawnSync(ready.gh, ['api', 'graphql', '-f', `query=${repoReviewQuery()}`, '-f', `owner=${owner}`, '-f', `name=${name}`], { env: ctx.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-      if (r.error) throw new Error(`gh api graphql: ${r.error.message}`);
-      if (r.status !== 0) throw new Error(`gh api graphql exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
-      let repository;
-      try { repository = JSON.parse(r.stdout)?.data?.repository; } catch { throw new Error('gh api graphql did not print JSON'); }
-      if (!repository) throw new Error(`gh api graphql: no repository ${ctx.config.repo}`);
-      const { prs, open, merged, more: partial } = unansweredPrs(repository, rc.reviewers, ctx.date);
+      const page = vars => {
+        const r = spawnSync(ready.gh, repoReviewArgs(ctx.config.repo, vars), { env: ctx.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+        if (r.error) throw new Error(`gh api graphql: ${r.error.message}`);
+        if (r.status !== 0) throw new Error(`gh api graphql exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+        let repository;
+        try { repository = JSON.parse(r.stdout)?.data?.repository; } catch { throw new Error('gh api graphql did not print JSON'); }
+        if (!repository) throw new Error(`gh api graphql: no repository ${ctx.config.repo}`);
+        return repository;
+      };
+      let prs, open, merged;
+      // An incomplete read (more PRs than REVIEW_PAGES pages, a list longer than its page) is n/a, never a number.
+      try { ({ prs, open, merged } = unansweredPrs(await readRepoReviews(page, ctx.date), rc.reviewers, ctx.date)); } catch (e) { if (e?.incomplete) return { na: e.message }; throw e; }
       const value = prs.reduce((n, p) => n + p.unanswered, 0);
-      const more = partial ? `; the newest ${REVIEW_PRS} open PRs read` : '';
-      const detail = prs.length ? `${list(prs.map(p => `#${p.number} ${p.unanswered} (${p.state}, since ${p.oldest})`), 6)}${more}` : `none on ${plural(open, 'open PR')} and ${merged} merged in ${REVIEW_DAYS} days${more}`;
+      const detail = prs.length ? list(prs.map(p => `#${p.number} ${p.unanswered} (${p.state}, since ${p.oldest})`), 6) : `none on ${plural(open, 'open PR')} and ${merged} merged in ${REVIEW_DAYS} days`;
       return { value, detail, facts: { repo: ctx.config.repo, prs: prs.map(({ title, ...p }) => p) } };
     },
   },
   {
-    id: 'dependency_age', what: 'outdated packages (npm outdated)', unit: 'packages', bound: 0, better: 'lower',
+    id: 'dependency_age', what: 'outdated packages (npm outdated, in the root and each app or workspace folder with its own package-lock.json)', unit: 'packages', bound: 0, better: 'lower',
     async run(ctx) {
-      if (!await exists(join(ctx.root, 'package-lock.json'))) return { na: 'no package-lock.json' };
+      // Every folder with its own lockfile: an app folder (web/) or a workspace is read where it lives (ledger's web/).
+      const dirs = [];
+      for (const d of ['.', ...await packageDirs(ctx.root)]) if (await exists(join(ctx.root, d, 'package-lock.json'))) dirs.push(d);
+      if (!dirs.length) return { na: 'no package-lock.json' };
       const npm = ctx.env.KEEL_NPM || 'npm';
-      const r = spawnSync(npm, ['outdated', '--json'], { cwd: ctx.root, env: stripTest(ctx.env), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-      if (r.error) throw new Error(`could not run npm outdated: ${r.error.message}`);
-      if (![0, 1].includes(r.status)) throw new Error(`npm outdated exited ${r.status}: ${(r.stderr || '').trim().split('\n')[0]}`);
-      let data;
-      try { data = r.stdout.trim() ? JSON.parse(r.stdout) : {}; } catch { throw new Error('npm outdated --json did not print JSON'); }
-      if (!data || typeof data !== 'object' || Array.isArray(data) || data.error) throw new Error(`npm outdated: ${data?.error?.summary ?? 'unexpected output'}`);
-      const names = Object.keys(data).sort();
+      const rows = [];
+      for (const d of dirs) {
+        const at = d === '.' ? '' : ` in ${d}/`;
+        const r = spawnSync(npm, ['outdated', '--json'], { cwd: join(ctx.root, d), env: stripTest(ctx.env), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+        if (r.error) throw new Error(`could not run npm outdated${at}: ${r.error.message}`);
+        if (![0, 1].includes(r.status)) throw new Error(`npm outdated${at} exited ${r.status}: ${(r.stderr || '').trim().split('\n')[0]}`);
+        let data;
+        try { data = r.stdout.trim() ? JSON.parse(r.stdout) : {}; } catch { throw new Error(`npm outdated --json${at} did not print JSON`); }
+        if (!data || typeof data !== 'object' || Array.isArray(data) || data.error) throw new Error(`npm outdated${at}: ${data?.error?.summary ?? 'unexpected output'}`);
+        for (const n of Object.keys(data).sort()) {
+          const v = [].concat(data[n])[0] ?? {};
+          rows.push({ name: d === '.' ? n : `${n} (${d})`, current: v.current, latest: v.latest });
+        }
+      }
+      const names = rows.map(x => x.name);
       return {
         value: names.length,
-        detail: names.length ? list(names.map(n => `${n} ${data[n].current ?? '?'}→${data[n].latest ?? '?'}`), 4) : 'none',
-        facts: { names },
+        detail: names.length ? list(rows.map(x => `${x.name} ${x.current ?? '?'}→${x.latest ?? '?'}`), 4) : 'none',
+        facts: { names, dirs },
       };
     },
   },
@@ -1177,8 +1224,9 @@ export async function readBounds(root) {
   const raw = await readFile(join(root, BOUNDS), 'utf8').catch(e => e.code === 'ENOENT' ? null : Promise.reject(e));
   if (raw === null) return null;
   let data;
-  try { data = JSON.parse(raw); } catch { throw new ImproveError(`${BOUNDS} is not JSON`, 1); }
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new ImproveError(`${BOUNDS} must be an object of measure id → bound`, 1);
+  // A bounds file that cannot be read is a broken instrument (2), never a measure outside its bound (1).
+  try { data = JSON.parse(raw); } catch { throw new ImproveError(`${BOUNDS} is not JSON`, 2); }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new ImproveError(`${BOUNDS} must be an object of measure id → bound`, 2);
   return data;
 }
 
@@ -1258,7 +1306,7 @@ export async function improve({ root, report = false, transcripts, prInput, date
   const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
   // Where the page goes, settled before anything is written: a bad `health` is a broken instrument.
   let dir = null;
-  if (report) try { dir = healthDirOf(config); } catch (e) { throw new ImproveError(e.message, 2); }
+  if (report) try { dir = healthDirIn(root, config); } catch (e) { throw new ImproveError(e.message, 2); }
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, keel });
   const proposal = propose(results, config);
@@ -1270,7 +1318,7 @@ export async function improve({ root, report = false, transcripts, prInput, date
     const t = tighten(results, stored ?? {}, measures);
     tightened = t.tightened;
     await writeFile(join(root, BOUNDS), `${JSON.stringify(t.bounds, null, 2)}\n`);
-    written = `${dir}/${date}.md`;
+    written = healthPage(dir, date);
     await mkdir(join(root, dir), { recursive: true });
     await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb, retire, tend }));
   }

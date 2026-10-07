@@ -17,19 +17,23 @@ every night at 07:23 UTC (and by hand):
    below); then `node scripts/keel/improve.mjs --report` measures the practice and writes
    `<health>/<date>.md` and `.keel/bounds.json`. `<health>` is `"health"` in
    `.keel/keel.json` (default `docs/health`), read at run time; a directory
-   the project git-ignores makes the run red, since its page would never be
-   committed (ledger lost its pages that way). (On keel itself,
+   whose dated pages the project git-ignores makes the run red, since its page
+   would never be committed (ledger lost its pages that way), and so does one
+   that resolves outside the repo (a symlink) or starts with `:` (git
+   pathspec magic). (On keel itself,
    `keel learn` gathers first). It runs before the drain, so `machine_prs`
    counts last night's PR.
-2. If `git status --porcelain` shows a change in the night's data (the
-   health directory, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`;
-   nothing else a gate run leaves behind), it is committed on
+2. If `git status --porcelain` shows a change in the night's data
+   (tonight's dated page in the health directory, never the rest of it;
+   `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`, a tracked one that
+   is gone staged as its deletion; nothing else a gate run leaves behind;
+   paths read literally, never as git pathspec magic), it is committed on
    `keel-night/<date>`, pushed to that branch only, and opened as one PR
    whose body is `scripts/keel/pr-body.mjs`'s (below), with the page's
    proposal as its note.
 3. `node scripts/keel/drain.mjs keel-night/ --yes` keeps the queue at one:
-   each older PR is merged when it holds only data (the health directory,
-   `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`) and still merges, and
+   each older PR is merged when it holds only data (`docs/health/`, the
+   configured health directory's dated pages, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`) and still merges, and
    closed as superseded otherwise, with a comment saying how to recover it
    (the branch is kept). The newest merges only with `--gate-passed`, which
    the workflow passes only when the gate improve ran on this tree passed.
@@ -58,14 +62,17 @@ person does.
 **Reviews unanswered** (phase 41). `reviews_unanswered` (bound 0, no
 ratchet) counts the review comments on the project's open PRs, and on PRs
 merged in the last 7 days, that nobody answered, once they are a day old: a
-thread neither resolved nor replied to by someone other than its first
-comment's author, and a conversation comment from a reviewer named in
-`.keel/keel.json` `"review"` with nobody else commenting after it. It is the
-rule `keel review <repo>#<n>` reads one PR by (one GraphQL read of the repo;
+thread whose newest comment is its reviewer's (resolving it is not an
+answer; a reviewer's follow-up reopens it), and a review's top-level body,
+or a conversation comment from a reviewer named in `.keel/keel.json`
+`"review"`, that no later comment from someone else quotes (`> `), links or
+names by id (an unrelated comment is not an answer). It is the rule
+`keel review <repo>#<n>` reads one PR by (the repo read page by page;
 `lib.mjs` holds it). The detail names each PR, its count and its oldest
 comment; `keel loose-ends` lists the same PRs with `keel review <repo>#<n>`.
-n/a without `repo` or gh auth; a failed or incomplete read is `broken`,
-never a zero. Not a gate: nothing refuses a merge for it, and the drain
+n/a without `repo` or gh auth, and n/a when the read is incomplete (more
+PRs than four pages, or a list longer than its page); a failed read is
+`broken`; never a zero. Not a gate: nothing refuses a merge for it, and the drain
 merges as before. The answer is the work: validate each comment against the
 code, then reply fixed (the commit), tracked (the issue or version) or not
 valid (why), with `keel review <repo>#<n> --close <id> …`.
@@ -116,8 +123,9 @@ the folder `node --test` ran in, whether it was narrowed (`--test-name-pattern` 
 Actions its workflow, in `.keel/test-runs/` at the repo's root (git's top
 level, so a workspace's or app folder's own `node --test`, run from its
 folder, lands in the same ledger; each lane, a suite's folder and config,
-keeps its own newest 50 runs, or the window and ten more when that is larger,
-and 400 in all, or lanes × (window + 10) when that is larger; the directory holds a
+reserves its own newest 50 runs, or the window and ten more when that is
+larger, so a busy lane never evicts a quiet one's baseline; 400 in all, or
+lanes × (window + 10) when that is larger, prunes only what no lane reserves; the directory holds a
 `.gitignore` of `*`, so no project's `.gitignore` changes), and ends the run
 with a hygiene block: one line when clean, else each test that is
 
@@ -127,8 +135,10 @@ with a hygiene block: one line when clean, else each test that is
   same machine class and lane, and more than 200 ms above it,
 
 with its history in one line and the command to run it alone as it was
-seen: that run's config variables (each set one as `NAME=<as in the run>`,
-for you to fill in; each unset one, `NODE_OPTIONS` too, as `env -u NAME`)
+seen: that run's config variables (each set one as
+`NAME="${NAME:?set NAME as it was in the run}"`, taken from your shell, so
+the command runs as printed once you set it and stops saying so if you
+haven't; never a value; each unset one, `NODE_OPTIONS` too, as `env -u NAME`)
 and preloads, from its suite's folder
 (printed elsewhere, it changes to that folder first: `cd "$(git rev-parse
 --show-toplevel)"/'web' && …`). slow_tests is n/a until the newest run has a

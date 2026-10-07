@@ -321,7 +321,7 @@ test('reviews_unanswered counts review comments with no reply, older than a day,
     pr(1, 'OPEN', [
       thread('T1', [comment(1, 'acme-reviewer', 'P1: the anvil falls.', '2026-10-04')]), // unanswered, two days old: counted
       thread('T2', [comment(2, 'acme-reviewer', 'Rename it.', '2026-10-04'), comment(3, 'acme-owner', 'Fixed in abc1234.', '2026-10-05')]), // answered
-      thread('T3', [comment(4, 'acme-reviewer', 'Paint it.', '2026-10-03')], true), // resolved
+      thread('T3', [comment(4, 'acme-reviewer', 'Paint it.', '2026-10-03')], true), // resolved with no reply: counted, resolving is not an answer
       thread('T4', [comment(5, 'acme-reviewer', 'Too new to owe.', '2026-10-06')]), // today: not yet
       thread('T5', [comment(6, 'acme-reviewer', 'One.', '2026-10-01'), comment(7, 'acme-reviewer', 'Two.', '2026-10-02')]), // the reviewer to itself: unanswered
     ]),
@@ -330,22 +330,58 @@ test('reviews_unanswered counts review comments with no reply, older than a day,
     pr(3, 'MERGED', [thread('T7', [comment(9, 'acme-reviewer', 'Long ago.', '2026-09-01')])], { mergedAt: at('2026-09-01') }), // merged a month ago: not read
   ]);
   assert.equal(r.state, 'outside', JSON.stringify(r));
-  assert.equal(r.value, 3);
+  assert.equal(r.value, 4);
   assert.equal(r.bound, 0);
-  assert.deepEqual(r.facts.prs.map(p => [p.number, p.state, p.unanswered]), [[1, 'open', 2], [2, 'merged', 1]]);
-  assert.match(r.detail, /^#1 2 \(open, since 2026-10-01\), #2 1 \(merged, since 2026-10-02\)$/);
+  assert.deepEqual(r.facts.prs.map(p => [p.number, p.state, p.unanswered]), [[1, 'open', 3], [2, 'merged', 1]]);
+  assert.match(r.detail, /^#1 3 \(open, since 2026-10-01\), #2 1 \(merged, since 2026-10-02\)$/);
   assert.match(propose([r]).text, /^Answer the review comments on #1, #2: read them \(`keel review acme\/storefront#1`\), validate each against the code, then answer it fixed, tracked or not valid/);
-  // A named reviewer's conversation comment counts, until someone else comments after it.
+  // A named reviewer's conversation comment counts, until someone else answers it: quoting, linking or naming it.
   const conv = { id: 'IC_1', ...comment(10, 'acme-reviewer', 'Codex: one finding.', '2026-10-04') };
   const named = { review: { reviewers: ['acme-reviewer[bot]'] } };
   assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv] })], [], named)).value, 1);
-  assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv, { id: 'IC_2', ...comment(11, 'acme-owner', 'Answered.', '2026-10-05') }] })], [], named)).value, 0);
+  assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv, { id: 'IC_2', ...comment(11, 'acme-owner', 'Merging.', '2026-10-05') }] })], [], named)).value, 1, 'an unrelated later comment is not an answer');
+  assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv, { id: 'IC_2', ...comment(11, 'acme-owner', '> Codex: one finding.\n\nFixed in abc1234.', '2026-10-05') }] })], [], named)).value, 0);
+  // A thread the reviewer followed up in after the reply: counted again.
+  const followed = thread('T8', [comment(12, 'acme-reviewer', 'Lid.', '2026-10-01'), comment(13, 'acme-owner', 'Fixed.', '2026-10-02'), comment(14, 'acme-reviewer', 'Still loose.', '2026-10-03')]);
+  assert.equal((await reviewsOn(t, [pr(5, 'OPEN', [followed])])).value, 1);
+  // A review's top-level body is owed an answer too, reviewer named or not.
+  const body = { id: 'PRR_1', databaseId: 15, author: { login: 'acme-reviewer' }, body: 'Acme Review: the crate has no lid.', state: 'COMMENTED', submittedAt: at('2026-10-04'), url: 'https://github.com/acme/storefront/pull/6#pullrequestreview-15' };
+  assert.equal((await reviewsOn(t, [{ ...pr(6, 'OPEN', []), reviews: { pageInfo: { hasNextPage: false }, nodes: [body] } }])).value, 1);
   assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv] })])).value, 0, 'no reviewer named: conversation comments are not counted');
   // None left: ok, and it says what it read; no ratchet.
   const ok = await reviewsOn(t, [pr(1, 'OPEN', [])]);
   assert.deepEqual([ok.state, ok.value], ['ok', 0]);
   assert.match(ok.detail, /^none on 1 open PR and 0 merged in 7 days$/);
   assert.equal(reviewsMeasure[0].ratchet, false);
+});
+
+const page = (open, { more = false, cursor = null, merged = [], mergedMore = false } = {}) => JSON.stringify({ data: { repository: {
+  open: { pageInfo: { hasNextPage: more, endCursor: cursor }, nodes: open }, merged: { pageInfo: { hasNextPage: mergedMore, endCursor: mergedMore ? 'm1' : null }, nodes: merged } } } });
+const counted = (n, day = '2026-10-04') => pr(n, 'OPEN', [thread(`T${n}`, [comment(n, 'acme-reviewer', `Finding ${n}.`, day)])]);
+
+test('reviews_unanswered reads every page of open PRs, and is n/a when pages are left unread, never a number', async t => {
+  const read = async reviews => {
+    const KEEL_GH = await ghStub(t, { reviews });
+    const [r] = await measure({ root: await scratch(t), config: { name: 'Acme', repo: 'acme/storefront' }, env: { ...ENV, KEEL_GH }, date: '2026-10-06', measures: reviewsMeasure });
+    const calls = (await readFile(`${KEEL_GH}.log`, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+    return { r, calls };
+  };
+  // Two pages: the second asked for by its cursor, and only for open PRs; both counted.
+  let { r, calls } = await read([page([counted(1)], { more: true, cursor: 'o1' }), page([counted(2)])]);
+  assert.deepEqual([r.state, r.value], ['outside', 2], JSON.stringify(r));
+  assert.deepEqual(r.facts.prs.map(p => p.number), [1, 2]);
+  assert.deepEqual(calls.map(c => c.filter(x => /^(open|merged|openAfter|mergedAfter)=/.test(x))), [['open=true', 'merged=true'], ['open=true', 'merged=false', 'openAfter=o1']]);
+  // Merged PRs updated before the window: no need to read on.
+  ({ r } = await read([page([], { merged: [{ ...counted(3), state: 'MERGED', mergedAt: at('2026-09-01'), updatedAt: at('2026-09-01') }], mergedMore: true })]));
+  assert.deepEqual([r.state, r.value], ['ok', 0]);
+  // Every page says there is another: n/a after REVIEW_PAGES, never the count so far.
+  ({ r, calls } = await read([page([counted(1)], { more: true, cursor: 'o1' })]));
+  assert.deepEqual([r.state, r.value], ['n/a', null], JSON.stringify(r));
+  assert.match(r.detail, /more than 4 open pull requests; the read is incomplete/);
+  assert.equal(calls.length, 4);
+  // Recently merged PRs left unread: n/a too.
+  ({ r } = await read([page([], { merged: [{ ...counted(4), state: 'MERGED', mergedAt: at('2026-10-05'), updatedAt: at('2026-10-05') }], mergedMore: true })]));
+  assert.deepEqual([r.state, r.value], ['n/a', null], JSON.stringify(r));
 });
 
 test('reviews_unanswered is n/a when GitHub cannot be read, broken when the read fails, never a zero', async t => {
@@ -360,12 +396,18 @@ test('reviews_unanswered is n/a when GitHub cannot be read, broken when the read
   assert.match(r.detail, /not authenticated/);
   r = await read({}, { name: 'Acme' });
   assert.match(r.detail, /no repo/);
-  // Ready but the read fails, or comes back without the repository, or incomplete: broken.
-  for (const reviews of ['not json', JSON.stringify({ data: { repository: null } }),
-    JSON.stringify({ data: { repository: { open: { nodes: [{ ...pr(1, 'OPEN', []), reviewThreads: { pageInfo: { hasNextPage: true }, nodes: [] } }] }, merged: { nodes: [] } } } })]) {
+  // Ready but the read fails, or comes back without the repository: broken.
+  for (const reviews of ['not json', JSON.stringify({ data: { repository: null } })]) {
     r = await read({ KEEL_GH: await ghStub(t, { reviews }) });
     assert.equal(r.state, 'broken', reviews);
     assert.equal(r.value, null);
+  }
+  // Incomplete: more threads, or more comments in a thread, than one page: n/a, never a count.
+  const long = thread('T1', [comment(1, 'acme-reviewer', 'One.', '2026-10-01'), comment(2, 'acme-owner', 'Two.', '2026-10-02')]);
+  for (const open of [[{ ...pr(1, 'OPEN', []), reviewThreads: { pageInfo: { hasNextPage: true }, nodes: [] } }], [pr(1, 'OPEN', [{ ...long, comments: { pageInfo: { hasNextPage: true }, nodes: long.comments.nodes } }])]]) {
+    r = await read({ KEEL_GH: await ghStub(t, { reviews: page(open) }) });
+    assert.deepEqual([r.state, r.value], ['n/a', null], JSON.stringify(r));
+    assert.match(r.detail, /the read is incomplete/);
   }
   r = await read({ KEEL_GH: await ghStub(t) }, { ...config, review: { reviewers: 'acme-reviewer' } });
   assert.equal(r.state, 'broken', 'a bad "review" config is a broken instrument');

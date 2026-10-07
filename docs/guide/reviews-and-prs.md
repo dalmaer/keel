@@ -68,13 +68,18 @@ every comment is as unread as ignoring them. Nothing is resolved without a
 reply saying which form it is.
 
 `keel review` makes the reading deterministic. It reads every review thread,
-every review, and each named reviewer's conversation comments, and says
-which are answered: a thread is answered when it is resolved or someone
-other than its author replied; a conversation comment when someone else
-commented after it. A reviewer's top-level summary that opens with a hidden
-`<!-- … -->` marker (a status board the bot edits in place, like Codex's
-review summary) is listed as **status** and owes no answer: its findings are
-the threads. A read GitHub could not complete is never reported as clean.
+every review's top-level body, and each named reviewer's conversation
+comments, and says which are answered. A thread is answered when someone
+other than its reviewer replied after the reviewer's newest comment:
+resolving a thread is not an answer, and a reviewer's follow-up reopens it.
+A review body or conversation comment is answered by a later comment from
+someone else that quotes a line of it (`> `), links it, or names its id; an
+unrelated comment that happens to come later is not an answer
+(`--close` quotes and links it for you). A top-level comment or review body
+that opens with a hidden `<!-- … -->` marker (a status board the bot edits
+in place) is listed as **status** and owes no answer. A read GitHub could
+not complete (a list longer than one page) is never reported as clean:
+`keel review` exits 2, and the night's count is n/a.
 
 **By default nothing waits and nothing blocks a merge.** Fleet update and
 the drain merge as before; the night counts what is left as
@@ -103,7 +108,8 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
   exits 1, never read as "no comments".
 - Reviewers are named in `.keel/keel.json` `"review": {"reviewers":
   [...], "wait": <minutes>}`; `--reviewer <login>` overrides for one call.
-  With none named, only threads are read and nothing is waited for.
+  With none named, threads and review bodies are read, conversation
+  comments are not, and nothing is waited for.
 - `--close <id>[,<id>…]` with exactly one of `--fixed <commit|vX.Y.Z>`,
   `--tracked <issue|version>` or `--not-valid "<why>"` posts the reply (and
   resolves, for fixed and not valid). Each is refused without its value.

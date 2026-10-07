@@ -48,7 +48,11 @@ export async function snapshot(dir, skip = new Set(['.git'])) {
 /** No PRs to review: the GraphQL answer reviews_unanswered reads, empty. */
 export const NO_REVIEWS = JSON.stringify({ data: { repository: { open: { pageInfo: { hasNextPage: false }, nodes: [] }, merged: { nodes: [] } } } });
 
-/** A gh stub: --version ok; auth as given; run/pr list answer or fail; api graphql answers `reviews`. */
+/**
+ * A gh stub: --version ok; auth as given; run/pr list answer or fail; api
+ * graphql answers `reviews` (a list: one page each call, in order, the last
+ * repeated; each call's arguments logged to <gh>.log).
+ */
 export async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues = '[]', reviews = NO_REVIEWS, failRuns = false } = {}) {
   const dir = await scratch(t, 'keel-gh-');
   const gh = join(dir, 'gh');
@@ -56,10 +60,20 @@ export async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues =
 const a = process.argv.slice(2);
 if (a.includes('--version')) console.log('gh version 2.0.0 (stub)');
 else if (a[0] === 'auth') process.exit(${auth ? 0 : 1});
-else if (a[0] === 'run') { if (${failRuns}) { console.error('HTTP 404: Not Found'); process.exit(1); } console.log(${JSON.stringify(runs)}); }
+else if (a[0] === 'run') {
+  if (${failRuns}) { console.error('HTTP 404: Not Found'); process.exit(1); }
+  // gh's --limit counts runs, as the real one does.
+  const all = JSON.parse(${JSON.stringify(runs)}), at = a.indexOf('--limit');
+  console.log(JSON.stringify(at >= 0 && Array.isArray(all) ? all.slice(0, Number(a[at + 1])) : all));
+}
 else if (a[0] === 'pr') console.log(${JSON.stringify(prs)});
 else if (a[0] === 'issue') console.log(${JSON.stringify(issues)});
-else if (a[0] === 'api' && a[1] === 'graphql' && !a.some(x => x.startsWith('query=mutation'))) console.log(${JSON.stringify(reviews)});
+else if (a[0] === 'api' && a[1] === 'graphql' && !a.some(x => x.startsWith('query=mutation'))) {
+  const fs = require('node:fs'), pages = [].concat(${JSON.stringify(reviews)}), log = ${JSON.stringify(gh + '.log')};
+  const n = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\\n').filter(Boolean).length : 0;
+  fs.appendFileSync(log, JSON.stringify(a.filter(x => !x.startsWith('query='))) + '\\n');
+  console.log(pages[Math.min(n, pages.length - 1)]);
+}
 else process.exit(1);
 `);
   await chmod(gh, 0o755);

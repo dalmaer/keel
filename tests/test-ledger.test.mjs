@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { run } from './helpers/run.mjs';
 import * as ledger from '../practices/night/files/scripts/keel/test-ledger.mjs';
@@ -293,9 +294,9 @@ async function reproduces(t, source) {
   const [found] = flaky(runs);
   assert.deepEqual([found.config, found.setting], [runs[0].config, runs[0].setting], 'the finding carries the config it was seen under');
   const cmd = printed(out, /flaky {3}tests\/mode\.test\.mjs "the mode holds": passed 1, failed 1/);
-  assert.equal(cmd, "ACME_MODE=<as in the run> env -u NODE_OPTIONS node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs");
-  // The person fills in the value; NODE_OPTIONS in their shell is unset, as it was in the run.
-  const r = run('sh', ['-c', cmd.replace('<as in the run>', "'b'")], { cwd: dir, env: { ...bare(), NODE_OPTIONS: '--stack-size=900' } });
+  assert.equal(cmd, `ACME_MODE="\${ACME_MODE:?set ACME_MODE as it was in the run}" env -u NODE_OPTIONS node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs`);
+  // Run as printed, with the person's ACME_MODE set as it was in the run; NODE_OPTIONS in their shell is unset, as it was then.
+  const r = run('sh', ['-c', cmd], { cwd: dir, env: { ...bare(), ACME_MODE: 'b', NODE_OPTIONS: '--stack-size=900' } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'out-seen.txt'), 'utf8')), { mode: 'b', preloaded: true, nodeOptions: null }, 'run alone, it ran as it did when seen');
 }
@@ -317,6 +318,36 @@ test('mutations: a run-alone command with the printing run\'s preloads, or witho
   ]) await assert.rejects(reproduces(t, await mutated(from, to)), assert.AssertionError, `mutant survived: ${to}`);
 });
 
+/** A hidden variable's run-alone command is a command: it parses, carries no value, runs with the variable set and stops, saying so, without it. */
+function assertRunnable(mod) {
+  const setting = { env: { ACME_TOKEN: { name: 'ACME_TOKEN', set: true, hash: 'acmehash0001' }, NODE_OPTIONS: null }, preload: [] };
+  const cmd = mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting });
+  assert.ok(!cmd.includes('acmehash0001'), 'no value, not even its hash');
+  const parse = run('bash', ['-n', '-c', cmd], { env: bare() });
+  assert.equal(parse.status, 0, `bash -n: ${parse.stderr}`);
+  // `node` here is a stub that prints what it saw; the command runs as printed.
+  const stub = mkdtempSync(join(tmpdir(), 'keel-ledger-node-'));
+  writeFileSync(join(stub, 'node'), '#!/bin/sh\necho "token=$ACME_TOKEN"\n', { mode: 0o755 });
+  const env = { ...bare(), PATH: `${stub}:${process.env.PATH}` };
+  const set = run('bash', ['-c', cmd], { env: { ...env, ACME_TOKEN: 'acme-secret-123' } });
+  assert.equal(set.status, 0, set.stderr);
+  assert.equal(set.stdout.trim(), 'token=acme-secret-123', 'it runs with the person\'s own value');
+  const unset = run('bash', ['-c', cmd], { env });
+  assert.notEqual(unset.status, 0);
+  assert.match(unset.stderr, /ACME_TOKEN: set ACME_TOKEN as it was in the run/);
+  assert.doesNotMatch(unset.stdout, /token=/, 'without it, node never runs');
+  rmSync(stub, { recursive: true, force: true });
+}
+
+test('a hidden variable\'s run-alone command parses in bash -n, carries no value, and runs as printed (or stops saying to set it)', () => {
+  assertRunnable(ledger);
+});
+
+test('mutation: the old <as in the run> placeholder fails the runnable-command test', async t => {
+  const m = await mutant(t, '`${k}="\\${${k}:?set ${k} as it was in the run}"`', '`${k}=<as in the run>`');
+  assert.throws(() => assertRunnable(m), assert.AssertionError);
+});
+
 /** A configEnv secret: its value is never in a run file or a printed command; two values are still two configs. */
 async function keepsSecret(t, source) {
   const { dir, git } = await acmeRepo(t, source);
@@ -325,7 +356,7 @@ async function keepsSecret(t, source) {
   git('add', '-A'); git('commit', '-qm', 'token');
   const outs = [nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123', ACME_FAIL: '1' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-456' })];
   const cmd = printed(outs[1].stdout, /flaky {3}tests\/acme\.test\.mjs "the roadrunner is caught"/);
-  assert.match(cmd, /^ACME_TOKEN=<as in the run> /, 'the variable is named, its value is not');
+  assert.match(cmd, /^ACME_TOKEN="\$\{ACME_TOKEN:\?set ACME_TOKEN as it was in the run\}" /, 'the variable is named, its value is not');
   for (const o of outs) assert.ok(!(o.stdout + o.stderr).includes('acme-secret'), 'no value in what a run prints');
   for (const n of await readdir(join(dir, RUNS))) assert.ok(!(await readFile(join(dir, RUNS, n), 'utf8')).includes('acme-secret'), `no value in ${n}`);
   const { runs } = await readRuns(dir);
@@ -350,7 +381,7 @@ function assertNodeOptions(mod) {
   assert.ok(!JSON.stringify(secret).includes('acme-secret'), 'a secret-looking NODE_OPTIONS is not kept');
   assert.deepEqual([secret.env.NODE_OPTIONS.name, secret.env.NODE_OPTIONS.set], ['NODE_OPTIONS', true]);
   assert.match(secret.env.NODE_OPTIONS.hash, /^[0-9a-f]{12}$/);
-  assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: secret }), "NODE_OPTIONS=<as in the run> node --test --test-name-pattern='^x$' tests/a.test.mjs");
+  assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: secret }), `NODE_OPTIONS="\${NODE_OPTIONS:?set NODE_OPTIONS as it was in the run}" node --test --test-name-pattern='^x$' tests/a.test.mjs`);
   assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: { env: { ACME_MODE: { name: 'ACME_MODE', set: false, hash: null }, NODE_OPTIONS: null }, preload: [] } }),
     "env -u ACME_MODE -u NODE_OPTIONS node --test --test-name-pattern='^x$' tests/a.test.mjs", 'each unset variable is unset before node');
 }
@@ -411,9 +442,11 @@ async function assertLanes(t, mod) {
     const n = runs.filter(r => r.dir === d && r.config === config).length;
     assert.ok(n >= 21, `lane ${d} ${config} keeps ${n}, fewer than the window and one`);
   }
-  // The total bounds every lane together.
+  // The total prunes what no lane reserves: here, unreadable records; never a lane's own runs.
+  for (let i = 0; i < 5; i++) await writeFile(join(dir, RUNS, `0000-broken-${i}.json`), '{not json');
   for (let i = 0; i < 3; i++) await mod.record(dir, { ...runOf({ config: 'acmeconfig03', tests: { a: ['pass', 1] } }), dir: '.' }, { window: 20, total: 100 });
-  assert.equal((await mod.readRuns(dir)).runs.length, 100);
+  const after = await mod.readRuns(dir);
+  assert.deepEqual([after.runs.length, after.skipped], [123, 0]);
 }
 
 test('record keeps each lane (a suite\'s folder × its config) its own history: four lanes interleaved, 30 runs each, keep the window and one or more each; a total caps them all', async t => {
@@ -440,9 +473,22 @@ test('the total never undercuts a lane: four lanes with a window of 100 keep 101
   await assertWideLanes(t, ledger);
 });
 
-test('mutation: a fixed total of 400 fails the wide-lanes test', async t => {
-  const m = await mutant(t, 'const cap = total ?? Math.max(TOTAL, lanes.size * (window + 10));', 'const cap = total ?? TOTAL;');
-  await assert.rejects(assertWideLanes(t, m), assert.AssertionError);
+/** One lane's baseline (30 runs), then 60 runs of another under a total of 60: the busy lane never evicts the quiet one's. */
+async function assertReserved(t, mod) {
+  const dir = await scratch(t);
+  for (let i = 0; i < 30; i++) await mod.record(dir, { ...runOf({ config: 'acmeconfig01', tests: { a: ['pass', 1] } }), dir: '.' }, { window: 20, total: 60 });
+  for (let i = 0; i < 60; i++) await mod.record(dir, { ...runOf({ config: 'acmeconfig02', tests: { a: ['pass', 1] } }), dir: '.' }, { window: 20, total: 60 });
+  const { runs } = await mod.readRuns(dir);
+  assert.equal(runs.filter(r => r.config === 'acmeconfig01').length, 30, 'the quiet lane keeps its whole baseline');
+  assert.equal(runs.filter(r => r.config === 'acmeconfig02').length, 50, 'the busy lane keeps its own reserve');
+}
+
+test('each lane\'s newest max(50, window + 10) are reserved: many runs of one lane never evict another lane\'s baseline', async t => {
+  await assertReserved(t, ledger);
+});
+
+test('mutation: a total that prunes reserved runs fails the reserve test', async t => {
+  await assert.rejects(assertReserved(t, await mutant(t, 'const spare = kept.filter(n => !reserved.has(n));', 'const spare = kept;')), assert.AssertionError);
 });
 
 test('record keeps the newest runs and prunes the rest', async t => {
