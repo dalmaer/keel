@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.6 — practice 0.8.6 (2026-10-07)
+
+- **Claude can review Codex's PRs** (the new `cross-review` practice, off unless you switch it on). PRs on a branch prefix you name (`"crossReview": {"for": ["codex/"], "budget": {"minutes": 15}}`), or a `/review` comment from someone with write access, get a Claude review: inline P1/P2/P3 comments, each validated first, and a summary posted as a comment. It reads and comments only: it never pushes, approves or merges. It needs `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`), and each review spends model time within its budget.
+- **A Budget line on the health page** for each budgeted pass you have on (climb, tend, cross-review): the minutes the agent actually used in its last runs, which ran out, and a suggestion (extend, shorten to N, hold, or too few to say). It never changes your budget.
+- **Tend's loose ends name paths in your repo**, not the runner's checkout.
+
 ## v0.8.5 — practice 0.8.5 (2026-10-06)
 
 - **A reopened review thread gets its own day.** When a reviewer follows up on an answered thread, `reviews_unanswered` ages it from the follow-up, not from the original comment.
