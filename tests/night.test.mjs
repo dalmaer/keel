@@ -160,6 +160,8 @@ test('a project whose .keel/keel.json names `health`: PRs holding only pages the
   assert.equal(extra.length, 1);
   assert.ok(isData('.keel/health/2026-09-30.md', 'keel-night/', extra));
   assert.ok(isData('docs/health/2026-09-30.md', 'keel-night/', extra), 'the default stays data');
+  // Codex on 0.8.4: the default directory is dated pages only too: a shared index there is not the night's.
+  for (const p of ['docs/health/index.md', 'docs/health/README.md', 'docs/health/x/2026-09-30.md']) assert.ok(!isData(p, 'keel-night/'), p);
   for (const p of ['.keel/healthy.md', '.keel/keel.json', '.keel/health', '.keel/health/notes.md', '.keel/health/2026-09-30.md.bak', '.keel/health/x/2026-09-30.md']) assert.ok(!isData(p, 'keel-night/', extra), p);
   // A shared directory (ledger #76: "health": "scripts" or "docs"): only its dated pages are the night's, never its other files.
   const shared = extraData({ health: 'scripts' }, 'keel-night/');

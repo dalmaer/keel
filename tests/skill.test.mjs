@@ -195,7 +195,8 @@ test('the conduct skill reads the project\'s roadmap command, says whose check g
   const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
   // §0: keel's commands only when keel's phases practice is on; a local roadmap is read from the project's own scripts.
   assert.match(section(0), /The roadmap command is the project's, never assumed/);
-  assert.match(section(0), /`"practices"` lists `phases`[\s\S]*?`npm run\s+next`/);
+  // cajones has keel's phases but no `next` alias: the script itself is the command, the alias only where it exists.
+  assert.match(section(0), /`"practices"` lists `phases`[\s\S]*?`node\s+scripts\/roadmap\.mjs --next`[\s\S]*?where `package\.json` has\s+that alias/);
   assert.match(section(0), /`"local"` names `phases`[\s\S]*?`package\.json`[\s\S]*?`next`, else `roadmap`/);
   assert.doesNotMatch(section(0), /```sh\nnpm run next/, 'no bare npm run next for every project');
   // §3: the stale-status guard is keel's roadmap check's, and a project's own roadmap is checked by hand.

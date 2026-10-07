@@ -294,7 +294,7 @@ async function reproduces(t, source) {
   const [found] = flaky(runs);
   assert.deepEqual([found.config, found.setting], [runs[0].config, runs[0].setting], 'the finding carries the config it was seen under');
   const cmd = printed(out, /flaky {3}tests\/mode\.test\.mjs "the mode holds": passed 1, failed 1/);
-  assert.equal(cmd, `ACME_MODE="\${ACME_MODE:?set ACME_MODE as it was in the run}" env -u NODE_OPTIONS node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs`);
+  assert.equal(cmd, `ACME_MODE="\${ACME_MODE?set ACME_MODE as it was in the run}" env -u NODE_OPTIONS node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs`);
   // Run as printed, with the person's ACME_MODE set as it was in the run; NODE_OPTIONS in their shell is unset, as it was then.
   const r = run('sh', ['-c', cmd], { cwd: dir, env: { ...bare(), ACME_MODE: 'b', NODE_OPTIONS: '--stack-size=900' } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -344,7 +344,7 @@ test('a hidden variable\'s run-alone command parses in bash -n, carries no value
 });
 
 test('mutation: the old <as in the run> placeholder fails the runnable-command test', async t => {
-  const m = await mutant(t, '`${k}="\\${${k}:?set ${k} as it was in the run}"`', '`${k}=<as in the run>`');
+  const m = await mutant(t, '`${k}="\\${${k}?set ${k} as it was in the run}"`', '`${k}=<as in the run>`');
   assert.throws(() => assertRunnable(m), assert.AssertionError);
 });
 
@@ -356,7 +356,7 @@ async function keepsSecret(t, source) {
   git('add', '-A'); git('commit', '-qm', 'token');
   const outs = [nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123', ACME_FAIL: '1' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-456' })];
   const cmd = printed(outs[1].stdout, /flaky {3}tests\/acme\.test\.mjs "the roadrunner is caught"/);
-  assert.match(cmd, /^ACME_TOKEN="\$\{ACME_TOKEN:\?set ACME_TOKEN as it was in the run\}" /, 'the variable is named, its value is not');
+  assert.match(cmd, /^ACME_TOKEN="\$\{ACME_TOKEN\?set ACME_TOKEN as it was in the run\}" /, 'the variable is named, its value is not');
   for (const o of outs) assert.ok(!(o.stdout + o.stderr).includes('acme-secret'), 'no value in what a run prints');
   for (const n of await readdir(join(dir, RUNS))) assert.ok(!(await readFile(join(dir, RUNS, n), 'utf8')).includes('acme-secret'), `no value in ${n}`);
   const { runs } = await readRuns(dir);
@@ -381,9 +381,14 @@ function assertNodeOptions(mod) {
   assert.ok(!JSON.stringify(secret).includes('acme-secret'), 'a secret-looking NODE_OPTIONS is not kept');
   assert.deepEqual([secret.env.NODE_OPTIONS.name, secret.env.NODE_OPTIONS.set], ['NODE_OPTIONS', true]);
   assert.match(secret.env.NODE_OPTIONS.hash, /^[0-9a-f]{12}$/);
-  assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: secret }), `NODE_OPTIONS="\${NODE_OPTIONS:?set NODE_OPTIONS as it was in the run}" node --test --test-name-pattern='^x$' tests/a.test.mjs`);
+  assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: secret }), `NODE_OPTIONS="\${NODE_OPTIONS?set NODE_OPTIONS as it was in the run}" node --test --test-name-pattern='^x$' tests/a.test.mjs`);
   assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: { env: { ACME_MODE: { name: 'ACME_MODE', set: false, hash: null }, NODE_OPTIONS: null }, preload: [] } }),
     "env -u ACME_MODE -u NODE_OPTIONS node --test --test-name-pattern='^x$' tests/a.test.mjs", 'each unset variable is unset before node');
+  // Codex on 0.8.4: a value set to "" in the run reproduces from a shell where it is "", and only an unset one stops the command.
+  const empty = mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: { env: { ACME_MODE: { name: 'ACME_MODE', set: true, hash: 'e3b0c44298fc' } }, preload: [] } });
+  const prefix = empty.slice(0, empty.indexOf(' node '));
+  assert.equal(execFileSync('sh', ['-c', `ACME_MODE=''; export ACME_MODE; ${prefix} true && echo ran`], { encoding: 'utf8' }).trim(), 'ran', 'an empty value is a value');
+  assert.throws(() => execFileSync('sh', ['-c', `unset ACME_MODE; ${prefix} true`], { stdio: 'pipe' }), 'an unset one stops the command');
 }
 
 test('NODE_OPTIONS is recorded as written unless it carries a token, secret, key or password; unset variables are unset in the command', () => {

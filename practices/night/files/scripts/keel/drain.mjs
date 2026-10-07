@@ -31,7 +31,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isMain, rootOf, main, healthDirOf, HEALTH_DIR } from './lib.mjs';
 
-export const DATA_DIRS = [`${HEALTH_DIR}/`, 'docs/inbox/'];
+export const DATA_DIRS = ['docs/inbox/'];
+/** A health directory's dated pages: the night's data there, never its other files (an index, a shared script). */
+export const datedPages = dir => new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\d{4}-\\d{2}-\\d{2}\\.md$`);
+export const DATA_PAGES = [datedPages(HEALTH_DIR)];
 export const DATA_FILES = ['docs/INBOX.md', '.keel/bounds.json'];
 /**
  * A queue whose data is something else: its own paths, instead of the
@@ -57,8 +60,8 @@ export class DrainError extends Error {
  */
 export const isData = (path, prefix, extra = []) => {
   if (/^docs\/(?:phases|projects|decisions|research|evidence|records)(?:\/|$)/.test(path) || path === 'docs/design.md') return false;
-  const { dirs, files } = DATA_BY_PREFIX[prefix] ?? { dirs: DATA_DIRS, files: DATA_FILES };
-  return files.includes(path) || dirs.some(d => path.startsWith(d)) ||
+  const { dirs, files, pages = [] } = DATA_BY_PREFIX[prefix] ?? { dirs: DATA_DIRS, files: DATA_FILES, pages: DATA_PAGES };
+  return files.includes(path) || dirs.some(d => path.startsWith(d)) || pages.some(r => r.test(path)) ||
     extra.some(e => e instanceof RegExp ? e.test(path) : e.endsWith('/') ? path.startsWith(e) : e === path);
 };
 const dataOnly = (pr, prefix, extra) => Array.isArray(pr.files) && pr.files.length > 0 && pr.files.every(f => isData(f.path, prefix, extra));
@@ -80,7 +83,7 @@ export function extraData(keel, prefix) {
   let dir;
   try { dir = healthDirOf(keel); } catch { return []; }
   if (!isPlainPath(dir) || dir === HEALTH_DIR) return [];
-  return [new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\d{4}-\\d{2}-\\d{2}\\.md$`)];
+  return [datedPages(dir)];
 }
 
 /** A repo-relative file path: no leading slash, no `..`, no `.github/`, no glob, no whitespace (the workflow hands it to a shell). */

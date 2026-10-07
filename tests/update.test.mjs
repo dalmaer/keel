@@ -196,16 +196,23 @@ export const up = async () => { throw new Error('Acme cannot be converted'); };
 test('a failing check after a migration restores every byte, and names the check', async t => {
   const dir = await groove(t, async d => {
     const cfg = await json(join(d, '.keel/keel.json'));
-    await writeFile(join(d, '.keel/keel.json'), `${JSON.stringify({ ...cfg, check: 'node -e "process.exit(7)"' }, null, 2)}\n`);
+    await writeFile(join(d, '.keel/keel.json'), `${JSON.stringify({ ...cfg, check: 'node -e "console.log(\'acme: the anvil fell\'); process.exit(7)"' }, null, 2)}\n`);
   });
   await chmod(join(dir, 'scripts/roadmap.mjs'), 0o755); // a mode to put back, on a file 0001 deletes
   git(dir, 'commit', '-qam', 'executable roadmap');
   const before = await treeHash(dir);
   const r = await run({ dir, local: true });
   assert.equal(r.exitCode, 1, r.text);
-  assert.match(r.text, /the project's check failed after the update \(`node -e "process.exit\(7\)"`, exit 7\); the project is as it was/);
+  assert.match(r.text, /the project's check failed after the update \(`node -e "console\.log\('acme: the anvil fell'\); process\.exit\(7\)"`, exit 7\); the project is as it was/);
+  // The check's own output is printed, not cut to the first line (isocan's 0.8.4 update showed an empty tail).
+  assert.match(r.text, /Its output ended:\nacme: the anvil fell/);
   assert.equal(await treeHash(dir), before);
   assert.equal(git(dir, 'status', '--porcelain'), '');
+  // And the CLI prints all of it: it once cut every error to its first line.
+  const cli = keel(['update', '--local', '--no-self-update'], dir);
+  assert.equal(cli.code, 1, cli.err);
+  assert.match(cli.err, /Its output ended:\nacme: the anvil fell/);
+  assert.equal(await treeHash(dir), before);
 });
 
 test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replaces its own, phases is on, the gate passes', async t => {

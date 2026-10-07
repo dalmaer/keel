@@ -617,15 +617,15 @@ export function healthDirIn(root, config) {
  * so the night writes the page and its PR never carries it (ledger, phase 33).
  * Outside a git repository there is nothing to ignore.
  */
-export async function healthLints(root, config) {
+export async function healthLints(root, config, day = new Date().toISOString().slice(0, 10)) {
   if (!(config?.practices ?? []).includes('night') && config?.health === undefined) return [];
   const problems = healthProblems(config);
   if (problems.length) return problems.map(message => ({ rule: 'health-config', path: '.keel/keel.json', message }));
   const dir = healthDirOf(config);
   const outside = healthOutside(root, dir);
   if (outside) return [{ rule: 'health-config', path: dir, message: outside }];
-  // A dated name, as improve writes: an ignore rule for pages (`20*.md`) is caught, not just one for the directory.
-  const ignored = await new Promise(done => execFile('git', ['check-ignore', '-q', '--', healthPage(dir, '2000-01-01')], { cwd: root, encoding: 'utf8' }, e => done(!e)));
+  // The page this run writes (its date), as improve writes it: an ignore rule for pages (`2026-*.md`) is caught, not just one for the directory.
+  const ignored = await new Promise(done => execFile('git', ['check-ignore', '-q', '--', healthPage(dir, day)], { cwd: root, encoding: 'utf8' }, e => done(!e)));
   if (!ignored) return [];
   return [{ rule: 'health-ignored', path: dir, message: `${dir} is git-ignored here, so the night writes its health page and never commits it; set "health" in .keel/keel.json to a directory that is not ignored (like ".keel/health")` }];
 }
@@ -821,7 +821,10 @@ export function reviewComments(pr, reviewers = []) {
     // The newest comment decides: a reviewer's follow-up reopens it.
     const last = loginOf(comments.at(-1));
     const answered = comments.length > 1 && !sameLogin(last, by) && !isNamed(last);
-    out.push({ kind: 'thread', id: t.id, databaseId: first.databaseId, author: by, at: first.createdAt, path: t.path ?? null, line: t.line ?? null,
+    // Reopened: aged from the first comment after the last answer, so a follow-up gets its own day.
+    const lastAnswer = comments.findLastIndex(c => !sameLogin(loginOf(c), by) && !isNamed(loginOf(c)));
+    const since = answered || lastAnswer < 0 ? first : comments[lastAnswer + 1];
+    out.push({ kind: 'thread', id: t.id, databaseId: first.databaseId, author: by, at: since.createdAt, path: t.path ?? null, line: t.line ?? null,
       text: firstLine(first.body), url: first.url, resolved: !!t.isResolved, answered });
   }
   const reviews = (page(pr.reviews, 'reviews', pr) ?? []).filter(r => String(r?.body ?? '').trim() && !(pr.author?.login && sameLogin(loginOf(r), pr.author.login)));

@@ -246,7 +246,7 @@ export function aloneCommand(test, preload = [], { here = '.' } = {}) {
   // A value is printed for NODE_OPTIONS only (never a secret: one that looks like one is recorded as a hash);
   // any other set variable is taken from the person's shell, or the command stops and says to set it,
   // so a configEnv value never reaches a printed command and the command still runs as printed.
-  const env = vars.filter(([, v]) => isSet(v)).map(([k, v]) => k === 'NODE_OPTIONS' && typeof v === 'string' ? `${k}=${quote(v)}` : `${k}="\${${k}:?set ${k} as it was in the run}"`);
+  const env = vars.filter(([, v]) => isSet(v)).map(([k, v]) => k === 'NODE_OPTIONS' && typeof v === 'string' ? `${k}=${quote(v)}` : `${k}="\${${k}?set ${k} as it was in the run}"`);
   const unset = vars.filter(([, v]) => !isSet(v)).map(([k]) => `-u ${k}`);
   const file = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';
   const command = [...env, ...(unset.length ? ['env', ...unset] : []), 'node', ...(test.setting?.preload ?? preload), '--test', `--test-name-pattern=${quote(pattern)}`, file].filter(Boolean).join(' ');

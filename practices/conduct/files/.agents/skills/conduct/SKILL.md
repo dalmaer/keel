@@ -55,9 +55,10 @@ step below: the walk ends at the local commit on `main`. Say so in the report.
 
 The roadmap command is the project's, never assumed. Read it first:
 
-- `.keel/keel.json` `"practices"` lists `phases` (keel's roadmap): `npm run
-  next` says the next phase whose dependencies are built, and its next
-  action; `node scripts/roadmap.mjs --json` says everything.
+- `.keel/keel.json` `"practices"` lists `phases` (keel's roadmap): `node
+  scripts/roadmap.mjs --next` says the next phase whose dependencies are
+  built, and its next action (`npm run next` too, where `package.json` has
+  that alias); `node scripts/roadmap.mjs --json` says everything.
 - `.keel/keel.json` `"local"` names `phases` (the project keeps its own
   roadmap, and keel's `scripts/roadmap.mjs` is not installed): use the
   scripts its `package.json` names (`next`, else `roadmap`, else what
@@ -247,7 +248,7 @@ When the proof holds, and only then, write the record, all in one change:
   same commit. A test catches the tables; nothing catches the prose but you.
 - **Other phases** this one changed the facts for: `grep -rn` the term across
   `docs/` and fix each mention.
-- The project's roadmap command (§0; `npm run roadmap` with keel's).
+- The project's roadmap command (§0; `node scripts/roadmap.mjs` with keel's).
 
 Then **the whole check, once**, on the final tree, record included:
 `{{check}}`. It is the only full run, and it comes last so it covers what

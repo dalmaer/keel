@@ -327,6 +327,13 @@ test('the health dir: a dated-page ignore rule is health-ignored, a symlink out 
   await writeFile(join(dir, '.gitignore'), 'docs/health/20*.md\n');
   assert.deepEqual(await lint(), [{ rule: 'health-ignored', path: 'docs/health' }]);
   await writeFile(join(dir, '.gitignore'), '');
+  // Codex on 0.8.4: the probe is tonight's page: a rule for this year's pages is caught, one archiving only 2000's is not.
+  const year = new Date().getFullYear();
+  await writeFile(join(dir, '.gitignore'), `docs/health/${year}-*.md\n`);
+  assert.deepEqual(await lint(), [{ rule: 'health-ignored', path: 'docs/health' }]);
+  await writeFile(join(dir, '.gitignore'), 'docs/health/2000-*.md\n');
+  assert.deepEqual(await lint(), []);
+  await writeFile(join(dir, '.gitignore'), '');
   // #79: a symlink that leaves the repo: lint, and --report writes nothing there.
   const elsewhere = await scratch(t, 'keel-elsewhere-');
   await mkdir(join(dir, '.keel'), { recursive: true });

@@ -298,6 +298,9 @@ test('a thread is answered by a reply after the reviewer\'s newest comment: reso
   const settled = { id: 'T_settled', isResolved: true, comments: [c(7, 'acme-reviewer', 'Paint it.'), c(8, 'acme-reviewer', 'Red, please.'), c(9, 'acme-owner', 'Painted red in abc1234.', '2026-10-06')] };
   assert.deepEqual(answered(prOf({ threads: [resolvedOnly, followUp, namedLast, settled] })),
     { T_resolved: false, T_followup: false, T_named: false, T_settled: true });
+  // Codex on 0.8.4: a reopened thread is aged from the follow-up, so it gets its own day; one never answered, from its first comment.
+  const at = Object.fromEntries(reviewComments(prOf({ threads: [resolvedOnly, followUp, settled] }), ['acme-reviewer[bot]']).map(x => [x.id, x.at]));
+  assert.deepEqual(at, { T_resolved: '2026-10-05T09:00:00Z', T_followup: '2026-10-06T09:00:00Z', T_settled: '2026-10-05T09:00:00Z' });
 });
 
 test('a review\'s top-level body owes an answer: a later comment that quotes, links or names it; a status board, an empty body or the author\'s own does not', () => {
