@@ -1239,6 +1239,14 @@ test('keel-cross-review.yml: reviews of one PR queue behind each other; a run th
     assert.equal(evalExpression(cond, ctx), true);
     assert.equal(group(ctx, 110), 'keel-cross-review-7');
   }
+  // Codex on ledger#93: a /review the job will skip (no write access, a fork, a draft) never joins the PR's group.
+  // The rule: the PR's group exactly when the job's if: lets the event through.
+  const events = [prEvent(), prEvent({ action: 'ready_for_review' }), commentEvent(), commentEvent({ association: 'MEMBER' }), commentEvent({ association: 'OWNER' }),
+    commentEvent({ association: 'CONTRIBUTOR' }), commentEvent({ association: 'NONE' }), commentEvent({ association: 'FIRST_TIME_CONTRIBUTOR' }),
+    commentEvent({ body: 'LGTM' }), commentEvent({ body: '/review', type: 'Bot', login: 'codex[bot]', association: 'MEMBER' }), commentEvent({ body: '/review', login: 'acme-helper[bot]' }),
+    prEvent({ repo: 'someone/acme-fork' }), prEvent({ draft: true })];
+  for (const [i, ctx] of events.entries()) assert.equal(group(ctx, 200 + i) === 'keel-cross-review-7', evalExpression(cond, ctx) === true, JSON.stringify(ctx.github.event?.comment ?? ctx.github.event?.action));
+  assert.equal(group(commentEvent({ association: 'NONE' }), 220), 'keel-cross-review-run-220', 'an outsider\'s /review is alone');
   // Mutation: the old group (the PR's number for every event) lets any comment displace a /review.
   const old = t.replace(/^( {2}group: ).*$/m, '$1keel-cross-review-${{ github.event.pull_request.number || github.event.issue.number }}');
   assert.notEqual(old, t, 'the mutation did not apply');

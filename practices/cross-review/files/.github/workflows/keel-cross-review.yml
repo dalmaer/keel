@@ -35,11 +35,12 @@ on:
 
 # One review at a time per PR, queued, never cancelled. GitHub keeps one
 # pending run per group, so a run that will not review (any other comment on
-# the PR: a bot's, an edit of a summary) gets a group of its own, keyed by its
-# run id; otherwise it would replace a person's /review queued behind a
-# running review, then skip, and the /review would be lost.
+# the PR: a bot's, an edit of a summary, a /review from someone without write
+# access) gets a group of its own, keyed by its run id; otherwise it would
+# replace a person's /review queued behind a running review, then skip, and
+# the /review would be lost. The condition is the job's `if:`, word for word.
 concurrency:
-  group: keel-cross-review-${{ (github.event_name == 'pull_request' || (startsWith(github.event.comment.body, '/review') && github.event.comment.user.type != 'Bot')) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
+  group: keel-cross-review-${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/review') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]'))) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 permissions:
