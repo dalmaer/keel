@@ -33,9 +33,17 @@ Budget: tend 2, 3, 30⏱ of 30 min (last 3 runs; too few to say) · climb 41⏱,
   6). It is a line, like Climb and Tend.
 - **Never a change.** The suggestion is the owner's to take: the budget is
   money, and a person sets it.
-- **The budget compared is today's** (`.keel/keel.json`). A run under an
-  older budget is still counted against it; the line names the budget it
-  used.
+- **The budget compared is today's** (`.keel/keel.json`), and only the
+  runs since it became today's are counted: a run under an older budget is
+  not judged against it (raised 15 → 30, runs that ran out at 15 would read
+  as healthy and say shorten). The since is read from the default branch's
+  commits touching `.keel/keel.json` (one list, then the config at each,
+  newest first, at most 10 read a night) until one has another budget for
+  that pass (a missing key counts as the default); the entry names it:
+  `tend 2 of 30 min since 2026-10-06 (last 1 run; too few to say)`. No
+  commit read differs: no since, every run counted. The history unreadable:
+  that pass is n/a with why, never every run. (Settled 2026-10-07, from
+  Codex's review of ledger#84.)
 
 ## Where the numbers come from
 

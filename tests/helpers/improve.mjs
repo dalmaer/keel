@@ -52,8 +52,8 @@ export const NO_REVIEWS = JSON.stringify({ data: { repository: { open: { pageInf
  * A gh stub: --version ok; auth as given; run/pr list answer or fail; api
  * graphql answers `reviews` (a list: one page each call, in order, the last
  * repeated; each call's arguments logged to <gh>.log). `api` answers REST
- * `gh api <path>`: a map from the path before its query to the JSON it
- * prints, or null for a 404; each path asked is logged to <gh>.api.log.
+ * `gh api <path>`: a map from the path (with its query, else the path before
+ * it) to the JSON it prints, or null for a 404; each path asked is logged to <gh>.api.log.
  */
 export async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues = '[]', reviews = NO_REVIEWS, failRuns = false, api = {} } = {}) {
   const dir = await scratch(t, 'keel-gh-');
@@ -79,7 +79,7 @@ else if (a[0] === 'api' && a[1] === 'graphql' && !a.some(x => x.startsWith('quer
 else if (a[0] === 'api' && a[1] !== 'graphql') {
   const fs = require('node:fs'), answers = ${JSON.stringify(JSON.stringify(api))};
   fs.appendFileSync(${JSON.stringify(gh + '.api.log')}, a[1] + '\\n');
-  const hit = JSON.parse(answers)[a[1].split('?')[0]];
+  const all = JSON.parse(answers), hit = Object.hasOwn(all, a[1]) ? all[a[1]] : all[a[1].split('?')[0]];
   if (hit === undefined || hit === null) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }
   console.log(JSON.stringify(hit));
 }

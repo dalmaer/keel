@@ -9,7 +9,7 @@ import { mkdtemp, readFile, writeFile, rm, mkdir, realpath } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
-import { budgetUse, budgetPasses, stepUse, BUDGET_RUNS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { budgetUse, budgetPasses, budgetSince, stepUse, BUDGET_RUNS } from '../practices/night/files/scripts/keel/lib.mjs';
 import { ENV, ghStub } from './helpers/improve.mjs';
 
 const T0 = Date.parse('2026-10-01T09:42:00Z');
@@ -18,7 +18,8 @@ const T0 = Date.parse('2026-10-01T09:42:00Z');
  * `conclusion`; 'skipped' never ran it. `ran`: its "Did the agent run?"
  * step's conclusion, or none (a run from before that step).
  */
-const run = (min, { step = 'Tend', conclusion = 'success', camel = false, ran } = {}) => ({
+const run = (min, { step = 'Tend', conclusion = 'success', camel = false, ran, created } = {}) => ({
+  ...(created ? { created_at: created } : {}),
   jobs: [{ name: 'acme', steps: [
     { name: 'Set up job', conclusion: 'success', started_at: new Date(T0 - 60_000).toISOString(), completed_at: new Date(T0).toISOString() },
     conclusion === 'skipped'
@@ -86,11 +87,12 @@ const pageOf = async (dir, gh) => {
 };
 const R = 'repos/acme/anvils';
 /** The REST answers for these workflows' runs: { 'keel-tend.yml': [run, …] }, ids numbered. */
-function actions(byWorkflow) {
-  const api = { [R]: { default_branch: 'main' } };
+function actions(byWorkflow, { history = [] } = {}) {
+  const api = { [R]: { default_branch: 'main' }, [`${R}/commits`]: history.map(h => ({ sha: h.sha, commit: { committer: { date: h.date } } })) };
+  for (const h of history) api[`${R}/contents/.keel/keel.json?ref=${h.sha}`] = h.config === null ? null : { encoding: 'base64', content: Buffer.from(JSON.stringify(h.config)).toString('base64') };
   let id = 100;
   for (const [wf, runs] of Object.entries(byWorkflow)) {
-    api[`${R}/actions/workflows/${wf}/runs`] = { workflow_runs: runs.map(r => { const n = id++; api[`${R}/actions/runs/${n}/jobs`] = { jobs: r.jobs }; return { id: n }; }) };
+    api[`${R}/actions/workflows/${wf}/runs`] = { workflow_runs: runs.map(r => { const n = id++; api[`${R}/actions/runs/${n}/jobs`] = { jobs: r.jobs }; return { id: n, ...(r.created_at ? { created_at: r.created_at } : {}) }; }) };
   }
   return api;
 }
@@ -141,4 +143,47 @@ test('the read is bounded: it stops once eight runs reached the step', async t =
   assert.match(p.text, /^Budget: tend 2, 2, 2, 2, 2, 2, 2, 2 of 30 min \(last 8: none ran out; shorten to 5\)$/m);
   const jobs = (await readFile(`${gh}.api.log`, 'utf8')).split('\n').filter(l => l.includes('/jobs'));
   assert.equal(jobs.length, 8);
+});
+
+test('a budget changed is judged only by its runs since: raised 15 to 30, three runs that ran out at 15 are not counted', async t => {
+  const at = day => `2026-09-${String(day).padStart(2, "0")}T09:42:00Z`;
+  const runs = [
+    run(3, { created: at(28) }), run(2, { created: at(21) }),
+    run(15, { created: at(14), conclusion: 'cancelled' }), run(14.5, { created: at(7) }), run(15, { created: at(1), conclusion: 'cancelled' }),
+  ];
+  const history = [
+    { sha: 'c3', date: '2026-09-27T10:00:00Z', config: { tend: { budget: { minutes: 30 } }, climb: { jobs: ['test-time'] } } },
+    { sha: 'c2', date: '2026-09-20T10:00:00Z', config: { tend: { budget: { minutes: 30 } } } },
+    { sha: 'c1', date: '2026-08-30T10:00:00Z', config: { tend: { budget: { minutes: 15 } } } },
+    { sha: 'c0', date: '2026-08-01T10:00:00Z', config: { tend: {} } },
+  ];
+  const gh = await ghStub(t, { api: actions({ 'keel-tend.yml': runs }, { history }) });
+  const p = await pageOf(await acme(t, { repo: 'acme/anvils', tend: { budget: { minutes: 30 } } }), gh);
+  assert.match(p.text, /^Budget: tend 3, 2 of 30 min since 2026-09-20 \(last 2 runs; too few to say\)$/m, 'not shorten: the runs at 15 were another budget');
+  const asked = (await readFile(`${gh}.api.log`, 'utf8')).split('\n');
+  assert.ok(asked.includes('repos/acme/anvils/commits?path=.keel/keel.json&sha=main&per_page=30'));
+  assert.deepEqual(asked.filter(l => l.includes('/contents/')).map(l => l.split('ref=')[1]), ['c3', 'c2', 'c1'], 'read until one differs, newest first');
+  assert.equal(asked.filter(l => l.includes('/jobs')).length, 2, 'no run before the since is read');
+
+  // Pure: the same runs with the cutoff passed in, and without it (the bug: they would say shorten).
+  assert.equal(budgetUse(runs, tend, { since: '2026-09-20T10:00:00Z' }).suggestion, 'too few to say');
+  assert.equal(budgetSince(history.map(h => ({ date: h.date, config: h.config })), { key: 'tend' }, 30), '2026-09-20T10:00:00Z');
+  assert.equal(budgetSince(history.slice(0, 2), { key: 'tend' }, 30), null, 'none read differs: no cutoff');
+  assert.equal(budgetSince(history.slice(2), { key: 'tend' }, 15), '2026-08-30T10:00:00Z');
+  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, 30), null, 'a missing budget is the default');
+
+  // Lowered 30 to 15: the long runs before are not counted against 15 either.
+  const lowered = [run(5, { created: at(28) }), run(29, { created: at(14) }), run(30, { created: at(7) }), run(29, { created: at(1) }), run(30, { created: at(1) })];
+  assert.equal(budgetUse(lowered, { ...tend, minutes: 15 }, { since: '2026-09-20T10:00:00Z' }).suggestion, 'too few to say');
+});
+
+test('the budget\'s history unreadable is n/a with why, never every run', async t => {
+  const runs = [run(3), run(2), run(3), run(4)];
+  const noCommits = actions({ 'keel-tend.yml': runs });
+  delete noCommits[`${R}/commits`];
+  const a = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: noCommits }));
+  assert.match(a.text, /^Budget: tend n\/a \(gh api repos\/acme\/anvils\/commits: exit 1, gh: Not Found \(HTTP 404\)\) of 30 min$/m);
+  const noContent = actions({ 'keel-tend.yml': runs }, { history: [{ sha: 'abc1234def', date: '2026-09-20T10:00:00Z', config: null }] });
+  const b = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: noContent }));
+  assert.match(b.text, /^Budget: tend n\/a \(gh api repos\/acme\/anvils\/contents\/\.keel\/keel\.json: exit 1, gh: Not Found \(HTTP 404\)\) of 30 min$/m);
 });

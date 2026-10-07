@@ -123,7 +123,10 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
   runs, *extend* means the agent is often cut off mid-work; *shorten to N*
   means no run used half its budget; *hold* means the budget fits. It never
   changes `budget.minutes` itself: that is money, and you set it. A run that
-  never reached the agent (no secret, nothing picked) is not counted.
+  never reached the agent (no secret, nothing picked, or the agent never
+  started) is not counted, and nor is a run from before you last changed
+  the budget: after a change the entry says `since <date>`, and counts
+  again from there.
 
 ## What it never does
 

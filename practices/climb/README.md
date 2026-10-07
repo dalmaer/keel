@@ -125,8 +125,10 @@ the workflow's runs: the `Climb`, `Tend` or `Review` step's start to end),
 a suggestion against today's budget: *extend* when half or more ran out,
 *shorten to N* when none used more than half (N the most used, rounded up
 to 5), *hold* otherwise, *too few to say* below 4 runs. n/a with why when
-gh cannot read the runs. A suggestion, never a change: `budget.minutes` is
-the owner's to set.
+gh cannot read the runs. Only runs since the budget became today's count
+(read from the commits touching `.keel/keel.json`; the entry says `since
+<date>`), so a raised or lowered budget is judged by its own runs. A
+suggestion, never a change: `budget.minutes` is the owner's to set.
 
 **Config** (`.keel/keel.json`; no `climb`, no climb night):
 
