@@ -5,7 +5,7 @@
 // machine. gh is a stub (KEEL_GH); nothing here reads the live world.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, mkdir, cp, realpath } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir, cp, realpath, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -1261,4 +1261,32 @@ test('guard: only the records its own gate run wrote count; a suite the candidat
   assert.equal(g.status, 1, g.stdout + g.stderr);
   assert.deepEqual(json(g).missing, [{ file: 'web/web.test.mjs', name: 'acme renders', how: 'dropped' }]);
   assert.doesNotMatch(g.stdout, /acme forged/, 'the base is its own gate run, never a handed-back record');
+});
+
+test('worktrees go beside the checkout, so a sibling the setup cloned (ledger\'s ../ledger-data) resolves for the base\'s gate as for the candidate\'s; none is left behind, even on a failure (ledger#95)', async t => {
+  const made = await acme(t, { climb: { jobs: ['test-time'], testCommand: LEDGER_TEST }, files: { 'acme.test.mjs': suite('acme adds') } });
+  // Acme's data, as its setup clones it: a sibling of the checkout.
+  const parent = await mkdtemp(join(tmpdir(), 'keel-climb-sibling-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const dir = join(parent, 'acme');
+  await cp(made, dir, { recursive: true });
+  await write(parent, { 'acme-data/x': 'anvils\n' });
+  const GATE = `node -e "require('fs').readFileSync('../acme-data/x')" && ${LEDGER_TEST}`;
+  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'], testCommand: LEDGER_TEST, build: GATE.replace(LEDGER_TEST, 'node -e "require(\'fs\').mkdirSync(\'dist\',{recursive:true});require(\'fs\').writeFileSync(\'dist/a\',\'a\')"'), buildOutput: 'dist/' }, check: GATE }, null, 2)}\n`);
+  git(dir, ['commit', '-q', '-am', 'acme: the gate reads its data']);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  await commit(dir, { 'acme.test.mjs': `${suite('acme adds')}// shared fixture\n` }, 'acme: a refactor');
+  const leftovers = async () => (await readdir(parent)).filter(n => n.startsWith('.keel-climb-'));
+  // Mutation: worktrees under the OS temp (no ../acme-data there) fail the base's gate, and the guard with it.
+  const g = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(g.status, 0, g.stdout + g.stderr);
+  assert.match(json(g).line, /; 1 tests ran, none dropped or skipped against the base/);
+  assert.deepEqual(await leftovers(), []);
+  const m = await load(dir);
+  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  assert.deepEqual((await m.buildChanges(dir, { config, base, candidate: 'HEAD' })).changes, []);
+  // A build that fails: the error, and still nothing left beside the checkout.
+  await assert.rejects(m.buildChanges(dir, { config: { ...config, climb: { ...config.climb, build: 'node -e "process.exit(3)"' } }, base, candidate: 'HEAD' }), /failed on the base/);
+  assert.deepEqual(await leftovers(), []);
+  assert.equal(git(dir, ['worktree', 'list']).split('\n').length, 1, 'no worktree registered');
 });

@@ -260,3 +260,32 @@ test('the page\'s date is a day and the run\'s: a record dated "../evidence/x" o
   assert.equal(git(dir, ['status', '--porcelain']), '');
   assert.equal(climb(dir, ['tend-page', '--date', '../x', '--json']).status, 2, 'a --date that is not a day');
 });
+
+test('the judge\'s page commit resolves nothing: a proposed loose end (an owner\'s step) stays proposed when the page is the pass\'s only commit (ledger#95)', async t => {
+  const dir = await acme(t);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['switch', '-q', '-c', 'keel-tend/2026-10-12']);
+  json(climb(dir, ['tend-input', '--record', '--date', '2026-10-12', '--json']));
+  // A loose end on the worksheet (keel's, as tend-input lists it): closing an abandoned PR is the owner's.
+  const passFile = join(dir, '.keel/tend/pass.json');
+  const pass = JSON.parse(await readFile(passFile, 'utf8'));
+  pass.worksheet.findings.push({ id: 'loose:pr:7', measure: 'loose-ends', what: 'pr: #7 acme-old → close it: abandoned (gh pr close 7)' });
+  await writeFile(passFile, JSON.stringify(pass));
+  assert.equal(climb(dir, ['tend-note', '--finding', 'loose:pr:7', '--propose', 'Close #7: abandoned since September.']).status, 0);
+  assert.equal(json(climb(dir, ['tend-page', '--base', base, '--date', '2026-10-12', '--json'])).committed, true);
+  assert.match(git(dir, ['log', '-1', '--format=%B']), /\nTend: loose:pr:7\nkeel-tend-page: 2026-10-12$/);
+  assert.equal(json(climb(dir, ['guard', '--job', 'tend', '--base', base, '--json'])).ok, true);
+  // Mutation: counting the page commit's citations reports loose:pr:7 resolved and drops the proposal.
+  const r = json(climb(dir, ['tend-report', '--base', base, '--date', '2026-10-12', '--json']));
+  assert.equal(r.commits, 1, 'the page still opens the PR');
+  assert.deepEqual(r.resolved, []);
+  assert.deepEqual(r.proposed.map(p => p.finding), ['loose:pr:7']);
+  assert.match(r.line, /: resolved 0 of \d+ findings? .*; 1 proposed for the owner;/);
+  // The agent cannot pass a fix off as the page: a commit with the page's subject and trailer that changes more cites as any.
+  const { tendCommits } = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  git(dir, ['switch', '-q', '-c', 'forged', base]);
+  await writeFile(join(dir, 'README.md'), '# Acme\n');
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'keel tend: 2026-10-12, 1 proposal for the owner\n\nTend: loose:pr:7\nkeel-tend-page: 2026-10-12']);
+  assert.deepEqual(tendCommits(dir, base).map(c => [c.cites, c.page ?? false]), [[['loose:pr:7'], false]]);
+});

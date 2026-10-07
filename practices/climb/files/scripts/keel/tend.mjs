@@ -464,11 +464,29 @@ export async function tendGuard({ root, config, env = process.env, base, check =
 
 // ---- the report -------------------------------------------------------------------
 
-/** The commits since the base, each with the findings it cites: [{ sha, subject, cites }]. */
+/** The trailer tend-page's commit carries: the judge's page, not a fix. */
+export const PAGE_TRAILER = 'keel-tend-page';
+const PAGE_SUBJECT = /^keel tend: (\d{4}-\d{2}-\d{2}), \d+ proposals? for the owner$/;
+
+/**
+ * The commits since the base, each with the findings it cites: [{ sha,
+ * subject, cites, page? }]. The judge's own page commit (tend-page's: its
+ * subject, its trailer naming the date, and nothing changed but that date's
+ * page) cites what it proposes so the guard accepts it, but it resolves
+ * nothing: it is marked `page` and its cites are not counted (ledger#95: a
+ * proposed loose end, an owner's step, was reported resolved and dropped).
+ */
 export function tendCommits(root, base, head = 'HEAD') {
   return git(root, ['log', '--reverse', '--format=%H%x00%B%x01', `${base}..${head}`]).split('\x01').map(s => s.trim()).filter(Boolean).map(c => {
     const [id, body] = c.split('\x00');
-    return { sha: id, subject: (body ?? '').split('\n')[0], cites: [...(body ?? '').matchAll(CITE)].map(m => m[1]) };
+    const subject = (body ?? '').split('\n')[0];
+    const cites = [...(body ?? '').matchAll(CITE)].map(m => m[1]);
+    const day = PAGE_SUBJECT.exec(subject)?.[1];
+    if (day && new RegExp(`^${PAGE_TRAILER}: ${day}$`, 'm').test(body ?? '')) {
+      const files = git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', id]).split('\n').filter(Boolean);
+      if (files.length === 1 && files[0] === proposalsPageOf(day)) return { sha: id, subject, cites: [], page: true };
+    }
+    return { sha: id, subject, cites };
   });
 }
 
@@ -631,7 +649,7 @@ export async function tendPage({ root, input, base, date }) {
   if (git(root, ['status', '--porcelain', '--', page])) {
     git(root, ['add', '--', page]);
     const cites = [...new Set(proposed.map(p => p.finding))].map(f => `Tend: ${f}`).join('\n');
-    git(root, ['commit', '-q', '-m', `keel tend: ${day}, ${plural(proposed.length, 'proposal')} for the owner\n\n${cites}`, '--', page]);
+    git(root, ['commit', '-q', '-m', `keel tend: ${day}, ${plural(proposed.length, 'proposal')} for the owner\n\n${cites}\n${PAGE_TRAILER}: ${day}`, '--', page]);
     committed = true;
   }
   return { page, committed, proposed: proposed.length };

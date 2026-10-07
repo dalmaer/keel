@@ -30,9 +30,13 @@ PR are the script's:
 - `measure <job> [--baseline]` is the job's number: median and spread over k
   runs. `--baseline` opens the night's record (`.keel/climb/night.json`).
 - `compare` runs base and candidate alternately, in worktrees outside the
-  repo (each sharing the tree's installs: the root's `node_modules` and each
-  app or workspace folder's own, as `web/`'s), for two rounds or more, and keeps a change only when it beats the
-  base by the margin in every round. `--decide` acts on it: the numbers go
+  repo but beside it (a hidden `.keel-climb-*` folder in the checkout's
+  parent, removed after, so a sibling the setup cloned, as ledger's
+  `../ledger-data`, resolves as it does from the checkout; the guard's,
+  prove-steady's and the build's worktrees too) and each sharing the tree's
+  installs (the root's `node_modules` and each app or workspace folder's
+  own, as `web/`'s), for two rounds or more, and keeps a change only when it
+  beats the base by the margin in every round. `--decide` acts on it: the numbers go
   into the commit, or the branch resets to the base.
 - `prove-steady --test "<file>: <name>" [--runs n] [--decide]` judges a
   hygiene fix: the one test, n times (default 20, at most 50) on one clean

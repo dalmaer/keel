@@ -73,9 +73,8 @@ import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat } from 
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { join, resolve, isAbsolute, normalize, sep } from 'node:path';
+import { join, resolve, dirname, isAbsolute, normalize, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
@@ -531,6 +530,25 @@ export async function packageDirs(root) {
   return out;
 }
 
+/**
+ * A worktree of `ref` beside the checkout: the same parent directory, under a
+ * unique hidden name, so a path the project reaches as a sibling resolves as
+ * it does from the checkout (ledger's gate reads ../ledger-data, which its
+ * setup clones beside it; under the OS temp it would be missing, ledger#95).
+ * dropWorktree removes it, on every path.
+ */
+async function siblingWorktree(root, ref, tag) {
+  const dir = await mkdtemp(join(dirname(resolve(root)), `.keel-climb-${tag}-`));
+  try { await worktree(root, dir, ref); } catch (e) { await dropWorktree(root, dir); throw e; }
+  return dir;
+}
+async function dropWorktree(root, dir) {
+  if (!dir) return;
+  git(root, ['worktree', 'remove', '--force', dir], { allowFail: true });
+  git(root, ['worktree', 'prune'], { allowFail: true });
+  await rm(dir, { recursive: true, force: true });
+}
+
 async function worktree(root, dir, ref) {
   git(root, ['worktree', 'add', '--detach', '--quiet', dir, ref]);
   // The candidate adds no dependency (protocol rule 4; the sandbox refuses an
@@ -546,20 +564,19 @@ async function worktree(root, dir, ref) {
 /**
  * Base and candidate, alternately, `rounds` times (two or more: one round is
  * noise), each side `runs` runs per round. Keep only when the candidate beats
- * the base by the margin in every round. Worktrees go under the OS temp
- * directory, outside the repo's tree, and are removed after.
+ * the base by the margin in every round. Worktrees go beside the checkout
+ * (siblingWorktree), outside the repo's tree, and are removed after.
  */
 export async function compareRefs({ root, config, env, base, candidate, rounds = DEFAULTS.rounds, runs = DEFAULTS.compareRuns, margin, job }) {
   if (!Number.isInteger(rounds) || rounds < 2) throw new ClimbError('compare needs two alternated rounds or more: one round is noise, not a gain');
   if (!Number.isInteger(runs) || runs < 1) throw new ClimbError('--runs must be a whole number, 1 or more');
   const shas = { base: sha(root, base), candidate: sha(root, candidate) };
   if (shas.base === shas.candidate) return { ...shas, same: true, rounds: [], verdict: 'same', why: 'base and candidate are the same commit' };
-  const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-'));
-  const dirs = { base: join(tmp, 'base'), candidate: join(tmp, 'candidate') };
+  const dirs = {};
   const out = [];
   try {
-    await worktree(root, dirs.base, shas.base);
-    await worktree(root, dirs.candidate, shas.candidate);
+    dirs.base = await siblingWorktree(root, shas.base, 'base');
+    dirs.candidate = await siblingWorktree(root, shas.candidate, 'candidate');
     for (let r = 0; r < rounds; r++) {
       const m = {};
       // Alternate who goes first, so neither side always runs on a warmer machine.
@@ -567,9 +584,7 @@ export async function compareRefs({ root, config, env, base, candidate, rounds =
       out.push({ round: r + 1, base: m.base.median, candidate: m.candidate.median, baseSpread: m.base.spread, candidateSpread: m.candidate.spread, change: m.candidate.median / m.base.median - 1 });
     }
   } finally {
-    for (const d of Object.values(dirs)) git(root, ['worktree', 'remove', '--force', d], { allowFail: true });
-    git(root, ['worktree', 'prune'], { allowFail: true });
-    await rm(tmp, { recursive: true, force: true });
+    for (const d of Object.values(dirs)) await dropWorktree(root, d);
   }
   // Which way is better is the job's (perf's, the config's): a flipped direction keeps the wrong change.
   const better = betterOf(job, config) === 'lower' ? x => x.change <= -margin : x => x.change >= margin;
@@ -797,13 +812,11 @@ const nightTestFiles = (night, extra = []) => [...(night?.flaky ?? []).map(t => 
  * test that never ran (a wrong name) cannot be told, and says so (exit 2).
  */
 export async function steadyIn(root, { config, env = process.env, candidate, test: t, runs }) {
-  const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-steady-'));
-  const dir = join(tmp, 'candidate');
   const preload = await preloadsOf(root, config);
   const pattern = `^${t.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
-  let ran = 0, firstFail = null;
+  let ran = 0, firstFail = null, dir = null;
   try {
-    await worktree(root, dir, candidate);
+    dir = await siblingWorktree(root, candidate, 'steady');
     if (!existsSync(join(dir, 'scripts/keel/test-ledger.mjs'))) throw new ClimbError('prove-steady runs the test through scripts/keel/test-ledger.mjs, and the candidate has none (the night practice ships it)');
     if (!existsSync(join(dir, t.file))) throw new ClimbError(`${t.file} is not in ${candidate.slice(0, 7)}: --test names the ledger's file, from the repo's root`);
     if (git(dir, ['status', '--porcelain', '--untracked-files=no'])) throw new ClimbError('the candidate\'s worktree is not clean');
@@ -823,9 +836,7 @@ export async function steadyIn(root, { config, env = process.env, candidate, tes
     const tree = git(dir, ['rev-parse', 'HEAD^{tree}']);
     return { test: t, candidate, tree, runs, ran, passed, failed, steady: passed === runs && failed === 0, firstFail, preload };
   } finally {
-    git(root, ['worktree', 'remove', '--force', dir], { allowFail: true });
-    git(root, ['worktree', 'prune'], { allowFail: true });
-    await rm(tmp, { recursive: true, force: true });
+    await dropWorktree(root, dir);
   }
 }
 
@@ -901,21 +912,18 @@ export function outputChanges(base, candidate) {
 export async function buildChanges(root, { config, env = process.env, base, candidate }) {
   const c = climbConfigOf(config);
   if (!c?.build || !c?.buildOutput) throw new ClimbError('the build-time guard needs "climb".build and "climb".buildOutput');
-  const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-build-'));
-  const hashes = {};
+  const hashes = {}, dirs = [];
   try {
     for (const [side, ref] of [['base', base], ['candidate', candidate]]) {
-      const dir = join(tmp, side);
-      await worktree(root, dir, ref);
+      const dir = await siblingWorktree(root, ref, `build-${side}`);
+      dirs.push(dir);
       const r = spawnSync(c.build, { cwd: dir, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
       if (r.error || r.status !== 0) throw new ClimbError(`\`${c.build}\` failed on the ${side} ${ref.slice(0, 7)} (exit ${r.status ?? r.error?.message}): the guard has no output to compare`);
       hashes[side] = await hashOutput(dir, c.buildOutput);
       if (!hashes[side]) throw new ClimbError(`\`${c.build}\` wrote nothing at ${c.buildOutput} on the ${side} ${ref.slice(0, 7)}: is "climb".buildOutput what the build writes?`);
     }
   } finally {
-    for (const side of ['base', 'candidate']) git(root, ['worktree', 'remove', '--force', join(tmp, side)], { allowFail: true });
-    git(root, ['worktree', 'prune'], { allowFail: true });
-    await rm(tmp, { recursive: true, force: true });
+    for (const d of dirs) await dropWorktree(root, d);
   }
   return { output: c.buildOutput, files: hashes.candidate.size, changes: outputChanges(hashes.base, hashes.candidate) };
 }
@@ -1263,20 +1271,17 @@ export async function guard({ root, config, env = process.env, base, job }) {
   if (r.status !== 0) return { ok: false, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
   const cand = ranOn(r.runs, head);
   if (!cand) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for ${head.slice(0, 7)}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
-  // The base's names, from the base's own gate, run now in a worktree outside
-  // the tree: never a record read from the ledger, which the agent's job hands back.
-  let baseRun = null;
-  const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-guard-'));
-  const dir = join(tmp, 'base');
+  // The base's names, from the base's own gate, run now in a worktree beside
+  // the tree (its siblings resolve as the checkout's): never a record read
+  // from the ledger, which the agent's job hands back.
+  let baseRun = null, dir = null;
   try {
-    await worktree(root, dir, b);
+    dir = await siblingWorktree(root, b, 'guard');
     const t = await gateRun(dir, gate, { env, config });
     if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
     baseRun = ranOn(t.runs, b);
   } finally {
-    git(root, ['worktree', 'remove', '--force', dir], { allowFail: true });
-    git(root, ['worktree', 'prune'], { allowFail: true });
-    await rm(tmp, { recursive: true, force: true });
+    await dropWorktree(root, dir);
   }
   if (!baseRun) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate recorded no test ledger run: guard cannot tell a dropped test without one`);
   const missing = missingTests(baseRun, cand);
