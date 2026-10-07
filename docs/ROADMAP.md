@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**0 of 41 phases lived in; 32 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
+**0 of 42 phases lived in; 32 built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.
 
 **Next focus:** [10. Each project is looked after overnight, and nothing lands unread](phases/10-the-night-shift.md). Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
 
@@ -51,7 +51,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-9/10 built or lived-in; 0/10 lived-in.
+9/11 built or lived-in; 0/11 lived-in.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -65,6 +65,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [28. A Loop finding can belong to a project, not only a phase](phases/28-loop-findings-name-a-project.md) | built | 2026-10-05 | [14](phases/14-stitch-loop.md) | From isocan: a Loop finding can name its project and LOOP.md groups by project; its hedge rule (loop.hedge) and model proving on pull (loop.prove + ANTHROPIC_API_KEY) came too, opt-in. isocan's 85 findings render to its own page byte for byte. |
 | [29. keel takes what isocan learned about lanes, tables and workflows](phases/29-adopt-reads-what-is-there.md) | built | 2026-10-05 | [4](phases/04-keel-adopt.md), [5](phases/05-managed-files-and-drift.md) | From isocan: renovate.json disables a project's own workspace packages and takes its timezone; doctor names prose between rows, a second header and a stranded row; adopt calls a claude workflow local only when a mention starts it. isocan's rendered renovate.json keeps every rule of its own. |
 | [39. Every PR keel opens can be judged in a minute: a picture, its evidence, its merge danger](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | partial | 2026-10-06 | [6](phases/06-update-and-migrations.md), [22](phases/22-practice-version.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built: scripts/keel/pr-body.mjs writes Summary, Evidence, Merge danger for keel update / fleet update PRs and the night's data PR; an update whose migration rewrote project files is a one-way door. Waits on its real PRs: the night's on GitHub (after the commit) and an adopted project's update at the fleet release. · [#17](https://github.com/dalmaer/keel/issues/17) |
+| [41. No PR keel merges has an unread review: every comment is answered and closed first](phases/41-no-pr-keel-merges-has-an-unread-review-every.md) | planned | 2026-10-06 | [6](phases/06-update-and-migrations.md), [10](phases/10-the-night-shift.md), [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | After the v0.8.0 update PRs merged on green CI with 13 unread Codex comments (10 valid findings, one P1): keel review reads every thread, merges wait for the named reviewer, every keel merge path refuses while a thread is open, and each thread closes as fixed, tracked or not valid with a reply. Design: research/2026-10-06-review-gate.md. · [#23](https://github.com/dalmaer/keel/issues/23) |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
@@ -76,6 +77,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 - **28 done when:** Rendering isocan's `docs/loop/` with keel's `scripts/loop.mjs` gives isocan's own `docs/LOOP.md` with only the generated-by line and wording from `.keel/keel.json` `loop` differing, so isocan can take keel's script.
 - **29 done when:** isocan can take keel's `renovate.json` without losing a rule, `keel doctor` names every way a lessons table can split, and `keel adopt` calls a project's claude workflow local only when it answers mentions.
 - **39 done when:** Every PR keel opens (fleet update, the night's data PR, and the climb and tend PRs when they exist) has a body built by `scripts/keel/pr-body.mjs` with three sections in order (Summary as a picture, Evidence as before and after, Merge danger as a two-way or one-way door with its blast radius), and a real fleet update PR in an adopted project reads that way.
+- **41 done when:** `keel review` reads a PR's review threads and reviews deterministically; keel's merge paths (fleet update, drain, the conductor's merge step) wait for each named reviewer and refuse to merge while a thread is open; every thread is closed with a reply that says fixed (naming the commit), tracked (naming where) or not valid (saying why); and the next fleet release merges with every reviewer comment answered.
 
 ## G3 — Lessons come home
 
