@@ -31,8 +31,13 @@ ours, not Loop's** (`now`, `next`, `later`, `never`; Loop's P/S rank is kept in
   stale page and on a broken finding, including a proposal or decision with
   no read of the code.
 - `prove [slug]` hands each untriaged finding (or the one named) to a bounded
-  `claude -p` run (25 turns, Bash and Read, five minutes) that reads the cited
-  code and runs `propose`; it never decides or pushes. `pull` does the same
+  `claude -p` run (25 turns, five minutes) that only reads: tools Read, Grep
+  and Glob, permission mode `dontAsk` (never a bypass), and an environment of
+  `PATH`, `HOME`, `LANG` and `ANTHROPIC_API_KEY` alone, so no other secret in
+  the caller's environment reaches it. The finding's body is fenced and
+  labelled as data, never instructions. The model answers with its proposal
+  as JSON, and `loop.mjs` records it through its own `propose` and its checks;
+  the model never runs a command, decides or pushes. `pull` does the same
   after filing, unless `--no-prove`. Off unless `.keel/keel.json` `"loop"
   "prove": true` **and** `ANTHROPIC_API_KEY` is set (as isocan keys it); the
   harness is `CLAUDE_BIN` or `claude`. Otherwise it skips and says so once. A

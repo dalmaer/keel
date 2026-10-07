@@ -52,12 +52,13 @@ test('the health page says what the newest climb night kept and its PR, or that 
   assert.equal(climbLine({ climb: {} }, { job: 'test-time', date: '2026-10-06', tried: tried('keep') }), 'Climb: 2026-10-06 test-time: kept 1, no PR opened (the guard did not pass).');
 });
 
-/** A gh that answers `pr list --state closed` with these PRs (and fails anything else). */
+/** A gh that answers `pr list --state all` with these PRs, `--state closed` with those not OPEN (as gh does), and fails anything else. */
 async function closedGh(t, prs, { fail = false } = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-improve-climb-gh-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const gh = join(dir, 'gh');
-  await writeFile(gh, `#!/bin/sh\nif [ "$1 $2" = "pr list" ] && [ ${fail ? 1 : 0} = 0 ]; then echo '${JSON.stringify(prs)}'; exit 0; fi\necho "gh: acme is unreachable" >&2\nexit 1\n`, { mode: 0o755 });
+  const shut = prs.filter(p => p.state !== 'OPEN');
+  await writeFile(gh, `#!/bin/sh\nif [ ${fail ? 1 : 0} = 0 ] && [ "$1 $2" = "pr list" ]; then\ncase "$*" in\n*"--state all"*) echo '${JSON.stringify(prs)}'; exit 0;;\n*"--state closed"*) echo '${JSON.stringify(shut)}'; exit 0;;\nesac\nfi\necho "gh: acme is unreachable" >&2\nexit 1\n`, { mode: 0o755 });
   return gh;
 }
 
@@ -75,7 +76,12 @@ test('the health page says when a climb job proposes its own retirement: its las
   assert.doesNotMatch(three.text, /`hygiene` proposes/);
   assert.equal(three.data.retire.length, 1);
   assert.doesNotMatch((await at([pr(1, 'test-time'), pr(2, 'test-time', true), pr(3, 'test-time')])).text, /proposes its own retirement/, 'one merged: no retirement');
-  assert.match((await at([], { fail: true })).text, /^Climb: whether a job should retire is unread tonight \(gh pr list --state closed: exit 1\)\.$/m, 'unread is said, never red');
+  // Every state, newest three by creation: closed, merged, closed, closed is not retiring; an open newest one is not either.
+  const st = (n, state) => ({ ...pr(n, 'test-time', state === 'MERGED'), state });
+  assert.doesNotMatch((await at([st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'MERGED'), st(4, 'CLOSED')])).text, /proposes its own retirement/, 'closed, merged, closed, closed');
+  assert.doesNotMatch((await at([st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'CLOSED'), st(4, 'OPEN')])).text, /proposes its own retirement/, 'the newest is open: the closed list alone would retire it');
+  assert.match((await at([st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'CLOSED'), st(4, 'MERGED')].slice(0, 3))).text, /proposes its own retirement/);
+  assert.match((await at([], { fail: true })).text, /^Climb: whether a job should retire is unread tonight \(gh pr list --state all: exit 1\)\.$/m, 'unread is said, never red');
   // No repo, or climb off: no line and no gh.
   assert.deepEqual((await pageOf(await acme(t))).data.retire, []);
 });

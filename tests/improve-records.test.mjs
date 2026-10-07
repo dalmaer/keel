@@ -128,8 +128,10 @@ test('the parsers: phase sections, front matter, the disagreements, the gaps, th
     p('c', 'built', '## Phase 1\n**Status: CLOSED.**\n## Phase 2\n**Status: DONE.**\n'),
     p('d', 'partial', '## Phase 1\nnothing\n'),
   ]).map(f => f.project), ['a', 'b'], 'only vocabulary words are judged');
-  assert.deepEqual(statusUnknown([p('e', null, '## Phase 1\nx\n## Phase 2\ny\n'), p('f', null, '## Phase 1\n**Status: CLOSED.**\n## Phase 2\nnone\n')]).map(f => f.path), ['docs/projects/e/phases.md'],
-    'a file with some Status lines is read; one with none at all is one finding');
+  const unknown = statusUnknown([p('e', null, '## Phase 1\nx\n## Phase 2\ny\n'), p('f', null, '## Phase 1\n**Status: CLOSED.**\n## Phase 2\nnone\n## Phase 3\nnor here\n')]);
+  assert.deepEqual(unknown.map(f => f.path), ['docs/projects/e/phases.md', 'docs/projects/f/phases.md:3', 'docs/projects/f/phases.md:5'],
+    'a file with no Status line at all is one finding; in a file with some, each phase without one is its own');
+  assert.deepEqual(unknown.slice(1).map(f => f.detail), ['f phase 2 has no Status line', 'f phase 3 has no Status line']);
   const gaps = changelogGaps({ commits: new Map([['2026-03-28', 2], ['2026-03-31', 1], ['2026-02-01', 9]]), pages: new Map([['2026-03-29', '<!-- draft -->']]), day: DATE });
   assert.deepEqual(gaps.map(g => g.day), ['2026-03-28', '2026-03-29'], 'outside the window and today are not owed');
   assert.deepEqual([...issuesNamed('see #3, a&#4; x#5\nissue: 6\n[it](https://github.com/a/b/issues/7)')].sort((a, b) => a - b), [3, 6, 7]);

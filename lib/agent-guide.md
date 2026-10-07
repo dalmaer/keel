@@ -524,7 +524,8 @@ first, a model's opinion never: every number comes from a command.
   `records_disagree` (docs/projects front matter `built` with a phase open,
   or `partial`/`designed` with every phase CLOSED or RETIRED);
   `status_unknown` (a Status word outside CLOSED, PART-DONE, NOT STARTED,
-  RETIRED, or a phases.md with phase headings and no Status line at all);
+  RETIRED, a phase with no Status line where others have one, or a
+  phases.md with phase headings and no Status line at all);
   `changelog_gaps` (days in the last 30 with commits on main and no
   `docs/changelog/<date>.md`, or one still holding `<!-- draft -->`; git, or
   `KEEL_GIT`); `research_unindexed` (notes in `docs/research/` its README does

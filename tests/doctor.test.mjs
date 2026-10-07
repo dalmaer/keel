@@ -9,7 +9,7 @@ import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, lstat, readlink, real
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lineDiff, blockBody, lessonsTableShapes } from '../lib/doctor.mjs';
+import { lineDiff, blockBody, lessonsTableShapes, runsTest, globRegex } from '../lib/doctor.mjs';
 import { lessonsTableSplit, setupEnvProblems } from '../practices/night/files/scripts/keel/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
@@ -355,6 +355,30 @@ test('health-ignored: a health dir the project git-ignores is a finding, naming 
   // Without the night and without a setting, an ignored docs/health is none of keel's business.
   await setCfg({ practices: cfg.practices.filter(p => p !== 'night') });
   assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')));
+});
+
+test('shipped-test-unrun: a test keel ships that the gate\'s node --test never matches is a finding; a glob or a directory that matches it is not', async t => {
+  const dir = await project(t);
+  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), 'keel init\'s own script runs them');
+  const pkgPath = join(dir, 'package.json');
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
+  const setTest = async script => writeFile(pkgPath, `${JSON.stringify({ ...pkg, scripts: { ...pkg.scripts, test: script } }, null, 2)}\n`);
+  // Acme's own glob names .js files and the roadmap test alone (the shape a review found on a real project).
+  await setTest('node --test --test-reporter=spec --test-reporter-destination=stdout tests/*.test.js tests/roadmap.test.mjs');
+  const found = doctor(dir).data.lint.filter(l => l.rule === 'shipped-test-unrun');
+  assert.deepEqual(found.map(l => l.path), ['tests/keel-generated.test.mjs', 'tests/keel-workflows.test.mjs'], 'phases\' test and ci\'s, not the roadmap test it names');
+  assert.match(found[0].message, /keel ships tests\/keel-generated\.test\.mjs, and the gate .* never runs it.*migration 0005/);
+  for (const ok of ['node --test', 'node --test tests/', 'node --test "tests/**/*.test.{js,mjs}"', 'node --import ./tests/helpers/acme.mjs --test tests/*.test.mjs']) {
+    await setTest(ok);
+    assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), ok);
+  }
+  await setTest('vitest run');
+  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), 'another runner: keel cannot tell, so it does not say');
+  assert.equal(runsTest('node --test tests/*.test.js tests/roadmap.test.mjs', 'tests/keel-generated.test.mjs'), false);
+  assert.equal(runsTest('node --import ./tests/helpers/acme.mjs --test', 'tests/keel-generated.test.mjs'), true, 'a flag\'s value is not a path: this names none, so node\'s default runs it');
+  assert.equal(runsTest('npm run unit', 'tests/a.test.mjs'), null);
+  assert.ok(globRegex('tests/**/*.test.mjs').test('tests/a.test.mjs') && globRegex('tests/**/*.test.mjs').test('tests/x/a.test.mjs'));
+  assert.ok(!globRegex('tests/*.test.js').test('tests/a.test.mjs'));
 });
 
 test('a phase without Done when and a goal without a phase are linted', async t => {

@@ -127,7 +127,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "f2e64356a23f998d603a57f08cfc06e2e9795add0db4bdbb7a70c1c1f81e60fb"
+      "sha256": "483c9a2bfe00f5d836e02b1e02e9cc192a508bfcc71d0159328d24f41787a37f"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -143,11 +143,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "abdd9911552fdf1bdaa4557fc9231bd1eb1e453d0b848f6f7e518cd4f59f59a3"
+      "sha256": "cb29a125543c254390f692c39f519c2933c3f8af8bf2caa9b3c82f20563ca8a8"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "c165ba0f1f5a929fcef4f7abf5133d4a4c3993870c2056582f9e702a93f2abc7"
+      "sha256": "22357ceded829716dbf7bccfeeb9c1f2dcf74712e78b7fcbc2d285be49cde3ec"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -163,7 +163,7 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "2ad01318263684d00d7babd7be70a98a7a412ca74a0b9eb04eb3fdf2f7670bf0"
+      "sha256": "074011638cea59897951d6a8e0cb2068015e1b935790ff9739e3f7c0299e7f32"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

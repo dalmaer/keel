@@ -59,15 +59,17 @@ const load = dir => import(pathToFileURL(join(dir, 'scripts/keel/climb.mjs')).hr
 
 /**
  * A stub gh: `pr list --state open` prints these open heads (or exits 1 when
- * `heads` is null); `pr list --state closed` prints `closed`
- * ([{ headRefName, number, createdAt, mergedAt }]).
+ * `heads` is null); `pr list --state all` prints `closed` (every state:
+ * [{ headRefName, number, createdAt, mergedAt, state? }]); `--state closed`
+ * prints only those whose state is CLOSED or MERGED, as gh does.
  */
 async function stubGh(t, heads, closed = []) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-climb-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const gh = join(dir, 'gh');
   const open = heads === null ? 'echo "gh: acme is unreachable" >&2\nexit 1' : `echo '${JSON.stringify(heads.map(h => ({ headRefName: h })))}'\nexit 0`;
-  await writeFile(gh, `#!/bin/sh\nif [ "$1 $2 $3 $4" = "pr list --state closed" ]; then\necho '${JSON.stringify(closed)}'\nexit 0\nfi\nif [ "$1 $2" = "pr list" ]; then\n${open}\nfi\nexit 1\n`, { mode: 0o755 });
+  const shut = closed.filter(p => p.state !== 'OPEN');
+  await writeFile(gh, `#!/bin/sh\nif [ "$1 $2 $3 $4" = "pr list --state all" ]; then\necho '${JSON.stringify(closed)}'\nexit 0\nfi\nif [ "$1 $2 $3 $4" = "pr list --state closed" ]; then\necho '${JSON.stringify(shut)}'\nexit 0\nfi\nif [ "$1 $2" = "pr list" ]; then\n${open}\nfi\nexit 1\n`, { mode: 0o755 });
   return gh;
 }
 
@@ -404,6 +406,17 @@ test('retirement: a job whose last three PRs were closed unmerged is skipped by 
   // Reopened: the PR is open, so the job waits for the person, and is not retired.
   const reopened = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, ['keel-climb/test-time/2026-10-03'], three.slice(0, 2)) }));
   assert.deepEqual([reopened.job, reopened.waiting, reopened.retiring], [null, ['test-time'], []]);
+
+  // gh's every-state list: the newest three by creation, counting closed-unmerged only.
+  const st = (n, state) => ({ ...pr(n, 'test-time', state === 'MERGED'), state });
+  assert.deepEqual(climbRetiring([st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'MERGED'), st(4, 'CLOSED')], ['test-time']), [], 'closed, merged, closed, closed (newest first): the merge breaks the streak');
+  assert.deepEqual(climbRetiring([st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'CLOSED'), st(4, 'OPEN')], ['test-time']), [], 'an open one is the newest: not retiring');
+  assert.deepEqual(climbRetiring([st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'CLOSED')], ['test-time']).map(r => r.prs), [[3, 2, 1]]);
+  // pick asks for every state: a newest PR that is open (build-time's only job here) is not three closed in a row.
+  // (Mutation: pick reading --state closed sees only the three closed and retires the job.)
+  const withOpen = [st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'CLOSED'), { ...st(4, 'OPEN'), headRefName: 'keel-climb/test-time/2026-10-04' }];
+  const mixed = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, [], withOpen) }));
+  assert.deepEqual(mixed.retiring, [], JSON.stringify(mixed));
 });
 
 /** A flaky test with a timeout, as a person might first write it. */

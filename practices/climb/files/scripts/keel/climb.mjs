@@ -359,8 +359,8 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
   if (c.schedule === 'weekly' && !force && day !== WEEKLY_DAY) return { job: null, date, reason: 'not tonight: climb is weekly, on Mondays (UTC)' };
   const waiting = waitingJobs(openHeads(root, env));
-  // Three closed unmerged in a row: the job proposes its own retirement (the health page says so) and waits for the owner.
-  const retired = climbRetiring(ghPrs(root, env, 'closed', 'headRefName,number,createdAt,mergedAt'), c.jobs);
+  // Three closed unmerged in a row (newest three of every state: a merge or an open one breaks it): the job proposes its own retirement (the health page says so) and waits for the owner.
+  const retired = climbRetiring(ghPrs(root, env, 'all', 'headRefName,number,createdAt,mergedAt,state'), c.jobs);
   const retiring = new Set(retired.map(r => r.job));
   const health = await newestHealth(root, config);
   const last = (await readJson(join(root, STATE)))?.last?.job ?? null;

@@ -36,8 +36,8 @@ async function mutant(t, from, to) {
 const MACHINE = { os: 'linux', arch: 'x64', cpus: 4 };
 let clock = 0;
 /** One synthetic run: { tree, dirty, machine, tests: { name: [outcome, ms] } }. */
-const runOf = ({ tree = 'acmetree1', dirty = false, machine = MACHINE, tests }) => ({
-  commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0',
+const runOf = ({ tree = 'acmetree1', dirty = false, machine = MACHINE, config = 'acmeconfig01', filtered, tests }) => ({
+  commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', config, ...(filtered ? { filtered } : {}),
   date: new Date(Date.UTC(2026, 9, 1) + (clock++) * 60_000).toISOString(),
   tests: Object.entries(tests).map(([name, [outcome, ms]]) => ({ file: 'tests/anvils.test.mjs', name, outcome, ms })),
 });
@@ -159,6 +159,95 @@ test('a run that executed no test fails, "no tests ran" (an empty file is the fi
   assert.equal(empty().status, 0, 'the mutant lets a run of nothing pass: the assertion above is what catches it');
 });
 
+test('an empty describe() is a suite, not a test: a file of only that ran nothing (mutation: counting suites lets it pass)', async t => {
+  const { dir } = await acmeRepo(t);
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), "import { describe } from 'node:test';\ndescribe('anvils, someday', () => {});\n");
+  const empty = () => run(process.execPath, ['--test', ...WITH, 'tests/empty.test.mjs'], { cwd: dir, env: { ...process.env } });
+  const r = empty();
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /no tests ran/);
+  // A test inside a describe is a test: the run passes.
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), "import { describe, test } from 'node:test';\ndescribe('anvils', () => { describe('heavy', () => { test('drops', () => {}); }); });\n");
+  const nested = empty();
+  assert.equal(nested.status, 0, nested.stdout);
+  assert.doesNotMatch(nested.stdout, /no tests ran/);
+  const text = await readFile(SOURCE, 'utf8');
+  const target = " && e.data?.details?.type === 'test'";
+  assert.ok(text.includes(target));
+  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), text.replace(target, ''));
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), "import { describe } from 'node:test';\ndescribe('anvils, someday', () => {});\n");
+  assert.equal(empty().status, 0, 'the mutant counts the suite: the assertion above is what catches it');
+});
+
+test('dirty: an untracked file in keel\'s machine directories, or an ignored one, leaves the tree clean; one in src/ dirties it (mutation: excluding only test-runs)', async t => {
+  const { dir } = await acmeRepo(t);
+  const lastDirty = async () => { nodeTest(dir, WITH); return (await readRuns(dir)).runs.at(-1).dirty; };
+  for (const d of ['.keel/tend', '.keel/climb']) {
+    await mkdir(join(dir, d), { recursive: true });
+    await writeFile(join(dir, d, 'pass.json'), '{}\n');
+  }
+  await writeFile(join(dir, 'out-acme.txt'), 'ignored\n');
+  assert.equal(await lastDirty(), false, 'the night\'s own gathered files are not the code moving');
+  const text = await readFile(SOURCE, 'utf8');
+  const target = "export const MACHINE_DIRS = Object.freeze([RUNS, '.keel/climb', '.keel/tend']);";
+  assert.ok(text.includes(target));
+  // The mutant lives outside the repo, so it does not dirty the tree itself.
+  const outside = join(await scratch(t, 'keel-ledger-mutant-'), 'test-ledger.mjs');
+  await writeFile(outside, text.replace(target, 'export const MACHINE_DIRS = Object.freeze([RUNS]);'));
+  nodeTest(dir, ['--test-reporter=spec', '--test-reporter-destination=stdout', `--test-reporter=${outside}`, '--test-reporter-destination=stdout']);
+  assert.equal((await readRuns(dir)).runs.at(-1).dirty, true, 'the mutant calls .keel/tend dirty: the assertion above catches it');
+  await mkdir(join(dir, 'src'), { recursive: true });
+  await writeFile(join(dir, 'src', 'anvil.mjs'), 'export {};\n');
+  assert.equal(await lastDirty(), true, 'an untracked source file is a dirty tree');
+});
+
+test('the run\'s config is recorded: one test passing under one configEnv value and failing under another on one clean tree is not flaky; twice under one is', async t => {
+  const { dir, git } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_FAIL'] } }));
+  git('add', '-A'); git('commit', '-qm', 'config');
+  nodeTest(dir, WITH);
+  const other = nodeTest(dir, WITH, { ACME_FAIL: '1' });
+  assert.equal(other.status, 1);
+  assert.match(other.stdout, /keel test ledger: no flaky or slower test/, 'a fail under another config is not a flake');
+  const { runs } = await readRuns(dir);
+  assert.notEqual(runs[0].config, runs[1].config);
+  assert.match(runs[0].config, /^[0-9a-f]{12}$/);
+  // The same config twice, both outcomes: flaky. Here the toggle is not named, so both runs share one config.
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: {} }));
+  git('add', '-A'); git('commit', '-qm', 'unnamed');
+  nodeTest(dir, WITH);
+  const flakyRun = nodeTest(dir, WITH, { ACME_FAIL: '1' });
+  assert.match(flakyRun.stdout, /flaky {3}tests\/acme\.test\.mjs "the roadrunner is caught": passed 1, failed 1/);
+});
+
+test('a narrowed run is recorded as filtered, so a test it left out is not taken for renamed; a run in Actions records its workflow', async t => {
+  const { dir } = await acmeRepo(t);
+  const outsideActions = { GITHUB_ACTIONS: '' };
+  nodeTest(dir, [...WITH, '--test-name-pattern=^an anvil is ordered$'], outsideActions);
+  nodeTest(dir, WITH, outsideActions);
+  const { runs } = await readRuns(dir);
+  assert.equal(runs[0].filtered, true);
+  assert.deepEqual(runs[0].tests.map(x => x.name), ['an anvil is ordered']);
+  assert.equal(runs[1].filtered, undefined);
+  // In Actions, the workflow that ran it, so the night can tell its own runs from CI's.
+  nodeTest(dir, WITH, { GITHUB_ACTIONS: 'true', GITHUB_WORKFLOW: 'check' });
+  assert.equal((await readRuns(dir)).runs.at(-1).workflow, 'check');
+  assert.equal(runs[1].workflow, undefined, 'outside Actions, none');
+});
+
+test('a workspace\'s own node --test, run from its folder, records in the repo root\'s ledger with root-relative files', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, 'web', 'tests'), { recursive: true });
+  await writeFile(join(dir, 'web', 'tests', 'shop.test.mjs'), "import { test } from 'node:test';\ntest('the shop opens', () => {});\n");
+  const r = run(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=../scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout', 'tests/shop.test.mjs'], { cwd: join(dir, 'web'), env: { ...process.env } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /keel test ledger: /);
+  const { runs } = await readRuns(dir);
+  assert.deepEqual(runs.at(-1).tests.map(x => [x.file, x.name, x.outcome]), [['web/tests/shop.test.mjs', 'the shop opens', 'pass']]);
+  assert.deepEqual((await readRuns(join(dir, 'web'))).runs, [], 'nothing under the workspace\'s own folder');
+});
+
 test('record keeps the newest runs and prunes the rest', async t => {
   const dir = await scratch(t);
   for (let i = 0; i < 5; i++) await record(dir, runOf({ tests: { a: ['pass', 1] } }), { keep: 3 });
@@ -178,6 +267,7 @@ const FLAKY_CASES = () => ({
   acrossTrees: [runOf({ tree: 'acmetree1', tests: { gate: ['pass', 5] } }), runOf({ tree: 'acmetree2', tests: { gate: ['fail', 5] } })],
   dirty: [runOf({ dirty: true, tests: { gate: ['pass', 5] } }), runOf({ dirty: true, tests: { gate: ['fail', 5] } })],
   unknown: [runOf({ dirty: null, tree: null, tests: { gate: ['pass', 5] } }), runOf({ dirty: null, tree: null, tests: { gate: ['fail', 5] } })],
+  acrossConfigs: [runOf({ config: 'acmeclock0', tests: { gate: ['pass', 5] } }), runOf({ config: 'acmeclock9', tests: { gate: ['fail', 5] } })],
 });
 
 function assertFlaky(fn) {
@@ -186,6 +276,7 @@ function assertFlaky(fn) {
   assert.deepEqual(fn(c.acrossTrees), [], 'the same mix across different trees is the code moving, not flaky');
   assert.deepEqual(fn(c.dirty), [], 'on a dirty tree it is not flaky');
   assert.deepEqual(fn(c.unknown), [], 'outside git it is not flaky');
+  assert.deepEqual(fn(c.acrossConfigs), [], 'a pass under one config and a fail under another, on one clean tree, is the setting moving, not flaky');
 }
 
 test('flaky: one test passing and failing on the same clean tree is named; across trees, or on a dirty tree, it is not', () => {
@@ -194,7 +285,8 @@ test('flaky: one test passing and failing on the same clean tree is named; acros
 
 test('mutations: flaky that ignores the tree, or a dirty tree, fails the flaky test', async t => {
   for (const [from, to] of [
-    ['const k = `${r.tree}\\u0000${key(t)}`;', 'const k = key(t);'],
+    ['const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;', 'const k = `${configOf(r)}\\u0000${key(t)}`;'],
+    ['const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${key(t)}`;'],
     ["if (r.dirty !== false || !r.tree) continue;", 'if (!r.tree) continue;'],
   ]) {
     const m = await mutant(t, from, to);
@@ -220,15 +312,23 @@ function assertSlower(fn) {
   assert.deepEqual(fn(history(400, 700, opts), opts), [], '+300 ms but 1.75x is not slower');
   assert.deepEqual(fn(history(200, 500, { ...opts, last: { ...MACHINE, cpus: 2 } }), opts), [], 'another machine class is not compared');
   assert.deepEqual(fn(history(200, 500, { ...opts, window: 2 }), opts), [], 'fewer passing runs than the window: not judged yet');
+  const other = history(200, 500, opts);
+  other.at(-1).config = 'acmeclock9';
+  assert.deepEqual(fn(other, opts), [], 'another config is not compared');
 }
 
 test('slower: 2.5x its median and +300 ms is named; 2.5x and +50 ms (under the floor) is not; another machine class is not compared', () => {
   assertSlower(slower);
 });
 
-test('mutation: dropping the floor fails the slower test', async t => {
-  const m = await mutant(t, 't.ms > factor * m && t.ms - m > floorMs', 't.ms > factor * m');
-  assert.throws(() => assertSlower(m.slower), assert.AssertionError);
+test('mutation: dropping the floor, or the config, fails the slower test', async t => {
+  for (const [from, to] of [
+    ['t.ms > factor * m && t.ms - m > floorMs', 't.ms > factor * m'],
+    [' && configOf(r) === configOf(current));', ');'],
+  ]) {
+    const m = await mutant(t, from, to);
+    assert.throws(() => assertSlower(m.slower), assert.AssertionError, `mutant survived: ${to}`);
+  }
 });
 
 // ---- the hygiene block, the config, the cited-test reading ----------------------
@@ -263,4 +363,50 @@ test('lastOutcome: the newest run of a file, and its tests whose name is or cont
   assert.deepEqual(last.matched.map(x => x.outcome), ['fail'], 'the newest run that ran the file, not the newest run');
   assert.deepEqual(lastOutcome(runs, 'tests/anvils.test.mjs', 'nothing like it').matched, []);
   assert.equal(lastOutcome(runs, 'tests/never.test.mjs', 'x'), null);
+});
+
+/** lastOutcome's skip/todo and narrowed-run rules, against `fn`. */
+function assertCited(fn) {
+  const full = runOf({ tests: { 'an anvil drops': ['pass', 1], 'the crate opens': ['pass', 1] } });
+  // A targeted run of the sibling: node leaves the cited test out entirely, and records the run as narrowed.
+  const targeted = runOf({ filtered: true, tests: { 'the crate opens': ['pass', 1] } });
+  const skipped = runOf({ tests: { 'an anvil drops': ['skip', 0], 'the crate opens': ['pass', 1] } });
+  for (const [why, runs] of [['a narrowed run without it', [full, targeted]], ['a run that skipped it', [full, skipped]], ['both', [full, skipped, targeted]]]) {
+    const last = fn(runs, 'tests/anvils.test.mjs', 'an anvil drops');
+    assert.deepEqual(last.matched.map(x => x.outcome), ['pass'], `${why} says nothing about it: the newest pass or fail stands`);
+  }
+  const failedThenSkipped = [runOf({ tests: { 'an anvil drops': ['fail', 1] } }), skipped];
+  assert.deepEqual(fn(failedThenSkipped, 'tests/anvils.test.mjs', 'an anvil drops').matched.map(x => x.outcome), ['fail'], 'a fail is not hidden by a later skip');
+  const renamed = runOf({ tests: { 'the crate opens': ['pass', 1] } });
+  assert.deepEqual(fn([full, renamed], 'tests/anvils.test.mjs', 'an anvil drops').matched, [], 'absent from a full run of the file: renamed or gone');
+  assert.deepEqual(fn([skipped], 'tests/anvils.test.mjs', 'an anvil drops').matched.map(x => x.outcome), ['skip'], 'only ever skipped: not a pass');
+  assert.equal(fn([targeted], 'tests/anvils.test.mjs', 'an anvil drops'), null, 'only ever left out of narrowed runs: never run');
+}
+
+test('lastOutcome: the newest pass or fail of the cited test; a skip, a todo, or a narrowed run that left it out is passed over', () => {
+  assertCited(lastOutcome);
+});
+
+test('mutation: lastOutcome that takes the newest run of the file, skips and all, fails the cited-test rules', async t => {
+  const m = await mutant(t, '    if (decided.length) return { ...at, matched: decided };\n', '    return { ...at, matched };\n');
+  assert.throws(() => assertCited(m.lastOutcome), assert.AssertionError);
+  const n = await mutant(t, 'if (!matched.length && !runs[i].filtered) return', 'if (!matched.length) return');
+  assert.throws(() => assertCited(n.lastOutcome), assert.AssertionError);
+});
+
+test('configHash: stable for one setting; NODE_OPTIONS, a preload, or a configEnv variable changes it', () => {
+  const { configHash, narrowed } = ledger;
+  const base = configHash({ env: {}, preload: [] });
+  assert.match(base, /^[0-9a-f]{12}$/);
+  assert.equal(configHash({ env: { ACME_UNRELATED: '1' }, preload: [] }), base, 'an unnamed variable is not the config');
+  assert.notEqual(configHash({ env: { NODE_OPTIONS: '--max-old-space-size=64' }, preload: [] }), base);
+  assert.notEqual(configHash({ env: {}, preload: ['--import', './h.mjs'] }), base);
+  assert.equal(configHash({ env: { ACME_CLOCK_SHIFT_DAYS: '3' }, preload: [] }), base, 'not named: not the config');
+  assert.notEqual(configHash({ env: { ACME_CLOCK_SHIFT_DAYS: '3' }, preload: [], configEnv: ['ACME_CLOCK_SHIFT_DAYS'] }), configHash({ env: {}, preload: [], configEnv: ['ACME_CLOCK_SHIFT_DAYS'] }));
+  assert.deepEqual(testsConfigProblems({ tests: { configEnv: ['ACME_CLOCK_SHIFT_DAYS'] } }), []);
+  assert.ok(testsConfigProblems({ tests: { configEnv: 'ACME' } }).length);
+  assert.ok(testsConfigProblems({ tests: { configEnv: ['not a name'] } }).length);
+  assert.equal(narrowed(['--test', '--test-name-pattern=^x$']), true);
+  assert.equal(narrowed(['--test', '--test-skip-pattern', 'x']), true);
+  assert.equal(narrowed(['--test', '--test-reporter=spec']), false);
 });

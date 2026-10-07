@@ -20,20 +20,22 @@ export const to = '0.7.0';
 export const summary = 'node test scripts gain the test ledger reporter (scripts/keel/test-ledger.mjs: every run recorded in .keel/test-runs, a flaky or slower test named at the end of the run), and AGENTS.md the night block\'s markers; any other test script is left alone';
 
 export const LEDGER = './scripts/keel/test-ledger.mjs';
-export const REPORTERS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${LEDGER} --test-reporter-destination=stdout`;
+/** The two reporter pairs, with the ledger at `ledger` (relative to where the script runs). */
+export const reportersFor = (ledger = LEDGER) => `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${ledger} --test-reporter-destination=stdout`;
+export const REPORTERS = reportersFor();
 const BEGIN = '<!-- keel:begin night -->', END = '<!-- keel:end night -->';
 
 /** node's runner, maybe after --import/--require preloads: the match up to and including --test. */
 const NODE_TEST = /^node(?:\s+--(?:import|require)(?:=|\s+)\S+)*\s+--test(?=\s|$)/;
 
-/** The script with the reporters, or null when it is not node's runner or needs nothing. */
-export function withLedger(script) {
+/** The script with the reporters (the ledger at `ledger`), or null when it is not node's runner or needs nothing. */
+export function withLedger(script, ledger = LEDGER) {
   if (typeof script !== 'string') return null;
   const m = NODE_TEST.exec(script.trim());
   if (!m) return null;
   if (script.includes('test-ledger.mjs') || /--test-reporter(?:-destination)?(?:=|\s)/.test(script)) return null;
   const s = script.trim();
-  return `${m[0]} ${REPORTERS}${s.slice(m[0].length)}`;
+  return `${m[0]} ${reportersFor(ledger)}${s.slice(m[0].length)}`;
 }
 
 const night = config => (config?.practices ?? []).includes('night');

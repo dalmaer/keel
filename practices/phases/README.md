@@ -24,6 +24,14 @@ renderer must refuse the edit and name the file, never keep or overwrite it.
 template, `scripts/keel/generated.mjs` and `tests/keel-generated.test.mjs`
 (managed); `docs/goals.json` (seeded); the `phases` block of `AGENTS.md`.
 
+**A test keel ships is run.** The two tests above (and the ci practice's
+`tests/keel-workflows.test.mjs`) prove nothing unless the project's gate runs
+them. `keel doctor` says `shipped-test-unrun` when the gate's `node --test`
+names paths (files, simple globs, directories) that match none of them, and
+migration 0005 appends the missing paths to a `node --test` test script in
+the update PR. A script that names no path runs node's default, which
+matches them; another runner is not judged.
+
 **Lineage.** isocan → ledger (`scripts/roadmap.ts`) → cajones/ritmo
 (`scripts/roadmap.mjs`, evidence and dependency checks) → keel.
 

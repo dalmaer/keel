@@ -34,9 +34,9 @@ async function acme(t, tests) {
 
 let minute = 0;
 /** A run as CI's artifacts hold it: tree, machine, one file's tests. */
-async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, tests }) {
+async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, workflow, tests }) {
   const date = new Date(Date.UTC(2026, 9, 1) + (minute++) * 60_000).toISOString();
-  await record(dir, { commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', date,
+  await record(dir, { commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', date, ...(workflow ? { workflow } : {}),
     tests: Object.entries(tests).map(([name, [outcome, ms]]) => ({ file: 'tests/anvils.test.mjs', name, outcome, ms })) });
 }
 
@@ -87,6 +87,20 @@ test('flaky_tests and slow_tests are n/a, never zero, with fewer runs than the w
   assert.equal(byId(await read(dir), 'slow_tests').state, 'n/a');
 });
 
+test('a history of the nights\' own runs only says so: CI does not upload keel-test-runs; one CI or local run among them, and it does not', async t => {
+  const dir = await acme(t, { window: 3 });
+  for (let i = 0; i < 3; i++) await put(dir, { workflow: 'keel-night', tests: { 'an anvil drops': ['pass', 400] } });
+  let data = await read(dir);
+  for (const id of LEDGER) assert.match(byId(data, id).detail, /nightly runs only: CI does not upload keel-test-runs/, id);
+  assert.equal(byId(data, 'flaky_tests').state, 'ok', 'a note, never a state');
+  await put(dir, { workflow: 'check', tests: { 'an anvil drops': ['pass', 400] } });
+  data = await read(dir);
+  for (const id of LEDGER) assert.doesNotMatch(byId(data, id).detail, /nightly runs only/, id);
+  const local = await acme(t, { window: 3 });
+  await put(local, { tests: { 'an anvil drops': ['pass', 400] } });
+  assert.doesNotMatch(byId(await read(local), 'flaky_tests').detail, /nightly runs only/, 'a local run (no workflow) is not a night\'s');
+});
+
 test('a bad .keel/keel.json "tests" breaks both measures; it is never read as a zero', async t => {
   const dir = await acme(t, { window: 1 });
   for (const id of LEDGER) {
@@ -106,7 +120,7 @@ test('mutation: a ledger measure that returns 0 instead of n/a with too few runs
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
-  const guard = 'if (runs.length < opts.window) return { na: tooFew(runs.length, opts.window) };';
+  const guard = 'if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}` };';
   assert.equal(text.split(guard).length, 3, 'both measures guard on the window');
   await writeFile(file, text.replaceAll(guard, 'if (runs.length < opts.window) return { value: 0, detail: \'fine\' };'));
   const mutant = await import(pathToFileURL(file).href);
@@ -148,4 +162,10 @@ test('proofs_hold\'s ledger half: a cited test that did not pass in the newest r
   assert.equal(m.value, 1, m.detail);
   await record(dir, at('pass'));
   assert.equal((await proofs()).value, 0, 'passing again, it holds again');
+
+  // A targeted run of a sibling (node leaves the cited test out; the run is narrowed), or one that skipped it, is not proof lost.
+  await record(dir, { ...at('pass', 'cancels an order'), filtered: true });
+  assert.equal((await proofs()).value, 0, 'a narrowed run that left the cited test out says nothing about it');
+  await record(dir, at('skip'));
+  assert.equal((await proofs()).value, 0, 'a skip says nothing about it: the newest pass stands');
 });

@@ -83,18 +83,25 @@ is a node test reporter, run beside the usual one:
 It changes nothing about the run's output, and its exit code in one case:
 **a run that executed no test fails**, "no tests ran" (keel's lessons 14
 and 38: a gate that ran nothing passed). A test passed or failed counts; a
-skipped one, and a file with no test in it (node reports the file itself),
-do not. A project with no tests yet says so: `"tests": {"allowEmpty": true}`
+skipped one, a file with no test in it (node reports the file itself), and
+a `describe()` with no test inside (a suite, not a test) do not. A project with no tests yet says so: `"tests": {"allowEmpty": true}`
 in `.keel/keel.json`. It records each
 top-level test (file, name, outcome, ms) with the commit, the tree, whether
-the tree was dirty, the machine and node, in `.keel/test-runs/` (the newest
-50 runs; the directory holds a `.gitignore` of `*`, so no project's
-`.gitignore` changes), and ends the run with a hygiene block: one line when
-clean, else each test that is
+the tree was dirty (git-ignored files and keel's machine directories,
+`.keel/test-runs`, `.keel/climb` and `.keel/tend`, aside), the machine and
+node, the run's config (a short hash of `NODE_OPTIONS`, its `--import` and
+`--require` preloads, and each variable named in `"tests": {"configEnv":
+[..]}`), whether it was narrowed (`--test-name-pattern` and the like), and in
+Actions its workflow, in `.keel/test-runs/` at the repo's root (git's top
+level, so a workspace's or app folder's own `node --test`, run from its
+folder, lands in the same ledger; the newest 50 runs; the directory holds a
+`.gitignore` of `*`, so no project's `.gitignore` changes), and ends the run
+with a hygiene block: one line when clean, else each test that is
 
-- **flaky** — passed and failed on one clean tree (a fact, no threshold), or
+- **flaky** — passed and failed on one clean tree under one config (a fact,
+  no threshold), or
 - **slower** — above twice its median over its last 20 passing runs on the
-  same machine class, and more than 200 ms above it,
+  same machine class and config, and more than 200 ms above it,
 
 with its history in one line and the command to run it alone. `"tests":
 {"window", "factor", "floorMs"}` in `.keel/keel.json` overrides 20, 2 and
@@ -104,13 +111,20 @@ fix it or file it, never rerun until green.
 `keel init` wires the reporter into a node project's `npm test`; migration
 0004 adds it to an adopted project's `scripts.test` when it is node's runner
 (`node --test`, or `node --import … --test`) and leaves every other runner
-alone (vitest and JUnit output are deliberately later). The ci practice's
+alone (vitest and JUnit output are deliberately later); migration 0005 does
+the same for each workspace's and app folder's own `scripts.test` (web/,
+app/, client/, frontend/, and the root's workspaces). The ci practice's
 `check.yml` keeps each run's `.keel/test-runs` as a `keel-test-runs`
 artifact, red or green. The night reads the newest 30 of them on the default
 branch (gh, read-only, by name) into `.keel/test-runs` before improve, its
 gate run adds one more, and it keeps the result as its own artifact.
 `flaky_tests` and `slow_tests` (bound 0, no ratchet) read that history; with
-fewer runs than the window they are n/a, never zero.
+fewer runs than the window they are n/a, never zero. When every run read came
+from a keel night, their detail says "nightly runs only: CI does not upload
+keel-test-runs": a project whose CI is its own adds the upload step (migration
+0005 prints it in the update PR; keel never edits a project's workflows).
+`proofs_hold` reads a cited test's newest pass or fail: a skip, or a narrowed
+run that left it out, says nothing about it.
 
 **The build, timed** (phase 36). When `.keel/keel.json` names
 `"climb": { "build": "<command>" }`, the night runs it once as `build_time`:
@@ -119,7 +133,8 @@ recorded only (no bound, never outside, so the pages keep a trend). No
 `build` is n/a; a failing build is broken, never a time. With the climb
 practice on, the page also says when a climb job's last three
 `keel-climb/<job>/` PRs were closed unmerged: that job proposes its own
-retirement (gh's closed list, read-only).
+retirement (gh's list of every state, read-only: a merged or open PR among
+the newest three breaks the streak).
 
 **The Tend line** (phase 38). With `"tend"` in `.keel/keel.json` (the climb
 practice's weekly tend pass), the night reads the newest `keel-tend`
