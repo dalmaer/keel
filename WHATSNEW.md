@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.3 — practice 0.8.3 (2026-10-06)
+
+- **Review comments are answered, not left.** `keel review <repo>#<n>` shows a PR's reviewer comments and which are answered; `--close` replies fixed, tracked or not valid. Nothing blocks a merge by default; a phase you mark `review: wait` (or an issue labelled `keel:wait-for-review`) lands through a PR that waits for every answer. The night counts `reviews_unanswered`. Name your reviewer with `"review": {"reviewers": ["…"]}` in `.keel/keel.json`.
+- **Secrets stay out of the test ledger.** Variables named in `tests.configEnv` are recorded only as a hash, never their value; the run-alone command names them, and unsets the ones that were unset.
+- **Each suite folder is its own lane** (root and web/ no longer mix), and history is kept so every lane can reach its baseline.
+- **Guides:** keel's docs now include a guide per use case (`docs/guide/` in keel).
+
 ## v0.8.2 — practice 0.8.2 (2026-10-06)
 
 Fixes from review of the 0.8.1 update.
