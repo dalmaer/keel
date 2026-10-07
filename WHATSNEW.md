@@ -5,6 +5,14 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.4 — practice 0.8.4 (2026-10-06)
+
+- **An answer is a reply.** `keel review` counts a comment answered only when someone replied citing it (a quote, a link or its id); resolving the thread alone is not an answer, and if the reviewer speaks again it is open again. Top-level review bodies are read too, and a partial page from GitHub is reported as unreadable, never as a count.
+- **The night stages only its dated health page**, and commits deleted inbox files as deletions. A `health` setting that resolves outside the repo through a symlink, or starts with `:`, is refused; the git-ignore check uses a dated page name and goes red if git itself errors.
+- **Measures read further.** `ci_red_streak` reads up to 100 runs; `dependency_age` also covers app and workspace folders with their own lockfile; a bounds file that isn't JSON is a usage error (exit 2). A lessons row with more cells than its header (an unescaped `|`) is flagged.
+- **The conductor finds your roadmap command** from `.keel/keel.json` instead of assuming `npm run next`, and the AGENTS block names the small-phase exception the skill already had.
+- **The test ledger's run-alone command pastes as printed.**
+
 ## v0.8.3 — practice 0.8.3 (2026-10-06)
 
 - **Review comments are answered, not left.** `keel review <repo>#<n>` shows a PR's reviewer comments and which are answered; `--close` replies fixed, tracked or not valid. Nothing blocks a merge by default; a phase you mark `review: wait` (or an issue labelled `keel:wait-for-review`) lands through a PR that waits for every answer. The night counts `reviews_unanswered`. Name your reviewer with `"review": {"reviewers": ["…"]}` in `.keel/keel.json`.
