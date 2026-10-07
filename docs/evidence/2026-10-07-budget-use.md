@@ -23,3 +23,9 @@
 ## Gaps and decision
 
 Partial. Not yet walked: the night on GitHub writing the line (after the commit), and the owner's read after four or more tend runs (weeks). One counted run, 37519559575 (climb, 17 s), predates the "Did the agent run?" step and was very likely the same failure; it ages out after eight newer runs.
+
+## After the commit (2026-10-07)
+
+| Did | Expected | Observed | Proves / does not prove |
+| --- | --- | --- | --- |
+| Dispatched keel-night.yml on the committed tree (run 37580217231, exit 0) | the health page carries the Budget line | keel#26 (merged by drain as data); docs/health/2026-10-07.md line 43: `Budget: tend 2 of 30 min (last 1 run; too few to say) · climb 3, 0 of 45 min (last 2 runs; too few to say)` | The workflow shell surface: the night writes the line on GitHub |

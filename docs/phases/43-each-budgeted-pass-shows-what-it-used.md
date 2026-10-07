@@ -4,7 +4,7 @@ since: 2026-10-07
 goal: G4
 spec: 2
 depends: [35, 38, 42]
-note: "Built: the Budget line (agent-step minutes per run from GitHub, ran out, a suggestion; runs whose agent never started skipped), read for real on keel: tend 2 of 30, climb 3, 0 of 45. Waits on the night writing it on GitHub, and the owner's read after four or more tend runs."
+note: "Built and on GitHub: the Budget line (agent-step minutes per run from GitHub, ran out, a suggestion; runs whose agent never started skipped); the night of 2026-10-07 (run 37580217231, keel#26) wrote tend 2 of 30, climb 3, 0 of 45. Waits on the owner's read after four or more tend runs."
 evidence: ["evidence/2026-10-07-budget-use.md"]
 issue: 25
 ---
@@ -30,7 +30,7 @@ The design is [Budget use](../research/2026-10-06-budget-use.md).
 - [x] From synthetic runs: minutes per run from the agent step, a cancelled or full step counted as ran out, a run without the step skipped, and each suggestion (extend, shorten to N, hold, too few); mutation: not counting a cancelled step as ran out fails the test. `tests/improve-budget.test.mjs`
 - [x] The step map equals the name of each shipped workflow's claude-code-action step; mutation: renaming tend's step in its workflow fails the test. `tests/workflows.test.mjs`
 - [x] The health page has a Budget entry for each pass that is on and none for one that is off; GitHub unreadable is n/a with why, never an empty line. `tests/improve-budget.test.mjs`
-- [ ] keel's health page, after the night runs on GitHub, shows tend's real entry (its runs so far). `gh pr view <n> -R dalmaer/keel --json body`
+- [x] keel's health page, after the night runs on GitHub, shows tend's real entry (its runs so far). `gh pr view <n> -R dalmaer/keel --json body`
 - [ ] ⚑ by hand: after four or more tend runs, the owner reads tend's line and keeps or changes the budget.
 
 ## Real surfaces
@@ -52,7 +52,7 @@ The design is [Budget use](../research/2026-10-06-budget-use.md).
 
 ## Next action
 
-After the commit, read the next keel night's health page for the Budget line; then, after four or more tend runs, ⚑ the owner reads tend's line and keeps or changes its budget.
+⚑ After four or more tend runs (weeks), the owner reads tend's Budget line on the health page and keeps or changes its budget.
 
 ## Trajectory
 
