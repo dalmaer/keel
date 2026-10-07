@@ -295,7 +295,9 @@ keel review <repo>#<n> --close <id> --not-valid "<why>"          # says why, cit
 ```
 
 Several ids go in one call, comma-separated; never loop over them in the
-shell. A valid finding is fixed in its own commit before the reply names it.
+shell. Read with `keel review` right before closing; `--close` refuses what
+you have not read (and anything that arrived since the read), so never build
+the id list from a query. A valid finding is fixed in its own commit before the reply names it.
 Not a gate: an open thread never refuses a merge, and the night counts what
 is left (`reviews_unanswered`).
 

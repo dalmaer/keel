@@ -78,6 +78,8 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
     path,
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
     state: async () => JSON.parse(await readFile(statePath, 'utf8')),
+    /** Change the PR between calls (a comment arriving): f edits the state in place. */
+    change: async f => { const st = JSON.parse(await readFile(statePath, 'utf8')); f(st); await writeFile(statePath, JSON.stringify(st)); },
   };
 }
 const writesIn = calls => calls.filter(c => c.includes('POST') || c.some(a => a.startsWith('query=mutation')));
@@ -91,7 +93,8 @@ async function project(t, review = { reviewers: ['acme-reviewer[bot]'], wait: 0.
   return dir;
 }
 const keel = (cwd, gh, args, env = {}) => {
-  const r = run(process.execPath, [BIN, 'review', ...args], { cwd, env: { ...cleanEnv(), KEEL_GH: gh.path, KEEL_REVIEW_POLL_MS: '40', ...env } });
+  // The read receipt goes in the project's temp dir, never the developer's cache.
+  const r = run(process.execPath, [BIN, 'review', ...args], { cwd, env: { ...cleanEnv(), KEEL_GH: gh.path, KEEL_REVIEW_POLL_MS: '40', KEEL_CACHE: join(cwd, '.keel-cache'), ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
 
@@ -234,6 +237,7 @@ test('--close posts the reply and resolves for fixed and not-valid; posts and le
   const threads = [UNANSWERED, { ...SELF_REPLY }, { id: 'PRRT_track', comments: [c(61, 'acme-reviewer', 'Anvils rust.')] }];
   const gh = await stubGh(t, { threads, reviews: [ON_HEAD], writes: true,
     comments: [{ id: 'IC_9', ...c(71, 'acme-reviewer', 'Codex: the README is wrong.') }] });
+  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1, 'read first: a comment is closed only after it was read');
   const fixed = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234', '--json']);
   assert.equal(fixed.code, 0, fixed.out + fixed.err);
   assert.deepEqual(fixed.json().closed, [{ id: 'PRRT_open', kind: 'thread', answer: 'fixed', replied: true, resolved: true }]);
@@ -369,4 +373,103 @@ test('--close on a review body posts a comment that quotes and links it, so the 
   const [post] = writesIn(await gh.calls());
   assert.equal(post.at(-1), 'body=> Acme Review: the crate has no lid.\n\n**Fixed** in abc1234. Validated against the code first.\n\nhttps://github.com/acme/app/pull/3#pullrequestreview-77');
   assert.equal(keel(dir, gh, ['acme/app#3']).code, 0);
+});
+
+// ---- closed only after it was read (the owner, 7 Oct: four threads posted after the last read were closed unread) ----
+
+// No clock is compared: each comment that arrives after a read is dated before it, and must still count as new.
+const arrived = () => ({ id: 'PRRT_new', path: 'hatch.js', line: 7, comments: [c(71, 'acme-reviewer', '**P1** The hatch opens inward.', '2000-01-01')] });
+
+test('a read leaves a receipt in keel\'s cache: the ids it showed, when, and the head; the newest read replaces it', async t => {
+  const dir = await project(t);
+  const gh = await stubGh(t, { threads: [UNANSWERED, ANSWERED], reviews: [ON_HEAD] });
+  const before = Date.now();
+  assert.equal(keel(dir, gh, ['acme/app#3', '--json']).code, 1);
+  const path = join(dir, '.keel-cache', 'reviews', 'acme__app__3.json');
+  const first = JSON.parse(await readFile(path, 'utf8'));
+  assert.deepEqual([first.head, first.ids, first.threads, first.seen], [HEAD, ['PRRT_open', 'PRRT_done'], { PRRT_open: 1, PRRT_done: 2 }, []]);
+  assert.ok(Date.parse(first.at) >= before - 1000 && Date.parse(first.at) <= Date.now(), first.at);
+  await gh.change(s => s.threads.push(arrived()));
+  keel(dir, gh, ['acme/app#3']);
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).ids, ['PRRT_open', 'PRRT_done', 'PRRT_new'], 'the text read records too, and replaces the last');
+});
+
+test('--close refuses an id never read (no receipt), naming it, and posts nothing; "all" is not an id', async t => {
+  const dir = await project(t);
+  const gh = await stubGh(t, { threads: [UNANSWERED, SELF_REPLY], reviews: [ON_HEAD], writes: true });
+  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234']);
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.match(r.err, /not read yet: PRRT_open \(acme-reviewer, skates\.js:12\): run keel review acme\/app#3, validate it, then close it/);
+  assert.match(r.err, /not read yet: PRRT_self \(acme-reviewer, thread\)/);
+  assert.match(r.err, /nothing posted/);
+  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'all', '--fixed', 'abc1234']).code, 2, 'no bulk form');
+  assert.equal(writesIn(await gh.calls()).length, 0);
+  // Read, then the same close posts.
+  keel(dir, gh, ['acme/app#3']);
+  const ok = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234']);
+  assert.equal(ok.code, 0, ok.err);
+  assert.equal(writesIn(await gh.calls()).filter(x => x.includes('POST')).length, 2);
+});
+
+test('--close refuses when a comment arrived since the last read, naming it, and posts nothing; a fresh read lets it through', async t => {
+  const dir = await project(t);
+  const gh = await stubGh(t, { threads: [UNANSWERED, SELF_REPLY], reviews: [ON_HEAD], writes: true });
+  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1);
+  await gh.change(s => s.threads.push(arrived()));
+  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234', '--json']);
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.match(r.json().error, /arrived since your last read \([^)]+\): PRRT_new \(acme-reviewer, hatch\.js:7\) P1 The hatch opens inward\./);
+  assert.doesNotMatch(r.json().error, /not read yet/, 'the ids named were read');
+  assert.equal(writesIn(await gh.calls()).length, 0, 'nothing posted');
+  // Naming the new one does not get it closed either: it was never read.
+  const named = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_new', '--fixed', 'abc1234']);
+  assert.equal(named.code, 2);
+  assert.match(named.err, /not read yet: PRRT_new/);
+  // A reviewer's follow-up on a thread that was read: the thread is unread again.
+  keel(dir, gh, ['acme/app#3']);
+  await gh.change(s => s.threads[0].comments.push(c(12, 'acme-reviewer', 'Also the left skate.', '2000-01-01')));
+  const follow = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
+  assert.equal(follow.code, 2);
+  assert.match(follow.err, /not read yet: PRRT_open \(acme-reviewer, skates\.js:12\), a follow-up since your last read/);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+  // Read again: now it closes, and the answers it posts are not news to the next close.
+  keel(dir, gh, ['acme/app#3']);
+  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
+  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_self,PRRT_new', '--not-valid', 'the hatch is a door; see hatch.js:7']).code, 0);
+});
+
+test('--close refuses an id read on a different PR', async t => {
+  const dir = await project(t);
+  const gh = await stubGh(t, { threads: [UNANSWERED], reviews: [ON_HEAD], writes: true });
+  assert.equal(keel(dir, gh, ['acme/app#4']).code, 1);
+  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.match(r.err, /not read yet: PRRT_open/);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+});
+
+test('arrived since is by id and count, never by clock: a comment dated before the read is still new, a review body or conversation comment too', async t => {
+  const dir = await project(t);
+  const gh = await stubGh(t, { threads: [UNANSWERED], reviews: [ON_HEAD], writes: true, comments: [{ id: 'IC_old', ...c(50, 'wile-e', 'Nice skates.') }] });
+  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1);
+  const receipt = JSON.parse(await readFile(join(dir, '.keel-cache', 'reviews', 'acme__app__3.json'), 'utf8'));
+  assert.deepEqual(receipt.seen, ['IC_old'], 'every conversation comment the PR had, shown or not');
+  const at = Date.parse(receipt.at);
+  // Dated a day before the read, posted after it.
+  await gh.change(s => {
+    s.bodies = [{ id: 'PRR_late', databaseId: 78, author: 'acme-reviewer', body: '**Acme Review**: the brakes squeal.', createdAt: new Date(at - 86_400_000).toISOString() }];
+    s.comments.push({ id: 'IC_late', ...c(79, 'acme-reviewer', 'Codex: also the bell.', '2000-01-01') });
+  });
+  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.match(r.err, /arrived since your last read \([^)]+\): PRR_late \(acme-reviewer, review\) Acme Review: the brakes squeal\./);
+  assert.match(r.err, /arrived since your last read \([^)]+\): IC_late \(acme-reviewer, conversation\)/);
+  assert.doesNotMatch(r.err, /IC_old/, 'a comment the read saw is not new, shown or not');
+  assert.equal(writesIn(await gh.calls()).length, 0, 'nothing posted');
+  // The PR author's own comments and keel's answers are not news: after a read, two closes in a row go through.
+  keel(dir, gh, ['acme/app#3']);
+  await gh.change(s => s.comments.push({ id: 'IC_author', ...c(80, 'acme-owner', 'Pushed a fix.', '2000-01-01') }));
+  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
+  const r2 = keel(dir, gh, ['acme/app#3', '--close', 'PRR_late,IC_late', '--fixed', 'abc1234']);
+  assert.equal(r2.code, 0, r2.err);
 });

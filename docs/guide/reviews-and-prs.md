@@ -159,7 +159,21 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
   `--tracked <issue|version>` or `--not-valid "<why>"` posts the reply (and
   resolves, for fixed and not valid). Each is refused without its value.
   Pass several ids comma-separated in one call rather than looping in the
-  shell.
+  shell. There is no "all": each id is named because each was validated.
+- `--close` closes only what was read. Every read leaves a receipt (the
+  ids it showed, each thread's comment count, every comment id the PR had)
+  in keel's cache, outside the repo:
+  `$KEEL_CACHE`, else `$XDG_CACHE_HOME/keel`, else `~/.cache/keel` (macOS
+  too), as `reviews/<owner>__<repo>__<n>.json`. `--close` refuses, posting
+  nothing, an id that read did not show, one with a reviewer's follow-up
+  since, or any call while a comment it does not name is new since the
+  read (by id and count, never by clock): it names each, and you read again
+  first. This exists because a
+  close list once built from a query of every unanswered thread swept in
+  four threads posted minutes after the last read, two of them security
+  findings, and answered them "fixed" unread. Validating stays your
+  judgement; the receipt only makes sure nothing is closed that was never
+  shown.
 - `--gate` only for a phase that opted in (above).
 
 `keel --agent-help review` is the exact reference, with the JSON shape.

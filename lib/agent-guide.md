@@ -878,7 +878,24 @@ one of the three replies; never leave one unanswered.
 `--not-valid` a reason of a few words. Each is refused without one. Pass
 several ids comma-separated in one call: never loop over them in the shell
 (zsh does not split words). A tracked thread is resolved later, with
-`--fixed`, when its fix lands.
+`--fixed`, when its fix lands. There is no bulk form ("all", a wildcard):
+each id is named because each was validated.
+
+**Read with `keel review` right before closing; `--close` refuses what you
+have not read.** Every read (text, `--json`, `--wait`) records a receipt of
+what it showed, per PR, in keel's cache outside the repo (`$KEEL_CACHE`,
+else `$XDG_CACHE_HOME/keel`, else `~/.cache/keel`;
+`reviews/<owner>__<repo>__<n>.json`, `{ at, head, ids, threads, seen }`: the
+ids shown, each thread's comment count, every review body and conversation
+comment id; the newest read replacing the last). `--close` exits 2 and posts
+nothing when an id was not shown or its thread grew since (`not read yet:
+<id> (<author>, <where>)`), or when any comment it does not name is new
+since (`arrived since your last read (<at>): <id> …`). New is by id and
+count, never by clock; the PR author's own comments and keel's posted
+answers are not new. Never build a `--close` list from a query: read,
+validate each, then close those. `--close` does not update the receipt.
+A conversation comment from someone not named as a reviewer is not shown,
+so it is not owed an answer and `--close` will not take it.
 
 **Reviewers** come from `.keel/keel.json` `"review": {"reviewers":
 ["<login>"], "wait": <minutes>}` (default: none named, 10 minutes; a bad

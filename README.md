@@ -176,7 +176,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel release` | Cut a practice version, with a what's-new written for the person receiving it |
 | `keel fleet`, `keel fleet update` | Every project at a glance; open update PRs where they're behind |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
-| `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid. Not a gate |
+| `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read. Not a gate |
 
 ## Where a person decides
 
