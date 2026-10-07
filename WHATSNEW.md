@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.13 — practice 0.8.13 (2026-10-07)
+
+- **Climb's dropped-test guard counts only what this run's gate ran**, and runs the base's gate fresh: tests the agent ran by hand, or a forged record, can no longer stand in for a suite the change removed. Each guard now runs your gate twice (base and candidate).
+- **Tend's proposals page is committed before the guard and gate**, so the PR is exactly the gated tree, and its path comes from the run's date, never the agent's record.
+- **Climb runs at 10:17 UTC and tend at 10:18 on Mondays**, after keel-loop's pull, so a loop night proposes on today's findings.
+- **The unbounded-measure check is advice**: `roadmap --check` prints it as a note and never fails on it.
+
 ## v0.8.12 — practice 0.8.12 (2026-10-07)
 
 - **Climb and tend judges never run the agent's code with your setup token.** Setup (and its `setupToken`) runs on the run's own commit before the agent's commits are taken; the agent may not change lockfiles, `.npmrc` or `package.json` beyond its non-install scripts. The judge trusts only the run's own commit as the base, never the agent's record.
