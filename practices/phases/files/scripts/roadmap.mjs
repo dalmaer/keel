@@ -20,9 +20,19 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const STATUSES = ['planned', 'designed', 'partial', 'built', 'lived-in', 'superseded'];
 export const DONE = ['built', 'lived-in'];
 const SECTIONS = ['Done when', 'Scope', 'Acceptance', 'Proof', 'Deliberately open', 'Next action'];
-const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue', 'review'];
+const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue', 'review', 'owes'];
 /** `review: wait` opts a phase in to waiting for its PR's reviewers (keel phase 41); absent is the default: no wait. */
 export const REVIEW_VALUES = Object.freeze(['wait']);
+/**
+ * `owes: walk` (keel phase 44), valid only on a partial phase: its building is
+ * done and its rest is a walk or time. Its dependents may proceed and the next
+ * phase skips it; it stays partial, because built still means proven.
+ */
+export const OWES_VALUES = Object.freeze(['walk']);
+/** A partial phase that owes only a walk: it satisfies `depends:` and is never next. */
+export const owesWalk = p => p.status === 'partial' && p.owes === 'walk';
+/** A dependency is satisfied by built, lived-in, or a partial phase that owes only a walk. */
+export const satisfies = p => DONE.includes(p.status) || owesWalk(p);
 /** The newest spec version this script knows. A phase with `spec: 2` names its checks and its Real surfaces. */
 export const SPEC = 2;
 /**
@@ -74,6 +84,18 @@ export function namesCheck(text) {
   if (text.match(TEST_PATH)) return true;
   if (/⚑\s*by hand/i.test(text)) return true;
   return [...text.matchAll(/`([^`]+)`/g)].some(m => /^[\w.\/-]+\s+\S/.test(m[1].trim()));
+}
+
+/**
+ * Whether an unchecked box is a walk rather than something still to build: it
+ * is "⚑ by hand", or its check is a command that runs on a real surface
+ * (a backticked `gh …`), and it cites no tests/ path. When unsure it is
+ * buildable, so `owes: walk` is refused rather than hiding work.
+ */
+export function isWalk(text) {
+  if (text.match(TEST_PATH)) return false;
+  if (/⚑\s*by hand/i.test(text)) return true;
+  return [...text.matchAll(/`([^`]+)`/g)].some(m => /^gh\s+\S/.test(m[1].trim()));
 }
 
 /** The tests/ paths a phase's Acceptance cites. */
@@ -247,6 +269,10 @@ export function parsePhase(file, raw) {
   if (DONE.includes(meta.status) && !meta.evidence.length) fail(`${file}: ${meta.status} requires evidence`);
   if (meta.issue !== undefined && (!Number.isSafeInteger(meta.issue) || meta.issue <= 0)) fail(`${file}: invalid issue`);
   if (meta.review !== undefined && !REVIEW_VALUES.includes(meta.review)) fail(`${file}: review ${JSON.stringify(meta.review)} is not one this script knows (${REVIEW_VALUES.join(', ')}; absent is the default: no wait)`);
+  if (meta.owes !== undefined) {
+    if (!OWES_VALUES.includes(meta.owes)) fail(`${file}: owes ${JSON.stringify(meta.owes)} is not one this script knows (${OWES_VALUES.join(', ')}: the phase's building is done and its rest is a walk or time)`);
+    if (meta.status !== 'partial') fail(`${file}: owes: ${meta.owes} is only for a partial phase (this one is ${meta.status}); a built phase owes nothing, an earlier one still has building to do`);
+  }
   if (meta.spec !== undefined && (!Number.isSafeInteger(meta.spec) || meta.spec < 1 || meta.spec > SPEC)) fail(`${file}: spec ${meta.spec} is not one this script knows (1–${SPEC}); keel update brings a newer one`);
   const body = block[2];
   const title = /^# (.+)$/m.exec(body)?.[1]?.trim();
@@ -259,6 +285,10 @@ export function parsePhase(file, raw) {
   }
   if (!/^- \[[ x]\] /m.test(sections.Acceptance)) fail(`${file}: Acceptance needs checkboxes`);
   if (DONE.includes(meta.status) && /^- \[ \] /m.test(sections.Acceptance)) fail(`${file}: ${meta.status} with unchecked acceptance`);
+  if (meta.owes === 'walk') {
+    const buildable = boxes(sections.Acceptance).filter(b => !b.checked && !isWalk(b.text));
+    if (buildable.length) fail(`${file}: owes: walk, but an unchecked box is still buildable ("${buildable[0].text.slice(0, 60)}${buildable[0].text.length > 60 ? '…' : ''}"); a walk is "⚑ by hand" or a \`gh …\` command, and cites no tests/ path. Build it, or drop owes`);
+  }
   // The record was written but the status wasn't moved: the roadmap would call proven work unbuilt.
   if (['planned', 'designed', 'partial'].includes(meta.status) && meta.evidence.length && !/^- \[ \] /m.test(sections.Acceptance)) {
     fail(`phase ${Number(number[1])}: every box checked and evidence named, but status is ${meta.status} — set status: built (or uncheck what isn't proven)`);
@@ -303,14 +333,35 @@ export function validateGraph(phases, goals) {
 }
 
 /**
- * The first unfinished phase, in number order, whose dependencies are all
- * built. `include` narrows the candidates (one goal's phases, say); their
- * dependencies are still checked against every phase.
+ * The first phase left to build, in number order, whose dependencies are all
+ * satisfied (built, lived-in, or partial owing only a walk). A phase that owes
+ * a walk is skipped: nothing in it is left to build. `include` narrows the
+ * candidates (one goal's phases, say); their dependencies are still checked
+ * against every phase.
  */
 export function nextPhase(phases, include = () => true) {
   const byId = new Map(phases.map(p => [p.id, p]));
-  return phases.find(p => include(p) && !DONE.includes(p.status) && p.status !== 'superseded'
-    && p.depends.every(id => DONE.includes(byId.get(id).status))) ?? null;
+  return phases.find(p => include(p) && !DONE.includes(p.status) && p.status !== 'superseded' && !owesWalk(p)
+    && p.depends.every(id => satisfies(byId.get(id)))) ?? null;
+}
+
+/**
+ * Whether the project counts lived-in (`.keel/keel.json` `"phases": { "livedIn": true }`).
+ * Off by default: the roadmap counts built only. A `lived-in` status stays valid and done either way.
+ */
+export function livedInOf(config = {}) {
+  const phases = config?.phases;
+  if (phases === undefined) return false;
+  if (!phases || typeof phases !== 'object' || Array.isArray(phases)) fail(`.keel/keel.json: "phases" must be an object, like {"livedIn": true}`);
+  if (phases.livedIn === undefined) return false;
+  if (typeof phases.livedIn !== 'boolean') fail(`.keel/keel.json: "phases.livedIn" must be true or false (absent is false)`);
+  return phases.livedIn;
+}
+
+/** "Nothing left to build" when no phase is next: what is still owed, if anything. */
+export function nothingNext(phases) {
+  const owed = phases.filter(owesWalk).map(p => p.id);
+  return owed.length ? `Nothing left to build; ${owed.length === 1 ? 'phase' : 'phases'} ${owed.join(', ')} ${owed.length === 1 ? 'owes' : 'owe'} a walk.` : 'Nothing left unbuilt.';
 }
 
 /** The next focus: the next phase outside retired goals. */
@@ -322,6 +373,7 @@ export function focus({ phases, goals }) {
 export async function collect(root = ROOT) {
   const docs = resolve(root, 'docs');
   const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+  livedInOf(config);
   const names = (await readdir(resolve(docs, 'phases'))).filter(n => n.endsWith('.md') && n !== 'README.md');
   const raws = await Promise.all(names.map(async file => [file, await readFile(resolve(docs, 'phases', file), 'utf8')]));
   const phases = raws.map(([file, raw]) => parsePhase(file, raw));
@@ -347,13 +399,22 @@ export async function collect(root = ROOT) {
 
 export function render({ config, phases, goals, links = [] }) {
   const next = focus({ phases, goals });
+  const lived = livedInOf(config);
+  const built = phases.filter(p => DONE.includes(p.status)).length;
+  const owed = phases.filter(owesWalk).length;
+  const headline = lived
+    ? `**${phases.filter(p => p.status === 'lived-in').length} of ${phases.length} phases lived in; ${built} built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.`
+    : `**${built} of ${phases.length} phases built${owed ? `; ${owed} owe${owed === 1 ? 's' : ''} a walk` : ''}.** Built means implemented and checked; planned is not available.`;
+  const nextLine = next ? `**Next focus:** [${next.id}. ${next.title}](phases/${next.file}). ${next.next}`
+    : owed ? `**Next focus:** ${nothingNext(phases)}`
+    : lived ? '**Next focus:** every phase is built; go and live in them.' : '**Next focus:** every phase is built.';
   const issueUrl = n => config.repo ? ` · [#${n}](https://github.com/${config.repo}/issues/${n})` : ` · #${n}`;
   const lines = [
     '<!-- Generated by scripts/roadmap.mjs. Edit the phase files and goals.json, then run npm run roadmap. -->',
     `# ${config.name} roadmap`, '',
     config.tagline ? `${config.tagline} ${['[Working rules](../AGENTS.md)', ...links.map(([label, file]) => `[${label}](${file})`)].join(' · ')}` : '', '',
-    `**${phases.filter(p => p.status === 'lived-in').length} of ${phases.length} phases lived in; ${phases.filter(p => DONE.includes(p.status)).length} built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.`, '',
-    next ? `**Next focus:** [${next.id}. ${next.title}](phases/${next.file}). ${next.next}` : '**Next focus:** every phase is built; go and live in them.', '',
+    headline, '',
+    nextLine, '',
     'Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.', '',
   ];
   const goal = (g, level) => {
@@ -364,12 +425,14 @@ export function render({ config, phases, goals, links = [] }) {
       return;
     }
     const built = group.filter(p => DONE.includes(p.status)).length;
-    const lived = group.filter(p => p.status === 'lived-in').length;
-    lines.push(`${built}/${group.length} built or lived-in; ${lived}/${group.length} lived-in.`, '',
+    const owing = group.filter(owesWalk).length;
+    lines.push(lived
+      ? `${built}/${group.length} built or lived-in; ${group.filter(p => p.status === 'lived-in').length}/${group.length} lived-in.`
+      : `${built}/${group.length} built${owing ? `; ${owing} owe${owing === 1 ? 's' : ''} a walk` : ''}.`, '',
       '| Phase | Status | Since | Depends on | Why it stands here |', '| --- | --- | --- | --- | --- |');
     for (const p of group) {
       const deps = p.depends.map(id => `[${id}](phases/${phases.find(x => x.id === id).file})`).join(', ') || '—';
-      lines.push(`| [${p.id}. ${cell(p.title)}](phases/${p.file}) | ${p.status} | ${p.since} | ${deps} | ${cell(p.note)}${p.issue ? issueUrl(p.issue) : ''} |`);
+      lines.push(`| [${p.id}. ${cell(p.title)}](phases/${p.file}) | ${owesWalk(p) ? 'partial, walk owed' : p.status} | ${p.since} | ${deps} | ${cell(p.note)}${p.issue ? issueUrl(p.issue) : ''} |`);
     }
     lines.push('');
     for (const p of group) lines.push(`- **${p.id} done when:** ${p.done}`);
@@ -392,7 +455,7 @@ export async function run({ root = ROOT, mode = 'write' } = {}) {
   if (mode === 'next') {
     const p = focus(data);
     return p ? `${p.id}. ${p.title} [${p.status}] — docs/phases/${p.file}\nDone when: ${p.done}\nNext action: ${p.next}`
-      : 'Nothing left unbuilt.';
+      : nothingNext(data.phases);
   }
   const output = render(data), path = resolve(root, 'docs/ROADMAP.md');
   if (mode === 'check') {

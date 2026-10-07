@@ -11,12 +11,17 @@ is stale.
 | --- | --- |
 | planned | Outcome and proof plan exist; design or implementation is still open. |
 | designed | The slice and its contracts are specified well enough to build. |
-| partial | Some of it exists; the note names the gap. |
+| partial | Some of it exists; the note names the gap. With `owes: walk`, only a walk is left (below). |
 | built | Every acceptance box is checked, with an evidence file; real use is not yet claimed. |
-| lived-in | Repeated real use supports the outcome. The evidence says what made you sure. |
+| lived-in | Repeated real use supports the outcome. The evidence says what made you sure. (When the project opts in: `"phases": {"livedIn": true}` in `.keel/keel.json`.) |
 | superseded | Retired or replaced; the note says why and points at the replacement. |
 
 A status can move backward when evidence says so; update `since` and say why.
+
+Lived-in is a project's choice, off by default. Off, the roadmap's headline
+and goal lines count built only and nothing asks for lived-in; a phase that
+says `lived-in` stays valid and done. On (`"phases": {"livedIn": true}`),
+they count lived-in too.
 
 ## Metadata
 
@@ -44,6 +49,17 @@ reviewed the head commit. The phase's issue labelled `keel:wait-for-review`
 does the same. Without it nothing waits: review comments are still validated
 and answered, but never block a merge.
 
+Optional: `owes: walk` (the only value) on a **partial** phase whose
+building is done and whose rest is a walk or time: a run on a real surface,
+an owner's read, a week of nights. Its dependents' `depends:` are satisfied,
+`npm run next` skips it, the roadmap shows it as *partial, walk owed*, and the
+night's `phases_stuck` does not count it. It stays partial: built still means
+proven, and its Next action names the walk. The check refuses `owes:` on any
+other status, and refuses `owes: walk` while an unchecked Acceptance box is
+still buildable. A box is a walk when it is `⚑ by hand: …` or its check is a
+command that runs on a real surface (`` `gh …` ``), and it cites no
+`tests/` path; any other unchecked box counts as buildable.
+
 `evidence` paths are relative to `docs/` (`evidence/2026-10-02-x.md`); built
 and lived-in need at least one. A phase with every Acceptance box checked
 and evidence named can't stay planned, designed or partial: the check fails
@@ -57,7 +73,8 @@ person must do), **Deliberately open** (decisions postponed on purpose — settl
 them in place, dated; and each known limitation that could make the phase's
 output wrong, a suggestion, a count or a verdict, with its effect and when it
 is settled, never only in the design's prose), **Next action** (one concrete step; `npm run next`
-prints it; once the phase is built, `None.` or what lived-in needs).
+prints it; once the phase is built, `None.`, or what lived-in needs when
+the project counts lived-in; when it owes a walk, the walk).
 
 With `spec: 2`, also **Real surfaces** (below).
 

@@ -1,5 +1,6 @@
 ---
 status: partial
+owes: walk
 since: 2026-10-02
 goal: G4
 depends: [5, 9]
@@ -27,7 +28,7 @@ smallest change that would move it.
 
 - [x] `--selftest`: a deliberately unhealthy fixture fails every measure (isocan's lesson: a grader that reports zeros when broken is believed).
 - [x] An instrument that cannot run exits non-zero rather than reporting zero.
-- [ ] Run on keel itself, the page is committed and its proposal becomes, or is declined as, a phase.
+- [ ] ⚑ by hand: run on keel itself, the page is committed, and the owner turns its proposal into a phase or declines it.
 
 ## Proof
 

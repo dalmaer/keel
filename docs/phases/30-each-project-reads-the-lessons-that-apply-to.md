@@ -58,7 +58,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 
 ## Next action
 
-None. Lived-in after a few weeks of real use.
+None.
 
 ## Trajectory
 

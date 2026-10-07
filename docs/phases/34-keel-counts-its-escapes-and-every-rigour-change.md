@@ -1,5 +1,6 @@
 ---
 status: partial
+owes: walk
 since: 2026-10-06
 goal: G5
 spec: 2

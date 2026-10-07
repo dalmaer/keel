@@ -70,7 +70,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 
 ## Next action
 
-None. Lived-in after a few weeks of real use.
+None.
 
 ## Trajectory
 

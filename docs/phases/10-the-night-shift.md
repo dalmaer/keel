@@ -1,5 +1,6 @@
 ---
 status: partial
+owes: walk
 since: 2026-10-02
 goal: G4
 depends: [6]
@@ -28,7 +29,7 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 ## Acceptance
 
 - [x] A workflow test asserts each workflow's branch prefix, concurrency group and that none pushes to `main`.
-- [ ] Seven nights on keel: never more than one open `keel-night/` PR.
+- [ ] ⚑ by hand: seven nights on keel, never more than one open `keel-night/` PR (the owner reads `machine_prs` each morning).
 - [x] A deliberately red night produces a failed workflow (an email), not a quiet page. (Proven by a real one, not a deliberate one: ledger's Loop run on 4 Oct; see the evidence.)
 - [x] ⚑ Secrets the workflows need are listed with what they cost; none set without a yes.
 

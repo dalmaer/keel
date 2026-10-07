@@ -240,7 +240,9 @@ When the proof holds, and only then, write the record, all in one change:
 - **Deliberately open**: settle the questions that were settled, in place,
   dated, saying what settled them.
 - **Next action** for the phase: the next step if it isn't built; once it
-  is built, `None.` (or what lived-in needs).
+  is built, `None.` (or what lived-in needs, when the project counts it:
+  `"phases": {"livedIn": true}`). A partial phase whose building is done and
+  whose rest is a walk gets `owes: walk` and a Next action naming the walk.
 - **Lessons**: a new row only if a bug turned out to have a shape.
 - **What people and agents are told**: if the change alters what a person or
   an agent would be told — a verb, a flag, a practice, a default — update

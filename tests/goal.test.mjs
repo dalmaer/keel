@@ -122,7 +122,7 @@ test('retiring a goal with unbuilt phases asks; supersede with --yes supersedes 
   assert.equal(JSON.parse(await read(dir, 'docs/goals.json'))[1].retired, `${today()}: Nobody exports`);
   const roadmap = await read(dir, 'docs/ROADMAP.md');
   assert.match(roadmap, /## Retired[\s\S]*### G1 — Export\n\nRetired \d{4}-\d{2}-\d{2}: Nobody exports/);
-  assert.match(roadmap, /0 of 2 phases lived in/);
+  assert.match(roadmap, /0 of 2 phases built\./);
   assert.equal(check(dir).status, 0);
   assert.equal(keel(dir, 'goal', 'retire', 'G1', '--reason', 'again').code, 2, 'already retired');
   assert.equal(keel(dir, 'phase', 'new', 'More export', '--goal', 'G1').code, 2, 'no new phase under a retired goal');

@@ -61,7 +61,7 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
 
 ## Next action
 
-None. Lived-in after the owner has picked from retros across a few more phases.
+None.
 
 ## Trajectory
 

@@ -54,7 +54,7 @@ exists, but it can't pass CI until someone has written what it means.
 Where things stand, and what to do next:
 
 ```bash
-keel status          # each goal's built and lived-in counts, and the next phase
+keel status          # each goal's built count, and the next phase
 keel next            # the next phase: its file, its Done when, its next action
 keel phase list      # every phase, as the roadmap reads it
 keel goal list       # every goal, with progress counted from its phases
@@ -63,7 +63,12 @@ keel goal show G1    # one goal: its phases, its counts, its next phase
 
 `keel next` is the one an agent should run first: it picks the first
 unfinished phase whose dependencies are built, so it never sends you to work
-that is blocked. In a repo whose phases live in the projects shape
+that is blocked. A partial phase whose building is done and whose rest is a
+walk (a run on a real surface, an owner's read, a week of nights) says
+`owes: walk` in its front matter: its dependents may proceed and `keel next`
+skips it, while it stays partial until the walk is done. Lived-in counts are
+a project's choice: `"phases": {"livedIn": true}` in `.keel/keel.json` turns
+them on; off, the roadmap and `keel status` count built only. In a repo whose phases live in the projects shape
 (`docs/projects/<p>/phases.md`), `keel next --project <p>` narrows it to one
 project; keel reads that shape but never writes it.
 

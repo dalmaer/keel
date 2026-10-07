@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-07
 goal: G0
 spec: 2
 depends: [32]
-note: "The owner: lived-in feels like it slows a fast project down. It blocks nothing; partial does, when a phase's building is done and its rest is a walk or time. Lived-in becomes opt-in; owes: walk lets dependents proceed while built still means proven. Design: research/2026-10-07-walks-and-lived-in.md."
-evidence: []
+note: "Built: owes: walk (a partial phase whose rest is a walk satisfies depends and is never next; refused off partial or with a buildable box unchecked), lived-in opt-in (\"phases\": {\"livedIn\": true}), phases_stuck skipping a walk owed. keel runs it: 33 of 45 built, 10 owe a walk, next is 13. Owes the fleet walk."
+evidence: ["evidence/2026-10-07-walks-and-lived-in.md"]
 issue: 28
 ---
 
@@ -22,15 +23,16 @@ The design is [Walks owed, and lived-in by choice](../research/2026-10-07-walks-
 - **Lived-in, opt-in**: `"phases": { "livedIn": true }` in `.keel/keel.json`, default off. Off: the roadmap's headline and goal lines count built only, the phases README and template do not ask for it, and keel's own next actions stop saying "Lived-in after…". A `lived-in` status stays valid and done.
 - **`owes: walk`**: a front-matter field, valid only on `partial`. Its dependents' `depends:` are satisfied; `keel next` skips it; the roadmap shows "partial, walk owed"; the night's `phases_stuck` does not count it.
 - **Refused**: `owes:` on any status but partial; `owes: walk` while an unchecked Acceptance box is neither "⚑ by hand" nor a command that runs on a real surface (`gh …`).
-- **keel's records**: phases 10, 13, 34–38, 41–43 reviewed; those with nothing left to build get `owes: walk`.
+- **keel's records**: phases 10, 11, 13, 34–38, 41–43 reviewed; those with nothing left to build get `owes: walk`.
 
 ## Acceptance
 
-- [ ] `nextPhase` treats a partial `owes: walk` dependency as satisfied and skips the phase itself; a plain partial dependency still blocks; mutation: ignoring `owes` fails the test. `tests/roadmap.test.mjs`
-- [ ] The roadmap check refuses `owes: walk` on a built or planned phase, and on a partial phase with an unchecked buildable box (one naming a `tests/` file). `tests/roadmap.test.mjs`
-- [ ] With `livedIn` off the roadmap headline counts built only and names no lived-in count; with it on, as before. `tests/roadmap.test.mjs`
-- [ ] `phases_stuck` does not count a partial `owes: walk` phase. `tests/improve-measures.test.mjs`
-- [ ] keel's own roadmap: `node scripts/roadmap.mjs --next` names a buildable phase while walks are owed, and `docs/ROADMAP.md`'s headline counts built. `node scripts/roadmap.mjs --next`
+- [x] `nextPhase` treats a partial `owes: walk` dependency as satisfied and skips the phase itself; a plain partial dependency still blocks; mutation: ignoring `owes` fails the test. `tests/roadmap.test.mjs`
+- [x] The roadmap check refuses `owes: walk` on a built or planned phase, and on a partial phase with an unchecked buildable box (one naming a `tests/` file). `tests/roadmap.test.mjs`
+- [x] With `livedIn` off the roadmap headline counts built only and names no lived-in count; with it on, as before. `tests/roadmap.test.mjs`
+- [x] `phases_stuck` does not count a partial `owes: walk` phase. `tests/improve-measures.test.mjs`
+- [x] keel's own roadmap: `node scripts/roadmap.mjs --next` names a buildable phase while walks are owed, and `docs/ROADMAP.md`'s headline counts built. `node scripts/roadmap.mjs --next`
+- [ ] ⚑ by hand: the fleet update after the release: duo's and cajones's roadmaps regenerated and their checks green (ledger and isocan do not run this script).
 
 ## Real surfaces
 
@@ -49,4 +51,9 @@ The design is [Walks owed, and lived-in by choice](../research/2026-10-07-walks-
 
 ## Next action
 
-Brief a builder on `owes: walk` in roadmap.mjs (parse, validate, nextPhase, render), `livedIn` in the roadmap's headline, and phases_stuck; then mark keel's walk-owed phases.
+Release it and read duo's and cajones's regenerated roadmaps in the fleet update PRs (their checks green). ledger (its own roadmap.ts) and isocan (the projects shape) do not run this script.
+
+## Trajectory
+
+- **2026-10-07** — The walk rule stayed narrow: only a box that says ⚑ by hand, or whose check is a `gh …` command, is a walk; any other unchecked box counts as buildable, so `owes: walk` is refused rather than hiding work. Phases 10 and 11's boxes were walks in fact and are now worded as ⚑ steps.
+- **2026-10-07** — The owes rule is in the phases README and the planning guide, not the agent cold start, which was at 3177 of 3200 characters.

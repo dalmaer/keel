@@ -8,7 +8,7 @@ Read the project's AGENTS.md before changing anything.
 
 Verbs (every one takes `--json`; parse that, never the prose):
 
-- `keel status` — goals, built and lived-in counts, the next phase
+- `keel status` — goals, built counts, the next phase
 - `keel next` — the next phase to conduct: its file, done-when, next action; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
 - `keel phase new|list` — scaffold the next free phase under a goal; list them
@@ -52,7 +52,7 @@ Under `--json`, stdout carries exactly one JSON document and nothing else;
 human text is never mixed in. Without it, text goes to stdout and errors to
 stderr as one line beginning `keel:`.
 
-- `status` → `{name, goals: [{id, title, outcome, phases, built, lived}], next}`
+- `status` → `{name, goals: [{id, title, outcome, phases, built, lived, owed}], next}` (`owed`: partial phases that owe a walk)
 - `status`, `next`, `goal …` and `phase …` exit 2 where `phases` is a local
   variant, except that `status` and `next` read the projects shape.
 - `next` → the phase object (`id, file, title, status, since, goal, depends,
@@ -64,7 +64,7 @@ stderr as one line beginning `keel:`.
   `next` is `{id, title, status, word, line}` or `null`; `status` →
   `{name, shape, projects: [{project, phases, built, partial, planned,
   superseded, unknown, file, next, from}]}`. An unknown `<p>` exits 2.
-- `goal list` → `[{id, title, outcome, phases, built, lived}]`
+- `goal list` → `[{id, title, outcome, phases, built, lived, owed}]`
 - `goal show` → `{goal, phases: [{id, title, status}], built, lived, next}`;
   `next` is the phase object or `null`
 - `goal add` → `{ok, goal: {id, title, outcome}, file}`

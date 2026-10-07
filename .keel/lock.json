@@ -35,7 +35,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "2e294ccdca143fa3fefc22412cc2f4bd9816943dc0e3bfc53aa3e865a7630295"
+      "sha256": "a1ab37875c956bcad311c1a2210895b7692b014054f4c521312e26bb241ce638"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -107,7 +107,7 @@
     },
     "docs/phases/README.md": {
       "practice": "phases",
-      "sha256": "f9268b31db6ff363c57ca6a692dde3e66c577e86d5ac832c93bff87fa19102b8"
+      "sha256": "61ca1ec0ca4bf06d4bc264811244963b0789f9a1bb2212154c0c9f7a927e7a75"
     },
     "docs/reconciliation.md": {
       "practice": "reconciliation",
@@ -143,7 +143,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "3ae86cd985566c068c2ca308e28fc29f43a6891ec61c61c716b69bc592ef91e1"
+      "sha256": "99c5203048d904d2513be1c77e1f47f253f42e6d3a4b4648c2bea191d852174c"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -171,7 +171,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "d4081293c5f194c8e742e4389e31f49ae2e7f225051925fcd65471ad51e321b8"
+      "sha256": "113cbcb354bf98039736b2ba9811b78a23e94e81d3040ebad8cdb8120ec4bf79"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -183,7 +183,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "baac436bc11af0fdac5a5326374d619eeb374d06a7f90ed8f228e289d165f410"
+      "sha256": "ccf3c938dfb10c1ac8bd33be89bf07c8fd49eb8937fc0f436f27adf5e5598d16"
     }
   }
 }

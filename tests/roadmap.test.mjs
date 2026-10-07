@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, uncheckedBoxes, sectionsOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
+import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, uncheckedBoxes, sectionsOf, isWalk, livedInOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
 
 const phase = ({ status = 'planned', since = '2026-10-02', goal = 'G0', depends = '[]', evidence = '[]', acceptance = '- [ ] Something observable.', extra = '' } = {}) => `---
 status: ${status}
@@ -271,7 +271,7 @@ test('a retired goal renders last, still counted, never next focus', () => {
   validateGraph(phases, goals);
   assert.equal(focus({ phases, goals }).id, 1);
   const md = render({ config: { name: 'Acme' }, phases, goals });
-  assert.match(md, /0 of 2 phases lived in/);
+  assert.match(md, /0 of 2 phases built\./);
   assert.ok(md.indexOf('## G1 — Kept') < md.indexOf('## Retired'));
   assert.match(md, /## Retired[\s\S]*### G0 — Gone\n\nRetired 2026-10-02: no longer wanted/);
 });
@@ -304,6 +304,91 @@ test('check fails on a stale roadmap and passes once regenerated', async () => {
     assert.match(await run({ root, mode: 'next' }), /^0\. A phase/);
     await writeFile(join(root, 'docs/phases/00-start.md'), phase({ status: 'partial' }));
     await assert.rejects(run({ root, mode: 'check' }), /stale/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// Phase 44: a walk owed does not block the next phase, and lived-in is a project's choice.
+const walkBoxes = '- [x] Built. `tests/anvil.test.mjs`\n- [ ] ⚑ by hand: the owner drops one on a coyote.\n- [ ] The release runs: `gh run list --workflow release`';
+
+test('owes: walk parses on a partial phase whose unchecked boxes are all walks', () => {
+  const p = parsePhase('04-x.md', phase({ status: 'partial', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+  assert.equal(p.owes, 'walk');
+  assert.equal(parsePhase('04-x.md', phase({ status: 'partial', acceptance: walkBoxes })).owes, undefined, 'absent is the default');
+});
+
+test('the check refuses owes on any status but partial, an unknown value, and a partial phase with a buildable box', () => {
+  for (const status of ['planned', 'designed']) {
+    assert.throws(() => parsePhase('04-x.md', phase({ status, acceptance: walkBoxes, extra: 'owes: walk\n' })), /owes: walk is only for a partial phase \(this one is (planned|designed)\)/);
+  }
+  assert.throws(() => parsePhase('04-x.md', phase({ status: 'built', evidence: '["evidence/x.md"]', acceptance: '- [x] Did it.', extra: 'owes: walk\n' })), /owes: walk is only for a partial phase \(this one is built\)/);
+  assert.throws(() => parsePhase('04-x.md', phase({ status: 'partial', acceptance: walkBoxes, extra: 'owes: time\n' })), /owes "time" is not one this script knows \(walk:/);
+  // A box citing a tests/ file is still buildable; so is one naming no walk (the safe side).
+  for (const box of ['- [ ] The anvil lands. `tests/anvil.test.mjs`', '- [ ] Seven nights on Acme.', '- [ ] ⚑ by hand, then `tests/anvil.test.mjs`', '- [ ] Runs: `node scripts/anvil.mjs --drop`']) {
+    assert.throws(() => parsePhase('04-x.md', phase({ status: 'partial', acceptance: `${walkBoxes}\n${box}`, extra: 'owes: walk\n' })), /owes: walk, but an unchecked box is still buildable/, box);
+  }
+  assert.equal(isWalk('⚑ by hand: the owner.'), true);
+  assert.equal(isWalk('Runs: `gh pr checks 7`'), true);
+  assert.equal(isWalk('Passes: `tests/a.test.mjs`'), false);
+});
+
+test('nextPhase treats a partial owes: walk dependency as satisfied and skips the phase itself; a plain partial dependency still blocks', () => {
+  const phases = [
+    { id: 0, status: 'built', depends: [] },
+    { id: 1, status: 'partial', owes: 'walk', depends: [0] },
+    { id: 2, status: 'planned', depends: [1] },
+    { id: 3, status: 'partial', depends: [0] },
+    { id: 4, status: 'planned', depends: [3] },
+  ];
+  assert.equal(nextPhase(phases).id, 2, 'the walk owed is skipped and its dependent proceeds');
+  assert.equal(nextPhase(phases, p => p.id === 1), null, 'a walk owed is never next');
+  assert.equal(nextPhase(phases, p => p.id === 4), null, 'a plain partial dependency still blocks');
+  assert.equal(nextPhase(phases.map(p => p.id === 1 ? { ...p, owes: undefined } : p)).id, 1, 'without owes it is next, and blocks 2');
+  // owes on anything but partial satisfies nothing (the parse refuses it anyway).
+  assert.equal(nextPhase(phases.map(p => p.id === 1 ? { ...p, status: 'planned' } : p), p => p.id === 2), null);
+});
+
+const roadmapOf = (config, statuses) => {
+  const goals = [{ id: 'G0', title: 'Anvils', outcome: 'o' }];
+  const phases = statuses.map(([status, owes], id) => ({ id, file: `0${id}-x.md`, title: `P${id}`, status, owes, since: '2026-10-02', goal: 'G0', depends: [], note: 'n', done: 'd', next: 'n' }));
+  return render({ config, phases, goals });
+};
+
+test('with livedIn off the headline counts built only and names no lived-in count; with it on, as before', () => {
+  const statuses = [['lived-in'], ['built'], ['partial', 'walk'], ['planned']];
+  const off = roadmapOf({ name: 'Acme' }, statuses);
+  assert.match(off, /^\*\*2 of 4 phases built; 1 owes a walk\.\*\* Built means implemented and checked; planned is not available\.$/m);
+  assert.match(off, /^2\/4 built; 1 owes a walk\.$/m);
+  assert.match(off, /\| partial, walk owed \|/);
+  assert.doesNotMatch(off.replace(/^\|.*$/gm, ''), /lived[- ]in/i, 'off names no lived-in count (a phase may still say lived-in, a done status)');
+  assert.equal(roadmapOf({ name: 'Acme', phases: { livedIn: false } }, statuses), off);
+  assert.match(roadmapOf({ name: 'Acme' }, [['built']]), /^\*\*1 of 1 phases built\.\*\* Built means/m);
+  assert.match(roadmapOf({ name: 'Acme' }, [['built']]), /^\*\*Next focus:\*\* every phase is built\.$/m);
+  assert.match(roadmapOf({ name: 'Acme' }, [['built'], ['partial', 'walk']]), /^\*\*Next focus:\*\* Nothing left to build; phase 1 owes a walk\.$/m);
+  const on = roadmapOf({ name: 'Acme', phases: { livedIn: true } }, statuses);
+  assert.match(on, /^\*\*1 of 4 phases lived in; 2 built\.\*\* Built means implemented and checked; lived-in means repeated real use held\. Planned is not available\.$/m);
+  assert.match(on, /^2\/4 built or lived-in; 1\/4 lived-in\.$/m);
+  assert.match(roadmapOf({ name: 'Acme', phases: { livedIn: true } }, [['built']]), /every phase is built; go and live in them\./);
+});
+
+test('.keel/keel.json phases.livedIn: an object with a boolean, off when absent', async () => {
+  assert.equal(livedInOf({}), false);
+  assert.equal(livedInOf({ phases: {} }), false);
+  assert.equal(livedInOf({ phases: { livedIn: true } }), true);
+  assert.throws(() => livedInOf({ phases: true }), /"phases" must be an object/);
+  assert.throws(() => livedInOf({ phases: { livedIn: 'yes' } }), /"phases.livedIn" must be true or false/);
+  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  try {
+    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, 'docs/phases'), { recursive: true });
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', phases: { livedIn: 1 } }));
+    await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
+    await writeFile(join(root, 'docs/phases/00-start.md'), phase());
+    await assert.rejects(run({ root, mode: 'check' }), /"phases.livedIn" must be true or false/);
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, 'docs/phases/00-start.md'), phase({ status: 'partial', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+    assert.equal(await run({ root, mode: 'next' }), 'Nothing left to build; phase 0 owes a walk.');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

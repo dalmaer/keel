@@ -61,7 +61,7 @@ The design is [The PR a person reads](../research/2026-10-06-pr-and-retro.md).
 
 ## Next action
 
-None. Lived-in after a few fleet releases read in this form.
+None.
 
 ## Trajectory
 
