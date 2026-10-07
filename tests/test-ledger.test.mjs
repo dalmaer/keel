@@ -51,12 +51,12 @@ describe('rockets', () => { test('one launches', () => {}); });
 test.skip('a skipped crate', () => {});
 `;
 
-async function acmeRepo(t) {
+async function acmeRepo(t, source = null) {
   const dir = await scratch(t);
   await mkdir(join(dir, 'tests'), { recursive: true });
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await writeFile(join(dir, 'tests', 'acme.test.mjs'), ACME_TESTS);
-  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), await readFile(SOURCE, 'utf8'));
+  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), source ?? await readFile(SOURCE, 'utf8'));
   await writeFile(join(dir, '.gitignore'), 'out*.txt\n');
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main');
@@ -67,6 +67,21 @@ async function acmeRepo(t) {
 
 const WITH = ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=./scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout'];
 const nodeTest = (dir, extra, env = {}) => run(process.execPath, ['--test', ...extra, 'tests/acme.test.mjs'], { cwd: dir, env: { ...process.env, ...env } });
+/** The ledger's source with one edit: a mutant a reporter scenario must catch. */
+async function mutated(from, to) {
+  const text = await readFile(SOURCE, 'utf8');
+  assert.ok(text.includes(from), `the mutation's target is still in the source: ${from}`);
+  return text.replace(from, to);
+}
+/** The environment a printed command is run in: none of the scenario's own settings. */
+const bare = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !['NODE_OPTIONS', 'ACME_MODE', 'ACME_FAIL'].includes(k)));
+/** The run-alone command printed under a hygiene item whose line matches `item`. */
+function printed(out, item) {
+  const lines = out.split('\n');
+  const at = lines.findIndex(l => item.test(l));
+  assert.ok(at >= 0, `the item is printed:\n${out}`);
+  return lines[at + 1].trim();
+}
 /** Spec output with the timings blanked, so two runs compare. */
 const steady = out => out.replace(/\(\d+(\.\d+)?ms\)/g, '(T)').replace(/^ℹ duration_ms .*$/m, 'ℹ duration_ms T');
 
@@ -246,6 +261,117 @@ test('a workspace\'s own node --test, run from its folder, records in the repo r
   const { runs } = await readRuns(dir);
   assert.deepEqual(runs.at(-1).tests.map(x => [x.file, x.name, x.outcome]), [['web/tests/shop.test.mjs', 'the shop opens', 'pass']]);
   assert.deepEqual((await readRuns(join(dir, 'web'))).runs, [], 'nothing under the workspace\'s own folder');
+});
+
+/**
+ * Two configs: the flaky test is seen under one (ACME_MODE=b, --import
+ * ./pre.mjs); the run that prints it is under the other (ACME_MODE=a, no
+ * preload). The printed command must be the first's, and running it from a
+ * bare shell must reproduce it.
+ */
+async function reproduces(t, source) {
+  const { dir, git } = await acmeRepo(t, source);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_MODE'] } }));
+  await writeFile(join(dir, 'pre.mjs'), 'globalThis.acmePreloaded = true;\n');
+  await writeFile(join(dir, 'tests', 'mode.test.mjs'), "import { test } from 'node:test';\nimport { writeFileSync } from 'node:fs';\n"
+    + "test('the mode holds', () => { writeFileSync('out-seen.txt', JSON.stringify({ mode: process.env.ACME_MODE ?? null, preloaded: globalThis.acmePreloaded === true })); if (process.env.ACME_FAIL) throw new Error('flake'); });\n");
+  git('add', '-A'); git('commit', '-qm', 'modes');
+  const mode = (env, pre = []) => run(process.execPath, [...pre, '--test', ...WITH, 'tests/mode.test.mjs'], { cwd: dir, env: { ...bare(), ...env } });
+  mode({ ACME_MODE: 'b' }, ['--import', './pre.mjs']);
+  mode({ ACME_MODE: 'b', ACME_FAIL: '1' }, ['--import', './pre.mjs']);
+  const out = mode({ ACME_MODE: 'a' }).stdout;
+  const { runs } = await readRuns(dir);
+  assert.deepEqual(runs.map(r => r.setting), [
+    { env: { ACME_MODE: 'b', NODE_OPTIONS: null }, preload: ['--import', './pre.mjs'] },
+    { env: { ACME_MODE: 'b', NODE_OPTIONS: null }, preload: ['--import', './pre.mjs'] },
+    { env: { ACME_MODE: 'a', NODE_OPTIONS: null }, preload: [] },
+  ], 'each run records what its config hashes');
+  assert.deepEqual(runs.map(r => r.dir), ['.', '.', '.']);
+  const [found] = flaky(runs);
+  assert.deepEqual([found.config, found.setting], [runs[0].config, runs[0].setting], 'the finding carries the config it was seen under');
+  const cmd = printed(out, /flaky {3}tests\/mode\.test\.mjs "the mode holds": passed 1, failed 1/);
+  assert.equal(cmd, "ACME_MODE='b' node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs");
+  const r = run('sh', ['-c', cmd], { cwd: dir, env: bare() });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, 'out-seen.txt'), 'utf8')), { mode: 'b', preloaded: true }, 'run alone, it ran as it did when seen');
+}
+
+test('a flaky finding carries the config it was seen under; its run-alone command sets that config\'s variables and preloads, not the printing run\'s', async t => {
+  await reproduces(t);
+  // A slower one too: the newest run's own setting.
+  const opts = { window: 3, factor: 2, floorMs: 200 };
+  const runs = history(200, 500, opts).map(r => ({ ...r, setting: { env: { NODE_OPTIONS: '--max-old-space-size=64' }, preload: ['--require', './r.cjs'] } }));
+  const [slow] = slower(runs, opts);
+  assert.equal(aloneCommand(slow, ['--import', './elsewhere.mjs']), "NODE_OPTIONS='--max-old-space-size=64' node --require ./r.cjs --test --test-name-pattern='^drop$' tests/anvils.test.mjs");
+});
+
+test('mutations: a run-alone command with the printing run\'s preloads, or without the variables, fails the two-config test', async t => {
+  for (const [from, to] of [
+    ["...(test.setting?.preload ?? preload)", '...preload'],
+    ['const env = Object.entries(test.setting?.env ?? {})', 'const env = Object.entries({})'],
+  ]) await assert.rejects(reproduces(t, await mutated(from, to)), assert.AssertionError, `mutant survived: ${to}`);
+});
+
+/**
+ * A workspace's flaky test, recorded root-relative (web/tests/shop.test.mjs):
+ * the command printed in web/ runs there; the one a root run prints runs from
+ * any folder (src/ here).
+ */
+async function fromWorkspace(t, source) {
+  const { dir, git } = await acmeRepo(t, source);
+  await mkdir(join(dir, 'web', 'tests'), { recursive: true });
+  await mkdir(join(dir, 'src'), { recursive: true });
+  await writeFile(join(dir, 'src', 'anvil.mjs'), 'export {};\n');
+  await writeFile(join(dir, 'web', 'tests', 'shop.test.mjs'), "import { test } from 'node:test';\ntest('the shop opens', () => { if (process.env.ACME_FAIL) throw new Error('closed'); });\n");
+  git('add', '-A'); git('commit', '-qm', 'web');
+  const shop = env => run(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=../scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout', 'tests/shop.test.mjs'], { cwd: join(dir, 'web'), env: { ...bare(), ...env } });
+  shop({});
+  const item = /flaky {3}web\/tests\/shop\.test\.mjs "the shop opens": passed 1, failed 1/;
+  const inWeb = printed(shop({ ACME_FAIL: '1' }).stdout, item);
+  assert.equal(inWeb, "node --test --test-name-pattern='^the shop opens$' tests/shop.test.mjs", 'printed in web/, said from web/');
+  let r = run('sh', ['-c', inWeb], { cwd: join(dir, 'web'), env: bare() });
+  assert.equal(r.status, 0, `run in web/, where it was printed: ${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /pass 1\b/);
+  const atRoot = printed(nodeTest(dir, WITH, bare()).stdout, item);
+  assert.equal(atRoot, `cd "$(git rev-parse --show-toplevel)"/'web' && ${inWeb}`, 'printed at the root, it goes to the suite\'s folder first');
+  r = run('sh', ['-c', atRoot], { cwd: join(dir, 'src'), env: bare() });
+  assert.equal(r.status, 0, `run from src/: ${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /pass 1\b/);
+}
+
+test('a workspace\'s flaky test, recorded root-relative, prints a run-alone command that works where it is printed, and from any folder', async t => {
+  await fromWorkspace(t);
+});
+
+test('mutations: the root-relative file as recorded, or no change of folder, fails the workspace command test', async t => {
+  for (const [from, to] of [
+    ["const file = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';", "const file = test.file ?? '';"],
+    ['return dir === here ? command :', 'return true ? command :'],
+  ]) await assert.rejects(fromWorkspace(t, await mutated(from, to)), assert.AssertionError, `mutant survived: ${to}`);
+});
+
+const LANES = [['.', 'acmeconfig01'], ['.', 'acmeconfig02'], ['web', 'acmeconfig01'], ['web', 'acmeconfig02']];
+async function assertLanes(t, mod) {
+  const dir = await scratch(t);
+  for (let i = 0; i < 30; i++) for (const [d, config] of LANES) await mod.record(dir, { ...runOf({ config, tests: { a: ['pass', 1] } }), dir: d }, { window: 20 });
+  const { runs } = await mod.readRuns(dir);
+  for (const [d, config] of LANES) {
+    const n = runs.filter(r => r.dir === d && r.config === config).length;
+    assert.ok(n >= 21, `lane ${d} ${config} keeps ${n}, fewer than the window and one`);
+  }
+  // The total bounds every lane together.
+  for (let i = 0; i < 3; i++) await mod.record(dir, { ...runOf({ config: 'acmeconfig03', tests: { a: ['pass', 1] } }), dir: '.' }, { window: 20, total: 100 });
+  assert.equal((await mod.readRuns(dir)).runs.length, 100);
+}
+
+test('record keeps each lane (a suite\'s folder × its config) its own history: four lanes interleaved, 30 runs each, keep the window and one or more each; a total caps them all', async t => {
+  await assertLanes(t, ledger);
+});
+
+test('mutation: one lane for every run (keep 50 in all) fails the lanes test', async t => {
+  const m = await mutant(t, 'export const laneOf = r => `${dirOf(r)}\\u0000${configOf(r)}`;', "export const laneOf = () => 'all';");
+  await assert.rejects(assertLanes(t, m), assert.AssertionError);
 });
 
 test('record keeps the newest runs and prunes the rest', async t => {

@@ -34,9 +34,9 @@ async function acme(t, tests) {
 
 let minute = 0;
 /** A run as CI's artifacts hold it: tree, machine, one file's tests. */
-async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, workflow, tests }) {
+async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, config, workflow, tests }) {
   const date = new Date(Date.UTC(2026, 9, 1) + (minute++) * 60_000).toISOString();
-  await record(dir, { commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', date, ...(workflow ? { workflow } : {}),
+  await record(dir, { commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', ...(config ? { config } : {}), date, ...(workflow ? { workflow } : {}),
     tests: Object.entries(tests).map(([name, [outcome, ms]]) => ({ file: 'tests/anvils.test.mjs', name, outcome, ms })) });
 }
 
@@ -67,10 +67,10 @@ test('flaky_tests and slow_tests are n/a, never zero, with fewer runs than the w
   await put(dir, { tests: { 'an anvil drops': ['pass', 390], 'the roadrunner is caught': ['pass', 10] } });
   let data = await read(dir);
   assert.deepEqual([byId(data, 'flaky_tests').state, byId(data, 'flaky_tests').value], ['outside', 1]);
-  assert.deepEqual(byId(data, 'flaky_tests').facts.flaky, [{ file: 'tests/anvils.test.mjs', name: 'the roadrunner is caught', tree: 'acmetree1', passed: 2, failed: 1 }]);
+  assert.deepEqual(byId(data, 'flaky_tests').facts.flaky, [{ file: 'tests/anvils.test.mjs', name: 'the roadrunner is caught', tree: 'acmetree1', passed: 2, failed: 1, dir: '.', config: null, setting: null }]);
   // Three runs, but the newest has only two before it on its machine: not judged yet.
   assert.equal(byId(data, 'slow_tests').state, 'n/a');
-  assert.match(byId(data, 'slow_tests').detail, /earlier recorded runs on linux-x64-4cpu: 2, fewer than the window of 3/);
+  assert.match(byId(data, 'slow_tests').detail, /earlier recorded runs on linux-x64-4cpu under config none: 2, fewer than the window of 3/);
   // Tonight's gate run: the anvil at 2.5x and +600 ms.
   await put(dir, { tree: 'acmetree2', tests: { 'an anvil drops': ['pass', 1000], 'the roadrunner is caught': ['pass', 10] } });
   data = await read(dir);
@@ -85,6 +85,38 @@ test('flaky_tests and slow_tests are n/a, never zero, with fewer runs than the w
   // A run from another machine class does not count toward the anvil's history.
   await put(dir, { machine: { ...MACHINE, cpus: 2 }, tests: { 'an anvil drops': ['pass', 3000] } });
   assert.equal(byId(await read(dir), 'slow_tests').state, 'n/a');
+});
+
+/** 25 runs on one machine, 20 under one config and the newest 5 under another: the newest has 4 comparable runs before it. */
+async function mixedConfigs(t) {
+  const dir = await acme(t, { window: 20 });
+  for (let i = 0; i < 20; i++) await put(dir, { config: 'acmeclock0', tests: { 'an anvil drops': ['pass', 400] } });
+  for (let i = 0; i < 5; i++) await put(dir, { config: 'acmeclock9', tests: { 'an anvil drops': ['pass', 400] } });
+  return dir;
+}
+
+async function assertMixedNa(dir, mod) {
+  const slow = byId(await read(dir, mod, ['slow_tests']), 'slow_tests');
+  assert.equal(slow.state, 'n/a', slow.detail);
+  assert.equal(slow.value, null);
+  assert.match(slow.detail, /earlier recorded runs on linux-x64-4cpu under config acmeclock9: 4, fewer than the window of 20/);
+}
+
+test('slow_tests counts the baseline slower() judges by, the same machine AND config: 25 runs on one machine, only 5 under the newest config, is n/a, never a zero', async t => {
+  await assertMixedNa(await mixedConfigs(t));
+});
+
+test('mutation: counting same-machine runs alone (any config) reads 0 for the mixed history, and fails the n/a test', async t => {
+  const dir = await mixedConfigs(t);
+  const copy = await scratch(t, 'keel-improve-mutant-');
+  await cp(SHIPPED, copy, { recursive: true });
+  const file = join(copy, 'improve.mjs');
+  const text = await readFile(file, 'utf8');
+  const from = 'const same = comparable(runs, newest).length;';
+  assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
+  await writeFile(file, text.replace(from, 'const same = runs.filter(r => r !== newest && machineClass(r.machine) === machine).length;'));
+  const mutant = await import(pathToFileURL(file).href);
+  await assert.rejects(assertMixedNa(dir, mutant), assert.AssertionError);
 });
 
 test('a history of the nights\' own runs only says so: CI does not upload keel-test-runs; one CI or local run among them, and it does not', async t => {

@@ -91,10 +91,13 @@ the tree was dirty (git-ignored files and keel's machine directories,
 `.keel/test-runs`, `.keel/climb` and `.keel/tend`, aside), the machine and
 node, the run's config (a short hash of `NODE_OPTIONS`, its `--import` and
 `--require` preloads, and each variable named in `"tests": {"configEnv":
-[..]}`), whether it was narrowed (`--test-name-pattern` and the like), and in
+[..]}`, recorded beside the hash: each variable's value and the preloads),
+the folder `node --test` ran in, whether it was narrowed (`--test-name-pattern` and the like), and in
 Actions its workflow, in `.keel/test-runs/` at the repo's root (git's top
 level, so a workspace's or app folder's own `node --test`, run from its
-folder, lands in the same ledger; the newest 50 runs; the directory holds a
+folder, lands in the same ledger; each lane, a suite's folder and config,
+keeps its own newest 50 runs, or the window and ten more when that is larger,
+and 400 in all; the directory holds a
 `.gitignore` of `*`, so no project's `.gitignore` changes), and ends the run
 with a hygiene block: one line when clean, else each test that is
 
@@ -103,7 +106,11 @@ with a hygiene block: one line when clean, else each test that is
 - **slower** — above twice its median over its last 20 passing runs on the
   same machine class and config, and more than 200 ms above it,
 
-with its history in one line and the command to run it alone. `"tests":
+with its history in one line and the command to run it alone as it was
+seen: that run's config variables and preloads, from its suite's folder
+(printed elsewhere, it changes to that folder first: `cd "$(git rev-parse
+--show-toplevel)"/'web' && …`). slow_tests is n/a until the newest run has a
+window of earlier runs on its machine class under its own config. `"tests":
 {"window", "factor", "floorMs"}` in `.keel/keel.json` overrides 20, 2 and
 200 (and `allowEmpty`, above). The AGENTS block says what to do with one: **a hygiene note is work** —
 fix it or file it, never rerun until green.
