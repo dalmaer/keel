@@ -98,8 +98,8 @@ had no second reader. The optional `cross-review` practice adds one: a
 second model catches what the author's model is blind to, and the same
 model reviewing its own work does not.
 
-**How it works.** `keel-cross-review.yml` runs Claude
-(`anthropics/claude-code-action`) on a PR whose head branch starts with a
+**How it works.** `keel-cross-review.yml` runs an agent (Claude by
+default, or Codex: see *Choosing the agent*) on a PR whose head branch starts with a
 configured prefix (Codex opens PRs under the owner's account, so the
 branch, not the author, says who wrote it), in this repo, never a fork. It
 runs when the PR is opened or marked ready for review, and again when a
@@ -107,13 +107,15 @@ person with write access comments `/review`; never on a push, because a
 review per push costs more than it tells. The brief
 (`.agents/cross-review/REVIEW.md`) asks for findings only where the code
 shows them: each validated against the code before it is written, tagged
-P1 (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), as an
-inline comment on the line. No style nits. The agent can read the code and
-the diff and write inline comments, nothing else: it never pushes,
-approves, requests changes or merges. Its last message is the summary,
-which the workflow posts as a comment review opened by a hidden marker, so
-it owes no answer. The inline comments do: the author answers each one
-fixed, tracked or not valid, as above.
+P1 (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), on
+the line it is about. No style nits. The agent can read the code and the
+diff, nothing else: it holds no tool that comments, and never pushes,
+approves, requests changes or merges. Its last message is a summary and a
+JSON block of findings; the workflow checks each finding against the diff
+and posts one comment review: the summary, opened by a hidden marker so it
+owes no answer, with the valid findings as inline comments (a finding it
+drops is named in the summary). The inline comments are owed answers: the
+author answers each one fixed, tracked or not valid, as above.
 
 **Switching it on.** Add `cross-review` to `.keel/keel.json` `practices`
 (or `keel init`/`keel adopt` with `--with cross-review`), and the config:
@@ -123,9 +125,26 @@ fixed, tracked or not valid, as above.
 ```
 
 Set `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or
-`ANTHROPIC_API_KEY` as a repo secret; the Claude GitHub App posts the
-comments. Without a secret the run ends green with a notice; without the
-`crossReview` key nothing is reviewed.
+`ANTHROPIC_API_KEY` as a repo secret. Without a secret the run ends green
+with a notice; without the `crossReview` key nothing is reviewed. The
+review is posted by the workflow itself (`github-actions[bot]`).
+
+**Choosing the agent.** Each pass names its agent, and the project lists
+the providers it uses:
+
+```json
+"agents": { "claude": {}, "codex": {} },
+"crossReview": { "for": ["claude/"], "agent": "codex", "budget": { "minutes": 15 } }
+```
+
+No `agent` means Claude, exactly as before. Codex (`openai/codex-action`)
+reviews in its read-only sandbox, with sudo dropped so its key is out of
+its reach, and no GitHub token; its secret is `OPENAI_API_KEY`. Codex's
+spend has no subscription path: every review is billed per token to the
+OpenAI API account, so the Budget line's minutes are a bound on dollars you
+pay by the token. codex-action runs only for an actor with write access: a
+PR opened by a bot is refused (the run is red). An agent not listed in
+`"agents"`, or one keel does not know, is red, naming the key.
 
 **Cost.** Each reviewed PR spends model tokens, up to the budget's minutes
 (5 to 60, default 15). `/review` asks again after new pushes; nothing else

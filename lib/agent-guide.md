@@ -925,19 +925,21 @@ url, resolved, status?, answered}], unanswered, answered, ok}`; `--close --json`
 answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
 
 **Cross-review** (the optional `cross-review` practice, needs `night`):
-`keel-cross-review.yml` has Claude review the PRs another model wrote, as
+`keel-cross-review.yml` has an agent review the PRs another model wrote, as
 Codex reviews Claude Code's. `.keel/keel.json` `"crossReview": {"for":
-["codex/"], "budget": {"minutes": 15}}` (minutes 5–60, default 15; an unknown
-key or an empty `for` is red; no key, no reviews). A PR is reviewed when its
+["codex/"], "budget": {"minutes": 15}, "agent": "claude"}` (minutes 5–60,
+default 15; agent claude or codex, listed in `"agents": {"claude": {},
+"codex": {}}`, default claude; climb and tend take `agent` too, claude only;
+an unknown key or an empty `for` is red; no key, no reviews). A PR is reviewed when its
 head branch starts with a prefix and lives in this repo (never a fork), on
 `opened` and `ready_for_review`, and on a `/review` comment from an OWNER,
 MEMBER or COLLABORATOR (never a bot); never on a push.
 `node scripts/keel/cross-review.mjs which` decides from the PR as `gh pr view`
 returns it. The agent (`.agents/cross-review/REVIEW.md`: validate before
-writing, cite the code, P1/P2/P3, no style nits) may use Read, Grep, Glob,
-`gh pr diff`, `gh pr view` and the action's inline-comment tool, nothing
-else, time-boxed to the budget; the workflow posts its final message as a
-`COMMENT` review opened by a `<!-- keel:cross-review -->` status marker. No
+writing, cite the code, P1/P2/P3, no style nits) only reads (Codex in its
+read-only sandbox), time-boxed to the budget, and ends with a JSON block of
+findings; the workflow checks them against the diff and posts one `COMMENT`
+review, findings inline, opened by a `<!-- keel:cross-review -->` marker. No
 secret: green with a notice; an agent that failed to start: red, the error
 line only. Its comments are answered like any reviewer's.
 

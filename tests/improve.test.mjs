@@ -438,6 +438,11 @@ test('cross_review_valid: the share of Claude\'s cross-review comments answered 
   // A reviewer's own follow-up is not an answer; the first answer in keel's form decides.
   const followed = thread('TF', [comment(1, 'claude[bot]', 'P1: the anvil falls.', '2026-10-04'), comment(2, 'claude[bot]', 'Still falls.', '2026-10-04'), comment(3, 'acme-owner', answer.notValid, '2026-10-05'), comment(4, 'acme-owner', answer.fixed, '2026-10-05')]);
   assert.deepEqual(crossReviewTally({ open: { nodes: [codexPr(5, [followed])] }, merged: { nodes: [] } }, { prefixes: ['codex/'], date: '2026-10-06' }), { prs: 1, comments: 1, fixed: 0, tracked: 0, valid: 0, notValid: 1, unanswered: 0 });
+  // Phase 45: keel's own step posts the findings, as the workflow's bot, each opening with the marker; its other comments are not findings.
+  const { CROSS_REVIEW_FINDING } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  const posted = (body, reply) => thread(`T${++id}`, [comment(id, 'github-actions', body, '2026-10-04'), ...(reply ? [comment(++id, 'acme-owner', reply, '2026-10-05')] : [])]);
+  const keelPosted = codexPr(6, [posted(`${CROSS_REVIEW_FINDING}\n**P2** the lid opens.`, answer.fixed), posted(`${CROSS_REVIEW_FINDING}\n**P1** the anvil falls.`, answer.notValid), posted(`${CROSS_REVIEW_FINDING}\n**P3** a name.`, null), posted('Deploy preview ready.', answer.fixed)]);
+  assert.deepEqual(crossReviewTally({ open: { nodes: [keelPosted, codexPr(7, [finding(answer.tracked)])] }, merged: { nodes: [] } }, { prefixes: ['codex/'], date: '2026-10-06' }), { prs: 2, comments: 4, fixed: 1, tracked: 1, valid: 2, notValid: 1, unanswered: 1 });
 
   // As a measure: 7 of 10 answered valid is 70%, recorded with no bound; reviews_unanswered reads the same pages, once.
   const reviews = JSON.stringify({ data: { repository } });

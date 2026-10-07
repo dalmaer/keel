@@ -1,11 +1,12 @@
 {
   "name": "cross-review",
-  "summary": "Claude reviews the pull requests another model wrote (Codex's codex/ branches), the way Codex reviews Claude Code's: inline comments tagged P1/P2/P3, each validated against the code first, and a summary posted as a COMMENT review; read-only, budgeted, never approves or merges.",
+  "summary": "An agent (Claude, or Codex: crossReview.agent) reviews the pull requests another model wrote (Codex's codex/ branches), the way Codex reviews Claude Code's: findings tagged P1/P2/P3, each validated against the code first, ending its summary as JSON that keel's own step checks against the diff and posts as inline comments in one COMMENT review; read-only, budgeted, never approves or merges.",
   "optional": true,
   "requires": ["night"],
   "secrets": [
     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each reviewed PR spends model tokens up to .keel/keel.json crossReview.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/keel-cross-review.yml" },
-    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-cross-review.yml" }
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-cross-review.yml" },
+    { "name": "OPENAI_API_KEY", "why": "Codex's credential, only when crossReview.agent is \"codex\" (and \"agents\" lists codex): each reviewed PR spends tokens billed to the OpenAI API account (no subscription path), up to crossReview.budget.minutes; until it is set a Codex review ends green with a notice", "workflow": ".github/workflows/keel-cross-review.yml" }
   ],
   "files": [
     { "path": ".github/workflows/keel-cross-review.yml", "from": ".github/workflows/keel-cross-review.yml", "kind": "managed" },

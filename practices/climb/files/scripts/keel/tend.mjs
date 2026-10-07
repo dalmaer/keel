@@ -23,7 +23,7 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { gateEnv, healthDirOf, cells } from './lib.mjs';
+import { gateEnv, healthDirOf, cells, passAgentProblems } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
 
 export const TEND_PREFIX = 'keel-tend/';
@@ -52,13 +52,14 @@ export function tendProblems(config) {
   if (t === undefined) return [];
   if (!t || typeof t !== 'object' || Array.isArray(t)) return ['"tend" must be an object: { schedule: "weekly", budget: { minutes } }'];
   const out = [];
-  for (const k of Object.keys(t)) if (!['schedule', 'budget'].includes(k)) out.push(`"tend" has an unknown key ${k} (schedule, budget)`);
+  for (const k of Object.keys(t)) if (!['schedule', 'budget', 'agent'].includes(k)) out.push(`"tend" has an unknown key ${k} (schedule, budget, agent)`);
   if (t.schedule !== undefined && t.schedule !== 'weekly') out.push(`"tend".schedule must be "weekly" (got ${JSON.stringify(t.schedule)}; nightly is deliberately open in keel phase 38)`);
   if (t.budget !== undefined) {
     if (!t.budget || typeof t.budget !== 'object' || Array.isArray(t.budget) || Object.keys(t.budget).some(k => k !== 'minutes')) out.push('"tend".budget must be { minutes }');
     else if (!(Number.isInteger(t.budget.minutes) && t.budget.minutes >= MINUTES[0] && t.budget.minutes <= MINUTES[1])) out.push(`"tend".budget.minutes must be a whole number from ${MINUTES[0]} to ${MINUTES[1]} (got ${JSON.stringify(t.budget.minutes)})`);
   }
-  return out;
+  // The agent that runs the pass (phase 45): listed in "agents", and one that can commit.
+  return [...out, ...passAgentProblems(config, 'tend')];
 }
 
 /** The tend settings, defaults filled in; null when tend is off. A bad "tend" throws (exit 2). */

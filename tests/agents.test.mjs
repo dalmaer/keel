@@ -1,0 +1,328 @@
+// Agents are providers (keel phase 45): which agent runs each pass, the
+// adapter each provider is, and the rules that hold for both. The config is
+// .keel/keel.json "agents" and an "agent" on crossReview, climb and tend; the
+// adapters are lib.mjs AGENTS. Synthetic Acme fixtures; no model, no network.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, readFile, rm, mkdir, cp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { rmSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { run } from './helpers/run.mjs';
+import { runBlocks } from './helpers/workflows.mjs';
+import { load } from '../lib/practices.mjs';
+import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS } from '../practices/night/files/scripts/keel/lib.mjs';
+
+const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
+const CROSS = join(KEEL, 'practices/cross-review/files');
+const CLIMB = join(KEEL, 'practices/climb/files');
+const WORKFLOW = { crossReview: 'keel-cross-review.yml', climb: 'keel-climb.yml', tend: 'keel-tend.yml' };
+const ON = { crossReview: { for: ['codex/'] }, climb: { jobs: ['test-time'] }, tend: {} };
+
+/** The three scripts as a project has them: in scripts/keel beside the night's lib.mjs. */
+let loaded = null;
+const scripts = () => loaded ??= (async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-scripts-'));
+  process.on('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
+  const keel = join(dir, 'scripts/keel');
+  await mkdir(keel, { recursive: true });
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
+  await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
+  for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
+  const at = f => import(pathToFileURL(join(keel, f)).href);
+  return { cross: await at('cross-review.mjs'), climb: await at('climb.mjs'), tend: await at('tend.mjs') };
+})();
+
+/** Each shipped workflow by its pass: { practice, path, text, declared }. */
+async function workflows() {
+  const out = {};
+  for (const p of (await load()).values()) for (const f of p.files) {
+    const pass = Object.keys(WORKFLOW).find(k => f.path === `.github/workflows/${WORKFLOW[k]}`);
+    if (pass) out[pass] = { practice: p.name, path: f.path, text: f.template, declared: p.secrets.filter(s => s.workflow === f.path).map(s => s.name) };
+  }
+  return out;
+}
+
+/** A workflow's steps, each its text from `      - ` to the next step (the agent jobs' indent). */
+const steps = text => text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s)).map(s => s.replace(/(\n\s*(#.*)?)+$/, ''));
+/** The steps that use a provider's action. */
+const agentSteps = (text, provider) => steps(text).filter(s => s.includes(`uses: ${AGENTS[provider].action}@`));
+/** A step's one-line `key: value` pairs under `with:`. */
+const withOf = step => Object.fromEntries((/\n {8}with:\n((?: {10}.*\n?)+)/.exec(`${step}\n`)?.[1] ?? '').split('\n').map(l => /^ {10}([\w-]+):\s*(.*)$/.exec(l)).filter(Boolean).map(([, k, v]) => [k, v]));
+
+// ---- config ------------------------------------------------------------------
+
+test('config: an agent not listed in "agents", an unknown provider and a malformed "agents" are errors; no agent means claude', async () => {
+  assert.equal(DEFAULT_AGENT, 'claude');
+  assert.deepEqual([...AGENT_PASSES], ['crossReview', 'climb', 'tend']);
+  for (const key of AGENT_PASSES) {
+    // No "agents", no "agent": claude, as before phase 45.
+    assert.equal(agentOf({ [key]: ON[key] }, key), 'claude');
+    assert.equal(agentOf({}, key), 'claude');
+    assert.deepEqual(passAgentProblems({ [key]: ON[key] }, key), [], key);
+    assert.deepEqual(passAgentProblems({ [key]: { ...ON[key], agent: 'claude' } }, key), [], `${key}: claude named, no "agents"`);
+    assert.deepEqual(passAgentProblems({ agents: { claude: {}, codex: {} }, [key]: ON[key] }, key), [], `${key}: both listed, the default`);
+    assert.deepEqual(passAgentProblems({}, key), [], `${key} off`);
+    const bad = [
+      [{ [key]: { ...ON[key], agent: 'codex' } }, new RegExp(`"${key}"\\.agent is codex, which "agents" does not list \\(claude\\)`)],
+      [{ agents: { codex: {} }, [key]: ON[key] }, new RegExp(`"${key}" runs claude \\(no "agent" names another\\), which "agents" does not list \\(codex\\)`)],
+      [{ agents: { claude: {} }, [key]: { ...ON[key], agent: 'gemini' } }, new RegExp(`"${key}"\\.agent must be one of claude, codex \\(got "gemini"\\)`)],
+      [{ [key]: { ...ON[key], agent: 7 } }, /agent must be one of claude, codex \(got 7\)/],
+      [{ agents: { claude: {}, gemini: {} }, [key]: ON[key] }, /"agents" names an unknown provider "gemini" \(known: claude, codex\)/],
+      [{ agents: ['claude'], [key]: ON[key] }, /"agents" must name the providers/],
+      [{ agents: {}, [key]: ON[key] }, /"agents" must name the providers/],
+      [{ agents: 'codex', [key]: ON[key] }, /"agents" must name the providers/],
+      [{ agents: { codex: { model: 'acme-1' } }, [key]: { ...ON[key], agent: 'codex' } }, /"agents"\.codex must be \{\}/],
+    ];
+    for (const [config, message] of bad) {
+      const found = passAgentProblems(config, key);
+      assert.ok(found.some(p => message.test(p)), `${key} ${JSON.stringify(config)}: ${JSON.stringify(found)}`);
+    }
+  }
+  // "agents" alone is checked even with no pass on.
+  assert.deepEqual(agentsProblems({ agents: { claude: {}, codex: {} } }), []);
+  assert.ok(agentsProblems({ agents: { acme: {} } }).length);
+  assert.throws(() => passAgentProblems({}, 'night'), /not a pass an agent runs/);
+});
+
+test('config: Codex reviews; it cannot run a climb or a tend pass, since its sandbox keeps .git read-only (a design finding), and says so', async () => {
+  const codex = { agents: { claude: {}, codex: {} } };
+  assert.deepEqual(passAgentProblems({ ...codex, crossReview: { for: ['codex/'], agent: 'codex' } }, 'crossReview'), []);
+  for (const key of ['climb', 'tend']) {
+    const found = passAgentProblems({ ...codex, [key]: { ...ON[key], agent: 'codex' } }, key);
+    assert.equal(found.length, 1, JSON.stringify(found));
+    assert.match(found[0], new RegExp(`^"${key}"\\.agent is codex: Codex cannot run a climb or a tend pass yet: its workspace-write sandbox keeps \\.git read-only, so it cannot commit`));
+    assert.match(found[0], /danger-full-access\) is refused/);
+  }
+});
+
+test('config: each pass\'s own validator holds the agent rules, and the scripts exit 2 naming the key', async () => {
+  const { cross, climb, tend } = await scripts();
+  const two = { agents: { claude: {}, codex: {} } };
+  // The key is known to each validator.
+  assert.deepEqual(cross.crossReviewProblems({ ...two, crossReview: { for: ['codex/'], agent: 'codex' } }), []);
+  assert.deepEqual(climb.climbProblems({ climb: { jobs: ['test-time'], agent: 'claude' } }), []);
+  assert.deepEqual(tend.tendProblems({ tend: { agent: 'claude' } }), []);
+  assert.equal(cross.crossReviewConfigOf({ ...two, crossReview: { for: ['codex/'], agent: 'codex' } }).agent, 'codex');
+  assert.equal(cross.crossReviewConfigOf({ crossReview: { for: ['codex/'] } }).agent, 'claude');
+  // And each refuses what passAgentProblems refuses.
+  assert.throws(() => cross.crossReviewConfigOf({ crossReview: { for: ['codex/'], agent: 'codex' } }), e => e.exitCode === 2 && /"crossReview"\.agent is codex, which "agents" does not list/.test(e.message));
+  assert.throws(() => climb.climbConfigOf({ ...two, climb: { jobs: ['test-time'], agent: 'codex' } }), e => e.exitCode === 2 && /"climb"\.agent is codex: Codex cannot run a climb/.test(e.message));
+  assert.throws(() => tend.tendConfigOf({ ...two, tend: { agent: 'codex' } }), e => e.exitCode === 2 && /"tend"\.agent is codex: Codex cannot run/.test(e.message));
+  assert.throws(() => tend.tendConfigOf({ agents: { acme: {} }, tend: {} }), e => /unknown provider "acme"/.test(e.message));
+  // The command line, in an Acme project.
+  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-acme-'));
+  try {
+    await mkdir(join(dir, 'scripts/keel'), { recursive: true });
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(dir, 'scripts/keel/cross-review.mjs'));
+    await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/keel/lib.mjs'));
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', crossReview: { for: ['codex/'], agent: 'gemini' } }));
+    const r = run(process.execPath, [join(dir, 'scripts/keel/cross-review.mjs'), 'config', '--json'], { cwd: dir });
+    assert.equal(r.status, 2, r.stdout);
+    assert.match(JSON.parse(r.stdout).error, /"crossReview"\.agent must be one of claude, codex \(got "gemini"\)/);
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', agents: { codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }));
+    const ok = run(process.execPath, [join(dir, 'scripts/keel/cross-review.mjs'), 'config', '--json'], { cwd: dir });
+    assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+    assert.deepEqual(JSON.parse(ok.stdout), { on: true, for: ['codex/'], minutes: 15, agent: 'codex' });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+// ---- adapters, held to the workflows ------------------------------------------------
+
+test('adapters: each provider\'s step is its own action at its major, with its read-only inputs, given only its own secrets, which its practice declares', async () => {
+  const w = await workflows();
+  assert.deepEqual(Object.keys(AGENTS).sort(), ['claude', 'codex']);
+  for (const [provider, a] of Object.entries(AGENTS)) {
+    for (const k of ['name', 'action', 'major', 'secrets', 'readOnly', 'editTree', 'final', 'error', 'login', 'passes', 'refused']) assert.ok(k in a, `${provider}: no ${k}`);
+    for (const key of AGENT_PASSES) {
+      const mine = agentSteps(w[key].text, provider);
+      if (!a.passes.includes(key)) {
+        // A pass the provider cannot hold: no step for it, and the config says why.
+        assert.equal(mine.length, 0, `${provider} has a step in ${w[key].path}, which it cannot run`);
+        assert.ok(a.refused[key], `${provider} refuses ${key} without saying why`);
+        continue;
+      }
+      assert.equal(mine.length, 1, `${w[key].path}: one ${provider} step`);
+      const step = mine[0];
+      assert.match(step, new RegExp(`\\n {8}uses: ${a.action.replace('/', '\\/')}@${a.major}\\n`), `${w[key].path}: ${provider} at ${a.major}`);
+      // Its secrets: only its own, all declared for this workflow by the practice.
+      const used = [...step.matchAll(/secrets\.([A-Za-z_]\w*)/g)].map(m => m[1]);
+      assert.deepEqual([...new Set(used)].sort(), [...a.secrets].sort(), `${w[key].path}: ${provider}'s step is given ${used}`);
+      for (const s of a.secrets) assert.ok(w[key].declared.includes(s), `${w[key].practice} does not declare ${s} for ${w[key].path}`);
+      const inputs = withOf(step);
+      if (key === 'crossReview') {
+        // The pass reads: the provider's read-only inputs, as the adapter says them.
+        if (provider === 'claude') assert.deepEqual(/--allowedTools "([^"]*)"/.exec(step)[1].split(','), [...a.readOnly.allowedTools]);
+        else for (const [k, v] of Object.entries(a.readOnly)) assert.equal(inputs[k], v, `${w[key].path}: ${provider} ${k}`);
+      } else {
+        for (const [k, v] of Object.entries(a.editTree)) assert.equal(inputs[k], v, `${w[key].path}: ${provider} ${k}`);
+      }
+    }
+  }
+  // Each workflow's "Configured?" step looks for the chosen provider's secrets.
+  assert.match(w.crossReview.text, /OPENAI: \$\{\{ secrets\.OPENAI_API_KEY \}\}/);
+});
+
+// ---- the default is today's ----------------------------------------------------------
+
+// The Claude steps as they were before phase 45, byte for byte. Cross-review's
+// step differs only in two places the phase decided: it runs when the config
+// names claude (the default), and its tools no longer include the
+// inline-comment tool (findings are JSON, posted by keel's step).
+const CLAUDE_BEFORE = {
+  crossReview: `      - name: Review
+        id: review
+        if: steps.which.outputs.review == 'true'
+        continue-on-error: true
+        timeout-minutes: \${{ fromJSON(steps.which.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: \${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"`,
+  climb: `      - name: Climb
+        id: climb
+        if: steps.pick.outputs.job != ''
+        continue-on-error: true
+        timeout-minutes: \${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: \${{ github.token }}
+          prompt: \${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/loop.mjs list*),Bash(node scripts/loop.mjs propose *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"`,
+  tend: `      - name: Tend
+        id: tend
+        if: steps.pick.outputs.run == 'yes'
+        continue-on-error: true
+        timeout-minutes: \${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: \${{ github.token }}
+          prompt: \${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/roadmap.mjs*),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *)"`,
+};
+
+test('the default: a project naming no agent runs Claude, and Claude\'s step passes the action exactly what it did before phase 45', async () => {
+  const w = await workflows();
+  const [climbStep] = agentSteps(w.climb.text, 'claude');
+  const [tendStep] = agentSteps(w.tend.text, 'claude');
+  assert.equal(climbStep, CLAUDE_BEFORE.climb);
+  assert.equal(tendStep, CLAUDE_BEFORE.tend);
+  const [review] = agentSteps(w.crossReview.text, 'claude');
+  const expected = CLAUDE_BEFORE.crossReview
+    .replace("if: steps.which.outputs.review == 'true'", "if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'")
+    .replace(',mcp__github_inline_comment__create_inline_comment', '');
+  assert.equal(review, expected);
+  // climb and tend have one agent step, Claude's, and their "Configured?" still asks for Claude's secret alone.
+  for (const key of ['climb', 'tend']) {
+    assert.equal(agentSteps(w[key].text, 'codex').length, 0);
+    assert.doesNotMatch(w[key].text, /OPENAI_API_KEY|codex-action/);
+  }
+
+  // Cross-review with no "agent": the first step says claude, the config says claude, and only Claude's step runs.
+  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-default-'));
+  try {
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    const on = runBlocks(w.crossReview.text).find(b => b.step === 'Is cross-review on?');
+    const outputs = async config => {
+      await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', ...config }));
+      const out = join(dir, 'out');
+      await writeFile(out, '');
+      const r = run('bash', ['-e', '-c', on.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out } });
+      assert.equal(r.status, 0, r.stderr);
+      return Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(Boolean).map(l => l.split('=')));
+    };
+    assert.deepEqual(await outputs({ crossReview: { for: ['codex/'] } }), { on: 'true', agent: 'claude' });
+    assert.deepEqual(await outputs({ agents: { codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }), { on: 'true', agent: 'codex' });
+    assert.deepEqual(await outputs({ crossReview: { for: ['codex/'], agent: 'x"; rm -rf /' } }), { on: 'true', agent: 'claude' }, 'never an odd value in an output; the config check refuses it');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+  const { cross } = await scripts();
+  const pr = { number: 7, headRefName: 'codex/lid', headRefOid: 'a'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN' };
+  assert.equal(cross.shouldReview({ config: { crossReview: { for: ['codex/'] } }, event: { name: 'pull_request', action: 'opened' }, pr }).agent, 'claude');
+  assert.equal(cross.shouldReview({ config: { agents: { codex: {} }, crossReview: { for: ['codex/'], agent: 'codex' } }, event: { name: 'pull_request', action: 'opened' }, pr }).agent, 'codex');
+  // Each provider's step runs only on its own name in the output.
+  const ifOf = s => /\n {8}if: (.*)/.exec(s)[1];
+  assert.equal(ifOf(agentSteps(w.crossReview.text, 'claude')[0]), "steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'");
+  assert.equal(ifOf(agentSteps(w.crossReview.text, 'codex')[0]), "steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'");
+});
+
+// ---- did the agent run? -----------------------------------------------------------------
+
+test('did the agent run: a Codex step that failed, or ended with no final message, before its budget is red with one error line; a timeout or a final message is not', async () => {
+  const red = codexVerdict({ outcome: 'failure', message: null, elapsedSec: 12, minutes: 15 });
+  assert.equal(red.ok, false);
+  assert.equal(red.line, 'Codex did not start: the agent step ended failure after 12 s, before its 15-minute budget, with no final message; check OPENAI_API_KEY, the model, and that the run\'s actor has write access (codex-action refuses anyone else). Nothing is judged or posted.');
+  assert.equal(codexVerdict({ outcome: 'success', message: '  \n', elapsedSec: 8, minutes: 15 }).ok, false, 'success with an empty final message never ran');
+  assert.match(codexVerdict({ outcome: 'success', message: '', elapsedSec: 8, minutes: 15 }).line, /^Codex did not start: the agent step succeeded after 8 s with no final message/);
+  const stopped = codexVerdict({ outcome: 'failure', message: 'acme private review text', elapsedSec: 60, minutes: 15 });
+  assert.equal(stopped.ok, false);
+  assert.match(stopped.line, /^Codex stopped with an error/);
+  assert.doesNotMatch(stopped.line, /acme private review text/, 'never the agent\'s words: keel\'s logs are public');
+  assert.deepEqual(codexVerdict({ outcome: 'failure', message: null, elapsedSec: 15 * 60 - 30, minutes: 15 }).ok, true, 'the budget ran out: not red');
+  assert.equal(codexVerdict({ outcome: 'cancelled', message: null, elapsedSec: 15 * 60, minutes: 15 }).timedOut, true);
+  const fine = codexVerdict({ outcome: 'success', message: 'Checked the lid.\n```json\n[]\n```', elapsedSec: 300, minutes: 15 });
+  assert.equal(fine.ok, true);
+  assert.doesNotMatch(fine.line, /Checked the lid/);
+
+  // The workflow's step, with each provider's output, as a project runs it: Codex red is exit 1 and one ::error:: line.
+  const w = await workflows();
+  const block = runBlocks(w.crossReview.text).find(b => b.step === 'Did the agent run?');
+  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-ran-'));
+  try {
+    const keel = join(dir, 'keel/scripts/keel');
+    await mkdir(keel, { recursive: true });
+    await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
+    await cp(join(NIGHT, 'lib.mjs'), join(keel, 'lib.mjs'));
+    const now = Math.floor(Date.now() / 1000);
+    const step = env => run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, MINUTES: '15', STARTED: String(now - 20), EXECUTION: '', ...env } });
+    const none = step({ AGENT: 'codex', OUTCOME: 'failure' });
+    assert.equal(none.status, 1, none.stdout + none.stderr);
+    assert.equal(none.stdout.trim().split('\n').length, 1);
+    assert.match(none.stdout, /^::error::Codex did not start: the agent step ended failure after \d+ s, before its 15-minute budget, with no final message; check OPENAI_API_KEY/);
+    await writeFile(join(dir, 'codex-final-message.md'), 'Checked the lid. Nothing found.\n```json\n[]\n```\n');
+    const ok = step({ AGENT: 'codex', OUTCOME: 'success' });
+    assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+    assert.match(ok.stdout, /the agent ran: Codex wrote its final message/);
+    // Claude, by its execution file, as before.
+    await writeFile(join(dir, 'execution.json'), JSON.stringify([{ type: 'result', is_error: true, num_turns: 1, duration_ms: 1000, result: 'Invalid API key' }]));
+    const claude = step({ AGENT: 'claude', OUTCOME: 'success', EXECUTION: join(dir, 'execution.json') });
+    assert.equal(claude.status, 1);
+    assert.match(claude.stdout, /^::error::Claude did not start: is_error after 1 turn/);
+    const claudeOk = step({ AGENT: 'claude', OUTCOME: 'success', EXECUTION: join(dir, 'execution.json').replace('execution', 'none') });
+    assert.equal(claudeOk.status, 0, 'a missing execution file on success is not red, as before');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+  // The step reads the outcome of whichever provider's step ran.
+  assert.match(w.crossReview.text, /OUTCOME: \$\{\{ steps\.which\.outputs\.agent == 'codex' && steps\.review_codex\.outcome \|\| steps\.review\.outcome \}\}/);
+  assert.match(w.crossReview.text, /output-file: \$\{\{ runner\.temp \}\}\/codex-final-message\.md/);
+});
+
+test('the Budget line finds the agent step whichever provider ran it: both carry the pass\'s step name, and the skipped one is passed over', async () => {
+  const w = await workflows();
+  for (const provider of Object.keys(AGENTS)) {
+    const [s] = agentSteps(w.crossReview.text, provider);
+    assert.match(s, new RegExp(`^ {6}- name: ${BUDGET_STEPS['keel-cross-review.yml'].agent}\\n`), `${provider}'s review step is named as the Budget map says`);
+  }
+  const t = (h, m) => `2026-10-07T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`;
+  const jobs = ({ claude, codex, check = 'success' }) => [{ steps: [
+    { name: 'Brief', conclusion: 'success', started_at: t(9, 0), completed_at: t(9, 1) },
+    { name: 'Review', conclusion: claude ? 'success' : 'skipped', started_at: claude ? t(9, 1) : null, completed_at: claude ? t(9, 1 + claude) : null },
+    { name: 'Review', conclusion: codex ? 'success' : 'skipped', started_at: codex ? t(9, 1) : null, completed_at: codex ? t(9, 1 + codex) : null },
+    { name: 'Did the agent run?', conclusion: check, started_at: t(9, 30), completed_at: t(9, 30) },
+  ] }];
+  const pass = { step: 'Review', check: 'Did the agent run?', minutes: 15 };
+  assert.deepEqual(stepUse(jobs({ codex: 6 }), pass), { seconds: 360, ranOut: false }, 'Codex ran: its minutes');
+  assert.deepEqual(stepUse(jobs({ claude: 4 }), pass), { seconds: 240, ranOut: false }, 'Claude ran: its minutes');
+  assert.equal(stepUse(jobs({ codex: 1, check: 'failure' }), pass), null, 'Codex never started: not counted');
+  assert.deepEqual(stepUse(jobs({ codex: 15 }), pass).ranOut, true);
+});

@@ -76,7 +76,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { join, resolve, dirname, isAbsolute, normalize, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
+import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
 import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
@@ -181,7 +181,7 @@ export function climbProblems(config) {
   if (c === undefined) return [];
   if (!c || typeof c !== 'object' || Array.isArray(c)) return ['"climb" must be an object: { jobs, budget: { minutes }, schedule, margin, attempts }'];
   const out = [];
-  const known = ['jobs', 'budget', 'schedule', 'margin', 'attempts', 'testCommand', 'build', 'buildOutput', 'buildBudgetMs', 'perf'];
+  const known = ['jobs', 'budget', 'schedule', 'margin', 'attempts', 'testCommand', 'build', 'buildOutput', 'buildBudgetMs', 'perf', 'agent'];
   for (const k of Object.keys(c)) if (!known.includes(k)) out.push(`"climb" has an unknown key ${k} (${known.join(', ')})`);
   if (!Array.isArray(c.jobs) || !c.jobs.length) out.push(`"climb".jobs must list one job or more (${Object.keys(JOBS).join(', ')})`);
   else {
@@ -217,7 +217,8 @@ export function climbProblems(config) {
     if (c.build === undefined) out.push('"climb".jobs names build-time, so "climb".build must name the build command');
     if (c.buildOutput === undefined) out.push('"climb".jobs names build-time, so "climb".buildOutput must name what the build writes (its guard hashes it)');
   }
-  return out;
+  // The agent that runs the night (phase 45): listed in "agents", and one that can commit.
+  return [...out, ...passAgentProblems(config, 'climb')];
 }
 
 /** The climb settings, defaults filled in; null when climb is off. A bad "climb" throws (exit 2). */

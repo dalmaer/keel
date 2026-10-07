@@ -58,7 +58,7 @@ async function load(t, { climb = false } = {}) {
 const prJson = over => ({ number: 7, headRefName: 'codex/anvil-lid', headRefOid: SHA, isCrossRepository: false, isDraft: false, state: 'OPEN', ...over });
 
 /** A stub gh on PATH: `pr view` prints `pr`; `api` logs its arguments and the --input file, then prints a review. */
-async function stubGh(t, pr) {
+async function stubGh(t, pr, { diff = null, refuseInline = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-cross-review-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const log = join(dir, 'gh.log');
@@ -66,9 +66,12 @@ async function stubGh(t, pr) {
 const fs = require('fs');
 const a = process.argv.slice(2);
 if (a[0] === 'pr' && a[1] === 'view') { process.stdout.write(${JSON.stringify(JSON.stringify(pr))}); process.exit(0); }
+if (a[0] === 'pr' && a[1] === 'diff') { const d = ${JSON.stringify(diff)}; if (d === null) { process.stderr.write('acme gh: diff too large'); process.exit(1); } process.stdout.write(d); process.exit(0); }
 if (a[0] === 'api') {
   const i = a.indexOf('--input');
-  fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args: a, input: i >= 0 ? JSON.parse(fs.readFileSync(a[i + 1], 'utf8')) : null }) + '\\n');
+  const input = i >= 0 ? JSON.parse(fs.readFileSync(a[i + 1], 'utf8')) : null;
+  fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args: a, input }) + '\\n');
+  if (${refuseInline} && input && input.comments) { process.stderr.write('gh: Unprocessable Entity (HTTP 422)'); process.exit(1); }
   process.stdout.write('posted review 1 (COMMENTED)\\n');
   process.exit(0);
 }
@@ -101,9 +104,9 @@ test('config: unknown keys, an empty prefix list and a budget outside 5-60 minut
   const m = await load(t);
   assert.deepEqual(m.crossReviewProblems({}), [], 'no key: off, not an error');
   assert.equal(m.crossReviewConfigOf({}), null);
-  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/'] } }), { for: ['codex/'], minutes: 15 });
-  assert.deepEqual(m.crossReviewConfigOf({ crossReview: ON }), { for: ['codex/'], minutes: 15 });
-  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/', 'gemini/'], budget: { minutes: 60 } } }), { for: ['codex/', 'gemini/'], minutes: 60 });
+  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/'] } }), { for: ['codex/'], minutes: 15, agent: 'claude' });
+  assert.deepEqual(m.crossReviewConfigOf({ crossReview: ON }), { for: ['codex/'], minutes: 15, agent: 'claude' });
+  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/', 'gemini/'], budget: { minutes: 60 } } }), { for: ['codex/', 'gemini/'], minutes: 60, agent: 'claude' });
   const bad = [
     [{ for: ['codex/'], reviewers: ['acme'] }, /unknown key reviewers/],
     [{ for: [] }, /"crossReview"\.for must list one branch prefix or more/],
@@ -157,7 +160,7 @@ test('off: with no crossReview key the workflow ends at its first step; with no 
   assert.match(steps[0], /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/, 'the config is the default branch\'s');
   assert.match(steps[2], /if: steps\.on\.outputs\.on == 'true'/);
   assert.match(steps[3], /if: steps\.configured\.outputs\.enabled == 'true'/);
-  for (const s of steps.slice(4)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'\n/, `step without the guard: ${s.split('\n')[0]}`);
+  for (const s of steps.slice(4)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'(?: && steps\.which\.outputs\.agent == '(?:claude|codex)')?\n/, `step without the guard: ${s.split('\n')[0]}`);
   // The config and the brief come from the default branch, before the PR's head is checked out.
   assert.ok(names.indexOf('Brief') < names.indexOf('Check out the pull request'));
   assert.ok(names.indexOf('Check out the pull request') < names.indexOf('Review'));
@@ -316,4 +319,187 @@ test('summary: the agent\'s final message, posted as a COMMENT review on the hea
   assert.equal(call.input.event, 'COMMENT');
   assert.equal(call.input.commit_id, SHA);
   assert.match(call.input.body, /Nothing found in the lid\./);
+});
+
+// ---- phase 45: findings as data, and Codex -------------------------------------------
+
+/** gh pr diff's answer for the Acme PR: lid.js changed (lines 10-14 and 40-42 on the new side), a deleted file, a binary one. */
+const DIFF = [
+  'diff --git a/src/lid.js b/src/lid.js',
+  'index 1111111..2222222 100644',
+  '--- a/src/lid.js',
+  '+++ b/src/lid.js',
+  '@@ -10,4 +10,5 @@ export function open(lid) {',
+  '   const hinge = lid.hinge;',
+  '-  hinge.turn();',
+  '+  if (!hinge) return;',
+  '+  hinge.turn(90);',
+  '   return lid;',
+  ' }',
+  '@@ -40,2 +41,2 @@',
+  '-const OLD = 1;',
+  '+const NEW = 2;',
+  ' export default open;',
+  '\\ No newline at end of file',
+  'diff --git a/src/old.js b/src/old.js',
+  'deleted file mode 100644',
+  '--- a/src/old.js',
+  '+++ /dev/null',
+  '@@ -1,1 +0,0 @@',
+  '-gone',
+  'diff --git a/logo.png b/logo.png',
+  'Binary files a/logo.png and b/logo.png differ',
+  '',
+].join('\n');
+
+const final = (summary, findings) => `${summary}\n\n\`\`\`json\n${JSON.stringify(findings, null, 2)}\n\`\`\`\n`;
+
+test('findings: the diff\'s hunks are the lines a comment may sit on; the JSON block is the last fenced json, the summary the rest', async t => {
+  const m = await load(t);
+  const r = m.diffRanges(DIFF);
+  assert.deepEqual([...r.keys()], ['src/lid.js'], 'a deleted file and a binary one have no lines to comment on');
+  assert.deepEqual(r.get('src/lid.js'), [[10, 14], [41, 42]]);
+  assert.deepEqual(m.findingsOf('Checked the lid. Nothing found.'), { summary: 'Checked the lid. Nothing found.', findings: [], problem: null }, 'prose alone: the summary');
+  const f = m.findingsOf(final('Checked the lid. One P2.', [{ path: 'src/lid.js', line: 12, severity: 'P2', body: 'x' }]));
+  assert.equal(f.summary, 'Checked the lid. One P2.');
+  assert.deepEqual(f.findings, [{ path: 'src/lid.js', line: 12, severity: 'P2', body: 'x' }]);
+  assert.match(m.findingsOf('Summary.\n```json\n{ not json\n```').problem, /^the findings block is not JSON/);
+  assert.equal(m.findingsOf('Summary.\n```json\n{"path": "a"}\n```').problem, 'the findings block is not a JSON array');
+  // Two blocks: the last is the findings (an example quoted earlier is summary text).
+  assert.deepEqual(m.findingsOf('Saw ```json\n[1]\n``` in the docs.\n```json\n[]\n```').findings, []);
+});
+
+test('findings: valid ones become inline comments in one COMMENT review; a path outside the diff, a line out of range, an unknown severity is dropped and named; prose alone posts the summary alone', async t => {
+  const m = await load(t);
+  const pr = prJson();
+  const findings = [
+    { path: 'src/lid.js', line: 12, severity: 'P1', body: 'The hinge is never checked before turn(90): a lid with no hinge throws at src/lid.js:12.' },
+    { path: 'src/lid.js', line: 41, severity: 'P3', body: 'NEW is never read.' },
+    { path: 'src/base.js', line: 3, severity: 'P2', body: 'Outside the diff.' },
+    { path: 'src/lid.js', line: 30, severity: 'P2', body: 'Between the hunks.' },
+    { path: 'src/lid.js', line: 11, severity: 'P0', body: 'An unknown severity.' },
+    { path: 'src/lid.js', line: 11, severity: 'P2', body: '  ' },
+    { path: 'src/old.js', line: 1, severity: 'P2', body: 'A deleted file.' },
+    'a string',
+  ];
+  const review = m.summaryReview({ result: { is_error: false, result: final('Checked the lid and its hinge. One P1, one P3.', findings) }, pr, minutes: 15, diff: DIFF });
+  assert.equal(review.event, 'COMMENT');
+  assert.equal(review.commit_id, SHA);
+  assert.deepEqual(review.comments, [
+    { path: 'src/lid.js', line: 12, side: 'RIGHT', body: `${m.FINDING_MARKER}\n**P1** The hinge is never checked before turn(90): a lid with no hinge throws at src/lid.js:12.` },
+    { path: 'src/lid.js', line: 41, side: 'RIGHT', body: `${m.FINDING_MARKER}\n**P3** NEW is never read.` },
+  ]);
+  assert.ok(review.body.startsWith(`${m.MARKER}\n**Cross-review** by Claude of aaaaaaa`));
+  assert.match(review.body, /Checked the lid and its hinge\. One P1, one P3\./);
+  assert.doesNotMatch(review.body, /```json/, 'the findings block is not the summary');
+  assert.match(review.body, /Dropped \(6, not posted inline\):\n- `src\/base\.js:3`: its path is not in the pull request's diff\n- `src\/lid\.js:30`: its line is outside the diff's hunks for that file\n- `src\/lid\.js:11`: its severity "P0" is not P1, P2, P3\n- `src\/lid\.js:11`: it has no body\n- `src\/old\.js:1`: its path is not in the pull request's diff\n- finding 8: not an object/);
+  // Prose with no JSON block: the summary alone, no comments key (as before phase 45).
+  const prose = m.summaryReview({ result: { is_error: false, result: 'Checked the lid. Nothing found.' }, pr, minutes: 15, diff: DIFF });
+  assert.deepEqual(Object.keys(prose).sort(), ['body', 'commit_id', 'event']);
+  assert.doesNotMatch(prose.body, /Dropped|could not be read/);
+  // A block that is not JSON: the summary, and why nothing is inline.
+  assert.match(m.summaryReview({ message: 'Summary.\n```json\n[{ oops\n```', agent: 'codex', pr, minutes: 15, diff: DIFF }).body, /Its findings could not be read: the findings block is not JSON/);
+  // No diff (gh could not read it): every finding dropped, named.
+  const blind = m.summaryReview({ message: final('S.', findings.slice(0, 1)), agent: 'codex', pr, minutes: 15, diff: null });
+  assert.equal(blind.comments, undefined);
+  assert.match(blind.body, /- `src\/lid\.js:12`: the pull request's diff could not be read/);
+  // Codex's final message is the review, under its own name.
+  const codex = m.summaryReview({ message: final('Codex checked the lid.', findings.slice(0, 1)), agent: 'codex', pr, minutes: 15, diff: DIFF });
+  assert.match(codex.body, /\*\*Cross-review\*\* by Codex of aaaaaaa/);
+  assert.equal(codex.comments.length, 1);
+  // GitHub refused the inline comments: the same review, the findings in its body.
+  const plain = m.summaryReview({ message: final('S.', findings.slice(0, 2)), agent: 'codex', pr, minutes: 15, diff: DIFF, inline: false });
+  assert.equal(plain.comments, undefined);
+  assert.match(plain.body, /GitHub refused the inline comments; the findings \(2\), to answer here:\n- `src\/lid\.js:12` \*\*P1\*\* The hinge/);
+  // Past the cap: dropped and named. A long body is cut.
+  const many = Array.from({ length: m.MAX_FINDINGS + 2 }, () => ({ path: 'src/lid.js', line: 10, severity: 'P3', body: 'y'.repeat(5000) }));
+  const capped = m.checkFindings(many, m.diffRanges(DIFF));
+  assert.equal(capped.kept.length, m.MAX_FINDINGS);
+  assert.deepEqual(capped.dropped.map(d => d.why), [`more than ${m.MAX_FINDINGS} findings`, `more than ${m.MAX_FINDINGS} findings`]);
+  assert.equal(capped.kept[0].body.length, m.FINDING_CHARS);
+  // The night counts these: the marker it looks for is this one.
+  const improve = await import(pathToFileURL(join(NIGHT, 'improve.mjs')).href);
+  assert.equal(improve.CROSS_REVIEW_FINDING, m.FINDING_MARKER);
+});
+
+test('the workflow with Codex: no OPENAI_API_KEY is a notice and green; the brief points at the diff it wrote; the review posts its findings inline, or in its summary when GitHub refuses them', async t => {
+  const codex = { for: ['codex/'], budget: { minutes: 15 }, agent: 'codex' };
+  const dir = await acme(t, { crossReview: codex });
+  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...config, agents: { claude: {}, codex: {} } }));
+  const on = await step(t, dir, 'Is cross-review on?');
+  assert.deepEqual(on.outputs, { on: 'true', agent: 'codex' });
+  const unset = await step(t, dir, 'Configured?', { AGENT: 'codex', OAUTH: 'acme-token', API_KEY: '', OPENAI: '' });
+  assert.equal(unset.status, 0, unset.out);
+  assert.match(unset.out, /^::notice::Skipped: add the OPENAI_API_KEY secret for a cross-review by Codex to run\.$/m);
+  assert.equal(unset.outputs.enabled, 'false', 'Claude\'s secret does not run Codex');
+  assert.equal((await step(t, dir, 'Configured?', { AGENT: 'codex', OAUTH: '', API_KEY: '', OPENAI: 'acme-openai' })).outputs.enabled, 'true');
+  assert.equal((await step(t, dir, 'Configured?', { AGENT: 'claude', OAUTH: '', API_KEY: '', OPENAI: 'acme-openai' })).outputs.enabled, 'false', 'OpenAI\'s key does not run Claude');
+
+  // Which: the agent goes to the steps after it.
+  const pr = prJson();
+  const gh = await stubGh(t, pr, { diff: DIFF, refuseInline: true });
+  const temp = join(dir, 'runner');
+  await mkdir(temp, { recursive: true });
+  const env = { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils' };
+  const which = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened' });
+  assert.equal(which.status, 0, which.out);
+  assert.equal(which.outputs.agent, 'codex');
+  // Brief: the diff, read before the agent, and a prompt that points Codex at it (no network in its sandbox).
+  const brief = await step(t, dir, 'Brief', { ...env, AGENT: 'codex' });
+  assert.equal(brief.status, 0, brief.out);
+  assert.equal(await readFile(join(temp, 'pr.diff'), 'utf8'), DIFF);
+  const prompt = await readFile(join(temp, 'prompt.md'), 'utf8');
+  assert.match(prompt, new RegExp(`- Read it: the diff is ${join(temp, 'pr.diff').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, and the pull request \\(its title and body\\) is .*pr\\.json; this sandbox has no network`));
+  assert.doesNotMatch(prompt, /gh pr diff 7/);
+  // Claude's brief still reads with gh.
+  const claudeBrief = cli(dir, ['brief', '--pr', join(temp, 'pr.json'), '--out', join(temp, 'claude.md')]);
+  assert.equal(claudeBrief.status, 0, claudeBrief.stderr);
+  assert.match(await readFile(join(temp, 'claude.md'), 'utf8'), /- Read it: `gh pr view 7` and `gh pr diff 7`/);
+
+  // Post: Codex's final message; GitHub refuses the inline comments (422), so the plain review goes, findings in its body.
+  await writeFile(join(temp, 'codex-final-message.md'), final('Codex checked the lid. One P1.', [{ path: 'src/lid.js', line: 12, severity: 'P1', body: 'The hinge is unchecked.' }, { path: 'src/nope.js', line: 1, severity: 'P2', body: 'x' }]));
+  const post = await step(t, dir, 'Post the summary', { ...env, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
+  assert.equal(post.status, 0, post.out);
+  assert.match(post.out, /::warning::GitHub refused the review with its inline comments/);
+  const calls = (await gh.calls()).filter(c => c.args[0] === 'api');
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P1** The hinge is unchecked.' }]);
+  assert.equal(calls[0].input.event, 'COMMENT');
+  assert.match(calls[0].input.body, /- `src\/nope\.js:1`: its path is not in the pull request's diff/);
+  assert.equal(calls[1].input.comments, undefined);
+  assert.equal(calls[1].input.event, 'COMMENT');
+  assert.match(calls[1].input.body, /GitHub refused the inline comments; the findings \(1\)/);
+
+  // A diff gh cannot read: a warning, an empty diff, and the review still posts (its findings named, not inline).
+  const blind = await stubGh(t, pr, { diff: null });
+  const b = await step(t, dir, 'Brief', { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex' });
+  assert.equal(b.status, 0, b.out);
+  assert.match(b.out, /::warning::The pull request's diff could not be read/);
+  const bp = await step(t, dir, 'Post the summary', { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
+  assert.equal(bp.status, 0, bp.out);
+  const [only] = (await blind.calls()).filter(c => c.args[0] === 'api');
+  assert.equal(only.input.comments, undefined);
+  assert.match(only.input.body, /the pull request's diff could not be read/);
+});
+
+test('the workflow with Claude: its findings JSON is posted inline by keel\'s step, as Codex\'s are', async t => {
+  const dir = await acme(t);
+  const pr = prJson();
+  const gh = await stubGh(t, pr, { diff: DIFF });
+  const temp = join(dir, 'runner');
+  await mkdir(join(temp, 'keel/scripts/keel'), { recursive: true });
+  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/keel', f), join(temp, 'keel/scripts/keel', f));
+  await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
+  await writeFile(join(temp, 'pr.diff'), DIFF);
+  await writeFile(join(temp, 'execution.json'), execution({ is_error: false, num_turns: 9, duration_ms: 60_000, result: final('Checked the lid. One P3.', [{ path: 'src/lid.js', line: 42, severity: 'P3', body: 'NEW is never read.' }]) }));
+  const s = await step(t, dir, 'Post the summary', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
+  assert.equal(s.status, 0, s.out);
+  const [call] = await gh.calls();
+  assert.deepEqual(call.input.comments, [{ path: 'src/lid.js', line: 42, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P3** NEW is never read.' }]);
+  assert.match(call.input.body, /by Claude of aaaaaaa/);
+  // The brief tells the agent how to write them, and no longer names the comment tool.
+  const brief = await readFile(join(PRACTICE, '.agents/cross-review/REVIEW.md'), 'utf8');
+  assert.match(brief, /```json\n\[\n  \{ "path": "src\/lid\.js", "line": 42, "severity": "P2", "body": /);
+  assert.doesNotMatch(brief, /mcp__github_inline_comment/);
 });

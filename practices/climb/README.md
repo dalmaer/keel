@@ -223,6 +223,13 @@ proposed again; a lesson that belongs home is sent by you, with `keel
 lessons`); a loop night, each finding with its proposed rank and why (decide
 with `node scripts/loop.mjs decide`). Nothing proposed opens nothing.
 
+**Which agent.** `"agent"` on `climb` and `tend` names the agent that runs
+the pass (keel phase 45; listed in `"agents"`, default `claude`). Claude is
+the only one that can for now: Codex's `workspace-write` sandbox keeps
+`.git` read-only, so it cannot commit, and the sandbox that could
+(`danger-full-access`) is never given; `"agent": "codex"` on either is red,
+naming why. Codex reviews (the cross-review practice).
+
 **What it needs (⚑).** The `claude` practice's secret,
 `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`); until one is set the
 run ends green with a notice. Every climb night spends model tokens, up to

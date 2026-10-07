@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-07
 goal: G2
 spec: 2
 depends: [35, 38, 42]
-note: "The owner asked for Codex beside Claude, and for it to be extendable. Every agent keel runs is Claude, spelled into each workflow. A provider becomes an adapter (action, secrets, how read-only and edit-the-tree are said, where its final message and error are read, its bot login); the rules stay keel's; a reviewer's findings are JSON keel posts. Design: research/2026-10-07-agent-providers.md."
-evidence: []
+note: "Built: agents (\"agents\", and \"agent\" per pass, default claude), adapters for Claude and Codex in the night lib, findings as JSON that keel validates against the diff and posts (no agent holds a comment tool), Codex reviewing in a read-only, drop-sudo sandbox. Codex cannot commit under workspace-write, so climb and tend stay Claude-only. Owes the Codex run on ledger."
+evidence: ["evidence/2026-10-07-agent-providers.md"]
 issue: 29
 ---
 
@@ -21,17 +22,17 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 
 - **Config**: `"agents": { "claude": {}, "codex": {} }` (which providers the project uses; their secrets are declared per provider), and `"agent": "<name>"` on `crossReview`, `climb` and `tend`, defaulting to `claude`. Validated: an agent a pass names must be listed; an unknown provider is an error.
 - **Adapters**: one per provider in the shipped scripts, each giving the action and its major, its secrets, its read-only and edit-the-tree settings (Claude: `--allowedTools`; Codex: `sandbox`, `safety-strategy: drop-sudo`, `read-only`), where its final message and its error are read (for "Did the agent run?" and the Budget line), and its bot login.
-- **Workflows**: keel-cross-review.yml, keel-climb.yml and keel-tend.yml choose the agent's step by the pass's `agent`; the three-job sandbox, guard, judge and publish are unchanged.
+- **Workflows**: keel-cross-review.yml chooses the agent's step by the pass's `agent`; keel-climb.yml and keel-tend.yml run Claude only (Codex cannot commit in its writable sandbox: see Trajectory); the three-job sandbox, guard, judge and publish are unchanged.
 - **Findings as data**: the reviewing agent ends with a fenced JSON block (`[{ path, line, severity: "P1"|"P2"|"P3", body }]`) and a summary; `cross-review.mjs` validates it (paths in the PR's diff, lines in range, severity known) and the workflow posts the inline comments and the COMMENT review. The agent holds no comment tool.
 - **Not in scope**: an `@codex` worker beside the `claude` practice (ChatGPT's connection already answers `@codex`).
 
 ## Acceptance
 
-- [ ] Config validation: an `agent` that is not listed in `agents`, an unknown provider, and a malformed `agents` are errors; no `agent` means `claude`. `tests/agents.test.mjs`
-- [ ] Each shipped workflow, rendered for each provider, keeps every sandbox rule (agent and judge jobs read-only, publish runs nothing from the branch, secrets declared, no push to main), and the agent step is the provider's own action; mutation: a Codex agent step with `sandbox: danger-full-access` fails the test. `tests/workflows.test.mjs`
-- [ ] "Did the agent run?" and the Budget line read each provider's output: a Codex run that failed to start is red with its error line only. `tests/agents.test.mjs`
-- [ ] Findings: valid JSON findings become inline comments and a COMMENT review; a finding on a path outside the diff, a line out of range, or an unknown severity is dropped and named in the summary; prose with no JSON block posts the summary alone. `tests/cross-review.test.mjs`
-- [ ] With no `agents` key and no `agent` on any pass, every rendered workflow is byte-identical to today's. `tests/agents.test.mjs`
+- [x] Config validation: an `agent` that is not listed in `agents`, an unknown provider, and a malformed `agents` are errors; no `agent` means `claude`. `tests/agents.test.mjs`
+- [x] Each shipped workflow, rendered for each provider, keeps every sandbox rule (agent and judge jobs read-only, publish runs nothing from the branch, secrets declared, no push to main), and the agent step is the provider's own action; mutation: a Codex agent step with `sandbox: danger-full-access` fails the test. `tests/workflows.test.mjs`
+- [x] "Did the agent run?" and the Budget line read each provider's output: a Codex run that failed to start is red with its error line only. `tests/agents.test.mjs`
+- [x] Findings: valid JSON findings become inline comments and a COMMENT review; a finding on a path outside the diff, a line out of range, or an unknown severity is dropped and named in the summary; prose with no JSON block posts the summary alone. `tests/cross-review.test.mjs`
+- [x] With no `agents` key and no `agent` on any pass, climb's and tend's agent steps are byte-identical to today's, and cross-review's Claude step passes the same inputs but for the comment tool (findings are JSON now). `tests/agents.test.mjs`
 - [ ] ⚑ by hand: on ledger, the owner sets `OPENAI_API_KEY` and switches one pass to `"agent": "codex"`; its next run is read by the owner.
 
 ## Real surfaces
@@ -54,4 +55,10 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 
 ## Next action
 
-Brief a builder on the config and the adapter for Claude first (with findings as JSON), proving every rendered workflow unchanged for a project that names no agent; then the Codex adapter.
+⚑ Owner: set OPENAI_API_KEY on ledger, then add `"agents": {"claude": {}, "codex": {}}` and `"agent": "codex"` in its `crossReview` (for Codex to review Claude's PRs, `"for": ["claude/"]`); read the next reviewed PR's comments.
+
+## Trajectory
+
+- **2026-10-07** — Codex cannot run climb or tend: under `workspace-write` it keeps `.git` read-only, so it cannot commit, and both passes' guards are built on the agent's commits; `danger-full-access` is refused. Codex reviews; `"agent": "codex"` on climb or tend is a config error naming why. A redesign (the workflow commits a plan Codex writes, or a named permission profile) is its own phase.
+- **2026-10-07** — Findings became data: no agent holds a comment tool; keel's step validates each finding against the PR's diff hunks and posts one COMMENT review. Its comments are now `github-actions[bot]`'s, so `cross_review_valid`'s tally counts them by a marker.
+- **2026-10-07** — Cross-review is still one job with pull-requests: write; Codex is contained by its read-only, no-network sandbox and a blanked GH_TOKEN, Claude by read-only tools. Splitting it into agent and publish jobs, as climb and tend are, is the next hardening.

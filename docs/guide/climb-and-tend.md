@@ -78,6 +78,11 @@ Why you'd set each:
 - `margin`, `attempts`, `testCommand`: only when the defaults don't fit
   your suite; `build`, `buildOutput` for `build-time`; `perf` for your own
   benchmark.
+- `agent`: which agent runs the pass. Claude (`"claude"`) is the default
+  and, for now, the only one: Codex reviews pull requests (cross-review's
+  `"agent": "codex"`), but its sandbox keeps `.git` read-only, so it cannot
+  commit what it changes, and a climb or tend pass on Codex is refused,
+  naming why. A project that names an agent lists it in `"agents"`.
 
 Check what a project will actually run, with the defaults filled in:
 

@@ -127,7 +127,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "3b8c9af35237f0d8c39ffe2efa75b4d47648e5da0ea41dce2b9b6bfc761f9c46"
+      "sha256": "0c00e2991be6246886ac230fd952d1e1f46d69af5b0b860dcefcdf8f3e1e6291"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -143,11 +143,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "99c5203048d904d2513be1c77e1f47f253f42e6d3a4b4648c2bea191d852174c"
+      "sha256": "762e511412bdcff6bd00e6955179434008ce101dbd3174c6e78cc490c87fae5d"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "564649a647bfa5a361bb44d5cc0b811e1821e828d24ce94450bb218b2ef0686b"
+      "sha256": "e038ccaf645bbae253265c02c48fea98d85397da9a744731e6f8500d319cbbf1"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -159,7 +159,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "8627dee715c78c22a6cd3655fc0ce917cff9d2144c456920574710f02f2cb324"
+      "sha256": "1a57aa1d83c908997747ba58281e8ba3234ee0a0ca9e6ce4c4e634e472a4d872"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
@@ -171,7 +171,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "552e5f1abef243612e8a770d545cc65209aa329afd8f01e3722142b1dccb7da8"
+      "sha256": "c4bf3b4a5a5a93f38eafa9aa5dd8881c8f8532e2a81e3380a6c3047249242f9c"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -183,7 +183,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "68b0d5956b6fea405a0e385c8835862d795d0979af1a00c3cf017476b203ef7e"
+      "sha256": "a0f3518730e642c33318cbc39fafc226ad09b774b8a83c97a74f0fa20a092065"
     }
   }
 }

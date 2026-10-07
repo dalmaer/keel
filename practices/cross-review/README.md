@@ -8,10 +8,11 @@ artifacts). Codex's own PRs got no second reader. A second model catches
 what the author's model is blind to; the same model reviewing itself does
 not.
 
-**The rule.** `.github/workflows/keel-cross-review.yml` runs Claude
-(`anthropics/claude-code-action`) on a pull request whose head branch
-starts with a configured prefix, under the brief
-`.agents/cross-review/REVIEW.md`:
+**The rule.** `.github/workflows/keel-cross-review.yml` runs an agent on a
+pull request whose head branch starts with a configured prefix, under the
+brief `.agents/cross-review/REVIEW.md`: Claude
+(`anthropics/claude-code-action`) by default, or Codex
+(`openai/codex-action`) when `"crossReview".agent` says so (keel phase 45):
 
 - **Which PRs.** A head branch starting with a prefix in
   `"crossReview".for` (Codex opens PRs under the owner's account, so the
@@ -24,16 +25,28 @@ starts with a configured prefix, under the brief
   displaces a `/review` waiting behind a running review.
 - **How it reviews.** The brief asks for findings only where the code shows
   them: each validated against the code before it is written, tagged P1
-  (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), placed as
-  an inline comment on the line. No style nits, no restating the diff. The
+  (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), on the
+  line it is about. No style nits, no restating the diff. The
   agent reads `AGENTS.md`, the project's lessons table,
   `docs/keel-lessons.md` and the phase the PR names.
-- **What it can do.** Read, Grep, Glob, `gh pr diff`, `gh pr view` and the
-  action's inline-comment tool. Nothing else: it never pushes, approves,
-  requests changes or merges, and the workflow's token cannot write the
-  repo's contents. Its final message is the summary, which the workflow
-  posts as a `COMMENT` review (`scripts/keel/cross-review.mjs summary`),
-  opened by a hidden marker so it is a status board that owes no answer.
+- **What it can do.** Read, and nothing else. Claude's tools are Read,
+  Grep, Glob, `gh pr diff` and `gh pr view`; Codex runs in its `read-only`
+  sandbox (no write, no network) with `safety-strategy: drop-sudo` (its key
+  stays out of its reach) and no GitHub token, reading the diff the
+  workflow wrote before it ran. Neither holds a tool that comments: it never
+  pushes, approves, requests changes or merges, and the workflow's token
+  cannot write the repo's contents.
+- **Findings are data.** The agent's final message is a short summary and
+  a fenced `json` block, `[{ "path", "line", "severity": "P1"|"P2"|"P3",
+  "body" }]`. `scripts/keel/cross-review.mjs summary` checks each against
+  the PR's diff (the path is in it, the line in one of its hunks, a known
+  severity, a body) and the workflow posts one `COMMENT` review: the
+  summary, opened by a hidden marker so it is a status board that owes no
+  answer, with the valid findings as its inline comments (each opening
+  with a `<!-- keel:cross-review finding -->` marker and its priority).
+  A finding dropped is named in the summary, with why; prose with no block
+  posts the summary alone. Should GitHub refuse the inline comments, the
+  review is posted with the findings listed in its summary instead.
 - **Trust.** The config, the brief and the after-checks come from the
   default branch; only then is the PR's head checked out for the agent to
   read. Nothing runs the PR's code.
@@ -46,7 +59,9 @@ starts with a configured prefix, under the brief
 **Answering.** Phase 41's rule applies to the author: every comment is
 validated and answered fixed, tracked or not valid (`keel review --close`).
 The night counts the ones left (`reviews_unanswered`) whoever reviewed, and
-`cross_review_valid` records the share of Claude's comments answered valid
+`cross_review_valid` records the share of the cross-review's comments
+(`claude[bot]`'s before phase 45, the workflow's own marked findings since)
+answered valid
 (fixed or tracked) among those answered, once ten are answered: a reviewer
 whose comments are mostly "not valid" is noise, and the health page says
 so. It is recorded with no bound.
@@ -54,18 +69,28 @@ so. It is recorded with no bound.
 **Config.** `.keel/keel.json`:
 
 ```json
-"crossReview": { "for": ["codex/"], "budget": { "minutes": 15 } }
+"crossReview": { "for": ["codex/"], "budget": { "minutes": 15 }, "agent": "claude" }
 ```
 
 No key, no reviews: the workflow ends at its first step. An unknown key, an
-empty `for`, or minutes outside 5–60 is red, naming the key.
+empty `for`, or minutes outside 5–60 is red, naming the key. `agent` is
+`claude` (the default) or `codex`; a project that names one lists it in
+`"agents": { "claude": {}, "codex": {} }` (with no `"agents"`, claude alone
+is listed). An agent not listed, or an unknown one, is red. To have Codex
+review Claude Code's PRs, the one line is `"agent": "codex"` with
+`"for": ["claude/"]`.
 
-**What it needs (⚑).** One secret: `CLAUDE_CODE_OAUTH_TOKEN` (from
-`claude setup-token`) or `ANTHROPIC_API_KEY` (billed per token), the claude
-practice's. Each reviewed PR spends model tokens, up to the budget. Until
-one is set the run ends green with a notice. The inline comments are
-posted by the Claude GitHub App (`claude[bot]`), which the action's OIDC
-exchange needs installed on the repo.
+**What it needs (⚑).** The chosen agent's secret. Claude:
+`CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or
+`ANTHROPIC_API_KEY` (billed per token), the claude practice's; the action's
+OIDC exchange needs the Claude GitHub App installed on the repo. Codex:
+`OPENAI_API_KEY`, always billed per token to the OpenAI API account (there
+is no subscription path), and codex-action runs only for an actor with
+write access (a PR opened by a bot is refused, and the run is red). Each
+reviewed PR spends model tokens, up to the budget. Until the secret is set
+the run ends green with a notice. The review and its inline comments are
+posted by the workflow's own step (`github-actions[bot]`), whichever agent
+wrote them.
 
 **Optional: opt in.** `keel init` and `keel adopt` leave it off unless asked
 (`--with cross-review`), or unless `.keel/keel.json` already lists it.

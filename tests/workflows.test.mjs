@@ -1203,7 +1203,63 @@ const commentEvent = ({ body = '/review', association = 'OWNER', login = 'acme-o
  * review, posted from the script's JSON (event COMMENT); nothing approves,
  * requests changes, merges or pushes; the agent is time-boxed by the budget.
  */
-export const CROSS_REVIEW_TOOLS = Object.freeze(['Read', 'Grep', 'Glob', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'mcp__github_inline_comment__create_inline_comment']);
+export const CROSS_REVIEW_TOOLS = Object.freeze(['Read', 'Grep', 'Glob', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)']);
+
+/** A workflow's steps, each its text from `- ` to the next step at the same indent. */
+export function stepsOf(text) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^(\s*)- /.exec(lines[i]);
+    if (!m || /^\s*#/.test(lines[i])) continue;
+    const indent = m[1].length;
+    // A step is a list item under `steps:` (jobs' items are deeper than 2 spaces).
+    let k = i - 1;
+    while (k >= 0 && (!lines[k].trim() || /^\s*#/.test(lines[k]) || /^(\s*)/.exec(lines[k])[1].length > indent)) k--;
+    if (!(k >= 0 && (new RegExp(`^\\s{${indent - 2}}steps:\\s*$`).test(lines[k]) || new RegExp(`^\\s{${indent}}- `).test(lines[k])))) continue;
+    const body = [lines[i]];
+    let j = i + 1;
+    for (; j < lines.length && !(lines[j].trim() && !/^\s*#/.test(lines[j]) && /^(\s*)/.exec(lines[j])[1].length <= indent); j++) body.push(lines[j]);
+    out.push(body.join('\n').replace(/(\n\s*(#.*)?)+$/, ''));
+  }
+  return out;
+}
+
+/** A step's `key: value` under `with:` or `env:` (one line each), as a map. */
+export function stepMap(step, block) {
+  const m = new RegExp(`\\n(\\s+)${block}:\\n((?:\\1 {2}.*\\n?)+)`).exec(step);
+  if (!m) return {};
+  return Object.fromEntries(m[2].split('\n').filter(Boolean).map(l => /^\s*([\w-]+):\s*(.*)$/.exec(l)).filter(Boolean).map(([, k, v]) => [k, v.replace(/^"(.*)"$/, '$1')]));
+}
+
+/**
+ * Every rule a Codex agent step breaks (keel phase 45): [string]. Each step
+ * that uses openai/codex-action is the agent's: time-boxed by a budget,
+ * continue-on-error (its check step says whether it ran), in the sandbox the
+ * pass allows (`sandbox`: read-only for a pass that reads), with sudo dropped
+ * (never unsafe: the key would be in reach), no GitHub token, nobody but a
+ * writer able to start it (no allow-users, allow-bots, allow-bot-users), and
+ * no way around the inputs (no codex-args, permission-profile or codex-home).
+ */
+export function codexStepProblems(text, { sandbox }) {
+  const out = [];
+  for (const step of stepsOf(text).filter(st => /\n\s+uses:\s*openai\/codex-action@/.test(`\n${st}`))) {
+    const name = /name:\s*(.+)/.exec(step)?.[1] ?? '(unnamed)';
+    const w = stepMap(step, 'with'), env = stepMap(step, 'env');
+    if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.[\w-]+\.outputs\.minutes\) \}\}/.test(step)) out.push(`${name}: Codex's step is not time-boxed by the budget`);
+    if (!/\n\s+continue-on-error: true/.test(step)) out.push(`${name}: Codex's step is not continue-on-error, so its check never says whether it ran`);
+    if (w.sandbox !== sandbox) out.push(`${name}: Codex's sandbox is ${w.sandbox ?? '(the action\'s default, workspace-write)'}, not ${sandbox}`);
+    if (w['safety-strategy'] !== 'drop-sudo') out.push(`${name}: Codex's safety-strategy is ${w['safety-strategy'] ?? '(unset)'}, not drop-sudo: with sudo it can read its key`);
+    for (const k of ['allow-users', 'allow-bots', 'allow-bot-users']) if (k in w) out.push(`${name}: ${k} lets someone without write access start Codex`);
+    for (const k of ['codex-args', 'permission-profile', 'codex-home', 'codex-user']) if (k in w) out.push(`${name}: ${k} is a way around the sandbox inputs`);
+    if (/danger-full-access|\bunsafe\b/.test(step)) out.push(`${name}: danger-full-access or unsafe`);
+    if (env.GH_TOKEN !== '') out.push(`${name}: Codex's step does not blank GH_TOKEN, so it holds the job's token`);
+    for (const [, sec] of step.matchAll(/secrets\.([A-Za-z_]\w*)/g)) if (sec !== 'OPENAI_API_KEY') out.push(`${name}: Codex's step is given secrets.${sec}`);
+    if (!/\n\s+output-file: \$\{\{ runner\.temp \}\}\//.test(step)) out.push(`${name}: Codex's final message is not written to the runner's temp (output-file), where its check reads it`);
+  }
+  return out;
+}
+
 export function crossReviewProblems(text) {
   const out = [];
   const on = /\non:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
@@ -1221,11 +1277,19 @@ export function crossReviewProblems(text) {
   if (/:\s*write-all|contents: write|actions: write/.test(text)) out.push('the token may write contents or actions');
   for (const { line, n } of code(text)) {
     if (/\bgit push\b|\bgh pr (merge|review|close|edit)\b|\bAPPROVE\b|REQUEST_CHANGES|--approve|--request-changes/.test(line)) out.push(`line ${n}: pushes, merges, approves or requests changes: ${line.trim()}`);
-    if (/\bgh api\b/.test(line) && !/^\s*gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review\.json"/.test(line)) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
+    if (/\bgh api\b/.test(line) && !/^\s*(?:if ! )?gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review(?:-plain)?\.json" --jq '[^']*'(?:; then)?$/.test(line)) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
   }
-  if (!/cross-review\.mjs" summary --file [^\n]* --out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
+  if (!/cross-review\.mjs" summary [^\n]*--out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
   const reviewStep = /\n {6}- name: Review\n[\s\S]*?(?=\n {6}(?:#|- )|$)/.exec(text)?.[0] ?? '';
   if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}\n/.test(reviewStep) || !/\n\s+uses: anthropics\/claude-code-action@v\d+\n/.test(reviewStep)) out.push('the agent\'s step is not time-boxed by the budget (steps.which.outputs.minutes)');
+  // Phase 45: one agent step per provider, each run only when the config names it; Codex's in its read-only sandbox.
+  const agents = stepsOf(text).filter(st => /\n\s+uses:\s*(?:anthropics\/claude-code-action|openai\/codex-action)@/.test(`\n${st}`));
+  for (const [provider, action] of [['claude', 'anthropics/claude-code-action'], ['codex', 'openai/codex-action']]) {
+    const mine = agents.filter(st => st.includes(`uses: ${action}@`));
+    if (mine.length !== 1) out.push(`${mine.length} ${provider} steps; one`);
+    else if (!mine[0].includes(`\n        if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == '${provider}'\n`)) out.push(`the ${provider} step does not run only when the config names ${provider}`);
+  }
+  out.push(...codexStepProblems(text, { sandbox: 'read-only' }));
   if (/pull_request_target/.test(text)) out.push('pull_request_target runs a fork\'s PR with this repo\'s secrets');
   return out;
 }
@@ -1253,7 +1317,7 @@ test('keel-cross-review.yml runs only for a same-repo PR opened or made ready, o
   const which = steps.findIndex(s => s.includes('- name: Which pull request?'));
   assert.ok(which > 0);
   assert.match(steps[which], /node scripts\/keel\/cross-review\.mjs which --pr "\$RUNNER_TEMP\/pr\.json" --event "\$EVENT"/);
-  for (const s of steps.slice(which + 1)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'\n/, s.split('\n')[0]);
+  for (const s of steps.slice(which + 1)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'(?: && steps\.which\.outputs\.agent == '(?:claude|codex)')?\n/, s.split('\n')[0]);
   assert.deepEqual(crossReviewProblems(t), []);
   // The evaluator itself: each guard in the if: is load-bearing.
   for (const [why, from, to, ctx] of [
@@ -1321,7 +1385,7 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
   const t = w.template;
   assert.equal(w.practice, 'cross-review');
   assert.equal(w.optional, true);
-  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY']);
   assert.deepEqual(crossReviewProblems(t), []);
   assert.deepEqual(problems('keel-cross-review.yml', t, w.declared), []);
   const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
@@ -1346,6 +1410,22 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     ['on every push', t.replace('types: [opened, ready_for_review]', 'types: [opened, ready_for_review, synchronize]')],
     ['pull_request_target', t.replace('  pull_request:\n', '  pull_request_target:\n')],
     ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}/, '')],
+    // Phase 45: findings are JSON, so the inline-comment tool is gone; and Codex's step holds the same rules.
+    ['the inline-comment tool back', t.replace(tools, `${tools},mcp__github_inline_comment__create_inline_comment`)],
+    ['Codex with full access', t.replace('          sandbox: read-only\n', '          sandbox: danger-full-access\n')],
+    ['Codex may write the tree', t.replace('          sandbox: read-only\n', '          sandbox: workspace-write\n')],
+    ['Codex on the action\'s default sandbox', t.replace('          sandbox: read-only\n', '')],
+    ['Codex unsafe', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: unsafe\n')],
+    ['Codex keeps sudo', t.replace('          safety-strategy: drop-sudo\n', '')],
+    ['Codex for bots', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-bots: true\n')],
+    ['Codex for anyone', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-users: "*"\n')],
+    ['Codex args around the sandbox', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          codex-args: --dangerously-bypass-approvals-and-sandbox\n')],
+    ['Codex holds the token', t.replace('        env:\n          GH_TOKEN: ""\n', '')],
+    ['Codex given another secret', t.replace('          openai-api-key: ${{ secrets.OPENAI_API_KEY }}\n', '          openai-api-key: ${{ secrets.OPENAI_API_KEY }}\n          model: ${{ secrets.ANTHROPIC_API_KEY }}\n')],
+    ['Codex not time-boxed', t.replace(/(id: review_codex\n[\s\S]*?)\n\s+timeout-minutes: [^\n]*/, '$1')],
+    ['Codex runs whatever the config says', t.replace("steps.which.outputs.agent == 'codex'\n", "true\n")],
+    ['Claude runs whatever the config says', t.replace("steps.which.outputs.agent == 'claude'\n", "true\n")],
+    ['no Codex step', t.replace(/\n {6}- name: Review\n {8}id: review_codex\n[\s\S]*?(?=\n\n)/, '')],
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     assert.ok(crossReviewProblems(text).length, `${why}: expected a problem`);
@@ -1353,16 +1433,19 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
 });
 
 /**
- * A workflow's budgeted agent steps (phase 43): each step that uses
- * claude-code-action time-boxed by a budget (`timeout-minutes` from a step's
- * `minutes` output): { agent, check }, its `name:` and the name of the step
- * right after it (null when either has none).
+ * A workflow's budgeted agent steps (phase 43): each step that uses an agent's
+ * action (claude-code-action, or codex-action since phase 45) time-boxed by a
+ * budget (`timeout-minutes` from a step's `minutes` output): { agent, check },
+ * its `name:` and the name of the first step after it that is not another
+ * provider's step of the same name (null when either has none). Each
+ * provider's step of one pass carries one name, so the Budget line finds
+ * whichever ran (the other is skipped); a pass is listed once.
  */
 export function budgetedAgentSteps(text) {
   const lines = text.split('\n');
   const out = [];
   for (let i = 0; i < lines.length; i++) {
-    if (!/^\s*uses:\s*anthropics\/claude-code-action@/.test(lines[i])) continue;
+    if (!/^\s*uses:\s*(?:anthropics\/claude-code-action|openai\/codex-action)@/.test(lines[i])) continue;
     let start = i;
     while (start >= 0 && !/^\s*- /.test(lines[start])) start--;
     if (start < 0) continue;
@@ -1374,13 +1457,18 @@ export function budgetedAgentSteps(text) {
     if (!/^\s*timeout-minutes:\s*\$\{\{\s*fromJSON\(steps\.[\w-]+\.outputs\.minutes\)\s*\}\}/m.test(step)) continue;
     const nameOf = l => /^\s*(?:- )?name:\s*["']?(.+?)["']?\s*$/.exec(l ?? '')?.[1] ?? null;
     // The next step starts at the same indent with `- `; its name is on that line or the step's own lines.
+    const agent = nameOf(step.split('\n').find(l => /^\s*name:/.test(l)));
     let next = null;
-    while (j < lines.length && /^\s*(#.*)?$/.test(lines[j])) j++;
-    if (j < lines.length && new RegExp(`^\\s{${indent}}- `).test(lines[j])) {
+    for (;;) {
+      while (j < lines.length && /^\s*(#.*)?$/.test(lines[j])) j++;
+      if (!(j < lines.length && new RegExp(`^\\s{${indent}}- `).test(lines[j]))) break;
       next = nameOf(lines[j]);
-      for (let k = j + 1; next === null && k < lines.length && !(lines[k].trim() && /^(\s*)/.exec(lines[k])[1].length <= indent); k++) if (/^\s*name:/.test(lines[k])) next = nameOf(lines[k]);
+      let k = j + 1;
+      for (; k < lines.length && !(lines[k].trim() && /^(\s*)/.exec(lines[k])[1].length <= indent); k++) if (next === null && /^\s*name:/.test(lines[k])) next = nameOf(lines[k]);
+      if (next !== agent || agent === null) break;
+      next = null; j = k; // another provider's step of this pass: look past it
     }
-    out.push({ agent: nameOf(step.split('\n').find(l => /^\s*name:/.test(l))), check: next });
+    if (!out.some(o => o.agent === agent && o.check === next)) out.push({ agent, check: next });
   }
   return out;
 }

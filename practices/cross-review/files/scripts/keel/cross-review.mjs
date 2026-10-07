@@ -1,41 +1,48 @@
 // keel cross-review (keel practice `cross-review`; managed: keel render
-// rewrites it). Claude reviews the pull requests another model wrote (Codex's
-// codex/ branches), the way Codex reviews Claude Code's (keel phase 42;
-// docs/research/2026-10-06-cross-review.md). This script is every decision
+// rewrites it). An agent (Claude, or Codex: "crossReview".agent) reviews the
+// pull requests another model wrote (Codex's codex/ branches), the way Codex
+// reviews Claude Code's (keel phase 42; docs/research/2026-10-06-cross-review.md;
+// providers, phase 45). This script is every decision
 // .github/workflows/keel-cross-review.yml makes that is not the review itself:
 // deterministic, no model, no dependency (Node built-ins only).
 //
 //   node scripts/keel/cross-review.mjs config                 the config, validated
 //   node scripts/keel/cross-review.mjs which --pr <pr.json> --event <name>
 //                                                              review this PR, or why not
-//   node scripts/keel/cross-review.mjs brief --pr <pr.json> --out <prompt.md>
-//   node scripts/keel/cross-review.mjs agent-ran --outcome o --file f --minutes m --started s
-//   node scripts/keel/cross-review.mjs summary --file f --pr <pr.json> --minutes m --out <review.json>
+//   node scripts/keel/cross-review.mjs brief --pr <pr.json> --out <prompt.md> [--agent a --diff <pr.diff>]
+//   node scripts/keel/cross-review.mjs agent-ran [--agent a] --outcome o --file f --minutes m --started s
+//   node scripts/keel/cross-review.mjs summary [--agent a] --file f --pr <pr.json> [--diff <pr.diff>] --minutes m --out <review.json>
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 the agent failed to start
 // (agent-ran); 2 usage or a bad config.
 //
 // The config is .keel/keel.json "crossReview": { "for": ["codex/"],
-// "budget": { "minutes": 15 } }. No key: no reviews. A PR is reviewed when its
+// "budget": { "minutes": 15 }, "agent": "claude" } (the agent is listed in
+// "agents"; none named is claude). No key: no reviews. A PR is reviewed when its
 // head branch starts with a prefix in "for" and lives in this repo (never a
 // fork), on pull_request opened or ready_for_review, or on a `/review` comment
 // from a person with write access (author_association OWNER, MEMBER or
 // COLLABORATOR; never a bot). The workflow's job `if:` says the same; `which`
 // is the second reading, with the PR as gh pr view returns it.
 //
-// The agent's final message is the review's summary: `summary` posts it as a
-// COMMENT review (never APPROVE, never REQUEST_CHANGES), opened by a hidden
-// marker so keel review reads it as a status board, owing no answer; the
-// inline comments are the findings, and each is answered.
+// The agent's final message is the review's summary, ending in a fenced JSON
+// block of findings ([{ path, line, severity, body }]): the agent holds no
+// tool that writes. `summary` validates each finding against the PR's diff
+// (the path is in it, the line in one of its hunks, the severity P1, P2 or
+// P3, a body) and makes one COMMENT review (never APPROVE, never
+// REQUEST_CHANGES): the summary, opened by a hidden marker so keel review
+// reads it as a status board owing no answer, and the valid findings as its
+// inline comments, each answered. A finding dropped is named in the summary.
 //
 // `agent-ran` is the climb practice's check (phase 35, lesson 29), copied
 // here so cross-review needs no climb: an agent that failed before its budget
 // ran out ends the run red, printing only the result's error text, never the
 // session. tests/cross-review.test.mjs holds the copy equal to climb.mjs's.
+// For Codex it is lib.mjs codexVerdict: its outcome and its final message.
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { isMain, main, rootOf, lessonsPathOf } from './lib.mjs';
+import { isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict } from './lib.mjs';
 
 export const KEY = 'crossReview';
 export const LIMITS = Object.freeze({ minutes: [5, 60] });
@@ -51,6 +58,12 @@ export const MARKER = '<!-- keel:cross-review -->';
 /** The review event, always. */
 export const EVENT = 'COMMENT';
 export const SUMMARY_CHARS = 6000;
+/** Each inline comment's first line: a hidden marker, so the night counts the cross-review's findings (keel's step posts them, as the workflow's bot). */
+export const FINDING_MARKER = '<!-- keel:cross-review finding -->';
+export const SEVERITIES = Object.freeze(['P1', 'P2', 'P3']);
+/** At most this many inline comments a review; past it, dropped and named. */
+export const MAX_FINDINGS = 30;
+export const FINDING_CHARS = 4000;
 
 export class CrossReviewError extends Error {
   constructor(message, exitCode = 2) { super(`cross-review: ${message}`); this.exitCode = exitCode; }
@@ -64,7 +77,7 @@ export function crossReviewProblems(config) {
   if (c === undefined) return [];
   if (!c || typeof c !== 'object' || Array.isArray(c)) return [`"${KEY}" must be an object: { "for": ["codex/"], "budget": { "minutes": 15 } }`];
   const out = [];
-  for (const k of Object.keys(c)) if (!['for', 'budget'].includes(k)) out.push(`"${KEY}" has an unknown key ${k} (for, budget)`);
+  for (const k of Object.keys(c)) if (!['for', 'budget', 'agent'].includes(k)) out.push(`"${KEY}" has an unknown key ${k} (for, budget, agent)`);
   if (!Array.isArray(c.for) || !c.for.length) out.push(`"${KEY}".for must list one branch prefix or more (e.g. ["codex/"])`);
   else {
     for (const p of c.for) if (typeof p !== 'string' || !/^[A-Za-z0-9][\w.\/-]*$/.test(p)) out.push(`"${KEY}".for has ${JSON.stringify(p)}: a prefix is a branch name's start, like "codex/"`);
@@ -75,7 +88,7 @@ export function crossReviewProblems(config) {
     if (!c.budget || typeof c.budget !== 'object' || Array.isArray(c.budget) || Object.keys(c.budget).some(k => k !== 'minutes')) out.push(`"${KEY}".budget must be { minutes }`);
     else if (!(Number.isInteger(c.budget.minutes) && c.budget.minutes >= lo && c.budget.minutes <= hi)) out.push(`"${KEY}".budget.minutes must be a whole number from ${lo} to ${hi} (got ${JSON.stringify(c.budget.minutes)})`);
   }
-  return out;
+  return [...out, ...passAgentProblems(config, KEY)];
 }
 
 /** The settings, defaults filled in; null when cross-review is off. A bad one throws (exit 2). */
@@ -84,7 +97,7 @@ export function crossReviewConfigOf(config) {
   if (problems.length) throw new CrossReviewError(`.keel/keel.json: ${problems.join('; ')}`);
   const c = config?.[KEY];
   if (c === undefined) return null;
-  return { for: [...c.for], minutes: c.budget?.minutes ?? DEFAULTS.minutes };
+  return { for: [...c.for], minutes: c.budget?.minutes ?? DEFAULTS.minutes, agent: agentOf(config, KEY) };
 }
 
 // ---- which PRs -------------------------------------------------------------------
@@ -116,7 +129,7 @@ export function shouldReview({ config, event, pr }) {
   const prefix = c.for.find(p => head.startsWith(p));
   if (!prefix) return no(`#${pr.number}'s branch ${head || '(none)'} matches no "${KEY}".for prefix (${c.for.join(', ')})`);
   if (!/^[0-9a-f]{40}$/.test(String(pr.headRefOid ?? ''))) return no(`#${pr.number} came back without its head commit`);
-  return { review: true, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes };
+  return { review: true, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: c.agent };
 }
 
 /** The event as the workflow hands it, from the environment the step sets. */
@@ -127,10 +140,18 @@ export const eventOf = (name, env = process.env) => ({
 
 // ---- the brief -------------------------------------------------------------------
 
-/** The prompt: the brief (.agents/cross-review/REVIEW.md), this PR, and the project's context that exists here. */
-export async function brief({ root, config, pr, repo }) {
+/**
+ * The prompt: the brief (.agents/cross-review/REVIEW.md), this PR, and the
+ * project's context that exists here. Claude reads the PR with gh; Codex's
+ * sandbox has no network, so it reads the diff and the PR from files the
+ * workflow wrote before it ran (`diff`, `prFile`).
+ */
+export async function brief({ root, config, pr, repo, agent = 'claude', diff, prFile }) {
   const text = await readFile(join(root, '.agents/cross-review/REVIEW.md'), 'utf8');
   const context = ['AGENTS.md', lessonsPathOf(config), 'docs/keel-lessons.md'].filter(p => existsSync(join(root, p)));
+  const read = agent === 'claude'
+    ? [`- Read it: \`gh pr view ${pr.number}\` and \`gh pr diff ${pr.number}\``]
+    : [`- Read it: the diff is ${diff ?? '(not written)'}, and the pull request (its title and body) is ${prFile ?? '(not written)'}; this sandbox has no network, so gh cannot reach GitHub`];
   return [
     text.trimEnd(), '',
     '## This pull request', '',
@@ -138,7 +159,7 @@ export async function brief({ root, config, pr, repo }) {
     `- Number: ${pr.number}`,
     `- Branch: ${pr.headRefName}`,
     `- Head commit: ${pr.headRefOid} (checked out here)`,
-    `- Read it: \`gh pr view ${pr.number}\` and \`gh pr diff ${pr.number}\``, '',
+    ...read, '',
     '## The project\'s context, read before the diff', '',
     ...(context.length ? context.map(p => `- ${p}`) : ['- (none of AGENTS.md, the lessons table or docs/keel-lessons.md exists here)']),
     '- The phase the PR names, if it names one (docs/phases/).', '',
@@ -203,32 +224,127 @@ async function readText(file) {
   try { return await readFile(file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return null; throw new CrossReviewError(`${file}: ${e.message}`); }
 }
 
-export async function agentRan({ outcome, file, minutes, started, now = Date.now() }) {
+export async function agentRan({ outcome, file, minutes, started, agent = 'claude', now = Date.now() }) {
   if (!Number.isFinite(minutes) || minutes <= 0) throw new CrossReviewError('agent-ran needs --minutes <the budget>');
-  const result = lastResult(await readText(file));
   const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
+  if (agent === 'codex') {
+    const message = await readText(file);
+    return { agent, outcome: outcome ?? null, chars: message?.trim().length ?? 0, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...codexVerdict({ outcome, message, elapsedSec, minutes }) };
+  }
+  const result = lastResult(await readText(file));
   return { outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: result.num_turns ?? null, duration_ms: result.duration_ms ?? null, subtype: result.subtype ?? null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...agentVerdict({ outcome, result, elapsedSec, minutes }) };
 }
+
+// ---- the findings --------------------------------------------------------------
+
+/**
+ * The agent's final message, split: { summary, findings, problem }. The
+ * findings are the last fenced ```json block's array; the summary is the
+ * message without it. No block: the summary alone, no findings. A block that
+ * is not a JSON array: no findings, and `problem` says why. Pure.
+ */
+export function findingsOf(text) {
+  const message = typeof text === 'string' ? text : '';
+  const blocks = [...message.matchAll(/^[ \t]*```json[ \t]*\r?\n([\s\S]*?)^[ \t]*```[ \t]*$/gm)];
+  const last = blocks.at(-1);
+  if (!last) return { summary: message.trim(), findings: [], problem: null };
+  const summary = (message.slice(0, last.index) + message.slice(last.index + last[0].length)).trim();
+  let findings;
+  try { findings = JSON.parse(last[1]); } catch (e) { return { summary, findings: [], problem: `the findings block is not JSON (${e.message.split('\n')[0]})` }; }
+  if (!Array.isArray(findings)) return { summary, findings: [], problem: 'the findings block is not a JSON array' };
+  return { summary, findings, problem: null };
+}
+
+/**
+ * The lines a review comment may sit on, from a unified diff (gh pr diff):
+ * Map(path → [[first, last], …]), each hunk's lines on the new side (context
+ * and added), the only lines GitHub takes with side RIGHT. A deleted file or
+ * a binary one has none. Pure.
+ */
+export function diffRanges(diff) {
+  const out = new Map();
+  let path = null, line = 0, left = 0, range = null;
+  for (const l of String(diff ?? '').split('\n')) {
+    if (l.startsWith('diff --git ')) { path = null; range = null; left = 0; continue; }
+    if (left === 0 && l.startsWith('+++ ')) {
+      const to = l.slice(4).replace(/\t.*$/, '');
+      path = to === '/dev/null' ? null : to.replace(/^b\//, '');
+      if (path && !out.has(path)) out.set(path, []);
+      continue;
+    }
+    const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(l);
+    if (h) {
+      line = Number(h[1]); left = h[2] === undefined ? 1 : Number(h[2]);
+      range = path && left > 0 ? [line, line + left - 1] : null;
+      if (range) out.get(path).push(range);
+      continue;
+    }
+    if (left > 0 && (l.startsWith(' ') || l.startsWith('+') || l === '')) { line++; left--; }
+  }
+  return out;
+}
+
+/**
+ * Each finding checked against the diff's ranges: { kept, dropped }. Kept:
+ * { path, line, severity, body }, as posted. Dropped: { at (its index), path,
+ * line, why }. Pure.
+ */
+export function checkFindings(findings, ranges, { max = MAX_FINDINGS } = {}) {
+  const kept = [], dropped = [];
+  for (const [at, f] of (Array.isArray(findings) ? findings : []).entries()) {
+    const drop = why => dropped.push({ at, path: typeof f?.path === 'string' ? f.path : null, line: Number.isInteger(f?.line) ? f.line : null, why });
+    if (!f || typeof f !== 'object' || Array.isArray(f)) { drop('not an object of path, line, severity and body'); continue; }
+    if (typeof f.path !== 'string' || !f.path) { drop('no path'); continue; }
+    if (!ranges.has(f.path)) { drop('its path is not in the pull request\'s diff'); continue; }
+    if (!Number.isInteger(f.line) || f.line < 1) { drop('its line is not a line number'); continue; }
+    if (!ranges.get(f.path).some(([a, b]) => f.line >= a && f.line <= b)) { drop('its line is outside the diff\'s hunks for that file'); continue; }
+    if (!SEVERITIES.includes(f.severity)) { drop(`its severity ${JSON.stringify(f.severity ?? null)} is not ${SEVERITIES.join(', ')}`); continue; }
+    if (typeof f.body !== 'string' || !f.body.trim()) { drop('it has no body'); continue; }
+    if (kept.length >= max) { drop(`more than ${max} findings`); continue; }
+    const body = f.body.trim();
+    kept.push({ path: f.path, line: f.line, severity: f.severity, body: body.length > FINDING_CHARS ? `${body.slice(0, FINDING_CHARS - 1)}…` : body });
+  }
+  return { kept, dropped };
+}
+
+/** An inline comment's body: the marker, then the finding opening with its priority. */
+export const findingBody = f => `${FINDING_MARKER}\n**${f.severity}** ${f.body}`;
 
 // ---- the summary review ------------------------------------------------------------
 
 /**
- * The summary review, as the REST API takes it: { event: 'COMMENT', commit_id,
- * body }. The body is the agent's final message (its `result`), under the
- * marker; with none (a budget that ran out), it says so. Pure.
+ * The review, as the REST API takes it: { event: 'COMMENT', commit_id, body,
+ * comments? }. The body is the agent's final message less its findings
+ * block, under the marker (with none, a budget that ran out, it says so),
+ * and each finding dropped, named with why. `comments` are the valid
+ * findings, on the new side of the diff; none, no key. `result` is Claude's
+ * result message; `message` Codex's final message. With `inline: false`
+ * (GitHub refused the comments), the findings are listed in the body. Pure.
  */
-export function summaryReview({ result, pr, minutes }) {
-  const said = typeof result?.result === 'string' && !result.is_error ? result.result.trim() : '';
-  const text = said.length > SUMMARY_CHARS ? `${said.slice(0, SUMMARY_CHARS - 1)}…` : said;
-  const head = `**Cross-review** by Claude of ${String(pr.headRefOid).slice(0, 7)} (keel practice \`cross-review\`): findings are the inline comments, each tagged P1, P2 or P3; answer each one fixed, tracked or not valid.`;
-  const body = text || `The review ran out its ${minutes}-minute budget before writing a summary; the inline comments are what it found.`;
-  return { event: EVENT, commit_id: pr.headRefOid, body: [MARKER, head, '', body, ''].join('\n') };
+export function summaryReview({ result, message, agent = 'claude', pr, minutes, diff = null, inline = true }) {
+  const final = agent === 'claude' ? (typeof result?.result === 'string' && !result.is_error ? result.result : '') : (typeof message === 'string' ? message : '');
+  const { summary, findings, problem } = findingsOf(final);
+  const { kept, dropped } = diff === null && findings.length
+    ? { kept: [], dropped: findings.map((f, at) => ({ at, path: typeof f?.path === 'string' ? f.path : null, line: Number.isInteger(f?.line) ? f.line : null, why: 'the pull request\'s diff could not be read' })) }
+    : checkFindings(findings, diffRanges(diff));
+  const said = summary.length > SUMMARY_CHARS ? `${summary.slice(0, SUMMARY_CHARS - 1)}…` : summary;
+  const head = `**Cross-review** by ${AGENTS[agent]?.name ?? agent} of ${String(pr.headRefOid).slice(0, 7)} (keel practice \`cross-review\`): findings are the inline comments, each tagged P1, P2 or P3; answer each one fixed, tracked or not valid.`;
+  const body = said || `The review ran out its ${minutes}-minute budget before writing a summary; the inline comments are what it found.`;
+  const where = d => (d.path ? `\`${d.path}${d.line ? `:${d.line}` : ''}\`` : `finding ${d.at + 1}`);
+  const notes = [
+    ...(problem ? ['', `Its findings could not be read: ${problem}; none is posted inline.`] : []),
+    ...(dropped.length ? ['', `Dropped (${dropped.length}, not posted inline):`, ...dropped.map(d => `- ${where(d)}: ${d.why}`)] : []),
+    ...(!inline && kept.length ? ['', `GitHub refused the inline comments; the findings (${kept.length}), to answer here:`, ...kept.map(f => `- \`${f.path}:${f.line}\` **${f.severity}** ${f.body.replace(/\s+/g, ' ')}`)] : []),
+  ];
+  const review = { event: EVENT, commit_id: pr.headRefOid, body: [MARKER, head, '', body, ...notes, ''].join('\n') };
+  if (inline && kept.length) review.comments = kept.map(f => ({ path: f.path, line: f.line, side: 'RIGHT', body: findingBody(f) }));
+  return review;
 }
 
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/cross-review.mjs config | which --pr f --event e | brief --pr f --out f | agent-ran --outcome o --file f --minutes m --started s | summary --file f --pr f --minutes m --out f [--json]';
-const FLAGS = { '--pr': 'pr', '--event': 'event', '--out': 'out', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--repo': 'repo' };
+const USAGE = 'usage: node scripts/keel/cross-review.mjs config | which --pr f --event e | brief --pr f --out f [--agent a --diff f] | agent-ran [--agent a] --outcome o --file f --minutes m --started s | summary [--agent a] --file f --pr f [--diff f] --minutes m --out f [--plain f] [--json]';
+const FLAGS = { '--pr': 'pr', '--event': 'event', '--out': 'out', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--repo': 'repo', '--agent': 'agent', '--diff': 'diff', '--plain': 'plain' };
 
 export function parseArgs(args) {
   const [verb, ...rest] = args;
@@ -239,6 +355,7 @@ export function parseArgs(args) {
     if (rest[i + 1] === undefined) throw new CrossReviewError(`${a} needs a value; ${USAGE}`);
     opts[FLAGS[a]] = rest[++i];
   }
+  if (opts.agent !== undefined && !Object.hasOwn(AGENTS, opts.agent)) throw new CrossReviewError(`--agent must be one of ${Object.keys(AGENTS).join(', ')}`);
   for (const k of ['minutes', 'started']) if (opts[k] !== undefined) {
     if (!/^\d+(\.\d+)?$/.test(opts[k])) throw new CrossReviewError(`--${k} must be a number`);
     opts[k] = Number(opts[k]);
@@ -270,20 +387,27 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     }
     case 'brief': {
       if (!o.out) throw new CrossReviewError(`brief needs --out <file>; ${USAGE}`);
-      const text = await brief({ root, config, pr: await readPr(o.pr), repo: o.repo ?? env.GITHUB_REPOSITORY ?? config.repo ?? '' });
+      const text = await brief({ root, config, pr: await readPr(o.pr), repo: o.repo ?? env.GITHUB_REPOSITORY ?? config.repo ?? '', agent: o.agent, diff: o.diff && resolve(o.diff), prFile: o.pr && resolve(o.pr) });
       await writeFile(resolve(o.out), text);
       return { data: { out: resolve(o.out), chars: text.length }, text: `the brief: ${resolve(o.out)} (${text.length} chars)` };
     }
     case 'agent-ran': {
-      const r = await agentRan({ outcome: o.outcome, file: o.file ? resolve(o.file) : undefined, minutes: o.minutes, started: o.started });
+      const r = await agentRan({ outcome: o.outcome, file: o.file ? resolve(o.file) : undefined, minutes: o.minutes, started: o.started, agent: o.agent });
       return { data: r, text: r.ok ? r.line : `::error::${r.line}`, exitCode: r.ok ? 0 : 1 };
     }
     case 'summary': {
       if (!o.out) throw new CrossReviewError(`summary needs --out <file>; ${USAGE}`);
       if (!Number.isFinite(o.minutes)) throw new CrossReviewError('summary needs --minutes <the budget>');
-      const review = summaryReview({ result: lastResult(await readText(o.file ? resolve(o.file) : undefined)), pr: await readPr(o.pr), minutes: o.minutes });
+      const agent = o.agent ?? 'claude';
+      const text = await readText(o.file ? resolve(o.file) : undefined);
+      const diff = o.diff ? await readText(resolve(o.diff)) : null;
+      const args = { ...(agent === 'claude' ? { result: lastResult(text) } : { message: text }), agent, pr: await readPr(o.pr), minutes: o.minutes, diff: diff || null };
+      const review = summaryReview(args);
       await writeFile(resolve(o.out), `${JSON.stringify(review, null, 2)}\n`);
-      return { data: { out: resolve(o.out), event: review.event, commit_id: review.commit_id }, text: `the summary review (${review.event}): ${resolve(o.out)}` };
+      // The same review with the findings in its body: posted when GitHub refuses the inline comments.
+      if (o.plain) await writeFile(resolve(o.plain), `${JSON.stringify(summaryReview({ ...args, inline: false }), null, 2)}\n`);
+      const n = review.comments?.length ?? 0;
+      return { data: { out: resolve(o.out), event: review.event, commit_id: review.commit_id, comments: n }, text: `the summary review (${review.event}, ${n} inline comment${n === 1 ? '' : 's'}): ${resolve(o.out)}` };
     }
     default: throw new CrossReviewError(o.verb ? `unknown subcommand ${o.verb}; ${USAGE}` : USAGE);
   }
