@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.9 — practice 0.8.9 (2026-10-07)
+
+- **A failed update says whether your main already fails.** When your check fails after `keel update` in `keel fleet update`, keel runs it once more without the update and says "main fails the same check without the update: not this update", or "main passes without the update: the update, or a test that fails only sometimes".
+- **The roadmap check flags a phase asking for a night measure with no bound** (the night's self-test refuses one), naming the two fixes: an optional bound, or a line on the health page.
+- **The phase template asks for known limitations under Deliberately open**, with their effect: a limitation that could make the phase's output wrong is never only in the design's prose. Replace that template line when you draft a phase.
+- **The Budget line reads an unset budget as the default of its own practice version**, so a release that changes a default doesn't hide the change.
+
 ## v0.8.8 — practice 0.8.8 (2026-10-07)
 
 - **The Budget line's history is read conservatively.** If the read of `.keel/keel.json`'s history stops short, the oldest config read is the cutoff, never every run; and a budget left to the default only matches another left to the default, since a default can change between releases.
