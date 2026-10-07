@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**33 of 45 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
+**33 of 46 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md). On or after 2026-11-01, with two projects adopted, compute the six measures exactly as `docs/research/2026-10-02-does-keel-help-measures.md` names them, and write the results page.
 
@@ -53,7 +53,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-10/12 built; 2 owe a walk.
+10/13 built; 2 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -69,6 +69,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [39. Every PR keel opens can be judged in a minute: a picture, its evidence, its merge danger](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | built | 2026-10-06 | [6](phases/06-update-and-migrations.md), [22](phases/22-practice-version.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built and read: pr-body.mjs writes Summary, Evidence, Merge danger for keel update / fleet update PRs and the night's data PR; the night's PR on GitHub had the three sections, and the owner read the fleet's update PRs in that form and approved it (2026-10-06). · [#17](https://github.com/dalmaer/keel/issues/17) |
 | [41. Every review comment is validated and answered: none goes unread](phases/41-no-pr-keel-merges-has-an-unread-review-every.md) | partial, walk owed | 2026-10-06 | [6](phases/06-update-and-migrations.md), [10](phases/10-the-night-shift.md), [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | Built and used: keel review (read, --wait, --close; --gate only for the opt-in), reviews_unanswered on the night, the rule in conduct and the climb/tend briefs. Every Codex comment on the 0.8.3, 0.8.4 and 0.8.5 fleet PRs validated and answered; Codex named as reviewer in ledger, duo, cajones; ledger's 26 past comments answered (21 issues). Waits on the owner reading one PR's threads. · [#23](https://github.com/dalmaer/keel/issues/23) |
 | [42. Claude reviews what Codex writes, the way Codex reviews what Claude writes](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | partial, walk owed | 2026-10-06 | [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md), [41](phases/41-no-pr-keel-merges-has-an-unread-review-every.md) | Built and used on ledger: Codex's ledger#92 (codex/enable-ledger-tend) got a Claude review on its own (run 37637421414, about 1m40s of 15): one inline P2 as claude[bot] and a COMMENT summary as github-actions[bot]. Its finding was valid and fixed in keel (10c59b5, v0.8.11). Waits on the owner judging the review's comment. · [#24](https://github.com/dalmaer/keel/issues/24) |
+| [45. Agents are providers: Claude and Codex behind keel's rules](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | planned | 2026-10-07 | [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [38](phases/38-the-records-are-tended-a-weekly-pass-resolves.md), [42](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | The owner asked for Codex beside Claude, and for it to be extendable. Every agent keel runs is Claude, spelled into each workflow. A provider becomes an adapter (action, secrets, how read-only and edit-the-tree are said, where its final message and error are read, its bot login); the rules stay keel's; a reviewer's findings are JSON keel posts. Design: research/2026-10-07-agent-providers.md. · [#29](https://github.com/dalmaer/keel/issues/29) |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
@@ -82,6 +83,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 - **39 done when:** Every PR keel opens (fleet update, the night's data PR, and the climb and tend PRs when they exist) has a body built by `scripts/keel/pr-body.mjs` with three sections in order (Summary as a picture, Evidence as before and after, Merge danger as a two-way or one-way door with its blast radius), and a real fleet update PR in an adopted project reads that way.
 - **41 done when:** `keel review` reads a PR's review threads and comments deterministically; every keel agent that opens or merges a PR (the conductor, fleet update's report, climb, tend) validates each review comment against the code and answers it as fixed (naming the commit), tracked (naming where) or not valid (saying why), closing the thread when settled; the night counts comments left unanswered; and the next fleet release's reviews are all answered. Nothing blocks a merge.
 - **42 done when:** On ledger, a Codex PR (a `codex/` branch) opened after the practice is switched on gets a Claude review within its budget: inline comments tagged P1/P2/P3, each about something the code shows, and a summary; Claude never pushes, approves or merges; and the owner has read that review and judged its comments.
+- **45 done when:** A project chooses which agent runs each pass in `.keel/keel.json` (`"agents"`, and an `"agent"` on cross-review, climb and tend), Claude and Codex are both adapters held to the same rules by the same tests, a reviewing agent's findings are posted by keel's own step, and on ledger one pass runs on Codex by changing one line, its result read by the owner.
 
 ## G3 — Lessons come home
 
