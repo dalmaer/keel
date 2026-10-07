@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.7 — practice 0.8.7 (2026-10-07)
+
+- **The Budget line counts only runs since the budget became what it is today**, and names that date ("tend 3, 2 of 30 min since 2026-09-20"): after you change a budget, runs under the old one no longer skew the suggestion.
+
 ## v0.8.6 — practice 0.8.6 (2026-10-07)
 
 - **Claude can review Codex's PRs** (the new `cross-review` practice, off unless you switch it on). PRs on a branch prefix you name (`"crossReview": {"for": ["codex/"], "budget": {"minutes": 15}}`), or a `/review` comment from someone with write access, get a Claude review: inline P1/P2/P3 comments, each validated first, and a summary posted as a comment. It reads and comments only: it never pushes, approves or merges. It needs `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`), and each review spends model time within its budget.
