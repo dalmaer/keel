@@ -5,6 +5,15 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.1 — practice 0.8.1 (2026-10-06)
+
+Fixes from review of the 0.8.0 update.
+
+- **Loop's prove pass is sandboxed.** If you turned on `loop.prove`, the model now reads code only (Read, Grep, Glob; no shell), gets only the environment it needs, and a finding's text is fenced as data. It answers with its proposal; keel records it.
+- **The test ledger reaches more and judges better.** Your web or workspace test suites get the reporter too, recording at the repo root. Runs under different settings (NODE_OPTIONS, preloads, or variables you name in `"tests": {"configEnv": [...]}`) are compared only with each other. Running one test alone no longer marks its siblings' proofs lost. A file with only an empty `describe()` counts as "no tests ran".
+- **To do by hand, if your CI is your own:** keel can't edit your workflows, so the update PR shows the three-line step to upload `.keel/test-runs` from your CI; until then the night's flaky and slow measures say they read nightly runs only.
+- **If your test command doesn't run keel's shipped tests,** they're added to it, and `keel doctor` reports any it still misses.
+
 ## v0.8.0 — practice 0.8.0 (2026-10-06)
 
 This update rewrites some of your own files, so its PR is marked a one-way door: read it before merging.
