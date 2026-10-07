@@ -5,6 +5,14 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.5 — practice 0.8.5 (2026-10-06)
+
+- **A reopened review thread gets its own day.** When a reviewer follows up on an answered thread, `reviews_unanswered` ages it from the follow-up, not from the original comment.
+- **The health-ignored check probes tonight's page**, so an ignore rule for this year's pages is caught and one for an old archive is not.
+- **The run-alone command reproduces an empty value**: it stops only when a variable that was set in the run is unset in your shell.
+- **The default `docs/health` is dated pages only** for the night's drain, like a configured health directory: a shared index there is no longer merged as data.
+- **The conductor runs `node scripts/roadmap.mjs --next`**, which every project with keel's phases has; `npm run next` only where you have that alias.
+
 ## v0.8.4 — practice 0.8.4 (2026-10-06)
 
 - **An answer is a reply.** `keel review` counts a comment answered only when someone replied citing it (a quote, a link or its id); resolving the thread alone is not an answer, and if the reviewer speaks again it is open again. Top-level review bodies are read too, and a partial page from GitHub is reported as unreadable, never as a count.
