@@ -9,7 +9,7 @@ import { mkdtemp, readFile, writeFile, rm, mkdir, realpath } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
-import { budgetUse, budgetPasses, budgetSince, stepUse, BUDGET_RUNS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { budgetUse, budgetPasses, budgetSince, budgetRaw, stepUse, BUDGET_RUNS, BUDGET_PASSES } from '../practices/night/files/scripts/keel/lib.mjs';
 import { ENV, ghStub } from './helpers/improve.mjs';
 
 const T0 = Date.parse('2026-10-01T09:42:00Z');
@@ -172,9 +172,17 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
   // Codex on 0.8.7: a read that stopped short (the cap) keeps the oldest commit read as the cutoff, never every run.
   assert.equal(budgetSince(history.slice(0, 2), { key: 'tend' }, 30, { complete: false }), '2026-09-20T10:00:00Z');
   assert.equal(budgetSince(history.slice(2), { key: 'tend' }, 15), '2026-08-30T10:00:00Z');
-  // Codex on 0.8.7: a missing budget was the default of the keel that ran then, which may not be today's: it equals only another missing one.
-  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, null), null, 'both left to the default');
-  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, 30, { now: 'NOW' }), 'NOW', 'an explicit 30 is not a default that happened to be 30');
+  // Codex on 0.8.7 and 0.8.8: a budget left to the default is the default of its own practice version, never today's.
+  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, 30), null, 'a missing budget is the default of its version (30)');
+  const acmePass = { key: 'acme', defaults: [['0.0.0', 15], ['0.9.0', 30]] };
+  const implicit = [{ date: '2026-09-27T10:00:00Z', config: { practice: '0.9.1', acme: {} } }, { date: '2026-09-01T10:00:00Z', config: { practice: '0.8.4', acme: {} } }];
+  assert.equal(budgetRaw(implicit[1].config, acmePass), 15);
+  assert.equal(budgetSince(implicit, acmePass, budgetRaw(implicit[0].config, acmePass)), '2026-09-27T10:00:00Z', 'the default changed 15 → 30 at 0.9.0: runs before are another budget');
+  // Every shipped pass's newest default is its default today: a changed default must be recorded.
+  for (const p of BUDGET_PASSES) assert.equal(p.defaults.at(-1)[1], p.minutes, p.pass);
+  // And today's defaults are the passes' own: the scripts that set the timeout.
+  const own = { tend: (await import('../scripts/keel/tend.mjs')).TEND_DEFAULTS.minutes, climb: (await import('../scripts/keel/climb.mjs')).DEFAULTS.minutes, 'cross-review': Number(/export const DEFAULTS = Object\.freeze\(\{ minutes: (\d+) \}\)/.exec(await readFile(new URL('../practices/cross-review/files/scripts/keel/cross-review.mjs', import.meta.url), 'utf8'))?.[1]) };
+  assert.deepEqual(Object.fromEntries(BUDGET_PASSES.map(p => [p.pass, p.minutes])), own);
 
   // Lowered 30 to 15: the long runs before are not counted against 15 either.
   const lowered = [run(5, { created: at(28) }), run(29, { created: at(14) }), run(30, { created: at(7) }), run(29, { created: at(1) }), run(30, { created: at(1) })];

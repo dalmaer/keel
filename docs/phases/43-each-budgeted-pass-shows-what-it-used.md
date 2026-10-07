@@ -58,3 +58,4 @@ The design is [Budget use](../research/2026-10-06-budget-use.md).
 
 - **2026-10-07** — A run whose agent never started is skipped, and the agent step can't say so: it is continue-on-error, so it reports `success` (keel's climb runs 37528477651 and 37522297684: 16–17 s, then "Did the agent run?" `failure`). The map holds both step names per workflow.
 - **2026-10-07** — Cross-review's runs are read on every branch: they run on each PR's branch, so a default-branch filter would see almost none.
+- **2026-10-07** — Codex's reviews of the fleet PRs found three gaps in the history read, each fixed before the next release: runs under an older budget were judged against today's (b6de324, v0.8.7); a capped read counted every run, and a default budget was resolved with today's default (7cacc7d, v0.8.8). Budgets are compared as written.

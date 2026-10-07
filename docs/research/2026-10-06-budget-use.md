@@ -39,9 +39,10 @@ Budget: tend 2, 3, 30⏱ of 30 min (last 3 runs; too few to say) · climb 41⏱,
   as healthy and say shorten). The since is read from the default branch's
   commits touching `.keel/keel.json` (one list, then the config at each,
   newest first, at most 10 read a night) until one has another budget for
-  that pass, compared as written: a budget left to the default equals only
-  another left to the default, never a number, since a default can change
-  between keel releases; the entry names it: `tend 2 of 30 min since
+  that pass, each config's budget read as it ran: its own minutes, else the
+  default of that config's practice version (the night keeps each pass's
+  defaults by version, and a test holds the newest equal to the pass's own),
+  never today's default; the entry names it: `tend 2 of 30 min since
   2026-10-06 (last 1 run; too few to say)`. The whole history read and none
   differs: no since, every run counted. A read that stopped short (the cap,
   a full page): the oldest commit read is the since. The history
