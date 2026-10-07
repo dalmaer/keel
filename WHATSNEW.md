@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.15 — practice 0.8.15 (2026-10-07)
+
+- **A walk owed no longer blocks the next phase.** Mark a partial phase whose building is done and whose rest is a walk or time (a run on GitHub, your read, a week of nights) with `owes: walk` in its front matter: phases that depend on it can proceed, `keel next` skips it, the roadmap shows "partial, walk owed", and the night doesn't count it as stuck. It is refused while any box that could still be built is unchecked, so built still means proven.
+- **Lived-in is your choice.** Off by default: the roadmap, `keel status` and `keel goal` count built (and walks owed). Turn it on with `"phases": { "livedIn": true }` in `.keel/keel.json`; a phase already marked `lived-in` stays valid either way.
+- Your `docs/ROADMAP.md` is regenerated in this update: its headline now counts built.
+
 ## v0.8.14 — practice 0.8.14 (2026-10-07)
 
 - **Climb's temporary checkouts sit beside yours**, under a hidden name removed afterwards, so a gate that reads a sibling folder (ledger's `../ledger-data`) works in them.
