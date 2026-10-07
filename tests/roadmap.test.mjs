@@ -416,3 +416,14 @@ test('owes: walk needs an unchecked walk, a build command is never a walk, and r
   const out = render({ config: { name: 'Acme' }, phases: [done, gone], goals });
   assert.match(out, /\*\*1 of 2 phases built\.\*\*/, 'no walk owed under a live goal');
 });
+
+// Codex on cajones#55: any command beside a hand step is work; a retired goal's section counts no walk.
+test('any command but a gh check makes a box buildable; names and JSON do not; a retired goal owes no walk', () => {
+  for (const box of ['Run `git diff --check`, then ⚑ by hand: read it.', '⚑ by hand after `pytest -q`.', '⚑ by hand once `./scripts/build.sh` ran.']) assert.equal(isWalk(box), false, box);
+  for (const box of ['⚑ by hand: the owner reads `gh pr view 7 --json body`.', '⚑ by hand: `machine_prs` stays at 1 on `keel-night/`.', '⚑ by hand: the owner sets `"tend": {"schedule": "weekly"}`.']) assert.equal(isWalk(box), true, box);
+  const walkBoxes = '- [x] Built.\n- [ ] ⚑ by hand: the owner reads it.';
+  const gone = parsePhase('05-y.md', phase({ status: 'partial', goal: 'G1', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+  const goals = [{ id: 'G0', title: 'Acme', outcome: 'x' }, { id: 'G1', title: 'Old Acme', outcome: 'y', retired: '2026-10-01' }];
+  const out = render({ config: { name: 'Acme' }, phases: [gone], goals });
+  assert.doesNotMatch(out, /owes a walk/, 'neither the headline nor the retired section');
+});

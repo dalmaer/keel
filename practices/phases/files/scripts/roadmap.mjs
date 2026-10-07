@@ -95,14 +95,19 @@ export function namesCheck(text) {
 export function isWalk(text) {
   if (text.match(TEST_PATH)) return false;
   const spans = [...text.matchAll(/`([^`]+)`/g)].map(m => m[1].trim());
-  // A build command beside a hand step is still work to build (Codex on cajones#54): "`npm run build`, then ⚑ by hand".
-  if (spans.some(s => BUILD_COMMAND.test(s))) return false;
+  // A command beside a hand step is still work to build (Codex on cajones#54, #55): "`npm run build`, then ⚑ by hand".
+  // Any command but the real-surface `gh …` check counts, recognised or not.
+  if (spans.some(s => COMMAND.test(s) && !/^gh\s/.test(s))) return false;
   if (/⚑\s*by hand/i.test(text)) return true;
   return spans.some(s => /^gh\s+\S/.test(s));
 }
 
-/** A command that builds or tests here (a name in backticks, like `codex/`, is not one). */
-const BUILD_COMMAND = /^(?:npm|npx|node|pnpm|yarn|bun|deno|make|bash|sh|cargo|go|python3?|pip|uv|tsc|vitest|jest)\s+\S/;
+/**
+ * A command in backticks: a path to run (`./scripts/build.sh`), or a word and
+ * its arguments (`pytest -q`, `git diff --check`). A bare name (`codex/`,
+ * `machine_prs`) and a setting written as JSON (`"tend": {…}`) are not.
+ */
+const COMMAND = /^(?:\.{0,2}\/\S|[a-z][\w.-]*\s+\S)/i;
 
 /** The tests/ paths a phase's Acceptance cites. */
 export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH) ?? []))];
@@ -439,7 +444,7 @@ export function render({ config, phases, goals, links = [] }) {
       return;
     }
     const built = group.filter(p => DONE.includes(p.status)).length;
-    const owing = group.filter(owesWalk).length;
+    const owing = g.retired ? 0 : group.filter(owesWalk).length; // a retired goal owes nothing (Codex on cajones#55)
     lines.push(lived
       ? `${built}/${group.length} built or lived-in; ${group.filter(p => p.status === 'lived-in').length}/${group.length} lived-in.`
       : `${built}/${group.length} built${owing ? `; ${owing} owe${owing === 1 ? 's' : ''} a walk` : ''}.`, '',
