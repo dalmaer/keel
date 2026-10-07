@@ -14,6 +14,7 @@ import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adopt } from '../lib/adopt.mjs';
 import { load, render } from '../lib/practices.mjs';
+import { pinsEvery } from './helpers/practices.mjs';
 import { parseProject, nextOf, namedNext } from '../lib/phases-projects.mjs';
 import { lessons } from '../lib/lessons.mjs';
 import { measure } from '../lib/improve.mjs';
@@ -133,7 +134,7 @@ test('the projects shape: phases local and read-only, conduct local as its upstr
   const dir = await copy(t, CANVAS);
   const { data } = await adopt({ dir, check: GATE }, { version: VERSION });
   assert.deepEqual(data.config.phases, { shape: 'projects' });
-  assert.deepEqual(states(data), { base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'local', lessons: 'on', conduct: 'local', ci: 'local', night: 'local', claude: 'off', renovate: 'on', loop: 'off', reconciliation: 'off', climb: 'off', 'cross-review': 'off' });
+  assert.deepEqual(states(data), pinsEvery({ base: 'on', 'agents-md': 'on', phases: 'local', evidence: 'local', lessons: 'on', conduct: 'local', ci: 'local', night: 'local', claude: 'off', renovate: 'on', loop: 'off', reconciliation: 'off', climb: 'off', 'cross-review': 'off' }, 'tests/ancestors.test.mjs: the projects shape'));
   assert.match(data.config.local.phases, /docs\/projects\/<project>\/phases\.md \(3 projects\)/);
   assert.match(data.config.local.conduct, /upstream source/);
   assert.match(data.config.local.night, /scripts\/night\.mjs/);

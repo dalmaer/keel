@@ -237,3 +237,8 @@ test('the surface reads subcommands from usage', () => {
   }
   assert.ok(!known.has('init dir'), 'an optional [dir] is not a subcommand');
 });
+
+test('the phases guide says a known limitation goes under Deliberately open', async () => {
+  const text = (await readFile(join(GUIDES, 'plan-with-phases-and-goals.md'), 'utf8')).replace(/\s+/g, ' ');
+  assert.match(text, /\*Deliberately open\*[^*]*known limitation that could make the phase's output wrong[^*]*goes there too, with its effect and when it is settled, never only in the design's prose/);
+});

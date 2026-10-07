@@ -617,3 +617,34 @@ test('fleet update --yes installs the way the project says: its setup in the gat
   assert.equal(git(failing.origin, 'branch', '--list', UPDATE_BRANCH), '', 'nothing pushed for the failed setup');
   assert.match(r.text, /acme\/failing: FAILED at setup: setup `[^`]+` failed \(exit 7\):\n {6}acme-setup-detail/);
 });
+
+test('fleet update --yes: a failed check runs once more on main without the update, and the row says which failed', async t => {
+  // Fails on main too: not this update.
+  const red = await remoteProject(t, 'red', BEHIND, { check: 'echo acme-red-main; exit 4' });
+  // Fails only with the update's files present (its practice bumped to the CLI's): main passes.
+  const picky = await remoteProject(t, 'picky', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .keel/keel.json; then echo acme-picky; exit 5; fi` });
+  const st = {
+    repos: {
+      'acme/red': { default_branch: 'main', files: { '.keel/keel.json': red.config } },
+      'acme/picky': { default_branch: 'main', files: { '.keel/keel.json': picky.config } },
+    },
+    commits: {},
+    prepared: { 'acme/red': red.prepared, 'acme/picky': picky.prepared },
+  };
+  const dir = await home(t, [{ repo: 'acme/red', kind: 'node', role: 'managed' }, { repo: 'acme/picky', kind: 'node', role: 'managed' }]);
+  const gh = await stubGh(t, st);
+  gh.env = { ...gh.env, ...GIT_ENV };
+  const r = await fleetUpdate({ dir, yes: true }, updateDeps(gh));
+  assert.equal(r.exitCode, 1, r.text);
+  const by = repo => r.data.results.find(x => x.repo === repo);
+  for (const repo of ['acme/red', 'acme/picky']) {
+    assert.deepEqual([by(repo).ok, by(repo).step], [false, 'update']);
+    assert.match(by(repo).error, /the project's check failed after the update/);
+  }
+  assert.deepEqual(by('acme/red').mainCheck.exit, 4);
+  assert.match(by('acme/red').error, /\nmain fails the same check without the update \(exit 4\): not this update$/);
+  assert.deepEqual(by('acme/picky').mainCheck.exit, 0);
+  assert.match(by('acme/picky').error, /\nmain passes without the update: the update, or a test that fails only sometimes$/);
+  assert.match(r.text, /acme\/red: FAILED at update: [^]*\n {6}main fails the same check without the update \(exit 4\): not this update/);
+  assert.equal((await gh.calls()).filter(c => c[0] === 'pr' && c[1] === 'create').length, 0, 'nothing opened');
+});

@@ -72,6 +72,13 @@ test('every placeholder line in the template is one the check knows (one source)
   assert.match(t, /^spec: 2$/m, 'a phase drafted from the template is held to spec 2');
 });
 
+test('a known limitation goes under Deliberately open: the template and the contract say so', async () => {
+  const open = sectionsOf((await template()).replace(/^---\n[\s\S]*?\n---\n/, ''))['Deliberately open'];
+  assert.match(open, /known limitation that could make this phase's output wrong[^\n]*its effect, and when it is settled[^\n]*never only in a design's prose/);
+  const readme = await (await import('node:fs/promises')).readFile(new URL('../docs/phases/README.md', import.meta.url), 'utf8');
+  assert.match(readme.replace(/\s+/g, ' '), /\*\*Deliberately open\*\* \([^)]*known limitation that could make the phase's output wrong[^)]*never only in the design's prose\)/);
+});
+
 test('a phase still holding the template text fails --check at any status, naming the file and section', async () => {
   const t = (await template()).replace('since: YYYY-MM-DD', 'since: 2026-10-03');
   for (const status of ['planned', 'designed', 'partial']) {
@@ -156,6 +163,29 @@ test('spec 2: Real surfaces from the closed list, each with its proof, or none',
   assert.throws(() => parsePhase('05-x.md', phase({ extra: 'spec: 3\n' })), /spec 3 is not one this script knows/);
   assert.throws(() => parsePhase('05-x.md', phase({ extra: 'spec: two\n' })), /invalid JSON value for spec/);
   assert.equal(parsePhase('05-x.md', spec2()).spec, 2);
+});
+
+test('spec 2: a measure asked for with no bound is a problem, unless the phase faced the selftest', () => {
+  const unbounded = /## Scope: ".*" asks for a measure with no bound.*optional bound the selftest fixture sets.*a line on the health page instead/;
+  const scoped = (scope, rest = '') => spec2().replace('## Scope\n\nSmall.\n', `## Scope\n\n${scope}\n`) + rest;
+  for (const scope of [
+    '- **Measured**: `acme_share` on the night: the share of anvils dropped, recorded, no bound.',
+    '- A night measure `acme_share`, recorded only.',
+    '- The night measures `acme_share` without a bound.',
+  ]) assert.match(specProblems('05-x.md', scoped(scope)).join('\n'), unbounded, scope);
+  // A bound, or a line on the health page, is fine; so is a bound with no measure in the sentence.
+  for (const scope of [
+    '- **Measured**: `acme_share` on the night, bound 0.8; the selftest fixture sets it.',
+    '- A line on the health page: the share of anvils dropped. No bound needed.',
+  ]) assert.deepEqual(specProblems('05-x.md', scoped(scope)), [], scope);
+  // In Acceptance too.
+  assert.match(specProblems('05-x.md', spec2({ acceptance: '- [ ] The night measures `acme_share`, no bound. `npm test`' })).join('\n'), /## Acceptance: ".*" asks for a measure with no bound/);
+  // Faced: Deliberately open or Trajectory names the measure with the selftest.
+  const scope = '- **Measured**: `acme_share` on the night, recorded, no bound.';
+  assert.deepEqual(specProblems('05-x.md', scoped(scope, '\n## Trajectory\n\n- **2026-10-06** — `acme_share` is not in MEASURES: the selftest refuses an unbounded measure.\n')), []);
+  assert.match(specProblems('05-x.md', scoped(scope, '\n## Trajectory\n\n- **2026-10-06** — `acme_other` is not in MEASURES: the selftest refuses it.\n')).join('\n'), unbounded, 'another measure faced is not this one');
+  // A phase without spec 2 is not held to it.
+  assert.deepEqual(specProblems('05-x.md', phase().replace('Small.', scope)), []);
 });
 
 test('a phase lists the tests its Acceptance cites', () => {

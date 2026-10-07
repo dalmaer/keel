@@ -22,7 +22,10 @@ roadmap check fails CI when it is stale. Never edit the roadmap by hand.
 **A phase names its proof before it starts.** *Done when* is one sentence
 someone else could check. *Acceptance* is boxes. *Proof* is the exact
 commands. *Deliberately open* records decisions postponed on purpose, so
-they are settled in place later rather than improvised. Naming the proof
+they are settled in place later rather than improvised. A known limitation
+that could make the phase's output wrong (a suggestion, a count, a verdict)
+goes there too, with its effect and when it is settled, never only in the
+design's prose. Naming the proof
 first is what lets a conductor verify a builder's work instead of trusting
 its report.
 

@@ -79,7 +79,10 @@ keel fleet update --yes    # ⚑ open them, one at a time, with your gh login
   update, and why the rest are not planned. With `--yes` it clones each into
   a temp directory, installs as that project's night would, and runs
   `keel update --yes --no-self-update` there. A repo that fails says which
-  step and why; the others go on.
+  step and why; the others go on. When the update's check fails, the same
+  check runs once more on the clone without the update, and the row says
+  whether main fails it too (not this update) or passes (the update, or a
+  test that fails only sometimes).
 
 Cutting a release, in keel:
 

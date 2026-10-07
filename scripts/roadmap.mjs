@@ -9,7 +9,8 @@
 //
 // --check also reads each phase as a spec (specProblems): text left from the
 // template fails at any status, and a phase with `spec: 2` must name the
-// check behind every acceptance box and list its Real surfaces. Writing the
+// check behind every acceptance box and list its Real surfaces, and never ask
+// for a night measure with no bound (the selftest refuses one). Writing the
 // roadmap does not: a phase just drafted by `keel phase new` still lists.
 import { readFile, readdir, writeFile, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
@@ -40,6 +41,7 @@ export const PLACEHOLDERS = Object.freeze([
   'By hand: who does what, and what would change the design.',
   '⚑ Anything that creates a resource, spends money or needs a login — with the price.',
   'An unsettled decision, why it is open, and what will settle it.',
+  'A known limitation that could make this phase\'s output wrong (a suggestion, a count, a verdict): its effect, and when it is settled. Here, never only in a design\'s prose.',
   'One concrete action that advances this phase.',
   '**YYYY-MM-DD** — Claim. Evidence.',
 ]);
@@ -77,10 +79,33 @@ export function namesCheck(text) {
 /** The tests/ paths a phase's Acceptance cites. */
 export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH) ?? []))];
 
+/** A line asking for a measure that has no bound (the night's selftest refuses one: lesson 6). */
+export const UNBOUNDED_MEASURE = /\bmeasure[^.\n]*\b(no bound|unbounded|recorded only|recorded-only|without (a )?bound)/i;
+
+/**
+ * spec 2: a Scope or Acceptance line asking for a night measure with no bound.
+ * The night's selftest refuses a measure the unhealthy fixture never puts
+ * outside, so such a phase cannot be wired as written (keel phase 42). A
+ * measure whose Deliberately open or Trajectory names it with the selftest
+ * has been faced, and passes.
+ */
+function unboundedMeasures(sections, where) {
+  const faced = ['Deliberately open', 'Trajectory'].flatMap(s => (sections[s] ?? '').split(/\r?\n/)).filter(l => /selftest/i.test(l));
+  const out = [];
+  for (const section of ['Scope', 'Acceptance']) for (const line of (sections[section] ?? '').split(/\r?\n/)) {
+    if (!UNBOUNDED_MEASURE.test(line)) continue;
+    const names = [...line.matchAll(/`([a-z][\w]*)`/g)].map(m => m[1]);
+    if (names.length && names.every(n => faced.some(l => l.includes(`\`${n}\``)))) continue;
+    const text = line.replace(/^\s*(- (\[[ x]\] )?)?/, '').trim();
+    out.push(`${where(section)}: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}" asks for a measure with no bound, and the night's selftest refuses a measure its unhealthy fixture never puts outside; give it an optional bound the selftest fixture sets (as build_time has), or make it a line on the health page instead of a measure`);
+  }
+  return out;
+}
+
 /**
  * What --check refuses in a phase that parses: template text left in a
- * section (any status but superseded), and for `spec: 2` a box naming no check or a Real
- * surfaces section off its vocabulary. [] when it reads as a spec.
+ * section (any status but superseded), and for `spec: 2` a box naming no check, a Real
+ * surfaces section off its vocabulary, or a measure asked for with no bound. [] when it reads as a spec.
  */
 export function specProblems(file, raw) {
   const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
@@ -101,6 +126,7 @@ export function specProblems(file, raw) {
     problems.push(`${where(section)} still holds the template's text ("${left[0]}"); ${section === 'Trajectory' ? 'delete the section until something changes the course' : 'write what this phase means'}`);
   }
   if (spec < 2) return problems;
+  problems.push(...unboundedMeasures(sections, where));
   if (!templated.has('Acceptance')) for (const box of boxes(sections.Acceptance)) {
     if (!namesCheck(box.text)) problems.push(`${where('Acceptance')}: "${box.text.slice(0, 60)}${box.text.length > 60 ? '…' : ''}" names no check; end it with tests/<file>: "<test name>", a command in backticks, or ⚑ by hand: <who>`);
   }

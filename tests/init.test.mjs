@@ -8,7 +8,8 @@ import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, chmod, realpath } fro
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fill } from '../lib/practices.mjs';
+import { fill, load } from '../lib/practices.mjs';
+import { optionalPractices } from './helpers/practices.mjs';
 import { firstSentence, goalTitle, init, npmName, phaseZero, readme, DRAFT, PHASE0_TITLE } from '../lib/init.mjs';
 import { parsePhase, specProblems } from '../practices/phases/files/scripts/roadmap.mjs';
 
@@ -75,8 +76,13 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.equal(config.tagline, 'Acme Notes keeps meeting notes as plain files.');
   assert.equal(config.kind, 'node');
   assert.equal(config.repo, undefined, 'no repo without --repo or --github');
-  // claude and loop are optional: off unless named with --with.
-  assert.deepEqual(config.practices, ['base', 'agents-md', 'phases', 'evidence', 'lessons', 'conduct', 'ci', 'night', 'renovate']);
+  // The optional practices are off unless named with --with; the rest are on, in keel's install order.
+  const optional = optionalPractices(), practices = await load();
+  assert.deepEqual([...config.practices].sort(), [...practices.keys()].filter(n => !optional.includes(n)).sort());
+  for (const [i, n] of config.practices.entries()) for (const r of practices.get(n).requires) {
+    const at = config.practices.indexOf(r);
+    assert.ok(at >= 0 && at < i, `${n} comes after ${r}, which it requires`);
+  }
   assert.deepEqual(result.secrets, [], 'no secret is listed for a practice that is off');
 
   const goals = JSON.parse(await readFile(join(dir, 'docs', 'goals.json'), 'utf8'));
@@ -270,7 +276,7 @@ test('--with takes only optional practices, and switches each on', async t => {
   for (const name of ['ci', 'nope']) {
     const r = keel(['init', 'x', '--description', DESCRIPTION, '--with', name], root);
     assert.equal(r.code, 2, r.out);
-    assert.match(r.err, /--with takes claude, climb, cross-review, loop, reconciliation/);
+    assert.ok(r.err.includes(`--with takes ${optionalPractices().join(', ')}`), r.err);
   }
   assert.deepEqual(await readdir(root), [], 'nothing written');
   const r = keel(['init', 'y', '--description', DESCRIPTION, '--with', 'claude,loop', '--json'], root);

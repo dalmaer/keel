@@ -37,6 +37,7 @@ By hand: who does what, and what would change the design.
 ## Deliberately open
 
 An unsettled decision, why it is open, and what will settle it.
+A known limitation that could make this phase's output wrong (a suggestion, a count, a verdict): its effect, and when it is settled. Here, never only in a design's prose.
 
 ## Next action
 

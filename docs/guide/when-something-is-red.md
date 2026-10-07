@@ -58,6 +58,12 @@ know about (`setup` and `env` in `.keel/keel.json`; see
 `keel update --local` to look at the change in the working tree, run the
 gate yourself, and if keel's change is wrong, that is a lesson to send home.
 
+From `keel fleet update`, the row's last line says which it was: the same
+check ran once more on the clone without the update. "main fails the same
+check without the update" means fix main first; this update is not the
+cause. "main passes without the update" means the update, or a test that
+fails only sometimes: run that test alone before blaming either.
+
 ### `keel doctor` exits 1
 
 Doctor has findings. It changes nothing without `--fix`. Read it by section:

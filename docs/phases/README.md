@@ -54,7 +54,9 @@ until its status moves. The filename number is the phase id; never renumber.
 Required, in any order: **Done when** (one sentence someone else could check),
 **Scope**, **Acceptance** (checkboxes), **Proof** (exact commands, and what a
 person must do), **Deliberately open** (decisions postponed on purpose — settle
-them in place, dated), **Next action** (one concrete step; `npm run next`
+them in place, dated; and each known limitation that could make the phase's
+output wrong, a suggestion, a count or a verdict, with its effect and when it
+is settled, never only in the design's prose), **Next action** (one concrete step; `npm run next`
 prints it; once the phase is built, `None.` or what lived-in needs).
 
 With `spec: 2`, also **Real surfaces** (below).
