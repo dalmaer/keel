@@ -39,11 +39,14 @@ Budget: tend 2, 3, 30⏱ of 30 min (last 3 runs; too few to say) · climb 41⏱,
   as healthy and say shorten). The since is read from the default branch's
   commits touching `.keel/keel.json` (one list, then the config at each,
   newest first, at most 10 read a night) until one has another budget for
-  that pass (a missing key counts as the default); the entry names it:
-  `tend 2 of 30 min since 2026-10-06 (last 1 run; too few to say)`. No
-  commit read differs: no since, every run counted. The history unreadable:
-  that pass is n/a with why, never every run. (Settled 2026-10-07, from
-  Codex's review of ledger#84.)
+  that pass, compared as written: a budget left to the default equals only
+  another left to the default, never a number, since a default can change
+  between keel releases; the entry names it: `tend 2 of 30 min since
+  2026-10-06 (last 1 run; too few to say)`. The whole history read and none
+  differs: no since, every run counted. A read that stopped short (the cap,
+  a full page): the oldest commit read is the since. The history
+  unreadable: that pass is n/a with why, never every run. (Settled
+  2026-10-07, from Codex's reviews of ledger#84 and the v0.8.7 PRs.)
 
 ## Where the numbers come from
 

@@ -168,9 +168,13 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
   // Pure: the same runs with the cutoff passed in, and without it (the bug: they would say shorten).
   assert.equal(budgetUse(runs, tend, { since: '2026-09-20T10:00:00Z' }).suggestion, 'too few to say');
   assert.equal(budgetSince(history.map(h => ({ date: h.date, config: h.config })), { key: 'tend' }, 30), '2026-09-20T10:00:00Z');
-  assert.equal(budgetSince(history.slice(0, 2), { key: 'tend' }, 30), null, 'none read differs: no cutoff');
+  assert.equal(budgetSince(history.slice(0, 2), { key: 'tend' }, 30), null, 'the whole history read, none differs: no cutoff');
+  // Codex on 0.8.7: a read that stopped short (the cap) keeps the oldest commit read as the cutoff, never every run.
+  assert.equal(budgetSince(history.slice(0, 2), { key: 'tend' }, 30, { complete: false }), '2026-09-20T10:00:00Z');
   assert.equal(budgetSince(history.slice(2), { key: 'tend' }, 15), '2026-08-30T10:00:00Z');
-  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, 30), null, 'a missing budget is the default');
+  // Codex on 0.8.7: a missing budget was the default of the keel that ran then, which may not be today's: it equals only another missing one.
+  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, null), null, 'both left to the default');
+  assert.equal(budgetSince(history.slice(3), { key: 'tend' }, 30, { now: 'NOW' }), 'NOW', 'an explicit 30 is not a default that happened to be 30');
 
   // Lowered 30 to 15: the long runs before are not counted against 15 either.
   const lowered = [run(5, { created: at(28) }), run(29, { created: at(14) }), run(30, { created: at(7) }), run(29, { created: at(1) }), run(30, { created: at(1) })];
