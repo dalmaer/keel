@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G2
 spec: 2
 depends: [39, 41]
-note: "Built: the optional cross-review practice (keel-cross-review.yml, REVIEW.md, scripts/keel/cross-review.mjs): same-repo PRs on configured prefixes and a person's /review, read-only tools plus inline comments, a COMMENT summary, budgeted, green with no secret, red when the agent fails to start. Waits on the owner switching it on for ledger and reading its first review."
+note: "Built and on for ledger (ledger#89, codex/ PRs, 15 minutes a review): the optional cross-review practice, read-only tools plus inline comments, a COMMENT summary, budgeted, green with no secret, red when the agent fails to start. Waits on the first codex/ PR's review, read and judged by the owner."
 evidence: ["evidence/2026-10-06-cross-review.md"]
 issue: 24
 ---
@@ -53,10 +53,11 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
 ## Next action
 
-⚑ Owner: switch cross-review on for ledger (`"practices"` gains `cross-review`, and `"crossReview": {"for": ["codex/"], "budget": {"minutes": 15}}` in its `.keel/keel.json`, through an update PR); each reviewed PR spends model tokens within that budget. Then read the first `codex/` PR's review and judge its comments.
+Wait for the next `codex/` PR on ledger; read its Claude review (inline P1/P2/P3 comments and the summary); ⚑ the owner judges its comments.
 
 ## Trajectory
 
 - **2026-10-06** — The prefix is checked in the workflow's `which` step, not the job's `if:`, because prefixes live in the project's config; the job's `if:` holds the rest (same repo, not draft, a person with write access, no bot), evaluated on synthetic events in the test.
 - **2026-10-06** — The review event is the script's, never the agent's: the summary is posted by a step as COMMENT, so the review can never approve; the summary therefore carries `github-actions[bot]`'s name, and the inline comments the action's.
 - **2026-10-06** — `cross_review_valid` is built but not in the night's MEASURES: an unbounded measure can never be outside, so the night's selftest (lesson 6) refuses it. Wired when ten answered cross-review comments exist, with a bound or a recorded-only selftest rule decided then.
+- **2026-10-07** — Switched on for ledger by the owner (ledger#89, rendered from v0.8.8). ledger's own docs test asked for the seven variables the workflow and script read (CLAUDE_CODE_OAUTH_TOKEN and six event fields) in its docs/configuration.md, as every update adding workflow variables has.
