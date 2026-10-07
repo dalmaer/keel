@@ -5,6 +5,14 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.12 — practice 0.8.12 (2026-10-07)
+
+- **Climb and tend judges never run the agent's code with your setup token.** Setup (and its `setupToken`) runs on the run's own commit before the agent's commits are taken; the agent may not change lockfiles, `.npmrc` or `package.json` beyond its non-install scripts. The judge trusts only the run's own commit as the base, never the agent's record.
+- **Tend** opens a PR for a pass that only proposes (its proposals in `docs/tend/<date>.md`), counts a finding resolved only when the re-run no longer reports it, and may change only Markdown records, README, AGENTS.md, CLAUDE.md and `.agents/` text.
+- **Climb** remembers a night that kept nothing in its rotation, links nested `node_modules` (a `web/` build runs in its worktrees), compares every test suite your gate ran, and a loop night defers to keel-loop.yml where it is installed.
+- **Cross-review** queues only the runs that will review: a `/review` from someone without write access no longer displaces a maintainer's.
+- **The unbounded-measure check** reads each clause on its own.
+
 ## v0.8.11 — practice 0.8.11 (2026-10-07)
 
 - **Climb and tend agents can no longer reach a token that writes to your repo.** Each workflow is now three jobs: `agent` (read-only; the Claude action is handed that read-only token), `judge` (read-only, no agent: checks that the commits touch no `.github/`, `scripts/keel/` or `.keel/keel.json`, then runs the guard and your gate) and `publish` (pushes and opens the PR, running nothing from the branch). Found by Claude's cross-review of ledger#92. Runs take a little longer (the judge installs again) and keep two more artifacts for 7 days.
