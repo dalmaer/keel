@@ -1,11 +1,10 @@
 ---
-status: partial
-owes: walk
+status: built
 since: 2026-10-07
 goal: G0
 spec: 2
 depends: [32]
-note: "Built: owes: walk (a partial phase whose rest is a walk satisfies depends and is never next; refused off partial or with a buildable box unchecked), lived-in opt-in (\"phases\": {\"livedIn\": true}), phases_stuck skipping a walk owed. keel runs it: 33 of 45 built, 10 owe a walk, next is 13. Owes the fleet walk."
+note: "Built and walked: owes: walk, lived-in opt-in, phases_stuck skipping a walk owed. keel runs it (34 of 46 built, 11 owe a walk); in the fleet, cajones (the one project on keel's roadmap script) took v0.8.16 to v0.8.20 green with its lived-in kept by migration 0006; duo, ledger and isocan keep their own phases."
 evidence: ["evidence/2026-10-07-walks-and-lived-in.md"]
 issue: 28
 ---
@@ -32,7 +31,7 @@ The design is [Walks owed, and lived-in by choice](../research/2026-10-07-walks-
 - [x] With `livedIn` off the roadmap headline counts built only and names no lived-in count; with it on, as before. `tests/roadmap.test.mjs`
 - [x] `phases_stuck` does not count a partial `owes: walk` phase. `tests/improve-measures.test.mjs`
 - [x] keel's own roadmap: `node scripts/roadmap.mjs --next` names a buildable phase while walks are owed, and `docs/ROADMAP.md`'s headline counts built. `node scripts/roadmap.mjs --next`
-- [ ] ⚑ by hand: the fleet update after the release: duo's and cajones's roadmaps regenerated and their checks green (ledger and isocan do not run this script).
+- [x] ⚑ by hand: the fleet update after the release: duo's and cajones's roadmaps regenerated and their checks green (ledger and isocan do not run this script).
 
 ## Real surfaces
 
@@ -51,9 +50,10 @@ The design is [Walks owed, and lived-in by choice](../research/2026-10-07-walks-
 
 ## Next action
 
-Release it and read duo's and cajones's regenerated roadmaps in the fleet update PRs (their checks green). ledger (its own roadmap.ts) and isocan (the projects shape) do not run this script.
+None.
 
 ## Trajectory
 
 - **2026-10-07** — The walk rule stayed narrow: only a box that says ⚑ by hand, or whose check is a `gh …` command, is a walk; any other unchecked box counts as buildable, so `owes: walk` is refused rather than hiding work. Phases 10 and 11's boxes were walks in fact and are now worded as ⚑ steps.
 - **2026-10-07** — The owes rule is in the phases README and the planning guide, not the agent cold start, which was at 3177 of 3200 characters.
+- **2026-10-07** — The fleet walk: cajones, the only adopted project on keel's roadmap script, took every update from v0.8.16 to v0.8.20 with its checks green (duo#81's and cajones#54's checks, then each release's); migration 0006 kept its lived-in, so its roadmap's headline did not change. duo, ledger and isocan keep their own phases and never ran this script. Codex's reviews of v0.8.15–v0.8.17 found the walk-owed rules' edges (six rounds, each fixed), and that 0.8.15 dropped a project's lived-in silently (migration 0006).

@@ -25,3 +25,9 @@
 ## Gaps and decision
 
 Partial, owes a walk: the fleet update after the release. ledger keeps its own roadmap.ts (a local variant) and isocan the projects shape, so neither runs this script; duo and cajones do, and their regenerated roadmaps are the proof.
+
+## The fleet walk (2026-10-07)
+
+| Did | Expected | Observed | Proves / does not prove |
+| --- | --- | --- | --- |
+| The fleet updates from v0.8.16 to v0.8.20 | each project running keel's roadmap script stays green | cajones (the one such project): every update PR's checks green; `phases.livedIn: true` written by migration 0006, its headline unchanged. duo, ledger and isocan keep their own phases (keel's script does not run there) | The adopted-project surface |

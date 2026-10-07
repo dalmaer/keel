@@ -5,7 +5,7 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [26, 32, 33, 35, 39]
-note: "Built and on for keel (weekly, 30 minutes): keel-tend.yml, tend.mjs, the tend guard, the Tend line. Its first pass, keel#22, was read and closed with a reason (its one change was right and already landed in 7263b36; its runner-path leak fixed in 2c6e105). Waits on one adopted project's pass and the night after it."
+note: "Built and on for keel and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). keel's first pass (keel#22) was read and closed with a reason. Owes ledger's first pass and the night after it."
 evidence: ["evidence/2026-10-06-tend.md"]
 issue: 16
 ---
@@ -68,7 +68,7 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Next action
 
-⚑ Owner: tend for an adopted project (ledger: `"tend": {"schedule": "weekly", "budget": {"minutes": 30}}` with its CLAUDE_CODE_OAUTH_TOKEN, up to 30 agent-minutes a week); read its first PR, then check the next night's record findings against it.
+Tend is on for ledger (ledger#92, weekly, 30 minutes; first pass Monday 2026-10-12 at 10:18 UTC, on the sandboxed three-job workflows): read its first PR, merge or close it with a reason, and check the next night's record findings against it.
 
 ## Trajectory
 
