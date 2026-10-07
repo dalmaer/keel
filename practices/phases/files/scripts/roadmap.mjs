@@ -82,21 +82,37 @@ export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH)
 /** A line asking for a measure that has no bound (the night's selftest refuses one: lesson 6). */
 export const UNBOUNDED_MEASURE = /\bmeasure[^.\n]*\b(no bound|unbounded|recorded only|recorded-only|without (a )?bound)/i;
 
+/** A section's items: a bullet with its wrapped lines, or a paragraph, as one line each. */
+export function items(text) {
+  const out = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    if (!line.trim()) { out.push(''); continue; }
+    const starts = /^\s*([-*+]|\d+[.)])\s/.test(line);
+    if (!starts && out.length && out.at(-1) !== '') out[out.length - 1] += ` ${line.trim()}`;
+    else out.push(line);
+  }
+  return out.filter(Boolean);
+}
+
+/** The measure an item names: the first code span after "measure"/"measured", else the one just before "measure". */
+const measureName = item => (/\bmeasure[sd]?\b[^`]*?`([a-z]\w*)`/i.exec(item) ?? /`([a-z]\w*)`\s+(?:night\s+)?measure/i.exec(item))?.[1] ?? null;
+
 /**
- * spec 2: a Scope or Acceptance line asking for a night measure with no bound.
+ * spec 2: a Scope or Acceptance item asking for a night measure with no bound.
  * The night's selftest refuses a measure the unhealthy fixture never puts
  * outside, so such a phase cannot be wired as written (keel phase 42). A
  * measure whose Deliberately open or Trajectory names it with the selftest
  * has been faced, and passes.
  */
 function unboundedMeasures(sections, where) {
-  const faced = ['Deliberately open', 'Trajectory'].flatMap(s => (sections[s] ?? '').split(/\r?\n/)).filter(l => /selftest/i.test(l));
+  const faced = ['Deliberately open', 'Trajectory'].flatMap(s => items(sections[s] ?? '')).filter(l => /selftest/i.test(l));
   const out = [];
-  for (const section of ['Scope', 'Acceptance']) for (const line of (sections[section] ?? '').split(/\r?\n/)) {
-    if (!UNBOUNDED_MEASURE.test(line)) continue;
-    const names = [...line.matchAll(/`([a-z][\w]*)`/g)].map(m => m[1]);
-    if (names.length && names.every(n => faced.some(l => l.includes(`\`${n}\``)))) continue;
-    const text = line.replace(/^\s*(- (\[[ x]\] )?)?/, '').trim();
+  for (const section of ['Scope', 'Acceptance']) for (const item of items(sections[section] ?? '')) {
+    // The night's measures only: a product's or a study's "recorded only" is not the selftest's business.
+    if (!UNBOUNDED_MEASURE.test(item) || !/\bnight/i.test(item)) continue;
+    const name = measureName(item);
+    if (name && faced.some(l => l.includes(`\`${name}\``))) continue;
+    const text = item.replace(/^\s*(- (\[[ x]\] )?)?/, '').trim();
     out.push(`${where(section)}: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}" asks for a measure with no bound, and the night's selftest refuses a measure its unhealthy fixture never puts outside; give it an optional bound the selftest fixture sets (as build_time has), or make it a line on the health page instead of a measure`);
   }
   return out;

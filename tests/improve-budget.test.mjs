@@ -178,6 +178,9 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
   const implicit = [{ date: '2026-09-27T10:00:00Z', config: { practice: '0.9.1', acme: {} } }, { date: '2026-09-01T10:00:00Z', config: { practice: '0.8.4', acme: {} } }];
   assert.equal(budgetRaw(implicit[1].config, acmePass), 15);
   assert.equal(budgetSince(implicit, acmePass, budgetRaw(implicit[0].config, acmePass)), '2026-09-27T10:00:00Z', 'the default changed 15 → 30 at 0.9.0: runs before are another budget');
+  // Codex on cajones#47: a pass off in an older config is not its default: runs from an earlier time it was on are cut off.
+  const reenabled = [{ date: '2026-09-27T10:00:00Z', config: { tend: { budget: { minutes: 30 } } } }, { date: '2026-09-10T10:00:00Z', config: {} }, { date: '2026-08-01T10:00:00Z', config: { tend: {} } }];
+  assert.equal(budgetSince(reenabled, { key: 'tend' }, 30), '2026-09-27T10:00:00Z');
   // Every shipped pass's newest default is its default today: a changed default must be recorded.
   for (const p of BUDGET_PASSES) assert.equal(p.defaults.at(-1)[1], p.minutes, p.pass);
   // And today's defaults are the passes' own: the scripts that set the timeout.
