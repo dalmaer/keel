@@ -105,7 +105,10 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
 - `--wait` because reviewers post minutes after CI: reading the moment CI
   goes green reads nothing. It waits until each named reviewer has reviewed
   the head commit, or the configured minutes pass; a timeout is said and
-  exits 1, never read as "no comments".
+  exits 1, never read as "no comments". A reviewer that finds nothing may
+  post no review at all (Codex reacts 👍 and updates its status board), so
+  the reviewer's own comment marking the head commit `completed` counts as
+  having reviewed it.
 - Reviewers are named in `.keel/keel.json` `"review": {"reviewers":
   [...], "wait": <minutes>}`; `--reviewer <login>` overrides for one call.
   With none named, threads and review bodies are read, conversation

@@ -888,8 +888,10 @@ none named, conversation comments are not read and nothing is waited for. `codex
 `codex[bot]` are the same login.
 
 `--wait` polls (every 30 s; `KEEL_REVIEW_POLL_MS`) until each named reviewer
-has reviewed the PR's head commit, or `wait` minutes pass; a timeout is said
-and exits 1, never read as "no comments". Reviewers post minutes after CI.
+has reviewed the PR's head commit (a review on it, or the reviewer's own
+comment with a line naming the head's short sha and "completed": Codex's
+no-findings status board), or `wait` minutes pass; a timeout is said and
+exits 1, never read as "no comments". Reviewers post minutes after CI.
 
 **Not a gate.** Nothing in keel refuses a merge for an open thread: fleet
 update and drain merge as before; the night counts what is left

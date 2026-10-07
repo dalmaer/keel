@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
-import { answerOf, parseTarget } from '../lib/review.mjs';
+import { answerOf, parseTarget, summarizedHead } from '../lib/review.mjs';
 import { reviewComments, reviewConfigOf } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -187,6 +187,21 @@ test('--wait returns when the named reviewer\'s review on the head commit appear
   assert.equal(d.waited.timedOut, false);
   assert.equal(d.reviewed[0].head, true);
   assert.equal((await gh.state()).reviewReads, 3, 'it polled until the review appeared, and no longer');
+});
+
+// Codex on the v0.8.5 PRs: no findings is a status board naming the commit and a 👍, never a review; --wait timed out on it.
+test('--wait counts a named reviewer\'s summary that marks the head commit completed, and not one for an older commit', async t => {
+  const board = sha => `<!-- acme-review-summary -->\n| Review | Status | Commit |\n| --- | --- | --- |\n| Code Review | ✅ **Completed** | \`${sha.slice(0, 7)}\` |`;
+  assert.equal(summarizedHead(board(HEAD), HEAD), true);
+  assert.equal(summarizedHead(board(OLD), HEAD), false, 'an older commit');
+  assert.equal(summarizedHead(board(HEAD).replace('Completed', 'Running'), HEAD), false, 'still running');
+  const dir = await project(t, { reviewers: ['acme-reviewer'], wait: 0.01 });
+  const done = await stubGh(t, { threads: [ANSWERED], comments: [{ id: 'IC_board', databaseId: 77, author: 'acme-reviewer[bot]', body: board(HEAD), createdAt: '2026-10-06T10:00:00Z' }] });
+  const r = keel(dir, done, ['acme/app#3', '--wait', '--json']);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.deepEqual([r.json().waited.timedOut, r.json().reviewed[0].head], [false, true]);
+  const stale = await stubGh(t, { threads: [ANSWERED], comments: [{ id: 'IC_board', databaseId: 77, author: 'acme-reviewer[bot]', body: board(OLD), createdAt: '2026-10-06T10:00:00Z' }] });
+  assert.equal(keel(dir, stale, ['acme/app#3', '--wait', '--json']).json().waited.timedOut, true);
 });
 
 test('--wait on timeout says so, exit 1: a timeout is never "no comments"', async t => {
