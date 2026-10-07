@@ -1,10 +1,9 @@
 ---
-status: partial
-owes: walk
-since: 2026-10-02
+status: built
+since: 2026-10-07
 goal: G4
 depends: [5, 9]
-note: "keel improve measures 12 things with ratcheting bounds, broken is never zero, and the selftest fails on an unhealthy fixture. First real page on keel: one measure outside (9 phases without an issue); its proposal awaits the owner's decision."
+note: "Built and used: keel improve measures against bounds, writes the dated health page, proposes one change; --selftest holds the grader to an unhealthy fixture. The owner accepted the first page's proposal (2026-10-07): issues opened for the unfinished phases still without one (10: #30, 13: #31)."
 evidence: ["evidence/2026-10-02-improve.md"]
 ---
 
@@ -28,7 +27,7 @@ smallest change that would move it.
 
 - [x] `--selftest`: a deliberately unhealthy fixture fails every measure (isocan's lesson: a grader that reports zeros when broken is believed).
 - [x] An instrument that cannot run exits non-zero rather than reporting zero.
-- [ ] ⚑ by hand: run on keel itself, the page is committed, and the owner turns its proposal into a phase or declines it.
+- [x] ⚑ by hand: run on keel itself, the page is committed, and the owner turns its proposal into a phase or declines it.
 
 ## Proof
 
@@ -40,10 +39,11 @@ smallest change that would move it.
 
 ## Next action
 
-Owner: decide `docs/health/2026-10-02.md`'s proposal — open issues for the nine unfinished phases and set `issue:` (accept), or decline it with a reason.
+None.
 
 ## Trajectory
 
 - **2026-10-02** — Conducted before phase 10, because the nightly workflow runs `keel improve --report`.
 - **2026-10-02** — `machine_prs` is exempt from the ratchet. Its bound of 1 is the night shift's rule, and tightening it to 0 would flag the nightly's own PR every morning.
 - **2026-10-02** — Measured on this session's own builders: 0 whole-check runs across 10 transcripts. The cost rule carried from isocan `7227f325` held.
+- **2026-10-07** — The owner accepted docs/health/2026-10-02.md's proposal (phases_without_issue). Of the nine phases it named, seven had since been built or given issues; #30 and #31 were opened for phases 10 and 13, and `issue:` set.

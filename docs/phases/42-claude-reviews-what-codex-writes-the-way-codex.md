@@ -1,11 +1,10 @@
 ---
-status: partial
-owes: walk
-since: 2026-10-06
+status: built
+since: 2026-10-07
 goal: G2
 spec: 2
 depends: [39, 41]
-note: "Built and used on ledger: Codex's ledger#92 (codex/enable-ledger-tend) got a Claude review on its own (run 37637421414, about 1m40s of 15): one inline P2 as claude[bot] and a COMMENT summary as github-actions[bot]. Its finding was valid and fixed in keel (10c59b5, v0.8.11). Waits on the owner judging the review's comment."
+note: "Built and used: the cross-review practice (read-only tools, findings as JSON keel posts, a COMMENT review, budgeted). Its first real review (Claude on Codex's ledger#92) found a valid P2, a token escape in the tend agent, fixed in 10c59b5; the owner judged it (2026-10-07). Since phase 45 Codex reviews Claude's PRs too."
 evidence: ["evidence/2026-10-06-cross-review.md"]
 issue: 24
 ---
@@ -33,7 +32,7 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 - [x] The agent's tools include no push, merge, approve or request-changes, and no Bash beyond `gh pr diff`/`gh pr view`; its review event is COMMENT; mutation: allowing `gh pr merge` fails the test. `tests/workflows.test.mjs`
 - [x] Config validation: unknown keys, an empty prefix list, a budget outside 5–60 minutes are errors; no `crossReview` key, the workflow ends at its first step. `tests/cross-review.test.mjs`
 - [x] With no secret, the run ends green with a notice; with an agent that fails to start, the run is red and prints only the error line (phase 35's check). `tests/cross-review.test.mjs`
-- [ ] ⚑ by hand: the owner switches cross-review on for ledger; the next `codex/` PR is reviewed; the owner reads the review and judges its comments.
+- [x] ⚑ by hand: the owner switches cross-review on for ledger; the next `codex/` PR is reviewed; the owner reads the review and judges its comments.
 
 ## Real surfaces
 
@@ -54,7 +53,7 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
 ## Next action
 
-⚑ Owner: judge Claude's P2 on ledger#92 (the conductor validated it: valid, fixed in 10c59b5); then built.
+None.
 
 ## Trajectory
 
@@ -64,3 +63,4 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 - **2026-10-07** — Switched on for ledger by the owner (ledger#89, rendered from v0.8.8). ledger's own docs test asked for the seven variables the workflow and script read (CLAUDE_CODE_OAUTH_TOKEN and six event fields) in its docs/configuration.md, as every update adding workflow variables has.
 - **2026-10-07** — The first real cross-review (ledger#92, Codex switching tend on) found a real hole: the tend agent could edit a script it may run and push with a write token. Settled two unknowns: the inline-comment tool works under a `prompt` on pull_request, and the comments carry `claude[bot]`.
 - **2026-10-07** — Escape: bot comments on a PR (Vercel's, Codex's summary) start this workflow in the PR's concurrency group, and GitHub keeps one pending run per group, so a person's `/review` queued behind a running review could be replaced and lost; fixed in 10c59b5 (non-review comments get their own group).
+- **2026-10-07** — The owner judged Claude's P2 on ledger#92 (the tend agent could push with a write token): valid, as the conductor had found; fixed in 10c59b5 (three jobs, read-only agent and judge). Built.

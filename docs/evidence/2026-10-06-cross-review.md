@@ -26,3 +26,10 @@
 Partial. Unwalked: all three real surfaces (the workflow on ledger's Actions, the comments through the GitHub API, ledger itself). Unverified there: whether claude-code-action exposes its inline-comment tool with a `prompt` on pull_request and issue_comment events, and whose name the inline comments carry (`claude[bot]` only with the Claude GitHub App installed); the summary review is posted as `github-actions[bot]`.
 
 `cross_review_valid` is built and tested (`crossReviewTally`, `CROSS_REVIEW_VALID`) but not in the night's MEASURES: a measure with no bound can never be outside, and the night's selftest (lesson 6) refuses a measure that is not outside on the unhealthy fixture. Wiring waits for ten answered cross-review comments to exist.
+
+## The owner's judgment (2026-10-07)
+
+| Did | Expected | Observed | Proves / does not prove |
+| --- | --- | --- | --- |
+| A real codex/ PR reviewed by Claude on ledger (ledger#92, Codex switching tend on) | inline P1/P2/P3 comments and a COMMENT review | Run 37637421414: one inline P2 (claude[bot]) and a summary; the P2 (the tend agent could push with a write token) was valid and fixed in 10c59b5 | The workflow shell and GitHub API surfaces, on ledger |
+| The owner judged that review's comment | valid or not | The owner: "good" — valid, as the conductor had found | The by-hand box |

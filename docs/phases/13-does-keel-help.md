@@ -5,6 +5,7 @@ goal: G5
 depends: [12]
 note: "Measures and comparison pre-registered and committed before any adoption (45a52ee). The results page is due no earlier than 2026-11-01 and needs two adopted projects."
 evidence: ["evidence/2026-10-02-does-keel-help.md"]
+issue: 31
 ---
 
 # Keel can show it makes projects better, or find out that it does not

@@ -6,6 +6,7 @@ goal: G4
 depends: [6]
 note: "The night shift ships as practices with drain. On keel, the full cycle has run for real: measure, PR #1, gate, self-merge. Owed: seven nights, a deliberately red night, and one adopted project's night."
 evidence: ["evidence/2026-10-02-night-shift.md"]
+issue: 30
 ---
 
 # Each project is looked after overnight, and nothing lands unread
