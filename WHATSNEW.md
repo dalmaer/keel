@@ -5,6 +5,14 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.19 — practice 0.8.19 (2026-10-07)
+
+- **Cross-review picks the reviewer for each PR, and never the author while another is available.** The first provider you list in `"agents"` that did not write the PR and has its secret set reviews it: Claude reviews Codex's `codex/` PRs, Codex reviews Claude's `claude/` PRs. A provider reviews its own PR only when no other is available, and the run and the review say so. For a project using both: `"agents": {"claude": {}, "codex": {}}, "crossReview": {"for": ["codex/", "claude/"], "budget": {"minutes": 15}}`.
+- **Codex can review a PR Claude's GitHub App opened:** keel names `claude[bot]`, and nothing wider, as a trusted bot for Codex's action.
+- **A typo in `"agents"`, or a prefix like `"claude"` without the slash, is a clear config error**, checked before the secret gate.
+- **Findings on non-ASCII file paths are posted.**
+- **A failed agent step counts as "ran out its budget" only near its end**, so an auth failure on a short budget is red.
+
 ## v0.8.18 — practice 0.8.18 (2026-10-07)
 
 - **Choose the agent per pass.** `"agents": {"claude": {}, "codex": {}}` in `.keel/keel.json`, and `"agent": "codex"` on `crossReview` to have Codex review (default `claude`: nothing changes unless you say so). Codex runs through `openai/codex-action@v1` in a read-only sandbox with sudo dropped and no GitHub token; it needs an `OPENAI_API_KEY` secret and is billed per token to that API account. Climb and tend stay Claude-only for now: Codex's writable sandbox keeps `.git` read-only, so it cannot commit.
