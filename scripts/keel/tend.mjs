@@ -219,9 +219,13 @@ export async function looseEndsOf(root, config, env = process.env) {
   const here = await realpath(root).catch(() => root);
   const mine = [];
   for (const p of data?.projects ?? []) mine.push({ p, dir: p.dir ? await realpath(p.dir).catch(() => p.dir) : null });
-  const project = mine.find(({ p, dir }) => (config.repo && p.repo === config.repo) || dir === here)?.p;
+  const found = mine.find(({ p, dir }) => (config.repo && p.repo === config.repo) || dir === here);
+  const project = found?.p;
   if (!project) return { state: 'n/a', why: `keel loose-ends lists no project for ${config.repo ?? here}`, findings: [] };
-  const findings = (project.items ?? []).map(it => ({ id: `loose:${it.fingerprint ?? it.id}`, measure: 'loose-ends', what: `${it.kind}: ${it.title}${it.move ? ` → ${it.move}` : ''}${it.commands?.length ? ` (${it.commands.join('; ')})` : ''}` }));
+  // Paths relative to the repo: the PR is read on GitHub, where the runner's checkout path means nothing.
+  const roots = [...new Set([found.dir, project.dir, here, root].filter(Boolean))].sort((a, b) => b.length - a.length);
+  const rel = text => roots.reduce((t, r) => t.split(`${r}/`).join(''), String(text));
+  const findings = (project.items ?? []).map(it => ({ id: `loose:${it.fingerprint ?? it.id}`, measure: 'loose-ends', what: rel(`${it.kind}: ${it.title}${it.move ? ` → ${it.move}` : ''}${it.commands?.length ? ` (${it.commands.join('; ')})` : ''}`) }));
   return { state: 'ok', value: findings.length, findings, ...(project.github && project.github !== 'checked' ? { note: project.github } : {}) };
 }
 

@@ -5,7 +5,7 @@
 // machine. gh is a stub (KEEL_GH); nothing here reads the live world.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, mkdir, cp } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir, cp, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -621,6 +621,11 @@ test('tend input: one worksheet of every record measure, reconciliation and loos
   assert.deepEqual(w2.measures.find(m => m.id === 'proofs_hold').night, { value: 2, state: 'outside', detail: 'detail' });
   assert.deepEqual(w2.looseEnds.findings, [{ id: 'loose:branch:acme-old', measure: 'loose-ends', what: 'branch: acme-old → delete it: merged (git branch -d acme-old)' }]);
   assert.equal(w2.count, 1, 'loose ends are listed, not counted as records');
+  // keel#22: a loose end's command named the runner's checkout path; the PR is read on GitHub, so paths are the repo's.
+  const real = await realpath(dir);
+  const PATHS = { KEEL_CLI: await stubKeel(t, { dir: real, items: [{ id: 'cd34', kind: 'phase', fingerprint: 'phase:7', title: 'phase 7: Acme orders', move: 'the owner\'s step', commands: [`less ${real}/docs/phases/07-acme-orders.md`] }] }) };
+  const wPaths = json(climb(dir, ['tend-input', '--json'], PATHS));
+  assert.deepEqual(wPaths.looseEnds.findings.map(f => f.what), ["phase: phase 7: Acme orders → the owner's step (less docs/phases/07-acme-orders.md)"]);
   // An instrument that cannot run: the phases measures are n/a, saying why, never 0.
   await rm(join(dir, 'scripts/roadmap.mjs'));
   const w3 = json(climb(dir, ['tend-input', '--json'], NO_KEEL));
