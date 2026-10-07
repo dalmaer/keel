@@ -43,7 +43,7 @@ test('every managed target exists on keel, and keel switches on every practice',
   // Optional practices are each project's own choice: keel has no Loop workspace, keeps claude on (its owner set the token),
   // and climbs nightly (the owner's call, 6 Oct).
   assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].filter(n => !practices.get(n).optional || ['claude', 'climb', 'reconciliation'].includes(n)).sort());
-  assert.deepEqual([...practices.values()].filter(p => p.optional).map(p => p.name).sort(), ['claude', 'climb', 'loop', 'reconciliation']);
+  assert.deepEqual([...practices.values()].filter(p => p.optional).map(p => p.name).sort(), ['claude', 'climb', 'cross-review', 'loop', 'reconciliation']);
 });
 
 test('conduct pins its upstream source', async () => {

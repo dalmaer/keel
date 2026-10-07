@@ -78,6 +78,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 | `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR | A speed-up nobody measured against noise; a test quietly gone |
+| `cross-review` *(optional)* | Claude reviews the PRs another model wrote (Codex's `codex/` branches), as Codex reviews Claude Code's: inline P1/P2/P3 comments, each validated against the code first, and a summary posted as a comment; read-only, budgeted, never approves or merges | Review that runs one way only; a model reviewing its own work |
 
 **Who owns which file.** Every file keel writes is one of three kinds:
 

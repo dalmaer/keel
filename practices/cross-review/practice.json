@@ -1,0 +1,15 @@
+{
+  "name": "cross-review",
+  "summary": "Claude reviews the pull requests another model wrote (Codex's codex/ branches), the way Codex reviews Claude Code's: inline comments tagged P1/P2/P3, each validated against the code first, and a summary posted as a COMMENT review; read-only, budgeted, never approves or merges.",
+  "optional": true,
+  "requires": ["night"],
+  "secrets": [
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each reviewed PR spends model tokens up to .keel/keel.json crossReview.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/keel-cross-review.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-cross-review.yml" }
+  ],
+  "files": [
+    { "path": ".github/workflows/keel-cross-review.yml", "from": ".github/workflows/keel-cross-review.yml", "kind": "managed" },
+    { "path": "scripts/keel/cross-review.mjs", "from": "scripts/keel/cross-review.mjs", "kind": "managed" },
+    { "path": ".agents/cross-review/REVIEW.md", "from": ".agents/cross-review/REVIEW.md", "kind": "managed" }
+  ]
+}

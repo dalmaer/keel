@@ -47,7 +47,7 @@
 //   reviewConfigOf(config), reviewFragment, reviewComments(pr, reviewers)
 //                            a PR's review comments and which are answered
 //                            (keel review and reviews_unanswered: one rule);
-//                            repoReviewArgs, readRepoReviews, unansweredPrs:
+//                            repoReviewArgs, readRepoReviews, windowPrs, unansweredPrs:
 //                            the repo-wide read, page by page (the night and
 //                            keel loose-ends); IncompleteRead: never a count
 //   main(meta, fn)           run a script: --json or text, and its exit code
@@ -773,7 +773,7 @@ export class IncompleteRead extends Error {
 
 /** The PullRequest fields the review read needs, as a GraphQL fragment; `replies` is one page of each thread's comments. */
 export const reviewFragment = ({ replies = 100 } = {}) => `fragment KeelReview on PullRequest {
-  number title url state mergedAt updatedAt headRefOid author { login }
+  number title url state mergedAt updatedAt headRefName headRefOid author { login }
   reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { id isResolved path line
     comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
   comments(first: 100) { pageInfo { hasNextPage } nodes { id databaseId author { login } body createdAt url } }
@@ -894,17 +894,26 @@ export async function readRepoReviews(read, date) {
  * IncompleteRead on one with pull requests left unread: never a zero.
  */
 export function unansweredPrs(repository, reviewers, date) {
+  const { open, merged } = windowPrs(repository, date);
+  const prs = [];
+  for (const pr of [...open, ...merged]) {
+    const left = reviewComments(pr, reviewers).filter(c => !c.answered && /^\d{4}-\d{2}-\d{2}/.test(c.at ?? '') && c.at.slice(0, 10) <= addDays(date, -1));
+    if (left.length) prs.push({ number: pr.number, title: pr.title, state: pr.state === 'MERGED' ? 'merged' : 'open', url: pr.url, unanswered: left.length, oldest: left.map(c => c.at.slice(0, 10)).sort()[0] });
+  }
+  return { prs, open: open.length, merged: merged.length };
+}
+
+/**
+ * The PRs the repo-wide read covers (readRepoReviews): { open, merged }, the
+ * merged ones those merged in the last REVIEW_DAYS days. Throws on a malformed
+ * read, and IncompleteRead on one with pull requests left unread.
+ */
+export function windowPrs(repository, date) {
   if (!repository || !Array.isArray(repository.open?.nodes) || !Array.isArray(repository.merged?.nodes)) throw new Error('the read came back without the repository\'s pull requests');
   const since = addDays(date, -REVIEW_DAYS);
   if (repository.open.pageInfo?.hasNextPage) throw new IncompleteRead(`more than ${repository.open.nodes.length} open pull requests; the read is incomplete`);
   if (mergedMore(repository.merged, since)) throw new IncompleteRead(`more pull requests merged in ${REVIEW_DAYS} days than ${repository.merged.nodes.length} read; the read is incomplete`);
-  const merged = repository.merged.nodes.filter(p => typeof p?.mergedAt === 'string' && p.mergedAt.slice(0, 10) >= since);
-  const prs = [];
-  for (const pr of [...repository.open.nodes, ...merged]) {
-    const left = reviewComments(pr, reviewers).filter(c => !c.answered && /^\d{4}-\d{2}-\d{2}/.test(c.at ?? '') && c.at.slice(0, 10) <= addDays(date, -1));
-    if (left.length) prs.push({ number: pr.number, title: pr.title, state: pr.state === 'MERGED' ? 'merged' : 'open', url: pr.url, unanswered: left.length, oldest: left.map(c => c.at.slice(0, 10)).sort()[0] });
-  }
-  return { prs, open: repository.open.nodes.length, merged: merged.length };
+  return { open: repository.open.nodes, merged: repository.merged.nodes.filter(p => typeof p?.mergedAt === 'string' && p.mergedAt.slice(0, 10) >= since) };
 }
 
 // ---- the gate's environment -------------------------------------------------

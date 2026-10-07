@@ -270,7 +270,7 @@ test('--with takes only optional practices, and switches each on', async t => {
   for (const name of ['ci', 'nope']) {
     const r = keel(['init', 'x', '--description', DESCRIPTION, '--with', name], root);
     assert.equal(r.code, 2, r.out);
-    assert.match(r.err, /--with takes claude, climb, loop, reconciliation/);
+    assert.match(r.err, /--with takes claude, climb, cross-review, loop, reconciliation/);
   }
   assert.deepEqual(await readdir(root), [], 'nothing written');
   const r = keel(['init', 'y', '--description', DESCRIPTION, '--with', 'claude,loop', '--json'], root);

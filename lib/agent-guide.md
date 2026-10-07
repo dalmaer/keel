@@ -197,7 +197,7 @@ cd acme-notes && keel next
 - It refuses (exit 2) a directory that is already a keel project (use
   `keel update`) or holds anything besides `.git` (use `keel adopt`).
 - It writes `.keel/keel.json` with every practice except the optional ones
-  (`claude`, `climb`, `loop`, `reconciliation`): `--with <practice>` (repeatable) switches one on, and
+  (`claude`, `climb`, `cross-review`, `loop`, `reconciliation`): `--with <practice>` (repeatable) switches one on, and
   only on practices' secrets are listed. It seeds goal G0 (titled by the
   description's first sentence; the description is its outcome),
   `docs/phases/00-first-thing-that-runs.md`, `docs/evidence/README.md`, and a
@@ -906,6 +906,23 @@ wait, reviewed: [{reviewer, head, newest}], notReviewed, waited, gate,
 comments: [{kind: thread|review|comment, id, author, at, path, line, text,
 url, resolved, status?, answered}], unanswered, answered, ok}`; `--close --json` → `{repo, number,
 answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
+
+**Cross-review** (the optional `cross-review` practice, needs `night`):
+`keel-cross-review.yml` has Claude review the PRs another model wrote, as
+Codex reviews Claude Code's. `.keel/keel.json` `"crossReview": {"for":
+["codex/"], "budget": {"minutes": 15}}` (minutes 5–60, default 15; an unknown
+key or an empty `for` is red; no key, no reviews). A PR is reviewed when its
+head branch starts with a prefix and lives in this repo (never a fork), on
+`opened` and `ready_for_review`, and on a `/review` comment from an OWNER,
+MEMBER or COLLABORATOR (never a bot); never on a push.
+`node scripts/keel/cross-review.mjs which` decides from the PR as `gh pr view`
+returns it. The agent (`.agents/cross-review/REVIEW.md`: validate before
+writing, cite the code, P1/P2/P3, no style nits) may use Read, Grep, Glob,
+`gh pr diff`, `gh pr view` and the action's inline-comment tool, nothing
+else, time-boxed to the budget; the workflow posts its final message as a
+`COMMENT` review opened by a `<!-- keel:cross-review -->` status marker. No
+secret: green with a notice; an agent that failed to start: red, the error
+line only. Its comments are answered like any reviewer's.
 
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->
 

@@ -90,6 +90,48 @@ phase's issue labelled `keel:wait-for-review`. Such a phase lands through a
 PR, and merges only when `keel review <repo>#<n> --gate` exits 0: every
 comment answered, and each named reviewer has reviewed the head commit.
 
+### Claude reviews what Codex writes (optional)
+
+Codex reviews every PR, Claude Code's included, and on 6 October its
+reviews of keel's update PRs found 27 comments, all valid. Codex's own PRs
+had no second reader. The optional `cross-review` practice adds one: a
+second model catches what the author's model is blind to, and the same
+model reviewing its own work does not.
+
+**How it works.** `keel-cross-review.yml` runs Claude
+(`anthropics/claude-code-action`) on a PR whose head branch starts with a
+configured prefix (Codex opens PRs under the owner's account, so the
+branch, not the author, says who wrote it), in this repo, never a fork. It
+runs when the PR is opened or marked ready for review, and again when a
+person with write access comments `/review`; never on a push, because a
+review per push costs more than it tells. The brief
+(`.agents/cross-review/REVIEW.md`) asks for findings only where the code
+shows them: each validated against the code before it is written, tagged
+P1 (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), as an
+inline comment on the line. No style nits. The agent can read the code and
+the diff and write inline comments, nothing else: it never pushes,
+approves, requests changes or merges. Its last message is the summary,
+which the workflow posts as a comment review opened by a hidden marker, so
+it owes no answer. The inline comments do: the author answers each one
+fixed, tracked or not valid, as above.
+
+**Switching it on.** Add `cross-review` to `.keel/keel.json` `practices`
+(or `keel init`/`keel adopt` with `--with cross-review`), and the config:
+
+```json
+"crossReview": { "for": ["codex/"], "budget": { "minutes": 15 } }
+```
+
+Set `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or
+`ANTHROPIC_API_KEY` as a repo secret; the Claude GitHub App posts the
+comments. Without a secret the run ends green with a notice; without the
+`crossReview` key nothing is reviewed.
+
+**Cost.** Each reviewed PR spends model tokens, up to the budget's minutes
+(5 to 60, default 15). `/review` asks again after new pushes; nothing else
+does. A review that runs out its budget keeps the comments it wrote and
+says so in its summary.
+
 ## The commands
 
 ```bash

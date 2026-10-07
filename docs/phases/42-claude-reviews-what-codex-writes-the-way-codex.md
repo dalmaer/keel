@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G2
 spec: 2
 depends: [39, 41]
-note: "The owner: Claude Code should review Codex's PRs the way Codex reviews Claude Code's. An optional cross-review practice: PRs on configured branch prefixes (codex/) get a Claude review of inline P1/P2/P3 comments, each validated first; read-only, comment-only, budgeted. Design: research/2026-10-06-cross-review.md."
-evidence: []
+note: "Built: the optional cross-review practice (keel-cross-review.yml, REVIEW.md, scripts/keel/cross-review.mjs): same-repo PRs on configured prefixes and a person's /review, read-only tools plus inline comments, a COMMENT summary, budgeted, green with no secret, red when the agent fails to start. Waits on the owner switching it on for ledger and reading its first review."
+evidence: ["evidence/2026-10-06-cross-review.md"]
 issue: 24
 ---
 
@@ -28,10 +28,10 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
 ## Acceptance
 
-- [ ] The workflow runs only for matching head branches and for `/review` from a person with write access; a non-matching branch, a fork, or a bot's `/review` does nothing. `tests/workflows.test.mjs`
-- [ ] The agent's tools include no push, merge, approve or request-changes, and no Bash beyond `gh pr diff`/`gh pr view`; its review event is COMMENT; mutation: allowing `gh pr merge` fails the test. `tests/workflows.test.mjs`
-- [ ] Config validation: unknown keys, an empty prefix list, a budget outside 5–60 minutes are errors; no `crossReview` key, the workflow ends at its first step. `tests/cross-review.test.mjs`
-- [ ] With no secret, the run ends green with a notice; with an agent that fails to start, the run is red and prints only the error line (phase 35's check). `tests/cross-review.test.mjs`
+- [x] The workflow runs only for matching head branches and for `/review` from a person with write access; a non-matching branch, a fork, or a bot's `/review` does nothing. `tests/workflows.test.mjs`
+- [x] The agent's tools include no push, merge, approve or request-changes, and no Bash beyond `gh pr diff`/`gh pr view`; its review event is COMMENT; mutation: allowing `gh pr merge` fails the test. `tests/workflows.test.mjs`
+- [x] Config validation: unknown keys, an empty prefix list, a budget outside 5–60 minutes are errors; no `crossReview` key, the workflow ends at its first step. `tests/cross-review.test.mjs`
+- [x] With no secret, the run ends green with a notice; with an agent that fails to start, the run is red and prints only the error line (phase 35's check). `tests/cross-review.test.mjs`
 - [ ] ⚑ by hand: the owner switches cross-review on for ledger; the next `codex/` PR is reviewed; the owner reads the review and judges its comments.
 
 ## Real surfaces
@@ -53,4 +53,10 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
 ## Next action
 
-Write keel-cross-review.yml's trigger conditions and the workflows test that holds a non-matching branch and a bot's `/review` to doing nothing.
+⚑ Owner: switch cross-review on for ledger (`"practices"` gains `cross-review`, and `"crossReview": {"for": ["codex/"], "budget": {"minutes": 15}}` in its `.keel/keel.json`, through an update PR); each reviewed PR spends model tokens within that budget. Then read the first `codex/` PR's review and judge its comments.
+
+## Trajectory
+
+- **2026-10-06** — The prefix is checked in the workflow's `which` step, not the job's `if:`, because prefixes live in the project's config; the job's `if:` holds the rest (same repo, not draft, a person with write access, no bot), evaluated on synthetic events in the test.
+- **2026-10-06** — The review event is the script's, never the agent's: the summary is posted by a step as COMMENT, so the review can never approve; the summary therefore carries `github-actions[bot]`'s name, and the inline comments the action's.
+- **2026-10-06** — `cross_review_valid` is built but not in the night's MEASURES: an unbounded measure can never be outside, so the night's selftest (lesson 6) refuses it. Wired when ten answered cross-review comments exist, with a bound or a recorded-only selftest rule decided then.

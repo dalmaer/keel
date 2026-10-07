@@ -1,0 +1,188 @@
+# Cross-review (keel practice `cross-review`; managed: keel render rewrites it).
+#
+# Claude reviews the pull requests another model wrote, the way Codex reviews
+# the ones Claude Code writes: inline comments tagged P1/P2/P3, each validated
+# against the code before it is written, and a one-paragraph summary posted
+# as a COMMENT review. The brief is .agents/cross-review/REVIEW.md. The rules:
+#
+#   - Off unless .keel/keel.json has "crossReview"; with no secret, a notice and green.
+#   - Which PRs: a head branch starting with a "crossReview".for prefix
+#     ("codex/"), in this repo (never a fork), when it is opened or marked
+#     ready for review, and again when a person with write access comments
+#     `/review` on it. Never on a push: a review per push costs more than it
+#     tells. The job's `if:` and scripts/keel/cross-review.mjs `which` both say so.
+#   - The config, the brief and the checks come from the default branch; the
+#     agent reads the PR's head, checked out after them.
+#   - The agent reads (Read, Grep, Glob, gh pr diff, gh pr view) and writes
+#     inline comments; nothing else. It never pushes, approves, requests
+#     changes or merges, and this workflow cannot write the repo's contents.
+#     Its step is time-boxed to the budget.
+#   - The summary is the agent's final message, posted by this workflow as a
+#     COMMENT review (cross-review.mjs summary), never APPROVE or REQUEST_CHANGES.
+#   - An agent that failed before its budget ran out is red, printing only the
+#     error line (lesson 29), and no summary is posted.
+#
+# SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
+# as the claude practice's. Each review spends model tokens, up to the
+# configured minutes. No model is pinned here: a pinned model is a fact that ages.
+name: keel-cross-review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: keel-cross-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    # The trigger, before a runner starts: a same-repo PR that is not a draft,
+    # or `/review` on a PR from a person with write access, never a bot. The
+    # branch prefix lives in .keel/keel.json, so the first steps read it.
+    if: |
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/review') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+        github.event.comment.user.type != 'Bot' &&
+        !endsWith(github.event.comment.user.login, '[bot]'))
+    runs-on: ubuntu-latest
+    # The agent's own step is bounded by the budget (5 to 60 minutes); this
+    # bounds the whole run.
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Is cross-review on?
+        id: on
+        run: |
+          node -e '
+            const fs = require("fs");
+            let c = {};
+            try { c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8")); } catch {}
+            const on = c.crossReview !== undefined;
+            if (!on) console.log("cross-review is off: .keel/keel.json has no \"crossReview\", so this run does nothing.");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\n`);
+          '
+      - name: Configured?
+        id: configured
+        if: steps.on.outputs.on == 'true'
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
+            echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a cross-review to run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The config, validated (a bad one is red, naming the key), and the PR
+      # as GitHub has it now: its branch against the prefixes, a fork, a
+      # draft, a closed PR, and for /review who asked.
+      - name: Which pull request?
+        id: which
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENTER_TYPE: ${{ github.event.comment.user.type }}
+        run: |
+          node scripts/keel/cross-review.mjs config
+          gh pr view "$PR" --repo "$REPO" --json number,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
+          node scripts/keel/cross-review.mjs which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
+          node -e '
+            const fs = require("fs");
+            const [file, out] = process.argv.slice(1);
+            const w = JSON.parse(fs.readFileSync(file, "utf8"));
+            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\n`);
+            console.log(w.review ? `review: ${w.why}` : `no review: ${w.why}`);
+          ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
+
+      # The brief, from the default branch: REVIEW.md, this PR, the project's
+      # context. The checks that run after the agent are copied out first, so
+      # the PR's own copy of them never judges its review.
+      - name: Brief
+        id: brief
+        if: steps.which.outputs.review == 'true'
+        run: |
+          node scripts/keel/cross-review.mjs brief --pr "$RUNNER_TEMP/pr.json" --out "$RUNNER_TEMP/prompt.md"
+          mkdir -p "$RUNNER_TEMP/keel/scripts/keel"
+          cp scripts/keel/cross-review.mjs scripts/keel/lib.mjs "$RUNNER_TEMP/keel/scripts/keel/"
+          eof="KEEL_EOF_$(date +%s%N)"
+          {
+            echo "prompt<<$eof"
+            cat "$RUNNER_TEMP/prompt.md"
+            echo "$eof"
+            echo "started=$(date +%s)"
+          } >> "$GITHUB_OUTPUT"
+
+      # The PR's head, for the agent to read. Nothing here runs its code.
+      - name: Check out the pull request
+        if: steps.which.outputs.review == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.which.outputs.sha }}
+          persist-credentials: false
+
+      # The agent, time-boxed to the budget, with read-only tools and the
+      # inline-comment tool. A timeout is not red: its comments stand.
+      - name: Review
+        id: review
+        if: steps.which.outputs.review == 'true'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.which.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
+
+      # An agent that failed before its budget ran out (no secret, a bad
+      # model: is_error after one turn) is red, printing only the error line,
+      # and no summary is posted (lesson 29). A budget timeout is not red.
+      - name: Did the agent run?
+        if: steps.which.outputs.review == 'true'
+        env:
+          OUTCOME: ${{ steps.review.outcome }}
+          EXECUTION: ${{ steps.review.outputs.execution_file }}
+          MINUTES: ${{ steps.which.outputs.minutes }}
+          STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+
+      # The summary: the agent's final message, posted as a COMMENT review
+      # (the event is the script's, never the agent's), opened by a hidden
+      # marker so it owes no answer; the inline comments are the findings.
+      - name: Post the summary
+        if: steps.which.outputs.review == 'true'
+        env:
+          EXECUTION: ${{ steps.review.outputs.execution_file }}
+          MINUTES: ${{ steps.which.outputs.minutes }}
+        run: |
+          node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --pr "$RUNNER_TEMP/pr.json" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json"
+          gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review.json" --jq '"posted review \(.id) (\(.state))"'

@@ -412,3 +412,53 @@ test('reviews_unanswered is n/a when GitHub cannot be read, broken when the read
   r = await read({ KEEL_GH: await ghStub(t) }, { ...config, review: { reviewers: 'acme-reviewer' } });
   assert.equal(r.state, 'broken', 'a bad "review" config is a broken instrument');
 });
+
+// ---- cross_review_valid (phase 42): is the cross-review worth answering? -----
+
+test('cross_review_valid: the share of Claude\'s cross-review comments answered valid among those answered, on crossReview branches; n/a below ten; one read with reviews_unanswered', async t => {
+  const { CROSS_REVIEW_VALID, CROSS_REVIEW_ANSWERS, crossReviewTally } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  const { replyText } = await import('../lib/review.mjs');
+  // The forms are keel review --close's replies, exactly.
+  for (const [kind, value, as] of [['fixed', 'abc1234', 'fixed'], ['tracked', '#57', 'tracked'], ['not-valid', 'the lid is checked in anvil.js', 'notValid']]) {
+    assert.deepEqual(CROSS_REVIEW_ANSWERS.filter(([, re]) => re.test(replyText({ kind, value }))).map(([k]) => k), [as], kind);
+  }
+  const answer = { fixed: '**Fixed** in abc1234. Validated against the code first.', tracked: '**Valid, tracked** in #57. Left open until the fix lands.', notValid: '**Not valid:** the lid is checked in anvil.js' };
+  let id = 100;
+  const finding = (reply, { by = 'claude', day = '2026-10-04' } = {}) => thread(`T${++id}`, [comment(id, by, `P2: the lid opens (${id}).`, day), ...(reply ? [comment(++id, 'acme-owner', reply, '2026-10-05')] : [])]);
+  const codexPr = (number, threads, over = {}) => ({ ...pr(number, 'OPEN', threads), headRefName: 'codex/anvil-lid', ...over });
+  const ten = [...Array(6)].map(() => finding(answer.fixed)).concat([finding(answer.tracked), finding(answer.notValid), finding(answer.notValid), finding(answer.notValid)]);
+  const open = [
+    codexPr(1, ten.slice(0, 5)),
+    codexPr(2, [...ten.slice(5), finding(null), finding('Thanks, will look.'), finding(answer.notValid, { by: 'codex' })]), // unanswered, free text, and someone else's thread
+    { ...pr(3, 'OPEN', [finding(answer.notValid)]), headRefName: 'claude/lid' }, // not a cross-review branch
+  ];
+  const merged = [codexPr(4, [finding(answer.notValid)], { state: 'MERGED', mergedAt: at('2026-09-01'), updatedAt: at('2026-09-01') })]; // merged before the window
+  const repository = { open: { pageInfo: { hasNextPage: false }, nodes: open }, merged: { pageInfo: { hasNextPage: false }, nodes: merged } };
+  assert.deepEqual(crossReviewTally(repository, { prefixes: ['codex/'], date: '2026-10-06' }), { prs: 2, comments: 12, fixed: 6, tracked: 1, valid: 7, notValid: 3, unanswered: 2 });
+  // A reviewer's own follow-up is not an answer; the first answer in keel's form decides.
+  const followed = thread('TF', [comment(1, 'claude[bot]', 'P1: the anvil falls.', '2026-10-04'), comment(2, 'claude[bot]', 'Still falls.', '2026-10-04'), comment(3, 'acme-owner', answer.notValid, '2026-10-05'), comment(4, 'acme-owner', answer.fixed, '2026-10-05')]);
+  assert.deepEqual(crossReviewTally({ open: { nodes: [codexPr(5, [followed])] }, merged: { nodes: [] } }, { prefixes: ['codex/'], date: '2026-10-06' }), { prs: 1, comments: 1, fixed: 0, tracked: 0, valid: 0, notValid: 1, unanswered: 0 });
+
+  // As a measure: 7 of 10 answered valid is 70%, recorded with no bound; reviews_unanswered reads the same pages, once.
+  const reviews = JSON.stringify({ data: { repository } });
+  const KEEL_GH = await ghStub(t, { reviews });
+  const config = { name: 'Acme', repo: 'acme/storefront', crossReview: { for: ['codex/'] } };
+  const both = MEASURES.filter(m => m.id === 'reviews_unanswered').concat([CROSS_REVIEW_VALID]);
+  const [unanswered, r] = await measure({ root: await scratch(t), config, env: { ...ENV, KEEL_GH }, date: '2026-10-06', measures: both });
+  assert.equal(unanswered.id, 'reviews_unanswered');
+  assert.deepEqual([r.state, r.value, r.bound, r.unit], ['ok', 70, null, '%'], JSON.stringify(r));
+  assert.match(r.detail, /^7 of 10 answered valid \(fixed 6, tracked 1\), 3 not valid; 2 not answered in keel's form; 12 comments on 2 PRs$/);
+  assert.equal((await readFile(`${KEEL_GH}.log`, 'utf8')).trim().split('\n').length, 1, 'one read for both measures');
+  assert.equal(CROSS_REVIEW_VALID.ratchet, false);
+  // Below ten answered: n/a, saying how many; off: n/a; a read left incomplete: n/a, never a share.
+  const nine = { ...repository, open: { ...repository.open, nodes: [codexPr(1, ten.slice(0, 9))] } };
+  const one = async (repo, c = config) => (await measure({ root: await scratch(t), config: c, env: { ...ENV, KEEL_GH: await ghStub(t, { reviews: JSON.stringify({ data: { repository: repo } }) }) }, date: '2026-10-06', measures: [CROSS_REVIEW_VALID] }))[0];
+  const few = await one(nine);
+  assert.deepEqual([few.state, few.value], ['n/a', null]);
+  assert.match(few.detail, /^7 of 9 answered valid .*: the share waits for 10 answered$/);
+  assert.match((await one(repository, { name: 'Acme', repo: 'acme/storefront' })).detail, /cross-review is off/);
+  const more = await one({ ...repository, open: { pageInfo: { hasNextPage: true, endCursor: 'o1' }, nodes: open } });
+  assert.deepEqual([more.state, more.value], ['n/a', null]);
+  assert.match(more.detail, /the read is incomplete/);
+  assert.equal((await one(repository, { ...config, crossReview: { for: [] } })).state, 'broken', 'a bad config is a broken instrument');
+});

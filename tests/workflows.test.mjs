@@ -25,6 +25,7 @@ export const PREFIX = {
   'keel-climb.yml': 'keel-climb/',
   'keel-tend.yml': 'keel-tend/',
   'claude.yml': 'claude/',
+  'keel-cross-review.yml': null,
   'check.yml': null,
   'keel-impact.yml': null,
 };
@@ -97,7 +98,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-tend.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -941,4 +942,206 @@ test('one major version per action across every workflow keel ships and keel\'s 
   assert.equal(p.length, 1, p.join('\n'));
   assert.match(p[0], /^actions\/upload-artifact is used at 2 majors: v6 in /);
   assert.ok(p[0].includes(files[i].file), p[0]);
+});
+
+// ---- phase 42: cross-review -------------------------------------------------------
+
+/**
+ * A GitHub Actions expression, evaluated against `ctx` ({ github: {...} }):
+ * the subset keel's job conditions use. Literals ('…', numbers, true, false,
+ * null), property paths, ! && || == != and parentheses, and startsWith,
+ * endsWith, contains and fromJSON. As GitHub does: == on strings ignores
+ * case, a missing property is null, and null, false, 0 and '' are falsy.
+ */
+export function evalExpression(source, ctx) {
+  const tokens = [];
+  const re = /\s*(?:('(?:[^']|'')*')|(\d+(?:\.\d+)?)|(&&|\|\||==|!=|!|\(|\)|,|\.|\[|\])|([A-Za-z_][\w-]*))/y;
+  let at = 0;
+  const src = source.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, '$1').trim();
+  while (at < src.length) {
+    re.lastIndex = at;
+    const m = re.exec(src);
+    if (!m) throw new Error(`cannot read the expression at: ${src.slice(at, at + 20)}`);
+    at = re.lastIndex;
+    if (m[1] !== undefined) tokens.push({ str: m[1].slice(1, -1).replace(/''/g, "'") });
+    else if (m[2] !== undefined) tokens.push({ num: Number(m[2]) });
+    else if (m[3] !== undefined) tokens.push({ op: m[3] });
+    else tokens.push({ id: m[4] });
+    while (at < src.length && /\s/.test(src[at])) at++;
+  }
+  let i = 0;
+  const peek = () => tokens[i], op = o => tokens[i]?.op === o && ++i;
+  const need = o => { if (!op(o)) throw new Error(`expected ${o}`); };
+  const truthy = v => !(v === null || v === undefined || v === false || v === 0 || v === '');
+  const eq = (a, b) => (typeof a === 'string' && typeof b === 'string' ? a.toLowerCase() === b.toLowerCase() : (a ?? null) === (b ?? null));
+  const str = v => (v === null || v === undefined ? '' : String(v));
+  const fns = {
+    startsWith: (a, b) => str(a).toLowerCase().startsWith(str(b).toLowerCase()),
+    endsWith: (a, b) => str(a).toLowerCase().endsWith(str(b).toLowerCase()),
+    contains: (a, b) => (Array.isArray(a) ? a.some(x => eq(x, b)) : str(a).toLowerCase().includes(str(b).toLowerCase())),
+    fromJSON: a => JSON.parse(a),
+  };
+  const primary = () => {
+    const t = tokens[i++];
+    if (!t) throw new Error('unexpected end');
+    if (t.op === '(') { const v = or(); need(')'); return v; }
+    if (t.str !== undefined) return t.str;
+    if (t.num !== undefined) return t.num;
+    if (t.id === 'true') return true;
+    if (t.id === 'false') return false;
+    if (t.id === 'null') return null;
+    if (t.id && peek()?.op === '(') {
+      if (!fns[t.id]) throw new Error(`unknown function ${t.id}`);
+      i++;
+      const args = [];
+      if (!op(')')) { do args.push(or()); while (op(',')); need(')'); }
+      return fns[t.id](...args);
+    }
+    if (!t.id) throw new Error(`unexpected ${JSON.stringify(t)}`);
+    let v = ctx[t.id] ?? null;
+    for (;;) {
+      if (op('.')) { const k = tokens[i++]?.id; v = v?.[k] ?? null; }
+      else if (op('[')) { const k = or(); need(']'); v = v?.[k] ?? null; }
+      else return v;
+    }
+  };
+  const unary = () => (op('!') ? !truthy(unary()) : cmp());
+  const cmp = () => {
+    const a = primary();
+    if (op('==')) return eq(a, primary());
+    if (op('!=')) return !eq(a, primary());
+    return a;
+  };
+  const and = () => { let v = unary(); while (op('&&')) { const r = unary(); v = truthy(v) ? r : v; } return v; };
+  const or = () => { let v = and(); while (op('||')) { const r = and(); v = truthy(v) ? v : r; } return v; };
+  const v = or();
+  if (i !== tokens.length) throw new Error(`unread: ${JSON.stringify(tokens.slice(i))}`);
+  return truthy(v);
+}
+
+/** The one job's `if:` in a workflow's text (a block scalar or one line), or null. */
+export function jobIf(text) {
+  const m = /\n {4}if: \|\n((?: {6}.*\n)+)/.exec(text) ?? /\n {4}if: (.+)\n/.exec(text);
+  return m ? m[1].replace(/\n$/, '') : null;
+}
+
+const ACME = 'acme/anvils';
+/** A synthetic event as the job's `if:` reads it. */
+const ghEvent = (event_name, event) => ({ github: { event_name, repository: ACME, event: { repository: { full_name: ACME, default_branch: 'main' }, ...event } } });
+const prEvent = ({ action = 'opened', repo = ACME, draft = false, ref = 'codex/anvil-lid' } = {}) => ghEvent('pull_request', { action, pull_request: { number: 7, draft, head: { ref, repo: { full_name: repo } } } });
+const commentEvent = ({ body = '/review', association = 'OWNER', login = 'acme-owner', type = 'User', pr = true } = {}) =>
+  ghEvent('issue_comment', { action: 'created', issue: { number: 7, ...(pr ? { pull_request: { url: `https://api.github.com/repos/${ACME}/pulls/7` } } : {}) }, comment: { body, author_association: association, user: { login, type } } });
+
+/**
+ * The cross-review workflow's own rules (phase 42), on its text: [string].
+ * Triggers: pull_request opened and ready_for_review, issue_comment created;
+ * never a push, a synchronize or pull_request_target. The agent's tools are
+ * read-only plus the inline-comment tool, and no Bash beyond gh pr diff and
+ * gh pr view; the token cannot write contents; the only write is the summary
+ * review, posted from the script's JSON (event COMMENT); nothing approves,
+ * requests changes, merges or pushes; the agent is time-boxed by the budget.
+ */
+export const CROSS_REVIEW_TOOLS = Object.freeze(['Read', 'Grep', 'Glob', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'mcp__github_inline_comment__create_inline_comment']);
+export function crossReviewProblems(text) {
+  const out = [];
+  const on = /\non:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
+  const events = [...on.matchAll(/^ {2}([a-z_]+):/gm)].map(m => m[1]);
+  if (events.join(',') !== 'pull_request,issue_comment') out.push(`triggers are ${events.join(', ') || 'none'}; only pull_request and issue_comment`);
+  const types = name => /types: \[([^\]]*)\]/.exec(on.split(new RegExp(`^ {2}${name}:`, 'm'))[1]?.split(/^ {2}\S/m)[0] ?? '')?.[1].split(',').map(s => s.trim());
+  if (JSON.stringify(types('pull_request')) !== JSON.stringify(['opened', 'ready_for_review'])) out.push(`pull_request types ${JSON.stringify(types('pull_request'))}: only opened and ready_for_review, never a push`);
+  if (JSON.stringify(types('issue_comment')) !== JSON.stringify(['created'])) out.push('issue_comment types: only created');
+  const tools = /--allowedTools "([^"]*)"/.exec(text)?.[1];
+  if (!tools) out.push('the agent has no --allowedTools list');
+  else for (const t of tools.split(',').map(s => s.trim())) if (!CROSS_REVIEW_TOOLS.includes(t)) out.push(`the agent may use ${t}: only ${CROSS_REVIEW_TOOLS.join(', ')}`);
+  if ((text.match(/--allowedTools/g) ?? []).length !== 1 || /--(?:dangerously-skip-permissions|permission-mode)/.test(text)) out.push('one --allowedTools list, and no way around it');
+  const perms = /\npermissions:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
+  if (!/^ {2}contents: read$/m.test(perms)) out.push('permissions must say contents: read');
+  if (/:\s*write-all|contents: write|actions: write/.test(text)) out.push('the token may write contents or actions');
+  for (const { line, n } of code(text)) {
+    if (/\bgit push\b|\bgh pr (merge|review|close|edit)\b|\bAPPROVE\b|REQUEST_CHANGES|--approve|--request-changes/.test(line)) out.push(`line ${n}: pushes, merges, approves or requests changes: ${line.trim()}`);
+    if (/\bgh api\b/.test(line) && !/^\s*gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review\.json"/.test(line)) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
+  }
+  if (!/cross-review\.mjs" summary --file [^\n]* --out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
+  const reviewStep = /\n {6}- name: Review\n[\s\S]*?(?=\n {6}(?:#|- )|$)/.exec(text)?.[0] ?? '';
+  if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}\n/.test(reviewStep) || !/\n\s+uses: anthropics\/claude-code-action@v\d+\n/.test(reviewStep)) out.push('the agent\'s step is not time-boxed by the budget (steps.which.outputs.minutes)');
+  if (/pull_request_target/.test(text)) out.push('pull_request_target runs a fork\'s PR with this repo\'s secrets');
+  return out;
+}
+
+test('keel-cross-review.yml runs only for a same-repo PR opened or made ready, or a person\'s /review on a PR; a fork, a draft, a bot or anyone without write access does nothing', async () => {
+  const t = (await shipped()).find(w => w.name === 'keel-cross-review.yml').template;
+  const cond = jobIf(t);
+  assert.ok(cond, 'the job has an if:');
+  const runs = ctx => evalExpression(cond, ctx);
+  assert.equal(runs(prEvent()), true, 'a same-repo PR');
+  assert.equal(runs(prEvent({ action: 'ready_for_review' })), true);
+  assert.equal(runs(prEvent({ repo: 'mallory/anvils' })), false, 'a fork');
+  assert.equal(runs(prEvent({ draft: true })), false, 'a draft');
+  for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) assert.equal(runs(commentEvent({ association })), true, association);
+  assert.equal(runs(commentEvent({ body: '/review\nthe lid, please' })), true);
+  assert.equal(runs(commentEvent({ type: 'Bot', login: 'codex[bot]', association: 'MEMBER' })), false, 'a bot\'s /review');
+  assert.equal(runs(commentEvent({ type: 'User', login: 'acme-ci[bot]', association: 'MEMBER' })), false, 'a [bot] login');
+  assert.equal(runs(commentEvent({ association: 'CONTRIBUTOR' })), false, 'no write access');
+  assert.equal(runs(commentEvent({ association: 'NONE' })), false);
+  assert.equal(runs(commentEvent({ pr: false })), false, '/review on an issue');
+  assert.equal(runs(commentEvent({ body: 'LGTM' })), false, 'another comment');
+  assert.equal(runs(ghEvent('push', {})), false);
+  // The branch prefix is the config's, read at run time: every step after "Which pull request?" waits on it.
+  const steps = t.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
+  const which = steps.findIndex(s => s.includes('- name: Which pull request?'));
+  assert.ok(which > 0);
+  assert.match(steps[which], /node scripts\/keel\/cross-review\.mjs which --pr "\$RUNNER_TEMP\/pr\.json" --event "\$EVENT"/);
+  for (const s of steps.slice(which + 1)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'\n/, s.split('\n')[0]);
+  assert.deepEqual(crossReviewProblems(t), []);
+  // The evaluator itself: each guard in the if: is load-bearing.
+  for (const [why, from, to, ctx] of [
+    ['no fork check', "github.event.pull_request.head.repo.full_name == github.repository &&\n", '', prEvent({ repo: 'mallory/anvils' })],
+    ['no draft check', "&&\n        github.event.pull_request.draft == false", '', prEvent({ draft: true })],
+    ['no bot check', "github.event.comment.user.type != 'Bot' &&\n        !endsWith(github.event.comment.user.login, '[bot]'))", 'true)', commentEvent({ type: 'Bot', login: 'codex[bot]', association: 'MEMBER' })],
+    ['no association check', "contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), github.event.comment.author_association) &&\n", '', commentEvent({ association: 'NONE' })],
+    ['any association', '"COLLABORATOR"]', '"COLLABORATOR", "CONTRIBUTOR", "NONE"]', commentEvent({ association: 'NONE' })],
+    ['any comment', "startsWith(github.event.comment.body, '/review') &&\n", '', commentEvent({ body: 'LGTM' })],
+    ['an issue', 'github.event.issue.pull_request &&\n', '', commentEvent({ pr: false })],
+  ]) {
+    const mutated = cond.replace(from, to);
+    assert.notEqual(mutated, cond, `${why}: the mutation did not apply`);
+    assert.equal(evalExpression(mutated, ctx), true, `${why}: the mutated condition should let it through`);
+    assert.equal(runs(ctx), false, why);
+  }
+});
+
+test('keel-cross-review.yml: the agent reads and comments inline, nothing else; the review event is COMMENT; nothing pushes, approves or merges', async () => {
+  const w = (await shipped()).find(x => x.name === 'keel-cross-review.yml');
+  const t = w.template;
+  assert.equal(w.practice, 'cross-review');
+  assert.equal(w.optional, true);
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
+  assert.deepEqual(crossReviewProblems(t), []);
+  assert.deepEqual(problems('keel-cross-review.yml', t, w.declared), []);
+  const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
+  assert.deepEqual(tools.split(','), [...CROSS_REVIEW_TOOLS]);
+  for (const [why, text] of [
+    ['gh pr merge allowed', t.replace(tools, `${tools},Bash(gh pr merge:*)`)],
+    ['any gh pr allowed', t.replace('Bash(gh pr view:*)', 'Bash(gh pr:*)')],
+    ['any gh allowed', t.replace(tools, `${tools},Bash(gh *)`)],
+    ['gh pr review allowed', t.replace(tools, `${tools},Bash(gh pr review:*)`)],
+    ['git push allowed', t.replace(tools, `${tools},Bash(git push:*)`)],
+    ['any shell', t.replace(tools, `${tools},Bash`)],
+    ['Edit allowed', t.replace(tools, `${tools},Edit`)],
+    ['Write allowed', t.replace(tools, `${tools},Write`)],
+    ['the GitHub MCP server', t.replace(tools, `${tools},mcp__github__merge_pull_request`)],
+    ['permissions bypassed', t.replace('--allowedTools', '--dangerously-skip-permissions --allowedTools')],
+    ['contents: write', t.replace('  contents: read\n', '  contents: write\n')],
+    ['an approval', t.replace('--input "$RUNNER_TEMP/review.json"', '--input "$RUNNER_TEMP/review.json"\n          gh pr review "$PR" --approve')],
+    ['another review event', t.replace('--input "$RUNNER_TEMP/review.json"', '-f event=REQUEST_CHANGES -f body=x')],
+    ['a merge', `${t}\n      - run: gh pr merge 7 --squash\n`],
+    ['a push', `${t}\n      - run: git push origin HEAD:refs/heads/main\n`],
+    ['the summary not the script\'s', t.replace(/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/cross-review\.mjs" summary [^\n]*\n/, 'echo \'{"event":"COMMENT","body":"x"}\' > "$RUNNER_TEMP/review.json"\n')],
+    ['on every push', t.replace('types: [opened, ready_for_review]', 'types: [opened, ready_for_review, synchronize]')],
+    ['pull_request_target', t.replace('  pull_request:\n', '  pull_request_target:\n')],
+    ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}/, '')],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    assert.ok(crossReviewProblems(text).length, `${why}: expected a problem`);
+  }
 });
