@@ -403,3 +403,16 @@ test('nothingNext names only walks owed under live goals', () => {
   assert.equal(nothingNext([live, gone], goals), 'Nothing left to build; phase 4 owes a walk.');
   assert.equal(nothingNext([gone], goals), 'Nothing left unbuilt.');
 });
+
+// Codex on cajones#54: owes: walk names a walk; a build command beside a hand step is work; the headline counts live walks only.
+test('owes: walk needs an unchecked walk, a build command is never a walk, and retired walks are not counted', () => {
+  assert.throws(() => parsePhase('04-x.md', phase({ status: 'partial', acceptance: '- [x] Built.', extra: 'owes: walk\n' })), /owes: walk, but no unchecked box is a walk/);
+  assert.equal(isWalk('Build with `npm run build`, then ⚑ by hand: the owner reads it.'), false);
+  assert.equal(isWalk('⚑ by hand: the next `codex/` PR is reviewed and read by the owner.'), true, 'a name in backticks is not a command');
+  const walkBoxes = '- [x] Built.\n- [ ] ⚑ by hand: the owner reads it.';
+  const gone = parsePhase('05-y.md', phase({ status: 'partial', goal: 'G1', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+  const done = parsePhase('04-x.md', phase({ status: 'built', goal: 'G0', evidence: '["evidence/x.md"]', acceptance: '- [x] Built.' }));
+  const goals = [{ id: 'G0', title: 'Acme', outcome: 'x' }, { id: 'G1', title: 'Old Acme', outcome: 'y', retired: true }];
+  const out = render({ config: { name: 'Acme' }, phases: [done, gone], goals });
+  assert.match(out, /\*\*1 of 2 phases built\.\*\*/, 'no walk owed under a live goal');
+});

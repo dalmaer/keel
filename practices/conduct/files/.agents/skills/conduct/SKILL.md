@@ -88,7 +88,7 @@ Keep the conductor's own context lean, because it outlives every builder:
 - **The docs agree.** If the phase's Proof, its Acceptance and the design
   disagree, fix the docs first, as their own commit. Building on a
   contradiction produces something that satisfies one document and not the other.
-- **Its dependencies are built.** `depends:` says which phases. Conduct an unbuilt one first.
+- **Its dependencies are built.** `depends:` says which phases. Conduct an unbuilt one first; a partial one marked `owes: walk` counts as built here (its rest is a walk, not work), as for `keel next`.
 - **⚑ steps are asked, not done.** List them to the user with the price, and
   get a yes for each. Before stopping to ask, do every part that doesn't need
   the answer, so the ask is the only thing left.

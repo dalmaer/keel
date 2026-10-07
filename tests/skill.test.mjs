@@ -212,5 +212,6 @@ test('the conduct skill reads the project\'s roadmap command, says whose check g
 test('the conduct skill treats owes: walk as done for /conduct <N>, and leaves a local roadmap\'s rules alone', async () => {
   const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
   assert.match(skill, /`\/conduct <N>`[\s\S]*?a partial phase marked `owes: walk` counts as done here/);
+  assert.match(skill, /\*\*Its dependencies are built\.\*\*[^\n]*a partial one marked `owes: walk` counts as built here/, 'the §0 gate too (Codex on duo#81)');
   assert.match(skill, /keeps its own phases \(`"local"`\s+names `phases`\) follows its own roadmap's rules for both/);
 });

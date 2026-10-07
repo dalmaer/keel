@@ -35,7 +35,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "720bf29d1d09a257e0a3b74e43161a89e8071fd375bba87da523ebad21ab9c47"
+      "sha256": "74a2fe760d0279d87917af7d60e5ae4706a9c10e3c9b5a1eef85ecae1b1839ac"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -171,7 +171,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "63655c34848d40be66b2facbfdcfaee8e459585db4f17382650d627afd8e9d2d"
+      "sha256": "552e5f1abef243612e8a770d545cc65209aa329afd8f01e3722142b1dccb7da8"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -183,7 +183,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "a78f3433093dcacab8db137c80df0d05ac948096e8bd2264c1680f9b57b76fd9"
+      "sha256": "68b0d5956b6fea405a0e385c8835862d795d0979af1a00c3cf017476b203ef7e"
     }
   }
 }

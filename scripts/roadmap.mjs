@@ -94,9 +94,15 @@ export function namesCheck(text) {
  */
 export function isWalk(text) {
   if (text.match(TEST_PATH)) return false;
+  const spans = [...text.matchAll(/`([^`]+)`/g)].map(m => m[1].trim());
+  // A build command beside a hand step is still work to build (Codex on cajones#54): "`npm run build`, then ⚑ by hand".
+  if (spans.some(s => BUILD_COMMAND.test(s))) return false;
   if (/⚑\s*by hand/i.test(text)) return true;
-  return [...text.matchAll(/`([^`]+)`/g)].some(m => /^gh\s+\S/.test(m[1].trim()));
+  return spans.some(s => /^gh\s+\S/.test(s));
 }
+
+/** A command that builds or tests here (a name in backticks, like `codex/`, is not one). */
+const BUILD_COMMAND = /^(?:npm|npx|node|pnpm|yarn|bun|deno|make|bash|sh|cargo|go|python3?|pip|uv|tsc|vitest|jest)\s+\S/;
 
 /** The tests/ paths a phase's Acceptance cites. */
 export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH) ?? []))];
@@ -286,7 +292,10 @@ export function parsePhase(file, raw) {
   if (!/^- \[[ x]\] /m.test(sections.Acceptance)) fail(`${file}: Acceptance needs checkboxes`);
   if (DONE.includes(meta.status) && /^- \[ \] /m.test(sections.Acceptance)) fail(`${file}: ${meta.status} with unchecked acceptance`);
   if (meta.owes === 'walk') {
-    const buildable = boxes(sections.Acceptance).filter(b => !b.checked && !isWalk(b.text));
+    const open = boxes(sections.Acceptance).filter(b => !b.checked);
+    // A walk owed names the walk: with no unchecked walk box, nothing is owed and the phase would vanish from the queue (Codex on cajones#54).
+    if (!open.some(b => isWalk(b.text))) fail(`${file}: owes: walk, but no unchecked box is a walk; name the walk ("⚑ by hand: …" or a \`gh …\` check), or drop owes`);
+    const buildable = open.filter(b => !isWalk(b.text));
     if (buildable.length) fail(`${file}: owes: walk, but an unchecked box is still buildable ("${buildable[0].text.slice(0, 60)}${buildable[0].text.length > 60 ? '…' : ''}"); a walk is "⚑ by hand" or a \`gh …\` command, and cites no tests/ path. Build it, or drop owes`);
   }
   // The record was written but the status wasn't moved: the roadmap would call proven work unbuilt.
@@ -404,7 +413,9 @@ export function render({ config, phases, goals, links = [] }) {
   const next = focus({ phases, goals });
   const lived = livedInOf(config);
   const built = phases.filter(p => DONE.includes(p.status)).length;
-  const owed = phases.filter(owesWalk).length;
+  // Walks owed under live goals only, as nothingNext counts them (Codex on cajones#54).
+  const retiredGoals = new Set(goals.filter(g => g.retired).map(g => g.id));
+  const owed = phases.filter(p => owesWalk(p) && !retiredGoals.has(p.goal)).length;
   const headline = lived
     ? `**${phases.filter(p => p.status === 'lived-in').length} of ${phases.length} phases lived in; ${built} built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.`
     : `**${built} of ${phases.length} phases built${owed ? `; ${owed} owe${owed === 1 ? 's' : ''} a walk` : ''}.** Built means implemented and checked; planned is not available.`;
