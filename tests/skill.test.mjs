@@ -165,3 +165,26 @@ test('the conduct skill ends real work with a retro: the worksheet, the seven ar
   // The sections before it are intact.
   for (const n of [0, 1, 2, 3, 4]) assert.ok(text.includes(`\n## ${n}.`), `§${n} kept`);
 });
+
+// Phase 41: every review comment is validated, then answered; never left unanswered.
+const spaced = text => text.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+const REVIEW_RULE = new RegExp(`${spaced('when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies')};?\\s*(?:\\(fixed,[\\s\\S]*?\\)\\s*)?;?\\s*${spaced('never leave one unanswered')}`);
+test('the conduct skill and the climb and tend briefs say: validate each review comment, then answer it with one of the three replies', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
+  for (const n of [4, 5]) assert.match(section(n), REVIEW_RULE, `§${n}`);
+  for (const form of [/--fixed <commit>/, /--tracked <#issue\|vX\.Y\.Z>/, /--not-valid "<why>"/]) assert.match(section(4), form);
+  assert.match(section(4), /Not a gate: an open thread never refuses a merge/);
+  // The opt-in: review: wait, or the issue's label; it lands through a PR and merges on --gate.
+  assert.match(section(4), /`review: wait`[\s\S]*?`keel:wait-for-review`[\s\S]*?through a\s+PR[\s\S]*?`keel review <repo>#<n> --gate` exits 0/);
+  assert.match(section(4), /The default is neither: no PR,\s+no wait/);
+  const block = await readFile(join(KEEL, 'practices', 'conduct', 'files', 'AGENTS.block.md'), 'utf8');
+  assert.match(block, new RegExp(spaced('When a PR has reviews, validate each comment against the code first, then answer it with one of the three replies')));
+  assert.match(block, /never leave one unanswered/);
+  for (const brief of ['PROTOCOL.md', 'TEND.md']) {
+    const text = await readFile(join(KEEL, 'practices', 'climb', 'files', '.agents', 'climb', brief), 'utf8');
+    assert.match(text, /## After the PR opens/, brief);
+    assert.match(text, REVIEW_RULE, brief);
+    assert.match(text, /keel review <repo>#<n>/, brief);
+  }
+});

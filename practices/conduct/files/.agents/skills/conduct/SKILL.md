@@ -262,7 +262,7 @@ tree the gate just checked in §3; if anything changes after it, run it again.
 - **Proofs that need the commit** (§3): walk them now, against the committed
   tree, and record them in the next commit.
 
-Land on `main`, no pull request:
+Land on `main`, no pull request (unless the phase waits for review, below):
 
 1. With a remote, integrate `origin/main` before the gate run in §3, and
    regenerate the roadmap if it conflicts.
@@ -273,10 +273,39 @@ Land on `main`, no pull request:
 4. Push, and follow CI on that exact commit while preparing the next brief.
    With no remote, stop at the local commit: there is no push and no CI.
 
+**Reviews.** Every PR the conductor opens or merges (a phase that waits for
+review, `keel fleet update`'s PRs, a climb or tend PR): when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered.
+Read them with `keel review <repo>#<n>` (`--wait` first when the PR is new:
+reviewers post minutes after CI). The three replies:
+
+```sh
+keel review <repo>#<n> --close <id>[,<id>…] --fixed <commit>      # valid, fixed: names the commit; resolves
+keel review <repo>#<n> --close <id> --tracked <#issue|vX.Y.Z>    # valid, tracked: names where; stays open
+keel review <repo>#<n> --close <id> --not-valid "<why>"          # says why, citing the code; resolves
+```
+
+Several ids go in one call, comma-separated; never loop over them in the
+shell. A valid finding is fixed in its own commit before the reply names it.
+Not a gate: an open thread never refuses a merge, and the night counts what
+is left (`reviews_unanswered`).
+
+**A phase that waits for review** (opt-in, for a change the owner is nervous
+about): its front matter says `review: wait`, or its issue carries the label
+`keel:wait-for-review` (`gh issue view <n> --json labels`). It lands through a
+PR instead of a push to `main`: push the phase's commit to `phase-<N>`, open
+the PR, `keel review <repo>#<n> --wait`, answer every comment, and merge only
+when `keel review <repo>#<n> --gate` exits 0 (every comment answered, each
+named reviewer has reviewed the head commit). The default is neither: no PR,
+no wait.
+
 Write a short report between phases (the phase, its new status, the proof and
 what it printed, what changed course). Don't wait for a reply.
 
 ## 5. Retro
+
+**Reviews first.** For each PR this phase opened or merged (§4): when a PR
+has reviews, validate each comment against the code first, then answer it
+with one of the three replies; never leave one unanswered.
 
 After the commit, when the phase did real work (its commit changed more than
 `docs/`), look at how the session went, not only what it built:

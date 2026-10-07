@@ -41,8 +41,9 @@ every night at 07:23 UTC (and by hand):
 a project's copy cannot read alone it calls `keel-side only`, never a zero:
 drift there is by `.keel/lock.json` (bytes keel did not write are `edited`;
 `behind` needs keel's templates), lint is the rules its own files show
-(phase, goal-without-phase, claude-md-pointer, second-copy,
-symlink-replaced, health-config, health-ignored), and the inbox is keel's.
+(`PROJECT_LINTS` in `scripts/keel/improve.mjs`: phase, goal-without-phase,
+claude-md-pointer, second-copy, symlink-replaced, lessons-table-split,
+health-config, health-ignored), and the inbox is keel's.
 
 **Proof lost.** `proofs_hold` (bound 0, no ratchet) counts the built or
 lived-in phases whose Acceptance cites a `tests/` path that no longer
@@ -53,6 +54,21 @@ lost. A cited test in no recorded run is said, not counted. The night never
 steps a phase back or writes evidence; its proposal is to make the test
 pass, re-point the reference, or step the phase back with a reason, which a
 person does.
+
+**Reviews unanswered** (phase 41). `reviews_unanswered` (bound 0, no
+ratchet) counts the review comments on the project's open PRs, and on PRs
+merged in the last 7 days, that nobody answered, once they are a day old: a
+thread neither resolved nor replied to by someone other than its first
+comment's author, and a conversation comment from a reviewer named in
+`.keel/keel.json` `"review"` with nobody else commenting after it. It is the
+rule `keel review <repo>#<n>` reads one PR by (one GraphQL read of the repo;
+`lib.mjs` holds it). The detail names each PR, its count and its oldest
+comment; `keel loose-ends` lists the same PRs with `keel review <repo>#<n>`.
+n/a without `repo` or gh auth; a failed or incomplete read is `broken`,
+never a zero. Not a gate: nothing refuses a merge for it, and the drain
+merges as before. The answer is the work: validate each comment against the
+code, then reply fixed (the commit), tracked (the issue or version) or not
+valid (why), with `keel review <repo>#<n> --close <id> …`.
 
 **Escapes** (phase 34). `escapes` counts the defects found after a phase
 was built, since the newest release tag (`v*`; with none, the first commit),
@@ -91,28 +107,34 @@ the tree was dirty (git-ignored files and keel's machine directories,
 `.keel/test-runs`, `.keel/climb` and `.keel/tend`, aside), the machine and
 node, the run's config (a short hash of `NODE_OPTIONS`, its `--import` and
 `--require` preloads, and each variable named in `"tests": {"configEnv":
-[..]}`, recorded beside the hash: each variable's value and the preloads),
+[..]}`, recorded beside the hash: `NODE_OPTIONS` as written, and the
+preloads; each `configEnv` variable only as its name, whether it was set,
+and a short sha256 of its value, never the value, since runs are uploaded as
+artifacts — so is a `NODE_OPTIONS` that carries a `token=`, `secret=`,
+`key=` or `password=`),
 the folder `node --test` ran in, whether it was narrowed (`--test-name-pattern` and the like), and in
 Actions its workflow, in `.keel/test-runs/` at the repo's root (git's top
 level, so a workspace's or app folder's own `node --test`, run from its
 folder, lands in the same ledger; each lane, a suite's folder and config,
 keeps its own newest 50 runs, or the window and ten more when that is larger,
-and 400 in all; the directory holds a
+and 400 in all, or lanes × (window + 10) when that is larger; the directory holds a
 `.gitignore` of `*`, so no project's `.gitignore` changes), and ends the run
 with a hygiene block: one line when clean, else each test that is
 
-- **flaky** — passed and failed on one clean tree under one config (a fact,
-  no threshold), or
+- **flaky** — passed and failed on one clean tree in one lane (its suite's
+  folder and config; a fact, no threshold), or
 - **slower** — above twice its median over its last 20 passing runs on the
-  same machine class and config, and more than 200 ms above it,
+  same machine class and lane, and more than 200 ms above it,
 
 with its history in one line and the command to run it alone as it was
-seen: that run's config variables and preloads, from its suite's folder
+seen: that run's config variables (each set one as `NAME=<as in the run>`,
+for you to fill in; each unset one, `NODE_OPTIONS` too, as `env -u NAME`)
+and preloads, from its suite's folder
 (printed elsewhere, it changes to that folder first: `cd "$(git rev-parse
 --show-toplevel)"/'web' && …`). slow_tests is n/a until the newest run has a
-window of earlier runs on its machine class under its own config. `"tests":
+window of earlier runs on its machine class in its own lane. `"tests":
 {"window", "factor", "floorMs"}` in `.keel/keel.json` overrides 20, 2 and
-200 (and `allowEmpty`, above). The AGENTS block says what to do with one: **a hygiene note is work** —
+200 (a window is at most 200) (and `allowEmpty`, above). The AGENTS block says what to do with one: **a hygiene note is work** —
 fix it or file it, never rerun until green.
 
 `keel init` wires the reporter into a node project's `npm test`; migration

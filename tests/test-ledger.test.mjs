@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { run } from './helpers/run.mjs';
 import * as ledger from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
@@ -275,26 +276,28 @@ async function reproduces(t, source) {
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_MODE'] } }));
   await writeFile(join(dir, 'pre.mjs'), 'globalThis.acmePreloaded = true;\n');
   await writeFile(join(dir, 'tests', 'mode.test.mjs'), "import { test } from 'node:test';\nimport { writeFileSync } from 'node:fs';\n"
-    + "test('the mode holds', () => { writeFileSync('out-seen.txt', JSON.stringify({ mode: process.env.ACME_MODE ?? null, preloaded: globalThis.acmePreloaded === true })); if (process.env.ACME_FAIL) throw new Error('flake'); });\n");
+    + "test('the mode holds', () => { writeFileSync('out-seen.txt', JSON.stringify({ mode: process.env.ACME_MODE ?? null, preloaded: globalThis.acmePreloaded === true, nodeOptions: process.env.NODE_OPTIONS ?? null })); if (process.env.ACME_FAIL) throw new Error('flake'); });\n");
   git('add', '-A'); git('commit', '-qm', 'modes');
   const mode = (env, pre = []) => run(process.execPath, [...pre, '--test', ...WITH, 'tests/mode.test.mjs'], { cwd: dir, env: { ...bare(), ...env } });
   mode({ ACME_MODE: 'b' }, ['--import', './pre.mjs']);
   mode({ ACME_MODE: 'b', ACME_FAIL: '1' }, ['--import', './pre.mjs']);
   const out = mode({ ACME_MODE: 'a' }).stdout;
   const { runs } = await readRuns(dir);
+  const hidden = v => ({ name: 'ACME_MODE', set: true, hash: createHash('sha256').update(v).digest('hex').slice(0, 12) });
   assert.deepEqual(runs.map(r => r.setting), [
-    { env: { ACME_MODE: 'b', NODE_OPTIONS: null }, preload: ['--import', './pre.mjs'] },
-    { env: { ACME_MODE: 'b', NODE_OPTIONS: null }, preload: ['--import', './pre.mjs'] },
-    { env: { ACME_MODE: 'a', NODE_OPTIONS: null }, preload: [] },
-  ], 'each run records what its config hashes');
+    { env: { ACME_MODE: hidden('b'), NODE_OPTIONS: null }, preload: ['--import', './pre.mjs'] },
+    { env: { ACME_MODE: hidden('b'), NODE_OPTIONS: null }, preload: ['--import', './pre.mjs'] },
+    { env: { ACME_MODE: hidden('a'), NODE_OPTIONS: null }, preload: [] },
+  ], 'each run records what its config hashes: a configEnv variable as a hash, never its value');
   assert.deepEqual(runs.map(r => r.dir), ['.', '.', '.']);
   const [found] = flaky(runs);
   assert.deepEqual([found.config, found.setting], [runs[0].config, runs[0].setting], 'the finding carries the config it was seen under');
   const cmd = printed(out, /flaky {3}tests\/mode\.test\.mjs "the mode holds": passed 1, failed 1/);
-  assert.equal(cmd, "ACME_MODE='b' node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs");
-  const r = run('sh', ['-c', cmd], { cwd: dir, env: bare() });
+  assert.equal(cmd, "ACME_MODE=<as in the run> env -u NODE_OPTIONS node --import ./pre.mjs --test --test-name-pattern='^the mode holds$' tests/mode.test.mjs");
+  // The person fills in the value; NODE_OPTIONS in their shell is unset, as it was in the run.
+  const r = run('sh', ['-c', cmd.replace('<as in the run>', "'b'")], { cwd: dir, env: { ...bare(), NODE_OPTIONS: '--stack-size=900' } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.deepEqual(JSON.parse(await readFile(join(dir, 'out-seen.txt'), 'utf8')), { mode: 'b', preloaded: true }, 'run alone, it ran as it did when seen');
+  assert.deepEqual(JSON.parse(await readFile(join(dir, 'out-seen.txt'), 'utf8')), { mode: 'b', preloaded: true, nodeOptions: null }, 'run alone, it ran as it did when seen');
 }
 
 test('a flaky finding carries the config it was seen under; its run-alone command sets that config\'s variables and preloads, not the printing run\'s', async t => {
@@ -309,8 +312,56 @@ test('a flaky finding carries the config it was seen under; its run-alone comman
 test('mutations: a run-alone command with the printing run\'s preloads, or without the variables, fails the two-config test', async t => {
   for (const [from, to] of [
     ["...(test.setting?.preload ?? preload)", '...preload'],
-    ['const env = Object.entries(test.setting?.env ?? {})', 'const env = Object.entries({})'],
+    ['const vars = Object.entries(test.setting?.env ?? {});', 'const vars = [];'],
+    ["const unset = vars.filter(([, v]) => !isSet(v)).map(([k]) => `-u ${k}`);", 'const unset = [];'],
   ]) await assert.rejects(reproduces(t, await mutated(from, to)), assert.AssertionError, `mutant survived: ${to}`);
+});
+
+/** A configEnv secret: its value is never in a run file or a printed command; two values are still two configs. */
+async function keepsSecret(t, source) {
+  const { dir, git } = await acmeRepo(t, source);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_TOKEN'] } }));
+  git('add', '-A'); git('commit', '-qm', 'token');
+  const outs = [nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123', ACME_FAIL: '1' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-456' })];
+  const cmd = printed(outs[1].stdout, /flaky {3}tests\/acme\.test\.mjs "the roadrunner is caught"/);
+  assert.match(cmd, /^ACME_TOKEN=<as in the run> /, 'the variable is named, its value is not');
+  for (const o of outs) assert.ok(!(o.stdout + o.stderr).includes('acme-secret'), 'no value in what a run prints');
+  for (const n of await readdir(join(dir, RUNS))) assert.ok(!(await readFile(join(dir, RUNS, n), 'utf8')).includes('acme-secret'), `no value in ${n}`);
+  const { runs } = await readRuns(dir);
+  assert.equal(runs[0].config, runs[1].config);
+  assert.notEqual(runs[1].config, runs[2].config, 'two values are two configs');
+  assert.notEqual(runs[1].setting.env.ACME_TOKEN.hash, runs[2].setting.env.ACME_TOKEN.hash);
+}
+
+test('a configEnv value is never recorded or printed: a name, whether it was set, and a short hash; two values are still two configs', async t => {
+  await keepsSecret(t);
+});
+
+test('mutation: recording a configEnv variable\'s value fails the secret test', async t => {
+  await assert.rejects(keepsSecret(t, await mutated('return [n, hidden(n, v)];', 'return [n, v ?? null];')), assert.AssertionError);
+});
+
+/** NODE_OPTIONS is kept as written unless it looks secret; then it is hashed, and its command is a placeholder. */
+function assertNodeOptions(mod) {
+  const plain = mod.settingOf({ env: { NODE_OPTIONS: '--require ./r.cjs --max-old-space-size=64' }, preload: [] });
+  assert.equal(plain.env.NODE_OPTIONS, '--require ./r.cjs --max-old-space-size=64', 'preload paths and flags are not secrets');
+  const secret = mod.settingOf({ env: { NODE_OPTIONS: '--require ./r.cjs --acme-api-key=acme-secret-123' }, preload: [] });
+  assert.ok(!JSON.stringify(secret).includes('acme-secret'), 'a secret-looking NODE_OPTIONS is not kept');
+  assert.deepEqual([secret.env.NODE_OPTIONS.name, secret.env.NODE_OPTIONS.set], ['NODE_OPTIONS', true]);
+  assert.match(secret.env.NODE_OPTIONS.hash, /^[0-9a-f]{12}$/);
+  assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: secret }), "NODE_OPTIONS=<as in the run> node --test --test-name-pattern='^x$' tests/a.test.mjs");
+  assert.equal(mod.aloneCommand({ file: 'tests/a.test.mjs', name: 'x', setting: { env: { ACME_MODE: { name: 'ACME_MODE', set: false, hash: null }, NODE_OPTIONS: null }, preload: [] } }),
+    "env -u ACME_MODE -u NODE_OPTIONS node --test --test-name-pattern='^x$' tests/a.test.mjs", 'each unset variable is unset before node');
+}
+
+test('NODE_OPTIONS is recorded as written unless it carries a token, secret, key or password; unset variables are unset in the command', () => {
+  assertNodeOptions(ledger);
+});
+
+test('mutation: keeping a secret-looking NODE_OPTIONS fails the NODE_OPTIONS test', async t => {
+  const m = await mutant(t, 'SECRETISH.test(v) ? hidden(n, v) : v', 'v');
+  assert.throws(() => assertNodeOptions(m), assert.AssertionError);
 });
 
 /**
@@ -329,7 +380,7 @@ async function fromWorkspace(t, source) {
   shop({});
   const item = /flaky {3}web\/tests\/shop\.test\.mjs "the shop opens": passed 1, failed 1/;
   const inWeb = printed(shop({ ACME_FAIL: '1' }).stdout, item);
-  assert.equal(inWeb, "node --test --test-name-pattern='^the shop opens$' tests/shop.test.mjs", 'printed in web/, said from web/');
+  assert.equal(inWeb, "env -u NODE_OPTIONS node --test --test-name-pattern='^the shop opens$' tests/shop.test.mjs", 'printed in web/, said from web/');
   let r = run('sh', ['-c', inWeb], { cwd: join(dir, 'web'), env: bare() });
   assert.equal(r.status, 0, `run in web/, where it was printed: ${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /pass 1\b/);
@@ -374,6 +425,26 @@ test('mutation: one lane for every run (keep 50 in all) fails the lanes test', a
   await assert.rejects(assertLanes(t, m), assert.AssertionError);
 });
 
+/** Four lanes with a window of 100, 105 runs each (420 in all, above TOTAL): the total grows so each keeps 101 or more. */
+async function assertWideLanes(t, mod) {
+  const dir = await scratch(t);
+  for (let i = 0; i < 105; i++) for (const [d, config] of LANES) await mod.record(dir, { ...runOf({ config, tests: { a: ['pass', 1] } }), dir: d }, { window: 100 });
+  const { runs } = await mod.readRuns(dir);
+  for (const [d, config] of LANES) {
+    const n = runs.filter(r => r.dir === d && r.config === config).length;
+    assert.ok(n >= 101, `lane ${d} ${config} keeps ${n}, fewer than the window and one`);
+  }
+}
+
+test('the total never undercuts a lane: four lanes with a window of 100 keep 101 or more runs each', async t => {
+  await assertWideLanes(t, ledger);
+});
+
+test('mutation: a fixed total of 400 fails the wide-lanes test', async t => {
+  const m = await mutant(t, 'const cap = total ?? Math.max(TOTAL, lanes.size * (window + 10));', 'const cap = total ?? TOTAL;');
+  await assert.rejects(assertWideLanes(t, m), assert.AssertionError);
+});
+
 test('record keeps the newest runs and prunes the rest', async t => {
   const dir = await scratch(t);
   for (let i = 0; i < 5; i++) await record(dir, runOf({ tests: { a: ['pass', 1] } }), { keep: 3 });
@@ -394,6 +465,7 @@ const FLAKY_CASES = () => ({
   dirty: [runOf({ dirty: true, tests: { gate: ['pass', 5] } }), runOf({ dirty: true, tests: { gate: ['fail', 5] } })],
   unknown: [runOf({ dirty: null, tree: null, tests: { gate: ['pass', 5] } }), runOf({ dirty: null, tree: null, tests: { gate: ['fail', 5] } })],
   acrossConfigs: [runOf({ config: 'acmeclock0', tests: { gate: ['pass', 5] } }), runOf({ config: 'acmeclock9', tests: { gate: ['fail', 5] } })],
+  acrossLanes: [{ ...runOf({ tests: { gate: ['pass', 5] } }), dir: '.' }, { ...runOf({ tests: { gate: ['fail', 5] } }), dir: 'web' }],
 });
 
 function assertFlaky(fn) {
@@ -403,6 +475,7 @@ function assertFlaky(fn) {
   assert.deepEqual(fn(c.dirty), [], 'on a dirty tree it is not flaky');
   assert.deepEqual(fn(c.unknown), [], 'outside git it is not flaky');
   assert.deepEqual(fn(c.acrossConfigs), [], 'a pass under one config and a fail under another, on one clean tree, is the setting moving, not flaky');
+  assert.deepEqual(fn(c.acrossLanes), [], 'a pass at the root and a fail in web/, one tree and config, are two lanes, not flaky');
 }
 
 test('flaky: one test passing and failing on the same clean tree is named; across trees, or on a dirty tree, it is not', () => {
@@ -411,8 +484,9 @@ test('flaky: one test passing and failing on the same clean tree is named; acros
 
 test('mutations: flaky that ignores the tree, or a dirty tree, fails the flaky test', async t => {
   for (const [from, to] of [
-    ['const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;', 'const k = `${configOf(r)}\\u0000${key(t)}`;'],
-    ['const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${key(t)}`;'],
+    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${key(t)}`;', 'const k = `${laneOf(r)}\\u0000${key(t)}`;'],
+    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${key(t)}`;'],
+    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;'],
     ["if (r.dirty !== false || !r.tree) continue;", 'if (!r.tree) continue;'],
   ]) {
     const m = await mutant(t, from, to);
@@ -441,16 +515,20 @@ function assertSlower(fn) {
   const other = history(200, 500, opts);
   other.at(-1).config = 'acmeclock9';
   assert.deepEqual(fn(other, opts), [], 'another config is not compared');
+  const web = history(200, 500, opts);
+  web.at(-1).dir = 'web';
+  assert.deepEqual(fn(web, opts), [], 'another suite folder (lane) is not compared');
 }
 
 test('slower: 2.5x its median and +300 ms is named; 2.5x and +50 ms (under the floor) is not; another machine class is not compared', () => {
   assertSlower(slower);
 });
 
-test('mutation: dropping the floor, or the config, fails the slower test', async t => {
+test('mutation: dropping the floor, the lane, or the lane\'s folder fails the slower test', async t => {
   for (const [from, to] of [
     ['t.ms > factor * m && t.ms - m > floorMs', 't.ms > factor * m'],
-    [' && configOf(r) === configOf(current));', ');'],
+    [' && laneOf(r) === laneOf(current));', ');'],
+    [' && laneOf(r) === laneOf(current));', ' && configOf(r) === configOf(current));'],
   ]) {
     const m = await mutant(t, from, to);
     assert.throws(() => assertSlower(m.slower), assert.AssertionError, `mutant survived: ${to}`);
@@ -476,7 +554,7 @@ test('.keel/keel.json "tests" overrides window, factor and floorMs, and a bad va
   assert.deepEqual(testsConfigOf({}), DEFAULTS);
   assert.deepEqual(DEFAULTS, { window: 20, factor: 2, floorMs: 200 });
   assert.deepEqual(testsConfigOf({ tests: { window: 5, floorMs: 50 } }), { window: 5, factor: 2, floorMs: 50 });
-  for (const tests of [[], 'x', { window: 1 }, { window: 2.5 }, { factor: 1 }, { floorMs: -1 }, { acme: 1 }]) {
+  for (const tests of [[], 'x', { window: 1 }, { window: 2.5 }, { window: 201 }, { factor: 1 }, { floorMs: -1 }, { acme: 1 }]) {
     assert.ok(testsConfigProblems({ tests }).length, JSON.stringify(tests));
     assert.throws(() => testsConfigOf({ tests }), /\.keel\/keel\.json: "tests"/);
   }

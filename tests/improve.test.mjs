@@ -300,3 +300,73 @@ test('proofs_hold: a built phase whose cited test or evidence is gone is outside
   await writeFile(join(dir, 'docs', 'phases', '01-acme-orders.md'), phase([], 'tests/acme-orders.test.mjs').replace('status: built', 'status: partial').replace('- [x]', '- [ ]'));
   assert.equal(byId(own(), 'proofs_hold').value, 0);
 });
+
+// ---- reviews_unanswered (phase 41): every review comment answered -----------
+
+const reviewsMeasure = MEASURES.filter(m => m.id === 'reviews_unanswered');
+const at = day => `${day}T09:00:00Z`;
+const comment = (id, author, body, day) => ({ databaseId: id, author: { login: author }, body, createdAt: at(day), url: `https://github.com/acme/storefront/pull/1#c${id}` });
+const thread = (id, comments, isResolved = false) => ({ id, isResolved, path: 'anvil.js', line: 1, comments: { nodes: comments } });
+const pr = (number, state, threads, { mergedAt = null, comments = [] } = {}) => ({ number, title: `Acme ${number}`, url: `https://github.com/acme/storefront/pull/${number}`, state, mergedAt, headRefOid: 'abc1234',
+  reviewThreads: { pageInfo: { hasNextPage: false }, nodes: threads }, comments: { pageInfo: { hasNextPage: false }, nodes: comments } });
+const reviewsOn = async (t, open, merged = [], patch = {}) => {
+  const reviews = JSON.stringify({ data: { repository: { open: { pageInfo: { hasNextPage: false }, nodes: open }, merged: { nodes: merged } } } });
+  const KEEL_GH = await ghStub(t, { reviews });
+  const [r] = await measure({ root: await scratch(t), config: { name: 'Acme', repo: 'acme/storefront', ...patch }, env: { ...ENV, KEEL_GH }, date: '2026-10-06', measures: reviewsMeasure });
+  return r;
+};
+
+test('reviews_unanswered counts review comments with no reply, older than a day, on open and recently merged PRs', async t => {
+  const r = await reviewsOn(t, [
+    pr(1, 'OPEN', [
+      thread('T1', [comment(1, 'acme-reviewer', 'P1: the anvil falls.', '2026-10-04')]), // unanswered, two days old: counted
+      thread('T2', [comment(2, 'acme-reviewer', 'Rename it.', '2026-10-04'), comment(3, 'acme-owner', 'Fixed in abc1234.', '2026-10-05')]), // answered
+      thread('T3', [comment(4, 'acme-reviewer', 'Paint it.', '2026-10-03')], true), // resolved
+      thread('T4', [comment(5, 'acme-reviewer', 'Too new to owe.', '2026-10-06')]), // today: not yet
+      thread('T5', [comment(6, 'acme-reviewer', 'One.', '2026-10-01'), comment(7, 'acme-reviewer', 'Two.', '2026-10-02')]), // the reviewer to itself: unanswered
+    ]),
+  ], [
+    pr(2, 'MERGED', [thread('T6', [comment(8, 'acme-reviewer', 'Merged unread.', '2026-10-02')])], { mergedAt: at('2026-10-02') }), // merged 4 days ago: counted
+    pr(3, 'MERGED', [thread('T7', [comment(9, 'acme-reviewer', 'Long ago.', '2026-09-01')])], { mergedAt: at('2026-09-01') }), // merged a month ago: not read
+  ]);
+  assert.equal(r.state, 'outside', JSON.stringify(r));
+  assert.equal(r.value, 3);
+  assert.equal(r.bound, 0);
+  assert.deepEqual(r.facts.prs.map(p => [p.number, p.state, p.unanswered]), [[1, 'open', 2], [2, 'merged', 1]]);
+  assert.match(r.detail, /^#1 2 \(open, since 2026-10-01\), #2 1 \(merged, since 2026-10-02\)$/);
+  assert.match(propose([r]).text, /^Answer the review comments on #1, #2: read them \(`keel review acme\/storefront#1`\), validate each against the code, then answer it fixed, tracked or not valid/);
+  // A named reviewer's conversation comment counts, until someone else comments after it.
+  const conv = { id: 'IC_1', ...comment(10, 'acme-reviewer', 'Codex: one finding.', '2026-10-04') };
+  const named = { review: { reviewers: ['acme-reviewer[bot]'] } };
+  assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv] })], [], named)).value, 1);
+  assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv, { id: 'IC_2', ...comment(11, 'acme-owner', 'Answered.', '2026-10-05') }] })], [], named)).value, 0);
+  assert.equal((await reviewsOn(t, [pr(4, 'OPEN', [], { comments: [conv] })])).value, 0, 'no reviewer named: conversation comments are not counted');
+  // None left: ok, and it says what it read; no ratchet.
+  const ok = await reviewsOn(t, [pr(1, 'OPEN', [])]);
+  assert.deepEqual([ok.state, ok.value], ['ok', 0]);
+  assert.match(ok.detail, /^none on 1 open PR and 0 merged in 7 days$/);
+  assert.equal(reviewsMeasure[0].ratchet, false);
+});
+
+test('reviews_unanswered is n/a when GitHub cannot be read, broken when the read fails, never a zero', async t => {
+  const config = { name: 'Acme', repo: 'acme/storefront' };
+  const dir = await scratch(t);
+  const read = async (env, c = config) => (await measure({ root: dir, config: c, env: { ...ENV, ...env }, date: '2026-10-06', measures: reviewsMeasure }))[0];
+  let r = await read({ KEEL_GH: '/nonexistent/gh' });
+  assert.deepEqual([r.state, r.value], ['n/a', null]);
+  assert.match(r.detail, /gh is not installed/);
+  r = await read({ KEEL_GH: await ghStub(t, { auth: false }) });
+  assert.equal(r.state, 'n/a');
+  assert.match(r.detail, /not authenticated/);
+  r = await read({}, { name: 'Acme' });
+  assert.match(r.detail, /no repo/);
+  // Ready but the read fails, or comes back without the repository, or incomplete: broken.
+  for (const reviews of ['not json', JSON.stringify({ data: { repository: null } }),
+    JSON.stringify({ data: { repository: { open: { nodes: [{ ...pr(1, 'OPEN', []), reviewThreads: { pageInfo: { hasNextPage: true }, nodes: [] } }] }, merged: { nodes: [] } } } })]) {
+    r = await read({ KEEL_GH: await ghStub(t, { reviews }) });
+    assert.equal(r.state, 'broken', reviews);
+    assert.equal(r.value, null);
+  }
+  r = await read({ KEEL_GH: await ghStub(t) }, { ...config, review: { reviewers: 'acme-reviewer' } });
+  assert.equal(r.state, 'broken', 'a bad "review" config is a broken instrument');
+});

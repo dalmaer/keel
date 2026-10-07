@@ -34,9 +34,9 @@ async function acme(t, tests) {
 
 let minute = 0;
 /** A run as CI's artifacts hold it: tree, machine, one file's tests. */
-async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, config, workflow, tests }) {
+async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, config, workflow, lane, tests }) {
   const date = new Date(Date.UTC(2026, 9, 1) + (minute++) * 60_000).toISOString();
-  await record(dir, { commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', ...(config ? { config } : {}), date, ...(workflow ? { workflow } : {}),
+  await record(dir, { commit: `c-${tree}`, tree, dirty, machine, node: 'v24.21.0', ...(config ? { config } : {}), ...(lane ? { dir: lane } : {}), date, ...(workflow ? { workflow } : {}),
     tests: Object.entries(tests).map(([name, [outcome, ms]]) => ({ file: 'tests/anvils.test.mjs', name, outcome, ms })) });
 }
 
@@ -134,12 +134,45 @@ test('a history of the nights\' own runs only says so: CI does not upload keel-t
 });
 
 test('a bad .keel/keel.json "tests" breaks both measures; it is never read as a zero', async t => {
-  const dir = await acme(t, { window: 1 });
-  for (const id of LEDGER) {
-    const m = byId(await read(dir), id);
-    assert.equal(m.state, 'broken', id);
-    assert.match(m.detail, /"tests"\.window must be a whole number of runs, 2 or more/);
+  for (const window of [1, 201]) {
+    const dir = await acme(t, { window });
+    for (const id of LEDGER) {
+      const m = byId(await read(dir), id);
+      assert.equal(m.state, 'broken', `${id} window ${window}`);
+      assert.match(m.detail, /"tests"\.window must be a whole number of runs, 2 to 200/);
+    }
   }
+});
+
+/** 20 runs at the root, then one of web/'s own suite under the same config: the web run has no baseline. */
+async function rootThenWeb(t) {
+  const dir = await acme(t, { window: 20 });
+  for (let i = 0; i < 20; i++) await put(dir, { config: 'acmeclock0', tests: { 'an anvil drops': ['pass', 400] } });
+  await put(dir, { config: 'acmeclock0', lane: 'web', tests: { 'an anvil drops': ['pass', 4000] } });
+  return dir;
+}
+
+async function assertWebNa(dir, mod) {
+  const slow = byId(await read(dir, mod, ['slow_tests']), 'slow_tests');
+  assert.equal(slow.state, 'n/a', slow.detail);
+  assert.match(slow.detail, /earlier recorded runs on linux-x64-4cpu under config acmeclock0: 0, fewer than the window of 20/);
+}
+
+test('slow_tests compares within a lane: 20 root runs and one web/ run under one config is n/a for the web run, never judged against the root', async t => {
+  await assertWebNa(await rootThenWeb(t));
+});
+
+test('mutation: comparable runs by config alone (any folder) judges the web run against the root, and fails the lane test', async t => {
+  const dir = await rootThenWeb(t);
+  const copy = await scratch(t, 'keel-improve-mutant-');
+  await cp(SHIPPED, copy, { recursive: true });
+  const file = join(copy, 'test-ledger.mjs');
+  const text = await readFile(file, 'utf8');
+  const from = ' && laneOf(r) === laneOf(current));';
+  assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
+  await writeFile(file, text.replace(from, ' && configOf(r) === configOf(current));'));
+  const mutant = await import(pathToFileURL(join(copy, 'improve.mjs')).href);
+  await assert.rejects(assertWebNa(dir, mutant), assert.AssertionError);
 });
 
 test('mutation: a ledger measure that returns 0 instead of n/a with too few runs fails the n/a test', async t => {

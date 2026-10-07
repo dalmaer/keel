@@ -45,8 +45,11 @@ export async function snapshot(dir, skip = new Set(['.git'])) {
   return out;
 }
 
-/** A gh stub: --version ok; auth as given; run/pr list answer or fail. */
-export async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues = '[]', failRuns = false } = {}) {
+/** No PRs to review: the GraphQL answer reviews_unanswered reads, empty. */
+export const NO_REVIEWS = JSON.stringify({ data: { repository: { open: { pageInfo: { hasNextPage: false }, nodes: [] }, merged: { nodes: [] } } } });
+
+/** A gh stub: --version ok; auth as given; run/pr list answer or fail; api graphql answers `reviews`. */
+export async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues = '[]', reviews = NO_REVIEWS, failRuns = false } = {}) {
   const dir = await scratch(t, 'keel-gh-');
   const gh = join(dir, 'gh');
   await writeFile(gh, `#!${process.execPath}
@@ -56,6 +59,7 @@ else if (a[0] === 'auth') process.exit(${auth ? 0 : 1});
 else if (a[0] === 'run') { if (${failRuns}) { console.error('HTTP 404: Not Found'); process.exit(1); } console.log(${JSON.stringify(runs)}); }
 else if (a[0] === 'pr') console.log(${JSON.stringify(prs)});
 else if (a[0] === 'issue') console.log(${JSON.stringify(issues)});
+else if (a[0] === 'api' && a[1] === 'graphql' && !a.some(x => x.startsWith('query=mutation'))) console.log(${JSON.stringify(reviews)});
 else process.exit(1);
 `);
   await chmod(gh, 0o755);

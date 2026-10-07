@@ -23,7 +23,8 @@ repo, with its own copies of the scripts they need.
 > start: what keel is, every verb on one line, and the rules that bite.
 > `keel --agent-help <topic>` opens the details, and `all` prints everything.
 > It ships with the CLI, so it always matches the keel you have. The rest of
-> this page is the same story, told for people.
+> this page is the same story, told for people, and the [guides](#guides)
+> tell it one situation at a time.
 >
 > Every keel project carries a short `keel` skill at
 > `.agents/skills/keel/SKILL.md` (linked from `.claude/skills/keel`). An agent
@@ -122,6 +123,25 @@ treated as yours: the next update simply takes keel's file.
 `keel fleet` shows every project at once: practice version, health, CI,
 unsent lessons, and open machine PRs.
 
+## Guides
+
+Each guide starts from a situation, says why keel does what it does there,
+then gives the commands and every flag by the reason you'd pass it.
+
+| Guide | Read this when… |
+| --- | --- |
+| [Start a project](docs/guide/start-a-project.md) | you have an idea and an empty directory |
+| [Bring a project under keel](docs/guide/bring-a-project-under-keel.md) | a repo already exists, perhaps with its own copy of the practice |
+| [Plan with phases and goals](docs/guide/plan-with-phases-and-goals.md) | you are lining up the work and saying what done means |
+| [Conduct a phase](docs/guide/conduct-a-phase.md) | a phase is specified and you want it built without trusting the builder's word |
+| [The night shift](docs/guide/the-night-shift.md) | you want to know each morning whether the practice is holding |
+| [Climb and tend](docs/guide/climb-and-tend.md) | you want an agent to improve a number, or keep the records true, while you sleep |
+| [Lessons and learning](docs/guide/lessons-and-learning.md) | a bug turned out to have a shape, or lessons are waiting at home |
+| [Keep the fleet current](docs/guide/keep-the-fleet-current.md) | the practice changed and every project should have it |
+| [Reviews and PRs](docs/guide/reviews-and-prs.md) | a PR from keel arrived, or a reviewer commented on one |
+| [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
+| [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+
 ## The verbs
 
 Every verb takes `--json`. Exit codes are the same everywhere:
@@ -155,6 +175,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel release` | Cut a practice version, with a what's-new written for the person receiving it |
 | `keel fleet`, `keel fleet update` | Every project at a glance; open update PRs where they're behind |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
+| `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid. Not a gate |
 
 ## Where a person decides
 

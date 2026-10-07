@@ -55,6 +55,15 @@ commit it). Rules 3 and 4 become one: `guard` refuses any other path, any
 change to the lessons table, and any finding decided tonight. You never
 decide: that is the person's, always.
 
+## After the PR opens
+
+The workflow opens the PR and does not wait for its reviewers. Whoever takes
+it up after you (a person, or the conductor) reads its reviews with
+`keel review <repo>#<n>`, and the rule is theirs and yours alike: when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered (fixed,
+naming the commit; tracked, naming where; not valid, saying why). You never
+run `gh`; make each commit message say why the change is right, so an answer
+can cite it.
+
 ## What you may run
 
 Read, Edit, Write, Glob, Grep; `node scripts/keel/climb.mjs …`;

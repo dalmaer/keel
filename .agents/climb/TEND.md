@@ -66,6 +66,15 @@ the line; you can run it yourself before you stop.
 4. **Bounded.** Stop when the worksheet is done or the budget is nearly
    spent. Anything uncommitted when time runs out is dropped.
 
+## After the PR opens
+
+The workflow opens the PR and does not wait for its reviewers. Whoever takes
+it up after you (a person, or the conductor) reads its reviews with
+`keel review <repo>#<n>`, and the rule is theirs and yours alike: when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered (fixed,
+naming the commit; tracked, naming where; not valid, saying why). You never
+run `gh`; make each commit message say why the change is right, so an answer
+can cite it.
+
 ## What you may run
 
 Read, Edit, Write, Glob, Grep; `node scripts/keel/climb.mjs …`;

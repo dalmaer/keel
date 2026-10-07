@@ -4,7 +4,8 @@
 # for). Synthetic: an Acme repo whose main has failed three runs in a row,
 # whose night-shift queue holds two PRs, all of them opened in 2020 (stale),
 # and whose open issues are #7 (anvils, a built project), #8 (rockets) and #42
-# (named in no doc). Plain sh, not node: the selftest runs it often, and a
+# (named in no doc), and whose open PR #14 has a review comment from March 2020
+# that nobody answered. Plain sh, not node: the selftest runs it often, and a
 # node start costs several times a shell's.
 has() { # has WORD... -- ARG...: every WORD is one of the ARGs
   words=''
@@ -20,6 +21,7 @@ if has --version -- "$@"; then echo 'gh version 2.0.0 (stub)'
 elif has auth status -- "$@"; then echo 'Logged in to github.com as acme (stub)'
 elif has run list -- "$@"; then echo '[{"conclusion":""},{"conclusion":"failure"},{"conclusion":"failure"},{"conclusion":"failure"},{"conclusion":"success"}]'
 elif has pr list -- "$@"; then echo '[{"number":11,"title":"keel night 2020-03-01","createdAt":"2020-03-01T02:00:00Z","headRefName":"keel-night/2020-03-01"},{"number":12,"title":"keel night 2020-03-02","createdAt":"2020-03-02T02:00:00Z","headRefName":"keel-night/2020-03-02"},{"number":13,"title":"Update acme-anvil to 2.x","createdAt":"2020-03-02T05:00:00Z","headRefName":"renovate/anvil-2.x"},{"number":14,"title":"Rocket skates","createdAt":"2020-02-14T09:00:00Z","headRefName":"wile/rocket-skates"}]'
+elif has api graphql -- "$@"; then echo '{"data":{"repository":{"open":{"pageInfo":{"hasNextPage":false},"nodes":[{"number":14,"title":"Rocket skates","url":"https://github.com/acme/storefront/pull/14","state":"OPEN","mergedAt":null,"headRefOid":"abc1234","reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[{"id":"PRRT_acme1","isResolved":false,"path":"skates.js","line":3,"comments":{"nodes":[{"databaseId":101,"author":{"login":"acme-reviewer"},"body":"The skates have no brakes.","createdAt":"2020-03-01T10:00:00Z","url":"https://github.com/acme/storefront/pull/14#discussion_r101"}]}}]},"comments":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"merged":{"nodes":[]}}}}'
 elif has issue list -- "$@"; then echo '[{"number":7,"title":"Acme anvils"},{"number":8,"title":"Acme rockets"},{"number":42,"title":"Anvils rust in the rain"}]'
 else echo "stub gh: unknown $*" >&2; exit 1
 fi

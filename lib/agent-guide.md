@@ -10,20 +10,21 @@ Verbs (every one takes `--json`; parse that, never the prose):
 
 - `keel status` — goals, built and lived-in counts, the next phase
 - `keel next` — the next phase to conduct: its file, done-when, next action; `--project <p>`
-- `keel goal list|show|add|retire` — goals and progress; add and retire edit `docs/goals.json`
+- `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
 - `keel phase new|list` — scaffold the next free phase under a goal; list them
-- `keel render` — render the practices onto the project; `--check` writes nothing, exits 1 if it differs
+- `keel render` — render the practices here; `--check` writes nothing, exit 1 if it differs
 - `keel init [dir] --description "<paragraph>"` — a new project in an empty dir; `--github` plans a private repo (exit 3)
 - `keel adopt [dir]` — bring an existing repo under keel, on what it satisfies; `--dry-run` writes nothing
 - `keel doctor` — drift from keel's files and practice lints; exit 1 on findings; `--fix <path> restore|eject` (exit 3)
 - `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3), or `--local`
-- `keel lessons` — send lessons, drift and practice commits home as issues, once each; exit 3
-- `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`
+- `keel lessons` — send lessons, drift and practice commits home as issues; exit 3
+- `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`, `distill`
 - `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
-- `keel drain <prefix>` — one open PR per machine queue: older data PRs merged, the rest closed; newest only `--gate-passed`; exit 3
+- `keel drain <prefix>` — one open PR per machine queue; the newest only `--gate-passed`; exit 3
 - `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI, lessons
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished chats, files, branches, PRs, owner steps; `mark <id> resume|park|drop`
+- `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
 - `keel retro` — after real work: the session's friction, counted
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
@@ -35,15 +36,15 @@ Rules that bite:
 - Status lives in each `docs/phases/NN-*.md` front matter. Never edit
   `docs/ROADMAP.md`; it is generated.
 - `built` and `lived-in` need an evidence file. Never invent evidence.
-- Managed files are keel's, seeded files are the project's. Never overwrite
-  a project's own work; render only rewrites managed files and blocks.
+- Managed files are keel's, seeded files the project's: render rewrites
+  only managed files and blocks.
 - ⚑ steps (creating repos, secrets, Pages, issues elsewhere, scheduled model
   spend) wait for the owner's yes.
 
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `retro`, `install`, `coming`, `reconciliation`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `retro`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -196,7 +197,7 @@ cd acme-notes && keel next
 - It refuses (exit 2) a directory that is already a keel project (use
   `keel update`) or holds anything besides `.git` (use `keel adopt`).
 - It writes `.keel/keel.json` with every practice except the optional ones
-  (`loop`, `claude`): `--with <practice>` (repeatable) switches one on, and
+  (`claude`, `climb`, `loop`, `reconciliation`): `--with <practice>` (repeatable) switches one on, and
   only on practices' secrets are listed. It seeds goal G0 (titled by the
   description's first sentence; the description is its outcome),
   `docs/phases/00-first-thing-that-runs.md`, `docs/evidence/README.md`, and a
@@ -534,7 +535,10 @@ first, a model's opinion never: every number comes from a command.
 - With `repo` and gh: `issues_unnamed` (open issues no Markdown under `docs/`
   names as `#N`, `issue: N` or an `/issues/N` link; the health pages are not
   read), `issues_done_open` (a built or superseded project whose `issue:` is
-  open), `prs_stale` (open PRs older than 14 days).
+  open), `prs_stale` (open PRs older than 14 days), `reviews_unanswered`
+  (review comments with no answer, older than a day, on open PRs and PRs
+  merged in the last 7 days, by `keel review`'s rule; the detail names each
+  PR; bound 0, no ratchet, never a gate).
 - `lessons_unsent` — lesson rows whose fingerprint (the one `keel lessons`
   files under) is not in `.keel/sent.json`. Bound 0, never ratchets; n/a
   without a lessons table, and on keel (keel is home). The night only counts:
@@ -578,8 +582,10 @@ input for `node scripts/keel/pr-body.mjs --input <file> [--files <list>]`,
 which prints Summary, Evidence and Merge danger (see `update`). What
 a project cannot read alone is never a zero: `drift` there is by
 `.keel/lock.json` only (bytes keel did not write; `behind` needs keel),
-`lint` is the rules its own files show (phase, goal-without-phase,
-claude-md-pointer, second-copy, symlink-replaced), and `inbox_waiting` is
+`lint` is the rules its own files show (`PROJECT_LINTS` in
+`scripts/keel/improve.mjs`: phase, goal-without-phase, claude-md-pointer,
+second-copy, symlink-replaced, lessons-table-split, health-config,
+health-ignored), and `inbox_waiting` is
 `n/a` (keel-side only). `keel improve` is the same module with keel's
 doctor and inbox, so it reads the full set.
 
@@ -816,6 +822,10 @@ origin remote; the rest say "no local checkout". Per project:
   `keel-loop/`); **repo** — on keel's row, yours made in the last 14 days and
   not in `fleet.json`. gh has a 10 s timeout; offline says "GitHub not
   checked".
+- **review** — a PR (open, or merged in the last 7 days) with review
+  comments unanswered a day or more (the night's `reviews_unanswered` rule),
+  one item per PR, with `keel review <repo>#<n>`: validate each comment, then
+  answer it.
 - **phase** — `partial` with a next action that starts ⚑ or "Owner";
   **health** — the newest health page's proposal; **inbox** — proposals
   waiting for a person; **lessons** — lesson rows not in `.keel/sent.json`
@@ -837,6 +847,61 @@ reach stdout only.
 kind, fingerprint, title, detail, phase, at, age, move, commands, state,
 mark?, session?, ending?, name?, files?, url?}]}], shown, hidden}`; `mark`
 → `{ok, id, project, file, mark}`. Exit 0; 2 on usage or an unknown id.
+
+<!-- topic: review | a PR's review comments: read each, validate it, answer it; not a gate -->
+
+`keel review <owner/repo>#<n>` (or a PR URL, or `#<n>` for the project's own
+`repo`) reads every review thread (GraphQL `reviewThreads`, with
+`isResolved`), the PR's reviews (`gh api repos/{r}/pulls/{n}/reviews`) and
+each named reviewer's conversation comments. A thread is **answered** when it
+is resolved or someone other than its first comment's author replied in it;
+a reviewer's conversation comment when someone else commented after it (a
+bot's status board, a comment opening with a hidden `<!-- marker -->` that
+it edits in place, like Codex's review summary, is listed as `status` and
+owes no answer: its findings are the threads). Exit
+0 every comment answered, 1 any unanswered (each named, with its first line
+and id), 2 GitHub unreadable or usage: never 0 on a failed or incomplete read.
+
+**The rule, for every agent that opens or merges a PR** (the conductor, fleet
+update's PRs, climb and tend PRs, whoever answers them): when a PR has
+reviews, validate each comment against the code first, then answer it with
+one of the three replies; never leave one unanswered.
+
+    keel review <r>#<n> --close <id>[,<id>…] --fixed <commit>        # replies, resolves
+    keel review <r>#<n> --close <id> --tracked <#issue|vX.Y.Z>      # replies, stays open
+    keel review <r>#<n> --close <id> --not-valid "<why, citing the code>"  # replies, resolves
+
+`--fixed` needs a sha (7-40 hex, `owner/repo@sha`) or a release `vX.Y.Z`;
+`--tracked` an issue (`#12`, `owner/repo#12`, its URL) or a version;
+`--not-valid` a reason of a few words. Each is refused without one. Pass
+several ids comma-separated in one call: never loop over them in the shell
+(zsh does not split words). A tracked thread is resolved later, with
+`--fixed`, when its fix lands.
+
+**Reviewers** come from `.keel/keel.json` `"review": {"reviewers":
+["<login>"], "wait": <minutes>}` (default: none named, 10 minutes; a bad
+value exits 2): the project here when its `repo` is the PR's, else the PR's
+repo's own `.keel/keel.json` on GitHub; `--reviewer <login>` overrides. With
+none named, only threads are read and nothing is waited for. `codex` and
+`codex[bot]` are the same login.
+
+`--wait` polls (every 30 s; `KEEL_REVIEW_POLL_MS`) until each named reviewer
+has reviewed the PR's head commit, or `wait` minutes pass; a timeout is said
+and exits 1, never read as "no comments". Reviewers post minutes after CI.
+
+**Not a gate.** Nothing in keel refuses a merge for an open thread: fleet
+update and drain merge as before; the night counts what is left
+(`reviews_unanswered`). The one exception is opted in per phase: front matter
+`review: wait`, or the phase's issue labelled `keel:wait-for-review`. Such a
+phase lands through a PR, not a push to main, and merges when `keel review
+<r>#<n> --gate` exits 0: every comment answered and each named reviewer has
+reviewed the head commit (1 until then).
+
+`--json` → `{repo, number, title, url, state, head, reviewers, reviewersFrom,
+wait, reviewed: [{reviewer, head, newest}], notReviewed, waited, gate,
+comments: [{kind, id, author, at, path, line, text, url, resolved,
+status?, answered}], unanswered, answered, ok}`; `--close --json` → `{repo, number,
+answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
 
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->
 

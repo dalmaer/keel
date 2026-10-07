@@ -36,6 +36,14 @@ issue: 3
 ---
 ```
 
+Optional: `review: wait` (the only value; absent is the default) for a
+phase you are nervous about. It lands through a PR instead of a push to
+`main`, and merges when `keel review <repo>#<n> --gate` exits 0: every review
+comment answered, and each reviewer named in `.keel/keel.json` `"review"` has
+reviewed the head commit. The phase's issue labelled `keel:wait-for-review`
+does the same. Without it nothing waits: review comments are still validated
+and answered, but never block a merge.
+
 `evidence` paths are relative to `docs/` (`evidence/2026-10-02-x.md`); built
 and lived-in need at least one. A phase with every Acceptance box checked
 and evidence named can't stay planned, designed or partial: the check fails

@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-06
 goal: G2
 spec: 2
 depends: [6, 10, 39]
-note: "After the v0.8.0 update PRs merged on green CI with 13 unread Codex comments (10 valid findings, one P1). Not a gate (the owner): keel review reads every thread; every agent that opens or merges a PR validates each comment and answers it as fixed, tracked or not valid; the night counts comments left unanswered. Design: research/2026-10-06-answering-reviews.md."
-evidence: []
+note: "Built: keel review (read, --wait, --close as fixed/tracked/not valid; --gate only for the opt-in review: wait or keel:wait-for-review), reviews_unanswered on the night, loose-ends, and the rule in the conduct skill and the climb/tend briefs. Not a gate by default. Waits on the next fleet release with every reviewer comment answered."
+evidence: ["evidence/2026-10-06-answering-reviews.md"]
 issue: 23
 ---
 
@@ -27,12 +27,12 @@ The design is [Answering reviews](../research/2026-10-06-answering-reviews.md). 
 
 ## Acceptance
 
-- [ ] `keel review` on a stubbed PR with one answered and one unanswered comment exits 1 and names the unanswered one; all answered exits 0; GitHub unreadable exits 2, never 0; mutation: an unreadable read returning 0 fails the test. `tests/review.test.mjs`
-- [ ] `--wait` returns when the named reviewer's review on the head commit appears, and on timeout says so. `tests/review.test.mjs`
-- [ ] `--close` posts the reply and resolves for fixed and not-valid, posts and leaves open for tracked, and refuses a not-valid with no reason or a fixed with no commit. `tests/review.test.mjs`
-- [ ] Nothing in keel refuses a merge because of an open thread (fleet update and drain merge as before). `tests/review.test.mjs`
-- [ ] The conduct skill and the climb and tend briefs say: validate each review comment, then answer it with one of the three replies. `tests/skill.test.mjs`
-- [ ] The night's `reviews_unanswered` counts comments with no reply older than a day, n/a when GitHub can't be read. `tests/improve.test.mjs`
+- [x] `keel review` on a stubbed PR with one answered and one unanswered comment exits 1 and names the unanswered one; all answered exits 0; GitHub unreadable exits 2, never 0; mutation: an unreadable read returning 0 fails the test. `tests/review.test.mjs`
+- [x] `--wait` returns when the named reviewer's review on the head commit appears, and on timeout says so. `tests/review.test.mjs`
+- [x] `--close` posts the reply and resolves for fixed and not-valid, posts and leaves open for tracked, and refuses a not-valid with no reason or a fixed with no commit. `tests/review.test.mjs`
+- [x] Nothing in keel refuses a merge because of an open thread (fleet update and drain merge as before). `tests/review.test.mjs`
+- [x] The conduct skill and the climb and tend briefs say: validate each review comment, then answer it with one of the three replies. `tests/skill.test.mjs`
+- [x] The night's `reviews_unanswered` counts comments with no reply older than a day, n/a when GitHub can't be read. `tests/improve.test.mjs`
 - [ ] ⚑ by hand: the next fleet release's update PRs, every reviewer comment validated and answered; the owner reads one PR's threads.
 
 ## Real surfaces
@@ -54,8 +54,11 @@ The design is [Answering reviews](../research/2026-10-06-answering-reviews.md). 
 
 ## Next action
 
-Write `keel review` (the read, answered or not, and its exit codes) against a stubbed gh GraphQL answer, with the unreadable-is-never-all-answered test first.
+The next fleet release (0.8.3): wait for Codex, validate and answer every comment with `keel review --close`, then merge; name Codex as the reviewer in ledger, duo and cajones (the owner said yes); answer ledger's 27 unanswered comments from the past week (the owner said yes).
 
 ## Trajectory
 
 - **2026-10-06** — Escape (the reason for this phase): keel's v0.8.0 update PRs were merged on green CI with 13 unread Codex comments, every one valid, one a P1. Fixed in v0.8.1 (4175825), each thread answered and resolved; the v0.8.1 PRs' reviews were read before merging and found four more (v0.8.2).
+- **2026-10-06** — Not a gate, the owner's call; and the owner's opt-in: a phase marked `review: wait` (or an issue labelled `keel:wait-for-review`) lands through a PR that waits for the reviewer and every answer (`keel review --gate`). Default off.
+- **2026-10-06** — A reviewer's top-level summary that opens with a hidden `<!-- -->` marker counts as status, not something to answer; its findings are the inline threads (the owner kept the rule).
+- **2026-10-06** — The first real read: ledger has 27 unanswered comments across 10 PRs merged in the week, beyond keel's own (all answered); the night's first `reviews_unanswered` there will be outside.

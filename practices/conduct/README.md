@@ -10,6 +10,15 @@ proof itself, writes the record and commits the phase whole. The skill lives
 once, at `.agents/skills/conduct/SKILL.md`; Claude Code reaches it through the
 committed symlink `.claude/skills/conduct`.
 
+**Reviews (phase 41).** Every PR the conductor opens or merges has its
+reviews read (`keel review <repo>#<n>`): when a PR has reviews, validate each
+comment against the code first, then answer it with one of the three replies
+(fixed, naming the commit; tracked, naming where; not valid, saying why);
+never leave one unanswered. Not a gate. A phase opts in to waiting for its
+reviewers with `review: wait` in its front matter (or its issue's
+`keel:wait-for-review` label): it lands through a PR that merges when
+`keel review <repo>#<n> --gate` exits 0. The default is a push to `main`.
+
 **Its files.** The skill (managed), the doorway symlink (managed), the
 `conduct` block of `AGENTS.md`.
 

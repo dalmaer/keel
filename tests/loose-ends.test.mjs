@@ -97,6 +97,12 @@ else if (argv[0] === 'pr' && argv[1] === 'list') {
   if (opt('--state') !== 'open') { console.error('stub: only open'); process.exit(1); }
   const fields = opt('--json').split(',');
   console.log(JSON.stringify((s.prs[opt('-R')] ?? []).map(p => Object.fromEntries(fields.map(f => [f, p[f]])))));
+} else if (argv[0] === 'api' && argv[1] === 'graphql') {
+  // The review read: open and merged PRs with their threads, per repo.
+  if ((argv.find(x => x.startsWith('query=')) ?? '').startsWith('query=mutation')) { console.error('stub: a write'); process.exit(1); }
+  const repo = argv.filter(x => x.startsWith('owner=') || x.startsWith('name=')).map(x => x.split('=')[1]).join('/');
+  const r = (s.reviews ?? {})[repo] ?? { open: [], merged: [] };
+  console.log(JSON.stringify({ data: { repository: { open: { pageInfo: { hasNextPage: false }, nodes: r.open }, merged: { nodes: r.merged } } } }));
 } else if (argv[0] === 'repo' && argv[1] === 'list') {
   const fields = opt('--json').split(',');
   console.log(JSON.stringify(s.repos.filter(r => r.nameWithOwner.startsWith(argv[2] + '/')).map(r => Object.fromEntries(fields.map(f => [f, r[f]])))));
@@ -218,6 +224,16 @@ async function world(t, { marker = 'Acme' } = {}) {
         { url: 'https://github.com/acme/app/pull/3', title: 'a stranger\'s fix', headRefName: 'fix-typo', author: { login: 'stranger' }, createdAt: '2026-10-02T00:00:00Z', isDraft: false },
       ],
     },
+    reviews: {
+      'acme/app': {
+        open: [{ number: 1, title: 'Acme phase 7: the widget', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', mergedAt: null, headRefOid: 'abc1234',
+          reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [
+            { id: 'PRRT_1', isResolved: false, comments: { nodes: [{ databaseId: 1, author: { login: 'acme-reviewer' }, body: 'The widget leaks.', createdAt: new Date(Date.now() - 3 * DAY).toISOString() }] } },
+            { id: 'PRRT_2', isResolved: true, comments: { nodes: [{ databaseId: 2, author: { login: 'acme-reviewer' }, body: 'Settled.', createdAt: new Date(Date.now() - 3 * DAY).toISOString() }] } },
+          ] }, comments: { pageInfo: { hasNextPage: false }, nodes: [] } }],
+        merged: [],
+      },
+    },
     repos: [
       { nameWithOwner: 'acme-owner/walk', createdAt: new Date(Date.now() - DAY).toISOString(), isArchived: false },
       { nameWithOwner: 'acme-owner/ancient', createdAt: new Date(Date.now() - 100 * DAY).toISOString(), isArchived: false },
@@ -282,6 +298,11 @@ test('synthetic transcripts and repos give the right items; committed work and f
   // GitHub: the owner's PR and the machine's, not a stranger's.
   assert.deepEqual(app.items.filter(i => i.kind === 'pr').map(i => i.url).sort(), ['https://github.com/acme/app/pull/1', 'https://github.com/acme/app/pull/2']);
   assert.equal(app.github, 'checked');
+  // Reviews: a PR with a comment unanswered for a day or more, with the command that reads it; a resolved one is not counted.
+  const reviews = app.items.filter(i => i.kind === 'review');
+  assert.deepEqual(reviews.map(i => [i.title, i.count, i.phase]), [['1 review comment unanswered on #1: Acme phase 7: the widget', 1, 7]]);
+  assert.deepEqual(reviews[0].commands, ['keel review acme/app#1']);
+  assert.match(reviews[0].move, /validate each against the code, then answer it/);
 
   // keel's row: the practice, and a new repo the fleet does not know.
   const home = project(d, 'acme/keel');
@@ -305,7 +326,7 @@ test('synthetic transcripts and repos give the right items; committed work and f
 
   // --phase filters to one phase; --root moves where checkouts are looked for.
   const seven = json(w, ['--phase', '7']);
-  assert.deepEqual(seven.projects.flatMap(p => p.items.map(i => i.kind)).sort(), ['branch', 'pr', 'session']);
+  assert.deepEqual(seven.projects.flatMap(p => p.items.map(i => i.kind)).sort(), ['branch', 'pr', 'review', 'session']);
   const elsewhere = json(w, ['--root', join(w.base, 'bin')]);
   assert.equal(project(elsewhere, 'acme/app').checkout, false);
   assert.equal(project(elsewhere, 'acme/keel').checkout, true, 'keel itself is always scanned');
@@ -332,7 +353,7 @@ test('each item\'s move and commands fit its kind, and nothing is run', async t 
   assert.deepEqual(at('inbox:proposed').commands, [`cd ${w.home} && keel learn`]);
   assert.match(at('repo:acme-owner/walk').move, /⚑ yours/);
   // Only reads: gh was asked, never told; the repos are as they were.
-  assert.deepEqual((await w.gh.calls()).map(c => c.slice(0, 2).join(' ')).filter(c => !['api user', 'pr list', 'repo list'].includes(c)), []);
+  assert.deepEqual((await w.gh.calls()).map(c => c.slice(0, 2).join(' ')).filter(c => !['api user', 'pr list', 'repo list', 'api graphql'].includes(c)), []);
   assert.equal(git(w.app, 'status', '--porcelain'), before);
   assert.equal(git(w.app, 'worktree', 'list').split('\n').length, 2);
 });

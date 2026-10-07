@@ -128,10 +128,13 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // tests/fleet.test.mjs and tests/learn.test.mjs cover those verbs against a stub gh; loose-ends
     // and retro read no one's transcripts (tests/loose-ends.test.mjs and tests/retro.test.mjs cover them).
     const emptyGh = join(dir, 'empty-gh');
-    await writeFile(emptyGh, `#!${process.execPath}\nconsole.log('[]');\n`, { mode: 0o755 });
+    // GraphQL (keel review, loose-ends' review read) gets an answer with no PRs and no threads.
+    const noThreads = { pageInfo: { hasNextPage: false }, nodes: [] };
+    const graphql = JSON.stringify({ data: { repository: { pullRequest: { number: 1, title: 'Acme', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', headRefOid: 'abc1234', reviewThreads: noThreads, comments: noThreads }, open: noThreads, merged: noThreads } } });
+    await writeFile(emptyGh, `#!${process.execPath}\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
     await writeFile(join(dir, 'fleet.json'), '[]\n');
     const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
-      'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
+      review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };

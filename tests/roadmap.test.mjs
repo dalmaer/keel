@@ -171,10 +171,17 @@ test('rejects what would let the roadmap lie', () => {
     ['built without evidence', '01-x.md', phase({ status: 'built', acceptance: '- [x] Did it.' })],
     ['built with unchecked acceptance', '01-x.md', phase({ status: 'built', evidence: '["evidence/x.md"]' })],
     ['unknown field', '01-x.md', phase({ extra: 'owner: me\n' })],
+    ['unknown review value', '01-x.md', phase({ extra: 'review: later\n' })],
     ['no checkboxes', '01-x.md', phase({ acceptance: 'It works.' })],
     ['missing section', '01-x.md', phase().replace('## Proof\n\nA command.\n', '')],
   ];
   for (const [why, file, raw] of cases) assert.throws(() => parsePhase(file, raw), undefined, why);
+});
+
+test('review: wait opts a phase in to waiting for review; absent is the default', () => {
+  assert.equal(parsePhase('03-a-phase.md', phase({ extra: 'review: wait\n' })).review, 'wait');
+  assert.equal(parsePhase('03-a-phase.md', phase()).review, undefined);
+  assert.throws(() => parsePhase('03-a-phase.md', phase({ extra: 'review: always\n' })), /review "always" is not one this script knows \(wait; absent is the default: no wait\)/);
 });
 
 test('a phase with every box checked and evidence named must not stay unbuilt', () => {

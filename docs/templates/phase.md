@@ -8,6 +8,8 @@ note: "What is known, and what remains."
 evidence: []
 ---
 
+<!-- Optional front matter, not set by default: `review: wait` makes this phase land through a PR that waits for its reviewers (`keel review <repo>#<n> --gate`); the phase's issue labelled keel:wait-for-review does the same. Delete this line. -->
+
 # Outcome, as the person who uses it would say it
 
 ## Done when

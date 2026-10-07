@@ -19,7 +19,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const STATUSES = ['planned', 'designed', 'partial', 'built', 'lived-in', 'superseded'];
 export const DONE = ['built', 'lived-in'];
 const SECTIONS = ['Done when', 'Scope', 'Acceptance', 'Proof', 'Deliberately open', 'Next action'];
-const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue'];
+const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue', 'review'];
+/** `review: wait` opts a phase in to waiting for its PR's reviewers (keel phase 41); absent is the default: no wait. */
+export const REVIEW_VALUES = Object.freeze(['wait']);
 /** The newest spec version this script knows. A phase with `spec: 2` names its checks and its Real surfaces. */
 export const SPEC = 2;
 /**
@@ -161,6 +163,7 @@ export function parsePhase(file, raw) {
       || !/^evidence\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.md$/.test(p))) fail(`${file}: invalid evidence paths`);
   if (DONE.includes(meta.status) && !meta.evidence.length) fail(`${file}: ${meta.status} requires evidence`);
   if (meta.issue !== undefined && (!Number.isSafeInteger(meta.issue) || meta.issue <= 0)) fail(`${file}: invalid issue`);
+  if (meta.review !== undefined && !REVIEW_VALUES.includes(meta.review)) fail(`${file}: review ${JSON.stringify(meta.review)} is not one this script knows (${REVIEW_VALUES.join(', ')}; absent is the default: no wait)`);
   if (meta.spec !== undefined && (!Number.isSafeInteger(meta.spec) || meta.spec < 1 || meta.spec > SPEC)) fail(`${file}: spec ${meta.spec} is not one this script knows (1–${SPEC}); keel update brings a newer one`);
   const body = block[2];
   const title = /^# (.+)$/m.exec(body)?.[1]?.trim();
