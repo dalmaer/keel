@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.8 — practice 0.8.8 (2026-10-07)
+
+- **The Budget line's history is read conservatively.** If the read of `.keel/keel.json`'s history stops short, the oldest config read is the cutoff, never every run; and a budget left to the default only matches another left to the default, since a default can change between releases.
+
 ## v0.8.7 — practice 0.8.7 (2026-10-07)
 
 - **The Budget line counts only runs since the budget became what it is today**, and names that date ("tend 3, 2 of 30 min since 2026-09-20"): after you change a budget, runs under the old one no longer skew the suggestion.
