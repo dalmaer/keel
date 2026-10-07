@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [10, 15, 33, 39]
-note: "Built up to its ⚑: the optional climb practice (keel-climb.yml, climb.mjs pick/measure/compare/guard/report, the protocol brief, test-time), off until a project opts in; the night prints a Climb line. Waits on the owner turning it on for keel with a budget, and the first real climb night read."
+note: "Built and on for keel (test-time, 45 minutes, nightly): keel-climb.yml, climb.mjs, the protocol brief; the \"Did the agent run?\" step after the first night's silent failure. The dispatched night after the token fix ran green and kept nothing. Waits on a scheduled night's PR (or its Climb line) read by the owner."
 evidence: ["evidence/2026-10-06-climb.md"]
 issue: 13
 ---
@@ -74,7 +74,7 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 ## Next action
 
-⚑ Owner: turn climb on for keel (`"climb"` in practices, `"climb": {"jobs": ["test-time"], "budget": {"minutes": 45}, "schedule": "nightly" or "weekly"}`), at up to 45 agent-minutes a night (or a week) from the subscription; then read the first night's PR or its Climb line.
+Read the next scheduled climb night's PR, or its Climb line on the health page if it kept nothing; the owner merges or closes a PR.
 
 ## Trajectory
 

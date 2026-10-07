@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [26, 32, 33, 35, 39]
-note: "Built: keel-tend.yml (weekly, its own prefix and budget), tend.mjs (tend-pick, tend-input re-running the record measures, tend-note, tend-report), the tend guard (no evidence, no status to built/lived-in/accepted, no ticked box, no deleted file), and a Tend line on the night. Waits on the owner turning tend on with a budget, a working Claude secret, and the two real tend PRs."
+note: "Built and on for keel (weekly, 30 minutes): keel-tend.yml, tend.mjs, the tend guard, the Tend line. The first pass opened keel#22; it missed phase 35's stale next action and leaked a runner path into its loose-ends text. Waits on the owner merging or closing #22, and one adopted project's pass."
 evidence: ["evidence/2026-10-06-tend.md"]
 issue: 16
 ---
@@ -67,7 +67,7 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Next action
 
-⚑ Owner: a working Claude secret on keel (the first climb run's agent failed to start), then `"tend": {"schedule": "weekly", "budget": {"minutes": 30}}` in keel's config; read its first PR.
+⚑ Owner: read keel#22 and merge or close it with a reason; then the next night's record findings are checked against it. An adopted project's tend comes with its climb config (phase 37).
 
 ## Trajectory
 

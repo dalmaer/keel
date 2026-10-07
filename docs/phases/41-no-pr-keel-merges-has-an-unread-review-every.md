@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G2
 spec: 2
 depends: [6, 10, 39]
-note: "Built: keel review (read, --wait, --close as fixed/tracked/not valid; --gate only for the opt-in review: wait or keel:wait-for-review), reviews_unanswered on the night, loose-ends, and the rule in the conduct skill and the climb/tend briefs. Not a gate by default. Waits on the next fleet release with every reviewer comment answered."
+note: "Built and used: keel review (read, --wait, --close; --gate only for the opt-in), reviews_unanswered on the night, the rule in conduct and the climb/tend briefs. Every Codex comment on the 0.8.3, 0.8.4 and 0.8.5 fleet PRs validated and answered; Codex named as reviewer in ledger, duo, cajones; ledger's 26 past comments answered (21 issues). Waits on the owner reading one PR's threads."
 evidence: ["evidence/2026-10-06-answering-reviews.md"]
 issue: 23
 ---
@@ -54,7 +54,7 @@ The design is [Answering reviews](../research/2026-10-06-answering-reviews.md). 
 
 ## Next action
 
-The next fleet release (0.8.3): wait for Codex, validate and answer every comment with `keel review --close`, then merge; name Codex as the reviewer in ledger, duo and cajones (the owner said yes); answer ledger's 27 unanswered comments from the past week (the owner said yes).
+⚑ Owner: read one PR's answered threads (cajones#41: five Codex findings, each answered "fixed in dalmaer/keel@7eb26d3") and judge the answers; then built.
 
 ## Trajectory
 
@@ -62,3 +62,5 @@ The next fleet release (0.8.3): wait for Codex, validate and answer every commen
 - **2026-10-06** — Not a gate, the owner's call; and the owner's opt-in: a phase marked `review: wait` (or an issue labelled `keel:wait-for-review`) lands through a PR that waits for the reviewer and every answer (`keel review --gate`). Default off.
 - **2026-10-06** — A reviewer's top-level summary that opens with a hidden `<!-- -->` marker counts as status, not something to answer; its findings are the inline threads (the owner kept the rule).
 - **2026-10-06** — The first real read: ledger has 27 unanswered comments across 10 PRs merged in the week, beyond keel's own (all answered); the night's first `reviews_unanswered` there will be outside.
+- **2026-10-06** — Used across three releases: v0.8.3's 12 comments answered as tracked, then fixed in v0.8.4 and closed; v0.8.4's 12 (five distinct findings) fixed in v0.8.5 before merging; v0.8.5's PRs had none. ledger's past 26: 21 valid became issues #60–#80, 3 already fixed, 2 not valid; the 11 keel-side issues were fixed and closed.
+- **2026-10-06** — Escape: `keel review --wait` timed out on every PR Codex found clean: Codex then posts no review, only a 👍 and a status board naming the commit "Completed"; fixed in f3c317d (the reviewer's own completed line for the head counts).
