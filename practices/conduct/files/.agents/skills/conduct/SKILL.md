@@ -48,7 +48,8 @@ step below: the walk ends at the local commit on `main`. Say so in the report.
   progress from the commits.
 - `/conduct status`: orient and report. Change nothing.
 - `/conduct <N>`: conduct that phase and stop. If a phase it depends on isn't
-  built, conduct that one first and say so.
+  built (a partial phase marked `owes: walk` counts as done here, as for
+  `keel next`), conduct that one first and say so.
 - `/conduct one`: the next phase only, then stop.
 
 ## 0. Orient
@@ -241,8 +242,12 @@ When the proof holds, and only then, write the record, all in one change:
   dated, saying what settled them.
 - **Next action** for the phase: the next step if it isn't built; once it
   is built, `None.` (or what lived-in needs, when the project counts it:
-  `"phases": {"livedIn": true}`). A partial phase whose building is done and
-  whose rest is a walk gets `owes: walk` and a Next action naming the walk.
+  `"phases": {"livedIn": true}` with keel's roadmap). A partial phase whose
+  building is done and whose rest is a walk gets `owes: walk` and a Next
+  action naming the walk. A project that keeps its own phases (`"local"`
+  names `phases`) follows its own roadmap's rules for both: it may not read
+  `owes:` or `livedIn`, so record the walk in the Next action and keep the
+  lived-in step its roadmap asks for.
 - **Lessons**: a new row only if a bug turned out to have a shape.
 - **What people and agents are told**: if the change alters what a person or
   an agent would be told — a verb, a flag, a practice, a default — update

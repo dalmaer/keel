@@ -131,7 +131,7 @@ test('a 0.0.0 project with an older conductor comes out current; the check passe
   assert.equal(r.exitCode ?? 0, 0, r.text);
   assert.equal(r.data.from, '0.0.0');
   assert.equal(r.data.to, TARGET);
-  assert.deepEqual(r.data.migrations, [], 'a managed re-render, no migration needed');
+  assert.deepEqual(r.data.migrations.map(m => m.id), ['0006-lived-in-kept'], 'a managed re-render; only 0006 keeps its lived-in, as before');
   assert.ok(r.data.rendered.includes('.agents/skills/conduct/SKILL.md'));
   assert.equal(r.data.check.ok, true);
   same(await readFile(join(dir, '.agents/skills/conduct/SKILL.md'), 'utf8'), await template(dir, 'conduct', '.agents/skills/conduct/SKILL.md'), 'SKILL.md');
@@ -222,7 +222,7 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
   assert.equal(r.exitCode ?? 0, 0, r.text);
   // 0004 too: acme-groove runs node's test runner, so it gains the test ledger; and 0005: its
   // test glob misses tests/keel-generated.test.mjs, and its night has no CI keeping test runs.
-  assert.deepEqual(r.data.migrations.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach']);
+  assert.deepEqual(r.data.migrations.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach', '0006-lived-in-kept']);
   assert.match(r.data.migrations[2].notes?.[0] ?? '', /upload-artifact@v7[\s\S]*keel-test-runs/, 'ci is the project\'s own: the update says how its CI keeps the test runs');
   assert.match(r.text, /0005-test-ledger-reach — .*\n {4}⚑ your CI does not keep the test ledger's runs/);
   assert.deepEqual(r.data.migrations[0].edits.sort((a, b) => a.path.localeCompare(b.path)), [
@@ -264,7 +264,7 @@ test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replac
   assert.equal(cfg.local.phases, undefined);
   assert.ok(cfg.local.ci, 'ci stays the project\'s own');
   assert.equal(cfg.practice, TARGET);
-  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach'], 'the migrations are recorded as taken');
+  assert.deepEqual(cfg.migrations, ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach', '0006-lived-in-kept'], 'the migrations are recorded as taken');
   assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).scripts.roadmap, 'node scripts/roadmap.mjs', 'the roadmap scripts still run, now keel\'s');
 
   // After it, adopt's survey finds phases on, and the project's own gate passes.
@@ -317,7 +317,7 @@ test('0001 run directly: applies() is idempotent, up() writes nothing', async t 
   const dir = await groove(t);
   const before = await treeHash(dir);
   const { applied, edits } = await collect(dir, await loadMigrations(), { done: [] });
-  assert.deepEqual(applied.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach']);
+  assert.deepEqual(applied.map(m => m.id), ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach', '0006-lived-in-kept']);
   assert.equal(edits.get('docs/milestones.json'), null);
   assert.equal(await treeHash(dir), before, 'collecting edits performs none');
   // Over its own edits, it no longer applies.
@@ -569,7 +569,7 @@ test('a project adopted on the current practice still gets 0001, and keel next s
 test('a recorded migration is not pending again, even if applies() would say yes', async t => {
   const dir = await groove(t);
   const all = await loadMigrations();
-  const { applied } = await collect(dir, all, { done: ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach'] });
+  const { applied } = await collect(dir, all, { done: ['0001-milestone-to-goal', '0004-test-ledger', '0005-test-ledger-reach', '0006-lived-in-kept'] });
   assert.deepEqual(applied, []);
 });
 
@@ -610,7 +610,7 @@ test('0002 retires keel-update.yml where keel\'s bytes stand, and the rest of th
   assert.equal(await m0002.applies(await view(dir)), true);
   const r = await run({ dir, local: true });
   assert.equal(r.exitCode ?? 0, 0, r.text);
-  assert.deepEqual(r.data.migrations.map(m => m.id), ['0002-projects-run-on-their-own']);
+  assert.deepEqual(r.data.migrations.map(m => m.id), ['0002-projects-run-on-their-own', '0006-lived-in-kept']);
   assert.deepEqual(r.data.migrations[0].edits, [{ path: m0002.WORKFLOW, action: 'delete' }, { path: '.keel/lock.json', action: 'write' }]);
   assert.match(r.text, /KEEL_TOKEN secret is no longer used/, 'the owner is told the secret can go');
   await assert.rejects(lstat(join(dir, m0002.WORKFLOW)), 'deleted');
@@ -620,7 +620,7 @@ test('0002 retires keel-update.yml where keel\'s bytes stand, and the rest of th
     same(await readFile(join(dir, f), 'utf8'), await template(dir, 'night', f), f);
     assert.ok(lock.files[f], `${f} is locked`);
   }
-  assert.deepEqual((await json(join(dir, '.keel/keel.json'))).migrations, ['0002-projects-run-on-their-own']);
+  assert.deepEqual((await json(join(dir, '.keel/keel.json'))).migrations, ['0002-projects-run-on-their-own', '0006-lived-in-kept']);
   assert.equal(await m0002.applies(await view(dir)), false, 'idempotent: nothing left to retire');
 });
 
@@ -650,4 +650,14 @@ test('the check runs with .keel/keel.json `env`: it fails without ACME_FLAG and 
   const ok = await run({ dir: flagged, local: true });
   assert.equal(ok.exitCode ?? 0, 0, ok.text);
   assert.equal(ok.data.check.ok, true);
+});
+
+// A migration is the release's that carries it: one whose `to` is above the version updated to is not this update's (0006 met it).
+test('keel update takes only migrations at or below the version it brings the project to', async t => {
+  const dir = await oldProject(t);
+  const later = { id: '9999-acme-later', to: '999.0.0', summary: 'a later release\'s', applies: async () => true, up: async () => [{ path: 'ACME-LATER.md', content: 'later\n' }] };
+  const r = await run({ dir, local: true }, deps({ migrations: [later] }));
+  assert.equal(r.exitCode ?? 0, 0, r.text);
+  assert.deepEqual(r.data.migrations, [], 'not this update\'s');
+  assert.equal(await readFile(join(dir, 'ACME-LATER.md'), 'utf8').catch(() => null), null);
 });

@@ -359,9 +359,12 @@ export function livedInOf(config = {}) {
 }
 
 /** "Nothing left to build" when no phase is next: what is still owed, if anything. */
-export function nothingNext(phases) {
-  const owed = phases.filter(owesWalk).map(p => p.id);
-  return owed.length ? `Nothing left to build; ${owed.length === 1 ? 'phase' : 'phases'} ${owed.join(', ')} ${owed.length === 1 ? 'owes' : 'owe'} a walk.` : 'Nothing left unbuilt.';
+export function nothingNext(phases, goals = []) {
+  // Under a retired goal a phase is never next, and its walk is not outstanding either.
+  const retired = new Set(goals.filter(g => g.retired).map(g => g.id));
+  const owed = phases.filter(p => owesWalk(p) && !retired.has(p.goal)).map(p => p.id);
+  if (!owed.length) return 'Nothing left unbuilt.';
+  return `Nothing left to build; ${owed.length === 1 ? 'phase' : 'phases'} ${owed.join(', ')} ${owed.length === 1 ? 'owes' : 'owe'} a walk.`;
 }
 
 /** The next focus: the next phase outside retired goals. */
@@ -406,7 +409,7 @@ export function render({ config, phases, goals, links = [] }) {
     ? `**${phases.filter(p => p.status === 'lived-in').length} of ${phases.length} phases lived in; ${built} built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.`
     : `**${built} of ${phases.length} phases built${owed ? `; ${owed} owe${owed === 1 ? 's' : ''} a walk` : ''}.** Built means implemented and checked; planned is not available.`;
   const nextLine = next ? `**Next focus:** [${next.id}. ${next.title}](phases/${next.file}). ${next.next}`
-    : owed ? `**Next focus:** ${nothingNext(phases)}`
+    : owed ? `**Next focus:** ${nothingNext(phases, goals)}`
     : lived ? '**Next focus:** every phase is built; go and live in them.' : '**Next focus:** every phase is built.';
   const issueUrl = n => config.repo ? ` · [#${n}](https://github.com/${config.repo}/issues/${n})` : ` · #${n}`;
   const lines = [
@@ -455,7 +458,7 @@ export async function run({ root = ROOT, mode = 'write' } = {}) {
   if (mode === 'next') {
     const p = focus(data);
     return p ? `${p.id}. ${p.title} [${p.status}] — docs/phases/${p.file}\nDone when: ${p.done}\nNext action: ${p.next}`
-      : nothingNext(data.phases);
+      : nothingNext(data.phases, data.goals);
   }
   const output = render(data), path = resolve(root, 'docs/ROADMAP.md');
   if (mode === 'check') {

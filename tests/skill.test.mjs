@@ -207,3 +207,10 @@ test('the conduct skill reads the project\'s roadmap command, says whose check g
   const block = await readFile(join(KEEL, 'practices', 'conduct', 'files', 'AGENTS.block.md'), 'utf8');
   assert.match(block, /briefs\s+a builder \(a phase of a file or two it may build itself: the skill's \*Small\s+phases\*\)/);
 });
+
+// Codex on cajones#53 and ledger#97: /conduct <N> honours a walk owed; a project with its own phases keeps its own rules.
+test('the conduct skill treats owes: walk as done for /conduct <N>, and leaves a local roadmap\'s rules alone', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  assert.match(skill, /`\/conduct <N>`[\s\S]*?a partial phase marked `owes: walk` counts as done here/);
+  assert.match(skill, /keeps its own phases \(`"local"`\s+names `phases`\) follows its own roadmap's rules for both/);
+});

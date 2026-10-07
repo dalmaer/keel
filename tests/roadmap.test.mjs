@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, uncheckedBoxes, sectionsOf, isWalk, livedInOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
+import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, nothingNext, uncheckedBoxes, sectionsOf, isWalk, livedInOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
 
 const phase = ({ status = 'planned', since = '2026-10-02', goal = 'G0', depends = '[]', evidence = '[]', acceptance = '- [ ] Something observable.', extra = '' } = {}) => `---
 status: ${status}
@@ -392,4 +392,14 @@ test('.keel/keel.json phases.livedIn: an object with a boolean, off when absent'
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+// Codex on cajones#53: a walk owed under a retired goal is not outstanding.
+test('nothingNext names only walks owed under live goals', () => {
+  const walkBoxes = '- [x] Built.\n- [ ] ⚑ by hand: the owner reads it.';
+  const live = parsePhase('04-x.md', phase({ status: 'partial', goal: 'G0', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+  const gone = parsePhase('05-y.md', phase({ status: 'partial', goal: 'G1', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+  const goals = [{ id: 'G0', title: 'Acme', outcome: 'x' }, { id: 'G1', title: 'Old Acme', outcome: 'y', retired: true }];
+  assert.equal(nothingNext([live, gone], goals), 'Nothing left to build; phase 4 owes a walk.');
+  assert.equal(nothingNext([gone], goals), 'Nothing left unbuilt.');
 });

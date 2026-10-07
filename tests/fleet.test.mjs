@@ -482,14 +482,14 @@ test('fleet update counts follow the injected version, far above and far below t
   let cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: above } });
   assert.equal(cli.status, 3, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout).plans.map(p => p.to), Array(5).fill(above));
-  // Far below: no project is behind it. acme/current records every migration; the init'd projects record
-  // none, and none applies to their default branch, so nothing is planned: each says why.
+  // Far below: no project is behind it, and no migration's release is at or below it, so nothing is planned: each says why.
   r = await fleetUpdate({ dir }, updateDeps(gh, below));
   assert.equal(r.exitCode, 0, r.text);
   assert.deepEqual(r.data.plans, []);
   assert.deepEqual(r.data.resting.map(x => x.repo), ['acme/notes', 'acme/ledger', 'acme/current', 'acme/waiting', 'acme/gone']);
-  assert.match(r.text, re(`acme/notes: ahead (${BEHIND}); nothing applies (asked 0001-`));
-  assert.match(r.text, re(`acme/current: ahead (${CLI}); every migration recorded`));
+  // Below every migration's release, none is this update's to take (keel update takes only those it carries).
+  assert.match(r.text, re(`acme/notes: ahead (${BEHIND}); no migration pending`));
+  assert.match(r.text, re(`acme/current: ahead (${CLI}); no migration pending`));
   assert.doesNotMatch(r.text, /→/, 'nothing is behind a version below every project');
   cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: below } });
   assert.equal(cli.status, 0, cli.stderr);
@@ -538,7 +538,7 @@ test('fleet update: a current project whose unrecorded migrations do not apply i
     assert.equal(r.exitCode, 0, r.text);
     assert.deepEqual(r.data.plans, []);
     assert.match(r.text, /Every adopted project is current, with nothing pending\./);
-    assert.match(r.text, /acme\/quiet: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach\)/);
+    assert.match(r.text, /acme\/quiet: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept\)/);
   }
   assert.equal((await gh.calls()).filter(c => c[0] === 'repo' || (c[0] === 'pr' && c[1] === 'create')).length, 0, 'nothing cloned, no PR');
 });
@@ -572,7 +572,7 @@ test('fleet update plans only real work: applies() is asked over the default bra
   assert.match(r.data.plans[1].possiblyPending[0].why, /\.keel\/lock\.json: HTTP 502/);
   assert.match(r.text, /acme\/goals: "keel update: practice [^"]+, pending migrations" from keel\/update-v[^ ]+ \(pending: 0001-milestone-to-goal\)/);
   assert.match(r.text, /acme\/broken: .*\(possibly pending: 0002-projects-run-on-their-own \(\.keel\/lock\.json: HTTP 502/);
-  assert.match(r.text, /Not planned:\n {2}acme\/still: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach\)/);
+  assert.match(r.text, /Not planned:\n {2}acme\/still: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept\)/);
   const reads = (await gh.calls()).filter(c => String(c[1]).includes('?ref=main'));
   assert.ok(reads.some(c => c[1] === 'repos/acme/goals/contents/docs/phases/1-start.md?ref=main'), 'the phase file is read at the default branch');
   assert.equal(new Set(reads.map(c => c[1])).size, reads.length, 'each path is asked once per run (cached)');
@@ -581,7 +581,7 @@ test('fleet update plans only real work: applies() is asked over the default bra
   const f = await fleet({ dir }, { env: gh.env, now: NOW, cli: live });
   const plain = (await gh.calls()).slice(before);
   assert.deepEqual(plain.filter(c => /\?ref=|contents\/(docs\/milestones\.json|docs\/goals\.json|docs\/phases|\.keel\/lock\.json)/.test(String(c[1]))), []);
-  assert.ok(f.data.needs.some(n => n.repo === 'acme/goals' && n.why === '5 unrecorded (0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach); keel fleet update checks them'));
+  assert.ok(f.data.needs.some(n => n.repo === 'acme/goals' && n.why === '6 unrecorded (0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept); keel fleet update checks them'));
 });
 
 test('fleet update --yes installs the way the project says: its setup in the gate env; a failing setup is reported and opens nothing', async t => {
