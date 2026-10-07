@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G2
 spec: 2
 depends: [39, 41]
-note: "Built and on for ledger (ledger#89, codex/ PRs, 15 minutes a review): the optional cross-review practice, read-only tools plus inline comments, a COMMENT summary, budgeted, green with no secret, red when the agent fails to start. Waits on the first codex/ PR's review, read and judged by the owner."
+note: "Built and used on ledger: Codex's ledger#92 (codex/enable-ledger-tend) got a Claude review on its own (run 37637421414, about 1m40s of 15): one inline P2 as claude[bot] and a COMMENT summary as github-actions[bot]. Its finding was valid and fixed in keel (10c59b5, v0.8.11). Waits on the owner judging the review's comment."
 evidence: ["evidence/2026-10-06-cross-review.md"]
 issue: 24
 ---
@@ -53,7 +53,7 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
 ## Next action
 
-Wait for the next `codex/` PR on ledger; read its Claude review (inline P1/P2/P3 comments and the summary); ⚑ the owner judges its comments.
+⚑ Owner: judge Claude's P2 on ledger#92 (the conductor validated it: valid, fixed in 10c59b5); then built.
 
 ## Trajectory
 
@@ -61,3 +61,5 @@ Wait for the next `codex/` PR on ledger; read its Claude review (inline P1/P2/P3
 - **2026-10-06** — The review event is the script's, never the agent's: the summary is posted by a step as COMMENT, so the review can never approve; the summary therefore carries `github-actions[bot]`'s name, and the inline comments the action's.
 - **2026-10-06** — `cross_review_valid` is built but not in the night's MEASURES: an unbounded measure can never be outside, so the night's selftest (lesson 6) refuses it. Wired when ten answered cross-review comments exist, with a bound or a recorded-only selftest rule decided then.
 - **2026-10-07** — Switched on for ledger by the owner (ledger#89, rendered from v0.8.8). ledger's own docs test asked for the seven variables the workflow and script read (CLAUDE_CODE_OAUTH_TOKEN and six event fields) in its docs/configuration.md, as every update adding workflow variables has.
+- **2026-10-07** — The first real cross-review (ledger#92, Codex switching tend on) found a real hole: the tend agent could edit a script it may run and push with a write token. Settled two unknowns: the inline-comment tool works under a `prompt` on pull_request, and the comments carry `claude[bot]`.
+- **2026-10-07** — Escape: bot comments on a PR (Vercel's, Codex's summary) start this workflow in the PR's concurrency group, and GitHub keeps one pending run per group, so a person's `/review` queued behind a running review could be replaced and lost; fixed in 10c59b5 (non-review comments get their own group).
