@@ -11,9 +11,18 @@
 #     keel-climb/<job>/ PR waits for a person to read it.
 #   - The agent never pushes and never merges: its tools let git read, stage,
 #     commit and switch, nothing more. It is time-boxed to the budget.
-#   - After it: the gate, and no test dropped (climb.mjs guard); then one PR
-#     on refs/heads/keel-climb/<job>/<date>, never main, never merged here.
-#     A night that keeps nothing opens nothing, and says so.
+#   - Three jobs, so the agent never holds a credential that can write
+#     (ledger#92). `agent` runs it with a token that can only read: checkout
+#     keeps no credential, and claude-code-action is given that token, so it
+#     never trades for its app's. Its commits leave as a git bundle. `judge`
+#     (read-only too, no agent) takes them on a fresh checkout of the run's
+#     commit: climb.mjs sandbox first (no workflow, scripts/keel/ or
+#     .keel/keel.json changed, so the scripts that judge are the default
+#     branch's), then the gate and no test dropped (climb.mjs guard). Its
+#     gate runs the agent's code, so it holds no write either. `publish`
+#     holds the write token, runs no code of the branch's, checks the sandbox
+#     again, and opens one PR on refs/heads/keel-climb/<job>/<date>, never
+#     main, never merged here. A night that keeps nothing opens nothing.
 #   - A hygiene night that proved no fix files one issue on this repo instead
 #     (climb.mjs report --issue): the workflow files it, never the agent.
 #   - A lessons or a loop night changes no code: it proposes, for the owner,
@@ -36,25 +45,31 @@ concurrency:
   group: keel-climb
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  id-token: write
-  actions: read
+# Each job asks for its own; nothing is granted by default.
+permissions: {}
 
 jobs:
-  climb:
+  # The agent's job: its token reads and nothing more. No id-token: the
+  # action is handed this token (github_token), so it never exchanges OIDC
+  # for the Claude app's token, which could write.
+  agent:
     runs-on: ubuntu-latest
     # The agent's own step is bounded by the budget (5 to 180 minutes); this
-    # bounds the whole run, measuring and the gate included.
+    # bounds the whole job, measuring included.
     timeout-minutes: 240
-    env:
-      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      job: ${{ steps.pick.outputs.job }}
+      branch: ${{ steps.pick.outputs.branch }}
+      day: ${{ steps.pick.outputs.day }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Is climb on?
         id: on
         run: |
@@ -134,6 +149,7 @@ jobs:
         if: steps.configured.outputs.enabled == 'true'
         env:
           EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           node scripts/keel/climb.mjs config --json > "$RUNNER_TEMP/climb-config.json"
           FORCE=""
@@ -158,6 +174,7 @@ jobs:
         env:
           REPO: ${{ github.repository }}
           BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .keel/test-runs
           if ! gh api "repos/$REPO/actions/artifacts?name=keel-test-runs&per_page=100" \
@@ -229,8 +246,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # The agent, time-boxed to the budget. Its tools cannot push or merge,
-      # and it measures only through climb.mjs. A timeout is not red: what it
-      # kept before the box closed is still judged below.
+      # it measures only through climb.mjs, and the token it is given reads.
+      # A timeout is not red: what it kept before the box closed is judged.
       - name: Climb
         id: climb
         if: steps.pick.outputs.job != ''
@@ -240,6 +257,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           prompt: ${{ steps.brief.outputs.prompt }}
           claude_args: |
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/loop.mjs list*),Bash(node scripts/loop.mjs propose *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"
@@ -258,12 +276,127 @@ jobs:
         run: |
           node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
 
+
+      # The night's commits leave this job as a git bundle (the run's commit
+      # to the branch's head), with the night's record and the test ledger;
+      # never its working tree. Kept or not, the record goes on, so the
+      # night's history keeps a night whose agent failed.
+      - name: Hand the night on
+        if: always() && steps.pick.outputs.job != ''
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          out="$RUNNER_TEMP/handoff"
+          mkdir -p "$out/record" "$out/test-runs"
+          if git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null && [ "$(git rev-parse "refs/heads/$BRANCH")" != "$GITHUB_SHA" ]; then
+            git bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
+          if [ -d .keel/climb ]; then cp -R .keel/climb/. "$out/record/"; fi
+          if [ -d .keel/test-runs ]; then cp -R .keel/test-runs/. "$out/test-runs/"; fi
+      - name: Keep the agent's commits
+        if: always() && steps.pick.outputs.job != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-climb-agent
+          path: ${{ runner.temp }}/handoff/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The judge: no agent, and a token that reads. A fresh checkout of the
+  # run's commit takes the agent's commits only after climb.mjs sandbox (this
+  # checkout's copy, the default branch's) says they change no workflow, no
+  # scripts/keel/ and no .keel/keel.json, so every script below and the
+  # config the install reads are the default branch's. The gate runs the
+  # agent's code, which is why this job cannot write either.
+  judge:
+    needs: agent
+    if: needs.agent.outputs.job != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    outputs:
+      kept: ${{ steps.judge.outputs.kept }}
+      line: ${{ steps.judge.outputs.line }}
+      issue: ${{ steps.judge.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: keel-climb-agent
+          path: ${{ runner.temp }}/handoff
+      - name: Take the night's commits
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+        run: |
+          in="$RUNNER_TEMP/handoff"
+          head="$GITHUB_SHA"
+          if [ -f "$in/night.bundle" ]; then
+            git fetch -q "$in/night.bundle" "refs/heads/$BRANCH"
+            head=$(git rev-parse FETCH_HEAD)
+          fi
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          git config user.name "keel-climb"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH" "$head"
+          # The night's record and the ledger, as data: nothing else of the agent's tree.
+          mkdir -p .keel/climb .keel/test-runs
+          for f in night.json .gitignore; do
+            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/climb/; fi
+          done
+          if [ -d "$in/test-runs" ]; then cp -R "$in/test-runs/." .keel/test-runs/; fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Read the config
+        id: config
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other step.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
       # Judged by the script, not the agent: drop anything no compare kept,
       # run the gate and check no test was dropped (red if either fails), the
       # night's base against its end, then the PR body and the night's line.
       - name: Judge the night
         id: judge
-        if: steps.pick.outputs.job != ''
+        env:
+          JOB: ${{ needs.agent.outputs.job }}
+          DAY: ${{ needs.agent.outputs.day }}
         run: |
           node scripts/keel/climb.mjs settle
           node scripts/keel/climb.mjs guard
@@ -279,34 +412,101 @@ jobs:
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
+          # The rotation's state rides on the PR, as one more commit, when there is one.
+          kept=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).kept ?? 0)' "$RUNNER_TEMP/report.json")
+          if [ "$kept" != 0 ] && [ -n "$(git status --porcelain -- .keel/climb.json)" ]; then
+            git add .keel/climb.json
+            git commit -q -m "keel climb: $JOB $DAY, rotation state"
+          fi
+
+      # The judged night goes on as the agent's did: a bundle, the PR body,
+      # the issue, the record. Kept or not, the record goes on.
+      - name: Hand the judged night on
+        if: always()
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+        run: |
+          out="$RUNNER_TEMP/judged"
+          mkdir -p "$out/record"
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null; then
+            git bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
+          for f in body.md issue.md issue-title.txt; do
+            if [ -f "$RUNNER_TEMP/$f" ]; then cp "$RUNNER_TEMP/$f" "$out/"; fi
+          done
+          if [ -d .keel/climb ]; then cp -R .keel/climb/. "$out/record/"; fi
+      - name: Keep the judged night
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-climb-judged
+          path: ${{ runner.temp }}/judged/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The only job that can write: no agent, and nothing of the branch's runs
+  # here. It checks the sandbox again (git only), pushes the judged commits
+  # to the night's own branch, opens one PR, files hygiene's issue, and keeps
+  # the night's record, whatever happened before it.
+  publish:
+    needs: [agent, judge]
+    if: always() && needs.agent.outputs.job != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - if: needs.judge.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: keel-climb-judged
+          path: ${{ runner.temp }}/night
+      # A night the judge never finished keeps the agent's record.
+      - if: needs.judge.result != 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: keel-climb-agent
+          path: ${{ runner.temp }}/night
 
       # One PR, on this workflow's own prefix; a person merges it. A night
       # that kept nothing pushes nothing.
       - name: Open the climb's pull request
-        if: steps.pick.outputs.job != ''
+        if: needs.judge.result == 'success'
         env:
-          KEPT: ${{ steps.judge.outputs.kept }}
-          LINE: ${{ steps.judge.outputs.line }}
-          JOB: ${{ steps.pick.outputs.job }}
-          DAY: ${{ steps.pick.outputs.day }}
-          BRANCH: ${{ steps.pick.outputs.branch }}
+          KEPT: ${{ needs.judge.outputs.kept }}
+          LINE: ${{ needs.judge.outputs.line }}
+          JOB: ${{ needs.agent.outputs.job }}
+          DAY: ${{ needs.agent.outputs.day }}
+          BRANCH: ${{ needs.agent.outputs.branch }}
           BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$KEPT" = 0 ] || [ -z "$KEPT" ]; then
             echo "::notice::No PR: $LINE"
             exit 0
           fi
-          # The rotation's state rides on the PR, as one more commit.
-          if [ -n "$(git status --porcelain -- .keel/climb.json)" ]; then
-            git add .keel/climb.json
-            git commit -q -m "keel climb: $JOB $DAY, rotation state"
+          if [ ! -f "$RUNNER_TEMP/night/night.bundle" ]; then
+            echo "::error::The judge kept $KEPT, but handed on no commits; nothing is pushed."
+            exit 1
           fi
+          # The judged commits, fetched as objects: the working tree stays
+          # this run's commit, and the sandbox is this checkout's script.
+          git fetch -q "$RUNNER_TEMP/night/night.bundle" "refs/heads/$BRANCH"
+          head=$(git rev-parse FETCH_HEAD)
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own night, so force is safe here and nowhere else.
-          git push --force origin "HEAD:refs/heads/keel-climb/$JOB/$DAY"
+          git push --force origin "$head:refs/heads/keel-climb/$JOB/$DAY"
           if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
             code=0
-            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel climb: $JOB, $DAY" --body-file "$RUNNER_TEMP/body.md" 2>&1) || code=$?
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel climb: $JOB, $DAY" --body-file "$RUNNER_TEMP/night/body.md" 2>&1) || code=$?
             echo "$out"
             if [ "$code" != 0 ]; then
               if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
@@ -325,31 +525,32 @@ jobs:
               const night = JSON.parse(fs.readFileSync(file, "utf8"));
               night.pr = Number(n);
               fs.writeFileSync(file, `${JSON.stringify(night, null, 2)}\n`);
-            ' .keel/climb/night.json "$num"
+            ' "$RUNNER_TEMP/night/record/night.json" "$num"
           fi
 
       # A hygiene night that proved no fix: one issue on this repo, with the
       # ledger's evidence, unless one with the same title is already open.
       - name: File the flaky test
-        if: steps.pick.outputs.job == 'hygiene' && steps.judge.outputs.issue == 'yes'
+        if: needs.agent.outputs.job == 'hygiene' && needs.judge.outputs.issue == 'yes'
         env:
           REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          title=$(cat "$RUNNER_TEMP/issue-title.txt")
+          title=$(cat "$RUNNER_TEMP/night/issue-title.txt")
           if gh issue list --repo "$REPO" --state open --json title --limit 200 --jq '.[].title' | grep -qxF -- "$title"; then
             echo "::notice::Already open: $title"
             exit 0
           fi
-          gh issue create --repo "$REPO" --title "$title" --body-file "$RUNNER_TEMP/issue.md"
+          gh issue create --repo "$REPO" --title "$title" --body-file "$RUNNER_TEMP/night/issue.md"
 
       # The night's record (every attempt, its numbers, the line), kept 30
-      # days, kept or not.
+      # days, kept or not: the one keel-climb artifact the night reads.
       - name: Keep the climb's record
-        if: always() && steps.pick.outputs.job != ''
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: keel-climb
-          path: .keel/climb/
+          path: ${{ runner.temp }}/night/record/
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30

@@ -132,6 +132,11 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 
 - It never pushes to `main` and never merges. The workflows push only their
   own branch prefix.
+- The agent cannot write to the repo even if a brief or a finding talks it
+  into trying: it runs in a job whose token only reads, and its commits are
+  judged in a second read-only job and pushed by a third that runs none of
+  the branch's code. A branch that changes `.github/`, `scripts/keel/` or
+  `.keel/keel.json` is refused before anything runs.
 - Tend never writes or edits evidence, never sets a status to built,
   lived-in or accepted, never ticks an acceptance box and never deletes a
   file; its guard refuses each, naming the line.

@@ -206,13 +206,22 @@ test('no shipped workflow reaches back to keel: no keel repo, no keel token, no 
   ]) assert.ok(reachesBack(text).length, `${why}: expected a problem`);
 });
 
+/** A workflow's jobs, by their two-space keys under jobs:: [{ id, text }]. */
+export function jobsOf(text) {
+  const at = text.search(/^jobs:\n/m);
+  if (at < 0) return [];
+  return text.slice(at + 'jobs:\n'.length).split(/\n(?= {2}[A-Za-z_][\w-]*:\n)/).map(t => ({ id: /^ {2}([A-Za-z_][\w-]*):/m.exec(t)?.[1] ?? null, text: t })).filter(j => j.id);
+}
+
 /** The PR-permission path: notice on GitHub's refusal, red on anything else. */
 export function permissionPath(text) {
   const out = [];
   if (!/grep -qi 'not permitted to create or approve pull requests'/.test(text)) out.push('no match on GitHub\'s "not permitted to create or approve pull requests"');
   if (!/::notice::.*Settings → Actions → General → Workflow permissions → \\"Allow GitHub Actions to create and approve pull requests\\"/.test(text)) out.push('no notice naming the setting');
   if (!/else\n\s+exit "\$code"\n/.test(text)) out.push('any other failure must stay red');
-  if (!/^permissions:\n\s+contents: write\n\s+pull-requests: write$/m.test(text)) out.push('must declare contents: write and pull-requests: write (the repo default may be read)');
+  // At the top, or (climb, tend: the agent's job may not hold them) on the one job that opens the PR.
+  const opener = jobsOf(text).find(j => /\bgh pr create\b/.test(j.text));
+  if (!/^permissions:\n\s+contents: write\n\s+pull-requests: write$/m.test(text) && !/\n {4}permissions:\n {6}contents: write\n {6}pull-requests: write\n/.test(opener?.text ?? '')) out.push('must declare contents: write and pull-requests: write (the repo default may be read)');
   return out;
 }
 
@@ -327,22 +336,25 @@ export function setupTokenProblems(text) {
     else if (/^\s{0,5}\S/.test(line)) current = null; // the job's own keys, or another job
     current?.lines.push(line);
   });
-  const install = steps.find(s => /^\s+- name: Install\s*$/.test(s.lines[0]));
-  const config = steps.find(s => s.lines.some(l => /^\s+id: config\s*$/.test(l)));
+  // A workflow of several jobs (climb, tend: the agent's and the judge's) installs in each: every Install step is held to it.
+  const installs = steps.filter(s => /^\s+- name: Install\s*$/.test(s.lines[0]));
+  const configs = steps.filter(s => s.lines.some(l => /^\s+id: config\s*$/.test(l)));
   const expr = 'GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}';
-  if (!config || !/fs\.appendFileSync\(process\.env\.GITHUB_OUTPUT, `setup_token=\$\{tok \?\? ""\}\\n`\)/.test(config.lines.join('\n'))) out.push('the config step does not output setup_token');
-  if (config && !/!\/\^\[A-Z_\]\[A-Z0-9_\]\*\$\/\.test\(tok\)/.test(config.lines.join('\n'))) out.push('the config step does not check setupToken is a secret name');
-  if (!install) return [...out, 'no Install step'];
-  const own = install.lines.filter(l => !/^\s*#/.test(l));
-  const envAt = own.findIndex(l => /^\s{8}env:\s*$/.test(l));
-  const runAt = own.findIndex(l => /^\s{8}run:/.test(l));
-  const inEnv = envAt >= 0 && own.slice(envAt + 1, runAt < envAt ? undefined : runAt).some(l => l.trim() === expr);
-  if (!inEnv) out.push('the Install step\'s env does not set GH_TOKEN from the setupToken secret (with the job token as fallback)');
-  if (/GITHUB_ENV|GITHUB_OUTPUT|GITHUB_STATE/.test(own.join('\n'))) out.push('the Install step writes to GITHUB_ENV/OUTPUT: the token could reach later steps');
+  if (!configs.length || configs.some(config => !/fs\.appendFileSync\(process\.env\.GITHUB_OUTPUT, `setup_token=\$\{tok \?\? ""\}\\n`\)/.test(config.lines.join('\n')))) out.push('the config step does not output setup_token');
+  if (configs.some(config => !/!\/\^\[A-Z_\]\[A-Z0-9_\]\*\$\/\.test\(tok\)/.test(config.lines.join('\n')))) out.push('the config step does not check setupToken is a secret name');
+  if (!installs.length) return [...out, 'no Install step'];
+  for (const install of installs) {
+    const own = install.lines.filter(l => !/^\s*#/.test(l));
+    const envAt = own.findIndex(l => /^\s{8}env:\s*$/.test(l));
+    const runAt = own.findIndex(l => /^\s{8}run:/.test(l));
+    const inEnv = envAt >= 0 && own.slice(envAt + 1, runAt < envAt ? undefined : runAt).some(l => l.trim() === expr);
+    if (!inEnv) out.push('the Install step\'s env does not set GH_TOKEN from the setupToken secret (with the job token as fallback)');
+    if (/GITHUB_ENV|GITHUB_OUTPUT|GITHUB_STATE/.test(own.join('\n'))) out.push('the Install step writes to GITHUB_ENV/OUTPUT: the token could reach later steps');
+  }
   lines.forEach((line, i) => {
     if (/^\s*#/.test(line)) return;
     const n = i + 1;
-    const mine = i >= install.start && i < install.start + install.lines.length;
+    const mine = installs.some(install => i >= install.start && i < install.start + install.lines.length);
     if (/secrets\[/.test(line) && !(mine && line.trim() === expr)) out.push(`line ${n}: secrets[…] outside the Install step's GH_TOKEN`);
     if (/outputs\.setup_token/.test(line) && !(mine && line.trim() === expr)) out.push(`line ${n}: setup_token used outside the Install step's GH_TOKEN`);
     if (/\$\{?GH_TOKEN\b|env\.GH_TOKEN/.test(line)) out.push(`line ${n}: GH_TOKEN is read or printed`);
@@ -667,7 +679,7 @@ test('keel-climb.yml: the agent cannot push or merge, is time-boxed by the budge
   const w = (await shipped()).find(x => x.name === 'keel-climb.yml');
   const t = w.template;
   assert.deepEqual(climbWorkflowProblems(t), []);
-  assert.match(t, /git push --force origin "HEAD:refs\/heads\/keel-climb\/\$JOB\/\$DAY"/);
+  assert.match(t, /git push --force origin "\$head:refs\/heads\/keel-climb\/\$JOB\/\$DAY"/);
   // STITCH_API_KEY: a loop night's pull (phase 37), in its own step only.
   assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'STITCH_API_KEY']);
   assert.deepEqual(t.split(/\n(?= {6}- )/).filter(s => s.includes('secrets.STITCH_API_KEY')).map(s => /name: (.+)/.exec(s)[1]), ["Pull Loop's findings"]);
@@ -740,6 +752,92 @@ test('lesson 29: keel-climb.yml and keel-tend.yml end red when the agent failed 
 });
 
 /**
+ * The agent holds no credential that can write (ledger#92), on keel-climb.yml
+ * or keel-tend.yml: [string]. The job with claude-code-action declares its
+ * own permissions, none of them write (no id-token either: the action is
+ * handed the job's read-only token as github_token, so it never trades OIDC
+ * for its app's token); it has no job-level GH_TOKEN; every checkout in it
+ * keeps no credential. The workflow's own permissions grant nothing. Only a
+ * job with no agent pushes, opens the PR or files an issue, and it checks
+ * climb.mjs sandbox before its push; the judge checks it before it takes the
+ * agent's commits.
+ */
+export function agentSandboxProblems(text) {
+  const out = [];
+  const jobs = jobsOf(text);
+  const isAgent = j => /\n\s+uses: anthropics\/claude-code-action@/.test(j.text);
+  const agents = jobs.filter(isAgent);
+  if (agents.length !== 1) return [`${agents.length} jobs run claude-code-action; one, the agent's`];
+  const agent = agents[0];
+  const top = /^permissions:(.*)\n((?: {2}.*\n)*)/m.exec(text);
+  if (!top) out.push('the workflow declares no permissions: every job would get the repo default, which may write');
+  else if (/write/.test(top[1] + top[2])) out.push(`the workflow's permissions grant a write to every job: ${(top[1] + top[2]).trim()}`);
+  const perms = /\n {4}permissions:\n((?: {6}.*\n)+)/.exec(agent.text)?.[1];
+  if (!perms) out.push(`the agent's job (${agent.id}) declares no permissions of its own`);
+  else {
+    for (const line of perms.split('\n').filter(Boolean)) if (/:\s*write/.test(line)) out.push(`the agent's job may write: ${line.trim()}`);
+    if (!/^ {6}contents: read$/m.test(perms)) out.push('the agent\'s job must say contents: read');
+  }
+  if (/\n {4}permissions:\s*write-all/.test(agent.text)) out.push('the agent\'s job is write-all');
+  const jobEnv = /\n {4}env:\n((?: {6}.*\n)+)/.exec(agent.text)?.[1] ?? '';
+  if (/GH_TOKEN|GITHUB_TOKEN/.test(jobEnv)) out.push('the agent\'s job sets a token for every step (job-level env)');
+  const checkouts = agent.text.split(/\n(?= {6}- )/).filter(st => /uses: actions\/checkout@/.test(st));
+  if (!checkouts.length) out.push('the agent\'s job has no checkout');
+  for (const c of checkouts) if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push('a checkout in the agent\'s job keeps the token in git (persist-credentials: false)');
+  const action = agent.text.split(/\n(?= {6}- )/).find(st => /uses: anthropics\/claude-code-action@/.test(st)) ?? '';
+  if (!/\n {10}github_token: \$\{\{ github\.token \}\}\n/.test(action)) out.push('claude-code-action is not handed the job\'s token (github_token), so it trades OIDC for its app\'s token, which can write');
+  for (const j of jobs) {
+    const lines = code(j.text).map(l => l.line);
+    const writes = lines.filter(l => /\bgit push\b|\bgh (pr|issue) create\b/.test(l));
+    if (writes.length && isAgent(j)) out.push(`the agent's job ${j.id} pushes or opens: ${writes[0].trim()}`);
+    const push = lines.findIndex(l => /\bgit push\b/.test(l));
+    if (push >= 0) {
+      const sandbox = lines.findIndex(l => /node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"/.test(l));
+      if (sandbox < 0 || sandbox > push) out.push(`job ${j.id} pushes without climb.mjs sandbox first`);
+    }
+  }
+  const judge = jobs.find(j => !isAgent(j) && /node scripts\/keel\/climb\.mjs guard/.test(j.text));
+  if (!judge) out.push('no job without the agent runs the guard');
+  else {
+    const at = s => judge.text.indexOf(s);
+    if (/:\s*write/.test(/\n {4}permissions:\n((?: {6}.*\n)+)/.exec(judge.text)?.[1] ?? 'none: write')) out.push('the judge may write: it runs the agent\'s code (the gate)');
+    if (at('climb.mjs sandbox') < 0 || at('git switch -q -c "$BRANCH" "$head"') < 0 || at('climb.mjs sandbox') > at('git switch -q -c "$BRANCH" "$head"')) out.push('the judge takes the agent\'s commits before climb.mjs sandbox has checked them');
+    if (!/\n {10}persist-credentials: false\n/.test(judge.text)) out.push('the judge\'s checkout keeps the token in git');
+  }
+  return out;
+}
+
+test('ledger#92: the climb and tend agents hold no credential that can write; a job with no agent judges and pushes', async () => {
+  const all = await shipped();
+  for (const name of ['keel-climb.yml', 'keel-tend.yml']) {
+    const t = all.find(w => w.name === name).template;
+    assert.deepEqual(agentSandboxProblems(t), [], name);
+    assert.deepEqual(agentSandboxProblems(await readFile(join(KEEL, '.github/workflows', name), 'utf8')), [], `keel's ${name}`);
+    assert.deepEqual(jobsOf(t).map(j => j.id), ['agent', 'judge', 'publish'], `${name}: the jobs, as GitHub shows them`);
+    const agentPerms = '    permissions:\n      contents: read\n      pull-requests: read\n      actions: read\n';
+    assert.ok(t.includes(agentPerms), name);
+    const pushStep = /\n {6}- name: Open the [^\n]*\n[\s\S]*?(?=\n {6}(?:#|- ))/.exec(t)[0];
+    for (const [why, text] of [
+      ['the agent may write contents', t.replace(agentPerms, agentPerms.replace('contents: read', 'contents: write'))],
+      ['the agent may write PRs', t.replace(agentPerms, agentPerms.replace('pull-requests: read', 'pull-requests: write'))],
+      ['the agent may mint an OIDC token', t.replace(agentPerms, `${agentPerms}      id-token: write\n`)],
+      ['the agent job without its own permissions', t.replace(agentPerms, '')],
+      ['the workflow grants write', t.replace('permissions: {}\n', 'permissions:\n  contents: write\n')],
+      ['a job-level token', t.replace('    timeout-minutes: 240\n    permissions:\n      contents: read\n      pull-requests: read', '    timeout-minutes: 240\n    env:\n      GH_TOKEN: ${{ github.token }}\n    permissions:\n      contents: read\n      pull-requests: read')],
+      ['the checkout keeps its credential', t.replace('          fetch-depth: 0\n          persist-credentials: false\n', '          fetch-depth: 0\n')],
+      ['the action trades for its app token', t.replace('          github_token: ${{ github.token }}\n', '')],
+      ['the push in the agent\'s job', t.replace(/(\n {6}- name: Did the agent run\?\n)/, `\n${pushStep.replace(/^\n/, '')}$1`)],
+      ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n')],
+      ['the judge may write', t.replace('  judge:\n', '  judge:\n').replace(/(\n  judge:\n[\s\S]*?\n {4}permissions:\n {6}contents: )read/, '$1write')],
+      ['the judge takes the commits unchecked', t.replace(/(\n  judge:\n[\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n')],
+    ]) {
+      assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
+      assert.ok(agentSandboxProblems(text).length, `${name} ${why}: expected a problem`);
+    }
+  }
+});
+
+/**
  * The tend pass's own rules (phase 38), on keel-tend.yml's text: [string].
  * The climb's rights and no more: the agent cannot push, merge, delete or
  * reach gh; its step is time-boxed by the budget; the tend guard and the
@@ -789,15 +887,15 @@ test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge,
   assert.equal(w.practice, 'climb');
   assert.deepEqual(tendWorkflowProblems(t), []);
   assert.deepEqual(tendWorkflowProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's rendered keel-tend.yml");
-  assert.match(t, /git push --force origin "HEAD:refs\/heads\/keel-tend\/\$DAY"/);
+  assert.match(t, /git push --force origin "\$head:refs\/heads\/keel-tend\/\$DAY"/);
   assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
   const climbCron = /cron: "(\d+) (\d+) /.exec((await shipped()).find(x => x.name === 'keel-climb.yml').template);
   const tendCron = /cron: "(\d+) (\d+) /.exec(t);
   assert.deepEqual([Number(tendCron[1]) - Number(climbCron[1]), tendCron[2]], [1, climbCron[2]], 'a minute after the climb\'s');
   const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
-  const push = 'git push --force origin "HEAD:refs/heads/keel-tend/$DAY"';
+  const push = 'git push --force origin "$head:refs/heads/keel-tend/$DAY"';
   for (const [why, text, rule] of [
-    ['a push outside keel-tend/', t.replace(push, 'git push --force origin "HEAD:refs/heads/keel-climb/$DAY"'), 'problems'],
+    ['a push outside keel-tend/', t.replace(push, 'git push --force origin "$head:refs/heads/keel-climb/$DAY"'), 'problems'],
     ['a push to main', t.replace(push, 'git push origin main'), 'problems'],
     ['a merge', `${t}\n      - run: gh pr merge 1 --squash\n`, 'problems'],
     ['git push allowed', t.replace(tools, `${tools},Bash(git push*)`)],
@@ -952,8 +1050,9 @@ test('one major version per action across every workflow keel ships and keel\'s 
  * null), property paths, ! && || == != and parentheses, and startsWith,
  * endsWith, contains and fromJSON. As GitHub does: == on strings ignores
  * case, a missing property is null, and null, false, 0 and '' are falsy.
+ * With { value: true }, the value itself (a concurrency group's), and format.
  */
-export function evalExpression(source, ctx) {
+export function evalExpression(source, ctx, { value = false } = {}) {
   const tokens = [];
   const re = /\s*(?:('(?:[^']|'')*')|(\d+(?:\.\d+)?)|(&&|\|\||==|!=|!|\(|\)|,|\.|\[|\])|([A-Za-z_][\w-]*))/y;
   let at = 0;
@@ -980,6 +1079,7 @@ export function evalExpression(source, ctx) {
     endsWith: (a, b) => str(a).toLowerCase().endsWith(str(b).toLowerCase()),
     contains: (a, b) => (Array.isArray(a) ? a.some(x => eq(x, b)) : str(a).toLowerCase().includes(str(b).toLowerCase())),
     fromJSON: a => JSON.parse(a),
+    format: (f, ...args) => str(f).replace(/\{(\d+)\}/g, (_, n) => str(args[Number(n)])),
   };
   const primary = () => {
     const t = tokens[i++];
@@ -1016,7 +1116,7 @@ export function evalExpression(source, ctx) {
   const or = () => { let v = and(); while (op('||')) { const r = and(); v = truthy(v) ? v : r; } return v; };
   const v = or();
   if (i !== tokens.length) throw new Error(`unread: ${JSON.stringify(tokens.slice(i))}`);
-  return truthy(v);
+  return value ? v : truthy(v);
 }
 
 /** The one job's `if:` in a workflow's text (a block scalar or one line), or null. */
@@ -1108,6 +1208,42 @@ test('keel-cross-review.yml runs only for a same-repo PR opened or made ready, o
     assert.equal(evalExpression(mutated, ctx), true, `${why}: the mutated condition should let it through`);
     assert.equal(runs(ctx), false, why);
   }
+});
+
+/**
+ * The cross-review concurrency group for one event: the group string, as
+ * GitHub evaluates `keel-cross-review-${{ … }}`.
+ */
+export function crossReviewGroup(text, ctx) {
+  const m = /^concurrency:\n {2}group: (.*)\n {2}cancel-in-progress: false$/m.exec(text);
+  if (!m) throw new Error('no concurrency group with cancel-in-progress: false');
+  return m[1].replace(/\$\{\{([\s\S]*?)\}\}/g, (_, e) => String(evalExpression(e, ctx, { value: true }) ?? ''));
+}
+
+test('keel-cross-review.yml: reviews of one PR queue behind each other; a run that will not review has a group of its own, so it never displaces a queued /review', async () => {
+  const t = (await shipped()).find(w => w.name === 'keel-cross-review.yml').template;
+  const withRun = (ctx, id) => ({ ...ctx, github: { ...ctx.github, run_id: id } });
+  const group = (ctx, id = 101) => crossReviewGroup(t, withRun(ctx, id));
+  assert.equal(group(prEvent()), 'keel-cross-review-7', 'an opened PR');
+  assert.equal(group(prEvent({ action: 'ready_for_review' }), 102), 'keel-cross-review-7');
+  assert.equal(group(commentEvent(), 103), 'keel-cross-review-7', 'a person\'s /review queues with them');
+  assert.equal(group(commentEvent({ body: '/review\nthe lid, please' }), 104), 'keel-cross-review-7');
+  // ledger#92: a later comment replaced a queued /review, then skipped. Each of these is alone.
+  assert.equal(group(commentEvent({ body: 'Deployment ready (acme-preview)', type: 'Bot', login: 'acme-deploy[bot]' }), 105), 'keel-cross-review-run-105', 'a bot\'s comment');
+  assert.equal(group(commentEvent({ body: 'LGTM' }), 106), 'keel-cross-review-run-106', 'a person\'s other comment');
+  assert.equal(group(commentEvent({ body: '/review', type: 'Bot', login: 'codex[bot]', association: 'MEMBER' }), 107), 'keel-cross-review-run-107', 'a bot\'s /review never runs, so never queues');
+  assert.notEqual(group(commentEvent({ body: 'LGTM' }), 108), group(commentEvent({ body: 'LGTM' }), 109), 'two other comments never share a group');
+  // Every event the job's if: lets through queues on the PR's group: the group never splits real reviews.
+  const cond = jobIf(t);
+  for (const ctx of [prEvent(), prEvent({ action: 'ready_for_review' }), commentEvent(), commentEvent({ association: 'MEMBER' })]) {
+    assert.equal(evalExpression(cond, ctx), true);
+    assert.equal(group(ctx, 110), 'keel-cross-review-7');
+  }
+  // Mutation: the old group (the PR's number for every event) lets any comment displace a /review.
+  const old = t.replace(/^( {2}group: ).*$/m, '$1keel-cross-review-${{ github.event.pull_request.number || github.event.issue.number }}');
+  assert.notEqual(old, t, 'the mutation did not apply');
+  assert.equal(crossReviewGroup(old, withRun(commentEvent({ body: 'LGTM' }), 111)), 'keel-cross-review-7', 'the old group puts any comment in the queue');
+  assert.match(t, /^concurrency:\n {2}group: [^\n]*\n {2}cancel-in-progress: false$/m, 'queued, never cancelled');
 });
 
 test('keel-cross-review.yml: the agent reads and comments inline, nothing else; the review event is COMMENT; nothing pushes, approves or merges', async () => {

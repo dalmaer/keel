@@ -33,8 +33,13 @@ on:
   issue_comment:
     types: [created]
 
+# One review at a time per PR, queued, never cancelled. GitHub keeps one
+# pending run per group, so a run that will not review (any other comment on
+# the PR: a bot's, an edit of a summary) gets a group of its own, keyed by its
+# run id; otherwise it would replace a person's /review queued behind a
+# running review, then skip, and the /review would be lost.
 concurrency:
-  group: keel-cross-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: keel-cross-review-${{ (github.event_name == 'pull_request' || (startsWith(github.event.comment.body, '/review') && github.event.comment.user.type != 'Bot')) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 permissions:

@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, mkdir, cp, realpath } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -292,12 +293,43 @@ test('guard: fails when a test that ran in the base did not run in the candidate
   assert.match(json(red).problems[0], /the gate `.*` failed \(exit 1\)/);
 
   // No ledger: guard cannot tell, and says so (exit 2), never a pass.
+  // (The config is the project's, never the branch's: .keel/keel.json is off limits to a night's commits.)
   git(dir, ['checkout', '-q', '-f', 'refactor']);
+  await commit(dir, { 'acme.test.mjs': `${suite('acme adds', 'acme subtracts')}// shared fixture, again\n` }, 'acme: no ledger');
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', check: 'node --test acme.test.mjs', climb: { jobs: ['test-time'], testCommand: 'node --test acme.test.mjs' } }));
-  git(dir, ['commit', '-q', '-am', 'acme: no ledger']);
   const blind = climb(dir, ['guard', '--base', base, '--json']);
   assert.equal(blind.status, 2);
   assert.match(json(blind).error, /recorded no test ledger run/);
+});
+
+test('sandbox: the agent\'s commits may not change a workflow, keel\'s scripts or .keel/keel.json; climb.mjs sandbox and both guards refuse them before anything runs', async t => {
+  // A gate that would leave a mark if it ran: a refused branch never reaches it.
+  const dir = await acme(t, { config: { check: 'node -e "require(\'fs\').writeFileSync(\'gate-ran\', \'\')"' }, files: { 'acme.mjs': 'export const anvil = 1;\n' } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const at = async (branch, files) => { git(dir, ['checkout', '-q', '-b', branch, base]); return commit(dir, files, `acme: ${branch}`); };
+  for (const [branch, path] of [['workflow', '.github/workflows/acme.yml'], ['script', 'scripts/keel/acme.mjs'], ['config', '.keel/keel.json']]) {
+    const head = await at(branch, { [path]: path === '.keel/keel.json' ? '{"name":"Acme","climb":{"jobs":["test-time"]},"check":"true"}\n' : '// acme\n' });
+    const sb = climb(dir, ['sandbox', '--base', base, '--head', head, '--json']);
+    assert.equal(sb.status, 1, `${path}: ${sb.stdout}`);
+    assert.equal(json(sb).ok, false);
+    assert.match(json(sb).problems[0], new RegExp(`^${path.replace(/\./g, '\\.')}: changed on the agent's branch`));
+    for (const args of [['guard', '--base', base, '--json'], ['guard', '--job', 'tend', '--base', base, '--json']]) {
+      const g = climb(dir, args);
+      assert.equal(g.status, 1, `${args.join(' ')} on ${path}: ${g.stdout}${g.stderr}`);
+      assert.match(json(g).problems[0], /changed on the agent's branch/);
+    }
+    assert.equal(existsSync(join(dir, 'gate-ran')), false, `${path}: the gate never ran`);
+    git(dir, ['checkout', '-q', '-f', 'main']);
+  }
+  // Anything else passes the sandbox; a head not on top of the base does not.
+  const fine = await at('fine', { 'acme.mjs': 'export const anvil = 2;\n', 'docs/acme.md': '# Acme\n' });
+  const ok = climb(dir, ['sandbox', '--base', base, '--head', fine, '--json']);
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.deepEqual(json(ok), { ok: true, offLimits: ['.github/', 'scripts/keel/', '.keel/keel.json'], problems: [] });
+  const off = climb(dir, ['sandbox', '--base', fine, '--head', base, '--json']);
+  assert.equal(off.status, 1);
+  assert.match(json(off).problems[0], /is not on top of the base/);
+  assert.equal(climb(dir, ['sandbox', '--base', base, '--json']).status, 2, 'sandbox needs both refs');
 });
 
 /** Run one named step of keel-climb.yml in `dir`, as the workflow has it: { status, out, outputs }. */
@@ -332,8 +364,10 @@ test('off: with no climb key the workflow does nothing; with no secret the run e
   assert.equal((await step(t, on, 'Configured?', { OAUTH: 'acme-token', API_KEY: '' })).outputs.enabled, 'true');
 
   // Every step after those two waits on them: nothing runs when climb is off or unconfigured.
+  // The agent's job is the first; the judge and the publish job wait on its pick (below).
   const text = await readFile(WORKFLOW, 'utf8');
-  const steps = text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
+  const agentJob = text.slice(0, text.indexOf('\n  judge:\n'));
+  const steps = agentJob.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
   const after = steps.slice(steps.findIndex(s => s.includes('name: Configured?')) + 1);
   assert.ok(after.length >= 8);
   for (const s of after) {
@@ -342,6 +376,9 @@ test('off: with no climb key the workflow does nothing; with no secret the run e
     assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.job != ''|steps\.pick\.outputs\.job == '[a-z-]+'/, `step without the guard: ${s.split('\n')[0]}`);
   }
   assert.match(steps.find(s => s.includes('name: Configured?')), /if: steps\.on\.outputs\.on == 'true'/);
+  assert.match(text, /\n  judge:\n    needs: agent\n    if: needs\.agent\.outputs\.job != ''\n/, 'no job picked, no judge');
+  assert.match(text, /\n  publish:\n    needs: \[agent, judge\]\n    if: always\(\) && needs\.agent\.outputs\.job != ''\n/, 'no job picked, nothing published');
+  assert.match(text, /\n    outputs:\n      job: \$\{\{ steps\.pick\.outputs\.job \}\}\n/);
 });
 
 // ---- phase 36: hygiene and build-time ---------------------------------------------
@@ -717,15 +754,17 @@ test('tend off: with no tend key nothing runs and gh is never asked; with no sec
   assert.equal(unset.status, 0, unset.out);
   assert.match(unset.out, /^::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN \(or ANTHROPIC_API_KEY\) secret for a tend pass to run\./m);
   assert.equal(unset.outputs.enabled, 'false');
-  // Every step after those two waits on them.
+  // Every step after those two waits on them; the judge and the publish job wait on the agent job's pick.
   const text = await readFile(TEND, 'utf8');
-  const steps = text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
+  const steps = text.slice(0, text.indexOf('\n  judge:\n')).split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
   const after = steps.slice(steps.findIndex(s => s.includes('name: Configured?')) + 1);
   assert.ok(after.length >= 9);
   for (const s of after) {
     const cond = /(?:^ {6}- |\n {8})if: (.+)/.exec(s)?.[1] ?? '';
     assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.run == 'yes'/, `step without the guard: ${s.split('\n')[0]}`);
   }
+  assert.match(text, /\n  judge:\n    needs: agent\n    if: needs\.agent\.outputs\.run == 'yes'\n/, 'no pass, no judge');
+  assert.match(text, /\n  publish:\n    needs: \[agent, judge\]\n    if: always\(\) && needs\.agent\.outputs\.run == 'yes'\n/, 'no pass, nothing published');
   // A bad "tend" is exit 2, naming the key.
   for (const [bad, re] of [[{ schedule: 'nightly' }, /"tend"\.schedule must be "weekly"/], [{ budget: { minutes: 999 } }, /"tend"\.budget\.minutes must be a whole number from 5 to 180/], [{ jobs: [] }, /"tend" has an unknown key jobs/], ['weekly', /"tend" must be an object/]]) {
     const cfg = JSON.parse(await readFile(join(on, '.keel/keel.json'), 'utf8'));

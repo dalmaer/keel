@@ -170,8 +170,10 @@ test('a hygiene night: prove-steady --decide keeps a proven fix with its runs an
 async function issueStep(t, open) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-climb-issue-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await writeFile(join(dir, 'issue-title.txt'), 'Flaky test: acme.test.mjs "acme counts"');
-  await writeFile(join(dir, 'issue.md'), 'acme\n');
+  // The judge's handoff, as the publish job downloads it into $RUNNER_TEMP/night.
+  await mkdir(join(dir, 'night'));
+  await writeFile(join(dir, 'night/issue-title.txt'), 'Flaky test: acme.test.mjs "acme counts"');
+  await writeFile(join(dir, 'night/issue.md'), 'acme\n');
   await mkdir(join(dir, 'bin'));
   await writeFile(join(dir, 'bin/gh'), `#!/bin/sh\necho "$@" >> "${join(dir, 'calls')}"\nif [ "$1 $2" = "issue list" ]; then printf '%s\\n' ${open.map(o => `'${o}'`).join(' ') || "''"}; fi\n`, { mode: 0o755 });
   const block = runBlocks(await readFile(WORKFLOW, 'utf8')).find(b => b.step === 'File the flaky test');
@@ -190,8 +192,11 @@ test('the workflow files a hygiene night\'s issue on the project\'s own repo, on
   assert.match(again.out, /::notice::Already open: Flaky test/);
   assert.doesNotMatch(again.calls, /issue create/);
   const text = await readFile(WORKFLOW, 'utf8');
-  assert.match(text, /- name: File the flaky test\n\s+if: steps\.pick\.outputs\.job == 'hygiene' && steps\.judge\.outputs\.issue == 'yes'\n\s+env:\n\s+REPO: \$\{\{ github\.repository \}\}/);
-  assert.match(text, /^permissions:\n(?: {2}[a-z-]+: \w+\n)* {2}issues: write\n/m);
+  assert.match(text, /- name: File the flaky test\n\s+if: needs\.agent\.outputs\.job == 'hygiene' && needs\.judge\.outputs\.issue == 'yes'\n\s+env:\n\s+REPO: \$\{\{ github\.repository \}\}/);
+  // issues: write is the publish job's alone: the agent's and the judge's tokens cannot file one.
+  const jobs = text.split(/\n(?= {2}[a-z]+:\n)/);
+  assert.deepEqual(jobs.filter(j => /\n {6}issues: write\n/.test(j)).map(j => j.split('\n')[0]), ['  publish:']);
+  assert.ok(text.indexOf('- name: File the flaky test') > text.indexOf('\n  publish:\n'), 'the issue is filed by the publish job');
   assert.match(text, /climb\.mjs report --state --body "\$RUNNER_TEMP\/body\.md" --issue "\$RUNNER_TEMP\/issue\.md"/);
   assert.ok(text.indexOf('- name: Gather the test ledger') < text.indexOf('- name: Baseline'), 'the ledger is gathered before the baseline reads it');
 });

@@ -19,7 +19,9 @@ starts with a configured prefix, under the brief
   when the PR is opened or marked ready for review, and again when a person
   with write access (OWNER, MEMBER, COLLABORATOR; never a bot) comments
   `/review` on it. Never on a push: a review per push costs more than it
-  tells; `/review` asks again.
+  tells; `/review` asks again. Reviews of one PR queue, never cancelled; a
+  comment that is not a `/review` runs in a group of its own, so it never
+  displaces a `/review` waiting behind a running review.
 - **How it reviews.** The brief asks for findings only where the code shows
   them: each validated against the code before it is written, tagged P1
   (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), placed as

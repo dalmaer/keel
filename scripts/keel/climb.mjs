@@ -14,6 +14,7 @@
 //   node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" [--runs n] [--decide]
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
+//   node scripts/keel/climb.mjs sandbox --base r --head r     the agent's commits change no workflow, keel script or config (git only)
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f]
 //   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
 //   node scripts/keel/climb.mjs distill [propose --kind family|reword|standardise … --read "…"]   (lessons)
@@ -75,7 +76,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS, sandboxProblems, OFF_LIMITS } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -1127,6 +1128,9 @@ export async function guard({ root, config, env = process.env, base, job }) {
   if (job !== undefined && !Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
   const head = sha(root, 'HEAD'), b = sha(root, base);
   if (head === b) return { ok: true, skipped: true, line: 'nothing kept: HEAD is the base, so there is nothing to guard', problems: [] };
+  // Before anything runs: the workflows, keel's scripts and the config stay as the base has them.
+  const off = sandboxProblems(root, b, head);
+  if (off.length) return { ok: false, job, refused: off, problems: off };
   if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job });
   const extra = {};
   if (job === 'hygiene') {
@@ -1471,8 +1475,8 @@ export async function agentRan({ outcome, file, minutes, started, now = Date.now
 
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried',
+const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-report [--json]';
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
 const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
@@ -1585,6 +1589,12 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       const g = o.job === 'tend' ? await tendGuard({ ...ctx, base: o.base, check: CHECK }) : await guard({ ...ctx, base: o.base, job: o.job });
       const noted = (g.noted ?? []).map(n => `  note: ${n.message}`);
       return { data: g, text: g.ok ? [`guard: ${g.line}`, ...noted].join('\n') : `guard failed:\n${g.problems.map(p => `  ${p}`).join('\n')}`, exitCode: g.ok ? 0 : 1 };
+    }
+    case 'sandbox': {
+      // The agent's commits, checked with git alone (no code of theirs runs): the publish job's check before it pushes.
+      if (!o.base || !o.head) throw new ClimbError(`sandbox needs --base <ref> --head <ref>; ${USAGE}`);
+      const problems = sandboxProblems(root, o.base, o.head);
+      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}`, exitCode: problems.length ? 1 : 0 };
     }
     case 'report': {
       const r = await report({ ...ctx, input: o.input, body: o.body, state: o.state, issue: o.issue });

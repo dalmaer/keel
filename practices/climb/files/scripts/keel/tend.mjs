@@ -68,6 +68,36 @@ export function tendConfigOf(config) {
   return { schedule: t.schedule ?? TEND_DEFAULTS.schedule, minutes: t.budget?.minutes ?? TEND_DEFAULTS.minutes };
 }
 
+// ---- the sandbox ----------------------------------------------------------------
+
+/**
+ * Paths an agent's branch (a climb night's or a tend pass's) may never change:
+ * the workflows, keel's own scripts (the judge and the publish job run the
+ * default branch's copy only because the branch leaves them as they were),
+ * and .keel/keel.json (it names the gate, the setup command and the secret
+ * the Install step is given). A directory ends in "/".
+ */
+export const OFF_LIMITS = Object.freeze(['.github/', 'scripts/keel/', '.keel/keel.json']);
+const offLimit = path => OFF_LIMITS.some(p => (p.endsWith('/') ? path.startsWith(p) : path === p));
+
+/**
+ * What the agent's commits may not carry, pure over git: [problem]. `head` is
+ * on top of `base`, and no commit between them changes an OFF_LIMITS path.
+ * It runs no code from the branch, so the job that holds the write token can
+ * run it (climb.mjs sandbox), and the guards run it first.
+ */
+export function sandboxProblems(root, base, head) {
+  const b = sha(root, base), h = sha(root, head);
+  if (git(root, ['merge-base', '--is-ancestor', b, h], { allowFail: true }).status !== 0) return [`${h.slice(0, 7)} is not on top of the base ${b.slice(0, 7)}: the agent's branch must start where the run did`];
+  const out = [];
+  for (const l of git(root, ['diff', '--name-status', '--no-renames', b, h]).split('\n').filter(Boolean)) {
+    const [, ...p] = l.split('\t');
+    const path = p.join('\t');
+    if (offLimit(path)) out.push(`${path}: changed on the agent's branch; ${OFF_LIMITS.join(', ')} are off limits to it (the workflows, keel's scripts that judge it, and the config that names the gate and the secrets)`);
+  }
+  return out;
+}
+
 // ---- small tools ---------------------------------------------------------------
 
 function git(cwd, args, { allowFail = false } = {}) {
@@ -354,6 +384,8 @@ export async function tendGuard({ root, config, env = process.env, base, check =
   if (!base) throw new TendError('guard --job tend needs --base <ref> (or an open pass: tend-input --record)');
   const head = sha(root, 'HEAD'), b = sha(root, base);
   if (head === b) return { ok: true, skipped: true, line: 'nothing changed: HEAD is the base, so there is nothing to guard', problems: [] };
+  const off = sandboxProblems(root, b, head);
+  if (off.length) return { ok: false, job: 'tend', refused: off, problems: off };
   const { refused } = tendCheck(root, b, head, { findings: pass?.worksheet?.findings ?? null });
   if (refused.length) return { ok: false, job: 'tend', refused, problems: refused };
   const gate = config.check ?? check;

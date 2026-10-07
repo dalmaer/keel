@@ -11,11 +11,19 @@
 #     closed unmerged in a row and tend proposes its own retirement.
 #   - The agent never pushes, never merges and cannot reach gh: its tools let
 #     git read, stage and commit, nothing more. It is time-boxed to the budget.
-#   - After it: the tend guard (no evidence written, no status marked built,
-#     lived-in or accepted, no acceptance box ticked, nothing deleted, every
-#     commit citing its finding) and the gate; then one PR on
-#     refs/heads/keel-tend/<date>, never main, never merged here. A pass that
-#     changed nothing opens nothing, and its line says what was left.
+#   - Three jobs, as the climb's, so the agent never holds a credential that
+#     can write (ledger#92). `agent` runs it with a token that can only read
+#     (checkout keeps no credential; claude-code-action is given that token,
+#     so it never trades for its app's); its commits leave as a git bundle.
+#   - `judge` (read-only, no agent), on a fresh checkout of the run's commit:
+#     climb.mjs sandbox first (no workflow, scripts/keel/ or .keel/keel.json
+#     changed), then the tend guard (no evidence written, no status marked
+#     built, lived-in or accepted, no acceptance box ticked, nothing deleted,
+#     every commit citing its finding) and the gate. `publish` holds the
+#     write token, runs no code of the branch's, checks the sandbox again,
+#     and opens one PR on refs/heads/keel-tend/<date>, never main, never
+#     merged here. A pass that changed nothing opens nothing, and its line
+#     says what was left.
 #
 # SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
 # as the climb's. Each pass spends model tokens, up to "tend".budget.minutes.
@@ -31,24 +39,31 @@ concurrency:
   group: keel-tend
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
-  actions: read
+# Each job asks for its own; nothing is granted by default.
+permissions: {}
 
 jobs:
-  tend:
+  # The agent's job: its token reads and nothing more. No id-token: the
+  # action is handed this token (github_token), so it never exchanges OIDC
+  # for the Claude app's token, which could write.
+  agent:
     runs-on: ubuntu-latest
     # The agent's own step is bounded by the budget (5 to 180 minutes); this
-    # bounds the whole run, the measures and the gate included.
+    # bounds the whole job, the worksheet included.
     timeout-minutes: 240
-    env:
-      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      run: ${{ steps.pick.outputs.run }}
+      branch: ${{ steps.pick.outputs.branch }}
+      day: ${{ steps.pick.outputs.day }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Is tend on?
         id: on
         run: |
@@ -125,6 +140,8 @@ jobs:
       - name: Pick this week's pass
         id: pick
         if: steps.configured.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node scripts/keel/climb.mjs tend-pick --json > "$RUNNER_TEMP/pick.json"
           node -e '
@@ -143,6 +160,7 @@ jobs:
         if: steps.pick.outputs.run == 'yes'
         env:
           BRANCH: ${{ steps.pick.outputs.branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "keel-tend"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -170,8 +188,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # The agent, time-boxed to the budget. Its tools cannot push, merge,
-      # delete through git, or reach gh. A timeout is not red: what it
-      # committed before the box closed is still guarded below.
+      # delete through git, or reach gh, and the token it is given reads. A
+      # timeout is not red: what it committed before the box closed is guarded.
       - name: Tend
         id: tend
         if: steps.pick.outputs.run == 'yes'
@@ -181,6 +199,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           prompt: ${{ steps.brief.outputs.prompt }}
           claude_args: |
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/roadmap.mjs*),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *)"
@@ -197,12 +216,119 @@ jobs:
         run: |
           node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
 
+
+      # The pass's commits leave this job as a git bundle (the run's commit to
+      # the branch's head), with the pass's record; never its working tree.
+      # The record goes on even when the agent failed.
+      - name: Hand the pass on
+        if: always() && steps.pick.outputs.run == 'yes'
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          out="$RUNNER_TEMP/handoff"
+          mkdir -p "$out/record"
+          if git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null && [ "$(git rev-parse "refs/heads/$BRANCH")" != "$GITHUB_SHA" ]; then
+            git bundle create "$out/pass.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
+          if [ -d .keel/tend ]; then cp -R .keel/tend/. "$out/record/"; fi
+      - name: Keep the agent's commits
+        if: always() && steps.pick.outputs.run == 'yes'
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-tend-agent
+          path: ${{ runner.temp }}/handoff/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The judge: no agent, and a token that reads. A fresh checkout of the
+  # run's commit takes the agent's commits only after climb.mjs sandbox (this
+  # checkout's copy, the default branch's) says they change no workflow, no
+  # scripts/keel/ and no .keel/keel.json, so every script below and the
+  # config the install reads are the default branch's. The gate runs the
+  # agent's code, which is why this job cannot write either.
+  judge:
+    needs: agent
+    if: needs.agent.outputs.run == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    outputs:
+      commits: ${{ steps.judge.outputs.commits }}
+      line: ${{ steps.judge.outputs.line }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: keel-tend-agent
+          path: ${{ runner.temp }}/handoff
+      - name: Take the pass's commits
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+        run: |
+          in="$RUNNER_TEMP/handoff"
+          head="$GITHUB_SHA"
+          if [ -f "$in/pass.bundle" ]; then
+            git fetch -q "$in/pass.bundle" "refs/heads/$BRANCH"
+            head=$(git rev-parse FETCH_HEAD)
+          fi
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          git switch -q -c "$BRANCH" "$head"
+          # The pass's record, as data: nothing else of the agent's tree.
+          mkdir -p .keel/tend
+          for f in pass.json .gitignore; do
+            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/tend/; fi
+          done
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Read the config
+        id: config
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other step.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+
       # Judged by the script, not the agent: anything uncommitted goes; the
       # tend guard and the gate (red if either fails); then the measures again
       # on the branch, the PR body and the pass's line.
       - name: Judge the pass
         id: judge
-        if: steps.pick.outputs.run == 'yes'
         run: |
           git reset -q --hard HEAD
           git clean -q -fd
@@ -216,32 +342,95 @@ jobs:
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::The tree changed after the guard; nothing is handed on."
+            exit 1
+          fi
+
+      # The judged pass goes on as the agent's did: a bundle, the PR body,
+      # the record. The record goes on whatever the verdict.
+      - name: Hand the judged pass on
+        if: always()
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+        run: |
+          out="$RUNNER_TEMP/judged"
+          mkdir -p "$out/record"
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null; then
+            git bundle create "$out/pass.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
+          if [ -f "$RUNNER_TEMP/body.md" ]; then cp "$RUNNER_TEMP/body.md" "$out/"; fi
+          if [ -d .keel/tend ]; then cp -R .keel/tend/. "$out/record/"; fi
+      - name: Keep the judged pass
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-tend-judged
+          path: ${{ runner.temp }}/judged/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The only job that can write: no agent, and nothing of the branch's runs
+  # here. It checks the sandbox again (git only), pushes the judged commits
+  # to the pass's own branch, opens one PR, and keeps the pass's record,
+  # whatever happened before it.
+  publish:
+    needs: [agent, judge]
+    if: always() && needs.agent.outputs.run == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - if: needs.judge.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: keel-tend-judged
+          path: ${{ runner.temp }}/pass
+      # A pass the judge never finished keeps the agent's record.
+      - if: needs.judge.result != 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: keel-tend-agent
+          path: ${{ runner.temp }}/pass
 
       # One PR, on this workflow's own prefix; a person merges it. A pass that
       # committed nothing pushes nothing.
       - name: Open the tend pull request
-        if: steps.pick.outputs.run == 'yes'
+        if: needs.judge.result == 'success'
         env:
-          COMMITS: ${{ steps.judge.outputs.commits }}
-          LINE: ${{ steps.judge.outputs.line }}
-          DAY: ${{ steps.pick.outputs.day }}
-          BRANCH: ${{ steps.pick.outputs.branch }}
+          COMMITS: ${{ needs.judge.outputs.commits }}
+          LINE: ${{ needs.judge.outputs.line }}
+          DAY: ${{ needs.agent.outputs.day }}
+          BRANCH: ${{ needs.agent.outputs.branch }}
           BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$COMMITS" = 0 ] || [ -z "$COMMITS" ]; then
             echo "::notice::No PR: $LINE"
             exit 0
           fi
-          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-            echo "::error::The tree changed after the guard; nothing is pushed."
+          if [ ! -f "$RUNNER_TEMP/pass/pass.bundle" ]; then
+            echo "::error::The judge counted $COMMITS commits, but handed none on; nothing is pushed."
             exit 1
           fi
+          # The judged commits, fetched as objects: the working tree stays
+          # this run's commit, and the sandbox is this checkout's script.
+          git fetch -q "$RUNNER_TEMP/pass/pass.bundle" "refs/heads/$BRANCH"
+          head=$(git rev-parse FETCH_HEAD)
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own pass, so force is safe here and nowhere else.
-          git push --force origin "HEAD:refs/heads/keel-tend/$DAY"
+          git push --force origin "$head:refs/heads/keel-tend/$DAY"
           if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
             code=0
-            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel tend: $DAY" --body-file "$RUNNER_TEMP/body.md" 2>&1) || code=$?
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel tend: $DAY" --body-file "$RUNNER_TEMP/pass/body.md" 2>&1) || code=$?
             echo "$out"
             if [ "$code" != 0 ]; then
               if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
@@ -260,17 +449,17 @@ jobs:
               const pass = JSON.parse(fs.readFileSync(file, "utf8"));
               pass.pr = Number(n);
               fs.writeFileSync(file, `${JSON.stringify(pass, null, 2)}\n`);
-            ' .keel/tend/pass.json "$num"
+            ' "$RUNNER_TEMP/pass/record/pass.json" "$num"
           fi
 
       # The pass's record (the worksheet, what was resolved, proposed and left,
       # the line), kept 30 days: the night reads the newest for its Tend line.
       - name: Keep the tend record
-        if: always() && steps.pick.outputs.run == 'yes'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: keel-tend
-          path: .keel/tend/
+          path: ${{ runner.temp }}/pass/record/
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30

@@ -47,6 +47,11 @@ PR are the script's:
   findings, `docs/LOOP.md` and loop's `afterRenderWrites`), any change to
   the lessons table (by row), a proposal edited, a finding decided tonight
   or a decided finding changed. Deciding is the owner's.
+- `sandbox --base r --head r` checks the agent's commits with git alone:
+  `head` is on top of `base`, and no commit changes `.github/`,
+  `scripts/keel/` or `.keel/keel.json`. Every guard (the tend guard too)
+  runs it first; the workflows' judge and publish jobs run it before they
+  take the commits or push them.
 - `distill [--json]` is a lessons night's worksheet: the project's own
   table (`.keel/keel.json` `lessons`, default `docs/lessons.md`), each row
   with its provenance and family, the families the owner accepted, the open
@@ -75,6 +80,20 @@ pick, time-boxed to the budget, its tools unable to push or merge; then
 `report`, and one PR on `refs/heads/keel-climb/<job>/<date>`. Never `main`,
 never a merge. A night that keeps nothing opens nothing: its line is a
 notice, in the run's summary, and in the `keel-climb` artifact.
+
+The agent holds no credential that can write (both workflows). The run is
+three jobs: `agent` (contents and pull requests read, checkout keeps no
+credential, and `claude-code-action` is handed that read-only token, so it
+never trades OIDC for its app's token; no `id-token`), whose commits leave
+as a git bundle; `judge` (contents read, no agent), which runs
+`climb.mjs sandbox` from a fresh checkout before taking them (a branch that
+changes `.github/`, `scripts/keel/` or `.keel/keel.json` is refused, so the
+scripts that judge and the config the install reads are the default
+branch's), then the guard and the gate; and `publish` (contents and pull
+requests write, `issues: write` for hygiene), which runs nothing of the
+branch's, checks the sandbox again and pushes. The guards refuse the same
+paths. Each job uploads its handoff (`keel-climb-agent`,
+`keel-climb-judged`, kept 7 days); `keel-climb` is the record, as before.
 
 A run whose agent failed before its budget ran out (no secret, a bad
 model: an error after one turn) is red: `agent-ran`, the step after the
