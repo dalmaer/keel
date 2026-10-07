@@ -5,6 +5,10 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.17 — practice 0.8.17 (2026-10-07)
+
+- **The walk-owed rules are tighter:** `owes: walk` needs an unchecked "⚑ by hand" (or `gh …`) box to name the walk; a box with a build or test command in it is still work, even beside "⚑ by hand"; the conductor's dependency gate treats a walk owed as done, like `keel next`; and the roadmap counts walks owed under live goals only.
+
 ## v0.8.16 — practice 0.8.16 (2026-10-07)
 
 - **A walk owed no longer blocks the next phase.** Mark a partial phase whose building is done and whose rest is a walk or time (a run on GitHub, your read, a week of nights) with `owes: walk` in its front matter: phases that depend on it can proceed, `keel next` and `/conduct <N>` treat it as done, the roadmap shows "partial, walk owed", and the night doesn't count it as stuck. It is refused while any box that could still be built is unchecked, so built still means proven.
