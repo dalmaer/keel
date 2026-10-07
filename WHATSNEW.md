@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.18 — practice 0.8.18 (2026-10-07)
+
+- **Choose the agent per pass.** `"agents": {"claude": {}, "codex": {}}` in `.keel/keel.json`, and `"agent": "codex"` on `crossReview` to have Codex review (default `claude`: nothing changes unless you say so). Codex runs through `openai/codex-action@v1` in a read-only sandbox with sudo dropped and no GitHub token; it needs an `OPENAI_API_KEY` secret and is billed per token to that API account. Climb and tend stay Claude-only for now: Codex's writable sandbox keeps `.git` read-only, so it cannot commit.
+- **Review findings are posted by keel, not the agent.** The reviewer ends with its findings as JSON; keel checks each against the PR's diff and posts them as one comment review. No agent holds a comment tool any more. The comments now come from `github-actions[bot]`.
+- **The walk-owed check** counts any command in a box as work (except a `gh …` check), and a retired goal owes no walk.
+
 ## v0.8.17 — practice 0.8.17 (2026-10-07)
 
 - **The walk-owed rules are tighter:** `owes: walk` needs an unchecked "⚑ by hand" (or `gh …`) box to name the walk; a box with a build or test command in it is still work, even beside "⚑ by hand"; the conductor's dependency gate treats a walk owed as done, like `keel next`; and the roadmap counts walks owed under live goals only.
