@@ -15,11 +15,13 @@
 #     (ledger#92). `agent` runs it with a token that can only read: checkout
 #     keeps no credential, and claude-code-action is given that token, so it
 #     never trades for its app's. Its commits leave as a git bundle. `judge`
-#     (read-only too, no agent) takes them on a fresh checkout of the run's
-#     commit: climb.mjs sandbox first (no workflow, scripts/keel/ or
-#     .keel/keel.json changed, so the scripts that judge are the default
-#     branch's), then the gate and no test dropped (climb.mjs guard). Its
-#     gate runs the agent's code, so it holds no write either. `publish`
+#     (read-only too, no agent) installs on a fresh checkout of the run's
+#     commit (the setup token's only step), then takes them: climb.mjs
+#     sandbox first (no workflow, scripts/keel/, .keel/keel.json or install
+#     file changed, so the scripts that judge are the default branch's), then
+#     the gate and no test dropped (climb.mjs guard), from the run's commit,
+#     never the base the night's record names. Its gate runs the agent's
+#     code, with no setup token, so it holds no write either. `publish`
 #     holds the write token, runs no code of the branch's, checks the sandbox
 #     again, and opens one PR on refs/heads/keel-climb/<job>/<date>, never
 #     main, never merged here. A night that keeps nothing opens nothing.
@@ -342,11 +344,13 @@ jobs:
           retention-days: 7
 
   # The judge: no agent, and a token that reads. A fresh checkout of the
-  # run's commit takes the agent's commits only after climb.mjs sandbox (this
-  # checkout's copy, the default branch's) says they change no workflow, no
-  # scripts/keel/ and no .keel/keel.json, so every script below and the
-  # config the install reads are the default branch's. The gate runs the
-  # agent's code, which is why this job cannot write either.
+  # run's commit installs first (the setup token's only step), then takes the
+  # agent's commits only after climb.mjs sandbox (this checkout's copy, the
+  # default branch's) says they change no workflow, no scripts/keel/, no
+  # .keel/keel.json and no install file, so every script below, the config
+  # and what was installed are the default branch's, and nothing of the
+  # agent's ran where the setup token was. The gate runs the agent's code,
+  # with no setup token, which is why this job cannot write either.
   judge:
     needs: agent
     if: needs.agent.outputs.job != ''
@@ -363,30 +367,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: keel-climb-agent
-          path: ${{ runner.temp }}/handoff
-      - name: Take the night's commits
-        env:
-          BRANCH: ${{ needs.agent.outputs.branch }}
-        run: |
-          in="$RUNNER_TEMP/handoff"
-          head="$GITHUB_SHA"
-          if [ -f "$in/night.bundle" ]; then
-            git fetch -q "$in/night.bundle" "refs/heads/$BRANCH"
-            head=$(git rev-parse FETCH_HEAD)
-          fi
-          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
-          git config user.name "keel-climb"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -q -c "$BRANCH" "$head"
-          # The night's record and the ledger, as data: nothing else of the agent's tree.
-          mkdir -p .keel/climb .keel/test-runs
-          for f in night.json .gitignore; do
-            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/climb/; fi
-          done
-          if [ -d "$in/test-runs" ]; then cp -R "$in/test-runs/." .keel/test-runs/; fi
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -415,7 +395,11 @@ jobs:
             if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
           '
       - name: Install
-        # As the agent job's: setupToken becomes GH_TOKEN here and in no other step.
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other
+        # step. It runs on the run's own commit, before the agent's commits are
+        # taken: no code of theirs (a preinstall script, a changed lockfile)
+        # ever runs where the setup token is, and the sandbox below refuses
+        # an install file changed, so what is installed is what they run on.
         env:
           SETUP: ${{ steps.config.outputs.setup }}
           GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
@@ -427,6 +411,31 @@ jobs:
             npm ci
           fi
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: keel-climb-agent
+          path: ${{ runner.temp }}/handoff
+      - name: Take the night's commits
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+        run: |
+          in="$RUNNER_TEMP/handoff"
+          head="$GITHUB_SHA"
+          if [ -f "$in/night.bundle" ]; then
+            git fetch -q "$in/night.bundle" "refs/heads/$BRANCH"
+            head=$(git rev-parse FETCH_HEAD)
+          fi
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          git config user.name "keel-climb"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH" "$head"
+          # The night's record and the ledger, as data: nothing else of the agent's tree.
+          mkdir -p .keel/climb .keel/test-runs
+          for f in night.json .gitignore; do
+            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/climb/; fi
+          done
+          if [ -d "$in/test-runs" ]; then cp -R "$in/test-runs/." .keel/test-runs/; fi
+
       # Judged by the script, not the agent: drop anything no compare kept,
       # run the gate and check no test was dropped (red if either fails), the
       # night's base against its end, then the PR body and the night's line.
@@ -436,10 +445,12 @@ jobs:
           JOB: ${{ needs.agent.outputs.job }}
           DAY: ${{ needs.agent.outputs.day }}
         run: |
-          node scripts/keel/climb.mjs settle
-          node scripts/keel/climb.mjs guard
-          node scripts/keel/climb.mjs compare --final
-          node scripts/keel/climb.mjs report --state --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --json > "$RUNNER_TEMP/report.json"
+          # The base is the run's commit, never the record's (the agent wrote
+          # the record): a night naming another base is refused.
+          node scripts/keel/climb.mjs settle --base "$GITHUB_SHA"
+          node scripts/keel/climb.mjs guard --base "$GITHUB_SHA"
+          node scripts/keel/climb.mjs compare --final --base "$GITHUB_SHA"
+          node scripts/keel/climb.mjs report --state --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --base "$GITHUB_SHA" --json > "$RUNNER_TEMP/report.json"
           node -e '
             const fs = require("fs");
             const [file, out, summary, title] = process.argv.slice(1);

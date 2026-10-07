@@ -30,7 +30,8 @@ PR are the script's:
 - `measure <job> [--baseline]` is the job's number: median and spread over k
   runs. `--baseline` opens the night's record (`.keel/climb/night.json`).
 - `compare` runs base and candidate alternately, in worktrees outside the
-  repo, for two rounds or more, and keeps a change only when it beats the
+  repo (each sharing the tree's installs: the root's `node_modules` and each
+  app or workspace folder's own, as `web/`'s), for two rounds or more, and keeps a change only when it beats the
   base by the margin in every round. `--decide` acts on it: the numbers go
   into the commit, or the branch resets to the base.
 - `prove-steady --test "<file>: <name>" [--runs n] [--decide]` judges a
@@ -39,7 +40,9 @@ PR are the script's:
   A name that matches no test is exit 2, never a pass.
 - `guard` runs the project's gate and, with the night's test ledger
   (`scripts/keel/test-ledger.mjs`), checks that every test the base ran
-  still ran: none dropped, none skipped. Then the job's own guard:
+  still ran: none dropped, none skipped. Each side is every record of its
+  commit, not the newest: a gate that runs several suites (the root's, then
+  `web/`'s) records one per suite. Then the job's own guard:
   `hygiene` refuses a diff that, in the flaky test's file, only changes a
   timeout or adds a retry, naming the line (a fix that also changes other
   lines passes, with a note for the person); `build-time` builds base and
@@ -53,9 +56,18 @@ PR are the script's:
   or a decided finding changed. Deciding is the owner's.
 - `sandbox --base r --head r` checks the agent's commits with git alone:
   `head` is on top of `base`, and no commit changes `.github/`,
-  `scripts/keel/` or `.keel/keel.json`. Every guard (the tend guard too)
-  runs it first; the workflows' judge and publish jobs run it before they
-  take the commits or push them.
+  `scripts/keel/` or `.keel/keel.json`, nor an install file at any depth (a
+  lockfile, `npm-shrinkwrap.json`, `.npmrc`, yarn's or pnpm's, or a
+  `package.json` beyond its `scripts`, and never its install scripts such
+  as `preinstall`; a climb may change the command it times, never what is
+  installed). Every guard (the tend guard too) runs it first; the
+  workflows' judge and publish jobs run it before they take the commits or
+  push them.
+- The judge passes `--base "$GITHUB_SHA"` (the run's commit) to `settle`,
+  `guard`, `compare --final`, `report` and `tend-report`: the night's or the
+  pass's record comes back from the agent's job, so a record naming any
+  other base is refused, and every commit since the run's is guarded. Without
+  `--base`, a person's own run keeps the record's base.
 - `distill [--json]` is a lessons night's worksheet: the project's own
   table (`.keel/keel.json` `lessons`, default `docs/lessons.md`), each row
   with its provenance and family, the families the owner accepted, the open
@@ -91,11 +103,13 @@ The agent holds no credential that can write (both workflows). The run is
 three jobs: `agent` (contents and pull requests read, checkout keeps no
 credential, and `claude-code-action` is handed that read-only token, so it
 never trades OIDC for its app's token; no `id-token`), whose commits leave
-as a git bundle; `judge` (contents read, no agent), which runs
-`climb.mjs sandbox` from a fresh checkout before taking them (a branch that
-changes `.github/`, `scripts/keel/` or `.keel/keel.json` is refused, so the
-scripts that judge and the config the install reads are the default
-branch's), then the guard and the gate; and `publish` (contents and pull
+as a git bundle; `judge` (contents read, no agent), which installs on a
+fresh checkout of the run's commit first (the only step `setupToken`
+reaches), then runs `climb.mjs sandbox` before taking them (a branch that
+changes `.github/`, `scripts/keel/`, `.keel/keel.json` or an install file is
+refused, so the scripts that judge, the config and what was installed are
+the default branch's, and nothing of the agent's runs where the setup token
+is), then the guard and the gate, with no setup token; and `publish` (contents and pull
 requests write, `issues: write` for hygiene), which runs nothing of the
 branch's, checks the sandbox again and pushes. The guards refuse the same
 paths. Each job uploads its handoff (`keel-climb-agent`,

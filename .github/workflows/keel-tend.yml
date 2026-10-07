@@ -16,8 +16,10 @@
 #     (checkout keeps no credential; claude-code-action is given that token,
 #     so it never trades for its app's); its commits leave as a git bundle.
 #   - `judge` (read-only, no agent), on a fresh checkout of the run's commit:
-#     climb.mjs sandbox first (no workflow, scripts/keel/ or .keel/keel.json
-#     changed), then the tend guard (no evidence written, no status marked
+#     the install first (the setup token's only step, before any commit of
+#     the agent's is there), climb.mjs sandbox (no workflow, scripts/keel/,
+#     .keel/keel.json or install file changed), then the tend guard over the
+#     run's commit to the head, never the base the agent's record names (no evidence written, no status marked
 #     built, lived-in or accepted, no acceptance box ticked, nothing deleted,
 #     every commit citing its finding, nothing outside its surfaces) and
 #     the gate. `publish` holds the write token, runs no code of the
@@ -245,11 +247,13 @@ jobs:
           retention-days: 7
 
   # The judge: no agent, and a token that reads. A fresh checkout of the
-  # run's commit takes the agent's commits only after climb.mjs sandbox (this
-  # checkout's copy, the default branch's) says they change no workflow, no
-  # scripts/keel/ and no .keel/keel.json, so every script below and the
-  # config the install reads are the default branch's. The gate runs the
-  # agent's code, which is why this job cannot write either.
+  # run's commit installs first (the setup token's only step), then takes the
+  # agent's commits only after climb.mjs sandbox (this checkout's copy, the
+  # default branch's) says they change no workflow, no scripts/keel/, no
+  # .keel/keel.json and no install file, so every script below, the config
+  # and what was installed are the default branch's, and nothing of the
+  # agent's ran where the setup token was. The gate runs the agent's code,
+  # with no setup token, which is why this job cannot write either.
   judge:
     needs: agent
     if: needs.agent.outputs.run == 'yes'
@@ -265,30 +269,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: keel-tend-agent
-          path: ${{ runner.temp }}/handoff
-      - name: Take the pass's commits
-        env:
-          BRANCH: ${{ needs.agent.outputs.branch }}
-        run: |
-          in="$RUNNER_TEMP/handoff"
-          head="$GITHUB_SHA"
-          if [ -f "$in/pass.bundle" ]; then
-            git fetch -q "$in/pass.bundle" "refs/heads/$BRANCH"
-            head=$(git rev-parse FETCH_HEAD)
-          fi
-          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
-          # The judge's own commit (the owner's page of proposals) is keel-tend's.
-          git config user.name "keel-tend"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -q -c "$BRANCH" "$head"
-          # The pass's record, as data: nothing else of the agent's tree.
-          mkdir -p .keel/tend
-          for f in pass.json .gitignore; do
-            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/tend/; fi
-          done
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -317,7 +297,11 @@ jobs:
             if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
           '
       - name: Install
-        # As the agent job's: setupToken becomes GH_TOKEN here and in no other step.
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other
+        # step. It runs on the run's own commit, before the agent's commits are
+        # taken: no code of theirs (a preinstall script, a changed lockfile)
+        # ever runs where the setup token is, and the sandbox below refuses
+        # an install file changed, so what is installed is what they run on.
         env:
           SETUP: ${{ steps.config.outputs.setup }}
           GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
@@ -329,6 +313,30 @@ jobs:
             npm ci
           fi
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: keel-tend-agent
+          path: ${{ runner.temp }}/handoff
+      - name: Take the pass's commits
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+        run: |
+          in="$RUNNER_TEMP/handoff"
+          head="$GITHUB_SHA"
+          if [ -f "$in/pass.bundle" ]; then
+            git fetch -q "$in/pass.bundle" "refs/heads/$BRANCH"
+            head=$(git rev-parse FETCH_HEAD)
+          fi
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          # The judge's own commit (the owner's page of proposals) is keel-tend's.
+          git config user.name "keel-tend"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH" "$head"
+          # The pass's record, as data: nothing else of the agent's tree.
+          mkdir -p .keel/tend
+          for f in pass.json .gitignore; do
+            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/tend/; fi
+          done
 
       # Judged by the script, not the agent: anything uncommitted goes; the
       # tend guard and the gate (red if either fails); then the measures again
@@ -339,8 +347,10 @@ jobs:
         run: |
           git reset -q --hard HEAD
           git clean -q -fd
-          node scripts/keel/climb.mjs guard --job tend
-          node scripts/keel/climb.mjs tend-report --body "$RUNNER_TEMP/body.md" --json > "$RUNNER_TEMP/report.json"
+          # The base is the run's commit, never the record's (the agent wrote
+          # the record): a pass naming another base is refused.
+          node scripts/keel/climb.mjs guard --job tend --base "$GITHUB_SHA"
+          node scripts/keel/climb.mjs tend-report --body "$RUNNER_TEMP/body.md" --base "$GITHUB_SHA" --json > "$RUNNER_TEMP/report.json"
           node -e '
             const fs = require("fs");
             const [file, out, summary] = process.argv.slice(1);

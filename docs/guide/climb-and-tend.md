@@ -137,8 +137,12 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 - The agent cannot write to the repo even if a brief or a finding talks it
   into trying: it runs in a job whose token only reads, and its commits are
   judged in a second read-only job and pushed by a third that runs none of
-  the branch's code. A branch that changes `.github/`, `scripts/keel/` or
-  `.keel/keel.json` is refused before anything runs.
+  the branch's code. A branch that changes `.github/`, `scripts/keel/`,
+  `.keel/keel.json`, a lockfile, `.npmrc` or a `package.json` beyond its
+  scripts is refused before anything runs. The judge installs (with your
+  `setupToken`) on the run's own commit before it takes the agent's
+  commits, so none of their code ever runs with that token, and it guards
+  from the run's commit, never from the base the agent's record names.
 - Tend never writes or edits evidence, never sets a status to built,
   lived-in or accepted, never ticks an acceptance box, never deletes a
   file and never changes anything but records and agent-facing text

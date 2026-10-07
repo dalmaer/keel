@@ -692,7 +692,7 @@ test('keel-climb.yml: the agent cannot push or merge, is time-boxed by the budge
     ['any loop verb allowed', t.replace('Bash(node scripts/loop.mjs propose *)', 'Bash(node scripts/loop.mjs *)')],
     ['climb.mjs not allowed', t.replace('Bash(node scripts/keel/climb.mjs *),', '')],
     ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.pick\.outputs\.minutes\) \}\}/, '')],
-    ['no guard', t.replace('          node scripts/keel/climb.mjs guard\n', '')],
+    ['no guard', t.replace('          node scripts/keel/climb.mjs guard --base "$GITHUB_SHA"\n', '')],
     ['a push whatever was kept', t.replace('if [ "$KEPT" = 0 ] || [ -z "$KEPT" ]; then', 'if false; then')],
     ['climb off said late', t.replace('      - name: Is climb on?\n', '      - name: Acme first\n        run: true\n      - name: Is climb on?\n')],
   ]) {
@@ -803,6 +803,19 @@ export function agentSandboxProblems(text) {
     if (/:\s*write/.test(/\n {4}permissions:\n((?: {6}.*\n)+)/.exec(judge.text)?.[1] ?? 'none: write')) out.push('the judge may write: it runs the agent\'s code (the gate)');
     if (at('climb.mjs sandbox') < 0 || at('git switch -q -c "$BRANCH" "$head"') < 0 || at('climb.mjs sandbox') > at('git switch -q -c "$BRANCH" "$head"')) out.push('the judge takes the agent\'s commits before climb.mjs sandbox has checked them');
     if (!/\n {10}persist-credentials: false\n/.test(judge.text)) out.push('the judge\'s checkout keeps the token in git');
+    // ledger#92: no code of the agent's runs where the setup token is. The
+    // install (its only step) runs on the run's commit, before the bundle is
+    // fetched or switched to; the gate runs after, with no setup token.
+    const lines = code(judge.text);
+    const taken = lines.findIndex(l => /git fetch -q "\$in\/\w+\.bundle"|git switch -q -c "\$BRANCH" "\$head"/.test(l.line));
+    const token = lines.map((l, i) => /secrets\[|outputs\.setup_token|\bSETUP\b/.test(l.line) ? i : -1).filter(i => i >= 0);
+    if (taken < 0) out.push('the judge never takes the agent\'s commits');
+    else if (!token.length || token.some(i => i > taken)) out.push('the judge installs (with the setup token) after it takes the agent\'s commits: their preinstall or lockfile would run with the token');
+    // ledger#92: the judge's base is the run's commit, never the record's (the agent wrote it).
+    for (const { line } of lines) {
+      const verb = /node scripts\/keel\/climb\.mjs (settle|guard|compare --final|report|tend-report)\b/.exec(line)?.[1];
+      if (verb && !/ --base "\$GITHUB_SHA"(?: |$)/.test(line)) out.push(`the judge's climb.mjs ${verb} trusts the record's base: pass --base "$GITHUB_SHA"`);
+    }
   }
   return out;
 }
@@ -830,6 +843,10 @@ test('ledger#92: the climb and tend agents hold no credential that can write; a 
       ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n')],
       ['the judge may write', t.replace('  judge:\n', '  judge:\n').replace(/(\n  judge:\n[\s\S]*?\n {4}permissions:\n {6}contents: )read/, '$1write')],
       ['the judge takes the commits unchecked', t.replace(/(\n  judge:\n[\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n')],
+      // The install moved back after the take, as it was before ledger#92's review: a preinstall runs with the token.
+      ['the judge installs on the agent\'s commits', t.replace(/(\n  judge:\n[\s\S]*?)(\n {6}- name: Install\n[\s\S]*?\n {10}fi\n)([\s\S]*?\n {6}- name: Take the [^\n]*\n[\s\S]*?\n {10}done\n)/, '$1$3$2')],
+      ['the judge\'s guard trusts the record\'s base', t.replace(/(node scripts\/keel\/climb\.mjs guard(?: --job tend)?) --base "\$GITHUB_SHA"/, '$1')],
+      ['the judge\'s report trusts the record\'s base', t.replace(/(node scripts\/keel\/climb\.mjs (?:tend-)?report [^\n]*?) --base "\$GITHUB_SHA"/, '$1')],
     ]) {
       assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
       assert.ok(agentSandboxProblems(text).length, `${name} ${why}: expected a problem`);
@@ -904,7 +921,7 @@ test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge,
     ['gh allowed', t.replace(tools, `${tools},Bash(gh pr close *)`)],
     ['climb.mjs not allowed', t.replace('Bash(node scripts/keel/climb.mjs *),', '')],
     ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.pick\.outputs\.minutes\) \}\}/, '')],
-    ['no tend guard', t.replace('          node scripts/keel/climb.mjs guard --job tend\n', '')],
+    ['no tend guard', t.replace('          node scripts/keel/climb.mjs guard --job tend --base "$GITHUB_SHA"\n', '')],
     ['a push whatever was committed', t.replace('if [ "$COMMITS" = 0 ] || [ -z "$COMMITS" ]; then', 'if false; then')],
     ['a branch deleted', t.replace(push, `${push}\n          git push origin --delete refs/heads/keel-tend/old`)],
     ['a PR closed', t.replace(push, `${push}\n          gh pr close 3`)],

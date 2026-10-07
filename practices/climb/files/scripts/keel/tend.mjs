@@ -11,7 +11,7 @@
 //   tend-input [--record]           the worksheet: every record finding, or n/a with why
 //   tend-note --finding id --propose "…" | --tried "…"   what tend leaves to the owner
 //   guard --job tend [--base r]     the tend guard, then the gate
-//   tend-report [--body f]          the measures again on the branch, the owner's page
+//   tend-report [--body f] [--base r]  the measures again on the branch, the owner's page
 //                                   (docs/tend/<date>.md, when it proposed), the PR body, the line
 //
 // It never writes evidence, never marks built, lived-in or accepted, never
@@ -20,7 +20,7 @@
 import { readFile, writeFile, mkdir, readdir, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gateEnv, healthDirOf, cells } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
@@ -95,8 +95,56 @@ export function sandboxProblems(root, base, head) {
     const [, ...p] = l.split('\t');
     const path = p.join('\t');
     if (offLimit(path)) out.push(`${path}: changed on the agent's branch; ${OFF_LIMITS.join(', ')} are off limits to it (the workflows, keel's scripts that judge it, and the config that names the gate and the secrets)`);
+    else if (INSTALL_FILES.includes(basename(path))) out.push(`${path}: changed on the agent's branch; an install's own files (${INSTALL_FILES.join(', ')}) are off limits to it: the judge installs the base's, with the setup token, before it takes the agent's commits, and no dependency is added (ledger#92)`);
+    else if (basename(path) === 'package.json') {
+      const why = packageProblem(showAt(root, b, path), showAt(root, h, path));
+      if (why) out.push(`${path}: ${why}; the judge installs the base's dependencies, with the setup token, before it takes the agent's commits, and no dependency is added (ledger#92)`);
+    }
   }
   return out;
+}
+
+/**
+ * The files an install reads besides package.json, at any depth: lockfiles
+ * and the package manager's config. The agent's branch changes none of them.
+ */
+export const INSTALL_FILES = Object.freeze(['package-lock.json', 'npm-shrinkwrap.json', '.npmrc', 'yarn.lock', '.yarnrc', '.yarnrc.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb']);
+/** The scripts npm runs on an install (or a pack), never on `npm run <name>` alone. */
+export const INSTALL_SCRIPTS = Object.freeze(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare', 'prepack', 'postpack', 'prepublish', 'dependencies']);
+
+/**
+ * Why a package.json change is refused, or null. A climb night may change a
+ * script it runs (the test or build command is often the change that pays),
+ * so "scripts" may change but for the install's own; any other key (the
+ * dependencies, overrides, workspaces, engines) may not.
+ */
+export function packageProblem(before, after) {
+  let a, b;
+  try { b = before === null ? null : JSON.parse(before); a = after === null ? null : JSON.parse(after); }
+  catch { return 'not JSON on one side, so what it installs cannot be told'; }
+  if (b === null || a === null) return b === null ? 'added on the agent\'s branch' : 'deleted on the agent\'s branch';
+  const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(k => k !== 'scripts' && JSON.stringify(b[k]) !== JSON.stringify(a[k]));
+  if (keys.length) return `changes ${keys.map(k => `"${k}"`).join(', ')}; only "scripts" may change`;
+  const s = [b.scripts ?? {}, a.scripts ?? {}];
+  const lifecycle = INSTALL_SCRIPTS.filter(k => s[0][k] !== s[1][k]);
+  if (lifecycle.length) return `changes the install script${lifecycle.length === 1 ? '' : 's'} ${lifecycle.map(k => `"${k}"`).join(', ')}`;
+  return null;
+}
+
+/**
+ * The base a judge trusts: the run's own commit (`given`, the workflow's
+ * $GITHUB_SHA), never the one the agent's record names. A record (the
+ * pass's or the night's) comes back from the agent's job, so the agent could
+ * name an intermediate commit and slip what came before it past the guard,
+ * while the bundle still carries it to the PR (ledger#92). With `given`, a
+ * record naming any other base is a problem; without it (a person's own run),
+ * the record's base stands. { base, problem }.
+ */
+export function recordBase(root, given, recorded, record) {
+  if (!given) return { base: recorded ?? null, problem: null };
+  const g = sha(root, given);
+  if (recorded === undefined || recorded === null || recorded === g) return { base: g, problem: null };
+  return { base: g, problem: `${record} names its base ${String(recorded).slice(0, 12)}, not the run's commit ${g.slice(0, 7)} (--base): a record's base is the agent's to write, so the judge trusts only the run's, and every commit since it is guarded` };
 }
 
 /**
@@ -394,7 +442,9 @@ export function tendCheck(root, base, head, { findings = null } = {}) {
 /** guard --job tend: the tend guard, then the project's gate. { ok, problems, line? }. */
 export async function tendGuard({ root, config, env = process.env, base, check = 'npm run check' }) {
   const pass = await readPass(root);
-  base ??= pass?.base;
+  const trusted = recordBase(root, base, pass?.base, PASS);
+  if (trusted.problem) return { ok: false, job: 'tend', refused: [trusted.problem], problems: [trusted.problem] };
+  base = trusted.base;
   if (!base) throw new TendError('guard --job tend needs --base <ref> (or an open pass: tend-input --record)');
   const head = sha(root, 'HEAD'), b = sha(root, base);
   if (head === b) return { ok: true, skipped: true, line: 'nothing changed: HEAD is the base, so there is nothing to guard', problems: [] };
@@ -538,9 +588,12 @@ export function proposalsPage(pass, proposed) {
   ].join('\n');
 }
 
-export async function tendReport({ root, config, env = process.env, body, input }) {
+export async function tendReport({ root, config, env = process.env, body, input, base }) {
   const pass = await readPass(root, input);
   if (!pass) throw new TendError(`no pass record at ${input ?? PASS}`);
+  const trusted = recordBase(root, base, pass.base, input ?? PASS);
+  if (trusted.problem) throw new TendError(trusted.problem);
+  pass.base = trusted.base;
   const changed = () => git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
   let commits = tendCommits(root, pass.base);
   const proposing = (pass.notes ?? []).some(n => n.kind === 'proposed');

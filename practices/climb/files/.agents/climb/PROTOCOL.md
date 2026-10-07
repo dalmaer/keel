@@ -35,7 +35,9 @@ numbers go in the message, and `compare --decide` writes them there for you.
    the build's output byte-identical, or a `harmless` reason per changed
    path). If it fails, run
    `node scripts/keel/climb.mjs revert --why "<what failed>"`. No output,
-   exit code or file format changes; no dependency is added.
+   exit code or file format changes; no dependency is added (the sandbox
+   refuses a lockfile, `.npmrc` or a `package.json` change beyond its
+   `scripts`, and any install script).
 5. **Bounded.** Stop when `compare` or `revert` prints `stop` (the attempt
    limit, or three misses in a row), or when the budget is nearly spent. A
    change you have not decided when time runs out is dropped, not kept.

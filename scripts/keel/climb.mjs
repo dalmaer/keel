@@ -10,13 +10,16 @@
 //                                   (f: the last night's night.json, from its keel-climb record)
 //   node scripts/keel/climb.mjs measure <job> [--runs k] [--baseline]
 //   node scripts/keel/climb.mjs compare [--base r] [--candidate r] [--rounds n] [--runs k] [--decide] [--final]
+//                                   (--final --base r: the run's commit, and the night's record must name it)
 //   node scripts/keel/climb.mjs revert --why "<why>"        drop HEAD's change, logged
-//   node scripts/keel/climb.mjs settle                      drop what no compare kept
+//   node scripts/keel/climb.mjs settle [--base r]           drop what no compare kept
 //   node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" [--runs n] [--decide]
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
-//   node scripts/keel/climb.mjs sandbox --base r --head r     the agent's commits change no workflow, keel script or config (git only)
-//   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f]
+//   node scripts/keel/climb.mjs sandbox --base r --head r     the agent's commits change no workflow, keel script, config or install file (git only)
+//   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f] [--base r]
+//   (a judge passes --base, the run's commit, to settle, guard, compare --final and report: a
+//   night's record naming any other base is refused, since the agent wrote it)
 //   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
 //   node scripts/keel/climb.mjs distill [propose --kind family|reword|standardise … --read "…"]   (lessons)
 //   node scripts/keel/climb.mjs loop-pull                   Loop's pull for a loop night (loop)
@@ -77,7 +80,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS, sandboxProblems, OFF_LIMITS } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -503,10 +506,41 @@ export async function proposalsNow(root, config, job) {
 
 // ---- compare -------------------------------------------------------------------
 
+/**
+ * The folders whose own install counts beside the root's: the usual app
+ * folders, and the root's workspaces (`dir/*` read one level). The same rule
+ * as keel's lib/stacks.mjs packageDirs and the night's improve.mjs; climb
+ * ships beside neither as a module it imports, so it reads them itself.
+ * Relative, existing directories only.
+ */
+export const APP_DIRS = Object.freeze(['web', 'app', 'client', 'frontend']);
+export async function packageDirs(root) {
+  const dirs = new Set(APP_DIRS);
+  const pkg = await readJson(join(root, 'package.json')).catch(() => null);
+  const ws = Array.isArray(pkg?.workspaces) ? pkg.workspaces : Array.isArray(pkg?.workspaces?.packages) ? pkg.workspaces.packages : [];
+  for (const w of ws) {
+    if (typeof w !== 'string') continue;
+    const star = /^([\w.-]+(?:\/[\w.-]+)*)\/\*$/.exec(w);
+    if (star) {
+      const names = await readdir(join(root, star[1]), { withFileTypes: true }).catch(() => []);
+      for (const e of names) if (e.isDirectory()) dirs.add(`${star[1]}/${e.name}`);
+    } else if (/^[\w.-]+(\/[\w.-]+)*$/.test(w)) dirs.add(w);
+  }
+  const out = [];
+  for (const d of dirs) if (!d.split('/').includes('..') && (await stat(join(root, d)).catch(() => null))?.isDirectory()) out.push(d);
+  return out;
+}
+
 async function worktree(root, dir, ref) {
   git(root, ['worktree', 'add', '--detach', '--quiet', dir, ref]);
-  // The candidate adds no dependency (protocol rule 4), so both sides share the root's install.
-  if (existsSync(join(root, 'node_modules')) && !existsSync(join(dir, 'node_modules'))) await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
+  // The candidate adds no dependency (protocol rule 4; the sandbox refuses an
+  // install file), so both sides share the tree's installs: the root's and
+  // each app or workspace folder's own (ledger's web/node_modules, from
+  // `npm ci --prefix web`), where the worktree has that folder.
+  for (const d of ['.', ...await packageDirs(root)]) {
+    const from = join(root, d, 'node_modules'), to = join(dir, d, 'node_modules');
+    if (existsSync(from) && existsSync(join(dir, d)) && !existsSync(to)) await symlink(from, to, 'dir');
+  }
 }
 
 /**
@@ -578,7 +612,11 @@ export async function compare({ root, config, env, base, candidate = 'HEAD', rou
     if (JOBS[job]?.kind === 'proposals') throw new ClimbError(`${job} writes proposals and changes no code: nothing to compare; guard judges what it wrote`);
     throw new ClimbError(`${job} is judged by prove-steady, not by timing: node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" --decide`);
   }
-  if (final) { base ??= night.base; candidate = 'HEAD'; }
+  if (final) {
+    const trusted = recordBase(root, base, night.base, NIGHT);
+    if (trusted.problem) throw new ClimbError(trusted.problem);
+    base = trusted.base; candidate = 'HEAD';
+  }
   base ??= 'HEAD~1';
   const res = await compareRefs({ root, config, env, base, candidate, rounds, runs, margin: c.margin, job });
   const subject = what ?? git(root, ['log', '-1', '--format=%s', res.candidate]);
@@ -628,10 +666,13 @@ export async function revert({ root, config, why, what }) {
 }
 
 /** The last decided state: the newest kept change, or the night's base. Everything after it (an undecided commit, a half-made edit) goes. */
-export async function settle({ root, config }) {
+export async function settle({ root, config, base }) {
   on(config);
   const night = await readNight(root);
   if (!night) throw new ClimbError(`no night is open (${NIGHT})`);
+  const trusted = recordBase(root, base, night.base, NIGHT);
+  if (trusted.problem) throw new ClimbError(trusted.problem);
+  night.base = trusted.base;
   const head = sha(root, 'HEAD');
   const dirty = git(root, ['status', '--porcelain']);
   if (JOBS[night.job]?.kind === 'proposals') {
@@ -1144,12 +1185,30 @@ export function missingTests(base, candidate) {
   return out;
 }
 
-const newestFor = (runs, commit) => runs.filter(r => r.commit === commit).at(-1) ?? null;
+/**
+ * Every test the ledger saw run on `commit`, as one record, or null. A gate
+ * records a run per suite it runs (ledger's check:all: the root's, then
+ * web's), each its own lane; the newest alone would be one suite. A test is
+ * keyed by its root-relative file and name, so suites never collide, and it
+ * counts as run when any record of the commit ran it.
+ */
+export function ranOn(runs, commit) {
+  const mine = runs.filter(r => r.commit === commit);
+  if (!mine.length) return null;
+  const tests = new Map();
+  for (const r of mine) for (const t of r.tests ?? []) {
+    const had = tests.get(key(t));
+    if (!had || (!ran(had) && ran(t))) tests.set(key(t), t);
+  }
+  return { commit, runs: mine.length, tests: [...tests.values()] };
+}
 
 export async function guard({ root, config, env = process.env, base, job }) {
   on(config);
   const night = await readNight(root);
-  base ??= night?.base;
+  const trusted = recordBase(root, base, night?.base, NIGHT);
+  if (trusted.problem) return { ok: false, job: job ?? night?.job, refused: [trusted.problem], problems: [trusted.problem] };
+  base = trusted.base;
   job ??= night?.job;
   if (!base) throw new ClimbError('guard needs --base <ref> (or an open night)');
   if (job !== undefined && !Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
@@ -1190,9 +1249,9 @@ export async function guard({ root, config, env = process.env, base, job }) {
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
-  const cand = newestFor((await readRuns(root)).runs, head);
+  const cand = ranOn((await readRuns(root)).runs, head);
   if (!cand) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for ${head.slice(0, 7)}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
-  let baseRun = newestFor((await readRuns(root)).runs, b);
+  let baseRun = ranOn((await readRuns(root)).runs, b);
   if (!baseRun) {
     // The base's names, from its own run of the test command, in a worktree outside the tree.
     const tmp = await mkdtemp(join(tmpdir(), 'keel-climb-guard-'));
@@ -1202,7 +1261,7 @@ export async function guard({ root, config, env = process.env, base, job }) {
       const command = JOBS['test-time'].command(config);
       const t = spawnSync(command, { cwd: dir, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
       if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s \`${command}\` did not pass (exit ${t.status}); guard has no base to compare against`);
-      baseRun = newestFor((await readRuns(dir)).runs, b);
+      baseRun = ranOn((await readRuns(dir)).runs, b);
     } finally {
       git(root, ['worktree', 'remove', '--force', dir], { allowFail: true });
       git(root, ['worktree', 'prune'], { allowFail: true });
@@ -1414,10 +1473,13 @@ export function issueOf(night, { minutes = 0 } = {}) {
   return { title, body };
 }
 
-export async function report({ root, config, input, body, state = false, issue }) {
+export async function report({ root, config, input, body, state = false, issue, base }) {
   on(config);
   const night = await readNight(root, input ? resolve(input) : undefined);
   if (!night) throw new ClimbError(`no night record at ${input ?? NIGHT}`);
+  const trusted = recordBase(root, base, night.base, input ?? NIGHT);
+  if (trusted.problem) throw new ClimbError(trusted.problem);
+  night.base = trusted.base;
   const files = git(root, ['diff', '--name-only', night.base, 'HEAD']).split('\n').filter(Boolean);
   const pkg = await readJson(join(root, 'package.json')).catch(() => null);
   const proposals = JOBS[night.job]?.kind === 'proposals' ? await proposalsOf(root, night, config) : null;
@@ -1560,7 +1622,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: n, text: `${n.kind}: ${n.finding}: ${n.text}` };
     }
     case 'tend-report': {
-      const r = await tendReport({ ...ctx, body: o.body ? resolve(o.body) : undefined, input: o.input ? resolve(o.input) : undefined });
+      const r = await tendReport({ ...ctx, body: o.body ? resolve(o.body) : undefined, input: o.input ? resolve(o.input) : undefined, base: o.base });
       return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     case 'pick': {
@@ -1609,7 +1671,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: r, text: `reverted: ${r.what}: ${r.why}${r.stop ? `\nstop: ${r.stop}` : ''}` };
     }
     case 'settle': {
-      const r = await settle(ctx);
+      const r = await settle({ ...ctx, base: o.base });
       return { data: r, text: r.dropped ? `settled on ${r.head.slice(0, 7)}: dropped what no compare kept` : `settled: HEAD ${r.head.slice(0, 7)} is the last decision` };
     }
     case 'guard': {
@@ -1621,10 +1683,10 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       // The agent's commits, checked with git alone (no code of theirs runs): the publish job's check before it pushes.
       if (!o.base || !o.head) throw new ClimbError(`sandbox needs --base <ref> --head <ref>; ${USAGE}`);
       const problems = sandboxProblems(root, o.base, o.head);
-      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}`, exitCode: problems.length ? 1 : 0 };
+      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}, and no install file (${INSTALL_FILES.join(', ')}, or package.json but its scripts)`, exitCode: problems.length ? 1 : 0 };
     }
     case 'report': {
-      const r = await report({ ...ctx, input: o.input, body: o.body, state: o.state, issue: o.issue });
+      const r = await report({ ...ctx, input: o.input, body: o.body, state: o.state, issue: o.issue, base: o.base });
       return { data: { ...r, text: undefined }, text: [r.line, ...(r.issue ? [`issue to file: ${r.issue.title} (${r.issue.path})`] : []), ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     default: throw new ClimbError(o.verb ? `unknown subcommand ${o.verb}; ${USAGE}` : USAGE);
