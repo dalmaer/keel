@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.20 — practice 0.8.20 (2026-10-07)
+
+- **Cross-review refuses a prefix that matches a provider's branches and others** (`"claude"` also matches `claude-fix`): name the branch exactly (`claude/`) or use a prefix no provider shares.
+- **A self-review says exactly why:** no other provider is listed, or which listed provider is missing which secret.
+- **Both agents trust exactly the providers' bots**, never a wildcard: Claude can review its own bot-opened PR when it is the only option, and Codex a PR Claude's app opened.
+- **The walk check reads a lowercase multi-word command (`keel doctor`) as work.**
+
 ## v0.8.19 — practice 0.8.19 (2026-10-07)
 
 - **Cross-review picks the reviewer for each PR, and never the author while another is available.** The first provider you list in `"agents"` that did not write the PR and has its secret set reviews it: Claude reviews Codex's `codex/` PRs, Codex reviews Claude's `claude/` PRs. A provider reviews its own PR only when no other is available, and the run and the review say so. For a project using both: `"agents": {"claude": {}, "codex": {}}, "crossReview": {"for": ["codex/", "claude/"], "budget": {"minutes": 15}}`.
