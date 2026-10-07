@@ -4,7 +4,7 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [26, 32, 33, 35, 39]
-note: "Built and on for keel (weekly, 30 minutes): keel-tend.yml, tend.mjs, the tend guard, the Tend line. The first pass opened keel#22; it missed phase 35's stale next action and leaked a runner path into its loose-ends text. Waits on the owner merging or closing #22, and one adopted project's pass."
+note: "Built and on for keel (weekly, 30 minutes): keel-tend.yml, tend.mjs, the tend guard, the Tend line. Its first pass, keel#22, was read and closed with a reason (its one change was right and already landed in 7263b36; its runner-path leak fixed in 2c6e105). Waits on one adopted project's pass and the night after it."
 evidence: ["evidence/2026-10-06-tend.md"]
 issue: 16
 ---
@@ -67,10 +67,11 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Next action
 
-⚑ Owner: read keel#22 and merge or close it with a reason; then the next night's record findings are checked against it. An adopted project's tend comes with its climb config (phase 37).
+⚑ Owner: tend for an adopted project (ledger: `"tend": {"schedule": "weekly", "budget": {"minutes": 30}}` with its CLAUDE_CODE_OAUTH_TOKEN, up to 30 agent-minutes a week); read its first PR, then check the next night's record findings against it.
 
 ## Trajectory
 
 - **2026-10-06** — Built while phases 32, 33, 35 and 39 were partial: each waits only on an adopted project's update at the fleet release, and every capability tend reads exists.
 - **2026-10-06** — Tend is its own workflow (keel-tend.yml, `keel-tend/`), not a climb job, so a person sees and runs each pass on its own; the code lives in the climb practice, which it shares rights and budget with.
 - **2026-10-06** — On keel itself the first worksheet found no record findings (every record measure 0); its loose ends were this session's uncommitted files, two ⚑ phases and seven repos missing from fleet.json.
+- **2026-10-07** — keel's first tend PR (#22) was read and closed with a reason, on the owner's "merge what's valid": its one edit, phase 38's stale next action, was right but had already landed (7263b36). It missed phase 35's equally stale next action, and leaked the runner's checkout path into its loose ends (fixed in 2c6e105).
