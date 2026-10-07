@@ -104,9 +104,9 @@ test('config: unknown keys, an empty prefix list and a budget outside 5-60 minut
   const m = await load(t);
   assert.deepEqual(m.crossReviewProblems({}), [], 'no key: off, not an error');
   assert.equal(m.crossReviewConfigOf({}), null);
-  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/'] } }), { for: ['codex/'], minutes: 15, agent: 'claude' });
-  assert.deepEqual(m.crossReviewConfigOf({ crossReview: ON }), { for: ['codex/'], minutes: 15, agent: 'claude' });
-  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/', 'gemini/'], budget: { minutes: 60 } } }), { for: ['codex/', 'gemini/'], minutes: 60, agent: 'claude' });
+  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/'] } }), { for: ['codex/'], minutes: 15, agent: 'claude', agents: ['claude'] });
+  assert.deepEqual(m.crossReviewConfigOf({ crossReview: ON }), { for: ['codex/'], minutes: 15, agent: 'claude', agents: ['claude'] });
+  assert.deepEqual(m.crossReviewConfigOf({ crossReview: { for: ['codex/', 'gemini/'], budget: { minutes: 60 } } }), { for: ['codex/', 'gemini/'], minutes: 60, agent: 'claude', agents: ['claude'] });
   const bad = [
     [{ for: ['codex/'], reviewers: ['acme'] }, /unknown key reviewers/],
     [{ for: [] }, /"crossReview"\.for must list one branch prefix or more/],
@@ -176,7 +176,7 @@ test('which: a matching same-repo branch is reviewed on opened, ready_for_review
     const r = review(pr('pull_request', { action }));
     assert.equal(r.review, true, action);
     assert.deepEqual([r.number, r.sha, r.minutes], [7, SHA, 15]);
-    assert.match(r.why, /^#7 on codex\/anvil-lid \(codex\/\), head aaaaaaa$/);
+    assert.match(r.why, /^#7 on codex\/anvil-lid \(codex\/\), head aaaaaaa; written by codex \(codex\/\): reviewed by claude, the first other provider "agents" lists$/);
   }
   for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) assert.equal(review(comment({ association })).review, true, association);
   assert.equal(review(comment({ body: '  /review please\n' })).review, true, 'the first word asks');
@@ -422,29 +422,45 @@ test('findings: valid ones become inline comments in one COMMENT review; a path 
   assert.equal(improve.CROSS_REVIEW_FINDING, m.FINDING_MARKER);
 });
 
-test('the workflow with Codex: no OPENAI_API_KEY is a notice and green; the brief points at the diff it wrote; the review posts its findings inline, or in its summary when GitHub refuses them', async t => {
-  const codex = { for: ['codex/'], budget: { minutes: 15 }, agent: 'codex' };
-  const dir = await acme(t, { crossReview: codex });
+test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex\'s; no secret for the reviewer is a notice and green; the brief points at the diff it wrote; the review posts its findings inline, or in its summary when GitHub refuses them', async t => {
+  const both = { for: ['codex/', 'claude/'], budget: { minutes: 15 } };
+  const dir = await acme(t, { crossReview: both });
   const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...config, agents: { claude: {}, codex: {} } }));
   const on = await step(t, dir, 'Is cross-review on?');
-  assert.deepEqual(on.outputs, { on: 'true', agent: 'codex' });
-  const unset = await step(t, dir, 'Configured?', { AGENT: 'codex', OAUTH: 'acme-token', API_KEY: '', OPENAI: '' });
-  assert.equal(unset.status, 0, unset.out);
-  assert.match(unset.out, /^::notice::Skipped: add the OPENAI_API_KEY secret for a cross-review by Codex to run\.$/m);
-  assert.equal(unset.outputs.enabled, 'false', 'Claude\'s secret does not run Codex');
-  assert.equal((await step(t, dir, 'Configured?', { AGENT: 'codex', OAUTH: '', API_KEY: '', OPENAI: 'acme-openai' })).outputs.enabled, 'true');
-  assert.equal((await step(t, dir, 'Configured?', { AGENT: 'claude', OAUTH: '', API_KEY: '', OPENAI: 'acme-openai' })).outputs.enabled, 'false', 'OpenAI\'s key does not run Claude');
+  assert.deepEqual(on.outputs, { on: 'true', agents: 'claude,codex' });
+  // Configured?: on when any listed provider has its secret; none, a notice and green.
+  const none = await step(t, dir, 'Configured?', { AGENTS: 'claude,codex', OAUTH: '', API_KEY: '', OPENAI: '' });
+  assert.equal(none.status, 0, none.out);
+  assert.match(none.out, /^::notice::Skipped: add a reviewer's secret for a cross-review to run: CLAUDE_CODE_OAUTH_TOKEN \(or ANTHROPIC_API_KEY\) for Claude, OPENAI_API_KEY for Codex\.$/m);
+  assert.equal(none.outputs.enabled, 'false');
+  assert.equal((await step(t, dir, 'Configured?', { AGENTS: 'claude,codex', OAUTH: '', API_KEY: '', OPENAI: 'acme-openai' })).outputs.enabled, 'true');
+  assert.equal((await step(t, dir, 'Configured?', { AGENTS: 'claude,codex', OAUTH: 'acme-token', API_KEY: '', OPENAI: '' })).outputs.enabled, 'true');
+  const codexOnly = await step(t, dir, 'Configured?', { AGENTS: 'codex', OAUTH: 'acme-token', API_KEY: '', OPENAI: '' });
+  assert.match(codexOnly.out, /^::notice::Skipped: add the OPENAI_API_KEY secret for a cross-review by Codex to run\.$/m);
+  assert.equal(codexOnly.outputs.enabled, 'false', 'Claude\'s secret does not run Codex');
+  assert.equal((await step(t, dir, 'Configured?', { AGENTS: 'claude', OAUTH: '', API_KEY: '', OPENAI: 'acme-openai' })).outputs.enabled, 'false', 'OpenAI\'s key does not run Claude');
 
-  // Which: the agent goes to the steps after it.
-  const pr = prJson();
+  // Which: Claude's PR (claude/) goes to Codex; its secret missing is a notice, no review.
+  const pr = prJson({ headRefName: 'claude/anvil-lid' });
   const gh = await stubGh(t, pr, { diff: DIFF, refuseInline: true });
   const temp = join(dir, 'runner');
   await mkdir(temp, { recursive: true });
   const env = { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils' };
-  const which = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened' });
+  const skipped = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'false' });
+  assert.equal(skipped.status, 0, skipped.out);
+  assert.equal(skipped.outputs.review, 'false');
+  assert.match(skipped.out, /^::notice::Skipped: #7 on claude\/anvil-lid is reviewed by Codex \(written by claude \(claude\/\): reviewed by codex, the first other provider "agents" lists\); add the OPENAI_API_KEY secret for it to run\.$/m);
+  const which = await step(t, dir, 'Which pull request?', { ...env, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'true' });
   assert.equal(which.status, 0, which.out);
   assert.equal(which.outputs.agent, 'codex');
+  assert.equal(which.outputs.author, 'claude');
+  // And Codex's PR (codex/) goes to Claude, in the same project.
+  const ghCodex = await stubGh(t, prJson(), { diff: DIFF });
+  await mkdir(join(temp, 'b'), { recursive: true });
+  const back = await step(t, dir, 'Which pull request?', { ...env, PATH: `${ghCodex.path}:${process.env.PATH}`, RUNNER_TEMP: join(temp, 'b'), EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'true' });
+  assert.equal(back.status, 0, back.out);
+  assert.deepEqual([back.outputs.agent, back.outputs.author], ['claude', 'codex']);
   // Brief: the diff, read before the agent, and a prompt that points Codex at it (no network in its sandbox).
   const brief = await step(t, dir, 'Brief', { ...env, AGENT: 'codex' });
   assert.equal(brief.status, 0, brief.out);

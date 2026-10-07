@@ -1,6 +1,6 @@
 {
   "name": "cross-review",
-  "summary": "An agent (Claude, or Codex: crossReview.agent) reviews the pull requests another model wrote (Codex's codex/ branches), the way Codex reviews Claude Code's: findings tagged P1/P2/P3, each validated against the code first, ending its summary as JSON that keel's own step checks against the diff and posts as inline comments in one COMMENT review; read-only, budgeted, never approves or merges.",
+  "summary": "A different provider reviews each pull request than the one that wrote it (Claude reviews Codex's codex/ PRs, Codex reviews Claude's claude/ PRs, chosen per PR from \"agents\"): findings tagged P1/P2/P3, each validated against the code first, ending its summary as JSON that keel's own step checks against the diff and posts as inline comments in one COMMENT review; read-only, budgeted, never approves or merges.",
   "optional": true,
   "requires": ["night"],
   "secrets": [

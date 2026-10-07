@@ -10,9 +10,14 @@ not.
 
 **The rule.** `.github/workflows/keel-cross-review.yml` runs an agent on a
 pull request whose head branch starts with a configured prefix, under the
-brief `.agents/cross-review/REVIEW.md`: Claude
-(`anthropics/claude-code-action`) by default, or Codex
-(`openai/codex-action`) when `"crossReview".agent` says so (keel phase 45):
+brief `.agents/cross-review/REVIEW.md`. **A PR is always reviewed by a
+different provider than the one that wrote it** (the owner's rule, keel
+phase 45): Claude (`anthropics/claude-code-action`) reviews Codex's
+`codex/` PRs, Codex (`openai/codex-action`) reviews Claude's `claude/` PRs.
+The author is the provider whose branch the head starts with (`claude/` is
+claude-code-action's default branch prefix; Codex's cloud always names its
+branches `codex/<slug>`); the reviewer, chosen per PR, is the first
+provider `"agents"` lists that is not the author:
 
 - **Which PRs.** A head branch starting with a prefix in
   `"crossReview".for` (Codex opens PRs under the owner's account, so the
@@ -69,16 +74,21 @@ so. It is recorded with no bound.
 **Config.** `.keel/keel.json`:
 
 ```json
-"crossReview": { "for": ["codex/"], "budget": { "minutes": 15 }, "agent": "claude" }
+"agents": { "claude": {}, "codex": {} },
+"crossReview": { "for": ["codex/", "claude/"], "budget": { "minutes": 15 } }
 ```
 
-No key, no reviews: the workflow ends at its first step. An unknown key, an
-empty `for`, or minutes outside 5–60 is red, naming the key. `agent` is
-`claude` (the default) or `codex`; a project that names one lists it in
-`"agents": { "claude": {}, "codex": {} }` (with no `"agents"`, claude alone
-is listed). An agent not listed, or an unknown one, is red. To have Codex
-review Claude Code's PRs, the one line is `"agent": "codex"` with
-`"for": ["claude/"]`.
+List every provider you use in `"agents"`: each prefix's PRs are reviewed
+by the first other one listed. No `"agents"` means claude alone, so
+today's `"for": ["codex/"]` is reviewed by Claude, unchanged. No key, no
+reviews: the workflow ends at its first step. Red, naming the key: an
+unknown key, an empty `for`, minutes outside 5–60, a prefix whose author
+has no other provider listed (`"for": ["claude/"]` with claude alone:
+list codex), and an `"agent"` that wrote a prefix in `for`. `"agent"` is
+optional, and only for a prefix no provider's branch names (a person's
+`acme/`, say); default claude. A reviewer whose secret is not set is a
+notice for that PR, and green; a reviewer that would be the author is red,
+and no agent runs.
 
 **What it needs (⚑).** The chosen agent's secret. Claude:
 `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or

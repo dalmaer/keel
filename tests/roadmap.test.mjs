@@ -427,3 +427,13 @@ test('any command but a gh check makes a box buildable; names and JSON do not; a
   const out = render({ config: { name: 'Acme' }, phases: [gone], goals });
   assert.doesNotMatch(out, /owes a walk/, 'neither the headline nor the retired section');
 });
+
+// Codex on cajones#56: a multiword label is not a command; a retired goal's row says partial, not walk owed.
+test('a label of several words is a walk\'s text, not a command; a retired goal\'s phase row owes nothing', () => {
+  assert.equal(isWalk('⚑ by hand: verify the `Start practice` button on a phone.'), true);
+  assert.equal(isWalk('⚑ by hand after `make release`.'), false);
+  const walkBoxes = '- [x] Built.\n- [ ] ⚑ by hand: the owner reads it.';
+  const gone = parsePhase('05-y.md', phase({ status: 'partial', goal: 'G1', acceptance: walkBoxes, extra: 'owes: walk\n' }));
+  const goals = [{ id: 'G0', title: 'Acme', outcome: 'x' }, { id: 'G1', title: 'Old Acme', outcome: 'y', retired: '2026-10-01' }];
+  assert.doesNotMatch(render({ config: { name: 'Acme' }, phases: [gone], goals }), /walk owed/);
+});

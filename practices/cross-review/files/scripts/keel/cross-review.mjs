@@ -1,6 +1,9 @@
 // keel cross-review (keel practice `cross-review`; managed: keel render
-// rewrites it). An agent (Claude, or Codex: "crossReview".agent) reviews the
-// pull requests another model wrote (Codex's codex/ branches), the way Codex
+// rewrites it). An agent reviews the pull requests another model wrote, and
+// never one its own provider wrote: Claude reviews Codex's, Codex Claude's
+// (lib.mjs reviewerOf: the author is the provider whose branch the head
+// starts with, the reviewer the first other provider "agents" lists). It
+// reviews the pull requests another model wrote (Codex's codex/ branches), the way Codex
 // reviews Claude Code's (keel phase 42; docs/research/2026-10-06-cross-review.md;
 // providers, phase 45). This script is every decision
 // .github/workflows/keel-cross-review.yml makes that is not the review itself:
@@ -17,8 +20,9 @@
 // (agent-ran); 2 usage or a bad config.
 //
 // The config is .keel/keel.json "crossReview": { "for": ["codex/"],
-// "budget": { "minutes": 15 }, "agent": "claude" } (the agent is listed in
-// "agents"; none named is claude). No key: no reviews. A PR is reviewed when its
+// "budget": { "minutes": 15 } }, with "agents": { "claude": {}, "codex": {} }
+// listing the providers (none: claude alone). "crossReview".agent is only for
+// a PR whose branch no provider's names (default claude). No key: no reviews. A PR is reviewed when its
 // head branch starts with a prefix in "for" and lives in this repo (never a
 // fork), on pull_request opened or ready_for_review, or on a `/review` comment
 // from a person with write access (author_association OWNER, MEMBER or
@@ -42,7 +46,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict } from './lib.mjs';
+import { isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict, reviewerOf, listedAgents } from './lib.mjs';
 
 export const KEY = 'crossReview';
 export const LIMITS = Object.freeze({ minutes: [5, 60] });
@@ -97,17 +101,23 @@ export function crossReviewConfigOf(config) {
   if (problems.length) throw new CrossReviewError(`.keel/keel.json: ${problems.join('; ')}`);
   const c = config?.[KEY];
   if (c === undefined) return null;
-  return { for: [...c.for], minutes: c.budget?.minutes ?? DEFAULTS.minutes, agent: agentOf(config, KEY) };
+  return { for: [...c.for], minutes: c.budget?.minutes ?? DEFAULTS.minutes, agent: agentOf(config, KEY), agents: listedAgents(config) };
 }
 
 // ---- which PRs -------------------------------------------------------------------
 
 /**
- * Whether to review: { review, why }. `event` is { name, action, comment:
- * { body, association, login, type } }; `pr` is gh pr view's JSON (number,
- * headRefName, headRefOid, isCrossRepository, isDraft, state). Pure.
+ * Whether to review: { review, why }, and with a review, who: `agent` (the
+ * reviewer) and `author`, never the same provider (reviewerOf); a reviewer
+ * that would be the author, or none at all, throws (exit 2: red, and no
+ * agent runs). `event` is { name, action, comment: { body, association,
+ * login, type } }; `pr` is gh pr view's JSON (number, headRefName,
+ * headRefOid, isCrossRepository, isDraft, state). `has`, when given, says
+ * which providers' secrets are set ({ claude: true, codex: false }): a
+ * reviewer with none is not a review, with `notice` set. `choose` is
+ * reviewerOf (a test swaps it to prove the guard). Pure.
  */
-export function shouldReview({ config, event, pr }) {
+export function shouldReview({ config, event, pr, has, choose = reviewerOf }) {
   const c = crossReviewConfigOf(config);
   const no = why => ({ review: false, why });
   if (!c) return no(`cross-review is off: .keel/keel.json has no "${KEY}"`);
@@ -129,8 +139,20 @@ export function shouldReview({ config, event, pr }) {
   const prefix = c.for.find(p => head.startsWith(p));
   if (!prefix) return no(`#${pr.number}'s branch ${head || '(none)'} matches no "${KEY}".for prefix (${c.for.join(', ')})`);
   if (!/^[0-9a-f]{40}$/.test(String(pr.headRefOid ?? ''))) return no(`#${pr.number} came back without its head commit`);
-  return { review: true, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: c.agent };
+  const who = choose({ config, head });
+  if (!who.reviewer || who.reviewer === who.author) throw new CrossReviewError(`#${pr.number} on ${head}: ${who.reviewer ? `${who.reviewer} would review its own provider's PR` : who.why}; no agent runs (a PR is never reviewed by its author's provider)`);
+  if (has && has[who.reviewer] === false) {
+    const secret = who.reviewer === 'claude' ? 'CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY)' : AGENTS[who.reviewer].secrets.join(' or ');
+    return { review: false, notice: true, why: `Skipped: #${pr.number} on ${head} is reviewed by ${AGENTS[who.reviewer].name} (${who.why}); add the ${secret} secret for it to run.` };
+  }
+  return { review: true, why: `#${pr.number} on ${head} (${prefix}), head ${pr.headRefOid.slice(0, 7)}; ${who.why}`, number: pr.number, sha: pr.headRefOid, minutes: c.minutes, agent: who.reviewer, author: who.author };
 }
+
+/** Which providers' secrets are set, from the step's HAS_<PROVIDER> ("true"/"false"); none given: undefined (not checked). */
+export const hasOf = (env = process.env) => {
+  const named = Object.keys(AGENTS).filter(n => env[`HAS_${n.toUpperCase()}`] !== undefined && env[`HAS_${n.toUpperCase()}`] !== '');
+  return named.length ? Object.fromEntries(named.map(n => [n, env[`HAS_${n.toUpperCase()}`] === 'true'])) : undefined;
+};
 
 /** The event as the workflow hands it, from the environment the step sets. */
 export const eventOf = (name, env = process.env) => ({
@@ -183,11 +205,14 @@ export function lastResult(text) {
  * when the step failed, or its result is an error, before the budget ran out:
  * an agent that never started is not a quiet night (lesson 29). Running out
  * the budget (the step's time box) or its turns is not red: what it kept is judged.
+ * Ran out means a failed step past the larger of the budget less a minute and
+ * nine tenths of it (and past 0 s): the slack never swallows a short budget,
+ * so a failure at the start of a one-minute box is red (Codex on duo#83).
  */
 export function agentVerdict({ outcome, result, elapsedSec, minutes }) {
   const secs = r => `${Math.round((r ?? 0) / 1000)} s`;
   const budget = minutes * 60;
-  if (outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec >= budget - 60) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
+  if (outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec > 0 && elapsedSec >= Math.max(budget - 60, budget * 0.9)) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
   if (result?.subtype === 'error_max_turns') return { ok: true, line: `the agent ran out its turns (${result.num_turns}) in ${secs(result.duration_ms)}: what it kept is judged` };
   if (outcome === 'success' && !result?.is_error) return { ok: true, line: result ? `the agent ran: ${result.num_turns ?? '?'} turns in ${secs(result.duration_ms)}` : 'the agent step succeeded (no execution file to read)' };
   if (result) {
@@ -382,8 +407,8 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: c ? { on: true, ...c } : { on: false }, text: c ? `cross-review: branches ${c.for.join(', ')}, ${c.minutes} min a review` : `cross-review is off: .keel/keel.json has no "${KEY}"` };
     }
     case 'which': {
-      const r = shouldReview({ config, event: eventOf(o.event, env), pr: await readPr(o.pr) });
-      return { data: r, text: r.review ? `review: ${r.why}` : `no review: ${r.why}` };
+      const r = shouldReview({ config, event: eventOf(o.event, env), pr: await readPr(o.pr), has: hasOf(env) });
+      return { data: r, text: r.review ? `review: ${r.why}` : r.notice ? `::notice::${r.why}` : `no review: ${r.why}` };
     }
     case 'brief': {
       if (!o.out) throw new CrossReviewError(`brief needs --out <file>; ${USAGE}`);

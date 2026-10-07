@@ -1,10 +1,11 @@
 # Cross-review (keel practice `cross-review`; managed: keel render rewrites it).
 #
-# An agent (Claude, or Codex: "crossReview".agent, keel phase 45) reviews the
-# pull requests another model wrote, the way Codex reviews the ones Claude
-# Code writes: findings tagged P1/P2/P3, each validated against the code
-# before it is written, and a one-paragraph summary, posted by this workflow
-# as one COMMENT review with the findings inline. The brief is
+# An agent reviews the pull requests another model wrote, never its own
+# provider's (keel phase 45): Claude reviews Codex's codex/ PRs, Codex
+# Claude's claude/ PRs, the reviewer chosen per PR from "agents": findings
+# tagged P1/P2/P3, each validated against the code before it is written,
+# and a one-paragraph summary, posted by this workflow as one COMMENT review
+# with the findings inline. The brief is
 # .agents/cross-review/REVIEW.md. The rules:
 #
 #   - Off unless .keel/keel.json has "crossReview"; with no secret, a notice and green.
@@ -94,37 +95,41 @@ jobs:
             try { c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8")); } catch {}
             const on = c.crossReview !== undefined;
             if (!on) console.log("cross-review is off: .keel/keel.json has no \"crossReview\", so this run does nothing.");
-            // Which secret to look for; the next steps validate the config.
-            const a = c.crossReview?.agent;
-            const agent = typeof a === "string" && /^[a-z][a-z0-9-]*$/.test(a) ? a : "claude";
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\nagent=${agent}\n`);
+            // The providers listed (whose secrets to look for); the next steps validate the config.
+            const a = c.agents && typeof c.agents === "object" && !Array.isArray(c.agents) ? Object.keys(c.agents) : ["claude"];
+            const agents = a.filter(n => /^[a-z][a-z0-9-]*$/.test(n)).join(",") || "claude";
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\nagents=${agents}\n`);
           '
       - name: Configured?
         id: configured
         if: steps.on.outputs.on == 'true'
+        # On when a listed provider has its secret; which one reviews this PR
+        # (never its author's) is the next step's, and so is its secret.
         env:
-          AGENT: ${{ steps.on.outputs.agent }}
+          AGENTS: ${{ steps.on.outputs.agents }}
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ "$AGENT" = codex ]; then
-            if [ -z "$OPENAI" ]; then
-              echo "::notice::Skipped: add the OPENAI_API_KEY secret for a cross-review by Codex to run."
-              echo "enabled=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "enabled=true" >> "$GITHUB_OUTPUT"
-            fi
-          elif [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
-            echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a cross-review to run."
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          enabled=false
+          AGENTS="${AGENTS:-claude}"
+          case ",$AGENTS," in *,claude,*) if [ -n "$OAUTH" ] || [ -n "$API_KEY" ]; then enabled=true; fi ;; esac
+          case ",$AGENTS," in *,codex,*) if [ -n "$OPENAI" ]; then enabled=true; fi ;; esac
+          if [ "$enabled" = false ]; then
+            case "$AGENTS" in
+              claude) echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a cross-review to run." ;;
+              codex) echo "::notice::Skipped: add the OPENAI_API_KEY secret for a cross-review by Codex to run." ;;
+              *) echo "::notice::Skipped: add a reviewer's secret for a cross-review to run: CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) for Claude, OPENAI_API_KEY for Codex." ;;
+            esac
           fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
 
       # The config, validated (a bad one is red, naming the key), and the PR
       # as GitHub has it now: its branch against the prefixes, a fork, a
-      # draft, a closed PR, and for /review who asked.
+      # draft, a closed PR, and for /review who asked. Then who reviews it:
+      # never the provider that wrote it (its branch says which), so the
+      # first other provider "agents" lists; one with no secret is a notice.
+      # A reviewer that would be the author is red, and no agent runs.
       - name: Which pull request?
         id: which
         if: steps.configured.outputs.enabled == 'true'
@@ -135,6 +140,8 @@ jobs:
           ASSOCIATION: ${{ github.event.comment.author_association }}
           COMMENTER: ${{ github.event.comment.user.login }}
           COMMENTER_TYPE: ${{ github.event.comment.user.type }}
+          HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
         run: |
           node scripts/keel/cross-review.mjs config
           gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
@@ -143,8 +150,8 @@ jobs:
             const fs = require("fs");
             const [file, out] = process.argv.slice(1);
             const w = JSON.parse(fs.readFileSync(file, "utf8"));
-            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\n`);
-            console.log(w.review ? `review: ${w.why}` : `no review: ${w.why}`);
+            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\n`);
+            console.log(w.review ? `review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
           ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
 
       # The brief, from the default branch: REVIEW.md, this PR, the project's

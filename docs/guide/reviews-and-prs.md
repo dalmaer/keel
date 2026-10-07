@@ -129,22 +129,28 @@ Set `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or
 with a notice; without the `crossReview` key nothing is reviewed. The
 review is posted by the workflow itself (`github-actions[bot]`).
 
-**Choosing the agent.** Each pass names its agent, and the project lists
-the providers it uses:
+**Choosing the agent.** The reviewer is always another provider than the
+one that wrote the PR: Claude reviews Codex's `codex/` PRs, Codex reviews
+Claude's `claude/` PRs. List every provider you use, and each PR goes to
+the first one listed that did not write it:
 
 ```json
 "agents": { "claude": {}, "codex": {} },
-"crossReview": { "for": ["claude/"], "agent": "codex", "budget": { "minutes": 15 } }
+"crossReview": { "for": ["codex/", "claude/"], "budget": { "minutes": 15 } }
 ```
 
-No `agent` means Claude, exactly as before. Codex (`openai/codex-action`)
+With no `"agents"`, Claude alone is listed, and `"for": ["codex/"]` is
+reviewed by Claude exactly as before; `"for": ["claude/"]` then is red
+until you list codex. `"agent"` on `crossReview` is only for a prefix no
+provider's branch names. Codex (`openai/codex-action`)
 reviews in its read-only sandbox, with sudo dropped so its key is out of
 its reach, and no GitHub token; its secret is `OPENAI_API_KEY`. Codex's
 spend has no subscription path: every review is billed per token to the
 OpenAI API account, so the Budget line's minutes are a bound on dollars you
 pay by the token. codex-action runs only for an actor with write access: a
-PR opened by a bot is refused (the run is red). An agent not listed in
-`"agents"`, or one keel does not know, is red, naming the key.
+PR opened by a bot is refused (the run is red). A provider keel does not
+know is red, naming the key; a reviewer whose secret is missing is a
+notice and green.
 
 **Cost.** Each reviewed PR spends model tokens, up to the budget's minutes
 (5 to 60, default 15). `/review` asks again after new pushes; nothing else

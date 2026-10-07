@@ -103,11 +103,14 @@ export function isWalk(text) {
 }
 
 /**
- * A command in backticks: a path to run (`./scripts/build.sh`), or a word and
- * its arguments (`pytest -q`, `git diff --check`). A bare name (`codex/`,
- * `machine_prs`) and a setting written as JSON (`"tend": {…}`) are not.
+ * A command in backticks: a path to run (`./scripts/build.sh`), a known tool
+ * and its arguments (`npm run build`, `make release`), or any lowercase word
+ * followed by a flag (`pytest -q`, `git diff --check`). A bare name (`codex/`),
+ * a label of several words (`Start practice`: Codex on cajones#56) and a JSON
+ * setting are not.
  */
-const COMMAND = /^(?:\.{0,2}\/\S|[a-z][\w.-]*\s+\S)/i;
+const RUNNERS = /^(?:npm|npx|node|pnpm|yarn|bun|deno|make|bash|sh|cargo|go|python3?|pip|uv|tsc|vitest|jest|pytest|git|docker)\s+\S/;
+const COMMAND = { test: s => /^\.{0,2}\/\S/.test(s) || RUNNERS.test(s) || /^[a-z][\w.-]*(?:\s+\S+)*?\s+--?[a-z]/.test(s) };
 
 /** The tests/ paths a phase's Acceptance cites. */
 export const citedTests = acceptance => [...new Set((acceptance.match(TEST_PATH) ?? []))];
@@ -451,7 +454,7 @@ export function render({ config, phases, goals, links = [] }) {
       '| Phase | Status | Since | Depends on | Why it stands here |', '| --- | --- | --- | --- | --- |');
     for (const p of group) {
       const deps = p.depends.map(id => `[${id}](phases/${phases.find(x => x.id === id).file})`).join(', ') || '—';
-      lines.push(`| [${p.id}. ${cell(p.title)}](phases/${p.file}) | ${owesWalk(p) ? 'partial, walk owed' : p.status} | ${p.since} | ${deps} | ${cell(p.note)}${p.issue ? issueUrl(p.issue) : ''} |`);
+      lines.push(`| [${p.id}. ${cell(p.title)}](phases/${p.file}) | ${owesWalk(p) && !g.retired ? 'partial, walk owed' : p.status} | ${p.since} | ${deps} | ${cell(p.note)}${p.issue ? issueUrl(p.issue) : ''} |`);
     }
     lines.push('');
     for (const p of group) lines.push(`- **${p.id} done when:** ${p.done}`);

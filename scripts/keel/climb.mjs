@@ -1533,11 +1533,14 @@ export function lastResult(text) {
  * when the step failed, or its result is an error, before the budget ran out:
  * an agent that never started is not a quiet night (lesson 29). Running out
  * the budget (the step's time box) or its turns is not red: what it kept is judged.
+ * Ran out means a failed step past the larger of the budget less a minute and
+ * nine tenths of it (and past 0 s): the slack never swallows a short budget,
+ * so a failure at the start of a one-minute box is red (Codex on duo#83).
  */
 export function agentVerdict({ outcome, result, elapsedSec, minutes }) {
   const secs = r => `${Math.round((r ?? 0) / 1000)} s`;
   const budget = minutes * 60;
-  if (outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec >= budget - 60) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
+  if (outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec > 0 && elapsedSec >= Math.max(budget - 60, budget * 0.9)) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
   if (result?.subtype === 'error_max_turns') return { ok: true, line: `the agent ran out its turns (${result.num_turns}) in ${secs(result.duration_ms)}: what it kept is judged` };
   if (outcome === 'success' && !result?.is_error) return { ok: true, line: result ? `the agent ran: ${result.num_turns ?? '?'} turns in ${secs(result.duration_ms)}` : 'the agent step succeeded (no execution file to read)' };
   if (result) {
