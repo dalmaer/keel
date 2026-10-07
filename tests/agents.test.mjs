@@ -170,9 +170,11 @@ test('adapters: each provider\'s step is its own action at its major, with its r
 // ---- the default is today's ----------------------------------------------------------
 
 // The Claude steps as they were before phase 45, byte for byte. Cross-review's
-// step differs only in two places the phase decided: it runs when the config
-// names claude (the default), and its tools no longer include the
-// inline-comment tool (findings are JSON, posted by keel's step).
+// step differs only in places a phase decided: it runs when the config names
+// claude (the default), and its tools no longer include the inline-comment
+// tool (findings are JSON, posted by keel's step) (phase 45); the bots it
+// allows (duo#84); and it is handed the review job's read-only token as
+// github_token, so the action never trades OIDC for its app's token (phase 46).
 const CLAUDE_BEFORE = {
   crossReview: `      - name: Review
         id: review
@@ -224,6 +226,8 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
   const expected = CLAUDE_BEFORE.crossReview
     .replace("if: steps.which.outputs.review == 'true'", "if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'")
     .replace(',mcp__github_inline_comment__create_inline_comment', '')
+    // Phase 46: the review job's read-only token, as climb's and tend's since ledger#92.
+    .replace('          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n', '          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n          github_token: ${{ github.token }}\n')
     // duo#84: a provider's bot may open the PR Claude reviews (its own, the fallback); the adapters' logins, by name.
     .replace('          prompt: ${{ steps.brief.outputs.prompt }}\n', `          prompt: \${{ steps.brief.outputs.prompt }}
           # A provider's bot may open the PR (claude[bot]: Claude reviewing its
@@ -301,7 +305,8 @@ test('did the agent run: a Codex step that failed, or ended with no final messag
     await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
     await cp(join(NIGHT, 'lib.mjs'), join(keel, 'lib.mjs'));
     const now = Math.floor(Date.now() / 1000);
-    const step = env => run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, MINUTES: '15', STARTED: String(now - 20), EXECUTION: '', ...env } });
+    await writeFile(join(dir, 'output'), '');
+    const step = env => run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'output'), MINUTES: '15', STARTED: String(now - 20), EXECUTION: '', ...env } });
     const none = step({ AGENT: 'codex', OUTCOME: 'failure' });
     assert.equal(none.status, 1, none.stdout + none.stderr);
     assert.equal(none.stdout.trim().split('\n').length, 1);

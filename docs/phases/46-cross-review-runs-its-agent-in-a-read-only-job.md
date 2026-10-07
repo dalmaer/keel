@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-07
 goal: G2
 spec: 2
 depends: [45]
-note: "Cross-review is the one agent workflow still running its agent in a job that can write (pull-requests, issues, id-token). Split it as climb and tend are: a read-only review job, a publish job with no agent. Design: research/2026-10-07-review-hardening.md §1."
-evidence: []
+note: "Built: a read-only review job (Claude handed the job's read-only github_token, no id-token; Codex as before) and a publish job with no agent that posts keel's validated findings from the default branch's script. Owes a real review on ledger after the update."
+evidence: ["evidence/2026-10-07-cross-review-split.md"]
 issue: 32
 ---
 
@@ -25,9 +26,9 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 
 ## Acceptance
 
-- [ ] For each provider, the review job holds no write permission, no `id-token`, no persisted credentials, and Claude's step has `github_token`; the publish job has no agent step and checks out only the default branch; mutation: `pull-requests: write` on the review job fails the test. `tests/workflows.test.mjs`
-- [ ] The publish job posts exactly what `summary` builds from the artifact (findings, dropped ones named, the self-review line), and nothing when "Did the agent run?" failed. `tests/cross-review.test.mjs`
-- [ ] Claude's review step with a read-only `github_token` still reads the diff and returns findings (`gh pr diff` works with read): checked on a synthetic run in the test. `tests/cross-review.test.mjs`
+- [x] For each provider, the review job holds no write permission, no `id-token`, no persisted credentials, and Claude's step has `github_token`; the publish job has no agent step and checks out only the default branch; mutation: `pull-requests: write` on the review job fails the test. `tests/workflows.test.mjs`
+- [x] The publish job posts exactly what `summary` builds from the artifact (findings, dropped ones named, the self-review line), and nothing when "Did the agent run?" failed. `tests/cross-review.test.mjs`
+- [x] Claude's review step with a read-only `github_token` still reads the diff and returns findings (`gh pr diff` works with read): checked on a synthetic run in the test. `tests/cross-review.test.mjs`
 - [ ] ⚑ by hand: a real review on ledger after the update posts inline comments from the publish job; the owner reads it.
 
 ## Real surfaces
@@ -48,4 +49,9 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 
 ## Next action
 
-Brief a builder on the two-job split, starting from climb's `agentSandboxProblems` in the workflows test as the shape to hold.
+⚑ After the release reaches ledger: its next cross-review runs as two jobs and the publish job posts the review; the owner reads it.
+
+## Trajectory
+
+- **2026-10-07** — Claude's action works with a read-only token: a given `github_token` skips the OIDC exchange, and prompt mode's calls on PR events only read (its actor check needs metadata read). Climb never exercised this: a schedule event skips the actor check, so cross-review is the first to run it read-only on a PR event.
+- **2026-10-07** — The which step's outputs (agent, author, reason, minutes) reach publish as job outputs set by keel's own steps, not inside the artifact; the artifact holds only pr.json, pr.diff and the agent's final message.

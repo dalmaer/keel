@@ -4,7 +4,7 @@
 // world or runs a model.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, mkdir, cp } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir, cp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -93,6 +93,23 @@ async function step(t, dir, name, env = {}) {
   return { status: r.status, out: r.stdout + r.stderr, outputs };
 }
 
+/**
+ * The two jobs' hand-off, as a run has it (phase 46): the review job's "Hand
+ * the review on" in RUNNER_TEMP (its env's AGENT and EXECUTION), its handoff
+ * directory as the artifact the publish job downloads to RUNNER_TEMP/review,
+ * then the publish job's "Post the summary" with `env` (cwd `dir`: the
+ * default branch's checkout). { hand, ...the post's result }.
+ */
+async function post(t, dir, env) {
+  const temp = env.RUNNER_TEMP;
+  const hand = await step(t, dir, 'Hand the review on', { RUNNER_TEMP: temp, AGENT: env.AGENT ?? '', EXECUTION: env.EXECUTION ?? '' });
+  assert.equal(hand.status, 0, hand.out);
+  await rm(join(temp, 'review'), { recursive: true, force: true });
+  await cp(join(temp, 'handoff'), join(temp, 'review'), { recursive: true });
+  const { EXECUTION, ...rest } = env;
+  return { hand, ...(await step(t, dir, 'Post the summary', rest)) };
+}
+
 /** claude-code-action's execution file, as the action writes it: the session, then its result. */
 const execution = result => JSON.stringify([
   { type: 'system', subtype: 'init' },
@@ -153,7 +170,8 @@ test('off: with no crossReview key the workflow ends at its first step; with no 
   assert.equal((await step(t, on, 'Configured?', { OAUTH: '', API_KEY: 'acme-key' })).outputs.enabled, 'true');
 
   // The order, and every step after Configured? waits on it (or on Which, which waits on it).
-  const text = await readFile(WORKFLOW, 'utf8');
+  // The review job's steps (phase 46: the publish job after it runs only when the agent ran).
+  const text = (await readFile(WORKFLOW, 'utf8')).split('\n  publish:\n')[0];
   const steps = text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
   const names = steps.map(s => /^ {6}- (?:name: (.+)|uses: (\S+))/.exec(s)).map(m => m[1] ?? m[2]);
   assert.deepEqual(names.slice(0, 4), ['actions/checkout@v7', 'Is cross-review on?', 'Configured?', 'Which pull request?']);
@@ -304,15 +322,16 @@ test('summary: the agent\'s final message, posted as a COMMENT review on the hea
   assert.match(m.summaryReview({ result: { is_error: true, result: 'Invalid API key' }, pr, minutes: 15 }).body, /ran out its 15-minute budget/, 'an error is never posted as a summary');
   assert.equal(m.summaryReview({ result: { result: 'x'.repeat(9000) }, pr, minutes: 15 }).body.length < 6300, true);
 
-  // The workflow's step: the review JSON from the script, posted as it is, to this PR's reviews.
+  // The workflow's step: the review JSON from the script, posted as it is, to this PR's reviews. The publish
+  // job runs its own checkout's script (the default branch's), on the review job's artifact.
   const dir = await acme(t);
   const temp = join(dir, 'runner');
-  await mkdir(join(temp, 'keel/scripts/keel'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/keel', f), join(temp, 'keel/scripts/keel', f));
+  await mkdir(temp, { recursive: true });
   await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
+  await writeFile(join(temp, 'pr.diff'), '');
   await writeFile(join(temp, 'execution.json'), execution({ is_error: false, num_turns: 9, duration_ms: 60_000, result: 'Nothing found in the lid.' }));
   const gh = await stubGh(t, pr);
-  const s = await step(t, dir, 'Post the summary', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
+  const s = await post(t, dir, { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
   assert.equal(s.status, 0, s.out);
   const [call] = await gh.calls();
   assert.deepEqual(call.args.slice(0, 4), ['api', '--method', 'POST', 'repos/acme/anvils/pulls/7/reviews']);
@@ -482,9 +501,9 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
 
   // Post: Codex's final message; GitHub refuses the inline comments (422), so the plain review goes, findings in its body.
   await writeFile(join(temp, 'codex-final-message.md'), final('Codex checked the lid. One P1.', [{ path: 'src/lid.js', line: 12, severity: 'P1', body: 'The hinge is unchecked.' }, { path: 'src/nope.js', line: 1, severity: 'P2', body: 'x' }]));
-  const post = await step(t, dir, 'Post the summary', { ...env, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
-  assert.equal(post.status, 0, post.out);
-  assert.match(post.out, /::warning::GitHub refused the review with its inline comments/);
+  const posted = await post(t, dir, { ...env, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
+  assert.equal(posted.status, 0, posted.out);
+  assert.match(posted.out, /::warning::GitHub refused the review with its inline comments/);
   const calls = (await gh.calls()).filter(c => c.args[0] === 'api');
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[0].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P1** The hinge is unchecked.' }]);
@@ -499,7 +518,7 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
   const b = await step(t, dir, 'Brief', { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex' });
   assert.equal(b.status, 0, b.out);
   assert.match(b.out, /::warning::The pull request's diff could not be read/);
-  const bp = await step(t, dir, 'Post the summary', { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
+  const bp = await post(t, dir, { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
   assert.equal(bp.status, 0, bp.out);
   const [only] = (await blind.calls()).filter(c => c.args[0] === 'api');
   assert.equal(only.input.comments, undefined);
@@ -511,12 +530,11 @@ test('the workflow with Claude: its findings JSON is posted inline by keel\'s st
   const pr = prJson();
   const gh = await stubGh(t, pr, { diff: DIFF });
   const temp = join(dir, 'runner');
-  await mkdir(join(temp, 'keel/scripts/keel'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/keel', f), join(temp, 'keel/scripts/keel', f));
+  await mkdir(temp, { recursive: true });
   await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
   await writeFile(join(temp, 'pr.diff'), DIFF);
   await writeFile(join(temp, 'execution.json'), execution({ is_error: false, num_turns: 9, duration_ms: 60_000, result: final('Checked the lid. One P3.', [{ path: 'src/lid.js', line: 42, severity: 'P3', body: 'NEW is never read.' }]) }));
-  const s = await step(t, dir, 'Post the summary', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
+  const s = await post(t, dir, { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
   assert.equal(s.status, 0, s.out);
   const [call] = await gh.calls();
   assert.deepEqual(call.input.comments, [{ path: 'src/lid.js', line: 42, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P3** NEW is never read.' }]);
@@ -524,7 +542,7 @@ test('the workflow with Claude: its findings JSON is posted inline by keel\'s st
   assert.doesNotMatch(call.input.body, /its own provider/, 'Codex wrote this one: no self-review line');
   // duo#84: Claude reviewing its own PR (the fallback): the step hands the which step's author and reason to the summary.
   const own = await stubGh(t, pr, { diff: DIFF });
-  const o = await step(t, dir, 'Post the summary', { PATH: `${own.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', AUTHOR: 'claude', REASON: 'codex is listed but its secret OPENAI_API_KEY is not set', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
+  const o = await post(t, dir, { PATH: `${own.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', AUTHOR: 'claude', REASON: 'codex is listed but its secret OPENAI_API_KEY is not set', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
   assert.equal(o.status, 0, o.out);
   assert.match((await own.calls())[0].input.body, /Reviewed by claude, its own provider: codex is listed but its secret OPENAI_API_KEY is not set\./);
   // The brief tells the agent how to write them, and no longer names the comment tool.
@@ -553,4 +571,136 @@ test('ledger#101: a path Git quotes in the diff (non-ASCII, a quote, a backslash
   assert.deepEqual([...m.diffRanges(diff)], [['café.txt', [[1, 2]]]]);
   const review = m.summaryReview({ message: 'Checked.\n```json\n[{"path": "café.txt", "line": 2, "severity": "P3", "body": "Spelled out."}]\n```', agent: 'codex', pr: prJson(), minutes: 15, diff });
   assert.deepEqual(review.comments?.map(c => [c.path, c.line]), [['café.txt', 2]]);
+});
+
+// ---- phase 46: the agent's job reads; the publish job posts --------------------------------
+
+/**
+ * A stub gh that knows two tokens, as GitHub does a job's: `acme-read` (the
+ * review job's: contents and pull-requests read) reads the PR and its diff;
+ * only `acme-write` (the publish job's: pull-requests write) may POST a
+ * review. Anything else is refused, as GitHub refuses it (403). Each call is
+ * logged with the token it held.
+ */
+async function tokenGh(t, pr, diff) {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-cross-review-tokens-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const log = join(dir, 'gh.log');
+  await writeFile(join(dir, 'gh'), `#!${process.execPath}
+const fs = require('fs');
+const a = process.argv.slice(2);
+const token = process.env.GH_TOKEN ?? '';
+const i = a.indexOf('--input');
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ token, args: a, input: i >= 0 ? JSON.parse(fs.readFileSync(a[i + 1], 'utf8')) : null }) + '\\n');
+const reads = token === 'acme-read' || token === 'acme-write';
+if (a[0] === 'pr' && a[1] === 'view' && reads) { process.stdout.write(${JSON.stringify(JSON.stringify(pr))}); process.exit(0); }
+if (a[0] === 'pr' && a[1] === 'diff' && reads) { process.stdout.write(${JSON.stringify(diff)}); process.exit(0); }
+if (a[0] === 'api' && a.includes('POST') && token === 'acme-write') { process.stdout.write('posted review 1 (COMMENTED)\\n'); process.exit(0); }
+process.stderr.write('gh: Resource not accessible by integration (HTTP 403)');
+process.exit(1);
+`, { mode: 0o755 });
+  return { path: dir, calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) };
+}
+
+test('phase 46: Claude, holding the review job\'s read-only token, reads the diff and returns findings; only the publish job\'s token posts them', async t => {
+  const text = await readFile(WORKFLOW, 'utf8');
+  const review = text.split('\n  publish:\n')[0];
+  // The token each job's gh holds: the job's own (github.token), read-only in the review job, and handed to Claude's action.
+  assert.match(review, /\n {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {4}outputs:/);
+  assert.match(review, /uses: anthropics\/claude-code-action@v1\n {8}with:\n[\s\S]*?\n {10}github_token: \$\{\{ github\.token \}\}\n/);
+  const tools = /--allowedTools "([^"]*)"/.exec(review)[1].split(',');
+  // Every tool Claude has reads: the files (Read, Grep, Glob), and the PR through gh, whose endpoints need pull-requests: read.
+  assert.deepEqual(tools, ['Read', 'Grep', 'Glob', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)']);
+
+  const dir = await acme(t);
+  const pr = prJson();
+  const gh = await tokenGh(t, pr, DIFF);
+  const temp = join(dir, 'runner');
+  await mkdir(temp, { recursive: true });
+  const path = `${gh.path}:${process.env.PATH}`;
+  const read = { PATH: path, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', GH_TOKEN: 'acme-read' };
+  const which = await step(t, dir, 'Which pull request?', { ...read, EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'false' });
+  assert.equal(which.status, 0, which.out);
+  assert.equal(which.outputs.agent, 'claude');
+  const brief = await step(t, dir, 'Brief', { ...read, AGENT: 'claude' });
+  assert.equal(brief.status, 0, brief.out);
+  assert.doesNotMatch(brief.out, /could not be read/);
+  await mkdir(join(temp, 'keel/scripts/keel'), { recursive: true });
+  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/keel', f), join(temp, 'keel/scripts/keel', f));
+
+  // Claude's run, synthetic: its two Bash tools as the action runs them (GH_TOKEN is the github_token it was handed), then its final message.
+  const tool = args => run('gh', args, { cwd: dir, env: { ...process.env, PATH: path, GH_TOKEN: 'acme-read' } });
+  const viewed = tool(['pr', 'view', '7']);
+  const diffed = tool(['pr', 'diff', '7']);
+  assert.equal(viewed.status, 0, viewed.stderr);
+  assert.equal(diffed.status, 0, diffed.stderr);
+  assert.match(diffed.stdout, /\+  if \(!hinge\) return;/, 'gh pr diff reads with the read-only token');
+  // And it cannot write with it: the review job's token is refused a review.
+  const tried = tool(['api', '--method', 'POST', 'repos/acme/anvils/pulls/7/reviews', '-f', 'event=APPROVE']);
+  assert.equal(tried.status, 1);
+  assert.match(tried.stderr, /HTTP 403/);
+  await writeFile(join(temp, 'claude-execution-output.json'), execution({ is_error: false, num_turns: 6, duration_ms: 90_000, result: final('Read the lid with gh. One P2.', [{ path: 'src/lid.js', line: 12, severity: 'P2', body: 'An unhinged lid returns undefined.' }]) }));
+  const ran = await step(t, dir, 'Did the agent run?', { RUNNER_TEMP: temp, AGENT: 'claude', OUTCOME: 'success', EXECUTION: '', MINUTES: '15', STARTED: String(Math.floor(Date.now() / 1000) - 90) });
+  assert.equal(ran.status, 0, ran.out);
+  assert.equal(ran.outputs.ran, 'true');
+
+  // The publish job: its own token, the artifact, the default branch's script.
+  const posted = await post(t, dir, { PATH: path, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', GH_TOKEN: 'acme-write', AGENT: 'claude', AUTHOR: 'codex', REASON: '', MINUTES: '15', EXECUTION: '' });
+  assert.equal(posted.status, 0, posted.out);
+  const calls = await gh.calls();
+  const posts = calls.filter(c => c.args[0] === 'api' && c.args.includes('POST'));
+  assert.deepEqual(posts.map(c => c.token), ['acme-read', 'acme-write'], 'the read token was refused; the publish job\'s posted');
+  assert.deepEqual(posts[1].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P2** An unhinged lid returns undefined.' }]);
+  assert.equal(posts[1].input.event, 'COMMENT');
+  assert.deepEqual(calls.filter(c => c.args[0] === 'pr').map(c => c.token), ['acme-read', 'acme-read', 'acme-read', 'acme-read'], 'every read held the review job\'s token');
+});
+
+test('phase 46: the publish job posts exactly what summary builds from the artifact (findings, a dropped one named, the self-review line); nothing when the agent did not run', async t => {
+  const dir = await acme(t);
+  const pr = prJson();
+  const temp = join(dir, 'runner');
+  await mkdir(join(temp, 'keel/scripts/keel'), { recursive: true });
+  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/keel', f), join(temp, 'keel/scripts/keel', f));
+  await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
+  await writeFile(join(temp, 'pr.diff'), DIFF);
+  // The agent's working tree and anything else in the runner's temp never leave the review job.
+  await writeFile(join(temp, 'prompt.md'), 'acme brief');
+  await writeFile(join(temp, 'codex-final-message.md'), 'not this agent\'s');
+  const message = final('Checked the lid. One P1, one off the diff.', [{ path: 'src/lid.js', line: 12, severity: 'P1', body: 'The hinge is unchecked.' }, { path: 'src/nope.js', line: 3, severity: 'P2', body: 'x' }]);
+  const exec = join(temp, 'acme-execution.json');
+  await writeFile(exec, execution({ is_error: false, num_turns: 9, duration_ms: 60_000, result: message }));
+  const reason = 'codex is listed but its secret OPENAI_API_KEY is not set';
+  const gh = await stubGh(t, pr, { diff: DIFF });
+  const posted = await post(t, dir, { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', AGENT: 'claude', AUTHOR: 'claude', REASON: reason, MINUTES: '15', EXECUTION: exec });
+  assert.equal(posted.status, 0, posted.out);
+  assert.deepEqual((await readdir(join(temp, 'review'))).sort(), ['claude-execution-output.json', 'pr.diff', 'pr.json'], 'the artifact: the final message, the PR, its diff');
+  // What summary builds from the same inputs, run directly.
+  const built = cli(dir, ['summary', '--agent', 'claude', '--author', 'claude', '--reason', reason, '--file', exec, '--pr', join(temp, 'pr.json'), '--diff', join(temp, 'pr.diff'), '--minutes', '15', '--out', join(temp, 'direct.json')]);
+  assert.equal(built.status, 0, built.stderr);
+  const direct = JSON.parse(await readFile(join(temp, 'direct.json'), 'utf8'));
+  const [call] = await gh.calls();
+  assert.deepEqual(call.input, direct, 'posted exactly as summary built it');
+  assert.equal(direct.comments.length, 1);
+  assert.match(direct.body, /- `src\/nope\.js:3`: its path is not in the pull request's diff/);
+  assert.match(direct.body, /Reviewed by claude, its own provider: codex is listed but its secret OPENAI_API_KEY is not set\./);
+
+  // Codex's: its output file, not Claude's execution file.
+  const ghCodex = await stubGh(t, pr, { diff: DIFF });
+  await writeFile(join(temp, 'codex-final-message.md'), final('Codex read the lid.', [{ path: 'src/lid.js', line: 41, severity: 'P3', body: 'OLD is gone.' }]));
+  const c = await post(t, dir, { PATH: `${ghCodex.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', AGENT: 'codex', AUTHOR: 'claude', REASON: '', MINUTES: '15', EXECUTION: '' });
+  assert.equal(c.status, 0, c.out);
+  assert.deepEqual((await readdir(join(temp, 'review'))).sort(), ['codex-final-message.md', 'pr.diff', 'pr.json'], 'Codex\'s final message, never Claude\'s');
+  const [codexCall] = await ghCodex.calls();
+  assert.match(codexCall.input.body, /Codex read the lid\./);
+  assert.deepEqual(codexCall.input.comments.map(x => x.line), [41]);
+
+  // The agent never started: "Did the agent run?" is red and says nothing of ran, so the publish job's if: is false.
+  await writeFile(exec, execution({ is_error: true, num_turns: 1, duration_ms: 1000, subtype: 'success', result: 'Invalid API key' }));
+  const red = await step(t, dir, 'Did the agent run?', { RUNNER_TEMP: temp, AGENT: 'claude', OUTCOME: 'success', EXECUTION: exec, MINUTES: '15', STARTED: String(Math.floor(Date.now() / 1000) - 5) });
+  assert.equal(red.status, 1, red.out);
+  assert.equal(red.outputs.ran, undefined, 'no ran=true: the publish job does not run');
+  const text = await readFile(WORKFLOW, 'utf8');
+  const publish = text.split('\n  publish:\n')[1];
+  assert.match(publish, /^ {4}needs: review\n {4}if: needs\.review\.outputs\.ran == 'true'\n/);
+  assert.doesNotMatch(publish, /claude-code-action|codex-action|steps\.which\.outputs\.sha/, 'no agent, no PR head');
 });

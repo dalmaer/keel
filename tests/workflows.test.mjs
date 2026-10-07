@@ -1287,14 +1287,14 @@ export function crossReviewProblems(text) {
   if (!tools) out.push('the agent has no --allowedTools list');
   else for (const t of tools.split(',').map(s => s.trim())) if (!CROSS_REVIEW_TOOLS.includes(t)) out.push(`the agent may use ${t}: only ${CROSS_REVIEW_TOOLS.join(', ')}`);
   if ((text.match(/--allowedTools/g) ?? []).length !== 1 || /--(?:dangerously-skip-permissions|permission-mode)/.test(text)) out.push('one --allowedTools list, and no way around it');
-  const perms = /\npermissions:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
-  if (!/^ {2}contents: read$/m.test(perms)) out.push('permissions must say contents: read');
+  // Phase 46: each job asks for its own (crossReviewSandboxProblems holds which); no job may write contents or actions.
+  if (!/^permissions: \{\}$/m.test(text)) out.push('the workflow\'s permissions must be {}: each job asks for its own');
   if (/:\s*write-all|contents: write|actions: write/.test(text)) out.push('the token may write contents or actions');
   for (const { line, n } of code(text)) {
     if (/\bgit push\b|\bgh pr (merge|review|close|edit)\b|\bAPPROVE\b|REQUEST_CHANGES|--approve|--request-changes/.test(line)) out.push(`line ${n}: pushes, merges, approves or requests changes: ${line.trim()}`);
     if (/\bgh api\b/.test(line) && !/^\s*(?:if ! )?gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review(?:-plain)?\.json" --jq '[^']*'(?:; then)?$/.test(line)) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
   }
-  if (!/cross-review\.mjs" summary [^\n]*--out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
+  if (!/node scripts\/keel\/cross-review\.mjs summary [^\n]*--out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
   const reviewStep = /\n {6}- name: Review\n[\s\S]*?(?=\n {6}(?:#|- )|$)/.exec(text)?.[0] ?? '';
   if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}\n/.test(reviewStep) || !/\n\s+uses: anthropics\/claude-code-action@v\d+\n/.test(reviewStep)) out.push('the agent\'s step is not time-boxed by the budget (steps.which.outputs.minutes)');
   // Phase 45: one agent step per provider, each run only when the config names it; Codex's in its read-only sandbox.
@@ -1327,8 +1327,9 @@ test('keel-cross-review.yml runs only for a same-repo PR opened or made ready, o
   assert.equal(runs(commentEvent({ pr: false })), false, '/review on an issue');
   assert.equal(runs(commentEvent({ body: 'LGTM' })), false, 'another comment');
   assert.equal(runs(ghEvent('push', {})), false);
-  // The branch prefix is the config's, read at run time: every step after "Which pull request?" waits on it.
-  const steps = t.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
+  // The branch prefix is the config's, read at run time: every step of the review job after "Which pull request?" waits on it
+  // (the publish job runs only when the review job's agent ran: crossReviewSandboxProblems).
+  const steps = jobsOf(t).find(j => j.id === 'review').text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
   const which = steps.findIndex(s => s.includes('- name: Which pull request?'));
   assert.ok(which > 0);
   assert.match(steps[which], /node scripts\/keel\/cross-review\.mjs which --pr "\$RUNNER_TEMP\/pr\.json" --event "\$EVENT"/);
@@ -1421,7 +1422,7 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     ['another review event', t.replace('--input "$RUNNER_TEMP/review.json"', '-f event=REQUEST_CHANGES -f body=x')],
     ['a merge', `${t}\n      - run: gh pr merge 7 --squash\n`],
     ['a push', `${t}\n      - run: git push origin HEAD:refs/heads/main\n`],
-    ['the summary not the script\'s', t.replace(/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/cross-review\.mjs" summary [^\n]*\n/, 'echo \'{"event":"COMMENT","body":"x"}\' > "$RUNNER_TEMP/review.json"\n')],
+    ['the summary not the script\'s', t.replace(/node scripts\/keel\/cross-review\.mjs summary [^\n]*\n/, 'echo \'{"event":"COMMENT","body":"x"}\' > "$RUNNER_TEMP/review.json"\n')],
     ['on every push', t.replace('types: [opened, ready_for_review]', 'types: [opened, ready_for_review, synchronize]')],
     ['pull_request_target', t.replace('  pull_request:\n', '  pull_request_target:\n')],
     ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}/, '')],
@@ -1449,6 +1450,123 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     assert.ok(crossReviewProblems(text).length, `${why}: expected a problem`);
+  }
+});
+
+/**
+ * Cross-review's agent holds no credential that can write, and the job that
+ * writes runs no agent (keel phase 46, as ledger#92 made climb and tend):
+ * [string]. The workflow grants nothing; one job (the review job) holds every
+ * agent step, Claude's and Codex's, and its permissions read (contents: read,
+ * no write, no id-token), with no job-level token and no checkout keeping
+ * one; Claude's action is handed that job's token (github_token), so it
+ * never trades OIDC for its app's token. The review job never posts. Every
+ * job that may write runs no agent, checks out only the default branch
+ * (never the PR's head), needs the review job and runs only when its agent
+ * ran (`ran`, set after "Did the agent run?"), and takes the agent's work as
+ * the review job's artifact; the summary it posts is its own checkout's
+ * cross-review.mjs.
+ */
+export function crossReviewSandboxProblems(text) {
+  const out = [];
+  const isAgent = j => /\n\s+uses: (?:anthropics\/claude-code-action|openai\/codex-action)@/.test(j.text);
+  const permsOf = j => /\n {4}permissions:\n((?: {6}.*\n)+)/.exec(j.text)?.[1] ?? null;
+  const stepsIn = j => j.text.split(/\n(?= {6}- )/);
+  const jobs = jobsOf(text);
+  const top = /^permissions:(.*)\n((?: {2}.*\n)*)/m.exec(text);
+  if (!top) out.push('the workflow declares no permissions: every job would get the repo default, which may write');
+  else if (/write/.test(top[1] + top[2])) out.push(`the workflow's permissions grant a write to every job: ${(top[1] + top[2]).trim()}`);
+  const agents = jobs.filter(isAgent);
+  if (agents.length !== 1) return [...out, `${agents.length} jobs run an agent; one, the review job, holds both providers' steps`];
+  const agent = agents[0];
+  for (const action of ['anthropics/claude-code-action', 'openai/codex-action']) if (!agent.text.includes(`uses: ${action}@`)) out.push(`the agent's job (${agent.id}) has no ${action} step`);
+  const perms = permsOf(agent);
+  if (perms === null) out.push(`the agent's job (${agent.id}) declares no permissions of its own`);
+  else {
+    for (const line of perms.split('\n').filter(Boolean)) if (/:\s*write/.test(line)) out.push(`the agent's job may write: ${line.trim()}`);
+    if (!/^ {6}contents: read$/m.test(perms)) out.push('the agent\'s job must say contents: read');
+  }
+  if (/\n {4}permissions:\s*(?:write-all|read-all)/.test(agent.text)) out.push('the agent\'s job takes a blanket permission');
+  const jobEnv = /\n {4}env:\n((?: {6}.*\n)+)/.exec(agent.text)?.[1] ?? '';
+  if (/GH_TOKEN|GITHUB_TOKEN/.test(jobEnv)) out.push('the agent\'s job sets a token for every step (job-level env)');
+  const checkouts = stepsIn(agent).filter(st => /uses: actions\/checkout@/.test(st));
+  if (!checkouts.length) out.push('the agent\'s job has no checkout');
+  for (const c of checkouts) if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push('a checkout in the agent\'s job keeps the token in git (persist-credentials: false)');
+  const claude = stepsIn(agent).find(st => /uses: anthropics\/claude-code-action@/.test(st)) ?? '';
+  if (!/\n {10}github_token: \$\{\{ github\.token \}\}\n/.test(claude)) out.push('claude-code-action is not handed the job\'s token (github_token), so it trades OIDC for its app\'s token, which can write');
+  const posts = j => code(j.text).some(({ line }) => /\bgh api\b[^\n]*--method POST|cross-review\.mjs"? summary\b/.test(line));
+  if (posts(agent)) out.push(`the agent's job ${agent.id} builds or posts the review`);
+  const ran = stepsIn(agent).find(st => /^ {6}- name: Did the agent run\?\n/.test(st)) ?? '';
+  if (!/\n {8}id: ran\n/.test(ran) || !/\n {10}fi\n {10}echo "ran=true" >> "\$GITHUB_OUTPUT"(?:\n|$)/.test(ran)) out.push('"Did the agent run?" does not say ran=true after its check passes');
+  if (!/\n {6}ran: \$\{\{ steps\.ran\.outputs\.ran \}\}\n/.test(agent.text)) out.push(`the ${agent.id} job does not hand on whether its agent ran (outputs.ran)`);
+  const upload = stepsIn(agent).findIndex(st => /uses: actions\/upload-artifact@/.test(st));
+  if (upload < 0) out.push('the agent\'s job leaves no artifact: the publish job would have nothing to post');
+  else if (upload < stepsIn(agent).indexOf(ran)) out.push('the artifact is kept before "Did the agent run?"');
+  const writers = jobs.filter(j => /:\s*write/.test(permsOf(j) ?? '') || /\n {4}permissions:\s*write-all/.test(j.text));
+  const poster = jobs.find(posts);
+  if (!poster) out.push('no job posts the review');
+  else if (!writers.includes(poster)) out.push(`the job that posts (${poster.id}) cannot write pull requests`);
+  for (const w of writers) {
+    if (w === agent) continue;
+    if (!new RegExp(`\\n {4}needs: (?:${agent.id}|\\[[^\\]]*\\b${agent.id}\\b[^\\]]*\\])\\n`).test(w.text)) out.push(`the writing job ${w.id} does not wait for the ${agent.id} job`);
+    if (!new RegExp(`\\n {4}if: needs\\.${agent.id}\\.outputs\\.ran == 'true'\\n`).test(w.text)) out.push(`the writing job ${w.id} runs whether or not the agent ran (if: needs.${agent.id}.outputs.ran == 'true')`);
+    if (/\balways\(\)|\bfailure\(\)|\bcancelled\(\)/.test(/\n {4}if: (.*)\n/.exec(w.text)?.[1] ?? '')) out.push(`the writing job ${w.id} runs after a failed agent`);
+    for (const c of stepsIn(w).filter(st => /uses: actions\/checkout@/.test(st))) {
+      if (!/\n {10}ref: \$\{\{ github\.event\.repository\.default_branch \}\}(?:\n|$)/.test(c)) out.push(`the writing job ${w.id} checks out something other than the default branch: the PR's code would run where the token writes`);
+      if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push(`a checkout in the writing job ${w.id} keeps the token in git`);
+    }
+    if (/steps\.which\.outputs\.sha|pull_request\.head\.(?:sha|ref)|headRefOid/.test(w.text)) out.push(`the writing job ${w.id} reaches for the PR's head`);
+    if (!/\n {6}- uses: actions\/download-artifact@/.test(w.text)) out.push(`the writing job ${w.id} does not take the review job's artifact`);
+    if (code(w.text).some(({ line }) => /cross-review\.mjs" summary|\$RUNNER_TEMP\/keel\//.test(line))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
+  }
+  return out;
+}
+
+test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose token only reads; the job that posts runs no agent and nothing of the PR\'s', async () => {
+  const t = (await shipped()).find(w => w.name === 'keel-cross-review.yml').template;
+  assert.deepEqual(crossReviewSandboxProblems(t), []);
+  assert.deepEqual(jobsOf(t).map(j => j.id), ['review', 'publish'], 'the jobs, as GitHub shows them');
+  const reviewPerms = '    permissions:\n      contents: read\n      pull-requests: read\n';
+  assert.ok(t.includes(reviewPerms));
+  const publish = jobsOf(t).find(j => j.id === 'publish').text;
+  assert.match(publish, /\n {4}permissions:\n {6}contents: read\n {6}pull-requests: write\n/);
+  // The publish job runs only when the agent ran: GitHub's if:, with the review job's outputs as they come.
+  const pubIf = /\n {4}if: (.*)\n/.exec(publish)[1];
+  assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: 'true' } } } }), true);
+  assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: '' } } } }), false, 'a red "Did the agent run?" never sets ran');
+  assert.equal(evalExpression(pubIf, { needs: { review: { outputs: {} } } }), false, 'no review: nothing set');
+  const claudeStep = stepsOf(t).find(st => /uses: anthropics\/claude-code-action@/.test(st));
+  const codexStep = stepsOf(t).find(st => /uses: openai\/codex-action@/.test(st));
+  const postStep = /\n {6}# The review: the agent's final message[\s\S]*?(?=\n$|$)/.exec(publish)[0];
+  for (const [why, text] of [
+    ['the review job may write pull requests', t.replace(reviewPerms, reviewPerms.replace('pull-requests: read', 'pull-requests: write'))],
+    ['the review job may write issues', t.replace(reviewPerms, `${reviewPerms}      issues: write\n`)],
+    ['the review job may mint an OIDC token', t.replace(reviewPerms, `${reviewPerms}      id-token: write\n`)],
+    ['the review job may write contents', t.replace(reviewPerms, reviewPerms.replace('contents: read', 'contents: write'))],
+    ['the review job without its own permissions', t.replace(reviewPerms, '')],
+    ['the review job write-all', t.replace(reviewPerms, '    permissions: write-all\n')],
+    ['the workflow grants write', t.replace('permissions: {}\n', 'permissions:\n  contents: read\n  pull-requests: write\n')],
+    ['the workflow grants the old set', t.replace('permissions: {}\n', 'permissions:\n  contents: read\n  pull-requests: write\n  issues: write\n  id-token: write\n')],
+    ['a job-level token', t.replace('    env:\n      REPO: ${{ github.repository }}\n', '    env:\n      GH_TOKEN: ${{ github.token }}\n      REPO: ${{ github.repository }}\n')],
+    ['the default branch\'s checkout keeps its credential', t.replace('          ref: ${{ github.event.repository.default_branch }}\n          persist-credentials: false\n', '          ref: ${{ github.event.repository.default_branch }}\n')],
+    ['the PR\'s checkout keeps its credential', t.replace('          ref: ${{ steps.which.outputs.sha }}\n          persist-credentials: false\n', '          ref: ${{ steps.which.outputs.sha }}\n')],
+    ['Claude trades OIDC for its app token', t.replace(claudeStep, claudeStep.replace('          github_token: ${{ github.token }}\n', ''))],
+    ['the post in the review job', t.replace(/(\n {6}- name: Hand the review on\n)/, `\n${postStep.replace(/^\n/, '')}$1`)],
+    ['Claude in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${claudeStep}\n`)],
+    ['Codex in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${codexStep}\n`)],
+    ['the publish job checks out the PR', t.replace(publish, publish.replace('ref: ${{ github.event.repository.default_branch }}', 'ref: ${{ github.event.pull_request.head.sha }}'))],
+    ['the publish job checks out the run\'s commit', t.replace(publish, publish.replace('          ref: ${{ github.event.repository.default_branch }}\n', ''))],
+    ['the publish job runs whatever happened', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true'\n", '    if: always()\n'))],
+    ['the publish job with no if', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true'\n", ''))],
+    ['the publish job not waiting', t.replace(publish, publish.replace('    needs: review\n', ''))],
+    ['the publish job without the artifact', t.replace(publish, publish.replace(/\n {6}- uses: actions\/download-artifact@[\s\S]*?\/review\n/, '\n'))],
+    ['the publish job runs a copy', t.replace(publish, publish.replace('node scripts/keel/cross-review.mjs summary', 'node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary'))],
+    ['ran said before the check', t.replace('          echo "ran=true" >> "$GITHUB_OUTPUT"\n', '').replace('        run: |\n          if [ "$AGENT" = codex ]; then\n            node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" agent-ran', '        run: |\n          echo "ran=true" >> "$GITHUB_OUTPUT"\n          if [ "$AGENT" = codex ]; then\n            node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" agent-ran')],
+    ['ran not handed on', t.replace('      ran: ${{ steps.ran.outputs.ran }}\n', '')],
+    ['no artifact', t.replace(/\n {6}- name: Keep the review\n[\s\S]*?retention-days: 7\n/, '\n')],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    assert.ok(crossReviewSandboxProblems(text).length, `${why}: expected a problem`);
   }
 });
 

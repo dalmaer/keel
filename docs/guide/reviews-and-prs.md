@@ -114,7 +114,11 @@ approves, requests changes or merges. Its last message is a summary and a
 JSON block of findings; the workflow checks each finding against the diff
 and posts one comment review: the summary, opened by a hidden marker so it
 owes no answer, with the valid findings as inline comments (a finding it
-drops is named in the summary). The inline comments are owed answers: the
+drops is named in the summary). The agent and the post are two jobs: the
+agent's token only reads (Claude's action is handed it, so no app token
+that writes is ever minted), and the job that posts runs no agent and
+nothing from the PR's branch, only the default branch's script on the
+agent's final message. The inline comments are owed answers: the
 author answers each one fixed, tracked or not valid, as above.
 
 **Switching it on.** Add `cross-review` to `.keel/keel.json` `practices`

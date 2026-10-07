@@ -44,13 +44,22 @@ OPENAI_API_KEY is not set"):
   sandbox (no write, no network) with `safety-strategy: drop-sudo` (its key
   stays out of its reach) and no GitHub token, reading the diff the
   workflow wrote before it ran. Neither holds a tool that comments: it never
-  pushes, approves, requests changes or merges, and the workflow's token
-  cannot write the repo's contents.
+  pushes, approves, requests changes or merges.
+- **Two jobs** (keel phase 46, as climb and tend since ledger#92). The
+  agent runs in the `review` job, whose token only reads (`contents: read`,
+  `pull-requests: read`; no `id-token`, no credential persisted by a
+  checkout), and Claude's action is handed that token as `github_token`, so
+  it never trades OIDC for its app's token, which could write. Its final
+  message, the PR and its diff leave as an artifact. The `publish` job
+  (`pull-requests: write`) runs no agent and nothing from the PR's branch:
+  it checks out the default branch, runs that branch's
+  `cross-review.mjs summary` on the artifact and posts the review. It runs
+  only when the agent ran: a red "Did the agent run?" ends the run there.
 - **Findings are data.** The agent's final message is a short summary and
   a fenced `json` block, `[{ "path", "line", "severity": "P1"|"P2"|"P3",
   "body" }]`. `scripts/keel/cross-review.mjs summary` checks each against
   the PR's diff (the path is in it, the line in one of its hunks, a known
-  severity, a body) and the workflow posts one `COMMENT` review: the
+  severity, a body) and the publish job posts one `COMMENT` review: the
   summary, opened by a hidden marker so it is a status board that owes no
   answer, with the valid findings as its inline comments (each opening
   with a `<!-- keel:cross-review finding -->` marker and its priority).
@@ -102,8 +111,9 @@ and no agent runs.
 
 **What it needs (⚑).** The chosen agent's secret. Claude:
 `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or
-`ANTHROPIC_API_KEY` (billed per token), the claude practice's; the action's
-OIDC exchange needs the Claude GitHub App installed on the repo. Codex:
+`ANTHROPIC_API_KEY` (billed per token), the claude practice's; the action
+is handed the review job's read-only token, so it needs no Claude GitHub
+App and exchanges no OIDC token (phase 46). Codex:
 `OPENAI_API_KEY`, always billed per token to the OpenAI API account (there
 is no subscription path), and codex-action runs only for an actor with
 write access, or a bot it is told to trust; so does claude-code-action.
@@ -113,8 +123,8 @@ opened is reviewed, by Codex or, as the fallback, by Claude; never a
 wildcard or `allow-bots`. Each
 reviewed PR spends model tokens, up to the budget. Until the secret is set
 the run ends green with a notice. The review and its inline comments are
-posted by the workflow's own step (`github-actions[bot]`), whichever agent
-wrote them.
+posted by the workflow's publish job (`github-actions[bot]`), whichever
+agent wrote them.
 
 **Optional: opt in.** `keel init` and `keel adopt` leave it off unless asked
 (`--with cross-review`), or unless `.keel/keel.json` already lists it.

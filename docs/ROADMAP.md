@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**37 of 49 phases built; 8 owe a walk.** Built means implemented and checked; planned is not available.
+**37 of 49 phases built; 9 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md). On or after 2026-11-01, with two projects adopted, compute the six measures exactly as `docs/research/2026-10-02-does-keel-help-measures.md` names them, and write the results page.
 
@@ -53,7 +53,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-12/15 built; 1 owes a walk.
+12/15 built; 2 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [41. Every review comment is validated and answered: none goes unread](phases/41-no-pr-keel-merges-has-an-unread-review-every.md) | built | 2026-10-07 | [6](phases/06-update-and-migrations.md), [10](phases/10-the-night-shift.md), [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | Built and read: keel review (read, --wait, --close; --gate only for the opt-in; --close only what the latest read showed), reviews_unanswered on the night, the rule in conduct and the climb/tend briefs. Every Codex comment on the fleet releases v0.8.3 to v0.8.20 validated and answered; the owner read cajones#41's answered threads and approved them (2026-10-07). · [#23](https://github.com/dalmaer/keel/issues/23) |
 | [42. Claude reviews what Codex writes, the way Codex reviews what Claude writes](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | built | 2026-10-07 | [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md), [41](phases/41-no-pr-keel-merges-has-an-unread-review-every.md) | Built and used: the cross-review practice (read-only tools, findings as JSON keel posts, a COMMENT review, budgeted). Its first real review (Claude on Codex's ledger#92) found a valid P2, a token escape in the tend agent, fixed in 10c59b5; the owner judged it (2026-10-07). Since phase 45 Codex reviews Claude's PRs too. · [#24](https://github.com/dalmaer/keel/issues/24) |
 | [45. Agents are providers: Claude and Codex behind keel's rules](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | partial, walk owed | 2026-10-07 | [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [38](phases/38-the-records-are-tended-a-weekly-pass-resolves.md), [42](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | Built: agents ("agents", and "agent" per pass, default claude), adapters for Claude and Codex in the night lib, findings as JSON that keel validates against the diff and posts (no agent holds a comment tool), Codex reviewing in a read-only, drop-sudo sandbox. Codex cannot commit under workspace-write, so climb and tend stay Claude-only. Owes the Codex run on ledger. · [#29](https://github.com/dalmaer/keel/issues/29) |
-| [46. Cross-review runs its agent in a read-only job, and posts from another](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | planned | 2026-10-07 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | Cross-review is the one agent workflow still running its agent in a job that can write (pull-requests, issues, id-token). Split it as climb and tend are: a read-only review job, a publish job with no agent. Design: research/2026-10-07-review-hardening.md §1. · [#32](https://github.com/dalmaer/keel/issues/32) |
+| [46. Cross-review runs its agent in a read-only job, and posts from another](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | partial, walk owed | 2026-10-07 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | Built: a read-only review job (Claude handed the job's read-only github_token, no id-token; Codex as before) and a publish job with no agent that posts keel's validated findings from the default branch's script. Owes a real review on ledger after the update. · [#32](https://github.com/dalmaer/keel/issues/32) |
 | [48. A release is reviewed before the fleet sees it](phases/48-a-release-is-reviewed-before-the-fleet-sees-it.md) | planned | 2026-10-07 | [41](phases/41-no-pr-keel-merges-has-an-unread-review-every.md), [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | v0.8.12 to v0.8.19 each drew new Codex findings on the fleet update PRs, in code written that day; each round cost a release and a fleet round. Shipped practice changes land through a keel PR reviewed by another provider before keel release runs. Design: research/2026-10-07-review-hardening.md §3. · [#34](https://github.com/dalmaer/keel/issues/34) |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
