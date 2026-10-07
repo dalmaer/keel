@@ -5,6 +5,14 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.2 — practice 0.8.2 (2026-10-06)
+
+Fixes from review of the 0.8.1 update.
+
+- **Slow tests are judged like with like.** After a change to NODE_OPTIONS, preloads or your `configEnv` variables, `slow_tests` says n/a until that setting has its own history, instead of a misleading 0.
+- **The run-alone command reproduces what was seen:** it carries the setting a flaky or slower test was seen under, and works from whatever folder it's printed in (web/ and workspace suites included).
+- **More history per setting.** The ledger keeps runs per suite and setting (at least 50 each, 400 in all), so a project with several test lanes (ledger runs four) builds a baseline in each.
+
 ## v0.8.1 — practice 0.8.1 (2026-10-06)
 
 Fixes from review of the 0.8.0 update.
