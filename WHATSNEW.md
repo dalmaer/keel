@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.16 — practice 0.8.16 (2026-10-07)
+
+- **A walk owed no longer blocks the next phase.** Mark a partial phase whose building is done and whose rest is a walk or time (a run on GitHub, your read, a week of nights) with `owes: walk` in its front matter: phases that depend on it can proceed, `keel next` and `/conduct <N>` treat it as done, the roadmap shows "partial, walk owed", and the night doesn't count it as stuck. It is refused while any box that could still be built is unchecked, so built still means proven.
+- **Lived-in is a project's choice, and yours stays as it was.** This update writes `"phases": { "livedIn": true }` into your `.keel/keel.json` (migration 0006), so nothing about your roadmap changes. Delete that line to count built only; a project started from now on starts without it. A project that keeps its own phases follows its own rules.
+- **A migration is taken only by the release that carries it or later.**
+
 ## v0.8.15 — practice 0.8.15 (2026-10-07)
 
 - **A walk owed no longer blocks the next phase.** Mark a partial phase whose building is done and whose rest is a walk or time (a run on GitHub, your read, a week of nights) with `owes: walk` in its front matter: phases that depend on it can proceed, `keel next` skips it, the roadmap shows "partial, walk owed", and the night doesn't count it as stuck. It is refused while any box that could still be built is unchecked, so built still means proven.
