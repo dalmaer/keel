@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 50 phases built; 9 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 51 phases built; 9 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md). On or after 2026-11-01, with two projects adopted, compute the six measures exactly as `docs/research/2026-10-02-does-keel-help-measures.md` names them, and write the results page.
 
@@ -157,17 +157,19 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-1/3 built; 1 owes a walk.
+1/4 built; 1 owes a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
 | [12. One look tells the owner which projects are behind, red, or teaching something](phases/12-the-fleet.md) | built | 2026-10-04 | [4](phases/04-keel-adopt.md), [11](phases/11-keel-improve.md) | keel fleet shows all four projects adopted, with duo and cajones correctly one release behind; silent is proven on the stub, as no project has gone silent. |
 | [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md) | partial | 2026-10-02 | [12](phases/12-the-fleet.md) | Measures and comparison pre-registered and committed before any adoption (45a52ee). The results page is due no earlier than 2026-11-01 and needs two adopted projects. · [#31](https://github.com/dalmaer/keel/issues/31) |
 | [34. Keel counts its escapes, and every rigour change is judged by them](phases/34-keel-counts-its-escapes-and-every-rigour-change.md) | partial, walk owed | 2026-10-06 | [11](phases/11-keel-improve.md), [13](phases/13-does-keel-help.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Built: escapes on the night (fix: commits, the project's own lessons and — Escape: Trajectory lines since the last release, attributed only when one phase is named; bound: the previous release's count), with ceremony beside it. Baseline: 10 before v0.7.0, matching the analysis. Waits on the owner judging phases 32 and 33's levers after a release with them. · [#12](https://github.com/dalmaer/keel/issues/12) |
+| [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md) | designed | 2026-10-08 | [2](phases/02-the-keel-cli.md), [10](phases/10-the-night-shift.md), [26](phases/26-reconciliation.md), [40](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | Integration specified: one project canvas projects the whole lifecycle with source-backed improvement measures. Implementation and the real isocan walk remain. |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
 - **13 done when:** A dated research page compares the fleet before and after adoption on measures fixed in advance (red-streak length, time from lesson to guard, phases moved per week, conduct cost per phase) and says plainly what it found.
 - **34 done when:** The night reports `escapes` for keel and each adopted project (defects found after a phase was built, since the last release, each pointing at the phase it escaped where the record names one), the baseline from the spec-rigour analysis is recorded, and phases 32 and 33 each have a before-and-after reading in their evidence.
+- **50 done when:** An adopted project has a persistent isocan canvas showing its complete Keel lifecycle, with source-linked measures of fixes and improvement that survive repeated synchronization without changing source acceptance or overwriting human work.
 
 ## Updating this roadmap
 
