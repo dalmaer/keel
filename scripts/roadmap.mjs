@@ -12,6 +12,8 @@
 // check behind every acceptance box and list its Real surfaces, and never ask
 // for a night measure with no bound (the selftest refuses one). Writing the
 // roadmap does not: a phase just drafted by `keel phase new` still lists.
+// It notes, never refuses, a phase with an open ⚑ walk and no ## Your part
+// (yourPartNotes): the owner's ask in plain words is advice to write.
 import { readFile, readdir, writeFile, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,12 +75,109 @@ export const PLACEHOLDERS = Object.freeze([
   'A known limitation that could make this phase\'s output wrong (a suggestion, a count, a verdict): its effect, and when it is settled. Here, never only in a design\'s prose.',
   'One concrete action that advances this phase.',
   '**YYYY-MM-DD** — Claim. Evidence.',
+  '**Ask:** What the owner does, in one plain sentence, with no keel words.',
+  '**Why:** What it settles or unblocks, in one sentence.',
+  '**Look at:** The one thing to read or open first; a [link](url) is fine.',
+  '**Choices:** First choice | Second choice',
+  '**Takes:** About how long, e.g. 5 minutes.',
+  '**Then:** What happens after each choice, where they differ.',
+  '**Ready:** yes, or **Ready when:** what must happen first.',
 ]);
 /** Where a change runs for real (a closed list; `none` is a full answer). */
 export const SURFACES = Object.freeze(['published package', 'workflow shell', 'adopted project', "owner's machine", 'GitHub API', 'fleet over time']);
 /** A cited test: tests/<path>, not a path that merely ends in tests/. */
 const TEST_PATH = /(?<![\w./-])tests\/[\w./-]*\w/g;
 const strip = line => line.trim().replace(/^- \[[ x]\]\s*/, '').replace(/^-\s+/, '').trim();
+
+/**
+ * A phase's `## Your part` (keel phase 51's follow-up): what the owner is
+ * asked, in plain words, for a phase with a ⚑ walk. One bullet per field,
+ * `- **Ask:** …`; Choices are split on " | ", and so is Keeps it open (the
+ * choices, among Choices, that record an answer and leave the walk open);
+ * `**Ready:** yes` is ready,
+ * `**Ready when:** <what first>` is not ({ when }). A Markdown table may
+ * follow the bullets. With `### ` sub-headings, one part per walk box: the
+ * phase's yourPart is the first, with every part in `parts`. null when the
+ * section is absent or empty.
+ */
+export const YOUR_PART_FIELDS = Object.freeze({ 'Ask': 'ask', 'Why': 'why', 'Look at': 'look', 'Choices': 'choices', 'Keeps it open': 'keepsOpen', 'Takes': 'takes', 'Then': 'then', 'Ready': 'ready', 'Ready when': 'readyWhen' });
+export function yourPartOf(text) {
+  if (!text || !String(text).trim()) return null;
+  const blocks = [];
+  let current = { heading: null, lines: [] };
+  for (const line of String(text).split(/\r?\n/)) {
+    const sub = /^### +(.+?)\s*$/.exec(line);
+    if (sub) { if (current.heading !== null || current.lines.some(l => l.trim())) blocks.push(current); current = { heading: sub[1], lines: [] }; }
+    else current.lines.push(line);
+  }
+  blocks.push(current);
+  const parts = blocks.filter(b => b.heading !== null || b.lines.some(l => l.trim())).map(b => partOf(b.lines, b.heading));
+  if (!parts.length) return null;
+  return parts.length === 1 ? parts[0] : { ...parts[0], parts };
+}
+
+function partOf(lines, heading) {
+  const part = { heading, ask: null, why: null, look: null, choices: [], keepsOpen: [], takes: null, then: null, ready: null, table: null };
+  const rows = [];
+  let field = null;
+  for (const line of lines) {
+    if (/^\s*\|/.test(line)) { rows.push(line.trim()); field = null; continue; }
+    const bullet = /^[-*]\s+\*\*([^*]+?):\*\*\s*(.*)$/.exec(line);
+    if (bullet) { field = YOUR_PART_FIELDS[bullet[1].trim()] ?? null; if (field) part[field] = bullet[2].trim(); continue; }
+    if (field && /^\s+\S/.test(line)) { part[field] = `${part[field]} ${line.trim()}`.trim(); continue; }
+    if (!line.trim()) field = null;
+  }
+  const list = v => typeof v === 'string' ? v.split(/\s+\|\s+/).map(c => c.trim()).filter(Boolean) : [];
+  part.choices = list(part.choices);
+  // The choices that defer: they record the owner's answer and leave the walk open.
+  part.keepsOpen = list(part.keepsOpen);
+  const when = part.readyWhen;
+  delete part.readyWhen;
+  part.ready = when ? { when } : typeof part.ready === 'string' ? (/^yes\b/i.test(part.ready) ? true : { when: part.ready }) : null;
+  const cells = row => row.replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replaceAll('\\|', '|'));
+  const body = rows.filter(r => !/^\|?[\s:|-]+\|?$/.test(r) || !r.includes('-'));
+  if (body.length) part.table = { head: cells(body[0]), rows: body.slice(1).map(cells) };
+  return part;
+}
+
+/** Whether a Your part is ready for the owner: every part says Ready: yes (a part that says neither counts as ready; the check notes it). */
+export const yourPartReady = yp => !!yp && (yp.parts ?? [yp]).every(p => p.ready === null || p.ready === true);
+
+/** What a Your part's Then says for one choice: the text after "<choice>:" up to the next choice named so, else the whole Then. */
+export function thenFor(then, choices = [], choice) {
+  if (!then) return null;
+  const at = c => { const m = new RegExp(`(^|[\\s.;(])${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(:|→)`, 'i').exec(then); return m ? { start: m.index + m[1].length, end: m.index + m[0].length } : null; };
+  const mine = at(choice);
+  if (!mine) return then;
+  const next = choices.filter(c => c !== choice).map(at).filter(m => m && m.start > mine.start).sort((a, b) => a.start - b.start)[0];
+  return then.slice(mine.end, next ? next.start : undefined).trim().replace(/[;,]$/, '').trim() || then;
+}
+
+/**
+ * What --check notes about a phase's Your part (advice, never a failure): a
+ * phase with an open ⚑ walk and no Your part, and a Your part missing its
+ * Ask, its Choices or its Ready.
+ */
+export function yourPartNotes(file, raw) {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
+  if (!block) return [];
+  const status = /^status:\s*(\S+)\s*$/m.exec(block[1])?.[1];
+  if (status === 'superseded' || DONE.includes(status)) return [];
+  const sections = sectionsOf(block[2]);
+  const walks = boxes(sections.Acceptance).filter(b => !b.checked && isWalk(b.text));
+  const id = Number(/^(\d+)/.exec(file)?.[1]);
+  const yp = yourPartOf(sections['Your part']);
+  if (!yp) return walks.length ? [`docs/phases/${file}: phase ${id} has a walk but no Your part: say in plain words what the owner should do`] : [];
+  const out = [];
+  for (const p of yp.parts ?? [yp]) {
+    const where = `docs/phases/${file}: ## Your part${p.heading ? ` (${p.heading})` : ''}`;
+    if (!p.ask) out.push(`${where} has no **Ask:**; say in one plain sentence what the owner does`);
+    if (!p.choices.length) out.push(`${where} has no **Choices:**; list what the owner can answer, A | B`);
+    for (const c of p.keepsOpen.filter(c => !p.choices.includes(c))) out.push(`${where}: **Keeps it open:** names "${c}", which is not one of its Choices`);
+    if (p.ready === null) out.push(`${where} says neither **Ready:** yes nor **Ready when:** <what first>`);
+  }
+  return out;
+}
 
 /** A phase body's `## Name` sections: { name: text }. */
 export function sectionsOf(body) {
@@ -214,8 +313,9 @@ function unboundedMeasures(sections, where) {
 export function specNotes(file, raw) {
   const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw);
   if (!block || /^status:\s*superseded\s*$/m.test(block[1])) return [];
-  if (Number(/^spec:\s*(\d+)\s*$/m.exec(block[1])?.[1] ?? 0) < 2) return [];
-  return unboundedMeasures(sectionsOf(block[2]), section => `docs/phases/${file}: ## ${section}`);
+  const walk = yourPartNotes(file, raw);
+  if (Number(/^spec:\s*(\d+)\s*$/m.exec(block[1])?.[1] ?? 0) < 2) return walk;
+  return [...unboundedMeasures(sectionsOf(block[2]), section => `docs/phases/${file}: ## ${section}`), ...walk];
 }
 
 /**
@@ -239,7 +339,7 @@ export function specProblems(file, raw) {
     const left = text.split(/\r?\n/).map(strip).filter(line => PLACEHOLDERS.some(p => line.includes(p)));
     if (!left.length) continue;
     templated.add(section);
-    problems.push(`${where(section)} still holds the template's text ("${left[0]}"); ${section === 'Trajectory' ? 'delete the section until something changes the course' : 'write what this phase means'}`);
+    problems.push(`${where(section)} still holds the template's text ("${left[0]}"); ${section === 'Trajectory' ? 'delete the section until something changes the course' : section === 'Your part' ? 'delete the section when the phase has no ⚑ walk; otherwise say in plain words what the owner should do' : 'write what this phase means'}`);
   }
   if (spec < 2) return problems;
   if (!templated.has('Acceptance')) for (const box of boxes(sections.Acceptance)) {
@@ -342,6 +442,7 @@ export function parsePhase(file, raw) {
     tests: citedTests(sections.Acceptance),
     done: sections['Done when'].replace(/\s+/g, ' '),
     next: sections['Next action'].replace(/\s+/g, ' '),
+    yourPart: yourPartOf(sectionsOf(body)['Your part']),
   };
 }
 

@@ -57,6 +57,16 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 - [x] With no secret set, the run ends green with a notice; with no `climb` key, the workflow does nothing. `tests/climb.test.mjs: "off"`
 - [ ] ⚑ by hand: the owner turns climb on for keel, a scheduled night opens a test-time PR (or reports it kept nothing), and the owner reads it and merges or closes it.
 
+## Your part
+
+- **Ask:** Read the pull request keel's overnight agent opens to make the test suite faster (or its note saying what it tried and kept nothing), then merge it or close it.
+- **Why:** It proves an agent can work on one number overnight while only a person decides what lands.
+- **Look at:** The `keel-climb/test-time/…` pull request, or the "Climb:" line on that morning's [health page](../health/).
+- **Choices:** Merged it | Closed it | Nothing kept, and that is fine
+- **Takes:** 10 minutes
+- **Then:** Merged it: recorded, and this is done. Closed it: recorded; say why in the note, and the conductor reads it before the next night. Nothing kept, and that is fine: recorded, and this is done.
+- **Ready when:** a scheduled night has actually tried something: opened a test-speed pull request, or reported what it tried and reverted (the last two nights tried nothing).
+
 ## Real surfaces
 
 - Workflow shell: `keel-climb.yml` on GitHub Actions, run for real on keel.

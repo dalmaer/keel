@@ -47,6 +47,17 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 - [x] With no `tend` key, nothing runs; with no secret, it ends green with a notice. `tests/climb.test.mjs: "tend off"`
 - [ ] ⚑ by hand: one tend PR on keel and one on an adopted project, each read and merged (or closed with a reason) by the owner, and the next night's record findings checked against it.
 
+## Your part
+
+- **Ask:** Read ledger's first weekly tidy-up pull request, merge it or close it with a reason, and check that the next morning's report lists fewer open findings.
+- **Why:** It proves the weekly pass fixes what the nightly checks find, with a person merging every change (keel's own first pass was read on 7 October).
+- **Look at:** ledger's `keel-tend/…` pull request, then the next morning's health page.
+- **Choices:** Merged, and findings fell | Merged, but findings did not fall | Closed it
+- **Keeps it open:** Merged, but findings did not fall
+- **Takes:** 10 minutes
+- **Then:** Merged, and findings fell: recorded, and this is done. Merged, but findings did not fall: recorded, and the walk stays open; the conductor finds why and asks again after the next pass. Closed it: recorded with your reason; the conductor reads it before the next pass.
+- **Ready when:** ledger's first weekly tend pass has run (Monday 12 October, 10:18 UTC) and opened its pull request.
+
 ## Real surfaces
 
 - Workflow shell: the tend run on GitHub Actions.

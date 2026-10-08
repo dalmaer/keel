@@ -36,6 +36,16 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 - [x] With no `agents` key and no `agent` on any pass, climb's and tend's agent steps are byte-identical to today's, and cross-review's Claude step passes the same inputs but for the comment tool (findings are JSON now). `tests/agents.test.mjs`
 - [ ] ⚑ by hand: on ledger, the owner sets `OPENAI_API_KEY` and switches one pass to `"agent": "codex"`; its next run is read by the owner.
 
+## Your part
+
+- **Ask:** On ledger, read the review Codex leaves on the next pull request Claude opens, and say whether its comments were worth having.
+- **Why:** It proves keel can run a second AI provider under the same rules by changing one setting.
+- **Look at:** The next `claude/…` pull request on ledger and Codex's review on it.
+- **Choices:** Worth having | Not worth having
+- **Takes:** 10 minutes
+- **Then:** Worth having: recorded, and this is done. Not worth having: recorded; say why in the note, and the conductor proposes what to change in how Codex reviews.
+- **Ready when:** Codex has reviewed a pull request Claude opened on ledger (switched on in ledger#105).
+
 ## Real surfaces
 
 - Workflow shell: a Codex agent step running in keel-cross-review.yml or keel-tend.yml on GitHub Actions.

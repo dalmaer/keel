@@ -41,6 +41,17 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 - [x] The `loop` job proposes for every untriaged finding and decides none; a run with Loop unreachable ends with a notice, not red. `tests/climb.test.mjs: "loop"`
 - [ ] ⚑ by hand: on ledger, one night of each job, each PR read by the owner.
 
+## Your part
+
+- **Ask:** On ledger, read the three pull requests the overnight agent opens (one makes ledger's own benchmark faster, one tidies its lessons table, one proposes a ranking for new findings) and merge or close each.
+- **Why:** It proves the overnight agent can work on a project's own numbers and notes without deciding anything a person decides.
+- **Look at:** ledger's `keel-climb/perf/…`, `keel-climb/lessons/…` and `keel-climb/loop/…` pull requests.
+- **Choices:** All three were sound | Some were not
+- **Keeps it open:** Some were not
+- **Takes:** 15 minutes
+- **Then:** All three were sound: recorded, and this is done. Some were not: recorded, and the walk stays open; say which in the note, the conductor fixes that job, and you read its next pull request.
+- **Ready when:** ledger has the three overnight jobs switched on (a one-number benchmark command and the agent's token) and each has opened a pull request.
+
 ## Real surfaces
 
 - Adopted project: ledger, through its update PR and three real climb nights.

@@ -24,6 +24,17 @@ The smallest useful slice, and its boundaries.
 
 - [ ] Observable behaviour, including the failure path, and the check that proves it: `tests/<file>: "<test name>"`, a command in backticks, or ⚑ by hand: <who>.
 
+## Your part
+
+<!-- Only for a phase with a ⚑ walk: what the owner is asked, in plain words, for someone who has not read this phase. Delete the section when there is no walk. `**Ready when:** <what must happen first>` in place of `**Ready:** yes` keeps it off the owner's list until then. Add `- **Keeps it open:** <choice> | …` for choices that record an answer but leave the walk open ("Not enough data yet"). A table of the data may follow. -->
+- **Ask:** What the owner does, in one plain sentence, with no keel words.
+- **Why:** What it settles or unblocks, in one sentence.
+- **Look at:** The one thing to read or open first; a [link](url) is fine.
+- **Choices:** First choice | Second choice
+- **Takes:** About how long, e.g. 5 minutes.
+- **Then:** What happens after each choice, where they differ.
+- **Ready:** yes, or **Ready when:** what must happen first.
+
 ## Real surfaces
 
 - <surface>: <its proof>, one line for each place this runs for real (published package, workflow shell, adopted project, owner's machine, GitHub API, fleet over time); or the single line none.

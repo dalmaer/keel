@@ -35,6 +35,16 @@ The design is [Budget use](../research/2026-10-06-budget-use.md).
 - [x] keel's health page, after the night runs on GitHub, shows tend's real entry (its runs so far). `gh pr view <n> -R dalmaer/keel --json body`
 - [ ] ⚑ by hand: after four or more tend runs, the owner reads tend's line and keeps or changes the budget.
 
+## Your part
+
+- **Ask:** Read the "Budget" line on keel's health page and decide whether the weekly tidy-up keeps its 30-minute limit or gets a different one.
+- **Why:** The limit caps what each pass may spend; the line suggests extend, shorten or hold from how long the real runs took.
+- **Look at:** The "Budget:" line near the top of the latest [health page](../health/).
+- **Choices:** Keep 30 minutes | Change it
+- **Takes:** 2 minutes
+- **Then:** Keep 30 minutes: recorded, and this is done. Change it: recorded; put the new limit in the note, and the conductor sets it.
+- **Ready when:** the weekly tidy-up has run four times (late October); today the line says too few to say.
+
 ## Real surfaces
 
 - GitHub API: the Actions runs and jobs of keel-tend.yml and keel-climb.yml on keel.

@@ -32,6 +32,17 @@ aggregation follows the per-project walk; no additional tracking authority.
 - [ ] CLI help, optional practice installation/migration and the packed CLI agree: `npm run check`.
 - [ ] ⚑ by hand: owner approves home, space, audience and writer access; conductor performs the real isocan walk in spec slice 5, including concurrent-edit protection and restart recovery, and records evidence.
 
+## Your part
+
+- **Ask:** Choose where keel's project canvas lives on isocan (which home and which space), confirm that only you can see it, and allow keel to create it and write to it.
+- **Why:** Nothing is created on isocan until you approve; after that the conductor connects the canvas, runs the first sync, and checks it survives edits and a restart.
+- **Look at:** The first-connection rules in [the canvas spec](../specs/isocan-project-canvas.md).
+- **Choices:** Approve | Not yet
+- **Keeps it open:** Not yet
+- **Takes:** 5 minutes
+- **Then:** Approve: recorded; name the home and space in the note, and the conductor connects the canvas there, visible only to you, and records the walk. Not yet: recorded, and the walk stays open; nothing is created.
+- **Ready:** yes
+
 ## Real surfaces
 
 - Owner's machine: installed isocan creates and updates a private canvas; verify native groups, visual/source faces, source links, identity and conflicts in the browser.

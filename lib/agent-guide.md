@@ -962,6 +962,14 @@ proposal → `owner`), `inbox` (lessons proposed → `owner`), `fleet` (home onl
 the strip; red CI → `broken`). A source that cannot be read is `n/a` with
 why, never missing. An action's `note` is `required` or `optional`: the verb
 takes it as `--note` (walk done, learn decide) or as the why (walk decide).
+A walk item carries `yourPart` (the phase's `## Your part`: `{ask, why, look,
+choices, takes, then, ready, table, box}`, `parts` when several; null when
+the phase has none, and the page marks it "needs plain words"), `ready` and
+`ask`. A part with `**Ready when:**` is not ready: the item waits on `time`
+(`external` when the phase says so), `why` "Ready when: …", no actions. A
+ready part's actions are one per choice, `walk done <n> --choice "<c>"`,
+note optional, each with `choice` and its `then` (and `keepsOpen` for a
+choice that leaves the walk open).
 
 `keel board` (no `--json`) serves the same as one page on 127.0.0.1 (a free
 port, or `--port`), with a per-launch token in the URL that every request and
@@ -969,14 +977,20 @@ action needs; `--open` opens the browser. An action runs one of the board's
 own offers through the CLI (`walk done`, `walk decide`, `learn decide`) and
 shows its output. The agent's queue is still `keel next`.
 
-`keel walk done <phase> --note "<what you saw>" [--box <n>]` → `{ok, phase,
-file, box, walked, evidence, created, status, left, files, diff, note}`:
+`keel walk done <phase> --note "<what you saw>" | --choice "<c>" [--box <n>]` → `{ok, phase,
+file, box, walked, choice, then, evidence, created, status, left, files, diff, note}`:
 checks the phase's open ⚑ box (`--box`, counting every Acceptance box from 1,
 when it has several), appends a row to its first evidence file under "## The
 owner's read (date)" (a new evidence file when it has none), and with no box
 left open sets `status: built`, drops `owes`/`waits`, sets `since` to today and
 Next action to `None.`; it regenerates the roadmap. A box that is not a walk
-(it cites a test or a command): exit 2, nothing written.
+(it cites a test or a command): exit 2, nothing written. `--choice "<c>"` in
+place of `--note` answers the phase's Your part: the row reads "Chose: <c>."
+and the note, if any; `choice` and `then` (what the choice's Then says) are
+in the JSON. A choice not among the part's Choices (case aside): exit 2,
+nothing written. A choice records; it changes nothing else. A choice in the
+part's `keepsOpen` (`**Keeps it open:**`) writes the row and ticks nothing:
+status, owes and the box stay as they were (`keepsOpen: true`).
 `keel walk decide --proposal <health page> --accept ["<why>"] | --decline
 "<why>"` → `{ok, proposal, measure, decision, why, record, diff, note}`: a
 `**Decided <date>: accepted|declined**` line ends the page's Proposal section;

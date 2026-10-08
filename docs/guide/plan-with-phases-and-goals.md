@@ -74,7 +74,39 @@ a day says `after: 2026-11-01`: `keel next` skips it until that day, and the
 board lists it under time. The generated roadmap never reads the clock (a day
 passing must not make it stale): it names a dated phase "on or after" its date.
 When the owner has walked it, `keel walk done <phase> --note "<what you saw>"`
-checks the box and records the read (see [the board](the-board.md)). Lived-in counts are
+checks the box and records the read (see [the board](the-board.md)).
+
+A phase with a ⚑ walk also says, in a **Your part** section after
+Acceptance, what the owner is asked, in plain words for someone who has not
+read the phase. It exists because a walk read as its Acceptance box ("the
+owner reads phases 32 and 33's before-and-after and keeps or retires each
+lever") left the owner asking "It's hard to grok what this walk is REALLY
+about. How can we make it clear what we want the user to do?":
+
+```
+## Your part
+
+- **Ask:** <one sentence: what the owner does; no "lever", "walk" or bare phase numbers>
+- **Why:** <one sentence: what it settles or unblocks>
+- **Look at:** <one line; it may hold a Markdown link>
+- **Choices:** <Choice A> | <Choice B> | …
+- **Keeps it open:** <Choice B>   (optional)
+- **Takes:** <about how long, e.g. 5 minutes>
+- **Then:** <Choice A: what happens. Choice B: what happens.>
+- **Ready:** yes
+```
+
+Keep the choices real and few (two to five). `**Ready when:** <what must
+happen first>` in place of `**Ready:** yes` says the owner cannot act yet:
+the board lists it under Waiting with that reason, never as the owner's. A
+Markdown table of the data may follow the bullets, and the board shows it.
+Two walk boxes: one `### ` sub-heading per box, in order. The owner answers
+with `keel walk done <phase> --choice "<choice>"` (or the board's button for
+it), which records the choice and ticks the walk's box (a choice listed under
+Keeps it open records it and leaves the walk open, to be answered again): the change a choice asks
+for is the conductor's next step, and Then says so. A choice not in the list
+is refused. `npm run roadmap -- --check` notes a walk with no Your part, and
+a Your part with no Ask, Choices or Ready (advice, never a failure). Lived-in counts are
 a project's choice: `"phases": {"livedIn": true}` in `.keel/keel.json` turns
 them on; off, the roadmap and `keel status` count built only. In a repo whose phases live in the projects shape
 (`docs/projects/<p>/phases.md`), `keel next --project <p>` narrows it to one

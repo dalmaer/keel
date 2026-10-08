@@ -32,6 +32,17 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 - [x] Claude's review step with a read-only `github_token` still reads the diff and returns findings (`gh pr diff` works with read): checked on a synthetic run in the test. `tests/cross-review.test.mjs`
 - [ ] ⚑ by hand: a real review on ledger after the update posts inline comments from the publish job; the owner reads it.
 
+## Your part
+
+- **Ask:** Check that ledger's next automatic code review still posts its comments, now that the reviewing AI only has read access and a separate step posts for it.
+- **Why:** It proves the review is safe (the reviewer cannot change the code it reads) without losing any comments.
+- **Look at:** The review on ledger's next pull request after it updates to the release with this change.
+- **Choices:** Comments posted fine | Something was missing
+- **Keeps it open:** Something was missing
+- **Takes:** 5 minutes
+- **Then:** Comments posted fine: recorded, and this is done. Something was missing: recorded, and the walk stays open; say what in the note, the conductor fixes the posting step, and you check the next review.
+- **Ready when:** ledger has updated to the release with the two-step review and a review has run there.
+
 ## Real surfaces
 
 - Workflow shell: keel-cross-review.yml's two jobs on ledger's Actions.

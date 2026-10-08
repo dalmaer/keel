@@ -107,7 +107,7 @@
     },
     "docs/phases/README.md": {
       "practice": "phases",
-      "sha256": "1fc4d8b001a2de93ab87def12a84a91a93ef892e4faa5549744ff773dce600d0"
+      "sha256": "83b4c1f7e1a733f3f2c35564962ef2c0b11aedc1bf1f0948d0e6c27a7869b16f"
     },
     "docs/reconciliation.md": {
       "practice": "reconciliation",
@@ -119,7 +119,7 @@
     },
     "docs/templates/phase.md": {
       "practice": "phases",
-      "sha256": "1c9b25004d006ee07fd7732c5a31f00d2c287d18717d6002312a90e6d9e31f33"
+      "sha256": "76fea35bfb606801eeee0712802570d99518dace95498acdbab53a72a10a5f8a"
     },
     "renovate.json": {
       "practice": "renovate",
@@ -171,7 +171,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "a495fad98a2f3ac8853a6441423b0fbb69aa060bb5a926e46af4de2ab98d3bcd"
+      "sha256": "c16d52e347ac4716384da80452ed2eace98dc5aafd182244e132ca54ae3998f4"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -183,7 +183,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "f91c0375eccf0b351b3c3c8d43637ffab22574eb6ede16d7cc63c8f720f20453"
+      "sha256": "41cafca0bdaa38ad8591f3ce58e093ac5ae316becfca6ba1c82c7ebc40e7b841"
     }
   }
 }

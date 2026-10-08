@@ -97,6 +97,35 @@ found.` The night counts these lines (`escapes`), with `fix:` commits and
 lessons of the project's own; an Escape line naming another phase counts
 against that one.
 
+Optional: **Your part**, after Acceptance, for a phase with a ⚑ walk. It
+says what the owner is asked in plain words, for someone who has not read
+the phase (no "lever", "walk" or bare phase numbers):
+
+```
+## Your part
+
+- **Ask:** <one sentence: what the owner does>
+- **Why:** <one sentence: what it settles or unblocks>
+- **Look at:** <one line; may link [text](url)>
+- **Choices:** <Choice A> | <Choice B> | …
+- **Keeps it open:** <Choice B>   (optional: choices that leave the walk open)
+- **Takes:** <about how long, e.g. 5 minutes>
+- **Then:** <what happens after, per choice where they differ: "Choice A: …. Choice B: …">
+- **Ready:** yes
+```
+
+`**Ready when:** <what must happen first>` in place of `**Ready:** yes`
+means the owner cannot act yet: `keel board` lists it as waiting, with that
+reason, never as the owner's. A Markdown table of the data may follow the
+bullets. Two or more walk boxes: one `### ` sub-heading per box, in the
+boxes' order. A choice records the decision (`keel walk done <n> --choice
+"<choice>"`) and ticks the walk's box; what it changes is the conductor's
+next step, which Then says. A choice listed under **Keeps it open** (it must
+also be a Choice; "Not enough data yet", say) writes the same evidence row
+but ticks nothing: the walk stays open and can be answered again.
+`--check` notes, never refuses, a phase with an open walk and no Your part,
+and a Your part with no Ask, no Choices or no Ready.
+
 Use [the template](../templates/phase.md). After editing: `npm run roadmap`,
 then `{{check}}`.
 

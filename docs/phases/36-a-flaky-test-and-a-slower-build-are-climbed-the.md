@@ -40,6 +40,16 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 - [x] `build-time`'s guard fails when the build output changes and the report names no reason. `tests/climb.test.mjs: "build guard"`
 - [ ] ⚑ by hand: one real hygiene night on keel, the flaky test it targets named by the ledger, and its PR or issue read by the owner.
 
+## Your part
+
+- **Ask:** When keel's test record names a flaky test, read the pull request (or the issue) the overnight agent opens about it, and merge or close it.
+- **Why:** It proves a flaky test gets fixed by the same overnight routine, and that a fix which only adds a timeout or a retry is refused.
+- **Look at:** The `keel-climb/hygiene/…` pull request or issue, and the test it names.
+- **Choices:** Merged the fix | Closed it | The issue it filed is right
+- **Takes:** 10 minutes
+- **Then:** Merged the fix: recorded, and this is done. Closed it: recorded; say why in the note, and the conductor looks again. The issue it filed is right: recorded, and this is done; the issue stays open as work.
+- **Ready when:** keel's test record names a flaky test and a climb night has worked on it (none named so far).
+
 ## Real surfaces
 
 - Workflow shell: the climb workflow running both jobs on GitHub Actions.

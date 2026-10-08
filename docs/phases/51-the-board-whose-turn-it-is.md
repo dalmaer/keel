@@ -35,6 +35,16 @@ The design is [The board](../research/2026-10-08-whose-turn-board.md).
 - [x] keel's own phases carry `after:` (13) and `waits:` where a walk waits on time or an external thing, and `keel next` no longer names phase 13 before 2026-11-01. `node scripts/roadmap.mjs --next`
 - [ ] ⚑ by hand: the owner opens the board, and settles a week of walks and decisions from it rather than in chat.
 
+## Your part
+
+- **Ask:** Settle what is waiting on you from this board for a week instead of in chat, then say whether it earns its place.
+- **Why:** The board is only worth keeping if it is where you actually decide; a week of use shows that.
+- **Look at:** This page: `keel board --open` from keel's checkout.
+- **Choices:** Keep it | Keep it, with changes | Not useful
+- **Takes:** a few minutes a day for a week; the answer, 1 minute
+- **Then:** Keep it: recorded, and this is done. Keep it, with changes: recorded; list the changes in the note, and the conductor makes them a phase. Not useful: recorded; say why in the note, and the conductor proposes what replaces it.
+- **Ready:** yes
+
 ## Real surfaces
 
 - Owner's machine: `keel board` in the owner's browser, with their `gh` login reading the fleet.

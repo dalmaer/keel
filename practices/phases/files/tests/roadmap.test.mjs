@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, nothingNext, uncheckedBoxes, sectionsOf, isWalk, livedInOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES } from '../scripts/roadmap.mjs';
+import { parsePhase, validateGraph, nextPhase, focus, render, run, specProblems, specNotes, nothingNext, uncheckedBoxes, sectionsOf, isWalk, livedInOf, PLACEHOLDERS, PLACEHOLDER_TITLE, SURFACES, yourPartOf, yourPartReady, thenFor } from '../scripts/roadmap.mjs';
 
 const phase = ({ status = 'planned', since = '2026-10-02', goal = 'G0', depends = '[]', evidence = '[]', acceptance = '- [ ] Something observable.', extra = '' } = {}) => `---
 status: ${status}
@@ -494,4 +494,71 @@ test('the generated roadmap never reads the clock: a dated phase is named "on or
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+// A phase with a ⚑ walk says what the owner is asked, in plain words (## Your part).
+const asked = (part, acceptance = '- [x] Built. `npm test`\n- [ ] ⚑ by hand: the owner reads the anvil.') => phase({ status: 'partial', extra: 'owes: walk\n', acceptance })
+  .replace('## Proof', `## Your part\n\n${part}\n\n## Proof`);
+const plain = `- **Ask:** Decide whether Acme keeps the anvil rule.
+- **Why:** It settles whether the rule
+  pays for itself.
+- **Look at:** [the record](../evidence/acme.md)
+- **Choices:** Keep it | Drop it | Not enough data yet
+- **Keeps it open:** Not enough data yet
+- **Takes:** 5 minutes
+- **Then:** Keep it: nothing changes. Drop it: the conductor drafts a phase. Not enough data yet: read again in November.
+- **Ready:** yes
+
+| | Before | After |
+| --- | --- | --- |
+| Anvils | 3 | 5 \\| 6 |`;
+
+test('## Your part parses: each field, the choices, ready or ready when, a table, a part per box', () => {
+  const p = parsePhase('05-acme.md', asked(plain));
+  assert.deepEqual(p.yourPart, {
+    heading: null, ask: 'Decide whether Acme keeps the anvil rule.', why: 'It settles whether the rule pays for itself.', look: '[the record](../evidence/acme.md)',
+    choices: ['Keep it', 'Drop it', 'Not enough data yet'], keepsOpen: ['Not enough data yet'], takes: '5 minutes',
+    then: 'Keep it: nothing changes. Drop it: the conductor drafts a phase. Not enough data yet: read again in November.',
+    ready: true, table: { head: ['', 'Before', 'After'], rows: [['Anvils', '3', '5 | 6']] },
+  });
+  assert.equal(yourPartReady(p.yourPart), true);
+  assert.deepEqual(['Keep it', 'Drop it', 'Not enough data yet'].map(c => thenFor(p.yourPart.then, p.yourPart.choices, c)), ['nothing changes.', 'the conductor drafts a phase.', 'read again in November.']);
+  assert.equal(thenFor('Recorded either way.', ['A', 'B'], 'A'), 'Recorded either way.', 'a Then not split by choice is the whole Then');
+  const later = yourPartOf(plain.replace('- **Ready:** yes', '- **Ready when:** the first weekly pass has run (Monday).'));
+  assert.deepEqual(later.ready, { when: 'the first weekly pass has run (Monday).' });
+  assert.equal(yourPartReady(later), false);
+  assert.equal(parsePhase('05-acme.md', phase()).yourPart, null, 'absent: null');
+  const two = yourPartOf('### Box 2\n\n- **Ask:** Read one.\n- **Choices:** Fine | Not fine\n- **Ready:** yes\n\n### Box 3\n\n- **Ask:** Read two.\n- **Choices:** Fine | Not fine\n- **Ready when:** Monday.\n');
+  assert.equal(two.ask, 'Read one.', 'the first part, on the phase');
+  assert.deepEqual(two.parts.map(x => [x.heading, x.ask, x.ready]), [['Box 2', 'Read one.', true], ['Box 3', 'Read two.', { when: 'Monday.' }]]);
+  assert.equal(yourPartReady(two), false, 'ready only when every part is');
+});
+
+test('a walk with no Your part is a note from --check, never a failure; a filled-in Your part is not template text', async () => {
+  const bare = phase({ status: 'partial', extra: 'owes: walk\n', acceptance: '- [x] Built. `npm test`\n- [ ] ⚑ by hand: the owner reads the anvil.' });
+  assert.deepEqual(specNotes('05-acme.md', bare), ['docs/phases/05-acme.md: phase 5 has a walk but no Your part: say in plain words what the owner should do']);
+  assert.deepEqual(specProblems('05-acme.md', bare), []);
+  assert.deepEqual(specNotes('05-acme.md', asked(plain)), []);
+  assert.deepEqual(specProblems('05-acme.md', asked(plain)), [], 'Ready: yes and the rest are the phase\'s own words');
+  assert.deepEqual(specNotes('05-acme.md', phase()), [], 'no walk, no note');
+  assert.deepEqual(specNotes('05-acme.md', bare.replace('status: partial', 'status: built').replace('owes: walk\n', '').replace('- [ ] ⚑', '- [x] ⚑').replace('evidence: []', 'evidence: ["evidence/x.md"]')), [], 'a built phase owes nothing');
+  assert.deepEqual(specNotes('05-acme.md', asked('- **Why:** Because.')), [
+    'docs/phases/05-acme.md: ## Your part has no **Ask:**; say in one plain sentence what the owner does',
+    'docs/phases/05-acme.md: ## Your part has no **Choices:**; list what the owner can answer, A | B',
+    'docs/phases/05-acme.md: ## Your part says neither **Ready:** yes nor **Ready when:** <what first>']);
+  assert.deepEqual(specNotes('05-acme.md', asked(plain.replace('- **Keeps it open:** Not enough data yet', '- **Keeps it open:** Later'))), ['docs/phases/05-acme.md: ## Your part: **Keeps it open:** names "Later", which is not one of its Choices']);
+  // The template's own Your part, left as it is, is template text.
+  const t = (await template()).replace('since: YYYY-MM-DD', 'since: 2026-10-03').replace(/^# .+$/m, '# Acme ships');
+  assert.ok(specProblems('04-acme.md', t).some(p => p.startsWith("docs/phases/04-acme.md: ## Your part still holds the template's text") && /delete the section when the phase has no ⚑ walk/.test(p)));
+  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  try {
+    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, 'docs/phases'), { recursive: true });
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
+    await writeFile(join(root, 'docs/phases/05-acme.md'), bare);
+    await run({ root });
+    assert.match(await run({ root, mode: 'check' }), /1 note \(advice, not a failure\):\n {2}docs\/phases\/05-acme\.md: phase 5 has a walk but no Your part/);
+    assert.equal(JSON.parse(await run({ root, mode: 'json' })).phases[0].yourPart, null);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

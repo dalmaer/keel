@@ -41,6 +41,27 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 - [x] keel's baseline is computed by the measure and matches the analysis's hand count within the cases the analysis names. `node scripts/keel/improve.mjs --report`
 - [ ] ⚑ by hand: the owner reads phases 32 and 33's before-and-after and keeps or retires each lever.
 
+## Your part
+
+- **Ask:** Decide whether to keep two rules keel added on 6 October: every plan must say how it will be proven, and every test run is recorded so flaky or slower tests get named.
+- **Why:** Keel keeps extra process only if fewer defects slip through after it; this is the first time those two rules are judged by that.
+- **Look at:** The table, its last row first; how it was counted is in [the evidence](../evidence/2026-10-06-escapes.md).
+- **Choices:** Keep both | Drop the proof-plan rule | Drop the test-run record | Not enough data yet
+- **Keeps it open:** Not enough data yet
+- **Takes:** 5 minutes
+- **Then:** Keep both: recorded; nothing changes. Drop the proof-plan rule: recorded; the conductor drafts a phase that retires it (the "how it will be proven" and "where it runs for real" checks) for you to approve. Drop the test-run record: recorded; the conductor drafts a phase that retires the test record and its flaky and slower-test notes. Not enough data yet: recorded, and the walk stays open; both rules stay, and the conductor brings fresh numbers to the 1 November "does keel help?" review, where you choose again.
+- **Ready:** yes
+
+| | Before the rules | After the rules (6 Oct) |
+| --- | --- | --- |
+| Defects found after a phase was built | 10 in 3.6 days (2–6 Oct) | 30 in 2.0 days (6–8 Oct) |
+| … that name the phase they came from | 3 (phases 6, 23, 25) | 12 (phases 6, 24, 30, 35 ×3, 37, 38, 41, 42, 43, 45) |
+| … found by a second AI reviewing a release | 0 | 19 (that review started on 6 Oct) |
+| Defects per phase, by when the phase was written | 0.19: 6 across phases 0–31, in use 2–6 days | 0.53: 9 across the 17 of phases 32–51 that finished building, in use 0–2 days |
+| Days from planned to built (median, mean) | 0, 0.5 (30 phases) | 0, 0.3 (8 phases) |
+| Words per phase file (median) | 402 (31 phases) | 779 (17 phases): about twice |
+| Enough to judge? | — | No. The two rules landed 31 minutes apart, so they cannot be told apart. The same afternoon a second AI began reviewing every release and defects began to be written down by name, so more get found. The newer phases have had 0–2 days to show defects. What is clear: plans are about twice as long, and defects did not fall. |
+
 ## Real surfaces
 
 - Adopted project: the measure ships in the night's improve; one adopted project's health page shows it.

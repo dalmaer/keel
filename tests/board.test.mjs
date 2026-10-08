@@ -8,7 +8,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { board, reviewItems, walkDone, walkDecide, serve, pageHtml, boardView } from '../lib/board.mjs';
+import { board, boardText, reviewItems, walkDone, walkDecide, serve, pageHtml, boardView } from '../lib/board.mjs';
 import vm from 'node:vm';
 import { formatProposal } from '../lib/learn.mjs';
 import { run as roadmap } from '../practices/phases/files/scripts/roadmap.mjs';
@@ -455,5 +455,138 @@ test('keel board --json and keel walk run from the CLI'
     const bad = run(process.execPath, [join(KEEL, 'bin', 'keel.mjs'), 'walk', 'done', '7', '--box', '2', '--note', 'x', '--json'], { cwd: root, env });
     assert.equal(bad.status, 2);
     assert.match(JSON.parse(bad.stdout).error, /not a walk/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+// ---- Your part: the owner's ask in plain words ------------------------------------------
+
+const yourPart = ({ ready = '- **Ready:** yes', table = '' } = {}) => `## Your part
+
+- **Ask:** Decide whether to keep the anvil rule.
+- **Why:** It settles whether Acme keeps paying for it.
+- **Look at:** [the record](../evidence/acme-1.md).
+- **Choices:** Keep it | Drop it | Not enough data yet
+- **Keeps it open:** Not enough data yet
+- **Takes:** 5 minutes
+- **Then:** Keep it: nothing changes. Drop it: the conductor drafts a phase that retires it. Not enough data yet: it is read again in November.
+${ready}
+${table}`;
+
+/** The Acme project, plus a walk with a ready Your part (10) and one that is not ready yet (11). */
+async function acmeAsks(opts) {
+  const root = await acme(opts);
+  const ready = phase({ status: 'partial', evidence: '["evidence/acme-1.md"]', acceptance: `${built}\n${walkBox}`, extra: 'owes: walk\n', title: 'The anvil rule' })
+    .replace('## Proof', `${yourPart({ table: '\n| | Before | After |\n| --- | --- | --- |\n| Anvils dropped | 3 | 5 |\n' })}\n## Proof`);
+  const later = phase({ status: 'partial', acceptance: `${built}\n- [ ] ⚑ by hand: the owner reads the cooled anvil.`, extra: 'owes: walk\n', title: 'The cooled anvil' })
+    .replace('## Proof', `${yourPart({ ready: '- **Ready when:** the anvil has cooled (Monday).' })}\n## Proof`);
+  await writeFile(join(root, 'docs/phases/10-rule.md'), ready);
+  await writeFile(join(root, 'docs/phases/11-cooled.md'), later);
+  await roadmap({ root, today: TODAY });
+  if (opts?.git) { execFileSync('git', ['-C', root, 'add', '-A']); execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'asks']); }
+  return root;
+}
+
+test('a ready walk with a Your part leads with its Ask and offers one button per choice; a walk without one is marked', async () => {
+  const root = await acmeAsks();
+  try {
+    const data = await board({ root }, deps(root));
+    const walk = data.items.find(i => i.phase === 10);
+    assert.equal(walk.waits, 'owner');
+    assert.equal(walk.ask, 'Decide whether to keep the anvil rule.');
+    assert.equal(walk.yourPart.takes, '5 minutes');
+    assert.deepEqual(walk.yourPart.table, { head: ['', 'Before', 'After'], rows: [['Anvils dropped', '3', '5']] });
+    assert.equal(walk.yourPart.look, '[the record](https://github.com/acme/app/blob/main/docs/evidence/acme-1.md).', 'a relative link points at the repo');
+    assert.deepEqual(walk.actions.map(a => [a.label, a.args.join(' '), a.note]), [
+      ['Keep it', '10 --choice Keep it', 'optional'], ['Drop it', '10 --choice Drop it', 'optional'], ['Not enough data yet', '10 --choice Not enough data yet', 'optional']]);
+    assert.equal(walk.actions[1].then, 'the conductor drafts a phase that retires it.', 'each choice carries its own Then');
+    const html = pageHtml(data, 'tok', 'n0nce');
+    const card = new RegExp(`<article class="card yp"[^>]*data-phase="10"[\\s\\S]*?</article>`).exec(html)?.[0] ?? '';
+    assert.match(card, /<p class="yp-label"><button type="button" class="title-btn" data-drill="10"[^>]*>Phase 10 · The anvil rule<\/button><\/p>\s*<h4 class="card-title ask">Decide whether to keep the anvil rule\.<\/h4>/, 'the Ask is the headline; the phase a small label that opens the drill-down');
+    assert.match(card, /<p class="why">It settles whether Acme keeps paying for it\.<\/p>/);
+    assert.match(card, /<table class="yp-table">[\s\S]*<th scope="row">Anvils dropped<\/th><td>3<\/td><td>5<\/td>/, 'the table is drawn');
+    assert.match(card, /<a href="https:\/\/github\.com\/acme\/app\/blob\/main\/docs\/evidence\/acme-1\.md"/);
+    assert.match(card, /<p class="takes">Takes 5 minutes<\/p>/);
+    const buttons = [...card.matchAll(/<button type="button" class="(btn[^"]*)" data-action="[^"]+" data-expect="([^"]+)" data-choice="([^"]+)"/g)].map(m => [m[1], m[2], m[3]]);
+    assert.deepEqual(buttons, [['btn primary', 'walk done 10 --choice Keep it', 'Keep it'], ['btn', 'walk done 10 --choice Drop it', 'Drop it'], ['btn', 'walk done 10 --choice Not enough data yet', 'Not enough data yet']], 'one button per choice, the first primary');
+    assert.match(card, /data-choice="Not enough data yet" data-keeps-open="1"/, 'a choice that keeps the walk open says so');
+    assert.equal(walk.actions[2].keepsOpen, true);
+    assert.match(card, /data-then="the conductor drafts a phase that retires it\."/, 'what happens after a choice, shown once it is made');
+    assert.match(card, /data-choice-note[^>]*>with a note<\/button>/);
+    assert.doesNotMatch(card, /needs plain words/);
+    // A walk with no Your part: today's card, with the marker.
+    const plain = new RegExp(`<article class="card"[^>]*data-phase="1"[\\s\\S]*?</article>`).exec(html)?.[0] ?? '';
+    assert.match(plain, /phase 1: The owner walks it<\/button> <span class="pill warn"[^>]*>needs plain words<\/span>/);
+    assert.equal(data.items.find(i => i.phase === 1).yourPart, null);
+    assert.match(boardText(data), /Decide whether to keep the anvil rule\.\n {6}phase 10: The anvil rule — It settles[\s\S]*?\$ keel walk done 10 --choice "Keep it" \[--note "…"\]/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('a walk whose Your part says Ready when waits, with that reason, and is never yours', async () => {
+  const root = await acmeAsks();
+  try {
+    const data = await board({ root }, deps(root));
+    const later = data.items.find(i => i.phase === 11);
+    assert.equal(later.waits, 'time', 'not ready: waiting, though its waits: is the owner\'s');
+    assert.equal(later.why, 'Ready when: the anvil has cooled (Monday).');
+    assert.deepEqual(later.actions, []);
+    assert.ok(!titles(data, 'owner').includes('phase 11: The cooled anvil'));
+    const waiting = sectionAny(pageHtml(data, 'tok', 'n0nce'), 'waiting');
+    assert.match(waiting, /The cooled anvil[\s\S]*?Decide whether to keep the anvil rule\.[\s\S]*?Ready when: the anvil has cooled \(Monday\)\./, 'listed under Waiting with its ask and its reason');
+    assert.doesNotMatch(sectionAny(pageHtml(data, 'tok', 'n0nce'), 'owner'), /The cooled anvil/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('keel walk done --choice records the choice and its note, and refuses a choice not in the list, writing nothing', async () => {
+  const root = await acmeAsks({ git: true });
+  try {
+    const before = await readFile(join(root, 'docs/phases/10-rule.md'), 'utf8');
+    const evBefore = await readFile(join(root, 'docs/evidence/acme-1.md'), 'utf8');
+    await assert.rejects(walkDone({ root, phase: '10', choice: 'Drop the anvil', today: TODAY }),
+      e => e.exitCode === 2 && /"Drop the anvil" is not one of phase 10's choices: Keep it \| Drop it \| Not enough data yet\. Nothing written/.test(e.message));
+    await assert.rejects(walkDone({ root, phase: '1', choice: 'Keep it', today: TODAY }), e => e.exitCode === 2 && /phase 1 has no Choices/.test(e.message), 'a walk without a Your part takes --note');
+    assert.equal(await readFile(join(root, 'docs/phases/10-rule.md'), 'utf8'), before);
+    assert.equal(await readFile(join(root, 'docs/evidence/acme-1.md'), 'utf8'), evBefore);
+    // A choice that keeps the walk open: the row is written, nothing is ticked, the status stays.
+    const r = await walkDone({ root, phase: '10', choice: 'not enough data yet', note: 'Read it again in November.', today: TODAY });
+    assert.equal(r.data.choice, 'Not enough data yet', 'matched aside from case, recorded as written');
+    assert.equal(r.data.then, 'it is read again in November.');
+    assert.equal(r.data.keepsOpen, true);
+    assert.equal(r.data.status, 'partial');
+    const still = await readFile(join(root, 'docs/phases/10-rule.md'), 'utf8');
+    assert.equal(still, before, 'the phase file is untouched: box open, status and owes as they were');
+    assert.match(still, /^- \[ \] ⚑ by hand: the owner drops one on a coyote\.$/m);
+    assert.match(await readFile(join(root, 'docs/evidence/acme-1.md'), 'utf8'), /## The owner's read \(2026-10-08\)[\s\S]*\| ⚑ by hand: the owner drops one on a coyote\. \| Chose: Not enough data yet\. Read it again in November\. \|\n$/);
+    assert.match(r.text, /the walk stays open[\s\S]*Recorded; the walk stays open\.\nThen: it is read again in November\./);
+    assert.equal((await board({ root }, deps(root))).items.find(i => i.phase === 10).waits, 'owner', 'still ready: the owner can choose again');
+    // A closing choice still ticks the box and settles the walk.
+    const closed = await walkDone({ root, phase: '10', choice: 'Drop it', today: TODAY });
+    assert.equal(closed.data.keepsOpen, false);
+    assert.equal(closed.data.status, 'built', 'a closing choice settles the walk like any read');
+    assert.match(await readFile(join(root, 'docs/phases/10-rule.md'), 'utf8'), /^- \[x\] ⚑ by hand: the owner drops one on a coyote\.$/m);
+    assert.match(await readFile(join(root, 'docs/evidence/acme-1.md'), 'utf8'), /\| Chose: Drop it\. \|\n$/);
+    assert.match(await roadmap({ root, mode: 'check', today: TODAY }), /Checked roadmap/);
+    // From the CLI: an unknown choice exits 2.
+    const env = { ...process.env, KEEL_GH: join(root, 'no-gh') };
+    const bad = run(process.execPath, [join(KEEL, 'bin', 'keel.mjs'), 'walk', 'done', '11', '--choice', 'Melt it', '--json'], { cwd: root, env });
+    assert.equal(bad.status, 2);
+    assert.match(JSON.parse(bad.stdout).error, /not one of phase 11's choices/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('the board runs a choice through walk done, with the note written beside it', async () => {
+  const calls = [];
+  const root = await acmeAsks();
+  try {
+    const data = await board({ root }, deps(root));
+    const s = await serve({ root }, { board: async () => structuredClone(data), run: async argv => { calls.push(argv); return { code: 0, out: 'ok\n', err: '' }; } });
+    try {
+      await http(s.port, { path: `/?token=${s.token}` });
+      const a = data.items.find(i => i.phase === 10).actions[1];
+      const post = body => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', 'x-keel-token': s.token }, body: JSON.stringify(body) });
+      assert.equal((await post({ id: a.id, expect: 'walk done 10 --choice Keep it' })).status, 409, 'a button meant for another choice');
+      assert.equal((await post({ id: a.id, expect: 'walk done 10 --choice Drop it' })).status, 200);
+      assert.equal((await post({ id: a.id, expect: 'walk done 10 --choice Drop it', note: 'Too slow.' })).status, 200);
+      assert.deepEqual(calls, [['walk', 'done', '10', '--choice', 'Drop it'], ['walk', 'done', '10', '--choice', 'Drop it', '--note', 'Too slow.']]);
+    } finally { await s.close(); }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
