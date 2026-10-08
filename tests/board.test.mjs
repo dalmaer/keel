@@ -237,6 +237,20 @@ test('a box that is not a walk is refused, writing nothing', async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+// An accepted proposal's record is the person's decision and reason only: advice like
+// "make it a phase" goes to the output, never into the page (the 2026-10-08 escapes
+// proposal was accepted as handled, and the record must not contradict that).
+test('keel walk decide --accept writes only the decision and reason; the next step is printed, not recorded', async () => {
+  const root = await acme();
+  try {
+    const r = await walkDecide({ root, proposal: 'docs/health/2026-10-07.md', accept: 'Handled by a guard; no phase needed.', today: TODAY });
+    const page = await readFile(join(root, 'docs/health/2026-10-07.md'), 'utf8');
+    assert.match(page, /\*\*Decided 2026-10-08: accepted\*\* — Handled by a guard; no phase needed\.\n/);
+    assert.doesNotMatch(page, /keel phase new|Next:/);
+    assert.match(r.text, /keel phase new/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('keel walk decide records the decision in the proposal; the board stops listing it', async () => {
   const root = await acme();
   try {

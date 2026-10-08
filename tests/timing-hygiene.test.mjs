@@ -2,7 +2,7 @@
 // the 6 October CI escapes, lesson 40): a test that times a synthetic suite
 // with climb compare or measure must give the base a sleep the machine cannot
 // drown. A loaded 4-CPU runner took ~650 ms just to start node, so a base (or
-// a noise candidate, which stands for the base) under 300 ms is decided by the
+// a noise candidate, which stands for the base) under 1000 ms is decided by the
 // machine, not the fixture. A fast candidate's short sleep is the point and is
 // left alone. Read as text, explicitly: a sleep is a literal `setTimeout(…, n)`
 // or a call to a helper that wraps one (`sleeper(n)`); it is the base when it
@@ -17,7 +17,10 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const KEEL = resolve(HERE, '..');
-export const FLOOR_MS = 300;
+// 1000, not 300: a 600 ms base passed the 300 ms floor and still failed on keel's
+// CI (9734581, phase 35's escape, the health page of 2026-10-08): it must dominate
+// node's ~650 ms start, not just exceed it.
+export const FLOOR_MS = 1000;
 
 /** A file that times a suite: it runs climb compare or measure. */
 export const timesASuite = text => /\[\s*['"](?:compare|measure)['"]/.test(text);
@@ -59,6 +62,13 @@ test('no timing test gives its base or noise suite a sleep a slow machine can sw
   }
   assert.ok(timed.includes('climb.test.mjs'), `climb.test.mjs no longer times a suite; this check would read nothing (timed: ${timed.join(', ')})`);
   assert.deepEqual(out, []);
+});
+
+test('the escape: a 600 ms base, which passed the old 300 ms floor and failed on CI, is refused', () => {
+  const sleeper = "const sleeper = (ms, tag = '') => `setTimeout(() => {}, ${ms});\\n`;\n";
+  const p = timingProblems('tests/acme.test.mjs', `${sleeper}const dir = await acme(t, { files: { 't.mjs': sleeper(600) } });\nclimb(dir, ['compare', '--json']);\n`);
+  assert.equal(p.length, 1, p.join('\n'));
+  assert.match(p[0], /sleep of 600 ms in a timed suite/);
 });
 
 test('mutations: a 150 ms base or noise sleeper fails; a 10 ms fast one, an untimed file and a reasoned opt-out pass', async () => {

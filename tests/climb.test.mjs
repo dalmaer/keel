@@ -242,7 +242,7 @@ test('compare: keep for a real gain, revert for one inside the noise, and two al
 });
 
 test('compare --decide, revert, settle and report: the numbers go in the commit, a miss resets, and the PR body says it all', async t => {
-  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(600), 'package.json': '{ "name": "acme", "files": ["lib/"] }\n' } });
+  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(1500), 'package.json': '{ "name": "acme", "files": ["lib/"] }\n' } });
   const base = git(dir, ['rev-parse', 'HEAD']);
   const m = await load(dir);
   const baseline = json(climb(dir, ['measure', 'test-time', '--baseline', '--runs', '1', '--json']));
