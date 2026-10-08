@@ -196,16 +196,18 @@ test('config: a bad climb is an error naming each key; the defaults fill the res
 });
 
 test('compare: keep for a real gain, revert for one inside the noise, and two alternated rounds, not one', async t => {
-  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(600) } });
+  // The base sleeps 1500 ms: node's ~650 ms start on a runner left 600 ms only a ~2x gap, which runner
+  // noise closed to -26% on keel's CI once (9734581); ~3x stays clear of the 30% margin.
+  const dir = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(1500) } });
   const base = git(dir, ['rev-parse', 'HEAD']);
   const fast = await commit(dir, { 't.mjs': sleeper(10, 'fast') }, 'acme: a faster suite');
   git(dir, ['checkout', '-q', '-b', 'noise', base]);
-  const noise = await commit(dir, { 't.mjs': sleeper(600, 'noise') }, 'acme: the same suite');
+  const noise = await commit(dir, { 't.mjs': sleeper(1500, 'noise') }, 'acme: the same suite');
   // Fast in round 1 (base first, then its first two runs), slow in round 2 (it goes first).
   git(dir, ['checkout', '-q', '-b', 'lucky', base]);
   const counter = join(dir, '..', `${dir.split('/').pop()}-count`);
   t.after(() => rm(counter, { force: true }));
-  const lucky = await commit(dir, { 't.mjs': `import { readFileSync, writeFileSync } from 'node:fs';\nlet n = 0;\ntry { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}\nwriteFileSync(process.env.ACME_COUNT, String(n + 1));\nsetTimeout(() => {}, n < 2 ? 10 : 1100);\n` }, 'acme: fast once');
+  const lucky = await commit(dir, { 't.mjs': `import { readFileSync, writeFileSync } from 'node:fs';\nlet n = 0;\ntry { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}\nwriteFileSync(process.env.ACME_COUNT, String(n + 1));\nsetTimeout(() => {}, n < 2 ? 10 : 2600);\n` }, 'acme: fast once');
   // Each compare's rounds go to the run's diagnostics, so a red run on a slow machine shows its numbers.
   const cmp = (candidate, env = {}) => {
     const r = json(climb(dir, ['compare', '--base', base, '--candidate', candidate, '--runs', '2', '--json'], env));
