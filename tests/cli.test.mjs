@@ -133,7 +133,9 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     const graphql = JSON.stringify({ data: { repository: { pullRequest: { number: 1, title: 'Acme', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', headRefOid: 'abc1234', reviewThreads: noThreads, comments: noThreads }, open: noThreads, merged: noThreads } } });
     await writeFile(emptyGh, `#!${process.execPath}\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
     await writeFile(join(dir, 'fleet.json'), '[]\n');
-    const needs = { canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
+    // walk decide records a decision on a health page's proposal: a synthetic one, outside the health directory.
+    await writeFile(join(dir, 'acme-health.md'), '# Acme health\n\n## Proposal\n\n**`acme_measure`** (outside) — Acme proposes.\n');
+    const needs = { walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',

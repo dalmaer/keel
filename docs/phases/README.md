@@ -60,6 +60,16 @@ still buildable. A box is a walk when it is `⚑ by hand: …` or its check is a
 command that runs on a real surface (`` `gh …` ``), and it cites no
 `tests/` path; any other unchecked box counts as buildable.
 
+Optional, beside `owes: walk` only: `waits: owner | time | external`, whose
+walk it is (absent is `owner`: a ⚑ box is the owner's). Nothing but where the
+walk is listed changes (`keel board`; the roadmap shows *partial, walk owed
+(time)*).
+
+Optional: `after: YYYY-MM-DD`, the first day the phase is buildable.
+`npm run next` skips it before that day (a dependent waits with it). The
+generated roadmap never reads the clock: it names the phase *on or after* its
+date, whatever the day, so a day passing never makes it stale.
+
 `evidence` paths are relative to `docs/` (`evidence/2026-10-02-x.md`); built
 and lived-in need at least one. A phase with every Acceptance box checked
 and evidence named can't stay planned, designed or partial: the check fails

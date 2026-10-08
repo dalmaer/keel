@@ -23,6 +23,8 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished work across projects; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
+- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`
+- `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
@@ -43,7 +45,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `retro`, `canvas`, `install`, `coming`, `reconciliation`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `board`, `retro`, `canvas`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -944,6 +946,43 @@ findings; the workflow checks them against the diff and posts one `COMMENT`
 review, findings inline, opened by a `<!-- keel:cross-review -->` marker. No
 secret: green with a notice; an agent that failed to start: red, the error
 line only. Its comments are answered like any reviewer's.
+
+<!-- topic: board | whose turn it is: the owner's board, and the verbs that settle its items -->
+
+`keel board --json` → `{ok, root, name, today, counts: {owner, broken, agent,
+time, external}, items: [{waits, kind, title, why, read, link, source,
+actions: [{id, label, verb, args, note?}]}], sources: [{source, state: ok|partial|n/a,
+count?, why?}], fleet: [{repo, practice, health, ci} | {repo, unreadable}] | null}`.
+Sources: `roadmap` (a walk owed → `owner`/`time`/`external` by the phase's
+`waits:`; buildable phases → `agent`; a phase dated `after:` a day to come →
+`time`), `loose-ends` ("⚑ yours", a session's question, a phase's ⚑ next
+action → `owner`; the rest by kind), `reviews` (unanswered comments on open
+PRs, home and the fleet → `broken`), `health` (the newest page's undecided
+proposal → `owner`), `inbox` (lessons proposed → `owner`), `fleet` (home only:
+the strip; red CI → `broken`). A source that cannot be read is `n/a` with
+why, never missing. An action's `note` is `required` or `optional`: the verb
+takes it as `--note` (walk done, learn decide) or as the why (walk decide).
+
+`keel board` (no `--json`) serves the same as one page on 127.0.0.1 (a free
+port, or `--port`), with a per-launch token in the URL that every request and
+action needs; `--open` opens the browser. An action runs one of the board's
+own offers through the CLI (`walk done`, `walk decide`, `learn decide`) and
+shows its output. The agent's queue is still `keel next`.
+
+`keel walk done <phase> --note "<what you saw>" [--box <n>]` → `{ok, phase,
+file, box, walked, evidence, created, status, left, files, diff, note}`:
+checks the phase's open ⚑ box (`--box`, counting every Acceptance box from 1,
+when it has several), appends a row to its first evidence file under "## The
+owner's read (date)" (a new evidence file when it has none), and with no box
+left open sets `status: built`, drops `owes`/`waits`, sets `since` to today and
+Next action to `None.`; it regenerates the roadmap. A box that is not a walk
+(it cites a test or a command): exit 2, nothing written.
+`keel walk decide --proposal <health page> --accept ["<why>"] | --decline
+"<why>"` → `{ok, proposal, measure, decision, why, record, diff, note}`: a
+`**Decided <date>: accepted|declined**` line ends the page's Proposal section;
+an accepted one becomes a phase by `keel phase new`. Lessons are decided with
+`keel learn decide`. Both leave a working-tree diff; committing is the
+conductor's, after the gate.
 
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->
 

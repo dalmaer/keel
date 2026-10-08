@@ -440,3 +440,58 @@ test('a label of several words is a walk\'s text, not a command; a retired goal\
   const goals = [{ id: 'G0', title: 'Acme', outcome: 'x' }, { id: 'G1', title: 'Old Acme', outcome: 'y', retired: '2026-10-01' }];
   assert.doesNotMatch(render({ config: { name: 'Acme' }, phases: [gone], goals }), /walk owed/);
 });
+
+// Phase 51: after: (not buildable before a date) and waits: (whose walk is owed).
+test('after: and waits: parse and validate', () => {
+  const walk = { status: 'partial', acceptance: walkBoxes };
+  assert.equal(parsePhase('04-x.md', phase({ extra: 'after: 2026-11-01\n' })).after, '2026-11-01');
+  assert.equal(parsePhase('04-x.md', phase({ ...walk, extra: 'owes: walk\nwaits: time\n' })).waits, 'time');
+  assert.equal(parsePhase('04-x.md', phase({ ...walk, extra: 'owes: walk\n' })).waits, undefined, 'absent: the owner\'s (waitsOf)');
+  for (const bad of ['2026-13-01', '2026-02-30', 'soon', '2026-11-1', '20261101']) {
+    assert.throws(() => parsePhase('04-x.md', phase({ extra: `after: ${bad}\n` })), /after .* is not a date \(YYYY-MM-DD\)/, bad);
+  }
+  assert.throws(() => parsePhase('04-x.md', phase({ ...walk, extra: 'owes: walk\nwaits: someone\n' })), /waits "someone" is not one this script knows \(owner, time, external/);
+  assert.throws(() => parsePhase('04-x.md', phase({ ...walk, extra: 'waits: time\n' })), /waits: time says whose walk is owed, so it goes with owes: walk/);
+  assert.throws(() => parsePhase('04-x.md', phase({ extra: 'waits: owner\n' })), /goes with owes: walk/);
+});
+
+test('nextPhase skips a phase before its after: date and names it on that date', () => {
+  const phases = [
+    { id: 0, status: 'built', depends: [] },
+    { id: 1, status: 'planned', after: '2026-11-01', depends: [0] },
+    { id: 2, status: 'planned', depends: [0] },
+  ];
+  assert.equal(nextPhase(phases, undefined, '2026-10-31').id, 2, 'the day before: skipped');
+  assert.equal(nextPhase(phases, undefined, '2026-11-01').id, 1, 'on the date: next');
+  assert.equal(nextPhase(phases, undefined, '2026-11-02').id, 1, 'after it: next');
+  assert.equal(nextPhase(phases, undefined, null).id, 2, 'null (the generated roadmap): any dated phase waits');
+  assert.equal(nextPhase(phases.slice(0, 2), undefined, '2026-10-31'), null);
+  const goals = [{ id: 'G0', title: 'Acme', outcome: 'o' }];
+  const full = phases.slice(0, 2).map(p => ({ ...p, goal: 'G0' }));
+  assert.equal(nothingNext(full, goals, '2026-10-31'), 'Nothing left to build yet; phase 1 is on or after 2026-11-01.');
+  assert.equal(focus({ phases: full, goals }, '2026-11-01').id, 1);
+});
+
+test('the generated roadmap never reads the clock: a dated phase is named "on or after", whatever the day', async () => {
+  const goals = [{ id: 'G0', title: 'Anvils', outcome: 'o' }];
+  const ph = (id, extra = {}) => ({ id, file: `0${id}-x.md`, title: `P${id}`, status: 'planned', since: '2026-10-02', goal: 'G0', depends: [], note: 'n', done: 'd', next: `Do ${id}.`, ...extra });
+  const md = render({ config: { name: 'Acme' }, phases: [ph(0, { after: '2026-11-01' }), ph(1), ph(2, { status: 'partial', owes: 'walk', waits: 'time' })], goals });
+  assert.match(md, /^\*\*Next focus:\*\* \[1\. P1\]\(phases\/01-x\.md\)\. Do 1\. \(Dated: phase 0 is on or after 2026-11-01\.\)$/m);
+  assert.match(md, /\| planned, on or after 2026-11-01 \|/);
+  assert.match(md, /\| partial, walk owed \(time\) \|/);
+  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  try {
+    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, 'docs/phases'), { recursive: true });
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
+    await writeFile(join(root, 'docs/phases/00-start.md'), phase({ extra: 'after: 2026-11-01\n' }));
+    await run({ root, today: '2026-10-31' });
+    assert.match(await run({ root, mode: 'check', today: '2026-11-02' }), /1 phases/, 'a day passing does not make it stale');
+    assert.equal(await run({ root, mode: 'next', today: '2026-10-31' }), 'Nothing left to build yet; phase 0 is on or after 2026-11-01.');
+    assert.match(await run({ root, mode: 'next', today: '2026-11-01' }), /^0\. A phase/);
+    assert.equal(JSON.parse(await run({ root, mode: 'json', today: '2026-10-31' })).next, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

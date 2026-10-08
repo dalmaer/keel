@@ -20,7 +20,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const STATUSES = ['planned', 'designed', 'partial', 'built', 'lived-in', 'superseded'];
 export const DONE = ['built', 'lived-in'];
 const SECTIONS = ['Done when', 'Scope', 'Acceptance', 'Proof', 'Deliberately open', 'Next action'];
-const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue', 'review', 'owes'];
+const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue', 'review', 'owes', 'after', 'waits'];
 /** `review: wait` opts a phase in to waiting for its PR's reviewers (keel phase 41); absent is the default: no wait. */
 export const REVIEW_VALUES = Object.freeze(['wait']);
 /**
@@ -29,6 +29,25 @@ export const REVIEW_VALUES = Object.freeze(['wait']);
  * phase skips it; it stays partial, because built still means proven.
  */
 export const OWES_VALUES = Object.freeze(['walk']);
+/**
+ * `waits:` (keel phase 51), only beside `owes: walk`: whose the walk is. The
+ * owner's read (the default: a ⚑ box is the owner's), a date or a number of
+ * nights (time), or a thing outside (a secret set, another repo's release).
+ */
+export const WAITS_VALUES = Object.freeze(['owner', 'time', 'external']);
+/** Whose walk a phase owes: its `waits:`, else the owner's. */
+export const waitsOf = p => p.waits ?? 'owner';
+/** A real calendar date, YYYY-MM-DD. */
+const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+/** Today as YYYY-MM-DD on this machine's calendar (the owner's day, not UTC's). */
+export const localToday = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/**
+ * `after: YYYY-MM-DD` (keel phase 51): not buildable before that date. With a
+ * `today`, a phase is dated while today is before it; with `today` null (the
+ * generated roadmap, which must not go stale when a day passes), any phase
+ * still carrying `after:` is dated, and the roadmap says "on or after".
+ */
+export const dated = (p, today) => typeof p.after === 'string' && !DONE.includes(p.status) && p.status !== 'superseded' && (today == null || today < p.after);
 /** A partial phase that owes only a walk: it satisfies `depends:` and is never next. */
 export const owesWalk = p => p.status === 'partial' && p.owes === 'walk';
 /** A dependency is satisfied by built, lived-in, or a partial phase that owes only a walk. */
@@ -290,6 +309,11 @@ export function parsePhase(file, raw) {
     if (!OWES_VALUES.includes(meta.owes)) fail(`${file}: owes ${JSON.stringify(meta.owes)} is not one this script knows (${OWES_VALUES.join(', ')}: the phase's building is done and its rest is a walk or time)`);
     if (meta.status !== 'partial') fail(`${file}: owes: ${meta.owes} is only for a partial phase (this one is ${meta.status}); a built phase owes nothing, an earlier one still has building to do`);
   }
+  if (meta.after !== undefined && !isDate(meta.after)) fail(`${file}: after ${JSON.stringify(meta.after)} is not a date (YYYY-MM-DD): the first day the phase is buildable`);
+  if (meta.waits !== undefined) {
+    if (!WAITS_VALUES.includes(meta.waits)) fail(`${file}: waits ${JSON.stringify(meta.waits)} is not one this script knows (${WAITS_VALUES.join(', ')}; absent is owner)`);
+    if (meta.owes !== 'walk') fail(`${file}: waits: ${meta.waits} says whose walk is owed, so it goes with owes: walk (this phase owes none)`);
+  }
   if (meta.spec !== undefined && (!Number.isSafeInteger(meta.spec) || meta.spec < 1 || meta.spec > SPEC)) fail(`${file}: spec ${meta.spec} is not one this script knows (1–${SPEC}); keel update brings a newer one`);
   const body = block[2];
   const title = /^# (.+)$/m.exec(body)?.[1]?.trim();
@@ -355,13 +379,14 @@ export function validateGraph(phases, goals) {
 /**
  * The first phase left to build, in number order, whose dependencies are all
  * satisfied (built, lived-in, or partial owing only a walk). A phase that owes
- * a walk is skipped: nothing in it is left to build. `include` narrows the
- * candidates (one goal's phases, say); their dependencies are still checked
- * against every phase.
+ * a walk is skipped: nothing in it is left to build. So is one dated `after:`
+ * a day still to come (`today`, YYYY-MM-DD, this machine's day by default;
+ * null skips every dated phase). `include` narrows the candidates (one goal's
+ * phases, say); their dependencies are still checked against every phase.
  */
-export function nextPhase(phases, include = () => true) {
+export function nextPhase(phases, include = () => true, today = localToday()) {
   const byId = new Map(phases.map(p => [p.id, p]));
-  return phases.find(p => include(p) && !DONE.includes(p.status) && p.status !== 'superseded' && !owesWalk(p)
+  return phases.find(p => include(p) && !DONE.includes(p.status) && p.status !== 'superseded' && !owesWalk(p) && !dated(p, today)
     && p.depends.every(id => satisfies(byId.get(id)))) ?? null;
 }
 
@@ -378,19 +403,27 @@ export function livedInOf(config = {}) {
   return phases.livedIn;
 }
 
-/** "Nothing left to build" when no phase is next: what is still owed, if anything. */
-export function nothingNext(phases, goals = []) {
+/** "Nothing left to build" when no phase is next: what is still owed or dated, if anything. */
+export function nothingNext(phases, goals = [], today = localToday()) {
   // Under a retired goal a phase is never next, and its walk is not outstanding either.
   const retired = new Set(goals.filter(g => g.retired).map(g => g.id));
   const owed = phases.filter(p => owesWalk(p) && !retired.has(p.goal)).map(p => p.id);
-  if (!owed.length) return 'Nothing left unbuilt.';
-  return `Nothing left to build; ${owed.length === 1 ? 'phase' : 'phases'} ${owed.join(', ')} ${owed.length === 1 ? 'owes' : 'owe'} a walk.`;
+  const later = datedLine(phases, goals, today);
+  if (!owed.length) return later ? `Nothing left to build yet; ${later}.` : 'Nothing left unbuilt.';
+  return `Nothing left to build; ${owed.length === 1 ? 'phase' : 'phases'} ${owed.join(', ')} ${owed.length === 1 ? 'owes' : 'owe'} a walk${later ? `; ${later}` : ''}.`;
 }
 
-/** The next focus: the next phase outside retired goals. */
-export function focus({ phases, goals }) {
+/** "phase 13 is on or after 2026-11-01": the dated phases under live goals, or ''. */
+export function datedLine(phases, goals = [], today = localToday()) {
   const retired = new Set(goals.filter(g => g.retired).map(g => g.id));
-  return nextPhase(phases, p => !retired.has(p.goal));
+  const later = phases.filter(p => dated(p, today) && !retired.has(p.goal));
+  return later.map(p => `phase ${p.id} is on or after ${p.after}`).join(', ');
+}
+
+/** The next focus: the next phase outside retired goals, on `today` (null: any dated phase waits). */
+export function focus({ phases, goals }, today = localToday()) {
+  const retired = new Set(goals.filter(g => g.retired).map(g => g.id));
+  return nextPhase(phases, p => !retired.has(p.goal), today);
 }
 
 export async function collect(root = ROOT) {
@@ -421,7 +454,10 @@ export async function collect(root = ROOT) {
 }
 
 export function render({ config, phases, goals, links = [] }) {
-  const next = focus({ phases, goals });
+  // The generated file never reads the clock: a day passing must not make it stale.
+  // A dated phase is named "on or after" its date; keel next names it from that day.
+  const next = focus({ phases, goals }, null);
+  const later = datedLine(phases, goals, null);
   const lived = livedInOf(config);
   const built = phases.filter(p => DONE.includes(p.status)).length;
   // Walks owed under live goals only, as nothingNext counts them (Codex on cajones#54).
@@ -430,8 +466,8 @@ export function render({ config, phases, goals, links = [] }) {
   const headline = lived
     ? `**${phases.filter(p => p.status === 'lived-in').length} of ${phases.length} phases lived in; ${built} built.** Built means implemented and checked; lived-in means repeated real use held. Planned is not available.`
     : `**${built} of ${phases.length} phases built${owed ? `; ${owed} owe${owed === 1 ? 's' : ''} a walk` : ''}.** Built means implemented and checked; planned is not available.`;
-  const nextLine = next ? `**Next focus:** [${next.id}. ${next.title}](phases/${next.file}). ${next.next}`
-    : owed ? `**Next focus:** ${nothingNext(phases, goals)}`
+  const nextLine = next ? `**Next focus:** [${next.id}. ${next.title}](phases/${next.file}). ${next.next}${later ? ` (Dated: ${later}.)` : ''}`
+    : owed || later ? `**Next focus:** ${nothingNext(phases, goals, null)}`
     : lived ? '**Next focus:** every phase is built; go and live in them.' : '**Next focus:** every phase is built.';
   const issueUrl = n => config.repo ? ` · [#${n}](https://github.com/${config.repo}/issues/${n})` : ` · #${n}`;
   const lines = [
@@ -457,7 +493,7 @@ export function render({ config, phases, goals, links = [] }) {
       '| Phase | Status | Since | Depends on | Why it stands here |', '| --- | --- | --- | --- | --- |');
     for (const p of group) {
       const deps = p.depends.map(id => `[${id}](phases/${phases.find(x => x.id === id).file})`).join(', ') || '—';
-      lines.push(`| [${p.id}. ${cell(p.title)}](phases/${p.file}) | ${owesWalk(p) && !g.retired ? 'partial, walk owed' : p.status} | ${p.since} | ${deps} | ${cell(p.note)}${p.issue ? issueUrl(p.issue) : ''} |`);
+      lines.push(`| [${p.id}. ${cell(p.title)}](phases/${p.file}) | ${owesWalk(p) && !g.retired ? `partial, walk owed${p.waits && p.waits !== 'owner' ? ` (${p.waits})` : ''}` : p.status}${dated(p, null) ? `, on or after ${p.after}` : ''} | ${p.since} | ${deps} | ${cell(p.note)}${p.issue ? issueUrl(p.issue) : ''} |`);
     }
     lines.push('');
     for (const p of group) lines.push(`- **${p.id} done when:** ${p.done}`);
@@ -474,13 +510,13 @@ export function render({ config, phases, goals, links = [] }) {
   return lines.join('\n');
 }
 
-export async function run({ root = ROOT, mode = 'write' } = {}) {
+export async function run({ root = ROOT, mode = 'write', today = localToday() } = {}) {
   const data = await collect(root);
-  if (mode === 'json') return JSON.stringify({ ...data, next: focus(data) }, null, 2);
+  if (mode === 'json') return JSON.stringify({ ...data, today, next: focus(data, today) }, null, 2);
   if (mode === 'next') {
-    const p = focus(data);
+    const p = focus(data, today);
     return p ? `${p.id}. ${p.title} [${p.status}] — docs/phases/${p.file}\nDone when: ${p.done}\nNext action: ${p.next}`
-      : nothingNext(data.phases, data.goals);
+      : nothingNext(data.phases, data.goals, today);
   }
   const output = render(data), path = resolve(root, 'docs/ROADMAP.md');
   if (mode === 'check') {

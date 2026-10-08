@@ -47,4 +47,4 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 
 ## Next action
 
-⚑ Owner: set `OPENAI_API_KEY` on keel (`gh secret set OPENAI_API_KEY -R dalmaer/keel`); then brief a builder on the release gate.
+Brief a builder on the release gate; keel's own cross-review (Codex reviewing the conductor's claude/ PRs) is switched on with it. OPENAI_API_KEY is set on keel (2026-10-08).

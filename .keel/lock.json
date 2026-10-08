@@ -107,7 +107,7 @@
     },
     "docs/phases/README.md": {
       "practice": "phases",
-      "sha256": "61ca1ec0ca4bf06d4bc264811244963b0789f9a1bb2212154c0c9f7a927e7a75"
+      "sha256": "1fc4d8b001a2de93ab87def12a84a91a93ef892e4faa5549744ff773dce600d0"
     },
     "docs/reconciliation.md": {
       "practice": "reconciliation",
@@ -171,7 +171,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "86b1d46a0a23c5787dab2dcc89212ef3414b6f42f59a8fa4923101817efbb98a"
+      "sha256": "a495fad98a2f3ac8853a6441423b0fbb69aa060bb5a926e46af4de2ab98d3bcd"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -183,7 +183,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "e8946700aace20957a62c213a4098410fded49096c58932e0ea3cb429be38836"
+      "sha256": "f91c0375eccf0b351b3c3c8d43637ffab22574eb6ede16d7cc63c8f720f20453"
     }
   }
 }

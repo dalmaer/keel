@@ -66,7 +66,15 @@ unfinished phase whose dependencies are built, so it never sends you to work
 that is blocked. A partial phase whose building is done and whose rest is a
 walk (a run on a real surface, an owner's read, a week of nights) says
 `owes: walk` in its front matter: its dependents may proceed and `keel next`
-skips it, while it stays partial until the walk is done. Lived-in counts are
+skips it, while it stays partial until the walk is done. Beside it,
+`waits: owner | time | external` says whose walk it is (absent: the owner's;
+a week of nights is `time`, a secret someone else sets is `external`), and
+`keel board` files it under that column. A phase that is not buildable before
+a day says `after: 2026-11-01`: `keel next` skips it until that day, and the
+board lists it under time. The generated roadmap never reads the clock (a day
+passing must not make it stale): it names a dated phase "on or after" its date.
+When the owner has walked it, `keel walk done <phase> --note "<what you saw>"`
+checks the box and records the read (see [the board](the-board.md)). Lived-in counts are
 a project's choice: `"phases": {"livedIn": true}` in `.keel/keel.json` turns
 them on; off, the roadmap and `keel status` count built only. In a repo whose phases live in the projects shape
 (`docs/projects/<p>/phases.md`), `keel next --project <p>` narrows it to one

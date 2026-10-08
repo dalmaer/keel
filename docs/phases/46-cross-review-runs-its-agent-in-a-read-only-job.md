@@ -1,6 +1,7 @@
 ---
 status: partial
 owes: walk
+waits: external
 since: 2026-10-07
 goal: G2
 spec: 2

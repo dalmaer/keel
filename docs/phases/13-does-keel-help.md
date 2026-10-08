@@ -1,5 +1,6 @@
 ---
 status: partial
+after: 2026-11-01
 since: 2026-10-02
 goal: G5
 depends: [12]
