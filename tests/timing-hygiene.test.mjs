@@ -64,9 +64,9 @@ test('no timing test gives its base or noise suite a sleep a slow machine can sw
 test('mutations: a 150 ms base or noise sleeper fails; a 10 ms fast one, an untimed file and a reasoned opt-out pass', async () => {
   const t = await readFile(join(KEEL, 'tests/climb.test.mjs'), 'utf8');
   for (const [why, from, to] of [
-    ['a 150 ms base', "files: { 't.mjs': sleeper(600) }", "files: { 't.mjs': sleeper(150) }"],
-    ['a 150 ms noise', "sleeper(600, 'noise')", "sleeper(150, 'noise')"],
-    ['a literal 150 ms base', "files: { 't.mjs': sleeper(600) }", "files: { 't.mjs': 'setTimeout(() => {}, 150);\\n' }"],
+    ['a 150 ms base', "files: { 't.mjs': sleeper(1500) }", "files: { 't.mjs': sleeper(150) }"],
+    ['a 150 ms noise', "sleeper(1500, 'noise')", "sleeper(150, 'noise')"],
+    ['a literal 150 ms base', "files: { 't.mjs': sleeper(1500) }", "files: { 't.mjs': 'setTimeout(() => {}, 150);\\n' }"],
   ]) {
     const text = t.replace(from, to);
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
