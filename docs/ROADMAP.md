@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 51 phases built; 9 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 52 phases built; 9 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md). On or after 2026-11-01, with two projects adopted, compute the six measures exactly as `docs/research/2026-10-02-does-keel-help-measures.md` names them, and write the results page.
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-6/6 built.
+6/7 built.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -23,6 +23,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [32. A phase's spec says how it will be proven, and an empty one fails the check](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | built | 2026-10-06 | [0](phases/00-keel-runs-on-itself.md), [1](phases/01-practices-as-modules.md) | Built and walked: the roadmap check refuses template text; spec 2 phases name a check per box and their Real surfaces; proofs_hold runs nightly; cajones (and the fleet) updated to v0.8.0 with their own checks green. · [#10](https://github.com/dalmaer/keel/issues/10) |
 | [44. A walk owed does not block the next phase, and lived-in is a project's choice](phases/44-a-walk-owed-does-not-block-the-next-phase.md) | built | 2026-10-07 | [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built and walked: owes: walk, lived-in opt-in, phases_stuck skipping a walk owed. keel runs it (34 of 46 built, 11 owe a walk); in the fleet, cajones (the one project on keel's roadmap script) took v0.8.16 to v0.8.20 green with its lived-in kept by migration 0006; duo, ledger and isocan keep their own phases. · [#28](https://github.com/dalmaer/keel/issues/28) |
 | [49. Keel starts faster and its guidance describes the code it ships](phases/49-faster-simpler-keel.md) | built | 2026-10-07 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | Practice loading uses 60% less local warm-read time; deterministic fresh reads are tested and current guidance matches shipped workflows. |
+| [51. The board: whose turn it is, and what is mine](phases/51-the-board-whose-turn-it-is.md) | planned | 2026-10-08 | [44](phases/44-a-walk-owed-does-not-block-the-next-phase.md) | The owner keeps asking what's next. The roadmap answers the agent's question, not the person's: whose turn is it, and what is mine. keel board gathers it from what keel already knows, with two phase fields so nothing is guessed; the owner's answers are recorded through keel verbs. Design: research/2026-10-08-whose-turn-board.md. · [#37](https://github.com/dalmaer/keel/issues/37) |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
@@ -30,6 +31,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 - **32 done when:** `roadmap --check` refuses a phase that still holds `keel phase new`'s template text or an empty Done when, Acceptance or Proof; every acceptance box in a new phase names its check (a test, a command, or ⚑ by hand); and the phase template asks for its Real surfaces, each needing one proof in that place.
 - **44 done when:** keel's own roadmap runs with lived-in off (its headline counts built, not lived-in), every keel phase whose building is done and whose rest is a walk or time is marked `owes: walk`, and `keel next` names the next buildable phase instead of one waiting on a walk; no phase is built that was not proven.
 - **49 done when:** Repeated measurements on the same machine demonstrate faster practice loading or CLI startup, existing command and validation behavior remains tested, and current documentation agrees with the implemented workflows.
+- **51 done when:** `keel board` serves a localhost page that sorts every open item by what it waits on (yours, broken, the agent's, time), each "yours" item settles through a keel verb, phases say when they are not yet buildable and whose walk they owe, and the owner has settled a week of walks from the board instead of in chat.
 
 ## G1 — Start a project in one command
 
