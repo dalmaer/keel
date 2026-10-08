@@ -11,7 +11,7 @@ work here.
 
 ```bash
 npm run next      # the next phase to conduct, and its next action
-npm run check     # tests + roadmap guard; run before pushing (CI runs it too)
+npm run check     # tests + roadmap, render and inbox guards; run before pushing
 npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 ```
 
@@ -22,6 +22,7 @@ This machine's shell is zsh: quote globs and `==` in commands (an unmatched glob
 | Path | What |
 | --- | --- |
 | `docs/design.md` | **The argument.** Practices, file kinds, migrations, lesson flow, night shift. Phases cite it. |
+| `docs/guide/` | Task guides; [README index](README.md#guides). For the CLI contract, run `keel --agent-help <topic>`. |
 | `docs/goals.json` | What keel is for, as outcomes. Progress is derived, never stored. |
 | `docs/phases/` | One file per phase. **Status lives here.** [Contract](docs/phases/README.md). |
 | `docs/ROADMAP.md` | **Generated.** Never edit it. |
@@ -29,7 +30,7 @@ This machine's shell is zsh: quote globs and `==` in commands (an unmatched glob
 | `docs/evidence/` | What was actually checked, per phase. |
 | `docs/research/` | Findings that took longer to reach than to read. |
 | `docs/templates/` | Phase and evidence templates. |
-| `scripts/roadmap.mjs` | Generates and checks the roadmap. Keel will ship this script (phase 1). |
+| `scripts/roadmap.mjs` | Generates and checks the roadmap; shipped by the `phases` practice. |
 | `.agents/skills/conduct/` | The conductor. Reached from Claude Code via the `.claude/skills/conduct` symlink. |
 | `.keel/keel.json` | This project's keel config. Keel's says `"keel": "self"`. |
 
@@ -113,11 +114,11 @@ facts; preserve historical evidence and the scope of replaced decisions.
 
 ## Rules for keel's code
 
-- **Zero runtime dependencies, Node ≥ 24, no build step.** `node --test` for
+- **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for
   tests. Installing from `main` must work.
 - **Every command takes `--json`.** Agents drive keel and must never parse prose.
 - **A verb nobody is told about doesn't exist.** `keel --agent-help` ships with
-  the CLI, and a test fails when a verb is missing from it (phase 2).
+  the CLI, and a test fails when a verb is missing from it.
 - **Never overwrite a project's own work.** Managed files are keel's, seeded
   files are the project's, and drift is signal (design §1). When in doubt, propose.
 - **Tests never read the developer's git settings.** `npm test` loads

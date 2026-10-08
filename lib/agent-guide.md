@@ -2,33 +2,33 @@
 
 Keel installs a working practice in a repo: phases own status; roadmaps derive it;
 lessons name shapes; built claims need evidence.
-Run keel inside a project (a directory with `.keel/keel.json`, or below one);
+Run keel in a project (`.keel/keel.json` here or in a parent);
 `keel init` and `keel adopt` run outside one.
 Read the project's AGENTS.md before changing anything.
 
-Verbs (every one takes `--json`; parse that, never the prose):
+Verbs (all take `--json`; parse JSON, never prose):
 
 - `keel status` — goals, built counts, the next phase
-- `keel next` — the next phase to conduct: its file, done-when, next action; `--project <p>`
+- `keel next` — next phase: file, done-when, next action; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
-- `keel phase new|list` — scaffold the next free phase under a goal; list them
-- `keel render` — render the practices here; `--check` writes nothing, exit 1 if it differs
-- `keel init [dir] --description "<paragraph>"` — a new project in an empty dir; `--github` plans a private repo (exit 3)
-- `keel adopt [dir]` — bring an existing repo under keel, on what it satisfies; `--dry-run` writes nothing
+- `keel phase new|list` — scaffold or list phases under goals
+- `keel render` — render practices; `--check` reads only, exit 1 on differences
+- `keel init [dir] --description "<paragraph>"` — new project; `--github` plans a private repo (exit 3)
+- `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
 - `keel doctor` — drift from keel's files and practice lints; exit 1 on findings; `--fix <path> restore|eject` (exit 3)
 - `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3), or `--local`
 - `keel lessons` — send lessons, drift and practice commits home as issues; exit 3
-- `keel learn` — keel only: lesson issues and moved sources → `docs/inbox/`; `propose`, `decide` (a person's), `render`, `distill`
+- `keel learn` — keel only: lessons and sources → proposals; `propose`, `decide` (a person's), `render`, `distill`
 - `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
 - `keel drain <prefix>` — one open PR per machine queue; the newest only `--gate-passed`; exit 3
 - `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI, lessons
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
-- `keel loose-ends` — unfinished chats, files, branches, PRs, owner steps; `mark <id> resume|park|drop`
+- `keel loose-ends` — unfinished work across projects; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
 - `keel retro` — after real work: the session's friction, counted
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
-- `keel --agent-help` — this text; `<topic>` opens one, `all` prints all
+- `keel --agent-help` — cold start; `<topic>` or `all` for details
 - `keel --version` — CLI, commit and practice versions
 
 Rules that bite:
@@ -140,8 +140,10 @@ keel goal retire G1 --reason "Nobody exports" --phases supersede --yes
 - `goal add` takes the next free `G<n>` (max + 1; a retired id stays taken).
   A goal with no phase renders "No phases yet"; `keel doctor` reports it
   (`goal-without-phase`) until a phase names it.
-- `goal show`'s `next` is the goal's first unfinished phase whose dependencies,
-  in any goal, are built.
+- `goal show`'s `next` is the goal's first phase left to build whose dependencies,
+  in any goal, are satisfied: built, lived-in, or partial with `owes: walk`.
+  Like `keel next`, it skips phases owing only a walk and superseded phases.
+  A walk owed stays partial; it is not proof of acceptance.
 - `goal retire` needs `--reason`, and writes `"retired": "<date>: <reason>"`;
   the goal moves to the roadmap's Retired section, still counted, never next
   focus. Unbuilt phases need `--phases supersede` (status superseded, note
@@ -979,11 +981,11 @@ session.
 
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
-Keel is a git checkout plus a link; there is no registry and no build step.
+Keel needs Node 24.21.0 or later and git. It is a checkout plus a link;
+there is no registry and no build step.
 Keel is public, so with nothing installed, `npx` runs it from GitHub: put
 `npx -y github:dalmaer/keel` wherever a command says `keel`
-(`npx -y github:dalmaer/keel next`). The first run fetches it (about 5 s),
-later ones take about 2 s. To install it:
+(`npx -y github:dalmaer/keel next`). To install it:
 
 ```bash
 git clone https://github.com/dalmaer/keel ~/code/keel # any path works
@@ -994,13 +996,13 @@ keel --version
 `npm i -g <dir>` links the checkout, so the installed CLI is exactly that
 checkout's commit; `keel --version` prints the short sha. The CLI uses its
 own copy of the practice (its `practices/`), never the project's scripts.
-`keel update` pulls the checkout (`--ff-only`) before it touches a project.
+`keel update` first tries to fast-forward the checkout; topic `update`
+describes when it skips that step and how it restores a failed project update.
 
 <!-- topic: coming | verbs that are planned and not yet built -->
 
-Nothing is planned and unbuilt as a verb right now. A verb not in
-`keel help` does not exist; do not call it. Keel's `docs/ROADMAP.md` says
-what is planned.
+`keel help` lists the implemented verbs; do not call an unlisted verb.
+Keel's `docs/ROADMAP.md` records planned work.
 
 <!-- topic: reconciliation | optional record checks and manual corrections -->
 

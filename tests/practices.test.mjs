@@ -21,6 +21,45 @@ const acmeInto = async dir => {
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(ACME, null, 2) + '\n');
 };
 
+test('load preserves practice and file order and reads changed inputs on every call', async () => {
+  const dir = await temp('fresh');
+  const spec = name => ({ name, summary: 'Acme practice.', requires: [], files: [
+    { path: `${name}-z.md`, from: 'z.md', kind: 'managed' },
+    { path: `${name}-a.md`, from: 'a.md', kind: 'managed' },
+  ] });
+  const add = async name => {
+    await mkdir(join(dir, name, 'files'), { recursive: true });
+    await writeFile(join(dir, name, 'practice.json'), JSON.stringify(spec(name)));
+    await writeFile(join(dir, name, 'files/z.md'), 'Acme z\n');
+    await writeFile(join(dir, name, 'files/a.md'), 'Acme a\n');
+  };
+  try {
+    await add('zeta');
+    await add('alpha');
+    const first = await load(dir);
+    assert.deepEqual([...first.keys()], ['alpha', 'zeta']);
+    assert.deepEqual(first.get('alpha').files.map(f => f.from), ['z.md', 'a.md']);
+    const entries = await plan(dir, { ...ACME, practices: ['zeta', 'alpha'] }, first);
+    assert.deepEqual(entries.map(e => e.path), ['zeta-z.md', 'zeta-a.md', 'alpha-z.md', 'alpha-a.md']);
+
+    await writeFile(join(dir, 'alpha/files/z.md'), 'Acme revised\n');
+    await writeFile(join(dir, 'alpha/practice.json'), JSON.stringify({ ...spec('alpha'), summary: 'Acme revised.' }));
+    await rm(join(dir, 'zeta'), { recursive: true });
+    await add('beta');
+    const second = await load(dir);
+    assert.deepEqual([...second.keys()], ['alpha', 'beta']);
+    assert.equal(second.get('alpha').summary, 'Acme revised.');
+    assert.equal(second.get('alpha').files[0].template, 'Acme revised\n');
+    assert.equal(first.get('alpha').files[0].template, 'Acme z\n');
+
+    // Multiple failures still report the first practice in name order, and a
+    // previously loaded template cannot hide a later missing file.
+    await rm(join(dir, 'alpha/files/a.md'));
+    await writeFile(join(dir, 'beta/practice.json'), '{}');
+    await assert.rejects(load(dir), /practices\/alpha\/practice\.json: missing template files\/a\.md/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('no target is claimed by two practices', async () => {
   const practices = await load();
   const { whole, blocks } = claims(practices.values());

@@ -11,7 +11,8 @@ Keel makes it one versioned thing. It does three jobs:
    failure it prevents, live in [`practices/`](practices/).
 2. **It carries changes out to projects.** `keel init` and `keel adopt`
    install the practice. `keel update` and `keel fleet update` bring each
-   new version, always as a pull request a person reads.
+   new practice version as a pull request a person reads, or a local diff
+   with `keel update --local`.
 3. **It is where lessons come home.** A project sends what it learned
    (`keel lessons`). Keel turns that into proposals (`keel learn`), a person
    decides, and the next release carries the change to everyone.
@@ -32,20 +33,21 @@ repo, with its own copies of the scripts they need.
 
 ## Install
 
-Node 24 or later, and git. No registry, no build step.
+Node 24.21.0 or later, and git. No registry, no build step.
 
 ```bash
 git clone https://github.com/dalmaer/keel ~/code/keel
-```
-
-```bash
 npm install -g ~/code/keel
 ```
 
 Then `keel --version` prints the CLI's version, its commit, and the
 practice version it carries. The global install is a link to the checkout,
 so updating keel is a `git pull` there, and `keel update` does that for you
-first.
+first when the checkout can fast-forward cleanly.
+
+The CLI version moves with every release. The practice version moves only
+when practices, migrations or the lessons catalogue change; a CLI-only
+release leaves projects current. See [Keep the fleet current](docs/guide/keep-the-fleet-current.md).
 
 ## What a project gets
 
@@ -78,7 +80,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 | `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR | A speed-up nobody measured against noise; a test quietly gone |
-| `cross-review` *(optional)* | Claude reviews the PRs another model wrote (Codex's `codex/` branches), as Codex reviews Claude Code's: inline P1/P2/P3 comments, each validated against the code first, and a summary posted as a comment; read-only, budgeted, never approves or merges | Review that runs one way only; a model reviewing its own work |
+| `cross-review` *(optional)* | An available provider reviews another provider's PRs, falling back to self-review when necessary; inline P1/P2/P3 findings validated against the code, read-only and budgeted, never approves or merges | Review tied to one provider or running in only one direction |
 
 **Who owns which file.** Every file keel writes is one of three kinds:
 
@@ -173,8 +175,13 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | Verb | What it does |
 | --- | --- |
 | `keel learn` | Lesson issues and moved sources become proposals: `propose` is an agent's, `decide` is a person's |
-| `keel release` | Cut a practice version, with a what's-new written for the person receiving it |
+| `keel release` | Release the CLI; bump the practice only when project-facing files changed, with a what's-new for the recipient |
 | `keel fleet`, `keel fleet update` | Every project at a glance; open update PRs where they're behind |
+
+**Across projects:**
+
+| Verb | What it does |
+| --- | --- |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 | `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read. Not a gate |
 
@@ -200,11 +207,8 @@ guide, [docs/design.md](docs/design.md) is the argument, and
 [docs/ROADMAP.md](docs/ROADMAP.md) is where it stands.
 
 ```bash
-npm run next
-```
-
-```bash
-npm run check
+npm run next     # next phase and action
+npm run check    # tests, roadmap, rendered practices and inbox views
 ```
 
 In Claude Code, `/conduct` walks the phases.
