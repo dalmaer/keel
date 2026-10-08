@@ -78,11 +78,9 @@ Why you'd set each:
 - `margin`, `attempts`, `testCommand`: only when the defaults don't fit
   your suite; `build`, `buildOutput` for `build-time`; `perf` for your own
   benchmark.
-- `agent`: which agent runs the pass. Claude (`"claude"`) is the default
-  and, for now, the only one: Codex reviews pull requests (cross-review's
-  `"agent": "codex"`), but its sandbox keeps `.git` read-only, so it cannot
-  commit what it changes, and a climb or tend pass on Codex is refused,
-  naming why. A project that names an agent lists it in `"agents"`.
+- `agent`: which agent runs the pass: Claude (`"claude"`, the default) or
+  Codex (`"codex"`). A project that names an agent lists it in `"agents"`
+  (`"agents": { "claude": {}, "codex": {} }`). See *Choosing Codex* below.
 
 Check what a project will actually run, with the defaults filled in:
 
@@ -93,7 +91,37 @@ node scripts/keel/climb.mjs tend-pick  # whether a tend pass would run
 ```
 
 Then set the secret, a ⚑ step: `CLAUDE_CODE_OAUTH_TOKEN` (or
-`ANTHROPIC_API_KEY`). Until one is set, each run ends green with a notice.
+`ANTHROPIC_API_KEY`) for Claude, `OPENAI_API_KEY` for Codex. Until the
+pass's agent has its secret, each run ends green with a notice.
+
+### Choosing Codex
+
+Set `"agent": "codex"` on `climb`, on `tend`, or both, list `codex` in
+`"agents"`, and set `OPENAI_API_KEY`. Two things differ from a Claude night:
+
+- **What it costs.** Codex bills the OpenAI API account per token; there is
+  no subscription path. `budget.minutes` still bounds the run, and the
+  Budget line still counts minutes, not dollars, so watch the API account
+  for the first few nights.
+- **Where its commits live.** Codex runs in a sandbox that may write the
+  checkout but keeps `.git` read-only, so it cannot commit there, and keel
+  never gives it the sandbox that could (`danger-full-access`). So a keel
+  step gives it a second git dir, `.keel/agent-git`, holding the night's
+  branch, and its brief tells it to commit there. The protocol is
+  unchanged: one change per commit, measured, kept or reset. Because Codex
+  can write that git dir (its config and hooks too), keel never runs git
+  on it afterwards: a keel step copies out only the objects and the one
+  branch, into a repo keel makes, and hands those on. From there the
+  judge and the PR are exactly as for Claude, and a branch that carries
+  `.keel/agent-git` is refused like one that changes `scripts/keel/`.
+  Codex's sandbox may also write its temp folder, so keel pins that to
+  `/tmp/keel-codex`, never the runner's own temp, where the files that set
+  later steps' environment live.
+
+One thing a Codex climb night cannot do: `compare` builds its worktrees in
+the OS temp, not beside the checkout, since the checkout's parent is outside
+Codex's sandbox. A gate that reads a sibling folder (`../data`) fails its
+base there; keep such a project's climb on Claude.
 
 The rest of `climb.mjs` (`measure`, `compare`, `guard`, `prove-steady`,
 `report`, the tend verbs) is what the workflows and the agent run; the
@@ -140,7 +168,8 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 - It never pushes to `main` and never merges. The workflows push only their
   own branch prefix.
 - The agent cannot write to the repo even if a brief or a finding talks it
-  into trying: it runs in a job whose token only reads, and its commits are
+  into trying: it runs in a job whose token only reads (Codex with no
+  GitHub token at all, sudo dropped), and its commits are
   judged in a second read-only job and pushed by a third that runs none of
   the branch's code. A branch that changes `.github/`, `scripts/keel/`,
   `.keel/keel.json`, a lockfile, `.npmrc` or a `package.json` beyond its

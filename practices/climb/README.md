@@ -63,7 +63,8 @@ PR are the script's:
   or a decided finding changed. Deciding is the owner's.
 - `sandbox --base r --head r` checks the agent's commits with git alone:
   `head` is on top of `base`, and no commit changes `.github/`,
-  `scripts/keel/` or `.keel/keel.json`, nor an install file at any depth (a
+  `scripts/keel/`, `.keel/keel.json` or `.keel/agent-git/` (Codex's git
+  dir: carried as files, it is config and hooks), nor an install file at any depth (a
   lockfile, `npm-shrinkwrap.json`, `.npmrc`, yarn's or pnpm's, or a
   `package.json` beyond its `scripts`, and never its install scripts such
   as `preinstall`; a climb may change the command it times, never what is
@@ -224,15 +225,48 @@ lessons`); a loop night, each finding with its proposed rank and why (decide
 with `node scripts/loop.mjs decide`). Nothing proposed opens nothing.
 
 **Which agent.** `"agent"` on `climb` and `tend` names the agent that runs
-the pass (keel phase 45; listed in `"agents"`, default `claude`). Claude is
-the only one that can for now: Codex's `workspace-write` sandbox keeps
-`.git` read-only, so it cannot commit, and the sandbox that could
-(`danger-full-access`) is never given; `"agent": "codex"` on either is red,
-naming why. Codex reviews (the cross-review practice).
+the pass (keel phase 45; listed in `"agents"`, default `claude`): `claude`
+or `codex` (phase 47). Each workflow has one step per provider, both named
+`Climb` (or `Tend`, so the Budget line finds either), and runs only the one
+the pass names; "Configured?" asks for that provider's secret alone.
+
+Codex runs in `openai/codex-action`'s `workspace-write` sandbox with sudo
+dropped (`safety-strategy: drop-sudo`; never `danger-full-access`, never
+`unsafe`, no `allow-users` or `allow-bots`, `GH_TOKEN` blanked), in the
+same read-only agent job. That sandbox keeps `.git` read-only by name, so
+a keel step before the agent gives Codex a second git dir,
+`.keel/agent-git` (a bare repo holding the night's branch, fetched from
+`.git`, ignored by both), and the brief tells it to run git as `git
+--git-dir=.keel/agent-git --work-tree=. …` and climb.mjs as
+`KEEL_AGENT_GIT=.keel/agent-git node scripts/keel/climb.mjs …` (the step
+sets `KEEL_AGENT_GIT` too). With it set, `climb.mjs` and `tend.mjs` run
+their git there, and `compare`'s worktrees go in the OS temp, since the
+checkout's parent is outside Codex's writable roots (a sibling path the
+gate reads, as ledger's `../ledger-data`, is not beside them on a Codex
+night). The protocol is unchanged: one change per commit, `compare
+--decide` keeps or resets it.
+
+That git dir is the agent's to write, config and hooks included, so
+nothing keel runs after the agent reads it. `Take Codex's commits, objects
+only` copies its loose objects and packs (regular files, no symlinks, no
+alternates) into a bare repo keel makes in the runner's temp (its base
+objects borrowed from `.git`), reads the branch's ref as a file, refuses a
+head that is not on top of the run's commit, and bundles from there, with
+no system or global git config, `core.hooksPath=/dev/null` and fsmonitor
+off. From the bundle on, the judge and publish jobs are unchanged, and
+`sandbox` refuses `.keel/agent-git/` on the branch as it refuses
+`scripts/keel/`. `agent-ran --agent codex` judges the step by its outcome
+and its final message (the action's `output-file`), never printing it.
+Codex's sandbox may also write `$TMPDIR`, so every Codex step pins it to
+`/tmp/keel-codex` (made by the step before): a runner whose `TMPDIR` were
+its own temp would let Codex write the command files there (`GITHUB_ENV`,
+`GITHUB_OUTPUT`) and so reach every later step.
 
 **What it needs (⚑).** The `claude` practice's secret,
-`CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`); until one is set the
-run ends green with a notice. Every climb night spends model tokens, up to
+`CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`), or for a pass whose
+agent is `codex`, `OPENAI_API_KEY` (billed per token to the OpenAI API
+account; no subscription path); until the pass's provider has its secret
+the run ends green with a notice. Every climb night spends model tokens, up to
 the budget's minutes, and every tend pass up to `tend.budget.minutes`, once
 a week. Turning either on, and its budget, is the owner's call.
 The test ledger must be the test script's second reporter for `guard` to
@@ -253,6 +287,6 @@ CI's `keel-test-runs` artifacts first, and its workflow may file one issue
 (`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs`,
 `pr-body.mjs` and (tend) `improve.mjs`.
 
-**Lineage.** Keel phases 35, 36, 37 (perf, lessons, loop) and 38 (tend), from the 6 October 2026 hill-climb on keel's own
+**Lineage.** Keel phases 35, 36, 37 (perf, lessons, loop), 38 (tend) and 47 (Codex), from the 6 October 2026 hill-climb on keel's own
 suite; design in keel's `docs/research/2026-10-06-climb-nights.md` and
 `docs/research/2026-10-06-tend-pass.md`.

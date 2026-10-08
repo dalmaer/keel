@@ -20,7 +20,7 @@
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f] [--base r]
 //   (a judge passes --base, the run's commit, to settle, guard, compare --final and report: a
 //   night's record naming any other base is refused, since the agent wrote it)
-//   node scripts/keel/climb.mjs agent-ran --outcome o --file f --minutes m --started s
+//   node scripts/keel/climb.mjs agent-ran [--agent codex] --outcome o --file f --minutes m --started s
 //   node scripts/keel/climb.mjs distill [propose --kind family|reword|standardise … --read "…"]   (lessons)
 //   node scripts/keel/climb.mjs loop-pull                   Loop's pull for a loop night (loop)
 //   node scripts/keel/climb.mjs tend-pick|tend-input [--record]|tend-note|tend-page|tend-report   (scripts/keel/tend.mjs)
@@ -55,7 +55,11 @@
 // out (no secret, a bad model: is_error after one turn) ends the run red, so a
 // run that did nothing never reports success (lesson 29); a budget timeout is
 // not red, and what was kept is judged. Phase 38's tend pass (tend.mjs) shares
-// this script, the workflow's rights and this check.
+// this script, the workflow's rights and this check. With --agent codex (phase
+// 47) the file is Codex's final message, and lib.mjs codexVerdict judges it.
+// Codex commits to .keel/agent-git (its sandbox keeps .git read-only): with
+// KEEL_AGENT_GIT set, this script's git runs there, and compare's worktrees go
+// in the OS temp (the checkout's parent is outside Codex's writable roots).
 //
 // Phase 37 adds three jobs. `perf` times nothing: its number is the last line
 // of the project's own benchmark ("climb".perf.command), and "better" says
@@ -70,13 +74,14 @@
 // the lessons table, and any finding decided tonight: deciding is the owner's
 // (lesson 53). Loop unreachable is a notice, never red.
 import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { join, resolve, dirname, isAbsolute, normalize, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems } from './lib.mjs';
+import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems, agentGitArgs, codexVerdict } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
 import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
@@ -251,8 +256,10 @@ const on = config => climbConfigOf(config) ?? (() => { throw new ClimbError('cli
 
 // ---- small tools ---------------------------------------------------------------
 
+// Under Codex (phase 47) the checkout's git dir is .keel/agent-git (KEEL_AGENT_GIT):
+// agentGitArgs points the checkout's own commands at it; a worktree's never.
 function git(cwd, args, { allowFail = false } = {}) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new ClimbError(`git ${args[0]}: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new ClimbError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
   return allowFail ? r : r.stdout.trim();
@@ -539,7 +546,8 @@ export async function packageDirs(root) {
  * dropWorktree removes it, on every path.
  */
 async function siblingWorktree(root, ref, tag) {
-  const dir = await mkdtemp(join(dirname(resolve(root)), `.keel-climb-${tag}-`));
+  // Under Codex (phase 47) the checkout's parent is outside its sandbox's writable roots: the OS temp, which is in them.
+  const dir = await mkdtemp(join(agentGitArgs(root).length ? tmpdir() : dirname(resolve(root)), `.keel-climb-${tag}-`));
   try { await worktree(root, dir, ref); } catch (e) { await dropWorktree(root, dir); throw e; }
   return dir;
 }
@@ -1572,10 +1580,16 @@ export function errorCause(text) {
   return 'check the secret / model';
 }
 
-export async function agentRan({ outcome, file, minutes, started, now = Date.now() }) {
+export async function agentRan({ outcome, file, minutes, started, agent, now = Date.now() }) {
   if (!Number.isFinite(minutes) || minutes <= 0) throw new ClimbError('agent-ran needs --minutes <the budget>');
+  if (agent !== undefined && agent !== 'claude' && agent !== 'codex') throw new ClimbError(`agent-ran --agent must be claude or codex (got ${agent})`);
   let text = null;
   if (file) try { text = await readFile(file, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new ClimbError(`${file}: ${e.message}`); }
+  if (agent === 'codex') {
+    // Codex writes no execution log: its outcome and its final message (the output-file) are the evidence (phase 45).
+    const elapsed = Number.isFinite(started) ? now / 1000 - started : NaN;
+    return { outcome: outcome ?? null, agent, result: null, elapsedSec: Number.isFinite(elapsed) ? Math.round(elapsed) : null, ...codexVerdict({ outcome, message: text, elapsedSec: elapsed, minutes }) };
+  }
   const result = lastResult(text);
   const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
   return { outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: result.num_turns ?? null, duration_ms: result.duration_ms ?? null, subtype: result.subtype ?? null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...agentVerdict({ outcome, result, elapsedSec, minutes }) };
@@ -1584,7 +1598,7 @@ export async function agentRan({ outcome, file, minutes, started, now = Date.now
 // ---- the command line ------------------------------------------------------------
 
 const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-page|tend-report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight',
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--agent': 'agent', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
 const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
@@ -1625,7 +1639,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: { ...(c ? { on: true, ...c } : { on: false }), ...(t ? { tend: t } : {}) }, text: `${c ? `climb: ${c.jobs.join(', ')}, ${c.schedule}, ${c.minutes} min, margin ${Math.round(c.margin * 100)}%, ${c.attempts} attempts` : 'climb is off: .keel/keel.json has no "climb"'}${tend}` };
     }
     case 'agent-ran': {
-      const r = await agentRan({ outcome: o.outcome, file: o.file ? resolve(o.file) : undefined, minutes: o.minutes, started: o.started });
+      const r = await agentRan({ outcome: o.outcome, file: o.file ? resolve(o.file) : undefined, minutes: o.minutes, started: o.started, agent: o.agent });
       return { data: r, text: r.ok ? r.line : `::error::${r.line}`, exitCode: r.ok ? 0 : 1 };
     }
     case 'tend-pick': {

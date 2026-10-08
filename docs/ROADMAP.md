@@ -3,9 +3,9 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 52 phases built; 10 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 52 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
 
-**Next focus:** [47. Codex runs climb and tend](phases/47-codex-runs-climb-and-tend.md). Brief a builder on Path A: the agent job gives Codex a second git dir (.keel/agent-git) and the climb and tend protocols use it; keel's steps after the agent never trust that git dir's config or hooks. (Dated: phase 13 is on or after 2026-11-01.)
+**Next focus:** [48. A release is reviewed before the fleet sees it](phases/48-a-release-is-reviewed-before-the-fleet-sees-it.md). Brief a builder on the release gate; keel's own cross-review (Codex reviewing the conductor's claude/ PRs) is switched on with it. OPENAI_API_KEY is set on keel (2026-10-08). (Dated: phase 13 is on or after 2026-11-01.)
 
 Goals are outcomes, not dates. Counts are derived; superseded work is retired, not delivered.
 
@@ -123,7 +123,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-6/13 built; 6 owe a walk.
+6/13 built; 7 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -139,7 +139,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [37. A project's own benchmark, its lessons and its Loop findings are climbed overnight](phases/37-a-project-s-own-benchmark-its-lessons-and-its.md) | partial, walk owed | 2026-10-06 | [14](phases/14-stitch-loop.md), [20](phases/20-keel-runs-ledger.md), [31](phases/31-the-lessons-table-is-distilled-into-patterns.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md) | Built: perf (the command's last-line number, better lower or higher, the project's perf check as guard), lessons (a distill pass over the project's own table: proposals only, decided by editing their status) and loop (pull, propose a rank for each untriaged finding, decide none; unreachable is a notice). Waits on ledger's climb config and token at the fleet release, and one owner-read night of each. · [#15](https://github.com/dalmaer/keel/issues/15) |
 | [38. The records are tended: a weekly pass resolves what the night found, and a person merges it](phases/38-the-records-are-tended-a-weekly-pass-resolves.md) | partial, walk owed (time) | 2026-10-06 | [26](phases/26-reconciliation.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | Built and on for keel and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). keel's first pass (keel#22) was read and closed with a reason. Owes ledger's first pass and the night after it. · [#16](https://github.com/dalmaer/keel/issues/16) |
 | [43. Each budgeted pass shows what it used, and says when to extend or shorten](phases/43-each-budgeted-pass-shows-what-it-used.md) | partial, walk owed (time) | 2026-10-07 | [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [38](phases/38-the-records-are-tended-a-weekly-pass-resolves.md), [42](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | Built and on GitHub: the Budget line (agent-step minutes per run from GitHub, ran out, a suggestion; runs whose agent never started skipped); the night of 2026-10-07 (run 37580217231, keel#26) wrote tend 2 of 30, climb 3, 0 of 45. Waits on the owner's read after four or more tend runs. · [#25](https://github.com/dalmaer/keel/issues/25) |
-| [47. Codex runs climb and tend](phases/47-codex-runs-climb-and-tend.md) | designed | 2026-10-07 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md), [46](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | Path A holds (spike run 37716223683): under workspace-write and drop-sudo, Codex committed to a git dir inside the workspace under another name (.keel/agent-git, de7919f, confirmed outside the sandbox) while .git stayed read-only. Codex can run climb and tend on the unchanged protocol. Design: research/2026-10-07-review-hardening.md §2. · [#33](https://github.com/dalmaer/keel/issues/33) |
+| [47. Codex runs climb and tend](phases/47-codex-runs-climb-and-tend.md) | partial, walk owed (external) | 2026-10-08 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md), [46](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | Built (Path A): Codex runs climb and tend with workspace-write and drop-sudo, TMPDIR pinned to /tmp/keel-codex, commits to .keel/agent-git; keel takes only objects from that git dir (no git command reads it) into a fresh repo, then the judge and publish jobs as before. Owes one real Codex night of each pass, read by the owner. · [#33](https://github.com/dalmaer/keel/issues/33) |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.

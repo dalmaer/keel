@@ -729,9 +729,16 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
   (a proposals night keeps its commits).
 - `report [--body f] [--state] [--issue f]` — the PR body (pr-body.mjs), the
   night's line; `--issue`, a hygiene night's issue when nothing was proven.
-- `agent-ran --outcome o --file f --minutes m --started s` — after the agent's
+- `agent-ran [--agent codex] --outcome o --file f --minutes m --started s` — after the agent's
   step: red when it failed before its budget ran out (prints only the
   result's error text, naming the secret or the model); a timeout is not red.
+  `--agent codex`: the file is Codex's final message, never printed.
+- `"agent": "codex"` on `climb` or `tend` (listed in `"agents"`; secret
+  `OPENAI_API_KEY`): Codex commits to `.keel/agent-git` (its sandbox keeps
+  `.git` read-only); run git as `git --git-dir=.keel/agent-git --work-tree=.`
+  and climb.mjs with `KEEL_AGENT_GIT=.keel/agent-git`. Only that dir's
+  objects and the branch's ref leave the job; a branch carrying
+  `.keel/agent-git/` is refused by `sandbox`.
 
 **Tend** (`"tend": { "schedule": "weekly", "budget": { "minutes": 30 } }`;
 `keel-tend.yml`, Mondays): an agent resolves the night's record findings

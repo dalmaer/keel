@@ -59,7 +59,7 @@
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
-      "sha256": "8cb1128136b63c3d42709faaa16d630c204b62350b038899012d8c85e933406d"
+      "sha256": "fe7d73550d06318d88095c30bc8c9e596b60b9c3ecb3c5bc9e3785ac42e2e443"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -71,7 +71,7 @@
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
-      "sha256": "29ee70b93d9a5c1b9ef13a5bf1463e1805bc37fdc52ccde695c394a53e6ccc09"
+      "sha256": "76d8cf0b91cadd1df16c435f82bf9dcbf38878fd07a56d884222c708b1df5059"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -127,7 +127,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "43c5574805b6b5142b7961d5da78a06e2b9dbf40165731721ec58de65e57749a"
+      "sha256": "83da09238640f8adab1069dab54cdc607ed6a3cda01d78d26012759ecefbe6ea"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -147,7 +147,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "dea63f5421f7d43e03b3e9fc68c09818cbf63379ac16199035a0cfe8bd7f7319"
+      "sha256": "01cb17ff7838399dcbdedd74413d5d4933d4461670fba13325267cb30e624f9b"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -159,7 +159,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "1a57aa1d83c908997747ba58281e8ba3234ee0a0ca9e6ce4c4e634e472a4d872"
+      "sha256": "0bdb0763f9d7ea8bd18526e254b5cff06e716a68ef4410c401a169bab3158208"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",

@@ -682,7 +682,8 @@ test('keel-climb.yml: the agent cannot push or merge, is time-boxed by the budge
   assert.deepEqual(climbWorkflowProblems(t), []);
   assert.match(t, /git push --force origin "\$head:refs\/heads\/keel-climb\/\$JOB\/\$DAY"/);
   // STITCH_API_KEY: a loop night's pull (phase 37), in its own step only.
-  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'STITCH_API_KEY']);
+  // OPENAI_API_KEY: a Codex night's (phase 47).
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY', 'STITCH_API_KEY']);
   assert.deepEqual(t.split(/\n(?= {6}- )/).filter(s => s.includes('secrets.STITCH_API_KEY')).map(s => /name: (.+)/.exec(s)[1]), ["Pull Loop's findings"]);
   const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
   for (const [why, text] of [
@@ -720,7 +721,14 @@ export function agentRanProblems(text, { step, id }) {
   if (check < agent) out.push('"Did the agent run?" runs before the agent');
   const body = steps[check];
   if (/continue-on-error/.test(body)) out.push('"Did the agent run?" is continue-on-error: its red would be swallowed');
-  if (!new RegExp(`OUTCOME: \\$\\{\\{ steps\\.${id}\\.outcome \\}\\}`).test(body)) out.push(`"Did the agent run?" does not read steps.${id}.outcome`);
+  // Phase 47: Codex's step (id <id>_codex) when the pass names codex, else Claude's.
+  if (!new RegExp(`OUTCOME: \\$\\{\\{ (?:steps\\.on\\.outputs\\.agent == 'codex' && steps\\.${id}_codex\\.outcome \\|\\| )?steps\\.${id}\\.outcome \\}\\}`).test(body)) out.push(`"Did the agent run?" does not read steps.${id}.outcome`);
+  const codexStep = steps.find(s => new RegExp(`\\n {8}id: ${id}_codex\\n`).test(s));
+  if (codexStep) {
+    if (!body.includes(`steps.${id}_codex.outcome`)) out.push(`"Did the agent run?" does not read steps.${id}_codex.outcome`);
+    if (!/node scripts\/keel\/climb\.mjs agent-ran --agent codex --outcome "\$OUTCOME" --file "\$RUNNER_TEMP\/codex-final-message\.md" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not judge Codex by its final message (agent-ran --agent codex)');
+    if (steps.indexOf(codexStep) > check) out.push('"Did the agent run?" runs before Codex\'s step');
+  }
   if (!new RegExp(`EXECUTION: \\$\\{\\{ steps\\.${id}\\.outputs\\.execution_file \\}\\}`).test(body)) out.push('"Did the agent run?" does not read the action\'s execution file');
   if (!/node scripts\/keel\/climb\.mjs agent-ran --outcome "\$OUTCOME" --file "[^"]+" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not run climb.mjs agent-ran with the outcome, the file, the budget and the start');
   if (/\|\| true|; *exit 0/.test(body)) out.push('"Did the agent run?" swallows its exit');
@@ -766,9 +774,10 @@ test('lesson 29: keel-climb.yml and keel-tend.yml end red when the agent failed 
 export function agentSandboxProblems(text) {
   const out = [];
   const jobs = jobsOf(text);
-  const isAgent = j => /\n\s+uses: anthropics\/claude-code-action@/.test(j.text);
+  // Phase 47: Codex's step, where a pass names codex, is the agent's too, in the same job.
+  const isAgent = j => /\n\s+uses: (?:anthropics\/claude-code-action|openai\/codex-action)@/.test(j.text);
   const agents = jobs.filter(isAgent);
-  if (agents.length !== 1) return [`${agents.length} jobs run claude-code-action; one, the agent's`];
+  if (agents.length !== 1) return [`${agents.length} jobs run an agent; one, the agent's`];
   const agent = agents[0];
   const top = /^permissions:(.*)\n((?: {2}.*\n)*)/m.exec(text);
   if (!top) out.push('the workflow declares no permissions: every job would get the repo default, which may write');
@@ -948,7 +957,7 @@ test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge,
   assert.deepEqual(tendWorkflowProblems(t), []);
   assert.deepEqual(tendWorkflowProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's rendered keel-tend.yml");
   assert.match(t, /git push --force origin "\$head:refs\/heads\/keel-tend\/\$DAY"/);
-  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY']);
   const climbCron = /cron: "(\d+) (\d+) /.exec((await shipped()).find(x => x.name === 'keel-climb.yml').template);
   const tendCron = /cron: "(\d+) (\d+) /.exec(t);
   assert.deepEqual([Number(tendCron[1]) - Number(climbCron[1]), tendCron[2]], [1, climbCron[2]], 'a minute after the climb\'s');
@@ -1257,6 +1266,13 @@ export function codexStepProblems(text, { sandbox }) {
     for (const k of ['codex-args', 'permission-profile', 'codex-home', 'codex-user']) if (k in w) out.push(`${name}: ${k} is a way around the sandbox inputs`);
     if (/danger-full-access|\bunsafe\b/.test(step)) out.push(`${name}: danger-full-access or unsafe`);
     if (env.GH_TOKEN !== '') out.push(`${name}: Codex's step does not blank GH_TOKEN, so it holds the job's token`);
+    // Its sandbox may write $TMPDIR: never the runner's temp (GITHUB_ENV, GITHUB_OUTPUT: every later step) nor .git.
+    if (!env.TMPDIR) out.push(`${name}: Codex's step does not pin TMPDIR, which its sandbox may write`);
+    else if (!/^\/tmp\/[\w.-]+$/.test(env.TMPDIR) || /runner\.temp|RUNNER_TEMP|\.git\b/.test(env.TMPDIR)) out.push(`${name}: Codex's TMPDIR is ${env.TMPDIR}: only a folder of its own under /tmp, never the runner's temp or .git`);
+    else {
+      const all = stepsOf(text);
+      if (!all.slice(0, all.indexOf(step)).some(s => s.includes(`mkdir -p ${env.TMPDIR}`))) out.push(`${name}: no step before it makes its TMPDIR (${env.TMPDIR})`);
+    }
     for (const [, sec] of step.matchAll(/secrets\.([A-Za-z_]\w*)/g)) if (sec !== 'OPENAI_API_KEY') out.push(`${name}: Codex's step is given secrets.${sec}`);
     if (!/\n\s+output-file: \$\{\{ runner\.temp \}\}\//.test(step)) out.push(`${name}: Codex's final message is not written to the runner's temp (output-file), where its check reads it`);
   }
@@ -1441,10 +1457,13 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     ['Codex for a bot by an empty entry', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: claude[bot],\n')],
     ['Codex for anyone', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-users: "*"\n')],
     ['Codex args around the sandbox', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          codex-args: --dangerously-bypass-approvals-and-sandbox\n')],
-    ['Codex holds the token', t.replace('        env:\n          GH_TOKEN: ""\n', '')],
+    ['Codex holds the token', t.replace('        env:\n          GH_TOKEN: ""\n          TMPDIR: /tmp/keel-codex\n', '')],
+    ['Codex\'s TMPDIR unpinned', t.replace('          TMPDIR: /tmp/keel-codex\n', '')],
+    ['Codex\'s TMPDIR the runner\'s temp', t.replace('          TMPDIR: /tmp/keel-codex\n', '          TMPDIR: ${{ runner.temp }}\n')],
+    ['Codex\'s TMPDIR never made', t.replace('        run: mkdir -p /tmp/keel-codex\n', '        run: true\n')],
     ['Codex given another secret', t.replace('          openai-api-key: ${{ secrets.OPENAI_API_KEY }}\n', '          openai-api-key: ${{ secrets.OPENAI_API_KEY }}\n          model: ${{ secrets.ANTHROPIC_API_KEY }}\n')],
     ['Codex not time-boxed', t.replace(/(id: review_codex\n[\s\S]*?)\n\s+timeout-minutes: [^\n]*/, '$1')],
-    ['Codex runs whatever the config says', t.replace("steps.which.outputs.agent == 'codex'\n", "true\n")],
+    ['Codex runs whatever the config says', t.replace("id: review_codex\n        if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'\n", "id: review_codex\n        if: true\n")],
     ['Claude runs whatever the config says', t.replace("steps.which.outputs.agent == 'claude'\n", "true\n")],
     ['no Codex step', t.replace(/\n {6}- name: Review\n {8}id: review_codex\n[\s\S]*?(?=\n\n)/, '')],
   ]) {
@@ -1629,8 +1648,103 @@ test('the Budget line\'s step map equals each shipped workflow\'s budgeted claud
   // The reader sees a rename (the step's name is what GitHub's record of a run carries).
   const tend = all.find(w => w.name === 'keel-tend.yml').template;
   assert.match(tend, /^ {6}- name: Tend$/m);
-  assert.deepEqual(budgetedAgentSteps(tend.replace(/^ {6}- name: Tend$/m, '      - name: Tend the repo')), [{ agent: 'Tend the repo', check: 'Did the agent run?' }]);
+  // Phase 47: Claude's step and Codex's both carry the name, so a rename renames both.
+  assert.equal(tend.match(/^ {6}- name: Tend$/gm).length, 2);
+  assert.deepEqual(budgetedAgentSteps(tend.replace(/^ {6}- name: Tend$/gm, '      - name: Tend the repo')), [{ agent: 'Tend the repo', check: 'Did the agent run?' }]);
   assert.deepEqual(budgetedAgentSteps(tend.replace(/^ {6}- name: Did the agent run\?$/m, '      - name: Did Claude run?')), [{ agent: 'Tend', check: 'Did Claude run?' }]);
   // An unbudgeted claude-code-action (claude.yml's) is not a budgeted pass.
   assert.deepEqual(budgetedAgentSteps(all.find(w => w.name === 'claude.yml').template), []);
+});
+
+/**
+ * Codex on a pass that edits the tree (phase 47), keel-climb.yml or
+ * keel-tend.yml: [string]. One Claude step and one Codex step, each run only
+ * when the pass names its provider; Codex's under every rule of
+ * codexStepProblems with sandbox workspace-write (never danger-full-access or
+ * unsafe), in the agent's read-only job. Before it, a keel step gives it
+ * .keel/agent-git; after it, a keel step takes only objects from that git
+ * dir into a repo keel makes (no system or global config, hooks and
+ * fsmonitor off), refuses a head not on top of the run's commit, and no
+ * other step runs git on the agent's git dir. The hand-on step bundles .git
+ * only for Claude. `cond` is the pass's own condition; `step`, `id` its agent step.
+ */
+export function codexEditProblems(text, { step, id, cond }) {
+  const out = [...codexStepProblems(text, { sandbox: 'workspace-write' })];
+  const all = stepsOf(text);
+  const named = n => all.findIndex(s => s.startsWith(`- name: ${n}\n`) || new RegExp(`^\\s*- name: ${n.replace(/[?()]/g, '\\$&')}\\n`).test(s));
+  for (const [provider, action] of [['claude', 'anthropics/claude-code-action'], ['codex', 'openai/codex-action']]) {
+    const mine = all.filter(s => s.includes(`uses: ${action}@`));
+    if (mine.length !== 1) { out.push(`${mine.length} ${provider} steps; one`); continue; }
+    if (!mine[0].includes(`\n  if: ${cond} && steps.on.outputs.agent == '${provider}'\n`) && !mine[0].includes(`\n        if: ${cond} && steps.on.outputs.agent == '${provider}'\n`)) out.push(`the ${provider} step does not run only when the pass names ${provider}`);
+    if (!new RegExp(`^\\s*- name: ${step}\\n`).test(mine[0])) out.push(`the ${provider} step is not named ${step}: the Budget line finds it by name`);
+  }
+  const codex = all.findIndex(s => s.includes('uses: openai/codex-action@'));
+  if (codex < 0) return out;
+  if (!new RegExp(`\\n\\s+id: ${id}_codex\\n`).test(all[codex])) out.push(`Codex's step has no id ${id}_codex`);
+  const w = stepMap(all[codex], 'with');
+  if (w['prompt-file'] !== '${{ runner.temp }}/prompt.md') out.push('Codex is not given the brief (prompt-file)');
+  const jobs = jobsOf(text);
+  const agentJob = jobs.find(j => j.text.includes('uses: openai/codex-action@'));
+  if (agentJob?.id !== 'agent') out.push(`Codex runs in the ${agentJob?.id} job, not the agent's`);
+  const give = named('Give Codex its git dir'), take = named('Take Codex\'s commits, objects only');
+  if (give < 0 || give > codex) out.push('no keel step gives Codex its git dir (.keel/agent-git) before it runs');
+  else if (!/git init -q --bare \.keel\/agent-git/.test(all[give]) || !/info\/exclude/.test(all[give])) out.push('the git dir is not made, or not ignored, before Codex runs');
+  if (take < 0 || take < codex) return [...out, 'no keel step after Codex takes its commits from its git dir'];
+  const t = all[take];
+  if (!/\n\s+if: always\(\) && /.test(t)) out.push('the take is not always(): a night whose agent failed keeps no record of its commits');
+  if (!/export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=\/dev\/null\n/.test(t)) out.push('the take reads a system or global git config');
+  if (!t.includes('g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false --git-dir="$dst" "$@"; }')) out.push('the take\'s git is not keel\'s repo with hooks and fsmonitor off');
+  if (!/git init -q --bare "\$dst"/.test(t)) out.push('the take does not make its own repo');
+  if (!/g merge-base --is-ancestor "\$GITHUB_SHA" "\$tip"/.test(t)) out.push('the take does not refuse a head off the run\'s commit');
+  if (/objects\/info\/alternates/.test(t) && !/echo "\$PWD\/\.git\/objects" > "\$dst\/objects\/info\/alternates"/.test(t)) out.push('the take borrows objects from somewhere other than .git');
+  for (const s of all.slice(codex + 1)) for (const line of s.split('\n')) {
+    if (/\bgit\b[^\n]*(?:--git-dir[= ]"?(?:\$src|\.keel\/agent-git)|-C "?(?:\$src|\.keel\/agent-git))/.test(line) || /GIT_DIR=/.test(line)) out.push(`a step after Codex runs git on its git dir: ${line.trim()}`);
+  }
+  const hand = all.findIndex((s, i) => i > take && /git bundle create/.test(s));
+  if (hand < 0 || !/if \[ "\$AGENT" != codex \] && git rev-parse/.test(all[hand])) out.push('the hand-on step bundles .git for Codex too, where its commits are not');
+  return out;
+}
+
+test('phase 47: Codex runs climb and tend in workspace-write with sudo dropped, never danger-full-access or unsafe; its commits leave its git dir as objects only, in the read-only agent job', async () => {
+  const all = await shipped();
+  for (const [name, opts] of [['keel-climb.yml', { step: 'Climb', id: 'climb', cond: "steps.pick.outputs.job != ''" }], ['keel-tend.yml', { step: 'Tend', id: 'tend', cond: "steps.pick.outputs.run == 'yes'" }]]) {
+    const t = all.find(w => w.name === name).template;
+    assert.deepEqual(codexEditProblems(t, opts), [], name);
+    assert.deepEqual(agentSandboxProblems(t), [], name);
+    assert.deepEqual(codexEditProblems(await readFile(join(KEEL, '.github/workflows', name), 'utf8'), opts), [], `keel's ${name}`);
+    const codexStep = stepsOf(t).find(s => s.includes('uses: openai/codex-action@'));
+    const publish = jobsOf(t).find(j => j.id === 'publish').text;
+    const give = /\n {6}- name: Give Codex its git dir\n[\s\S]*?(?=\n {6}(?:#|- ))/.exec(t)[0];
+    for (const [why, text, check = codexEditProblems] of [
+      ['danger-full-access', t.replace('          sandbox: workspace-write\n', '          sandbox: danger-full-access\n')],
+      ['unsafe', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: unsafe\n')],
+      ['read-only: it cannot edit', t.replace('          sandbox: workspace-write\n', '          sandbox: read-only\n')],
+      ['the action\'s default sandbox', t.replace('          sandbox: workspace-write\n', '')],
+      ['sudo kept', t.replace('          safety-strategy: drop-sudo\n', '')],
+      ['any bot', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-bots: true\n')],
+      ['anyone', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-users: "*"\n')],
+      ['args around the sandbox', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          codex-args: --dangerously-bypass-approvals-and-sandbox\n')],
+      ['the token held', t.replace('        env:\n          GH_TOKEN: ""\n', '        env:\n')],
+      ['TMPDIR removed', t.replace('          TMPDIR: /tmp/keel-codex\n', '')],
+      ['TMPDIR the runner\'s temp', t.replace('          TMPDIR: /tmp/keel-codex\n', '          TMPDIR: ${{ runner.temp }}\n')],
+      ['TMPDIR $RUNNER_TEMP', t.replace('          TMPDIR: /tmp/keel-codex\n', '          TMPDIR: $RUNNER_TEMP/codex\n')],
+      ['TMPDIR in .git', t.replace('          TMPDIR: /tmp/keel-codex\n', '          TMPDIR: /tmp/.git\n')],
+      ['TMPDIR never made', t.replace('          mkdir -p /tmp/keel-codex\n', '')],
+      ['another secret', t.replace('          openai-api-key: ${{ secrets.OPENAI_API_KEY }}\n', '          openai-api-key: ${{ secrets.OPENAI_API_KEY }}\n          model: ${{ secrets.ANTHROPIC_API_KEY }}\n')],
+      ['not time-boxed', t.replace(/(id: \w+_codex\n[\s\S]*?)\n\s+timeout-minutes: [^\n]*/, '$1')],
+      ['Codex whatever the config says', t.replace(`${opts.cond} && steps.on.outputs.agent == 'codex'\n        continue-on-error`, `${opts.cond}\n        continue-on-error`)],
+      ['Claude whatever the config says', t.replace(`${opts.cond} && steps.on.outputs.agent == 'claude'\n`, `${opts.cond}\n`)],
+      ['Codex in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${codexStep}\n`), agentSandboxProblems],
+      ['no git dir given', t.replace(give, '')],
+      ['the take reads the agent\'s git dir', t.replace('g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false --git-dir="$dst" "$@"; }', 'g() { git --git-dir="$src" "$@"; }')],
+      ['the take with hooks on', t.replace('g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false --git-dir="$dst" "$@"; }', 'g() { git -c core.fsmonitor=false --git-dir="$dst" "$@"; }')],
+      ['the take reads a global config', t.replace('          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\n', '')],
+      ['a head off the run\'s commit taken', t.replace(/\n {10}if ! g merge-base --is-ancestor "\$GITHUB_SHA" "\$tip"; then\n[\s\S]*?\n {10}fi\n/, '\n')],
+      ['a bundle straight from the agent\'s git dir', t.replace(/( {10}if \[ "\$AGENT" != codex \] && git rev-parse)/, '          git --git-dir=.keel/agent-git bundle create "$out/acme.bundle" HEAD\n$1')],
+      ['.git bundled for Codex too', t.replace('if [ "$AGENT" != codex ] && git rev-parse', 'if git rev-parse')],
+    ]) {
+      assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
+      assert.ok(check(text, opts).length, `${name} ${why}: expected a problem`);
+    }
+  }
 });

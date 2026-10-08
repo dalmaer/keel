@@ -23,7 +23,7 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { gateEnv, healthDirOf, cells, passAgentProblems } from './lib.mjs';
+import { gateEnv, healthDirOf, cells, passAgentProblems, agentGitArgs } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
 
 export const TEND_PREFIX = 'keel-tend/';
@@ -77,10 +77,11 @@ export function tendConfigOf(config) {
  * Paths an agent's branch (a climb night's or a tend pass's) may never change:
  * the workflows, keel's own scripts (the judge and the publish job run the
  * default branch's copy only because the branch leaves them as they were),
- * and .keel/keel.json (it names the gate, the setup command and the secret
- * the Install step is given). A directory ends in "/".
+ * .keel/keel.json (it names the gate, the setup command and the secret
+ * the Install step is given), and .keel/agent-git/ (Codex's git dir, phase
+ * 47: a git dir carried as files is config and hooks). A directory ends in "/".
  */
-export const OFF_LIMITS = Object.freeze(['.github/', 'scripts/keel/', '.keel/keel.json']);
+export const OFF_LIMITS = Object.freeze(['.github/', 'scripts/keel/', '.keel/keel.json', '.keel/agent-git/']);
 const offLimit = path => OFF_LIMITS.some(p => (p.endsWith('/') ? path.startsWith(p) : path === p));
 
 /**
@@ -163,8 +164,9 @@ export const tendSurface = path => (/^docs\/.+\.md$/.test(path) && !path.startsW
 
 // ---- small tools ---------------------------------------------------------------
 
+// Under Codex (phase 47), KEEL_AGENT_GIT points the checkout's commands at .keel/agent-git, as climb.mjs's.
 function git(cwd, args, { allowFail = false } = {}) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new TendError(`git ${args[0]}: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new TendError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
   return allowFail ? r : r.stdout.replace(/\n$/, '');

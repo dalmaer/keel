@@ -57,7 +57,8 @@
 //                            out, and a suggestion
 //                            (BUDGET_STEPS: workflow → its agent step's name
 //                            and its "Did the agent run?" check's)
-//   AGENTS, agentOf(config, key), passAgentProblems(config, key), codexVerdict
+//   AGENTS, agentOf(config, key), passAgentProblems(config, key), codexVerdict,
+//   AGENT_GIT_DIR, agentGitArgs(cwd)
 //                            which agent runs a pass (.keel/keel.json "agents",
 //                            and "agent" on crossReview, climb and tend):
 //                            each provider an adapter, keel's rules its own
@@ -67,7 +68,7 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { readFile, readdir, lstat, readlink } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -1128,7 +1129,8 @@ export function setupEnvProblems(config) {
 export function gateEnv(env, config) {
   const problems = setupEnvProblems({ env: config?.env });
   if (problems.length) throw new Error(`.keel/keel.json: ${problems.join('; ')}`);
-  const base = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
+  // KEEL_AGENT_GIT is climb.mjs's own (phase 47): a gate never inherits it, so a project's tests run git as they always do.
+  const base = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_') && k !== 'KEEL_AGENT_GIT'));
   return { ...base, ...(config?.env ?? {}) };
 }
 
@@ -1182,7 +1184,27 @@ export const DEFAULT_AGENT = 'claude';
 /** Who posts a cross-review's findings since phase 45: the workflow's own step, with the job's token, for every provider. */
 export const FINDINGS_POSTER = 'github-actions[bot]';
 
-const CODEX_NO_COMMIT = 'Codex cannot run a climb or a tend pass yet: its workspace-write sandbox keeps .git read-only, so it cannot commit, and the only sandbox that can (danger-full-access) is refused (keel phase 45)';
+/**
+ * The git dir Codex commits to on a climb or a tend pass (keel phase 47):
+ * its workspace-write sandbox keeps .git read-only by name, so the agent job
+ * gives it a clone at this path inside the workspace, and keel's step after
+ * it takes only the objects and the one ref (never this dir's config or
+ * hooks, which the agent could write).
+ */
+export const AGENT_GIT_DIR = '.keel/agent-git';
+
+/**
+ * The git options that point a command run in `cwd` at the agent's git dir:
+ * [] unless env.KEEL_AGENT_GIT names a relative path inside `cwd` that holds a
+ * git dir (a HEAD). Relative only, so a worktree (whose own .git file points
+ * home) never resolves it, and a gate's child git never sees it in GIT_DIR.
+ */
+export function agentGitArgs(cwd, env = process.env) {
+  const d = env?.KEEL_AGENT_GIT;
+  if (typeof d !== 'string' || !d || isAbsolute(d) || d.split(/[\\/]/).includes('..')) return [];
+  const dir = resolve(cwd, d);
+  return existsSync(join(dir, 'HEAD')) ? [`--git-dir=${dir}`, `--work-tree=${resolve(cwd)}`] : [];
+}
 
 /**
  * The providers. `readOnly` and `editTree` are the inputs the agent step
@@ -1214,13 +1236,14 @@ export const AGENTS = Object.freeze({
     secrets: Object.freeze(['OPENAI_API_KEY']),
     // drop-sudo keeps the key out of the agent's reach; read-only: no write, no network.
     readOnly: Object.freeze({ sandbox: 'read-only', 'safety-strategy': 'drop-sudo' }),
-    editTree: null,
+    // Phase 47: it may write the workspace (never danger-full-access, never unsafe), and commits to AGENT_GIT_DIR.
+    editTree: Object.freeze({ sandbox: 'workspace-write', 'safety-strategy': 'drop-sudo' }),
     final: 'the action\'s output-file ($RUNNER_TEMP/codex-final-message.md), its final message',
     error: 'none is written: the step\'s outcome, and an empty or missing final message',
     // codex-action posts nothing; keel's step posts what it says.
     login: null,
-    passes: Object.freeze(['crossReview']),
-    refused: Object.freeze({ climb: CODEX_NO_COMMIT, tend: CODEX_NO_COMMIT }),
+    passes: Object.freeze(['crossReview', 'climb', 'tend']),
+    refused: Object.freeze({}),
   }),
 });
 

@@ -31,8 +31,13 @@
 #     a PR too. A pass with neither commits nor proposals opens nothing, and
 #     its line says what was left.
 #
+#   - "agent": "codex" on "tend" (phase 47): Codex in workspace-write with
+#     sudo dropped, committing to .keel/agent-git, handed on as objects only,
+#     as keel-climb.yml's.
+#
 # SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
-# as the climb's. Each pass spends model tokens, up to "tend".budget.minutes.
+# as the climb's; OPENAI_API_KEY for a Codex pass, billed per token to the
+# OpenAI API account. Each pass spends model tokens, up to "tend".budget.minutes.
 name: keel-tend
 
 on:
@@ -79,16 +84,24 @@ jobs:
             try { c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8")); } catch {}
             const on = c.tend !== undefined;
             if (!on) console.log("tend is off: .keel/keel.json has no \"tend\", so this run does nothing.");
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\n`);
+            // Which provider runs it (phase 47): read here for the secret gate; the pick validates it.
+            const named = c.tend && typeof c.tend === "object" ? c.tend.agent : undefined;
+            const agent = named === undefined ? "claude" : /^[a-z]+$/.test(String(named)) ? String(named) : "invalid";
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\nagent=${agent}\n`);
           '
       - name: Configured?
         id: configured
         if: steps.on.outputs.on == 'true'
         env:
+          AGENT: ${{ steps.on.outputs.agent }}
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
+          if [ "$AGENT" = codex ] && [ -z "$OPENAI" ]; then
+            echo "::notice::Skipped: add the OPENAI_API_KEY secret for a tend pass by Codex to run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ "$AGENT" != codex ] && [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
             echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a tend pass to run."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
@@ -174,10 +187,37 @@ jobs:
           git switch -q -c "$BRANCH"
           node scripts/keel/climb.mjs tend-input --record --date "$DAY"
 
+      # Codex's sandbox keeps .git read-only (phase 47): its commits go to a
+      # git dir at .keel/agent-git, made here before it runs, holding the
+      # branch as the steps above left it (fetched, so it shares no file with
+      # .git's objects), and ignored by both, so no add ever carries it.
+      - name: Give Codex its git dir
+        if: steps.pick.outputs.run == 'yes' && steps.on.outputs.agent == 'codex'
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          rm -rf .keel/agent-git
+          git init -q --bare .keel/agent-git
+          # Codex's TMPDIR, which its sandbox may write: pinned under /tmp,
+          # never the runner's temp (GITHUB_ENV and GITHUB_OUTPUT live there).
+          mkdir -p /tmp/keel-codex
+          git --git-dir=.keel/agent-git fetch -q --no-tags "$PWD/.git" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          git --git-dir=.keel/agent-git symbolic-ref HEAD "refs/heads/$BRANCH"
+          git --git-dir=.keel/agent-git config user.name "keel-tend"
+          git --git-dir=.keel/agent-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git --git-dir=.keel/agent-git --work-tree=. reset -q
+          mkdir -p .keel/agent-git/info .git/info
+          echo "/.keel/agent-git/" >> .keel/agent-git/info/exclude
+          echo "/.keel/agent-git/" >> .git/info/exclude
+          echo "Codex's git dir: .keel/agent-git, on $(git --git-dir=.keel/agent-git symbolic-ref --short HEAD) at $(git --git-dir=.keel/agent-git rev-parse --short HEAD)"
+
       # The brief: TEND.md and the worksheet, as one prompt.
       - name: Brief
         id: brief
         if: steps.pick.outputs.run == 'yes'
+        env:
+          AGENT: ${{ steps.on.outputs.agent }}
+          BRANCH: ${{ steps.pick.outputs.branch }}
         run: |
           {
             cat .agents/climb/TEND.md
@@ -186,6 +226,14 @@ jobs:
             echo
             cat .keel/tend/pass.json
           } > "$RUNNER_TEMP/prompt.md"
+          if [ "$AGENT" = codex ]; then
+            {
+              echo
+              echo "## Your git dir (Codex)"
+              echo
+              echo "Your sandbox keeps \`.git\` read-only, so your git dir is \`.keel/agent-git\`, a clone the workflow made of \`$BRANCH\`. Run every git command as \`git --git-dir=.keel/agent-git --work-tree=. <command>\`, and every climb.mjs command as \`KEEL_AGENT_GIT=.keel/agent-git node scripts/keel/climb.mjs …\`, so its commits, resets and worktrees use it too. Commit on \`$BRANCH\`: only that branch's commits leave this job, as objects (the git dir's config and hooks never do). Never change the git dir's config, hooks or \`info/\`, and never touch \`.git\`."
+            } >> "$RUNNER_TEMP/prompt.md"
+          fi
           eof="KEEL_EOF_$(date +%s%N)"
           {
             echo "prompt<<$eof"
@@ -199,7 +247,7 @@ jobs:
       # timeout is not red: what it committed before the box closed is guarded.
       - name: Tend
         id: tend
-        if: steps.pick.outputs.run == 'yes'
+        if: steps.pick.outputs.run == 'yes' && steps.on.outputs.agent == 'claude'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
         uses: anthropics/claude-code-action@v1
@@ -210,19 +258,107 @@ jobs:
           prompt: ${{ steps.brief.outputs.prompt }}
           claude_args: |
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/roadmap.mjs*),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *)"
+      - name: Tend
+        id: tend_codex
+        if: steps.pick.outputs.run == 'yes' && steps.on.outputs.agent == 'codex'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ""
+          KEEL_AGENT_GIT: .keel/agent-git
+          # Its sandbox writes $TMPDIR: pinned away from the runner's temp, whose
+          # command files (GITHUB_ENV, GITHUB_OUTPUT) would reach every later step.
+          TMPDIR: /tmp/keel-codex
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/prompt.md
+          output-file: ${{ runner.temp }}/codex-final-message.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
 
       # An agent that failed before its budget ran out is red, and nothing is
       # guarded or pushed (lesson 29); a budget timeout is not red.
       - name: Did the agent run?
         if: steps.pick.outputs.run == 'yes'
         env:
-          OUTCOME: ${{ steps.tend.outcome }}
+          AGENT: ${{ steps.on.outputs.agent }}
+          OUTCOME: ${{ steps.on.outputs.agent == 'codex' && steps.tend_codex.outcome || steps.tend.outcome }}
           EXECUTION: ${{ steps.tend.outputs.execution_file }}
           MINUTES: ${{ steps.pick.outputs.minutes }}
           STARTED: ${{ steps.brief.outputs.started }}
         run: |
-          node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+          if [ "$AGENT" = codex ]; then
+            node scripts/keel/climb.mjs agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
+          else
+            node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+          fi
 
+
+      # Never trust the git dir Codex could write (phase 47): its config,
+      # hooks, attributes and aliases are the agent's, so no git command here
+      # reads it. Only objects leave it: its loose objects and packs (regular
+      # files; no symlink, no alternates), copied into a repo keel makes here
+      # (its objects' base from .git, which Codex could not write), and the
+      # one ref, read as a file. git runs with no system or global config,
+      # hooks and fsmonitor off. A head not on top of the run's commit is
+      # refused, as the judge would; the pass's commits leave as a bundle from keel's repo.
+      - name: Take Codex's commits, objects only
+        if: always() && steps.pick.outputs.run == 'yes' && steps.on.outputs.agent == 'codex'
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          src=.keel/agent-git
+          dst="$RUNNER_TEMP/agent-objects"
+          out="$RUNNER_TEMP/handoff"
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false --git-dir="$dst" "$@"; }
+          rm -rf "$dst"
+          mkdir -p "$out"
+          git init -q --bare "$dst"
+          echo "$PWD/.git/objects" > "$dst/objects/info/alternates"
+          if [ -d "$src/objects" ] && [ ! -L "$src" ] && [ ! -L "$src/objects" ]; then
+            (cd "$src/objects" && find . -type f -print0) | while IFS= read -r -d '' f; do
+              case "$f" in
+                */*/*/*) continue ;;
+                ./[0-9a-f][0-9a-f]/[0-9a-f]*|./pack/pack-*.pack|./pack/pack-*.idx) ;;
+                *) continue ;;
+              esac
+              d=$(dirname "$f")
+              if [ -L "$src/objects/$d" ] || [ -L "$src/objects/$f" ] || [ ! -f "$src/objects/$f" ]; then continue; fi
+              mkdir -p "$dst/objects/$d"
+              cp "$src/objects/$f" "$dst/objects/$f"
+            done
+          fi
+          ref="refs/heads/$BRANCH"
+          tip=""
+          if [ -f "$src/$ref" ] && [ ! -L "$src/$ref" ]; then
+            tip=$(sed -n 1p "$src/$ref")
+          elif [ -f "$src/packed-refs" ] && [ ! -L "$src/packed-refs" ]; then
+            tip=$(awk -v r="$ref" '$2 == r { print $1; exit }' "$src/packed-refs")
+          fi
+          if [ -z "$tip" ]; then
+            echo "::warning::Codex's git dir has no $ref: nothing of Codex's is handed on."
+            exit 0
+          fi
+          case "$tip" in *[!0-9a-f]*) echo "::error::Codex's $ref is not an object name; nothing is handed on."; exit 1 ;; esac
+          if [ "${#tip}" != 40 ] && [ "${#tip}" != 64 ]; then
+            echo "::error::Codex's $ref is not an object name; nothing is handed on."
+            exit 1
+          fi
+          if ! g cat-file -e "$tip^{commit}" 2> /dev/null; then
+            echo "::error::Codex's $ref names no commit its objects hold; nothing is handed on."
+            exit 1
+          fi
+          if ! g merge-base --is-ancestor "$GITHUB_SHA" "$tip"; then
+            echo "::error::Codex's $ref ($tip) is not on top of the run's commit ($GITHUB_SHA); nothing is handed on."
+            exit 1
+          fi
+          g update-ref "$ref" "$tip"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            g bundle create "$out/pass.bundle" "$GITHUB_SHA..$ref"
+          fi
+          echo "Codex's commits: $(g rev-list --count "$GITHUB_SHA..$tip") on $BRANCH, taken as objects"
 
       # The pass's commits leave this job as a git bundle (the run's commit to
       # the branch's head), with the pass's record; never its working tree.
@@ -231,10 +367,12 @@ jobs:
         if: always() && steps.pick.outputs.run == 'yes'
         env:
           BRANCH: ${{ steps.pick.outputs.branch }}
+          AGENT: ${{ steps.on.outputs.agent }}
         run: |
           out="$RUNNER_TEMP/handoff"
           mkdir -p "$out/record"
-          if git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null && [ "$(git rev-parse "refs/heads/$BRANCH")" != "$GITHUB_SHA" ]; then
+          # Codex's commits are in its git dir, handed on above as objects; .git holds Claude's.
+          if [ "$AGENT" != codex ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null && [ "$(git rev-parse "refs/heads/$BRANCH")" != "$GITHUB_SHA" ]; then
             git bundle create "$out/pass.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
           fi
           if [ -d .keel/tend ]; then cp -R .keel/tend/. "$out/record/"; fi

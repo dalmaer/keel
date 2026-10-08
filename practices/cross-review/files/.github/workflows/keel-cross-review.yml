@@ -219,6 +219,12 @@ jobs:
       # its read-only sandbox, sudo dropped (the key stays out of its reach),
       # and no GitHub token. Neither can comment: its final message is the
       # review. A timeout is not red: what it said is posted.
+      # Codex's TMPDIR, which even its read-only sandbox may write: pinned
+      # under /tmp, never the runner's temp, where GITHUB_ENV and
+      # GITHUB_OUTPUT would carry what it wrote into every later step.
+      - name: Give Codex its temp dir
+        if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'
+        run: mkdir -p /tmp/keel-codex
       - name: Review
         id: review
         if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'
@@ -244,6 +250,7 @@ jobs:
         uses: openai/codex-action@v1
         env:
           GH_TOKEN: ""
+          TMPDIR: /tmp/keel-codex
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ runner.temp }}/prompt.md

@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { load } from '../lib/practices.mjs';
-import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors } from '../practices/night/files/scripts/keel/lib.mjs';
+import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors, agentGitArgs, gateEnv, AGENT_GIT_DIR } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
@@ -88,15 +88,23 @@ test('config: an agent not listed in "agents", an unknown provider and a malform
   assert.throws(() => passAgentProblems({}, 'night'), /not a pass an agent runs/);
 });
 
-test('config: Codex reviews; it cannot run a climb or a tend pass, since its sandbox keeps .git read-only (a design finding), and says so', async () => {
+// Phase 47 changed this on purpose: phase 45 refused Codex on climb and tend
+// (its sandbox keeps .git read-only); since the spike (keel run 37716223683)
+// it commits to .keel/agent-git, so "agent": "codex" is valid on both, when listed.
+test('config: Codex reviews, and runs a climb night and a tend pass (phase 47: it commits to its own git dir); listed, like any provider', async () => {
   const codex = { agents: { claude: {}, codex: {} } };
   assert.deepEqual(passAgentProblems({ ...codex, crossReview: { for: ['claude/'], agent: 'codex' } }, 'crossReview'), []);
   for (const key of ['climb', 'tend']) {
-    const found = passAgentProblems({ ...codex, [key]: { ...ON[key], agent: 'codex' } }, key);
-    assert.equal(found.length, 1, JSON.stringify(found));
-    assert.match(found[0], new RegExp(`^"${key}"\\.agent is codex: Codex cannot run a climb or a tend pass yet: its workspace-write sandbox keeps \\.git read-only, so it cannot commit`));
-    assert.match(found[0], /danger-full-access\) is refused/);
+    assert.deepEqual(passAgentProblems({ ...codex, [key]: { ...ON[key], agent: 'codex' } }, key), [], key);
+    assert.deepEqual(passAgentProblems({ agents: { codex: {} }, [key]: { ...ON[key], agent: 'codex' } }, key), [], `${key}: codex alone`);
+    const unlisted = passAgentProblems({ [key]: { ...ON[key], agent: 'codex' } }, key);
+    assert.equal(unlisted.length, 1, JSON.stringify(unlisted));
+    assert.match(unlisted[0], new RegExp(`^"${key}"\\.agent is codex, which "agents" does not list`));
   }
+  assert.deepEqual(AGENTS.codex.refused, {});
+  assert.deepEqual([...AGENTS.codex.passes], ['crossReview', 'climb', 'tend']);
+  // Never the sandbox that can write .git, never sudo: workspace-write and drop-sudo, as the workflows hold it.
+  assert.deepEqual({ ...AGENTS.codex.editTree }, { sandbox: 'workspace-write', 'safety-strategy': 'drop-sudo' });
 });
 
 test('config: each pass\'s own validator holds the agent rules, and the scripts exit 2 naming the key', async () => {
@@ -110,8 +118,11 @@ test('config: each pass\'s own validator holds the agent rules, and the scripts 
   assert.equal(cross.crossReviewConfigOf({ crossReview: { for: ['codex/'] } }).agent, 'claude');
   // And each refuses what passAgentProblems refuses.
   assert.throws(() => cross.crossReviewConfigOf({ crossReview: { for: ['codex/'], agent: 'codex' } }), e => e.exitCode === 2 && /"crossReview"\.agent is codex, which "agents" does not list/.test(e.message));
-  assert.throws(() => climb.climbConfigOf({ ...two, climb: { jobs: ['test-time'], agent: 'codex' } }), e => e.exitCode === 2 && /"climb"\.agent is codex: Codex cannot run a climb/.test(e.message));
-  assert.throws(() => tend.tendConfigOf({ ...two, tend: { agent: 'codex' } }), e => e.exitCode === 2 && /"tend"\.agent is codex: Codex cannot run/.test(e.message));
+  // Phase 47: Codex runs climb and tend, when listed.
+  assert.deepEqual(climb.climbProblems({ ...two, climb: { jobs: ['test-time'], agent: 'codex' } }), []);
+  assert.deepEqual(tend.tendProblems({ ...two, tend: { agent: 'codex' } }), []);
+  assert.throws(() => climb.climbConfigOf({ climb: { jobs: ['test-time'], agent: 'codex' } }), e => e.exitCode === 2 && /"climb"\.agent is codex, which "agents" does not list/.test(e.message));
+  assert.throws(() => tend.tendConfigOf({ tend: { agent: 'codex' } }), e => e.exitCode === 2 && /"tend"\.agent is codex, which "agents" does not list/.test(e.message));
   assert.throws(() => tend.tendConfigOf({ agents: { acme: {} }, tend: {} }), e => /unknown provider "acme"/.test(e.message));
   // The command line, in an Acme project.
   const dir = await mkdtemp(join(tmpdir(), 'keel-agents-acme-'));
@@ -220,8 +231,9 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
   const w = await workflows();
   const [climbStep] = agentSteps(w.climb.text, 'claude');
   const [tendStep] = agentSteps(w.tend.text, 'claude');
-  assert.equal(climbStep, CLAUDE_BEFORE.climb);
-  assert.equal(tendStep, CLAUDE_BEFORE.tend);
+  // Phase 47: Claude's step runs when the pass names claude (the default), as cross-review's since phase 45; nothing else differs.
+  assert.equal(climbStep, CLAUDE_BEFORE.climb.replace("if: steps.pick.outputs.job != ''", "if: steps.pick.outputs.job != '' && steps.on.outputs.agent == 'claude'"));
+  assert.equal(tendStep, CLAUDE_BEFORE.tend.replace("if: steps.pick.outputs.run == 'yes'", "if: steps.pick.outputs.run == 'yes' && steps.on.outputs.agent == 'claude'"));
   const [review] = agentSteps(w.crossReview.text, 'claude');
   const expected = CLAUDE_BEFORE.crossReview
     .replace("if: steps.which.outputs.review == 'true'", "if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'")
@@ -235,11 +247,8 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
           # adapters' logins only (lib.mjs AGENTS login), never "*".
           allowed_bots: claude[bot]\n`);
   assert.equal(review, expected);
-  // climb and tend have one agent step, Claude's, and their "Configured?" still asks for Claude's secret alone.
-  for (const key of ['climb', 'tend']) {
-    assert.equal(agentSteps(w[key].text, 'codex').length, 0);
-    assert.doesNotMatch(w[key].text, /OPENAI_API_KEY|codex-action/);
-  }
+  // Phase 47: climb and tend have one step per provider; Codex's gets OPENAI_API_KEY alone (the adapters test).
+  for (const key of ['climb', 'tend']) assert.equal(agentSteps(w[key].text, 'codex').length, 1);
 
   // Cross-review with no "agent": the first step says claude, the config says claude, and only Claude's step runs.
   const dir = await mkdtemp(join(tmpdir(), 'keel-agents-default-'));
@@ -496,4 +505,75 @@ test('a budget timeout never swallows a short budget: on a one-minute budget a f
     assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 0, minutes: 1 }).ok, false, `${where}: 0 s`);
     assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 15 * 60 - 30, minutes: 15 }).timedOut, true, `${where}: 15 min`);
   }
+});
+
+// ---- phase 47: Codex on climb and tend ------------------------------------------------
+
+test('phase 47: climb and tend read which provider runs them, ask for its secret alone, and judge Codex by its final message', async () => {
+  const w = await workflows();
+  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-climb-'));
+  try {
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    const keel = join(dir, 'scripts/keel');
+    await mkdir(keel, { recursive: true });
+    for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
+    for (const f of ['climb.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
+    const now = Math.floor(Date.now() / 1000);
+    for (const key of ['climb', 'tend']) {
+      const blocks = runBlocks(w[key].text);
+      const block = name => blocks.find(b => b.step === name)?.script ?? assert.fail(`${w[key].path}: no "${name}"`);
+      const outputs = async (name, env) => {
+        const out = join(dir, 'output');
+        await writeFile(out, '');
+        const r = run('bash', ['-e', '-c', block(name)], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out, RUNNER_TEMP: dir, ...env } });
+        return { ...r, outputs: Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])) };
+      };
+      const on = async pass => { await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', agents: { claude: {}, codex: {} }, [key]: pass })); return (await outputs(`Is ${key} on?`)).outputs; };
+      assert.deepEqual(await on(ON[key]), { on: 'true', agent: 'claude' }, `${key}: no agent is claude`);
+      assert.deepEqual(await on({ ...ON[key], agent: 'codex' }), { on: 'true', agent: 'codex' });
+      assert.equal((await on({ ...ON[key], agent: 'x\nenabled=true' })).agent, 'invalid', 'an agent is never an output line of its own');
+      const pass = key === 'climb' ? 'a climb night' : 'a tend pass';
+      const none = await outputs('Configured?', { AGENT: 'codex', OPENAI: '', OAUTH: 'acme', API_KEY: 'acme' });
+      assert.equal(none.status, 0);
+      assert.equal(none.outputs.enabled, 'false', `${key}: Claude's secret does not run Codex`);
+      assert.match(none.stdout, new RegExp(`^::notice::Skipped: add the OPENAI_API_KEY secret for ${pass} by Codex to run\\.`, 'm'));
+      assert.equal((await outputs('Configured?', { AGENT: 'codex', OPENAI: 'acme', OAUTH: '', API_KEY: '' })).outputs.enabled, 'true');
+      assert.equal((await outputs('Configured?', { AGENT: 'claude', OPENAI: 'acme', OAUTH: '', API_KEY: '' })).outputs.enabled, 'false', `${key}: Codex's secret does not run Claude`);
+      assert.equal((await outputs('Configured?', { AGENT: 'claude', OPENAI: '', OAUTH: 'acme', API_KEY: '' })).outputs.enabled, 'true');
+
+      // Did the agent run? Codex by its outcome and final message; Claude as before.
+      await rm(join(dir, 'codex-final-message.md'), { force: true });
+      const ran = env => outputs('Did the agent run?', { MINUTES: '30', STARTED: String(now - 20), EXECUTION: '', ...env });
+      const red = await ran({ AGENT: 'codex', OUTCOME: 'failure' });
+      assert.equal(red.status, 1, red.stdout + red.stderr);
+      assert.match(red.stdout, /^::error::Codex did not start: the agent step ended failure after \d+ s, before its 30-minute budget, with no final message; check OPENAI_API_KEY/);
+      await writeFile(join(dir, 'codex-final-message.md'), 'Kept one change.\n');
+      const ok = await ran({ AGENT: 'codex', OUTCOME: 'success' });
+      assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+      assert.match(ok.stdout, /the agent ran: Codex wrote its final message/);
+      assert.doesNotMatch(ok.stdout, /Kept one change/, 'never the agent\'s words');
+      const claude = await ran({ AGENT: 'claude', OUTCOME: 'failure' });
+      assert.equal(claude.status, 1);
+      assert.match(claude.stdout, /^::error::Claude did not start/);
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('phase 47: KEEL_AGENT_GIT points the checkout\'s git at the agent\'s git dir, only a relative path inside it that holds one; a worktree and the gate never see it', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-agent-git-args-'));
+  try {
+    assert.equal(AGENT_GIT_DIR, '.keel/agent-git');
+    const env = { KEEL_AGENT_GIT: AGENT_GIT_DIR };
+    assert.deepEqual(agentGitArgs(dir, env), [], 'no git dir there yet');
+    await mkdir(join(dir, AGENT_GIT_DIR), { recursive: true });
+    await writeFile(join(dir, AGENT_GIT_DIR, 'HEAD'), 'ref: refs/heads/main\n');
+    assert.deepEqual(agentGitArgs(dir, env), [`--git-dir=${join(dir, AGENT_GIT_DIR)}`, `--work-tree=${dir}`]);
+    assert.deepEqual(agentGitArgs(dir, {}), [], 'unset');
+    assert.deepEqual(agentGitArgs(dir, { KEEL_AGENT_GIT: join(dir, AGENT_GIT_DIR) }), [], 'absolute: a worktree would resolve it too');
+    assert.deepEqual(agentGitArgs(join(dir, '.keel'), { KEEL_AGENT_GIT: '../.keel/agent-git' }), [], 'never outside the checkout');
+    assert.deepEqual(agentGitArgs(join(dir, 'elsewhere'), env), [], 'a worktree elsewhere has none');
+    const gate = gateEnv({ ...env, ACME: '1' }, {});
+    assert.equal('KEEL_AGENT_GIT' in gate, false, 'the gate runs git as it always does');
+    assert.equal(gate.ACME, '1');
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
