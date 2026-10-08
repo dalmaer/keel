@@ -1,0 +1,52 @@
+# A one-off spike for phase 47 (removed after its run): under openai/codex-action's
+# workspace-write sandbox with drop-sudo, can Codex commit to a git dir that is
+# not `.git`? Dispatch only; read-only token; nothing is pushed.
+name: keel-spike-codex-git
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: A second git dir inside the workspace
+        run: |
+          git clone -q --bare . .keel/agent-git
+          git --git-dir=.keel/agent-git --work-tree=. config user.name "keel spike"
+          git --git-dir=.keel/agent-git --work-tree=. config user.email "keel-spike@users.noreply.github.com"
+          git --git-dir=.keel/agent-git --work-tree=. reset -q
+          echo "base=$(git --git-dir=.keel/agent-git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Codex commits (or cannot)
+        id: codex
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          output-file: ${{ runner.temp }}/codex-final-message.md
+          prompt: |
+            This is a test of your sandbox, not a task. Run exactly these shell commands, in order, and report each one's exit code and output verbatim:
+            1. echo spike > SPIKE.md
+            2. git --git-dir=.keel/agent-git --work-tree=. add SPIKE.md
+            3. git --git-dir=.keel/agent-git --work-tree=. commit -m "spike: Codex commits to a git dir that is not .git"
+            4. git commit --allow-empty -m "spike: the ordinary .git"
+            Change nothing else. Do not try to work around any failure; just report it.
+      - name: What happened
+        if: always()
+        run: |
+          echo "codex step: ${{ steps.codex.outcome }}"
+          echo "--- Codex's report ---"; cat "$RUNNER_TEMP/codex-final-message.md" 2>/dev/null || echo "(no final message)"
+          echo "--- the second git dir ---"
+          head=$(git --git-dir=.keel/agent-git rev-parse HEAD)
+          if [ "$head" != "$base" ]; then echo "COMMITTED: $(git --git-dir=.keel/agent-git log -1 --format='%h %s')"; else echo "NOT COMMITTED (HEAD unchanged)"; fi
+          echo "--- the ordinary .git ---"
+          git log -1 --format='%h %s'
