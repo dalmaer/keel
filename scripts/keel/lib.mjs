@@ -49,7 +49,13 @@
 //                            (keel review and reviews_unanswered: one rule);
 //                            repoReviewArgs, readRepoReviews, windowPrs, unansweredPrs:
 //                            the repo-wide read, page by page (the night and
-//                            keel loose-ends); IncompleteRead: never a count
+//                            keel loose-ends); IncompleteRead: never a count;
+//                            windowFragment, fromWindow, prReviewArgs: it asks
+//                            only what "unanswered" needs, and reads alone a
+//                            PR the window did not cover whole
+//   RATE_LIMIT, rateSpend(), graphqlData(stdout, spend)
+//                            what each GraphQL query cost of the hour's
+//                            allowance, and what is left
 //   budgetPasses(config), budgetSince(history, …), budgetUse(runs, pass,
 //                            { since }), budgetLine(entries): each budgeted
 //                            pass's agent-step minutes in its last runs
@@ -945,14 +951,56 @@ export class IncompleteRead extends Error {
   constructor(message) { super(message); this.incomplete = true; }
 }
 
-/** The PullRequest fields the review read needs, as a GraphQL fragment; `replies` is one page of each thread's comments. */
-export const reviewFragment = ({ replies = 100 } = {}) => `fragment KeelReview on PullRequest {
+/**
+ * The PullRequest fields the review read needs, as a GraphQL fragment: one
+ * page of `threads` review threads, `replies` comments in each, `comments`
+ * conversation comments and `reviews` review bodies. keel review reads a
+ * smaller window first and this full one only when a list overflows it.
+ */
+export const reviewFragment = ({ threads = 100, replies = 100, comments = 100, reviews = 100 } = {}) => `fragment KeelReview on PullRequest {
   number title url state mergedAt updatedAt headRefName headRefOid author { login }
-  reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { id isResolved path line
+  reviewThreads(first: ${threads}) { pageInfo { hasNextPage } nodes { id isResolved path line
     comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
-  comments(first: 100) { pageInfo { hasNextPage } nodes { id databaseId author { login } body createdAt url } }
-  reviews(first: 100) { pageInfo { hasNextPage } nodes { id databaseId author { login } body state submittedAt url } }
+  comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { login } body createdAt url } }
+  reviews(first: ${reviews}) { pageInfo { hasNextPage } nodes { id databaseId author { login } body state submittedAt url } }
 }`;
+
+// ---- what a read costs (GitHub's GraphQL allowance) -----------------------------
+//
+// GitHub prices a GraphQL query by the nodes it COULD return: each nested
+// connection's first/last multiplies the requests its parent's page may need,
+// summed and divided by 100. Every keel query asks rateLimit too (free), so the
+// caller can say what it spent and what is left: the owner's allowance is
+// shared by every tool on their login, and keel's reads once spent all of it.
+
+/** The selection every keel GraphQL query carries: what this query cost, and what is left of the hour's allowance. */
+export const RATE_LIMIT = 'rateLimit { cost remaining resetAt }';
+
+/** A tally of GraphQL spend over several queries: { cost, queries, remaining, resetAt }; add(rateLimit) after each. */
+export function rateSpend() {
+  const s = {
+    cost: 0, queries: 0, remaining: null, resetAt: null,
+    add(rl) {
+      if (!rl || typeof rl !== 'object') return s;
+      s.queries++;
+      if (Number.isFinite(rl.cost)) s.cost += rl.cost;
+      // The lowest seen is the latest: queries in parallel may answer out of order.
+      if (Number.isFinite(rl.remaining) && (s.remaining === null || rl.remaining < s.remaining || (rl.resetAt && s.resetAt && rl.resetAt > s.resetAt))) { s.remaining = rl.remaining; s.resetAt = rl.resetAt ?? s.resetAt; }
+      return s;
+    },
+    toJSON: () => ({ cost: s.cost, queries: s.queries, remaining: s.remaining, resetAt: s.resetAt }),
+  };
+  return s;
+}
+
+/** gh api graphql's stdout as its data: throws on no JSON or a GraphQL error; records the query's rateLimit in `spend`. */
+export function graphqlData(stdout, spend) {
+  let out;
+  try { out = JSON.parse(stdout); } catch { throw new Error('gh api graphql did not print JSON'); }
+  if (Array.isArray(out?.errors) && out.errors.length && !out?.data) throw new Error(`gh api graphql: ${out.errors[0]?.message ?? 'an error'}`);
+  spend?.add(out?.data?.rateLimit);
+  return out?.data;
+}
 
 const plain = line => String(line).replace(/<[^>]*>/g, ' ').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`#>|]/g, '').replace(/\s+/g, ' ').trim();
 const plainLines = body => String(body ?? '').replace(/<!--[\s\S]*?-->/g, '').split('\n').map(plain).filter(Boolean);
@@ -1015,20 +1063,86 @@ export function reviewComments(pr, reviewers = []) {
   return out;
 }
 
-/** The repo-wide read (reviews_unanswered, loose-ends): open PRs and recently merged ones, REVIEW_PRS a page, REVIEW_PAGES pages at most. */
+/**
+ * The repo-wide read (reviews_unanswered, loose-ends, the board): open PRs and
+ * recently merged ones, REVIEW_PRS a page, REVIEW_PAGES pages at most, each PR
+ * through the windowed fragment below.
+ */
 export const REVIEW_DAYS = 7;
-export const REVIEW_PRS = 50;
-export const REVIEW_PAGES = 4;
-export const repoReviewQuery = () => `query($owner: String!, $name: String!, $open: Boolean!, $merged: Boolean!, $openAfter: String, $mergedAfter: String) { repository(owner: $owner, name: $name) {
-  open: pullRequests(states: OPEN, first: ${REVIEW_PRS}, after: $openAfter, orderBy: { field: UPDATED_AT, direction: DESC }) @include(if: $open) { pageInfo { hasNextPage endCursor } nodes { ...KeelReview } }
-  merged: pullRequests(states: MERGED, first: ${REVIEW_PRS}, after: $mergedAfter, orderBy: { field: UPDATED_AT, direction: DESC }) @include(if: $merged) { pageInfo { hasNextPage endCursor } nodes { ...KeelReview } } } }
-${reviewFragment({ replies: 10 })}`;
+export const REVIEW_PRS = 25;
+export const REVIEW_PAGES = 8;
+/**
+ * The window: what "unanswered" needs and no more. A thread is decided by its
+ * first author and its newest comments, so each thread brings its newest
+ * WINDOW_TAIL comments and how many it has (a thread of at most WINDOW_TAIL is
+ * whole); the newest WINDOW_CONVO conversation comments and WINDOW_BODIES
+ * review bodies. A PR the window does not cover whole (more threads, a longer
+ * thread, older comments) is read alone with the full fragment (readRepoReviews),
+ * never counted as answered.
+ */
+export const WINDOW_THREADS = 20;
+export const WINDOW_TAIL = 4;
+export const WINDOW_CONVO = 20;
+export const WINDOW_BODIES = 10;
+/** At most this many PRs a repo are read alone; past it the read is incomplete. */
+export const SOLO_READS = 6;
+const NODE = 'databaseId author { login } body createdAt url';
+export const windowFragment = () => `fragment KeelReviewWindow on PullRequest {
+  keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid author { login }
+  reviewThreads(first: ${WINDOW_THREADS}) { pageInfo { hasNextPage } nodes { id isResolved path line
+    tail: comments(last: ${WINDOW_TAIL}) { totalCount nodes { ${NODE} } } } }
+  comments(last: ${WINDOW_CONVO}) { pageInfo { hasPreviousPage } nodes { id ${NODE} } }
+  reviews(last: ${WINDOW_BODIES}) { pageInfo { hasPreviousPage } nodes { id databaseId author { login } body state submittedAt url } }
+}`;
+export const repoReviewQuery = () => `query($owner: String!, $name: String!, $open: Boolean!, $merged: Boolean!, $openAfter: String, $mergedAfter: String) { ${RATE_LIMIT} repository(owner: $owner, name: $name) {
+  open: pullRequests(states: OPEN, first: ${REVIEW_PRS}, after: $openAfter, orderBy: { field: UPDATED_AT, direction: DESC }) @include(if: $open) { pageInfo { hasNextPage endCursor } nodes { ...KeelReviewWindow } }
+  merged: pullRequests(states: MERGED, first: ${REVIEW_PRS}, after: $mergedAfter, orderBy: { field: UPDATED_AT, direction: DESC }) @include(if: $merged) { pageInfo { hasNextPage endCursor } nodes { ...KeelReviewWindow } } } }
+${windowFragment()}`;
 /** gh's arguments for one page of the repo-wide read. */
 export const repoReviewArgs = (repo, { open, merged, openAfter, mergedAfter }) => {
   const [owner, name] = String(repo).split('/');
   return ['api', 'graphql', '-f', `query=${repoReviewQuery()}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `open=${open}`, '-F', `merged=${merged}`,
     ...(openAfter ? ['-f', `openAfter=${openAfter}`] : []), ...(mergedAfter ? ['-f', `mergedAfter=${mergedAfter}`] : [])];
 };
+/** One PR with the full fragment: the read for a PR the window did not cover. */
+export const prReviewQuery = (sizes = {}) => `query($owner: String!, $name: String!, $number: Int!) { ${RATE_LIMIT}
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) { ...KeelReview } } }
+${reviewFragment(sizes)}`;
+/** gh's arguments for one PR's full read. */
+export const prReviewArgs = (repo, number, sizes) => {
+  const [owner, name] = String(repo).split('/');
+  return ['api', 'graphql', '-f', `query=${prReviewQuery(sizes)}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`];
+};
+
+/**
+ * A PR read through the window, as the full fragment's shape, and whether the
+ * window covered it whole: { pr, whole }. A thread of at most WINDOW_TAIL
+ * comments is whole; a longer one, more threads than the page, or (when they
+ * can matter: a reviewer named, or a review body) older conversation comments
+ * or review bodies than the window are not, and keep a list saying there is
+ * more, so reviewComments refuses it rather than count it. A PR already in the
+ * full shape (no window) passes through.
+ */
+export function fromWindow(pr, reviewers = []) {
+  if (!pr || typeof pr !== 'object' || pr.keelWindow === undefined) return { pr, whole: true };
+  const { keelWindow, ...rest } = pr;
+  let whole = !rest.reviewThreads?.pageInfo?.hasNextPage;
+  const threads = (rest.reviewThreads?.nodes ?? []).map(t => {
+    if (!t?.tail) return t;
+    const { tail, ...th } = t;
+    const nodes = tail.nodes ?? [];
+    const all = Number.isFinite(tail.totalCount) ? tail.totalCount <= nodes.length : false;
+    if (!all) whole = false;
+    return { ...th, comments: { pageInfo: { hasNextPage: !all }, nodes } };
+  });
+  const list = conn => ({ pageInfo: { hasNextPage: !!conn?.pageInfo?.hasPreviousPage }, nodes: conn?.nodes ?? [] });
+  const comments = list(rest.comments), reviews = list(rest.reviews);
+  const bodies = reviews.nodes.some(r => String(r?.body ?? '').trim() && !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login)));
+  if (reviews.pageInfo.hasNextPage) whole = false;
+  if (comments.pageInfo.hasNextPage && (reviewers.length || bodies)) whole = false;
+  return { pr: { ...rest, reviewThreads: { pageInfo: { hasNextPage: !!rest.reviewThreads?.pageInfo?.hasNextPage }, nodes: threads }, comments, reviews }, whole };
+}
+
 /** Merged PRs come newest-updated first: past one updated before `since`, none was merged in the window. */
 const mergedMore = (merged, since) => {
   if (!merged.pageInfo?.hasNextPage) return false;
@@ -1040,9 +1154,13 @@ const mergedMore = (merged, since) => {
  * The repo-wide read, page by page: `read(vars)` runs one page (repoReviewArgs)
  * and returns its data.repository. Returns { open, merged } as one page would
  * be, its pageInfo saying whether anything is left unread (unansweredPrs
- * refuses that).
+ * refuses that), each PR in the full fragment's shape (fromWindow). A PR in
+ * the window's span (open, or merged in REVIEW_DAYS) that the window did not
+ * cover whole is read alone by `readPr(number)` (prReviewArgs; its
+ * data.repository.pullRequest), SOLO_READS at most; without readPr, or past
+ * that, it stays as read and reviewComments refuses it: never a count.
  */
-export async function readRepoReviews(read, date) {
+export async function readRepoReviews(read, date, { readPr, reviewers = [] } = {}) {
   const since = addDays(date, -REVIEW_DAYS);
   const lists = { open: { pageInfo: { hasNextPage: true }, nodes: [] }, merged: { pageInfo: { hasNextPage: true }, nodes: [] } };
   for (let i = 0; i < REVIEW_PAGES; i++) {
@@ -1057,6 +1175,18 @@ export async function readRepoReviews(read, date) {
       lists[k] = { pageInfo: { hasNextPage: !!got.pageInfo?.hasNextPage, endCursor: got.pageInfo?.endCursor ?? null }, nodes: [...lists[k].nodes, ...got.nodes] };
       if (got.pageInfo?.hasNextPage && !got.pageInfo?.endCursor) throw new IncompleteRead(`the ${k} pull requests came back with more pages and no cursor; the read is incomplete`);
     }
+  }
+  let solo = 0;
+  for (const k of ['open', 'merged']) {
+    lists[k].nodes = await Promise.all(lists[k].nodes.map(async node => {
+      const { pr, whole } = fromWindow(node, reviewers);
+      const inSpan = k === 'open' || (typeof pr?.mergedAt === 'string' && pr.mergedAt.slice(0, 10) >= since);
+      if (whole || !inSpan || !readPr || solo >= SOLO_READS) return pr;
+      solo++;
+      const full = await readPr(pr.number);
+      if (!full || typeof full !== 'object') throw new Error(`the read of #${pr.number} came back without the pull request`);
+      return full;
+    }));
   }
   return lists;
 }

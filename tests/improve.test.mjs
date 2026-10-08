@@ -377,11 +377,28 @@ test('reviews_unanswered reads every page of open PRs, and is n/a when pages are
   // Every page says there is another: n/a after REVIEW_PAGES, never the count so far.
   ({ r, calls } = await read([page([counted(1)], { more: true, cursor: 'o1' })]));
   assert.deepEqual([r.state, r.value], ['n/a', null], JSON.stringify(r));
-  assert.match(r.detail, /more than 4 open pull requests; the read is incomplete/);
-  assert.equal(calls.length, 4);
+  const { REVIEW_PAGES } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  assert.match(r.detail, new RegExp(`more than ${REVIEW_PAGES} open pull requests; the read is incomplete`));
+  assert.equal(calls.length, REVIEW_PAGES);
   // Recently merged PRs left unread: n/a too.
   ({ r } = await read([page([], { merged: [{ ...counted(4), state: 'MERGED', mergedAt: at('2026-10-05'), updatedAt: at('2026-10-05') }], mergedMore: true })]));
   assert.deepEqual([r.state, r.value], ['n/a', null], JSON.stringify(r));
+});
+
+test('reviews_unanswered reads alone, with the full fragment, a PR whose thread is longer than the window, and counts it as the full read does', async t => {
+  // Five comments: the window (the newest four) cannot say whose the thread is.
+  const five = [comment(1, 'acme-reviewer', 'Lid.', '2026-10-01'), comment(2, 'acme-owner', 'Fixed.', '2026-10-02'), comment(3, 'acme-reviewer', 'Still loose.', '2026-10-03'),
+    comment(4, 'acme-reviewer', 'Really.', '2026-10-03'), comment(5, 'acme-reviewer', 'Truly.', '2026-10-04')];
+  const full = pr(1, 'OPEN', [thread('T1', five)]);
+  const win = { ...full, keelWindow: 'PullRequest', reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [{ id: 'T1', isResolved: false, path: 'anvil.js', line: 1, tail: { totalCount: 5, nodes: five.slice(-4) } }] },
+    comments: { pageInfo: { hasPreviousPage: false }, nodes: [] }, reviews: { pageInfo: { hasPreviousPage: false }, nodes: [] } };
+  const KEEL_GH = await ghStub(t, { reviews: [page([win]), JSON.stringify({ data: { repository: { pullRequest: full } } })] });
+  const [r] = await measure({ root: await scratch(t), config: { name: 'Acme', repo: 'acme/storefront' }, env: { ...ENV, KEEL_GH }, date: '2026-10-06', measures: reviewsMeasure });
+  assert.deepEqual([r.state, r.value], ['outside', 1], JSON.stringify(r));
+  assert.deepEqual(r.facts.prs, [{ number: 1, state: 'open', url: 'https://github.com/acme/storefront/pull/1', unanswered: 1, oldest: '2026-10-03' }]);
+  const calls = (await readFile(`${KEEL_GH}.log`, 'utf8')).trim().split('\n').map(l => JSON.parse(l));
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].includes('number=1'), 'the second read is that PR alone');
 });
 
 test('reviews_unanswered is n/a when GitHub cannot be read, broken when the read fails, never a zero', async t => {

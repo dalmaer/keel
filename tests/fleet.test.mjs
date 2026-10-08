@@ -72,7 +72,8 @@ const notFound = () => {
 const repoOf = r => { const x = s.repos[r]; if (x && x.fail) { console.error('gh: ' + x.fail); process.exit(1); } return x; };
 const pick = (rows, fields) => rows.map(x => Object.fromEntries(fields.map(f => [f, x[f] ?? ''])));
 const [a, b] = argv;
-if (a === 'api') {
+if (a === 'api' && b === 'graphql' && s.rate) console.log(JSON.stringify({ data: { rateLimit: s.rate } }));
+else if (a === 'api') {
   const u = new URL(argv[1], 'https://api.github.com/');
   let m;
   if ((m = /^\\/repos\\/([^/]+\\/[^/]+)$/.exec(u.pathname))) {
@@ -187,6 +188,15 @@ test('a project behind: how far, which migrations it has not recorded (fleet upd
   assert.match(r.text, /acme\/behind\s+yes\s+0\.1\.0 → 0\.2\.0/);
 });
 
+test('under the quota floor the machine PRs are not read: the cell says it is saving the quota', async t => {
+  const gh = await stubGh(t, { ...state(), rate: { remaining: 500, resetAt: '2026-10-08T22:00:00Z' } });
+  const env = { ...gh.env, KEEL_CACHE: await scratch(t, 'keel-fleet-cache-') };
+  delete env.KEEL_QUOTA_FLOOR;
+  const r = await fleet({ dir: await home(t, LIST) }, { env, now: NOW, cli: '0.2.0', migrations: MIGRATIONS });
+  assert.match(rowOf(r, 'acme/behind').machinePrs.unreadable, /^saving your GitHub quota \(500 left until \d\d:\d\d\)$/);
+  assert.equal((await gh.calls()).filter(c => c[0] === 'pr').length, 0, 'no PR read under the floor');
+});
+
 test('a gate workflow named in config (.keel/keel.json gateWorkflow) is the gate, read on its own past a busy repo\'s newest 50 runs', async t => {
   const st = state();
   const fresh = st.repos['acme/fresh'];
@@ -296,8 +306,10 @@ test('the reads are read-only gh calls, seven per managed repo and one per pin, 
   const gh = await stubGh(t, state());
   await go(await home(t, LIST), gh);
   const calls = await gh.calls();
-  // 8 per managed repo (the workflows listing among them), 1 per pinned source; nothing writes.
-  assert.equal(calls.length, 5 * 8 + 1);
+  // 8 per managed repo (the workflows listing among them), 1 per pinned source, and one quota probe
+  // (GraphQL's rateLimit) before the PR reads; nothing writes.
+  assert.equal(calls.length, 5 * 8 + 1 + 1);
+  assert.equal(calls.filter(c => c[1] === 'graphql' && c.some(a => a.includes('rateLimit'))).length, 1, 'the floor asks once a run, not once a repo');
   assert.equal(calls.filter(c => /contents\/\.github\/workflows$/.test(c[1])).length, 5);
   // Plain fleet never asks a migration: no read at a ref, none of the migration's marker.
   assert.deepEqual(calls.filter(c => /\?ref=|acme-(one|two)\.todo/.test(String(c[1]))), []);

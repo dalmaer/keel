@@ -604,3 +604,114 @@ test('the board runs a choice through walk done, with the note written beside it
     } finally { await s.close(); }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+// ---- GitHub reads: kept 10 minutes, and never under the quota floor ---------------------
+
+/**
+ * A gh for the board's live review read: GraphQL's rateLimit probe, and the
+ * repo-wide read (lib.mjs windowFragment) answering one open PR with an
+ * unanswered thread and costing 3 points. Every call is logged.
+ */
+async function quotaGh(dir, { remaining = 4000, resetAt = '2026-10-08T22:00:00Z' } = {}) {
+  const path = join(dir, 'gh'), log = join(dir, 'gh.log');
+  const pr = { keelWindow: 'PullRequest', number: 7, title: 'Acme anvils', url: 'https://github.com/acme/app/pull/7', state: 'OPEN', mergedAt: null, updatedAt: '2026-10-07T00:00:00Z', author: { login: 'acme-owner' },
+    reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [{ id: 'T1', isResolved: false, tail: { totalCount: 1, nodes: [{ databaseId: 1, author: { login: 'acme-reviewer' }, body: 'Brakes.', createdAt: '2026-10-01T09:00:00Z', url: 'https://github.com/acme/app/pull/7#c1' }] } }] },
+    comments: { pageInfo: { hasPreviousPage: false }, nodes: [] }, reviews: { pageInfo: { hasPreviousPage: false }, nodes: [] } };
+  await writeFile(path, `#!${process.execPath}
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(argv) + '\\n');
+const q = (argv.find(a => a.startsWith('query=')) ?? '').slice(6);
+const rate = ${JSON.stringify({ remaining, resetAt })};
+if (argv[0] === 'api' && argv[1] === 'graphql' && q.includes('KeelReviewWindow'))
+  console.log(JSON.stringify({ data: { rateLimit: { cost: 3, ...rate }, repository: { open: { pageInfo: { hasNextPage: false }, nodes: [${JSON.stringify(pr)}] }, merged: { pageInfo: { hasNextPage: false }, nodes: [] } } } }));
+else if (argv[0] === 'api' && argv[1] === 'graphql' && q.includes('rateLimit')) console.log(JSON.stringify({ data: { rateLimit: rate } }));
+else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
+`);
+  await (await import('node:fs/promises')).chmod(path, 0o755);
+  const calls = async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  return { path, reads: async () => (await calls()).filter(c => c.some(a => a.includes('KeelReviewWindow'))).length, probes: async () => (await calls()).filter(c => c.some(a => a.startsWith('query=query { rateLimit'))).length };
+}
+
+test('the board keeps its GitHub reads 10 minutes: the 60 s refresh asks GitHub nothing, the Refresh button and --fresh read again, and it says what the reads cost', async () => {
+  const root = await acme();
+  try {
+    const gh = await quotaGh(root);
+    const env = { ...process.env, KEEL_GH: gh.path, KEEL_CACHE: join(root, '.cache') };
+    const live = { env, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData };
+    const first = await board({ root }, live);
+    assert.equal(first.sources.find(s => s.source === 'reviews').state, 'ok');
+    assert.ok(titles(first, 'broken').includes('acme/app#7: 1 review comment unanswered'));
+    const reads = await gh.reads(), probes = await gh.probes();
+    assert.equal(reads, 2, 'one page for each of acme/app and acme/site');
+    assert.equal(probes, 1, 'the floor asked once, for both');
+    assert.deepEqual([first.github.cost, first.github.queries, first.github.remaining], [6, 2, 4000]);
+    assert.ok(first.github.readAt);
+    // The page's 60 s refresh: nothing asked of GitHub, the same items, the kept read's age.
+    const again = await board({ root }, live);
+    assert.equal(await gh.reads(), reads, 'no read inside the 10 minutes');
+    assert.equal(await gh.probes(), probes, 'nor a quota probe');
+    assert.deepEqual(titles(again, 'broken'), titles(first, 'broken'));
+    assert.equal(again.github.readAt, first.github.readAt);
+    assert.equal(again.github.cost, 0);
+    assert.equal(again.github.remaining, 4000, 'the last remembered');
+    // --fresh (the Refresh button): read again.
+    await board({ root }, { ...live, fresh: true });
+    assert.equal(await gh.reads(), reads * 2);
+    // Through the page's server: /board.json (the auto refresh) keeps, ?fresh=1 (the button) reads.
+    const s = await serve({ root }, live);
+    try {
+      const auto = await http(s.port, { path: '/board.json', headers: { 'x-keel-token': s.token } });
+      assert.equal(auto.status, 200);
+      assert.equal(await gh.reads(), reads * 2);
+      const html = await http(s.port, { path: `/?token=${s.token}` });
+      assert.match(html.text, /<p class="github-read">GitHub read (just now|\d+ min ago) · 0 points this refresh · 4000 left until \d\d:\d\d<\/p>/);
+      await http(s.port, { path: '/board.json?fresh=1', headers: { 'x-keel-token': s.token } });
+      assert.equal(await gh.reads(), reads * 3);
+    } finally { await s.close(); }
+    assert.match(pageHtml(first, 'tok', 'n'), /GitHub read just now · 6 points this refresh · 4000 left until/);
+    // The page's script: the button asks fresh, the timer does not.
+    assert.match(pageHtml(first, 'tok', 'n'), /fetch\(auto \? '\/board\.json' : '\/board\.json\?fresh=1'/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('a kept read lasts 10 minutes, and a failed read is never kept', async () => {
+  const { cachedRead } = await import('../lib/quota.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'keel-cache-'));
+  try {
+    const env = { KEEL_CACHE: dir };
+    let n = 0;
+    const read = () => cachedRead(env, 'acme', async () => ++n, { now: t0 + at });
+    const t0 = Date.parse('2026-10-08T12:00:00Z');
+    let at = 0;
+    assert.deepEqual((await read()).value, 1);
+    at = 9 * 60_000;
+    assert.deepEqual([(await read()).value, (await read()).cached], [1, true]);
+    at = 10 * 60_000 + 1;
+    assert.deepEqual((await read()).value, 2, 'past 10 minutes: read again');
+    await assert.rejects(cachedRead(env, 'down', async () => { throw new Error('gh: offline'); }, { now: t0 }));
+    assert.deepEqual((await cachedRead(env, 'down', async () => 'up', { now: t0 + 1 })).value, 'up', 'the failure was not kept');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('under the quota floor the board\'s reviews are n/a, saving the quota, and GitHub is asked nothing but what is left', async () => {
+  const root = await acme();
+  try {
+    const gh = await quotaGh(root, { remaining: 500 });
+    const env = { ...process.env, KEEL_GH: gh.path, KEEL_CACHE: join(root, '.cache') };
+    delete env.KEEL_QUOTA_FLOOR;
+    const data = await board({ root }, { env, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
+    const reviews = data.sources.find(s => s.source === 'reviews');
+    assert.equal(reviews.state, 'n/a');
+    assert.match(reviews.why, /^saving your GitHub quota \(500 left until \d\d:\d\d\)$/);
+    assert.equal(await gh.reads(), 0, 'no review read under the floor');
+    assert.equal(await gh.probes(), 1, 'one probe for both repos');
+    // A second refresh: the remembered number settles it, with no probe.
+    await board({ root }, { env, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
+    assert.deepEqual([await gh.reads(), await gh.probes()], [0, 1]);
+    // KEEL_QUOTA_FLOOR lowers it: the read goes ahead.
+    const low = await board({ root }, { env: { ...env, KEEL_QUOTA_FLOOR: '100' }, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
+    assert.equal(low.sources.find(s => s.source === 'reviews').state, 'ok');
+    assert.equal(await gh.reads(), 2);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

@@ -100,9 +100,15 @@ else if (argv[0] === 'pr' && argv[1] === 'list') {
 } else if (argv[0] === 'api' && argv[1] === 'graphql') {
   // The review read: open and merged PRs with their threads, per repo.
   if ((argv.find(x => x.startsWith('query=')) ?? '').startsWith('query=mutation')) { console.error('stub: a write'); process.exit(1); }
+  // The quota probe (GraphQL's rateLimit), answered when the state says what is left.
+  if ((argv.find(x => x.startsWith('query=')) ?? '').startsWith('query=query { rateLimit')) {
+    if (!s.rate) { console.error('stub: no rate'); process.exit(1); }
+    console.log(JSON.stringify({ data: { rateLimit: s.rate } }));
+    process.exit(0);
+  }
   const repo = argv.filter(x => x.startsWith('owner=') || x.startsWith('name=')).map(x => x.split('=')[1]).join('/');
   const r = (s.reviews ?? {})[repo] ?? { open: [], merged: [] };
-  console.log(JSON.stringify({ data: { repository: { open: { pageInfo: { hasNextPage: false }, nodes: r.open }, merged: { nodes: r.merged } } } }));
+  console.log(JSON.stringify({ data: { ...(s.rate ? { rateLimit: { cost: 2, ...s.rate } } : {}), repository: { open: { pageInfo: { hasNextPage: false }, nodes: r.open }, merged: { nodes: r.merged } } } }));
 } else if (argv[0] === 'repo' && argv[1] === 'list') {
   const fields = opt('--json').split(',');
   console.log(JSON.stringify(s.repos.filter(r => r.nameWithOwner.startsWith(argv[2] + '/')).map(r => Object.fromEntries(fields.map(f => [f, r[f]])))));
@@ -241,7 +247,8 @@ async function world(t, { marker = 'Acme' } = {}) {
       { nameWithOwner: 'acme-owner/shelved', createdAt: new Date(Date.now() - DAY).toISOString(), isArchived: true },
     ],
   });
-  const env = { ...cleanEnv(), KEEL_GH: gh.path, KEEL_CLAUDE_DIR: claude };
+  // Each world keeps its own GitHub reads (keel's cache, 10 minutes): never another test's.
+  const env = { ...cleanEnv(), KEEL_GH: gh.path, KEEL_CLAUDE_DIR: claude, KEEL_CACHE: join(base, 'keel-cache') };
   return { base, code, claude, home, app, nested, ids, gh, env };
 }
 
@@ -508,4 +515,41 @@ test('the health proposal is read from the configured health dir (.keel/keel.jso
   assert.match(item(d, 'acme/keel', 'health:lint').title, /2026-10-03/);
   assert.deepEqual(item(d, 'acme/keel', 'health:lint').commands, [`less ${join(w.home, '.keel/health/2026-10-03.md')}`]);
   assert.ok(!item(d, 'acme/keel', 'health:phases_without_issue'), 'docs/health is not read when another dir is configured');
+});
+
+// ---- GitHub reads: kept 10 minutes, and the reviews never under the quota floor ----------------
+
+const setRate = async (w, rate) => {
+  const path = join(dirname(w.gh.path), 'gh-state.json');
+  await writeFile(path, JSON.stringify({ ...JSON.parse(await readFile(path, 'utf8')), rate }));
+};
+const asked = async (w, kind) => (await w.gh.calls()).filter(c => kind === 'reviews' ? c[1] === 'graphql' && !c.some(a => a.startsWith('query=query { rateLimit')) : c.slice(0, 2).join(' ') === kind).length;
+
+test('loose-ends keeps its GitHub reads 10 minutes (--fresh reads again) and says what they cost', async t => {
+  const w = await world(t);
+  await setRate(w, { remaining: 4000, resetAt: '2026-10-08T22:00:00Z' });
+  const first = json(w);
+  assert.ok(item(first, 'acme/app', 'review:https://github.com/acme/app/pull/1'), 'the review read');
+  const n = { reviews: await asked(w, 'reviews'), prs: await asked(w, 'pr list'), repos: await asked(w, 'repo list') };
+  assert.ok(n.reviews >= 1 && n.prs >= 1 && n.repos === 1, JSON.stringify(n));
+  assert.equal(first.github.cost, 2 * n.reviews);
+  assert.equal(first.github.remaining, 4000);
+  const again = json(w);
+  assert.deepEqual({ reviews: await asked(w, 'reviews'), prs: await asked(w, 'pr list'), repos: await asked(w, 'repo list') }, n, 'nothing read again inside 10 minutes');
+  assert.ok(item(again, 'acme/app', 'review:https://github.com/acme/app/pull/1'), 'the kept read still lists it');
+  assert.deepEqual([again.github.cost, again.github.readAt], [0, first.github.readAt]);
+  assert.match(keel(w, []).out, /^GitHub: read (just now|\d+ min ago), 0 points this run, 4000 left until \d\d:\d\d \(--fresh reads again\)\.$/m);
+  json(w, ['--fresh']);
+  assert.equal(await asked(w, 'reviews'), n.reviews * 2);
+  assert.equal(await asked(w, 'pr list'), n.prs * 2);
+});
+
+test('under the quota floor loose-ends leaves the reviews unread and says why', async t => {
+  const w = await world(t);
+  await setRate(w, { remaining: 500, resetAt: '2026-10-08T22:00:00Z' });
+  const d = json(w);
+  assert.ok(!item(d, 'acme/app', 'review:https://github.com/acme/app/pull/1'));
+  assert.ok(project(d, 'acme/app').notes.some(x => /^reviews not checked: saving your GitHub quota \(500 left until \d\d:\d\d\)$/.test(x)), JSON.stringify(project(d, 'acme/app').notes));
+  assert.equal(await asked(w, 'reviews'), 0, 'no review read under the floor');
+  assert.ok(item(d, 'acme/app', 'pr:https://github.com/acme/app/pull/1'), 'the rest still read');
 });

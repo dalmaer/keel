@@ -10,7 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { answerOf, parseTarget, summarizedHead } from '../lib/review.mjs';
-import { reviewComments, reviewConfigOf } from '../practices/night/files/scripts/keel/lib.mjs';
+import { reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -51,7 +51,7 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
     t.isResolved = true; save();
     console.log(JSON.stringify({ data: { resolveReviewThread: { thread: { id: t.id, isResolved: true } } } }));
   } else if (s.noPr) console.log(JSON.stringify({ data: { repository: { pullRequest: null } } }));
-  else console.log(JSON.stringify({ data: { repository: { pullRequest: {
+  else console.log(JSON.stringify({ data: { ...(s.rate ? { rateLimit: s.rate } : {}), repository: { pullRequest: {
     number: 3, title: 'Acme rocket skates', url: 'https://github.com/acme/app/pull/3', state: 'OPEN', mergedAt: null, headRefOid: s.head,
     author: { login: 'acme-owner' },
     reviewThreads: { pageInfo: { hasNextPage: !!s.moreThreads }, nodes: s.threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: t.path ?? null, line: t.line ?? null, comments: { pageInfo: { hasNextPage: !!t.more }, nodes: t.comments.map(node) } })) },
@@ -472,4 +472,106 @@ test('arrived since is by id and count, never by clock: a comment dated before t
   assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
   const r2 = keel(dir, gh, ['acme/app#3', '--close', 'PRR_late,IC_late', '--fixed', 'abc1234']);
   assert.equal(r2.code, 0, r2.err);
+});
+
+// ---- the window: the repo-wide read asks only what "unanswered" needs ---------------
+
+/** What GitHub answers for a PR through lib.mjs windowFragment, from the PR in the full fragment's shape. */
+const windowed = pr => ({
+  keelWindow: 'PullRequest', ...pr,
+  reviewThreads: { pageInfo: { hasNextPage: pr.reviewThreads.nodes.length > WINDOW_THREADS }, nodes: pr.reviewThreads.nodes.slice(0, WINDOW_THREADS).map(({ comments, ...t }) =>
+    ({ ...t, tail: { totalCount: comments.nodes.length, nodes: comments.nodes.slice(-WINDOW_TAIL) } })) },
+  comments: { pageInfo: { hasPreviousPage: pr.comments.nodes.length > WINDOW_CONVO }, nodes: pr.comments.nodes.slice(-WINDOW_CONVO) },
+  reviews: { pageInfo: { hasPreviousPage: pr.reviews.nodes.length > WINDOW_BODIES }, nodes: pr.reviews.nodes.slice(-WINDOW_BODIES) },
+});
+const R = ['acme-reviewer[bot]'];
+const long = (id, n = WINDOW_TAIL + 2) => ({ id, comments: [c(1, 'acme-reviewer', 'Grease the skates.', '2026-10-01'), c(2, 'acme-reviewer', 'And the wheels.', '2026-10-02'), c(3, 'acme-owner', 'Greased in abc1234.', '2026-10-03'),
+  ...Array.from({ length: n - 3 }, (_, i) => c(4 + i, 'acme-reviewer', `Still squeaks (${i + 1}).`, `2026-10-0${4 + i}`))] });
+
+test('the window decides every comment as the full read does: a reopened thread, a follow-up, a review body and a conversation comment answered by reference', () => {
+  const reopened = { id: 'T_reopened', comments: [c(2, 'acme-reviewer', 'The fuse is short.', '2026-10-01'), c(3, 'acme-owner', 'Fixed in abc1234.', '2026-10-02'), c(4, 'acme-reviewer', 'Still short at line 9.', '2026-10-03'), c(5, 'acme-reviewer', 'And line 10.', '2026-10-04')] };
+  const followed = { id: 'T_followup', comments: [c(6, 'acme-reviewer', 'Paint it.'), c(7, 'acme-owner', 'Painted.', '2026-10-06'), c(8, 'acme-reviewer', 'Red, please.', '2026-10-06')] };
+  const settled = { id: 'T_settled', isResolved: true, comments: [c(9, 'acme-reviewer', 'Lid.'), c(10, 'acme-owner', 'Lidded in abc1234.', '2026-10-06')] };
+  const body = { id: 'PRR_1', databaseId: 71, author: 'acme-reviewer', body: 'Acme Review: the crate has no lid.', createdAt: '2026-10-05T09:00:00Z' };
+  const finding = { id: 'IC_find', ...c(51, 'acme-reviewer', 'Codex: the README is wrong.', '2026-10-05') };
+  const answers = [{ id: 'IC_a1', ...c(52, 'acme-owner', '> the crate has no lid.\n\nFixed in abc1234.', '2026-10-06') }, { id: 'IC_a2', ...c(53, 'acme-owner', 'IC_find: not valid, the README is current.', '2026-10-06') }];
+  for (const [what, pr, reviewers] of [
+    ['threads', prOf({ threads: [reopened, followed, settled] }), R],
+    ['a review body answered by a quote', prOf({ bodies: [body], comments: answers }), []],
+    ['a named reviewer\'s comment answered by its id', prOf({ comments: [finding, ...answers] }), R],
+    ['unanswered ones', prOf({ threads: [{ id: 'T_open', comments: [c(11, 'acme-reviewer', 'Brakes.')] }], bodies: [body], comments: [finding] }), R],
+  ]) {
+    const w = fromWindow(windowed(pr), reviewers);
+    assert.equal(w.whole, true, what);
+    assert.deepEqual(reviewComments(w.pr, reviewers), reviewComments(pr, reviewers), what);
+  }
+  // The reopened thread: unanswered, aged from the first comment after the answer.
+  const t = reviewComments(fromWindow(windowed(prOf({ threads: [reopened] })), R).pr, R)[0];
+  assert.deepEqual([t.answered, t.at, t.author], [false, '2026-10-03T09:00:00Z', 'acme-reviewer']);
+});
+
+test('what the window cannot see whole is never decided from it: a longer thread, more threads, older comments or bodies', () => {
+  // Six comments: the newest four alone would make the owner the thread's author and date it from the answer.
+  const pr = prOf({ threads: [long('T_long')] });
+  assert.deepEqual(reviewComments(pr, R).map(x => [x.answered, x.at, x.author]), [[false, '2026-10-04T09:00:00Z', 'acme-reviewer']]);
+  const w = fromWindow(windowed(pr), R);
+  assert.equal(w.whole, false);
+  assert.throws(() => reviewComments(w.pr, R), e => e.incomplete === true, 'refused, never a count');
+  // Exactly the window: whole.
+  assert.equal(fromWindow(windowed(prOf({ threads: [long('T_four', WINDOW_TAIL)] })), R).whole, true);
+  const many = Array.from({ length: WINDOW_THREADS + 1 }, (_, i) => ({ id: `T${i}`, comments: [c(100 + i, 'acme-reviewer', `Bolt ${i}.`)] }));
+  assert.equal(fromWindow(windowed(prOf({ threads: many })), R).whole, false, 'more threads than the window');
+  const chatter = Array.from({ length: WINDOW_CONVO + 1 }, (_, i) => ({ id: `IC_${i}`, ...c(200 + i, 'acme-owner', `Note ${i}.`) }));
+  assert.equal(fromWindow(windowed(prOf({ comments: chatter })), R).whole, false, 'older conversation comments, a reviewer named');
+  assert.equal(fromWindow(windowed(prOf({ comments: chatter })), []).whole, true, 'older conversation comments matter only to a named reviewer or a review body');
+  const bodies = Array.from({ length: WINDOW_BODIES + 1 }, (_, i) => ({ id: `PRR_${i}`, databaseId: 300 + i, author: 'acme-reviewer', body: `Body ${i}.`, createdAt: '2026-10-05T09:00:00Z' }));
+  assert.equal(fromWindow(windowed(prOf({ bodies })), []).whole, false, 'older review bodies');
+  // The full fragment's shape passes through untouched.
+  assert.deepEqual(fromWindow(pr, R), { pr, whole: true });
+});
+
+test('the repo-wide read reads alone, with the full fragment, each PR the window did not cover, and at most SOLO_READS of them', async () => {
+  const at = (n, threads, extra = {}) => ({ ...prOf({ threads }), number: n, title: `Acme ${n}`, url: `https://github.com/acme/app/pull/${n}`, state: 'OPEN', mergedAt: null, ...extra });
+  const full = new Map([[1, at(1, [long('T_long1')])], [2, at(2, [{ id: 'T_short', comments: [c(400, 'acme-reviewer', 'Oil.', '2026-10-01')] }])],
+    [3, at(3, [long('T_long3')], { state: 'MERGED', mergedAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' })]]);
+  const page = prs => async () => ({ open: { pageInfo: { hasNextPage: false }, nodes: prs.filter(p => p.state === 'OPEN').map(windowed) }, merged: { pageInfo: { hasNextPage: false }, nodes: prs.filter(p => p.state === 'MERGED').map(windowed) } });
+  const asked = [];
+  const readPr = async n => { asked.push(n); return full.get(n); };
+  const read = await readRepoReviews(page([...full.values()]), '2026-10-08', { readPr, reviewers: R });
+  assert.deepEqual(asked, [1], 'only the open PR with a longer thread; never one merged outside the window');
+  assert.deepEqual(unansweredPrs(read, R, '2026-10-08'), unansweredPrs({ open: { pageInfo: {}, nodes: [full.get(1), full.get(2)] }, merged: { pageInfo: {}, nodes: [full.get(3)] } }, R, '2026-10-08'));
+  // Without readPr: refused, never a count.
+  await assert.rejects(async () => unansweredPrs(await readRepoReviews(page([...full.values()]), '2026-10-08'), R, '2026-10-08'), e => e.incomplete === true);
+  // Bounded: past SOLO_READS the read is incomplete.
+  const busy = Array.from({ length: SOLO_READS + 1 }, (_, i) => at(10 + i, [long(`T_${i}`)]));
+  asked.length = 0;
+  const many = await readRepoReviews(page(busy), '2026-10-08', { readPr: async n => { asked.push(n); return busy.find(p => p.number === n); }, reviewers: R });
+  assert.equal(asked.length, SOLO_READS);
+  assert.throws(() => unansweredPrs(many, R, '2026-10-08'), e => e.incomplete === true);
+});
+
+test('keel review reads a window first and the full fragment only when a list overflows it; it says what the read cost, and warns under the quota floor', async t => {
+  const dir = await project(t);
+  const queries = async gh => (await gh.calls()).filter(x => x[1] === 'graphql').map(x => x.find(a => a.startsWith('query=')));
+  let gh = await stubGh(t, { reviews: [ON_HEAD], threads: [UNANSWERED, ANSWERED], rate: { cost: 1, remaining: 4321, resetAt: '2026-10-08T22:00:00Z' } });
+  let r = keel(dir, gh, ['acme/app#3', '--json']);
+  assert.equal(r.code, 1, r.err);
+  let q = await queries(gh);
+  assert.equal(q.length, 1, 'one read');
+  assert.match(q[0], /reviewThreads\(first: 50\)[\s\S]*comments\(first: 20\)/);
+  assert.match(q[0], /rateLimit \{ cost remaining resetAt \}/);
+  assert.deepEqual(r.json().github, { cost: 1, queries: 1, remaining: 4321, resetAt: '2026-10-08T22:00:00Z' });
+  assert.equal(r.json().warning, null);
+  // A thread longer than the window: read again, with the full fragment.
+  gh = await stubGh(t, { reviews: [ON_HEAD], threads: [{ ...ANSWERED, more: true }] });
+  keel(dir, gh, ['acme/app#3', '--json']);
+  q = await queries(gh);
+  assert.equal(q.length, 2);
+  assert.match(q[1], /reviewThreads\(first: 100\)[\s\S]*comments\(first: 100\)/);
+  // Under the floor it still reads (it was asked for) and says so.
+  gh = await stubGh(t, { reviews: [ON_HEAD], threads: [ANSWERED], rate: { cost: 1, remaining: 900, resetAt: '2026-10-08T22:00:00Z' } });
+  r = keel(dir, gh, ['acme/app#3', '--json']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.json().warning, /your GitHub quota is low: 900 left until \d\d:\d\d/);
+  assert.match(keel(dir, gh, ['acme/app#3']).out, /Warning: your GitHub quota is low: 900 left/);
 });

@@ -32,6 +32,8 @@ writeFileSync(global, '');
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
 
 process.env.GIT_CONFIG_GLOBAL = global;
+// keel's cache (review receipts, the board's kept GitHub reads): never the developer's own ~/.cache/keel.
+process.env.KEEL_CACHE = join(dir, 'keel-cache');
 // climb.mjs's pointer to Codex's git dir (keel phase 47): a Codex night that runs keel's own suite must not aim the tests' climb.mjs at it.
 delete process.env.KEEL_AGENT_GIT;
 process.env.GIT_CONFIG_NOSYSTEM = '1';

@@ -23,7 +23,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished work across projects; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
-- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`
+- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json` (`--fresh`: read GitHub again)
 - `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
@@ -835,7 +835,13 @@ origin remote; the rest say "no local checkout". Per project:
 - **review** — a PR (open, or merged in the last 7 days) with review
   comments unanswered a day or more (the night's `reviews_unanswered` rule),
   one item per PR, with `keel review <repo>#<n>`: validate each comment, then
-  answer it.
+  answer it. An optional read: under the quota floor (1000 GraphQL points
+  left; `KEEL_QUOTA_FLOOR`) it is not asked, and the project's notes say
+  "reviews not checked: saving your GitHub quota (N left until HH:MM)".
+
+GitHub reads (PRs, reviews, new repos) are kept 10 minutes in keel's cache
+(`$KEEL_CACHE`, else `$XDG_CACHE_HOME/keel`, else `~/.cache/keel`);
+`--fresh` reads again.
 - **phase** — `partial` with a next action that starts ⚑ or "Owner";
   **health** — the newest health page's proposal; **inbox** — proposals
   waiting for a person; **lessons** — lesson rows not in `.keel/sent.json`
@@ -855,7 +861,9 @@ reach stdout only.
 
 `--json` → `{projects: [{repo, dir, checkout, github, notes, items: [{id,
 kind, fingerprint, title, detail, phase, at, age, move, commands, state,
-mark?, session?, ending?, name?, files?, url?}]}], shown, hidden}`; `mark`
+mark?, session?, ending?, name?, files?, url?}]}], shown, hidden, github:
+{readAt, cost, queries, remaining, resetAt}}` (`github`: the oldest kept read
+shown, the GraphQL points this run spent, and what is left); `mark`
 → `{ok, id, project, file, mark}`. Exit 0; 2 on usage or an unknown id.
 
 <!-- topic: review | a PR's review comments: read each, validate it, answer it; not a gate -->
@@ -872,7 +880,11 @@ of it (`> `), links it or names its id (`--close` does). A body opening with
 a hidden `<!-- marker -->` (a bot's status board) is listed as `status` and
 owes no answer. Exit 0 every comment answered, 1 any unanswered (each named,
 with its first line and id), 2 GitHub unreadable or usage: never 0 on a
-failed or incomplete read (any list longer than its page).
+failed or incomplete read (any list longer than its page). The GraphQL read
+asks a window first (50 threads, 20 comments each) and the full one only when
+a list overflows it; `--json` carries `github` (`{cost, queries, remaining,
+resetAt}`: what it spent of the owner's allowance) and `warning`, set when it
+read under the quota floor (it reads anyway: it was asked for).
 
 **The rule, for every agent that opens or merges a PR** (the conductor, fleet
 update's PRs, climb and tend PRs, whoever answers them): when a PR has
@@ -959,7 +971,14 @@ line only. Its comments are answered like any reviewer's.
 `keel board --json` → `{ok, root, name, today, counts: {owner, broken, agent,
 time, external}, items: [{waits, kind, title, why, read, link, source,
 actions: [{id, label, verb, args, note?}]}], sources: [{source, state: ok|partial|n/a,
-count?, why?}], fleet: [{repo, practice, health, ci} | {repo, unreadable}] | null}`.
+count?, why?}], fleet: [{repo, practice, health, ci} | {repo, unreadable}] | null,
+github: {readAt, cost, queries, remaining, resetAt}}`. GitHub reads (reviews,
+loose-ends', the fleet) are kept 10 minutes in keel's cache: the page's 60 s
+refresh asks GitHub nothing inside that; its Refresh button and `--fresh` read
+again. `github` is the oldest kept read shown, the GraphQL points this build
+spent, and what is left; the page's footer says it. Reviews are an optional
+read: under the quota floor (1000 points left; `KEEL_QUOTA_FLOOR`) the source
+is `n/a`, "saving your GitHub quota (N left until HH:MM)".
 Sources: `roadmap` (a walk owed → `owner`/`time`/`external` by the phase's
 `waits:`; buildable phases → `agent`; a phase dated `after:` a day to come →
 `time`), `loose-ends` ("⚑ yours", a session's question, a phase's ⚑ next

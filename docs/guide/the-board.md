@@ -128,7 +128,14 @@ The server listens on 127.0.0.1 only, and every request needs the token in
 the printed URL, so another page in your browser cannot post to it. The
 page carries a strict Content-Security-Policy: nothing loads from
 elsewhere, and its one inline style and script run only with that load's
-nonce. It reads fresh on every load and every refresh; Ctrl-C stops it.
+nonce. It reads the files fresh on every load and every refresh; Ctrl-C
+stops it. GitHub is read less often: the reviews, loose-ends' PRs and the
+fleet are kept 10 minutes in keel's cache, so the minute-by-minute refresh
+asks GitHub nothing; **Refresh** (and `keel board --json --fresh`) reads
+again. The reviews stop under the quota floor (1000 GraphQL points left of
+the hour's 5000, shared by every tool on your login), saying "saving your
+GitHub quota (N left until HH:MM)", and the footer says when GitHub was read,
+what that cost and what is left.
 
 ```bash
 keel walk done 44 --note "Dropped one on a coyote; it landed."
