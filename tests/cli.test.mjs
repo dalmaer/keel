@@ -133,14 +133,16 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     const graphql = JSON.stringify({ data: { repository: { pullRequest: { number: 1, title: 'Acme', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', headRefOid: 'abc1234', reviewThreads: noThreads, comments: noThreads }, open: noThreads, merged: noThreads } } });
     await writeFile(emptyGh, `#!${process.execPath}\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
     await writeFile(join(dir, 'fleet.json'), '[]\n');
-    const needs = { init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
+    const needs = { canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
+    // canvas status reads local binding/receipts only; any accidental transport call
+    // hits a nonexistent synthetic executable instead of the installed isocan.
     // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
-      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, { ...env, KEEL_GH: emptyGh, KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
+      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
       assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);

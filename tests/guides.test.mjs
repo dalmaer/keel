@@ -221,7 +221,7 @@ test('each kind of drift fails (mutations of the guide text, in memory)', async 
   const missing = (said, known = ctx.known) => unguided(said, known).filter(n => !before.includes(n));
   // A verb missing from every guide: drop every mention of keel retro.
   const noRetro = docs.map(d => ({ ...d, text: d.text.replaceAll('keel retro', 'keel status') }));
-  assert.deepEqual(missing(run(noRetro).said), ['retro']);
+  assert.deepEqual(missing(run(noRetro).said), ['retro', 'retro capture']);
   // A subcommand missing: no guide names keel loose-ends mark.
   const noMark = docs.map(d => ({ ...d, text: d.text.replaceAll('keel loose-ends mark', 'keel loose-ends') }));
   assert.deepEqual(missing(run(noMark).said), ['loose-ends mark']);
@@ -232,7 +232,7 @@ test('each kind of drift fails (mutations of the guide text, in memory)', async 
 
 test('the surface reads subcommands from usage', () => {
   const known = surface();
-  for (const name of ['learn propose', 'learn decide', 'learn render', 'learn distill', 'loose-ends mark', 'goal retire', '--agent-help']) {
+  for (const name of ['learn propose', 'learn decide', 'learn render', 'learn distill', 'loose-ends mark', 'retro capture', 'goal retire', '--agent-help']) {
     assert.ok(known.has(name), name);
   }
   assert.ok(!known.has('init dir'), 'an optional [dir] is not a subcommand');

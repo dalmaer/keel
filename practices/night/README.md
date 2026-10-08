@@ -242,3 +242,79 @@ practice came from, where each keeps a version of its own:
   ratchet (`ratchet.mjs`).
 - **ledger**: *on*. Its agent workflows are its product's jobs, not a night
   shift over its practice.
+
+## Optional project canvas projection
+
+Canvas publication is off unless `.keel/keel.json` has both
+`canvas.enabled: true` and `canvas.cadence: "nightly"`. A manual binding does
+not opt into scheduled publication. The step follows the health-page commit and consumes Measure’s
+original JSON; it never repeats improve, the gate, a model call or a retro.
+`keel canvas night --report <file> --json` saves a local snapshot and render;
+`--yes` requests publication through the approved binding. Raw report detail,
+commands, proposals and errors are not forwarded. Missing source intervals stay
+coverage gaps. Dirty or unknown source revisions refuse publication. Committing the existing
+night data first keeps this check intact; unrelated dirty files are never
+exempted. Canvas failure is reported in Verdict while the existing PR and
+drain steps still finish.
+
+This is an owner-provisioned integration, not a new installer or token scheme.
+Before opting in, the existing project `setup` must make pinned `keel` and
+`isocan` executables available on PATH. Provision
+`KEEL_CANVAS_KEEL_VERSION` and `KEEL_CANVAS_ISOCAN_VERSION` with their exact
+`--version` outputs, and `KEEL_CANVAS_ISOCAN_HOME` with the path of a dedicated,
+already admitted isocan home. Setup can persist non-secret paths/version pins
+through `GITHUB_ENV` and executable directories through `GITHUB_PATH`.
+Authentication uses isocan's existing credential storage in that home and the
+binding's approved writer identity. Do not put credentials in config, artifacts,
+or the public workflow. No admission or identity command is run by this step.
+The supported deployment and credential provisioning must be approved and
+verified separately; this change does not establish that contract for Keel.
+
+Missing tools, pin mismatches, missing home, expired authentication and failed
+publication fail visibly. The workflow does not fetch or install either CLI,
+import project scripts as a substitute for an installed CLI, or create a
+replacement canvas. Existing `keel-night` concurrency serializes nights; sync
+also owns a local writer lock and pending receipt recovery.
+
+The workflow restores `recovery.json` from the latest **canvas-enabled attempt**
+of this repository's default-branch `keel-night.yml`, including failed attempts.
+It reads the committed config at each candidate's source commit to establish
+opt-in, rejects PR/fork/other-branch runs, and verifies repository, commit, run
+ID and attempt against artifact provenance. Artifact names include the attempt:
+`keel-canvas-night-<attempt>`. A missing, expired, oversized or ambiguous artifact
+for the latest expected attempt is a manual-recovery failure, never permission
+to fall back to an older journal. Reruns recover the immediately preceding
+attempt. Discovery is bounded to the latest 100 workflow runs.
+
+**Bootstrap:** before the first canvas-enabled CI night, owner-approved setup
+must provision the original connection's `.keel/canvas/manifest.json` and any
+history files it references. The committed binding alone is insufficient. No
+night command reconnects or creates a replacement canvas. Existing local state
+is never overwritten: a differing artifact journal requires manual resolution.
+After bootstrap, artifact restore provides the state for fresh CI checkouts.
+
+The recovery envelope matches project key, home, canvas, writer, audience,
+space, privacy and publication mode. It contains only the validated sync
+manifest, its hash-verified referenced history files, and bounded observation
+history: the newest sample per UTC day for 90 days, at most 90 samples. Missing
+intervals remain unknown. The complete sync journal and its referenced files
+are preserved, including `pending`, `run`, groups, item identities and receipts;
+no journal entries are silently pruned by the night wrapper. Exceeding the
+64 MiB recovery-envelope limit fails visibly and needs reviewed retention.
+
+`KEEL_CANVAS_OUTPUT` selects the local artifact directory (otherwise a fresh
+temporary directory is used). In CI, `KEEL_CANVAS_PERSISTENCE=artifact-v1` enables
+this contract and `KEEL_CANVAS_RECOVERY` names the verified downloaded envelope.
+Snapshots, rendered views, receipts and recovery state use
+`actions/upload-artifact@v7` with 90-day retention. A normal failed sync exports
+its pending journal in `finally`, so the next fresh checkout can reconcile it
+without resending a creation. Abrupt process termination or upload failure can
+leave no usable artifact; that case stops for manual recovery. The workflow
+never substitutes older state.
+
+Credentials, isocan homes, environment variables, locks, raw reports and
+unreferenced cache files are excluded from recovery. Canvas state is never
+added to the health PR. This artifact contract is implemented and exercised
+with synthetic local runners; it has not been deployed or proven against live
+GitHub/isocan credentials. Keel's own cadence remains manual until its owner
+provisions and approves scheduled use.

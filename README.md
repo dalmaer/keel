@@ -143,6 +143,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Keep the fleet current](docs/guide/keep-the-fleet-current.md) | the practice changed and every project should have it |
 | [Reviews and PRs](docs/guide/reviews-and-prs.md) | a PR from keel arrived, or a reviewer commented on one |
 | [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
+| [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
 
 ## The verbs
@@ -182,6 +183,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 
 | Verb | What it does |
 | --- | --- |
+| `keel canvas` | Project lifecycle snapshots and isocan canvas publishing; preview changes before applying them |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 | `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read. Not a gate |
 

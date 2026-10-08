@@ -1,6 +1,10 @@
 # A project's Keel life on an isocan canvas
 
-**Design proposal, 8 October 2026. Not implemented.** Implementation is tracked
+**Implementation in progress, 8 October 2026.** Local snapshot/render, reviewed
+retro capture, immutable publication and opt-in night recovery are implemented.
+The stable live pulse, deployed write guarantees and owner-approved remote walk
+remain incomplete; this document retains their full acceptance requirements.
+Implementation is tracked
 in [phase 50](../phases/50-project-life-on-isocan.md). This spec covers every
 Keel-managed project, including projects with isocan's `docs/projects/*` shape;
 it is not limited to the isocan software repository.

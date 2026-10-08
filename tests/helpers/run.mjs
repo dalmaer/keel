@@ -19,6 +19,14 @@ export function run(cmd, args = [], { cwd, env, input, timeout } = {}) {
   if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && GH_VERBS.includes(args[1]) && !(env ?? process.env).KEEL_GH) {
     throw new Error(`keel ${args[1]} reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh`);
   }
+  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'canvas') {
+    if (args.includes('--github') && !(env ?? process.env).KEEL_GH) {
+      throw new Error('keel canvas --github reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh');
+    }
+    if (['connect', 'sync', 'status', 'disconnect', 'night'].includes(args[2]) && !(env ?? process.env).KEEL_ISOCAN) {
+      throw new Error('keel canvas remote verbs require KEEL_ISOCAN set (a fake executable), never live isocan');
+    }
+  }
   // keel review records what it read (a receipt) in keel's cache: a test points it at a temp dir, never the developer's.
   if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'review' && !(env ?? process.env).KEEL_CACHE) {
     throw new Error('keel review writes a read receipt: run it with KEEL_CACHE set (a temp dir), never the real cache');

@@ -1,11 +1,11 @@
 ---
-status: designed
+status: partial
 since: 2026-10-08
 goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
-note: "Integration specified: one project canvas projects the whole lifecycle with source-backed improvement measures. Implementation and the real isocan walk remain."
-evidence: []
+note: "Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Owner-approved remote walk, conditional live pulse and deployed night proof remain."
+evidence: ["evidence/2026-10-08-project-canvas.md"]
 ---
 
 # A project's isocan canvas shows what Keel improves
@@ -24,11 +24,11 @@ aggregation follows the per-project walk; no additional tracking authority.
 
 ## Acceptance
 
-- [ ] All lifecycle sources, both phase shapes, stable identities and unknown coverage are normalized without inventing facts: `tests/canvas-snapshot.test.mjs` (to be implemented).
-- [ ] Metrics distinguish fixes, declined/stale findings, acceptance, merge, production verification and lived-in evidence; source links and accessible filters work: `tests/canvas-render.test.mjs` (to be implemented).
-- [ ] Connect, sync, retry and recovery preserve stable item ids and human edits, with no blind retries after ambiguous creation: `tests/canvas-sync.test.mjs` (to be implemented).
-- [ ] Retro capture is explicit, reviewed and redacted; owner choices remain authoritative and unsupported providers remain unknown: `tests/canvas-retro.test.mjs` (to be implemented).
-- [ ] The existing night publishes its measured snapshot without repeating the gate or invoking a model: `tests/canvas-night.test.mjs` (to be implemented).
+- [x] All lifecycle sources, both phase shapes, stable identities and unknown coverage are normalized without inventing facts: `tests/canvas-snapshot.test.mjs`. Dependency/review/queue/fleet adapters consume explicit saved artifacts; missing artifacts stay unknown.
+- [x] Metrics distinguish fixes, declined/stale findings, acceptance, merge, production verification and lived-in evidence; source links and accessible filters work: `tests/canvas-render.test.mjs` and the local Keel browser walk.
+- [ ] Connect, sync, retry and recovery preserve stable item ids and human edits, with no blind retries after ambiguous creation: `tests/canvas-sync.test.mjs` proves the limited immutable mode; deployed concurrency and the stable live pulse remain.
+- [x] Retro capture is explicit, reviewed and redacted; owner choices remain authoritative and unsupported providers remain unknown: `tests/canvas-retro.test.mjs`.
+- [ ] The existing night publishes its measured snapshot without repeating the gate or invoking a model: `tests/canvas-night.test.mjs` exercises the workflow shell; the deployed credential and restart walk remains.
 - [ ] CLI help, optional practice installation/migration and the packed CLI agree: `npm run check`.
 - [ ] ⚑ by hand: owner approves home, space, audience and writer access; conductor performs the real isocan walk in spec slice 5, including concurrent-edit protection and restart recovery, and records evidence.
 
@@ -42,25 +42,28 @@ aggregation follows the per-project walk; no additional tracking authority.
 
 ## Proof
 
-Implementation commands (tests are not built yet):
+Focused proof commands (use the test ledger reporter as shown):
 
 ```sh
-node --import ./tests/helpers/hermetic.mjs --test tests/canvas-snapshot.test.mjs tests/canvas-render.test.mjs tests/canvas-sync.test.mjs tests/canvas-retro.test.mjs tests/canvas-night.test.mjs
+node --import ./tests/helpers/hermetic.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout tests/canvas-snapshot.test.mjs tests/canvas-render.test.mjs tests/canvas-sync.test.mjs tests/canvas-retro.test.mjs tests/canvas-night.test.mjs tests/canvas-cli.test.mjs tests/canvas-package.test.mjs
 npm run check
 ```
 
 Use the test ledger reporter for focused runs as well. Execute the spec's five
 slices, including actual browser and workflow checks, and record source and
 isocan versions. ⚑ Canvas creation/access and CI credentials wait for the owner;
-no model spend is proposed. The spec is a plan, not evidence of integration.
+no model spend is proposed. Synthetic transport proof does not establish a
+deployed integration.
 
 ## Deliberately open
 
 - Lived-in requires seven scheduled nights on the selected project with coverage and retries recorded. The first successful connection does not establish sustained use.
 
-- Conditional writes and idempotent creation are not verified against deployed
-  isocan. Prove them in slice 2; otherwise immutable runs are an explicitly
-  limited mode and unattended live-pulse acceptance remains incomplete.
+- **Settled for the initial adapter, 2026-10-08:** the inspected public isocan
+  CLI at `b61f7c1` has native groups but no conditional general edit. Publish
+  immutable runs, with durable pending receipts and unique-match recovery;
+  never treat read/check/write as CAS. The stable live pulse, atomic publication
+  and remote retention remain open requirements, not silently reduced scope.
 - Choose home/space/audience and retention in the owner walk. Do not assume
   public sharing, credentials, quota or unlimited remote snapshot history.
 - Historical retros and unsupported local variants may lack usable data. Show
@@ -68,9 +71,15 @@ no model spend is proposed. The spec is a plan, not evidence of integration.
 
 ## Next action
 
-Build the local snapshot schema and collectors from spec slice 1, with Acme
-fixtures covering all lifecycle rows and the four independent delivery facts.
+Owner: approve the Keel identity and owner-only space/canvas on the selected
+home, then run the reviewed connection and immutable sync through Keel. Verify
+native groups, both faces, source links, human edits and restart recovery in the
+real UI. Separately establish a deployed conditional-edit contract before
+implementing the stable live pulse; provision and walk the existing night only
+with explicit scheduled-access approval. No scheduled publication is enabled.
 
 ## Trajectory
 
 - **2026-10-08** — isocan already supplies native groups and versioned source/visual items. Keel's retro is read-only, so outcome tracking requires explicit reviewed capture. A canvas remains a projection; its comments never accept source work.
+- **2026-10-08** — CLI inspection ruled out safe in-place updates. Immutable runs preserve human content and stop on ambiguous receipts; that mode does not satisfy the full live-pulse acceptance. The globally installed older CLI lacks native groups.
+- **2026-10-08** — A fresh night checkout loses ignored sync receipts. Restore the latest trusted canvas-enabled attempt, including failed attempts, and refuse missing state; restoring only successful attempts can duplicate an interrupted write.

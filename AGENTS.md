@@ -112,6 +112,13 @@ Keep implemented, merged, production-verified and lived-in distinct. A merge
 never checks acceptance. Review correction proposals against fresh source
 facts; preserve historical evidence and the scope of replaced decisions.
 
+## Project canvas
+
+`keel canvas` projects source records onto isocan. Collect and render locally
+first; remote writes require an explicit destination and approval. A canvas
+never owns acceptance, merge facts or architecture. Preserve human content and
+report unavailable sources as gaps. See [the integration spec](docs/specs/isocan-project-canvas.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for

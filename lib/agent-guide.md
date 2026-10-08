@@ -1,9 +1,7 @@
 # keel — agent cold start
 
-Keel installs a working practice in a repo: phases own status; roadmaps derive it;
-lessons name shapes; built claims need evidence.
-Run keel in a project (`.keel/keel.json` here or in a parent);
-`keel init` and `keel adopt` run outside one.
+Keel installs phases, derived roadmaps, lessons and evidence in a repo.
+Run in a project (`.keel/keel.json`); init/adopt also run outside one.
 Read the project's AGENTS.md before changing anything.
 
 Verbs (all take `--json`; parse JSON, never prose):
@@ -25,7 +23,8 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished work across projects; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
-- `keel retro` — after real work: the session's friction, counted
+- `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
+- `keel retro` — session friction; `capture` previews an explicit record
 - `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — cold start; `<topic>` or `all` for details
@@ -44,7 +43,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `retro`, `install`, `coming`, `reconciliation`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `retro`, `canvas`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -978,6 +977,63 @@ signals: {<signal>: [{source, line, tool, head?, file?, …}]}, areas: [{key,
 title, question, signals, counts}]}`; docs-only → `{realWork: false, range,
 changed, outsideDocs, since}`. Exit 0; 2 on usage, an unknown commit or
 session.
+
+`keel retro capture --record <file> [--session <id>] [--since <sha>] [--yes] [--json]`
+validates an authored JSON record and previews the reviewed summary. Exit 3
+asks for `--yes`; approval persists it under the configured retros directory.
+Manual summaries retain `coverage: manual`; supported explicit sessions may
+supply aggregate counts, while unsupported counts stay unknown. Capture never
+chooses candidates or publishes transcripts, commands or private local pointers.
+Invalid records exit 2. JSON includes `schema`, `operation`, `changes`,
+`coverage`, `warnings`, `exitCode` and the reviewed record. The ordinary
+worksheet above remains read-only. See `keel --agent-help canvas` for publishing.
+
+<!-- topic: canvas | local project snapshots and optional isocan publishing -->
+
+All forms take `--json`. Snapshot and render work without isocan installed.
+
+- `keel canvas snapshot [--output <file>] [--github] [--artifact <repo-relative-json>]... [--history <repo-relative-json>]... [--window-days <N>]` collects local sources.
+  Without `--github`, it never refreshes GitHub. JSON includes the snapshot;
+  `--output` saves it to a new file. Existing files are refused.
+  Repeat `--artifact` for recorded lifecycle artifacts and `--history` for earlier
+  schema-1 snapshots of this project. These input paths are relative to the
+  repository root, even from a subdirectory; absolute paths, traversal and
+  symlinks are refused. Each must be valid JSON no larger than 4 MiB.
+  `--window-days` is a positive integer (default 30). History supplies the known
+  cohort at or before window start; missing history and coverage stay unknown.
+  Artifacts use `{schema:1, projectKey, source, observedAt, entities, relations?,
+  observations?}`; source timestamps are preserved, never presented as fresh
+  remote reads. Supplying an artifact does not establish complete coverage.
+- `keel canvas render --snapshot <file> --output <dir>` renders local Markdown,
+  HTML, cards and a manifest without remote requests. Input schema must be 1.
+  JSON returns paths, hashes and counts; full content stays in the files.
+- `keel canvas connect --create --title <title> --space <id> --home <home> --audience owner-only`
+  or `connect --canvas <address> --audience owner-only [--home <home>]` previews a connection.
+  `--yes` approves the explicit target and writes the binding.
+- `keel canvas sync [--snapshot <file> | --github] [--dry-run | --yes]`
+  plans by default; only `--yes` permits remote publication.
+- `keel canvas night --report <file> [--yes]` consumes an existing night report.
+  It does not rerun the gate, measure instruments or invoke a model.
+- `keel canvas status` reads binding and sync state.
+- `keel canvas disconnect [--yes]` previews disabling publication, then applies
+  with `--yes`; the remote canvas remains.
+
+`KEEL_ISOCAN` names an executable (a wrapper is allowed), never a shell command.
+Publishing depends on the installed adapter's capability checks. Limited mode
+publishes immutable run cards. It has no conditional in-place updates, stable
+live pulse, atomic publication or automatic retention. Native groups require
+the inspected current checkout; the older global CLI is unsupported. Only
+verified owner-only access is supported; wider audiences are refused.
+Coverage gaps remain visible; unknown facts are never successful outcomes.
+JSON includes `schema`, `operation`, `changes`, `coverage`, `warnings`,
+`exitCode`; errors also carry `error`. Exit 0 success, 1 conflict or transport
+failure, 2 invalid input/schema, 3 approval needed. Paths are explicit;
+symlinked input/output paths are refused. Run from the intended project.
+
+`keel retro capture --record <file> [--session <id>] [--since <sha>] [--yes]`
+previews a reviewed record; only `--yes` persists it. It delegates validation
+and privacy filtering to the capture module. This does not change the ordinary
+read-only `keel retro` worksheet or select candidates for the owner.
 
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
