@@ -63,12 +63,18 @@ keel board --json         # every item, for an agent or a script
 - `--open` when you want the browser to come up on its own.
 - `--port <n>` when you want the same address each time (a free port is
   picked otherwise).
-- `--json` reads it without a server: `{items: [{waits, title, why, read,
-  link, source, actions}], sources, fleet}`.
+- `--json` reads it without a server: `{items: [{waits, kind, title, why,
+  read, link, source, phase, next, actions}], counts, sources, fleet,
+  phases, roadmap}`. `phases` is every phase by number (done when, the
+  Acceptance boxes with `checked` and `walk`, next action, the last few
+  Trajectory lines, evidence, goal, status, owes, waits, after);
+  `roadmap` is built/total per goal and the headline.
 
 The server listens on 127.0.0.1 only, and every request needs the token in
-the printed URL, so another page in your browser cannot post to it. It
-reads fresh on every load; Ctrl-C stops it.
+the printed URL, so another page in your browser cannot post to it. The
+page carries a strict Content-Security-Policy: nothing loads from
+elsewhere, and its one inline style and script run only with that load's
+nonce. It reads fresh on every load and every refresh; Ctrl-C stops it.
 
 ```bash
 keel walk done 44 --note "Dropped one on a coyote; it landed."
@@ -92,10 +98,41 @@ keel walk decide --proposal docs/health/2026-10-08.md --accept
 
 ## What you'll see
 
-The page: four columns (a fifth, for walks waiting on something outside,
-only when there is one), each item with what to read and its link, and the
-"yours" items with their buttons. A button's output appears under its item.
-The fleet strip and each source's state are at the bottom.
+A working page, not a report; it works offline, in light or dark, from a
+phone to a wide screen.
+
+- **The header**: the project, today, a search box, **Refresh** and how long
+  ago it was read. It refreshes itself every minute while the tab is
+  showing (never while you are writing a note).
+- **Four tiles**: Yours, Broken, The agent's, Waiting (on time and outside).
+  Each is a filter: click one to see only that column, again to see all.
+- **Yours**, first and widest, grouped as Walks to do, Decisions, Set up,
+  Questions and Repos to tidy. Each card has its title, the why, a **Read**
+  link (the phase file on GitHub, or the PR) and its action as a button.
+  "With a note" opens a box on the card. After a button, the card shows the
+  verb's result: **Done — uncommitted: commit when the gate passes**, with
+  the diff folded underneath, or the refusal, plainly. Results stay on
+  their cards across refreshes; a card that left the board (a walk done
+  moves its phase to built) shows under "Done this session".
+- **Broken**, in red: the PR with unanswered review comments, the red CI,
+  each with its link and what to do.
+- **The agent's**: the buildable phases in order, the first marked
+  **next**, then the agent's loose ends.
+- **Waiting**: "on a date" (sorted by the date) and "on something else" (a
+  window of time, a step outside).
+- **Roadmap**: built of total per goal as a bar, and the headline.
+- **Fleet**: a card per project, with its practice version, CI and last
+  health page, linking to the repo.
+- **Sources**, at the foot: each one ok, partial or n/a with why.
+
+Click a phase's title (or press Enter on its card) for its **drill-down**:
+Done when, the Acceptance boxes checked and open with the walks marked, the
+next action, the latest Trajectory lines and its evidence.
+
+Keys: `/` search, `j` and `k` move between cards, `Enter` opens the focused
+phase, `r` refreshes, `?` lists the keys, `Esc` closes or clears. Every
+control is a real button, so the page works without a mouse and reads
+aloud; an action's result is announced.
 
 `keel board --json` exits **0** when it drew the board, whatever it found.
 `walk` exits **0** when it wrote, **2** on a refusal (a box that is not a
