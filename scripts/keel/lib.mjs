@@ -997,7 +997,8 @@ export function rateSpend() {
 export function graphqlData(stdout, spend) {
   let out;
   try { out = JSON.parse(stdout); } catch { throw new Error('gh api graphql did not print JSON'); }
-  if (Array.isArray(out?.errors) && out.errors.length && !out?.data) throw new Error(`gh api graphql: ${out.errors[0]?.message ?? 'an error'}`);
+  // A partial answer (data beside errors) can null a page's flags or a list: never read as whole.
+  if (Array.isArray(out?.errors) && out.errors.length) throw new Error(`gh api graphql: ${out.errors[0]?.message ?? 'an error'}`);
   spend?.add(out?.data?.rateLimit);
   return out?.data;
 }

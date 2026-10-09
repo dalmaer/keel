@@ -10,7 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { answerOf, parseTarget, summarizedHead } from '../lib/review.mjs';
-import { reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -351,6 +351,11 @@ test('a reviewer\'s conversation comment is answered only by a later comment tha
   }
   const before = { id: 'IC_before', ...c(50, 'acme-owner', '> Codex: the README is wrong.', '2026-10-04') };
   assert.equal(answered(prOf({ comments: [before, finding] })).IC_find, false, 'a quote from before it is not an answer to it');
+});
+
+test('a GraphQL answer with errors is refused even when it carries data: a partial answer can null a page\'s flags (cajones#64)', () => {
+  assert.throws(() => graphqlData(JSON.stringify({ data: { repository: { open: { pageInfo: { hasNextPage: null }, nodes: [] } } }, errors: [{ message: 'Something went wrong' }] })), /Something went wrong/);
+  assert.deepEqual(graphqlData(JSON.stringify({ data: { ok: 1 }, errors: [] })), { ok: 1 });
 });
 
 test('a connection GitHub could not read (null beside other data) is refused, never an empty list (duo#91)', () => {

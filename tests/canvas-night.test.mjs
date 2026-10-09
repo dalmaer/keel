@@ -264,6 +264,25 @@ test('a rerun whose preflight failed falls back to that run\'s earlier attempt b
   assert.ok(out.ghCalls.some(a => a[1]?.endsWith('/runs/150/attempts/1')));
   assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['150', 'keel-canvas-night-2'], ['150', 'keel-canvas-night-1']]);
 });
+test('recovery follows when each attempt ran, not run ids: an old night rerun later is the newest state (duo#92)', async t => {
+  // This run (200) is an old night rerun after night 250 ran: 250 is the state to recover.
+  const later = trustedRun({ id: 250, run_started_at: '2026-10-08T03:00:00Z' }), first = trustedRun({ id: 200, run_started_at: '2026-10-01T03:00:00Z' });
+  const rerun = await workflow(t, { runs: [later, trustedRun({ id: 200, run_attempt: 2, status: 'in_progress' })], attempt: 2, priorAttempt: first, artifacts: [artifactFor(later), artifactFor(first)], bundle: { provenance: provenanceFor(later) } });
+  assert.equal(rerun.status, 0, rerun.stderr);
+  assert.equal(rerun.ghCalls.find(a => a[0] === 'run')[2], '250');
+  // The next night: the rerun (attempt 2 of 150, ran 10-09) is newer than night 180 (ran 10-08), whatever their ids.
+  const old = trustedRun({ id: 150, run_attempt: 2, run_started_at: '2026-10-09T03:00:00Z' }), mid = trustedRun({ id: 180, run_started_at: '2026-10-08T03:00:00Z' });
+  const next = await workflow(t, { runs: [mid, old], artifacts: [artifactFor(old), artifactFor(mid)], bundle: { provenance: provenanceFor(old) } });
+  assert.equal(next.status, 0, next.stderr);
+  assert.equal(next.ghCalls.find(a => a[0] === 'run')[2], '150');
+});
+test('a recovery that stops before the canvas leaves a never-ran receipt too (cajones#64)', async t => {
+  const out = await workflow(t, { runs: [trustedRun({ id: 150, conclusion: 'cancelled' })], artifacts: [] });
+  assert.notEqual(out.status, 0);
+  assert.ok(!out.calls.some(a => a[1] === 'canvas'));
+  const receipt = JSON.parse(await readFile(join(out.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
+  assert.equal(receipt.provenance.runId, '200');
+});
 async function recoveryFixture(t, { seed = true, manifest = initialManifest() } = {}) {
   const root = await realpath(await fixture(t, { ...binding, enabled: true, cadence: 'nightly' }));
   const output = await realpath(await mkdtemp(join(tmpdir(), 'acme-night-state-')));
