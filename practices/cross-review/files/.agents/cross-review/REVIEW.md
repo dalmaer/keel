@@ -10,6 +10,11 @@ that turns out not valid costs the author time and teaches them to skim
 yours, so every one must be worth answering. (keel practice `cross-review`;
 managed: keel render rewrites it.)
 
+On a project that ships to main, you review a push instead: commits that
+have already landed, named in the last section below. Read "the pull
+request" as "the push". Your findings become comments on its head commit
+and one tracking issue, answered the same way, and the rules are the same.
+
 Read `AGENTS.md` first, then the lessons named below, then the phase the
 pull request names, if any. Then read the diff (where is said below, under
 *This pull request*) and, for each change that matters, the code around it

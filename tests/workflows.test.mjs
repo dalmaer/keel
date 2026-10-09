@@ -10,7 +10,7 @@ import { readFile, readdir, mkdtemp, writeFile, rm, mkdir, symlink } from 'node:
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load } from '../lib/practices.mjs';
+import { load, fill, PUSH_TRIGGERS, CROSS_REVIEW_WORKFLOW } from '../lib/practices.mjs';
 import { run } from './helpers/run.mjs';
 import { AGENTS } from '../practices/night/files/scripts/keel/lib.mjs';
 import { runBlocks, inlineNode, shellProblems } from './helpers/workflows.mjs';
@@ -1295,7 +1295,10 @@ export function crossReviewProblems(text) {
   if ('allowed_bots' in claudeWith) out.push(...botListProblems('Review: allowed_bots', claudeWith.allowed_bots));
   const on = /\non:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
   const events = [...on.matchAll(/^ {2}([a-z_]+):/gm)].map(m => m[1]);
-  if (events.join(',') !== 'pull_request,issue_comment') out.push(`triggers are ${events.join(', ') || 'none'}; only pull_request and issue_comment`);
+  // Phase 60: "after": "push" adds exactly a push to main and the daily run (lib/practices.mjs shapeCrossReview), nothing else.
+  const after = events.join(',') === 'pull_request,issue_comment,push,schedule';
+  if (events.join(',') !== 'pull_request,issue_comment' && !after) out.push(`triggers are ${events.join(', ') || 'none'}; only pull_request and issue_comment (and, after the push, push and schedule)`);
+  if (after && !on.endsWith(PUSH_TRIGGERS)) out.push(`the push triggers are not exactly ${JSON.stringify(PUSH_TRIGGERS)}: a push to main, and once a day`);
   const types = name => /types: \[([^\]]*)\]/.exec(on.split(new RegExp(`^ {2}${name}:`, 'm'))[1]?.split(/^ {2}\S/m)[0] ?? '')?.[1].split(',').map(s => s.trim());
   if (JSON.stringify(types('pull_request')) !== JSON.stringify(['opened', 'ready_for_review'])) out.push(`pull_request types ${JSON.stringify(types('pull_request'))}: only opened and ready_for_review, never a push`);
   if (JSON.stringify(types('issue_comment')) !== JSON.stringify(['created'])) out.push('issue_comment types: only created');
@@ -1346,7 +1349,7 @@ test('keel-cross-review.yml runs only for a same-repo PR opened or made ready, o
   // The branch prefix is the config's, read at run time: every step of the review job after "Which pull request?" waits on it
   // (the publish job runs only when the review job's agent ran: crossReviewSandboxProblems).
   const steps = jobsOf(t).find(j => j.id === 'review').text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
-  const which = steps.findIndex(s => s.includes('- name: Which pull request?'));
+  const which = steps.findIndex(s => s.includes('- name: Which pull request or push?'));
   assert.ok(which > 0);
   assert.match(steps[which], /node scripts\/keel\/cross-review\.mjs which --pr "\$RUNNER_TEMP\/pr\.json" --event "\$EVENT"/);
   for (const s of steps.slice(which + 1)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'(?: && steps\.which\.outputs\.agent == '(?:claude|codex)')?\n/, s.split('\n')[0]);
@@ -1377,6 +1380,51 @@ export function crossReviewGroup(text, ctx) {
   if (!m) throw new Error('no concurrency group with cancel-in-progress: false');
   return m[1].replace(/\$\{\{([\s\S]*?)\}\}/g, (_, e) => String(evalExpression(e, ctx, { value: true }) ?? ''));
 }
+
+test('phase 60: a push to main triggers a review only with "after": "push" (the template, and every project without it, has no push trigger); then a push to the default branch and the daily run, coalescing in one group', async () => {
+  const w = (await shipped()).find(x => x.name === 'keel-cross-review.yml');
+  const t = w.template;
+  const on = text => [...(/\non:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '').matchAll(/^ {2}([a-z_]+):/gm)].map(m => m[1]);
+  const base = { name: 'Acme', tagline: 'Anvils, dropped on time.', repo: ACME };
+  assert.deepEqual(on(t), ['pull_request', 'issue_comment'], 'the template');
+  for (const crossReview of [{ for: ['codex/'] }, { for: ['codex/', 'claude/'], budget: { minutes: 20 } }]) {
+    const without = fill(t, { ...base, crossReview }, CROSS_REVIEW_WORKFLOW);
+    assert.equal(without, t, 'no "after": the template\'s bytes, no push trigger');
+  }
+  // keel's own rendered copy: keel reviews its PRs, not its pushes.
+  assert.deepEqual(on(await readFile(join(KEEL, CROSS_REVIEW_WORKFLOW), 'utf8')), ['pull_request', 'issue_comment']);
+  const shaped = fill(t, { ...base, crossReview: { after: 'push' } }, CROSS_REVIEW_WORKFLOW);
+  assert.deepEqual(on(shaped), ['pull_request', 'issue_comment', 'push', 'schedule']);
+  assert.ok(shaped.includes("\n  push:\n    branches: [main]\n  schedule:\n    - cron: '41 4 * * *'\n\n"), 'a push to main, and once a day for the pushes that waited past the budget');
+  assert.deepEqual(crossReviewProblems(shaped), []);
+  assert.deepEqual(crossReviewSandboxProblems(shaped), []);
+  assert.deepEqual(problems('keel-cross-review.yml', shaped, w.declared), []);
+  // The job's if: a push to the default branch, and the daily run; never another branch or a tag.
+  const cond = jobIf(t);
+  const push = (ref = 'refs/heads/main') => ({ github: { event_name: 'push', ref, repository: ACME, event: { repository: { full_name: ACME, default_branch: 'main' }, before: 'a'.repeat(40), after: 'b'.repeat(40) } } });
+  assert.equal(evalExpression(cond, push()), true, 'a push to main');
+  assert.equal(evalExpression(cond, push('refs/heads/acme-feature')), false, 'a push to another branch');
+  assert.equal(evalExpression(cond, push('refs/tags/v1.0.0')), false, 'a tag');
+  assert.equal(evalExpression(cond, ghEvent('schedule', {})), true, 'the daily run');
+  assert.equal(evalExpression(cond.replace("github.ref == format('refs/heads/{0}', github.event.repository.default_branch)", 'true'), push('refs/heads/acme-feature')), true, 'the branch check is load-bearing');
+  // One group for every push and the daily run: GitHub keeps one pending run, so pushes during a review coalesce into it.
+  const group = (ctx, id) => crossReviewGroup(t, { ...ctx, github: { ...ctx.github, run_id: id } });
+  assert.equal(group(push(), 301), 'keel-cross-review-after-push');
+  assert.equal(group(push(), 302), group(ghEvent('schedule', {}), 303));
+  assert.equal(group(prEvent(), 304), 'keel-cross-review-7', 'a PR keeps its own queue');
+  assert.equal(group(commentEvent({ body: 'LGTM' }), 305), 'keel-cross-review-run-305');
+  // Mutations: the shaped triggers widened are refused.
+  for (const [why, text] of [
+    ['any branch', shaped.replace('    branches: [main]\n', "    branches: ['**']\n")],
+    ['tags too', shaped.replace('    branches: [main]\n', '    branches: [main]\n    tags: [v*]\n')],
+    ['every hour', shaped.replace("'41 4 * * *'", "'41 * * * *'")],
+    ['a push alone, on any branch', t.replace('  issue_comment:\n    types: [created]\n', '  issue_comment:\n    types: [created]\n  push:\n')],
+    ['workflow_run', shaped.replace('  schedule:\n', '  workflow_run:\n    workflows: [check]\n  schedule:\n')],
+  ]) {
+    assert.notEqual(text, shaped, `${why}: the mutation did not apply`);
+    assert.ok(crossReviewProblems(text).length, `${why}: expected a problem`);
+  }
+});
 
 test('keel-cross-review.yml: reviews of one PR queue behind each other; a run that will not review has a group of its own, so it never displaces a queued /review', async () => {
   const t = (await shipped()).find(w => w.name === 'keel-cross-review.yml').template;
@@ -1513,7 +1561,7 @@ export function crossReviewSandboxProblems(text) {
   for (const c of checkouts) if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push('a checkout in the agent\'s job keeps the token in git (persist-credentials: false)');
   const claude = stepsIn(agent).find(st => /uses: anthropics\/claude-code-action@/.test(st)) ?? '';
   if (!/\n {10}github_token: \$\{\{ github\.token \}\}\n/.test(claude)) out.push('claude-code-action is not handed the job\'s token (github_token), so it trades OIDC for its app\'s token, which can write');
-  const posts = j => code(j.text).some(({ line }) => /\bgh api\b[^\n]*--method POST|cross-review\.mjs"? summary\b/.test(line));
+  const posts = j => code(j.text).some(({ line }) => /\bgh api\b[^\n]*--method POST|cross-review\.mjs"? (?:summary|push-review|push-post)\b/.test(line));
   if (posts(agent)) out.push(`the agent's job ${agent.id} builds or posts the review`);
   const ran = stepsIn(agent).find(st => /^ {6}- name: Did the agent run\?\n/.test(st)) ?? '';
   if (!/\n {8}id: ran\n/.test(ran) || !/\n {10}fi\n {10}echo "ran=true" >> "\$GITHUB_OUTPUT"(?:\n|$)/.test(ran)) out.push('"Did the agent run?" does not say ran=true after its check passes');
@@ -1531,13 +1579,18 @@ export function crossReviewSandboxProblems(text) {
     if (!new RegExp(`\\n {4}if: needs\\.${agent.id}\\.outputs\\.ran == 'true'\\n`).test(w.text)) out.push(`the writing job ${w.id} runs whether or not the agent ran (if: needs.${agent.id}.outputs.ran == 'true')`);
     if (/\balways\(\)|\bfailure\(\)|\bcancelled\(\)/.test(/\n {4}if: (.*)\n/.exec(w.text)?.[1] ?? '')) out.push(`the writing job ${w.id} runs after a failed agent`);
     for (const c of stepsIn(w).filter(st => /uses: actions\/checkout@/.test(st))) {
-      if (!/\n {10}ref: \$\{\{ github\.event\.repository\.default_branch \}\}(?:\n|$)/.test(c)) out.push(`the writing job ${w.id} checks out something other than the default branch: the PR's code would run where the token writes`);
+      // A PR: the default branch. After a push (phase 60), the default branch holds the pushed code, so the
+      // commit before the reviewed ones (the review job's `trusted`); the default branch only when there is none (a PR).
+      if (!new RegExp(`\\n {10}ref: \\$\\{\\{ needs\\.${agent.id}\\.outputs\\.trusted \\|\\| github\\.event\\.repository\\.default_branch \\}\\}(?:\\n|$)`).test(c)) out.push(`the writing job ${w.id} checks out something other than the default branch for a PR, or the commit before the reviewed ones after a push: the reviewed code would run where the token writes`);
       if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push(`a checkout in the writing job ${w.id} keeps the token in git`);
     }
     if (/steps\.which\.outputs\.sha|pull_request\.head\.(?:sha|ref)|headRefOid/.test(w.text)) out.push(`the writing job ${w.id} reaches for the PR's head`);
+    if (/github\.sha\b|github\.event\.(?:after|before|head_commit)\b|github\.ref\b/.test(w.text)) out.push(`the writing job ${w.id} reaches for the pushed commits`);
     if (!/\n {6}- uses: actions\/download-artifact@/.test(w.text)) out.push(`the writing job ${w.id} does not take the review job's artifact`);
-    if (code(w.text).some(({ line }) => /cross-review\.mjs" summary|\$RUNNER_TEMP\/keel\//.test(line))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
+    if (code(w.text).some(({ line }) => /cross-review\.mjs" (?:summary|push-review|push-post)|\$RUNNER_TEMP\/keel\//.test(line))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
   }
+  // `trusted` is the review's base, as which-push says it (never the head), handed on from the which step alone.
+  if (writers.some(w => w !== agent) && !/\n {6}trusted: \$\{\{ steps\.which\.outputs\.trusted \}\}\n/.test(agent.text)) out.push(`the ${agent.id} job does not hand on the commit the publish job runs from (outputs.trusted from the which step)`);
   return out;
 }
 
@@ -1546,9 +1599,15 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
   assert.deepEqual(crossReviewSandboxProblems(t), []);
   assert.deepEqual(jobsOf(t).map(j => j.id), ['review', 'publish'], 'the jobs, as GitHub shows them');
   const reviewPerms = '    permissions:\n      contents: read\n      pull-requests: read\n';
-  assert.ok(t.includes(reviewPerms));
+  assert.ok(t.includes(`${reviewPerms}      issues: read\n`), 'the review job reads the tracking issues of reviews after a push, and writes nothing');
   const publish = jobsOf(t).find(j => j.id === 'publish').text;
-  assert.match(publish, /\n {4}permissions:\n {6}contents: read\n {6}pull-requests: write\n/);
+  assert.match(publish, /\n {4}permissions:\n {6}contents: read\n {6}pull-requests: write\n {6}issues: write\n/);
+  const trustedRef = 'ref: ${{ needs.review.outputs.trusted || github.event.repository.default_branch }}';
+  assert.ok(publish.includes(trustedRef));
+  // A PR: no trusted, so the default branch. After a push: the base the which step named.
+  const ref = /ref: \$\{\{ (.*) \}\}/.exec(trustedRef)[1];
+  assert.equal(evalExpression(ref, { needs: { review: { outputs: { trusted: '' } } }, github: { event: { repository: { default_branch: 'main' } } } }, { value: true }), 'main');
+  assert.equal(evalExpression(ref, { needs: { review: { outputs: { trusted: 'b'.repeat(40) } } }, github: { event: { repository: { default_branch: 'main' } } } }, { value: true }), 'b'.repeat(40));
   // The publish job runs only when the agent ran: GitHub's if:, with the review job's outputs as they come.
   const pubIf = /\n {4}if: (.*)\n/.exec(publish)[1];
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: 'true' } } } }), true);
@@ -1567,14 +1626,24 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['the workflow grants write', t.replace('permissions: {}\n', 'permissions:\n  contents: read\n  pull-requests: write\n')],
     ['the workflow grants the old set', t.replace('permissions: {}\n', 'permissions:\n  contents: read\n  pull-requests: write\n  issues: write\n  id-token: write\n')],
     ['a job-level token', t.replace('    env:\n      REPO: ${{ github.repository }}\n', '    env:\n      GH_TOKEN: ${{ github.token }}\n      REPO: ${{ github.repository }}\n')],
-    ['the default branch\'s checkout keeps its credential', t.replace('          ref: ${{ github.event.repository.default_branch }}\n          persist-credentials: false\n', '          ref: ${{ github.event.repository.default_branch }}\n')],
+    ['the default branch\'s checkout keeps its credential', t.replace(/( {10}ref: \$\{\{ github\.event\.repository\.default_branch \}\}\n {10}fetch-depth: [^\n]*\n) {10}persist-credentials: false\n/, '$1')],
+    ['the publish job\'s checkout keeps its credential', t.replace(publish, publish.replace('          persist-credentials: false\n', ''))],
     ['the PR\'s checkout keeps its credential', t.replace('          ref: ${{ steps.which.outputs.sha }}\n          persist-credentials: false\n', '          ref: ${{ steps.which.outputs.sha }}\n')],
     ['Claude trades OIDC for its app token', t.replace(claudeStep, claudeStep.replace('          github_token: ${{ github.token }}\n', ''))],
     ['the post in the review job', t.replace(/(\n {6}- name: Hand the review on\n)/, `\n${postStep.replace(/^\n/, '')}$1`)],
     ['Claude in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${claudeStep}\n`)],
     ['Codex in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${codexStep}\n`)],
-    ['the publish job checks out the PR', t.replace(publish, publish.replace('ref: ${{ github.event.repository.default_branch }}', 'ref: ${{ github.event.pull_request.head.sha }}'))],
-    ['the publish job checks out the run\'s commit', t.replace(publish, publish.replace('          ref: ${{ github.event.repository.default_branch }}\n', ''))],
+    ['the publish job checks out the PR', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.event.pull_request.head.sha }}'))],
+    ['the publish job checks out the run\'s commit', t.replace(publish, publish.replace(`          ${trustedRef}\n`, ''))],
+    // Phase 60: after a push the default branch is the pushed code, so the publish job runs from the commit before the reviewed ones.
+    ['the publish job checks out the default branch after a push', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.event.repository.default_branch }}'))],
+    ['the publish job checks out the pushed head', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.sha }}'))],
+    ['the publish job checks out the push\'s after', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.event.after || github.event.repository.default_branch }}'))],
+    ['the publish job reads the pushed head', t.replace(publish, publish.replace('          REPO: ${{ github.repository }}\n          AGENT:', '          REPO: ${{ github.repository }}\n          HEAD: ${{ github.event.head_commit.id }}\n          AGENT:'))],
+    ['trusted not handed on', t.replace('      trusted: ${{ steps.which.outputs.trusted }}\n', '')],
+    ['trusted is the reviewed head', t.replace('      trusted: ${{ steps.which.outputs.trusted }}\n', '      trusted: ${{ steps.which.outputs.sha }}\n')],
+    ['the push post in the review job', t.replace(/(\n {6}- name: Hand the review on\n)/, '\n      - run: node scripts/keel/cross-review.mjs push-post --review "$RUNNER_TEMP/push-review.json" --repo "$REPO"$1')],
+    ['the publish job posts a push with a copy', t.replace(publish, publish.replace('node scripts/keel/cross-review.mjs push-post', 'node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" push-post'))],
     ['the publish job runs whatever happened', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true'\n", '    if: always()\n'))],
     ['the publish job with no if', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true'\n", ''))],
     ['the publish job not waiting', t.replace(publish, publish.replace('    needs: review\n', ''))],

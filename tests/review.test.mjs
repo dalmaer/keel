@@ -594,3 +594,127 @@ test('keel review reads a window first and the full fragment only when a list ov
   assert.match(r.json().warning, /your GitHub quota is low: 900 left until \d\d:\d\d/);
   assert.match(keel(dir, gh, ['acme/app#3']).out, /Warning: your GitHub quota is low: 900 left/);
 });
+
+// ---- phase 60: a push reviewed after it landed, read and answered as <repo>@<sha> -------
+
+const PUSHED = 'b'.repeat(8) + 'c0ffee00'.repeat(4);
+const FROM = 'a'.repeat(40);
+const pushRecord = (findings, to = PUSHED) => `<!-- keel:review-after ${JSON.stringify({ from: FROM, to, alone: false, agent: 'codex', findings })} -->\n**Review after the push** by Codex …`;
+const F1 = { id: 'F1', severity: 'P1', path: 'src/lid.js', line: 12, text: 'The hinge is never checked.', url: 'https://github.com/acme/app/commit/x#commitcomment-701' };
+const F2 = { id: 'F2', severity: 'P2', path: 'src/latch.js', line: 3, text: 'The latch defaults open.' };
+const ic = (id, login, body) => ({ id, user: { login }, body, created_at: '2026-10-09T12:00:00Z', html_url: `https://github.com/acme/app/issues/12#issuecomment-${id}` });
+
+/**
+ * A gh for a push's review: `issue list` prints the keel:review-after issues
+ * (`issues`), the API lists issue 12's comments (`comments`); with `writes`,
+ * a comment POST appends to them and a PATCH closes the issue. Anything else,
+ * or a write not allowed, exits 1. Every call is logged.
+ */
+async function pushGh(t, state) {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-review-push-gh-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const path = join(dir, 'gh'), statePath = join(dir, 'state.json'), log = join(dir, 'gh.log');
+  await writeFile(statePath, JSON.stringify({ comments: [], ...state }));
+  await writeFile(path, `#!${process.execPath}
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(argv) + '\\n');
+const s = JSON.parse(fs.readFileSync(${JSON.stringify(statePath)}, 'utf8'));
+const save = () => fs.writeFileSync(${JSON.stringify(statePath)}, JSON.stringify(s));
+const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length + 1);
+const deny = () => { console.error('stub gh: a write the test did not expect: ' + argv.join(' ')); process.exit(1); };
+if (argv[0] === 'issue' && argv[1] === 'list') { console.log(JSON.stringify(s.issues)); process.exit(0); }
+if (argv[0] === 'api' && argv[1] === 'repos/acme/app/issues/12/comments?per_page=100') { console.log(JSON.stringify(s.comments)); process.exit(0); }
+if (argv[0] === 'api' && argv[1] === '-X' && argv[2] === 'POST' && argv[3] === 'repos/acme/app/issues/12/comments') {
+  if (!s.writes) deny();
+  s.comments.push({ id: 900 + s.comments.length, user: { login: 'acme-owner' }, body: field('body'), created_at: '2026-10-09T13:00:00Z', html_url: 'https://github.com/acme/app/issues/12#new' }); save();
+  console.log('{}'); process.exit(0);
+}
+if (argv[0] === 'api' && argv[1] === '-X' && argv[2] === 'PATCH' && argv[3] === 'repos/acme/app/issues/12') {
+  if (!s.writes) deny();
+  s.issues[0].state = 'CLOSED'; save();
+  console.log('{}'); process.exit(0);
+}
+console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1);
+`);
+  await chmod(path, 0o755);
+  return {
+    path,
+    calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
+    state: async () => JSON.parse(await readFile(statePath, 'utf8')),
+  };
+}
+const pushIssue = (findings, over = {}) => ({ number: 12, title: `keel review after ${PUSHED.slice(0, 7)}`, state: 'OPEN', url: 'https://github.com/acme/app/issues/12', createdAt: '2026-10-09T10:00:00Z', author: { login: 'app/github-actions', is_bot: true }, body: pushRecord(findings), ...over });
+
+test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its findings by id, which are answered, and a receipt of what it showed', async t => {
+  assert.deepEqual(parseTarget('acme/app@BBBBBBBB'), { repo: 'acme/app', sha: 'bbbbbbbb' });
+  assert.deepEqual(parseTarget('@bbbbbbb', 'acme/app'), { repo: 'acme/app', sha: 'bbbbbbb' });
+  assert.deepEqual(parseTarget('#3', 'acme/app'), { repo: 'acme/app', number: 3 }, 'a PR is still a PR');
+  assert.throws(() => parseTarget('acme/app@bbb'), /<owner\/repo>@<sha>/);
+  const dir = await project(t);
+  // A person's issue carrying the same record is not the push's review; a review of another push is not either.
+  const forged = pushIssue([F1, F2], { number: 13, author: { login: 'acme-owner' }, body: pushRecord([]) });
+  const other = pushIssue([], { number: 11, body: pushRecord([], 'd'.repeat(40)) });
+  const gh = await pushGh(t, { issues: [pushIssue([F1, F2]), forged, other], comments: [ic(501, 'acme-owner', '**F2** `src/latch.js:3`: **Not valid:** the latch closes in open(), line 8.'), ic(502, 'acme-owner', 'Looking at F1 now.')] });
+  const r = keel(dir, gh, [`acme/app@${PUSHED.slice(0, 7)}`]);
+  assert.equal(r.code, 1, r.err + r.out);
+  assert.match(r.out, /^acme\/app@bbbbbbb — the review after the push, by codex \(aaaaaaa\.\.bbbbbbb\): #12 \(open\) https:\/\/github\.com\/acme\/app\/issues\/12$/m);
+  assert.match(r.out, /^2 findings, 1 unanswered$/m);
+  assert.match(r.out, /^ {2}UNANSWERED F1 {2}src\/lid\.js:12 {2}P1 The hinge is never checked\.$/m);
+  assert.match(r.out, /^ {2}not-valid {2}F2 {2}src\/latch\.js:3 {2}P2 The latch defaults open\.$/m);
+  assert.match(r.out, /keel review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
+  const d = keel(dir, gh, [`acme/app@${PUSHED}`, '--json']).json();
+  assert.deepEqual([d.sha, d.from, d.issue, d.unanswered, d.answered, d.ok], [PUSHED, FROM, 12, 1, 1, false]);
+  assert.deepEqual(d.comments.map(c => [c.id, c.answered, c.answer, c.url]), [['F1', false, null, F1.url], ['F2', true, 'not-valid', null]]);
+  // The receipt: by the full sha, the findings shown and every comment the issue had.
+  const receipt = JSON.parse(await readFile(join(dir, '.keel-cache', 'reviews', `acme__app__after-${PUSHED}.json`), 'utf8'));
+  assert.deepEqual([receipt.head, receipt.ids, receipt.seen], [PUSHED, ['F1', 'F2'], ['501', '502']]);
+  assert.equal((await gh.calls()).filter(c => c.includes('POST') || c.includes('PATCH')).length, 0, 'a read writes nothing');
+  // Every finding answered: exit 0. No review recorded for a sha: exit 2, never "nothing to answer".
+  const all = await pushGh(t, { issues: [pushIssue([F2])], comments: [ic(501, 'acme-owner', '**F2** `src/latch.js:3`: **Fixed** in abc1234. Validated against the code first.')] });
+  assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 10)}`]).code, 0);
+  const none = keel(dir, all, ['acme/app@1234567']);
+  assert.equal(none.code, 2);
+  assert.match(none.err, /no review after the push ends at 1234567 on acme\/app/);
+  assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 7)}`, '--wait']).code, 2, 'nothing waits on a push');
+});
+
+test('phase 60: keel review <repo>@<sha> --close answers each finding it read with a comment on the issue, and closes the issue once every finding is answered; tracked drafts a keel:agent issue', async t => {
+  const dir = await project(t);
+  const gh = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true });
+  const at = `acme/app@${PUSHED.slice(0, 7)}`;
+  // Never read: refused, nothing posted.
+  const unread = keel(dir, gh, [at, '--close', 'F1', '--fixed', 'abc1234']);
+  assert.equal(unread.code, 2);
+  assert.match(unread.err, /not read yet: F1: run keel review acme\/app@bbbbbbb, validate it, then close it/);
+  assert.match(keel(dir, gh, [at, '--close', 'F9', '--fixed', 'abc1234']).err, /not a finding of the review after bbbbbbb on acme\/app: F9/);
+  assert.equal((await gh.calls()).filter(c => c.includes('POST')).length, 0);
+  // Read, then F1 tracked: a reply on the issue, the issue stays open (F2 is unanswered), and a keel:agent draft.
+  assert.equal(keel(dir, gh, [at]).code, 1);
+  const tracked = keel(dir, gh, [at, '--close', 'F1', '--tracked', '#40', '--json']);
+  assert.equal(tracked.code, 0, tracked.err);
+  const td = tracked.json();
+  assert.deepEqual([td.closed.map(c => c.id), td.left, td.issueClosed], [['F1'], ['F2'], false]);
+  assert.deepEqual(td.work[0].draft.labels, ['keel:agent']);
+  assert.match(td.work[0].draft.title, /^P1 src\/lid\.js:12: The hinge is never checked\.$/);
+  assert.match(td.work[0].draft.body, /keel review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
+  let s = await gh.state();
+  assert.equal(s.comments.at(-1).body, '**F1** `src/lid.js:12`: **Valid, tracked** in #40. Left open until the fix lands.');
+  assert.equal(s.issues[0].state, 'OPEN');
+  // A comment arrives from someone else: closing refuses until it is read.
+  s.comments.push(ic(777, 'acme-reviewer', 'F2 is worse than it looks.'));
+  await writeFile(join(dirname(gh.path), 'state.json'), JSON.stringify(s));
+  const arrived = keel(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open()']);
+  assert.equal(arrived.code, 2);
+  assert.match(arrived.err, /arrived since your last read \(.*\): comment 777 \(acme-reviewer\) F2 is worse than it looks\./);
+  // Read again; keel's own answer (F1's) was not news. F2 answered: every finding is, so the issue closes.
+  assert.equal(keel(dir, gh, [at]).code, 1);
+  const last = keel(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open(), line 8']);
+  assert.equal(last.code, 0, last.err);
+  assert.match(last.out, /^#12 closed: every finding is answered$/m);
+  s = await gh.state();
+  assert.equal(s.issues[0].state, 'CLOSED');
+  assert.ok((await gh.calls()).some(c => c.join(' ') === 'api -X PATCH repos/acme/app/issues/12 -f state=closed -f state_reason=completed'));
+  // Read after: nothing unanswered.
+  assert.equal(keel(dir, gh, [at]).code, 0);
+});

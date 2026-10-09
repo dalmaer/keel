@@ -166,6 +166,33 @@ reviewer's secret set is a notice and green.
 does. A review that runs out its budget keeps the comments it wrote and
 says so in its summary.
 
+**A project that ships to main.** It opens no PRs, so turn on review after
+the push instead:
+
+```json
+"agents": { "claude": {}, "codex": {} },
+"crossReview": { "after": "push", "budget": { "minutes": 15, "pushes": 8 } }
+```
+
+Run `keel update` (or `keel render`) and the workflow gains a push trigger
+on main and a daily run; a project without `"after"` never gets them.
+Each push to main is reviewed once it has landed, as one batch: everything
+since the last review. Nothing waits on it. The reviewer is a provider that
+did not write the commits (their authors and `Co-authored-by` trailers say
+who did); a person's push goes to the first provider listed. Findings land
+as comments on the head commit, where its diff holds the line, and all of
+them in one issue per push, `keel review after <sha>`:
+
+```bash
+keel review acme/notes@4f2c1aa                        # the push's findings, F1, F2, …
+keel review acme/notes@4f2c1aa --close F1 --fixed 9e1d2b3
+keel review acme/notes@4f2c1aa --close F2 --tracked "#58"
+```
+
+The issue closes when every finding is answered. At most `pushes` reviews
+run a day (UTC); past that, pushes wait and the next run reviews them
+together.
+
 ## The commands
 
 ```bash

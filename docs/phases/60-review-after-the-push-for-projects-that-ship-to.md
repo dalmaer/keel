@@ -1,10 +1,11 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G2
 spec: 2
 depends: [45, 46]
-note: "A project that ships to main never opens the PRs keel's cross-review reads, so its agent-written code gets no second provider. The other provider reviews each push to main as one batch, findings answered as usual and filed as keel:agent issues or fixed by a follow-up commit; nothing waits. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
+note: "Built: \"crossReview\": { \"after\": \"push\" } renders a push-to-main trigger and a daily run into keel-cross-review.yml (none without it); each run reviews main's commits since the last review as one diff, by a provider other than the one its commits' authors and Co-authored-by trailers name; findings are commit comments on the head and one keel:review-after issue per push, read and answered with keel review <repo>@<sha>; at most budget.pushes a day, the rest reviewed together by the next run. Owes the walk: a month of one project's pushes. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
 evidence: []
 issue: 47
 ---
@@ -28,11 +29,11 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] A push to main on a project with `after: push` runs one review of the push's combined diff; a project without it runs none. `tests/workflows.test.mjs`, `tests/cross-review.test.mjs`
-- [ ] The reviewer is a provider other than the commits' author, by phase 45's rules. `tests/agents.test.mjs`
-- [ ] Findings are posted on the head commit and listed in one issue per push; `keel review <repo>@<sha>` reads them with receipts and closes them by ID. `tests/review.test.mjs`
-- [ ] The review job is read-only and the publish job runs nothing from the pushed code. `tests/workflows.test.mjs`
-- [ ] Past the budget, pushes wait and are reviewed together. `tests/cross-review.test.mjs`
+- [x] A push to main on a project with `after: push` runs one review of the push's combined diff; a project without it runs none. `tests/workflows.test.mjs`, `tests/cross-review.test.mjs`
+- [x] The reviewer is a provider other than the commits' author, by phase 45's rules. `tests/agents.test.mjs`
+- [x] Findings are posted on the head commit and listed in one issue per push; `keel review <repo>@<sha>` reads them with receipts and closes them by ID. `tests/review.test.mjs`
+- [x] The review job is read-only and the publish job runs nothing from the pushed code. `tests/workflows.test.mjs`
+- [x] Past the budget, pushes wait and are reviewed together. `tests/cross-review.test.mjs`
 - [ ] ⚑ by hand: a month of one project's pushes reviewed; the owner compares real findings with noise.
 
 ## Your part
@@ -63,4 +64,14 @@ Over time: a month of pushes.
 
 ## Next action
 
-Brief a builder on the push trigger and `keel review <repo>@<sha>`.
+⚑ The owner turns on `"crossReview": { "after": "push" }` for one project that ships to main, with a second provider's secret set, and reads its review issues after a month.
+
+## Trajectory
+
+- **2026-10-09** — A workflow's triggers cannot read `.keel/keel.json`, so "on only when configured" is a render shape (`lib/practices.mjs` `shapeCrossReview`, as renovate.json is shaped): with `"after": "push"` the managed workflow gains `push: branches: [main]` and a daily schedule; without it the bytes are the template's, and no push ever starts a run. The which step reads the config again and refuses a push without `"after"`.
+- **2026-10-09** — Coalescing needs a record of where the last review ended: GitHub keeps one pending run per concurrency group, so a run's own `before..after` would skip the pushes whose runs were replaced. The tracking issue's first line is that record (a hidden JSON comment). A run reviews main's commits since it, else the push's range, else the head alone. Every reviewed push gets its issue, closed as it opens when there are no findings, so the record and the day's count are complete.
+- **2026-10-09** — The daily schedule is new: "reviewed together the next day" needs a run when no push comes. It reviews only once a push has been reviewed (a record exists), and costs no model spend when nothing is new.
+- **2026-10-09** — After a push the default branch is the pushed code, so the publish job checks out the range's base (the review job's `trusted`), never the default branch's tip. The review job still runs main's own scripts with its read-only token. A push that brings a new `cross-review.mjs` can meet the base's older script in the publish job; that run is red, no record is left, and the next run reviews the same commits again with the new script.
+- **2026-10-09** — Commit comments sit on the head commit's own diff (GitHub's `position`), so a finding on a line an earlier commit of the push changed is in the issue alone. The issue is the record, as Deliberately open says. Whether a commit comment needs more than `contents: read` is unverified; a refused one is a warning and its finding stays in the issue.
+- **2026-10-09** — "A tracked finding is a keel:agent issue": phase 54 builds the robot in parallel, so `keel review <repo>@<sha> --close … --tracked` drafts the issue (`--json` `work`) and files nothing. The `--tracked` answer still names the issue it is tracked in.
+- **2026-10-09** — Authorship: an adapter now names the commit identities its provider writes (`AGENTS.<n>.commits`: Claude Code's `Co-Authored-By: Claude … <noreply@anthropic.com>`, `claude[bot]`, Codex's). A push both providers wrote is reviewed by its first listed, said as a self-review; a person named Claude at their own address is a person.

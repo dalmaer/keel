@@ -126,6 +126,48 @@ the run ends green with a notice. The review and its inline comments are
 posted by the workflow's publish job (`github-actions[bot]`), whichever
 agent wrote them.
 
+**After the push** (keel phase 60). A project that ships to main opens no
+PR, so its agents' code never meets a second provider. With
+`"crossReview": { "after": "push" }` each push to main is reviewed after
+it lands, and nothing waits on it:
+
+- **The trigger.** `keel render` adds `push: branches: [main]` and a daily
+  run to the workflow only for such a project; without `"after"` the
+  workflow has no push trigger at all. `"for"` becomes optional (a project
+  may review its PRs too). All pushes and the daily run share one
+  concurrency group, so pushes that land during a review coalesce into the
+  one pending run.
+- **What it reviews.** Everything on main since the last review, as one
+  batch: the combined diff. The last review's tracking issue records where
+  it ended. With no record, the push's own range (`before..after`). A first
+  push (`before` all zeros) or a force push (`before`, or the record, no
+  longer in main's history) reviews the head commit alone, and says so.
+- **Who reviews it.** A provider other than the one that wrote the
+  commits: each commit's author and its `Co-authored-by` trailers name the
+  provider (Claude Code's `Co-Authored-By: Claude … <noreply@anthropic.com>`,
+  `claude[bot]`, Codex's). A person's push goes to the first provider
+  listed. Its own provider reviews only when no other is available, said
+  as for a PR.
+- **Where findings go.** Checked against the push's diff exactly as a PR's
+  are. Each one whose line the head commit's own diff holds becomes a
+  commit comment on the head; all of them go into one tracking issue per
+  push, `keel review after <sha>` (label `keel:review-after`), each with an
+  id (F1, F2, …). The issue's first line is a hidden record, the next
+  run's starting point. With no findings the issue is closed as it opens.
+  Answer each with `keel review <repo>@<sha> --close <id> --fixed …`; the
+  issue closes when every finding is answered. A finding answered tracked
+  is drafted as a `keel:agent` issue (`--json` `work`), for phase 54's
+  robot to file.
+- **The sandbox.** The same two jobs. The review job reads main's whole
+  history (no credential kept) and the tracking issues (`issues: read`).
+  The publish job (`issues: write` too) checks out the commit before the
+  reviewed ones, the range's base, so nothing it runs came in with the
+  push; it posts with `cross-review.mjs push-post`.
+- **Spend.** One review per run, within `budget.minutes`, and at most
+  `budget.pushes` reviews a UTC day (1 to 48, default 8). Past it a push
+  waits, with a notice, and the next run (the daily one, if no push comes)
+  reviews the waiting pushes together.
+
 **Optional: opt in.** `keel init` and `keel adopt` leave it off unless asked
 (`--with cross-review`), or unless `.keel/keel.json` already lists it.
 
