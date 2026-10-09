@@ -5,6 +5,12 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.25 — practice 0.8.25 (2026-10-09)
+
+- **Canvas recovery after a rerun** asks only this run for an earlier attempt (never a newer, queued run), and a rerun whose preflight failed falls back to that run's earlier attempt before any older run.
+- **A review list GitHub could not read is refused, never an empty list**, so the night's unanswered-review count cannot be a false zero.
+- **`roadmap --check` notes a phase with more walk boxes than Your parts**: give each walk box its own `###` part, in order.
+
 ## v0.8.24 — practice 0.8.24 (2026-10-09)
 
 - **Canvas nights recover after a preflight failure.** A missing tool, pin or home now leaves a never-ran receipt, and the next night recovers from the attempt before it instead of refusing until someone recovers it by hand. Recovery also ignores a night queued behind the running one.
