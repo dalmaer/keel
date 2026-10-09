@@ -746,11 +746,13 @@ keel test tests/acme.test.mjs --name '^a crate' --stalls --json
   process, anything they spawned) for 50 to 500 ms at moments from a seed:
   the first within a second, each next 500 to 1500 ms after the last ended.
   The seed is printed; `--seed N` replays the same stalls. Paused time is not
-  counted against the run's time limit (30 minutes of running time). macOS
-  and Linux; no cgroups.
+  counted against the run's time limit (30 minutes of running time). SIGINT
+  or SIGTERM ends the group too and never leaves it stopped. macOS and
+  Linux; no cgroups.
 - It compares that run with one without stalls: a fresh run, or, when the
   tree is clean and nothing is narrowed, the test ledger's newest whole run
-  of this tree within a day. Each test that passed without stalls and failed
+  of this tree within a day in the same folder and config (`NODE_OPTIONS`,
+  the preloads, each `"tests".configEnv` variable). Each test that passed without stalls and failed
   with them is **named**: it judges the wall clock. Exit 1 when one is named,
   or anything failed; 0 when none.
 - A stall only catches a wait it lands in: a file whose timing tests are a
@@ -770,10 +772,11 @@ keel test tests/acme.test.mjs --name '^a crate' --stalls --json
 
 `--json` → `{files, name, seed, replay, plain: {from: "run"|"ledger", run?,
 date?, wall?, tests}, stalled: {stalls: [{at, ms}], paused, wall, timedOut,
-exitCode, tests}, named, both, inconclusive, missing}`; each test is `{file,
+exitCode, tests}, named, both, unbased, inconclusive, missing}`; each test is `{file,
 name, outcome, ms, error?, inconclusive?}`. `named` passed without and failed
-with; `both` failed in each (stalls cannot judge it); `missing` ran without
-and not with.
+with; `both` failed in each (stalls cannot judge it); `unbased` failed with
+and was inconclusive or absent without (no pass to compare with, never
+named); `missing` ran without and not with.
 
 <!-- topic: drain | the night shift's queue: one open machine PR, the newest -->
 

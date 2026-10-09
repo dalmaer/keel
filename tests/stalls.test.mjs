@@ -12,8 +12,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { run } from './helpers/run.mjs';
-import { runFiles, judge, planOf, stallsOf, shapeOf, seedOf, replay, SHAPE } from '../practices/night/files/scripts/keel/stalls.mjs';
+import { run, cleanEnv } from './helpers/run.mjs';
+import { runFiles, judge, planOf, stallsOf, shapeOf, seedOf, replay, preloadsOfScript, SHAPE } from '../practices/night/files/scripts/keel/stalls.mjs';
+import { configHash } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
@@ -95,11 +96,13 @@ test('the same seed gives the same stalls, about once a second and never two sec
 
 test('judge names only what passed without stalls and failed with them', () => {
   const t = (name, outcome) => ({ file: 'tests/acme.test.mjs', name, outcome, ms: 1 });
-  const plain = [t('waits', 'pass'), t('broken', 'fail'), t('steady', 'pass'), t('plays', 'pass'), t('gone', 'pass')];
-  const stalled = [t('waits', 'fail'), t('broken', 'fail'), t('steady', 'pass'), t('plays', 'inconclusive')];
+  const plain = [t('waits', 'pass'), t('broken', 'fail'), t('steady', 'pass'), t('plays', 'pass'), t('gone', 'pass'), t('unsure', 'inconclusive')];
+  const stalled = [t('waits', 'fail'), t('broken', 'fail'), t('steady', 'pass'), t('plays', 'inconclusive'), t('unsure', 'fail'), t('new', 'fail')];
   const j = judge(plain, stalled);
   assert.deepEqual(j.named.map(x => x.name), ['waits']);
   assert.deepEqual(j.both.map(x => x.name), ['broken'], 'a plain failure: stalls cannot judge it');
+  // PR #57 review: an inconclusive run without stalls is no pass to compare with, so it is never named.
+  assert.deepEqual(j.unbased.map(x => [x.name, x.plain]), [['unsure', 'inconclusive'], ['new', null]]);
   assert.deepEqual(j.inconclusive.map(x => x.name), ['plays']);
   assert.deepEqual(j.missing.map(x => x.name), ['gone']);
 });
@@ -144,6 +147,23 @@ test('paused time is not counted against the timeout; running time is', async t 
   assert.ok(slow.wall < 4000, `stopped near its limit, not at the test's end: ${slow.wall} ms`);
 });
 
+test('PR #57 review: SIGINT or SIGTERM during a stall ends the test\'s group and never leaves it stopped', async t => {
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    const r = run(process.execPath, [join(KEEL, 'tests/fixtures/stalls/interrupt.mjs')], { env: { ...process.env, ACME_SIGNAL: sig } });
+    const pid = Number(r.stdout.trim());
+    assert.ok(pid > 0, `${sig}: the runner was stopped, then the driver was signalled: ${r.stdout}${r.stderr}`);
+    t.after(() => { for (const s of ['SIGCONT', 'SIGKILL']) { try { process.kill(-pid, s); } catch { /* gone */ } } });
+    const state = () => (execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim());
+    let left = 'T';
+    for (const until = Date.now() + 5000; Date.now() < until;) {
+      try { left = state(); } catch { left = 'gone'; }
+      if (!left.includes('T')) break;
+      await new Promise(done => setTimeout(done, 50));
+    }
+    assert.ok(!left.includes('T'), `${sig}: the runner is still stopped (${left})`);
+  }
+});
+
 test('a 100 ms deadline on a 50 ms wait passes plainly and is named under stalls; under mock.timers it passes both', async t => {
   const dir = await scratch(t);
   await writeFile(join(dir, 'crate.test.mjs'), CRATE);
@@ -164,9 +184,17 @@ test('a 100 ms deadline on a 50 ms wait passes plainly and is named under stalls
 test('keel test --stalls names the wall-clock test against the ledger\'s pass on this tree, and replays its seed', async t => {
   const { dir, git } = await acme(t, { 'tests/crate.test.mjs': CRATE });
   // The ledger's run of this very tree, an hour ago: both passed. keel test reads it in place of a plain run.
-  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: process.version, dir: '.', config: 'acmeconfig01', date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
+  // It must be this run's lane: the same folder and config (keel test runs here with no preload, and this env).
+  const config = configHash({ env: cleanEnv(tightEnv()), preload: [], configEnv: [] });
+  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: process.version, dir: '.', config, date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
   await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
   await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
+  // PR #57 review: a pass under another config (NODE_OPTIONS, a preload, a configEnv value), or from another folder, never stands in.
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-00-00-000Z-1.json'), JSON.stringify({ ...record, config: 'acmeother01' }));
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-30-00-000Z-1.json'), JSON.stringify({ ...record, dir: 'web' }));
+  const other = JSON.parse(run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7', '--json'], { cwd: dir, env: tightEnv() }).stdout);
+  assert.equal(other.plain.from, 'run', 'another lane\'s pass is not this run\'s baseline');
+  assert.deepEqual(preloadsOfScript('node --import ./h.mjs --require=r.cjs -r \'q.cjs\' --test'), ['--import', './h.mjs', '--require=r.cjs', '-r', 'q.cjs'], 'as written: the form the ledger records and hashes');
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T10-00-00-000Z-1.json'), JSON.stringify(record));
 
   const r = run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7', '--json'], { cwd: dir, env: tightEnv() });

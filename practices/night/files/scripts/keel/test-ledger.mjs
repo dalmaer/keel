@@ -601,6 +601,7 @@ export function pinned(root, config, { env = process.env, preload = preloads(), 
         process.exitCode = 1;
         lines.push(`${STALLS_LABEL}: ${rel} failed with stalls (${s}), seed ${run.seed}. Replay: ${m.replay([rel], run.seed)}`);
         for (const t of j.named) lines.push(`  "${t.name}" passed plainly and failed with stalls: it judges the wall clock${t.error ? `: ${t.error}` : ''}`);
+        for (const t of j.unbased) lines.push(`  "${t.name}" failed with stalls, and was ${t.plain ?? 'not run'} without them: no pass to compare with${t.error ? `: ${t.error}` : ''}`);
         for (const t of j.both) lines.push(`  "${t.name}" failed with stalls${tests.some(x => x.file === rel && x.name === t.name) ? ' and plainly' : ''}${t.error ? `: ${t.error}` : ''}`);
         if (run.timedOut) lines.push('  it ran past its time limit (paused time not counted)');
         else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${run.stderr.split('\n').slice(-3).join(' | ') || 'no output'}`);

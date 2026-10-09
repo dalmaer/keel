@@ -88,10 +88,15 @@ export function shapeOf(env = process.env) {
   return shape;
 }
 
-/** The --import/--require preloads a test script names (package.json's scripts.test), so a file runs as the suite runs it. */
+/**
+ * The --import/--require preloads a test script names (package.json's
+ * scripts.test), so a file runs as the suite runs it: as written (`--import
+ * x` is two words, `--import=x` one), the form node's execArgv has, so the
+ * config hash matches the test ledger's record of that suite.
+ */
 export function preloadsOfScript(script) {
   const out = [];
-  for (const m of String(script ?? '').matchAll(/(?:^|\s)(--(?:import|require|loader|experimental-loader)|-r)(?:=|\s+)(['"]?)([^\s'"]+)\2/g)) out.push(`${m[1]}=${m[3]}`.replace(/^-r=/, '--require='));
+  for (const m of String(script ?? '').matchAll(/(?:^|\s)(--(?:import|require|loader|experimental-loader)|-r)(=|\s+)(['"]?)([^\s'"]+)\3/g)) out.push(...(m[2] === '=' ? [`${m[1]}=${m[4]}`] : [m[1], m[4]]));
   return out;
 }
 
@@ -131,8 +136,25 @@ export async function runFiles({ files, cwd = process.cwd(), root = cwd, name, p
     stoppedAt = null;
   };
   // A stopped group outlives this process if it ends mid-stall: never leave one stopped.
+  // node emits no 'exit' when a signal ends it, so SIGINT and SIGTERM end the group
+  // too (it is detached: the terminal's ^C never reaches it), resume it, and go on
+  // to whatever else handles the signal, or to the default: this process ends.
   const onExit = () => { if (stoppedAt !== null) signal('SIGCONT'); };
+  const onSignal = sig => {
+    signal(sig);
+    signal('SIGCONT');
+    stoppedAt = null;
+    release();
+    if (!process.listenerCount(sig)) process.kill(process.pid, sig);
+  };
+  const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  const handlers = SIGNALS.map(sig => [sig, () => onSignal(sig)]);
+  const release = () => {
+    process.off('exit', onExit);
+    for (const [sig, h] of handlers) process.off(sig, h);
+  };
   process.on('exit', onExit);
+  for (const [sig, h] of handlers) process.on(sig, h);
   const wait = ms => new Promise(r => { const t = setTimeout(r, ms); closed.then(() => { clearTimeout(t); r(); }); });
   const running = () => Date.now() - t0 - paused - (stoppedAt === null ? 0 : Date.now() - stoppedAt);
   const watchdog = setInterval(() => { if (!done && running() > timeoutMs) { timedOut = true; signal('SIGKILL'); } }, 50);
@@ -152,7 +174,7 @@ export async function runFiles({ files, cwd = process.cwd(), root = cwd, name, p
   await stalling;
   resume();
   signal('SIGCONT'); // anything the group left behind runs on, never stopped
-  process.off('exit', onExit);
+  release();
   if (error) throw new Error(`could not run node --test: ${error.message}`);
   let base = root;
   try { base = realpathSync(root); } catch { /* as given */ }
@@ -173,22 +195,25 @@ const key = t => `${t.file ?? ''}\u0000${t.name}`;
 /**
  * A plain run's outcomes against a stalled run's: `named` passed plainly and
  * failed with stalls (it judges the wall clock); `both` failed in each (a
- * plain failure: stalls cannot judge it); `inconclusive` said the machine
- * kept it from judging; `missing` ran plainly and not with stalls.
+ * plain failure: stalls cannot judge it); `unbased` failed with stalls and
+ * was inconclusive (or absent) without them: there is no pass to compare
+ * with, so it is never named; `inconclusive` said the machine kept it from
+ * judging with stalls; `missing` ran plainly and not with stalls.
  */
 export function judge(plain, stalled) {
   const before = new Map(plain.map(t => [key(t), t]));
   const after = new Map(stalled.map(t => [key(t), t]));
-  const named = [], both = [], inconclusive = [], missing = [];
+  const named = [], both = [], unbased = [], inconclusive = [], missing = [];
   for (const t of stalled) {
     const p = before.get(key(t));
     if (t.outcome === 'inconclusive') inconclusive.push(t);
     if (t.outcome !== 'fail') continue;
-    if (p?.outcome === 'pass' || p?.outcome === 'inconclusive') named.push({ ...t, plain: p.outcome });
-    else both.push(t);
+    if (p?.outcome === 'pass') named.push({ ...t, plain: p.outcome });
+    else if (p?.outcome === 'fail') both.push(t);
+    else unbased.push({ ...t, plain: p?.outcome ?? null });
   }
   for (const p of plain) if ((p.outcome === 'pass' || p.outcome === 'fail') && !after.has(key(p))) missing.push(p);
-  return { named, both, inconclusive, missing };
+  return { named, both, unbased, inconclusive, missing };
 }
 
 /** The command that replays a run's stalls. */
