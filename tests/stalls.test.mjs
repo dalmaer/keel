@@ -20,7 +20,11 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
 const BIN = join(KEEL, 'bin/keel.mjs');
 
-/** A stall lands inside any 50 ms wait (never 40 ms running between stalls) and outlasts a 100 ms deadline. */
+/**
+ * A stall lands inside any 50 ms wait (never 40 ms running between stalls) and outlasts a 100 ms deadline,
+ * as far as this process's own timers keep time: on a loaded machine a gap can run late, so the crate
+ * waits five times, and one wait a stall lands in is enough.
+ */
 const TIGHT = { firstMs: [0, 40], gapMs: [0, 40], stallMs: [120, 200] };
 const tightEnv = () => ({ ...process.env, KEEL_STALLS_SHAPE: JSON.stringify(TIGHT) });
 
@@ -31,9 +35,11 @@ const CRATE = `import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 const wait = ms => new Promise(r => setTimeout(r, ms));
 test(${JSON.stringify(DEADLINE)}, async () => {
-  const t0 = Date.now();
-  await wait(50);
-  assert.ok(Date.now() - t0 < 100, \`took \${Date.now() - t0} ms\`);
+  for (let i = 0; i < 5; i++) {
+    const t0 = Date.now();
+    await wait(50);
+    assert.ok(Date.now() - t0 < 100, \`took \${Date.now() - t0} ms\`);
+  }
 });
 test(${JSON.stringify(MOCKED)}, async () => {
   mock.timers.enable({ apis: ['setTimeout', 'Date'] });
@@ -147,8 +153,8 @@ test('paused time is not counted against the timeout; running time is', async t 
   assert.ok(slow.wall < 4000, `stopped near its limit, not at the test's end: ${slow.wall} ms`);
 });
 
-test('PR #57 review: SIGINT or SIGTERM during a stall ends the test\'s group and never leaves it stopped', async t => {
-  for (const sig of ['SIGTERM', 'SIGINT']) {
+test('PR #57 review: SIGINT, SIGTERM or the command\'s own exit during a stall ends the test\'s group: never left stopped, never left running', async t => {
+  for (const sig of ['SIGTERM', 'SIGINT', 'exit']) {
     const r = run(process.execPath, [join(KEEL, 'tests/fixtures/stalls/interrupt.mjs')], { env: { ...process.env, ACME_SIGNAL: sig } });
     const pid = Number(r.stdout.trim());
     assert.ok(pid > 0, `${sig}: the runner was stopped, then the driver was signalled: ${r.stdout}${r.stderr}`);
@@ -156,11 +162,11 @@ test('PR #57 review: SIGINT or SIGTERM during a stall ends the test\'s group and
     const state = () => (execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim());
     let left = 'T';
     for (const until = Date.now() + 5000; Date.now() < until;) {
-      try { left = state(); } catch { left = 'gone'; }
-      if (!left.includes('T')) break;
+      try { left = state() || 'gone'; } catch { left = 'gone'; }
+      if (left === 'gone' || left.startsWith('Z')) break;
       await new Promise(done => setTimeout(done, 50));
     }
-    assert.ok(!left.includes('T'), `${sig}: the runner is still stopped (${left})`);
+    assert.ok(left === 'gone' || left.startsWith('Z'), `${sig}: the runner is still there (${left}): ${left.includes('T') ? 'stopped' : 'running'}`);
   }
 });
 
@@ -208,6 +214,8 @@ test('keel test --stalls names the wall-clock test against the ledger\'s pass on
   assert.deepEqual(out.stalled.stalls.map(s => s.ms), planOf(7, out.stalled.stalls.length, TIGHT).map(s => s.ms), 'seed 7\'s stalls');
   assert.equal(out.replay, 'keel test tests/crate.test.mjs --stalls --seed 7');
   assert.equal(replay(['tests/crate.test.mjs'], 7, "it's"), "keel test tests/crate.test.mjs --name 'it'\\''s' --stalls --seed 7");
+  // PR #57 review: a file is a shell word too.
+  assert.equal(replay(['tests/a crate.test.mjs', 'tests/$(touch x).test.mjs'], 7), "keel test 'tests/a crate.test.mjs' 'tests/$(touch x).test.mjs' --stalls --seed 7");
 
   const text = run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7'], { cwd: dir, env: tightEnv() });
   assert.equal(text.status, 1);
@@ -253,9 +261,64 @@ test('a pinned file on mock timers passes with stalls; a narrowed run, or nothin
   const r = gate(dir);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with \d+ stalls?, [\d.]+ s paused, [\d.]+ s in all, seed \d+\.$/m);
+  // PR #57 review: one bad entry neither disables the good pins nor passes quietly.
+  const { dir: mixed } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, { tests: { stalls: ['tests/crate.test.mjs', '../elsewhere.test.mjs'] } });
+  const m = gate(mixed);
+  assert.equal(m.status, 1, m.stdout);
+  assert.match(m.stdout, /^keel stalls: "tests"\.stalls pins nothing with "\.\.\/elsewhere\.test\.mjs"/m);
+  assert.match(m.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with /m, 'the good pin still runs');
   assert.doesNotMatch(gate(dir, ['--test-name-pattern=anvil']).stdout, /keel stalls/, 'a narrowed run');
   const { dir: bare } = await acme(t, { 'tests/crate.test.mjs': CRATE, 'tests/anvil.test.mjs': ANVIL });
   assert.doesNotMatch(gate(bare).stdout, /keel stalls/, 'nothing pinned');
+});
+
+test('PR #57 review: a pinned file runs with stalls after its own run, never beside it', async t => {
+  // It holds an exclusive lock (a port, a database, a fixture) for 1.5 s: two copies at once fail with no stall at all.
+  const HOLDS = `import { test } from 'node:test';
+import { openSync, closeSync, unlinkSync } from 'node:fs';
+test('an anvil holds the lock', async () => {
+  const fd = openSync(process.env.ACME_LOCK, 'wx');
+  try { await new Promise(r => setTimeout(r, 1500)); } finally { closeSync(fd); unlinkSync(process.env.ACME_LOCK); }
+});
+`;
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': HOLDS, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const lock = join(await scratch(t), 'anvil.lock');
+  const gentle = { ...process.env, ACME_LOCK: lock, KEEL_STALLS_SHAPE: JSON.stringify({ firstMs: [0, 40], gapMs: [200, 300], stallMs: [50, 60] }) };
+  const r = gate(dir, [], gentle);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with /m);
+});
+
+test('PR #57 review: keel test fails when the run without stalls dies with no test failed', async t => {
+  const { dir } = await acme(t, { 'tests/once.test.mjs': await readFile(join(KEEL, 'tests/fixtures/stalls/dies-once.mjs'), 'utf8') });
+  const once = join(await scratch(t), 'once');
+  const r = run(process.execPath, [BIN, 'test', 'tests/once.test.mjs', '--stalls', '--json'], { cwd: dir, env: { ...process.env, ACME_ONCE: once } });
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.plain.from, 'run');
+  assert.equal(out.plain.exitCode, null, 'its runner was killed');
+  assert.deepEqual(out.stalled.tests.map(x => x.outcome), ['pass'], 'with stalls it passed');
+  assert.equal(r.status, 1, 'no comparison was made: never a clean 0');
+});
+
+test('PR #57 review: keel test runs a workspace\'s file from its own folder, with its own preloads', async t => {
+  const WS = `import { test } from 'node:test';
+import assert from 'node:assert/strict';
+test('the workspace is set up', () => {
+  assert.equal(globalThis.ACME_SETUP, 'web');
+  assert.match(process.cwd(), /[\\\\/]web$/);
+});
+`;
+  const { dir } = await acme(t, {
+    'web/package.json': '{ "name": "acme-web", "scripts": { "test": "node --import ./setup.mjs --test tests/" } }\n',
+    'web/setup.mjs': "globalThis.ACME_SETUP = 'web';\n",
+    'web/tests/ws.test.mjs': WS,
+  });
+  const r = run(process.execPath, [BIN, 'test', 'tests/ws.test.mjs', '--stalls', '--seed', '3', '--json'], { cwd: join(dir, 'web') });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.deepEqual(out.files, ['web/tests/ws.test.mjs'], 'reported from the project\'s root');
+  assert.deepEqual([...out.plain.tests, ...out.stalled.tests].map(x => [x.file, x.outcome]), [['web/tests/ws.test.mjs', 'pass'], ['web/tests/ws.test.mjs', 'pass']]);
+  assert.equal(out.replay, 'keel test tests/ws.test.mjs --stalls --seed 3', 'replayed from where it was run');
 });
 
 test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {

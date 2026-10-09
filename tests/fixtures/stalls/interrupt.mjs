@@ -1,7 +1,8 @@
 // A driver for tests/stalls.test.mjs: it runs ./wait.mjs under stalls, one
 // 200 ms in that lasts a minute, and once its runner is stopped, prints the
 // runner's pid (its process group's id) and sends itself ACME_SIGNAL, as a
-// person's ^C or a CI cancel would. A runner left stopped is the bug.
+// person's ^C or a CI cancel would (or, with ACME_SIGNAL=exit, exits). A
+// runner left stopped, or left running, is the bug.
 import { spawnSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +25,7 @@ const poll = setInterval(() => {
   if (r?.stat.includes('T')) {
     clearInterval(poll);
     console.log(r.pid);
+    if (process.env.ACME_SIGNAL === 'exit') process.exit(3); // its own exit mid-run, no signal at all
     process.kill(process.pid, process.env.ACME_SIGNAL);
   } else if (Date.now() - started > 20_000) {
     clearInterval(poll);

@@ -1120,6 +1120,11 @@ test('"tests".stalls: a list of files relative to the repo\'s root, pinned to st
     assert.ok(testsConfigProblems({ tests: { stalls: bad } }).length, JSON.stringify(bad));
   }
   assert.deepEqual(ledger.stallsPins({ tests: { stalls: ['./tests/acme.test.mjs'] } }), ['tests/acme.test.mjs']);
-  assert.deepEqual(ledger.stallsPins({ tests: { stalls: ['../x.mjs'] } }), [], 'a bad list pins nothing; doctor says why');
+  assert.deepEqual(ledger.stallsPins({ tests: { stalls: ['../x.mjs'] } }), [], 'a bad entry pins nothing');
+  // PR #57 review: one bad entry never disables the good ones; it is named, and the run fails (tests/stalls.test.mjs).
+  assert.deepEqual(ledger.stallsPins({ tests: { stalls: ['tests/acme.test.mjs', '../x.mjs', 3] } }), ['tests/acme.test.mjs']);
+  assert.deepEqual(ledger.stallsBad({ tests: { stalls: ['tests/acme.test.mjs', '../x.mjs', 3] } }), ['../x.mjs', 3]);
+  assert.deepEqual(ledger.stallsBad({ tests: { stalls: 'tests/acme.test.mjs' } }), ['tests/acme.test.mjs']);
+  assert.deepEqual(ledger.stallsBad({}), []);
   assert.equal(ledger.pinned('/acme', {}), null, 'nothing pinned: nothing runs');
 });

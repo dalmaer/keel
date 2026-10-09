@@ -24,9 +24,10 @@
 // pass anything (keel's lessons 14 and 38). A project with no tests yet
 // says so in .keel/keel.json: "tests": { "allowEmpty": true }. And a file
 // pinned to stalls ("tests": { "stalls": ["tests/acme.test.mjs"] }) runs
-// again, paused at random moments (./stalls.mjs, keel phase 55), beside the
-// suite whenever the suite reaches it; a failure there fails the run and
-// prints the seed that replays it. A narrowed run never does this.
+// again, paused at random moments (./stalls.mjs, keel phase 55), once its own
+// run in the suite is over, while the rest goes on; a failure there fails the
+// run and prints the seed that replays it, and so does an entry that pins
+// nothing. A narrowed run never does this.
 //
 // A record: { commit, tree, dirty, machine: { os, arch, cpus }, node, dir,
 // config, setting: { env, preload }, filtered?, date, tests: [{ file, name,
@@ -150,8 +151,14 @@ export function testsConfigProblems(config) {
 /** A file pinned to stalls: a path relative to the repo's root, never outside it. */
 const pinnable = f => typeof f === 'string' && f.trim() !== '' && !isAbsolute(f) && !f.split(/[\\/]/).includes('..');
 
-/** The files .keel/keel.json pins to stalls ("tests": { "stalls": [...] }), as written; [] when none or malformed. */
-export const stallsPins = config => Array.isArray(config?.tests?.stalls) && config.tests.stalls.every(pinnable) ? config.tests.stalls.map(f => posix.normalize(f.split(sep).join('/'))) : [];
+/** The files .keel/keel.json pins to stalls ("tests": { "stalls": [...] }) that are files relative to the repo's root; [] when none. */
+export const stallsPins = config => (Array.isArray(config?.tests?.stalls) ? config.tests.stalls.filter(pinnable).map(f => posix.normalize(f.split(sep).join('/'))) : []);
+/** The "tests".stalls entries that pin nothing (outside the repo, absolute, empty, not a string), or the whole value when it is not a list. */
+export const stallsBad = config => {
+  const s = config?.tests?.stalls;
+  if (s === undefined) return [];
+  return Array.isArray(s) ? s.filter(f => !pinnable(f)) : [s];
+};
 
 /** The ledger's settings for this project; throws on a bad "tests". */
 export function testsConfigOf(config) {
@@ -555,16 +562,17 @@ export const STALLS_LABEL = 'keel stalls';
 
 /**
  * Files pinned to stalls ("tests": { "stalls": [...] }): each one this run
- * reaches is run again, with stalls (./stalls.mjs), from the moment it is
- * first seen, beside the rest of the suite, from one fresh seed per run.
- * said(tests) waits for them and returns their lines; a pinned file that
- * fails with stalls fails the run and prints the seed and the command that
- * replays it. Null when nothing is pinned.
+ * reaches is run again, with stalls (./stalls.mjs), once its own run is over
+ * (never two copies of one file at once), while the rest of the suite goes
+ * on, from one fresh seed per run. said(tests) waits for them and returns
+ * their lines; a pinned file that fails with stalls fails the run and prints
+ * the seed and the command that replays it, and an entry that pins nothing
+ * fails it too. Null when nothing is pinned.
  */
 export function pinned(root, config, { env = process.env, preload = preloads(), seed: given } = {}) {
-  const pins = new Set(stallsPins(config));
-  if (!pins.size) return null;
-  const started = new Map(), seen = new Map();
+  const pins = new Set(stallsPins(config)), bad = stallsBad(config);
+  if (!pins.size && !bad.length) return null;
+  const started = new Map(), seen = new Map(), reached = new Set();
   let seed = given;
   const relOf = f => {
     if (!seen.has(f)) seen.set(f, relative(root, real(f)).split(sep).join('/'));
@@ -576,14 +584,23 @@ export function pinned(root, config, { env = process.env, preload = preloads(), 
     return { m, run: await m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload, env, seed }) };
   })().catch(error => ({ error }));
   return {
+    // A pinned file's stalled copy starts once its own run is over (node's per-file summary), never beside it:
+    // two copies of one file share its ports, databases and fixtures, and would fail with no stall at all.
     saw(e) {
       const f = e.data?.file;
       if (!f || typeof f !== 'string') return;
       const rel = relOf(f);
-      if (pins.has(rel) && !started.has(rel)) started.set(rel, start(rel));
+      if (!pins.has(rel) || started.has(rel)) return;
+      reached.add(rel);
+      if (e.type === 'test:summary') started.set(rel, start(rel));
     },
     async said(tests) {
       const lines = [];
+      if (bad.length) {
+        lines.push(`${STALLS_LABEL}: "tests".stalls pins nothing with ${bad.map(b => JSON.stringify(b)).join(', ')}: each entry is a test file relative to the repo's root. The rest still run with stalls; this run fails until it is fixed.`);
+        process.exitCode = 1;
+      }
+      for (const rel of reached) if (!started.has(rel)) started.set(rel, start(rel)); // its summary never came: the suite is over now
       for (const [rel, p] of started) {
         const { m, run, error } = await p;
         if (error) {

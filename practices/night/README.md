@@ -204,11 +204,13 @@ time is not counted against the run's time limit. `keel test <file>
 --stalls` runs a file that way and without, and names each test that passed
 without and failed with: it judges the wall clock. The fix is the code's own
 clock (`mock.timers`, a clock passed in), never a longer sleep. A file listed
-in `.keel/keel.json` `"tests": {"stalls": [...]}` is pinned: whenever a whole
-run reaches it, the ledger runs it again with stalls beside the suite, from
-a fresh seed, and a failure fails the run and prints `keel stalls: <file>
-failed with stalls (…), seed N. Replay: keel test <file> --stalls --seed N`.
-A narrowed run never does. A passing test that said
+in `.keel/keel.json` `"tests": {"stalls": [...]}` is pinned: when a whole
+run reaches it, the ledger runs it again with stalls once its own run is
+over (never two copies of one file at once), from a fresh seed, and a
+failure fails the run and prints `keel stalls: <file> failed with stalls
+(…), seed N. Replay: keel test <file> --stalls --seed N`. An entry that pins
+nothing (outside the repo, absolute) fails the run too; the others still
+run. A narrowed run never does. A passing test that said
 `t.diagnostic('keel:inconclusive <what it measured>')` judges real time on
 purpose and the machine kept it from judging: the ledger records it
 `inconclusive`, neither pass nor fail, so it is never flaky, never slower,

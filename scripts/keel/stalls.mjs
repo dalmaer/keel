@@ -139,7 +139,8 @@ export async function runFiles({ files, cwd = process.cwd(), root = cwd, name, p
   // node emits no 'exit' when a signal ends it, so SIGINT and SIGTERM end the group
   // too (it is detached: the terminal's ^C never reaches it), resume it, and go on
   // to whatever else handles the signal, or to the default: this process ends.
-  const onExit = () => { if (stoppedAt !== null) signal('SIGCONT'); };
+  // A run cut short by this process's own exit ends the group too: never left stopped, never left running.
+  const onExit = () => { if (done) return; signal('SIGTERM'); signal('SIGCONT'); };
   const onSignal = sig => {
     signal(sig);
     signal('SIGCONT');
@@ -216,8 +217,11 @@ export function judge(plain, stalled) {
   return { named, both, unbased, inconclusive, missing };
 }
 
-/** The command that replays a run's stalls. */
-export const replay = (files, seed, name) => `keel test ${files.join(' ')}${name ? ` --name '${String(name).replaceAll("'", "'\\''")}'` : ''} --stalls --seed ${seed}`;
+/** A word for the shell: as it is when it is plainly safe, else single-quoted. */
+export const shellWord = s => (/^[\w@%+=:,./-]+$/.test(String(s)) ? String(s) : `'${String(s).replaceAll("'", "'\\''")}'`);
+
+/** The command that replays a run's stalls, each word quoted for the shell. */
+export const replay = (files, seed, name) => `keel test ${files.map(shellWord).join(' ')}${name ? ` --name ${shellWord(name)}` : ''} --stalls --seed ${seed}`;
 
 /** The reporter a stalled (or plain) run uses: one marked line per top-level test, at the end. */
 export default async function* stallsReporter(source) {

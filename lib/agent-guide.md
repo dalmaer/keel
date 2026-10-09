@@ -747,22 +747,23 @@ keel test tests/acme.test.mjs --name '^a crate' --stalls --json
   the first within a second, each next 500 to 1500 ms after the last ended.
   The seed is printed; `--seed N` replays the same stalls. Paused time is not
   counted against the run's time limit (30 minutes of running time). SIGINT
-  or SIGTERM ends the group too and never leaves it stopped. macOS and
-  Linux; no cgroups.
+  or SIGTERM ends the group too and never leaves it stopped. Run from a
+  workspace, a file runs from its nearest package.json folder with that
+  folder's preloads. macOS and Linux; no cgroups.
 - It compares that run with one without stalls: a fresh run, or, when the
   tree is clean and nothing is narrowed, the test ledger's newest whole run
   of this tree within a day in the same folder and config (`NODE_OPTIONS`,
   the preloads, each `"tests".configEnv` variable). Each test that passed without stalls and failed
   with them is **named**: it judges the wall clock. Exit 1 when one is named,
-  or anything failed; 0 when none.
+  or anything failed, or the run without stalls died; 0 when none.
 - A stall only catches a wait it lands in: a file whose timing tests are a
   few ms long may see none. Run it again with another seed, or narrow it.
 - The fix is never a longer sleep. Give the code its clock: `mock.timers` in
   `node:test`, a clock passed in, events counted rather than waited for.
   Then pin the file: `.keel/keel.json` `"tests": {"stalls": ["<file>"]}`. The
-  test ledger runs each pinned file again with stalls, beside the suite,
-  whenever a whole run reaches it, from a fresh seed; a failure fails the
-  run and prints `keel stalls: <file> failed with stalls (…), seed N.
+  test ledger runs each pinned file again with stalls once its own run in
+  a whole run is over (never two copies at once), from a fresh seed; a
+  failure, or an entry that pins nothing, fails the run, which prints `keel stalls: <file> failed with stalls (…), seed N.
   Replay: keel test <file> --stalls --seed N`.
 - A test that judges real time on purpose (playback, a frame rate) says so
   when the machine kept it from judging:
