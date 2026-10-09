@@ -716,6 +716,11 @@ test('platform guard: a tool counts only where a process runner the file imports
   assert.deepEqual(calls(`execSync('echo "hello; hdiutil attach acme.dmg"');`), {});
   assert.deepEqual(calls(`execSync("echo 'a && pbcopy'");`), {});
   assert.deepEqual(calls(`execSync('echo "size: $(hdiutil info)"');`), { darwin: ['hdiutil'] });
+  // Review of PR 58, round 3: environment assignments before the command, alone or after env.
+  assert.deepEqual(calls("execSync('LC_ALL=C hdiutil info');"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execSync('env PATH=/usr/bin codesign -v acme.app');"), { darwin: ['codesign'] });
+  assert.deepEqual(calls(`execSync("A='x y' B=1 osascript -e beep");`), { darwin: ['osascript'] });
+  assert.deepEqual(calls("execSync('echo LC_ALL=C hdiutil');"), {}, 'an argument of echo, not a command');
   // Review of PR 58: GNU stat -f (file system status) runs on Linux; BSD stat -f <format> is macOS-only.
   assert.deepEqual(calls("execSync('stat -f .');"), {});
   assert.deepEqual(calls("execFileSync('stat', ['-f', '.']);"), {});
@@ -746,9 +751,15 @@ test('platform guard: a skip clears only the command it guards, and only in the 
   assert.deepEqual(calls(`test('x', { skip: process.platform === 'darwin' }, () => { ${run} });`), { darwin: ['hdiutil'] });
   assert.deepEqual(calls(`if (process.platform !== 'darwin') ${run}`), { darwin: ['hdiutil'] });
   assert.deepEqual(calls(`if (process.platform !== 'darwin') { ${run} }`), { darwin: ['hdiutil'] });
-  // A skip for another platform guards nothing here; one that rules this platform out does.
+  // A skip for another platform guards nothing here; a guard on the tool's own platform does.
   assert.deepEqual(calls(`test('x', { skip: process.platform !== 'win32' }, () => { ${run} });`), { darwin: ['hdiutil'] });
   assert.deepEqual(calls(`if (process.platform === 'win32') execSync('powershell x');`), {});
+  // Review of PR 58, round 3: ruling Linux out still leaves Windows, so it is no darwin guard.
+  assert.deepEqual(calls(`test('x', { skip: process.platform === 'linux' }, () => { ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`test('x', t => { if (process.platform === 'linux') return t.skip(); ${run} });`), { darwin: ['hdiutil'] });
+  // Review of PR 58, round 3: a shell if's else branch runs off the platform.
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then\n  hdiutil attach a.dmg\nelse\n  hdiutil attach b.dmg\nfi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then\n  hdiutil attach a.dmg\nelse\n  echo skipped\nfi\n', 'tests/mount.sh'), {});
 });
 
 test('platform guard: doctor fails a tracked test calling hdiutil without a darwin skip, passes one with it, and checks a project\'s added tool', async t => {

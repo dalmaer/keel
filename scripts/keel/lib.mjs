@@ -833,7 +833,7 @@ export function toolMatcher(tool, platform = 'darwin') {
   const exe = platform === 'win32' && !/\.exe$/i.test(words[0]) ? '(?:\\.exe)?' : '';
   const end = '(?=$|[\\s;&|)\'"`])';
   const word = w => w === '%' ? '[\'"]?%' : `${escapeRe(w)}${end}`;
-  const head = new RegExp(`(?:^|[;&|(\\n]|\\$\\(|\\b(?:sudo|xcrun|env|exec|command|time|nohup)\\s)\\s*((?:[\\w.~-]*/)*)${escapeRe(words[0])}${exe}${end}`, `gd${flags}`);
+  const head = new RegExp(`(?:^|[;&|(\\n]|\\$\\(|\\b(?:sudo|xcrun|env|exec|command|time|nohup)\\s)\\s*(?:[A-Za-z_]\\w*=(?:'[^']*'|"[^"]*"|[^\\s;&|]*)\\s+)*((?:[\\w.~-]*/)*)${escapeRe(words[0])}${exe}${end}`, `gd${flags}`);
   const whole = new RegExp(`(?:[\\w.~-]*/)*${escapeRe(words[0])}${exe}${words.slice(1).map(w => `\\s+${word(w)}`).join('')}${words.length === 1 ? end : ''}`, `y${flags}`);
   const first = new RegExp(`^(?:[\\w.~-]*/)*${escapeRe(words[0])}${exe}$`, flags);
   return {
@@ -894,8 +894,9 @@ const isLiteral = e => /^(['"`])[^'"`]+\1$/.test(e.trim()) || /^true$/.test(e.tr
 /**
  * What an expression says about running on `platform`: 'on' (true only
  * there), 'off' (false there), or null (it cannot tell). A comparison of
- * process.platform with it, a negation, a name assigned one (aliases), or a
- * comparison with another platform (=== 'linux' is off for darwin).
+ * process.platform with it, a negation, or a name assigned one (aliases).
+ * A comparison with another platform says nothing: `=== 'linux'` false
+ * still leaves Windows, so it never guards a darwin tool.
  */
 function sense(expr, platform, aliases, depth = 0) {
   let e = expr.trim();
@@ -905,7 +906,7 @@ function sense(expr, platform, aliases, depth = 0) {
   const left = new RegExp(`^${PLATFORM_EXPR}\\s*([!=])==?\\s*(['"\`])(\\w+)\\2$`).exec(e);
   const right = new RegExp(`^(['"\`])(\\w+)\\1\\s*([!=])==?\\s*${PLATFORM_EXPR}$`).exec(e);
   const [op, name] = left ? [left[1], left[3]] : right ? [right[3], right[2]] : [];
-  if (op) return name === platform ? (op === '=' ? 'on' : 'off') : op === '=' ? 'off' : null;
+  if (op) return name === platform ? (op === '=' ? 'on' : 'off') : null;
   if (/^[\w$]+$/.test(e) && aliases.has(e)) return sense(aliases.get(e), platform, aliases, depth + 1);
   return null;
 }
@@ -984,6 +985,15 @@ export function shellGuardRanges(lines, platform) {
   if (!name) return [];
   const eq = new RegExp(`(?:^|[^!])==?\\s*["']?${name}["']?`), neq = new RegExp(`!=\\s*["']?${name}["']?`);
   const fiOf = i => { let depth = 0; for (let k = i; k < lines.length; k++) { if (/^\s*if\b/.test(lines[k])) depth++; if (/(^|[\s;])fi\b/.test(lines[k]) && --depth === 0) return k; } return lines.length - 1; };
+  const elseOf = (i, fi) => {
+    let depth = 0;
+    for (let k = i; k < fi; k++) {
+      if (k > i && depth === 1 && /^\s*(?:else|elif)\b/.test(lines[k])) return k - 1;
+      if (/^\s*if\b/.test(lines[k])) depth++;
+      if (/(^|[\s;])fi\b/.test(lines[k])) depth--;
+    }
+    return fi;
+  };
   const ranges = [];
   lines.forEach((line, i) => {
     if (!/uname/.test(line) || !new RegExp(name).test(line)) return;
@@ -991,7 +1001,8 @@ export function shellGuardRanges(lines, platform) {
     if ((isEq && /\|\|\s*exit\b/.test(line)) || (isNeq && /&&\s*exit\b/.test(line))) { ranges.push([i, lines.length - 1]); return; }
     if (!/^\s*if\b/.test(line)) return;
     const fi = fiOf(i);
-    if (isEq) ranges.push([i, fi]);
+    // Only the then branch: an else (or elif) at this if's depth runs off the platform.
+    if (isEq) ranges.push([i, elseOf(i, fi)]);
     else if (isNeq && (/\bthen\s+exit\b/.test(line) || lines.slice(i + 1, fi).every(l => /^\s*(?:exit|return)\b/.test(l) || !l.trim()))) ranges.push([fi, lines.length - 1]);
   });
   return ranges;
