@@ -283,6 +283,15 @@ test('a recovery that stops before the canvas leaves a never-ran receipt too (ca
   const receipt = JSON.parse(await readFile(join(out.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
   assert.equal(receipt.provenance.runId, '200');
 });
+test('a failed rerun of an old night falls back in time order: a night that ran after its first attempt comes first (duo#93)', async t => {
+  // A#1 ran 10-01, B#1 ran 10-08, A#2 (a rerun of A) ran 10-09 and its preflight failed: B#1 is the newest state, not A#1.
+  const a1 = trustedRun({ id: 150, run_attempt: 1, run_started_at: '2026-10-01T03:00:00Z' });
+  const b1 = trustedRun({ id: 180, run_attempt: 1, run_started_at: '2026-10-08T03:00:00Z' });
+  const a2 = trustedRun({ id: 150, run_attempt: 2, run_started_at: '2026-10-09T03:00:00Z' });
+  const out = await workflow(t, { runs: [b1, a2], priorAttempt: a1, artifacts: [artifactFor(a2), artifactFor(a1), artifactFor(b1)], neverRan: { '150-2': provenanceFor(a2) }, bundle: { provenance: provenanceFor(b1) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['150', 'keel-canvas-night-2'], ['180', 'keel-canvas-night-1']]);
+});
 async function recoveryFixture(t, { seed = true, manifest = initialManifest() } = {}) {
   const root = await realpath(await fixture(t, { ...binding, enabled: true, cadence: 'nightly' }));
   const output = await realpath(await mkdtemp(join(tmpdir(), 'acme-night-state-')));

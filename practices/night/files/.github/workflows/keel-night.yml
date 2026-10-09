@@ -367,9 +367,10 @@ jobs:
               if (String(run.id) === String(process.env.GITHUB_RUN_ID)) { if (Number(process.env.GITHUB_RUN_ATTEMPT) > 1) previous.push(api(`repos/${repo}/actions/runs/${run.id}/attempts/${Number(process.env.GITHUB_RUN_ATTEMPT) - 1}`)); }
               else if (run.status === "completed" || Number(run.id) < Number(process.env.GITHUB_RUN_ID)) previous.push(run);
             }
+            // The attempt that ran last comes first: a rerun of an old night ran after the nights it follows by ID.
+            const newestFirst = (a, b) => (Date.parse(b.run_started_at ?? "") || 0) - (Date.parse(a.run_started_at ?? "") || 0) || b.id - a.id || b.run_attempt - a.run_attempt;
             const eligible = previous.filter(r => Number.isSafeInteger(r.id) && Number.isSafeInteger(r.run_attempt) && /^[a-f0-9]{40}$/.test(r.head_sha ?? "") && r.head_repository?.full_name === repo && r.repository?.full_name === repo && r.head_branch === base && r.path === ".github/workflows/keel-night.yml" && ["schedule", "workflow_dispatch"].includes(r.event) && Array.isArray(r.pull_requests) && r.pull_requests.length === 0)
-              // The attempt that ran last comes first: a rerun of an old night ran after the nights it follows by ID.
-              .sort((a, b) => (Date.parse(b.run_started_at ?? "") || 0) - (Date.parse(a.run_started_at ?? "") || 0) || b.id - a.id);
+              .sort(newestFirst);
             const bounded = file => fs.existsSync(file) && !fs.lstatSync(file).isSymbolicLink() && fs.lstatSync(file).isFile() && fs.statSync(file).size <= 64 * 1024 * 1024;
             const provenanceOf = (file, run) => {
               const p = JSON.parse(fs.readFileSync(file, "utf8")).provenance;
@@ -397,7 +398,8 @@ jobs:
               // in this run if it was a rerun, else the run before.
               if (!fs.existsSync(file) && bounded(never)) {
                 provenanceOf(never, run);
-                if (run.run_attempt > 1) queue.unshift(api(`repos/${repo}/actions/runs/${run.id}/attempts/${run.run_attempt - 1}`));
+                // Its earlier attempt takes its place in time order, never ahead of a night that ran after it.
+                if (run.run_attempt > 1) { queue.push(api(`repos/${repo}/actions/runs/${run.id}/attempts/${run.run_attempt - 1}`)); queue.sort(newestFirst); }
                 continue;
               }
               if (!bounded(file)) fail("The trusted artifact has no bounded recovery.json; snapshots alone cannot reconstruct ownership.");
