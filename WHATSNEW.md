@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.26 — practice 0.8.26 (2026-10-09)
+
+- **Canvas recovery follows when each night ran**, not its run id: an old night rerun after newer ones recovers from them, and the next night recovers from that rerun. Any failure before the canvas is touched leaves a never-ran receipt, so a passing API error cannot stop later nights.
+- **A GitHub answer with errors is refused even when it carries data**: a partial answer could hide a page of PRs and give a false zero for unanswered reviews.
+
 ## v0.8.25 — practice 0.8.25 (2026-10-09)
 
 - **Canvas recovery after a rerun** asks only this run for an earlier attempt (never a newer, queued run), and a rerun whose preflight failed falls back to that run's earlier attempt before any older run.
