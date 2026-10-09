@@ -1,6 +1,6 @@
 {
   "name": "climb",
-  "summary": "Climb nights: on a schedule, an agent improves one number (the suite's time, a flaky test, the build's time, the project's own benchmark) or proposes for the owner (a distill pass over its lessons, a rank for each Loop finding) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR and decides every proposal. With \"tend\" set, a weekly tend pass resolves the night's record findings the same way.",
+  "summary": "Climb nights: on a schedule, an agent improves one number (the suite's time, a flaky test, the build's time, the project's own benchmark) or proposes for the owner (a distill pass over its lessons, a rank for each Loop finding) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR and decides every proposal. With \"tend\" set, a weekly tend pass resolves the night's record findings the same way; with \"robot\": { \"on\": true }, an agent works the issues labelled keel:agent, one PR each, within a weekly budget.",
   "optional": true,
   "requires": ["night"],
   "secrets": [
@@ -10,13 +10,21 @@
     { "name": "STITCH_API_KEY", "why": "a loop night's pull (the loop practice's key); without it the night proposes for the findings already pulled, with a notice", "workflow": ".github/workflows/keel-climb.yml" },
     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "the same credential, for the weekly tend pass; it spends model tokens up to .keel/keel.json tend.budget.minutes, and only when \"tend\" is set", "workflow": ".github/workflows/keel-tend.yml" },
     { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN for the tend pass; set one of the two, not both", "workflow": ".github/workflows/keel-tend.yml" },
-    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the tend pass, only when tend.agent is \"codex\": billed per token to the OpenAI API account, up to tend.budget.minutes", "workflow": ".github/workflows/keel-tend.yml" }
+    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the tend pass, only when tend.agent is \"codex\": billed per token to the OpenAI API account, up to tend.budget.minutes", "workflow": ".github/workflows/keel-tend.yml" },
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "the same credential, for the robot: each run on a keel:agent issue spends model tokens, within .keel/keel.json robot.budgetMinutes a week, and only when \"robot\": { \"on\": true } is set", "workflow": ".github/workflows/keel-robot.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN for the robot; set one of the two, not both", "workflow": ".github/workflows/keel-robot.yml" },
+    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the robot, only when robot.agent is \"codex\": billed per token to the OpenAI API account, within robot.budgetMinutes a week", "workflow": ".github/workflows/keel-robot.yml" }
   ],
   "files": [
     { "path": ".github/workflows/keel-climb.yml", "from": ".github/workflows/keel-climb.yml", "kind": "managed" },
     { "path": ".github/workflows/keel-tend.yml", "from": ".github/workflows/keel-tend.yml", "kind": "managed" },
     { "path": "scripts/keel/climb.mjs", "from": "scripts/keel/climb.mjs", "kind": "managed" },
     { "path": "scripts/keel/tend.mjs", "from": "scripts/keel/tend.mjs", "kind": "managed" },
+    { "path": ".github/workflows/keel-robot.yml", "from": ".github/workflows/keel-robot.yml", "kind": "managed" },
+    { "path": "scripts/keel/robot.mjs", "from": "scripts/keel/robot.mjs", "kind": "managed" },
+    { "path": "scripts/keel/rubric.mjs", "from": "scripts/keel/rubric.mjs", "kind": "managed" },
+    { "path": ".agents/climb/ROBOT.md", "from": ".agents/climb/ROBOT.md", "kind": "managed" },
+    { "path": ".github/ISSUE_TEMPLATE/keel-agent.md", "from": ".github/ISSUE_TEMPLATE/keel-agent.md", "kind": "managed" },
     { "path": "scripts/keel/distill.mjs", "from": "scripts/keel/distill.mjs", "kind": "managed" },
     { "path": ".agents/climb/PROTOCOL.md", "from": ".agents/climb/PROTOCOL.md", "kind": "managed" },
     { "path": ".agents/climb/TEND.md", "from": ".agents/climb/TEND.md", "kind": "managed" },

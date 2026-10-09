@@ -141,7 +141,8 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     const needs = { walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'],
-      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'] };
+      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'],
+      'issue new': ['--agent', '--title', 'Acme lid', '--wrong', 'The lid sticks.', '--see', 'npm test', '--mended', 'npm test passes.', '--repo', 'acme/app', '--dry-run'] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
     const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
     const cwdOf = name => name === 'prove' ? proving : dir;

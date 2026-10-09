@@ -1,10 +1,11 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G4
 spec: 2
 depends: [45, 47]
-note: "Review comments answered 'tracked' file issues nobody works. An issue labelled keel:agent, written to a rubric (what is wrong, how to see it, how to tell it is mended, nothing only the owner can give, one change), is worked by an agent through climb's sandbox: a PR reviewed by the other provider, the agent's last message posted on the issue, the next run started by the owner's comment. Opt-in with a weekly budget. Design: research/2026-10-09-robot-and-time.md (phase 54)."
+note: "Built: keel-robot.yml (practice climb) works the issues labelled keel:agent through climb's three jobs, one at a time per project, on the label, a reopen, a writer's comment and Mondays; an issue missing a rubric field gets one comment and is not worked; the result is a PR on keel/robot-<issue> (Closes #N) and the agent's last message on the issue; off without robot.on, and it waits past its weekly budget. keel issue new --agent writes the rubric. Owes the walk: the owner turns it on for one project and reads three PRs and their reviews. Design: research/2026-10-09-robot-and-time.md (phase 54)."
 evidence: []
 issue: 41
 ---
@@ -29,22 +30,22 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 
 ## Acceptance
 
-- [ ] `keel issue new --agent` writes an issue with every rubric field; the triage names each missing field on an issue that lacks it and refuses to work it. `tests/robot.test.mjs`
-- [ ] `keel-robot.yml` runs only for a `keel:agent` label, a reopen, or a comment from write access (a bot's or a stranger's comment runs nothing); one issue at a time per project. `tests/workflows.test.mjs`
-- [ ] The robot's jobs hold every climb sandbox rule for both providers (agent and judge read-only, publish runs nothing from the branch), and the result is a PR on `keel/robot-<issue>` with `closes #N`, never a push to main. `tests/workflows.test.mjs`
-- [ ] The agent's last message is posted on the issue; the next run's brief carries the comments since the last run. `tests/robot.test.mjs`
-- [ ] Off without `"robot": { "on": true }`; past its weekly budget it waits and says so. `tests/robot.test.mjs`
+- [x] `keel issue new --agent` writes an issue with every rubric field; the triage names each missing field on an issue that lacks it and refuses to work it. `tests/robot.test.mjs`
+- [x] `keel-robot.yml` runs only for a `keel:agent` label, a reopen, or a comment from write access (a bot's or a stranger's comment runs nothing); one issue at a time per project. `tests/workflows.test.mjs`
+- [x] The robot's jobs hold every climb sandbox rule for both providers (agent and judge read-only, publish runs nothing from the branch), and the result is a PR on `keel/robot-<issue>` with `closes #N`, never a push to main. `tests/workflows.test.mjs`
+- [x] The agent's last message is posted on the issue; the next run's brief carries the comments since the last run. `tests/robot.test.mjs`
+- [x] Off without `"robot": { "on": true }`; past its weekly budget it waits and says so. `tests/robot.test.mjs`
 - [ ] ⚑ by hand: the owner turns the robot on for one project with a budget, labels three issues, and reads each PR and its review.
 
 ## Your part
 
-- **Ask:** Turn the robot on for one project, give it a weekly budget, and label three small issues for it.
+- **Ask:** Turn the robot on for one project (`"robot": { "on": true, "budgetMinutes": <minutes a week> }`), give it a weekly budget, and label three small issues `keel:agent` (written with `keel issue new --agent`, or the issue template). With cross-review on, add `"keel/robot-"` to its `for` and comment `/review` on each PR.
 - **Why:** It is the only way to see whether an agent working alone, with a second provider reviewing, makes PRs you would merge.
-- **Look at:** The three PRs it opens and their reviews.
+- **Look at:** The three PRs it opens, their reviews, and the agent's last message on each issue.
 - **Choices:** Keep it on | Keep it, with a smaller budget | Turn it off
 - **Takes:** 20 minutes over a week.
 - **Then:** Keep it on: the phase is built, and accepted time proposals (phase 57) start going to it. Smaller budget: the new budget is recorded and the week runs again. Turn it off: what it got wrong goes into this phase's evidence.
-- **Ready when:** the robot pass is built and the project has an `OPENAI_API_KEY` or Claude token for its provider.
+- **Ready when:** the robot pass is built and the project has an `OPENAI_API_KEY` or Claude token for its provider, and the `keel:agent` label exists there.
 
 ## Real surfaces
 
@@ -62,7 +63,20 @@ By hand: three issues worked on a real project, read by the owner.
 
 - **Whether the robot merges its own reviewed PR**: never, for now. A person merges. Revisited after the owner's week.
 - **Issues across the fleet**: one project first. Settled by the week.
+- **The review starts on a `/review`**: a PR the workflow's token opens starts no other workflow (GitHub's rule), so cross-review does not start on a robot PR by itself. Its reviewer is right (a robot PR's author is `"robot".agent`, so the other provider reviews it), but someone with write access comments `/review`. A dispatch from the robot's publish job (cross-review taking `workflow_dispatch`) is the follow-up, settled by the owner's week.
+- **`keel review --close … --tracked --file-agent-issue`**: not built. It would grow `keel review` (a write on another verb's path) beyond this phase; `keel issue new --agent` files the same shape by hand meanwhile. Settled when tracked answers start piling up unworked.
+- **The board saying the robot waits**: the run says so (a green notice naming the minutes used and the day it starts again) and the night's Budget line shows the robot's runs, but `keel board` does not read the robot's week yet. Settled when the owner looks for it there.
+- **An agent filing a fault outside its work**: the robot's agent cannot reach gh, so it names the fault in its last message ("Also found"); an agent with gh files it with `keel issue new --agent` (the agent guide says so).
 
 ## Next action
 
-Write the rubric into the agent guide and `keel issue new --agent`; then brief a builder on `keel-robot.yml` from climb's jobs.
+⚑ The walk: the owner turns the robot on for one project with a weekly budget, labels three small issues `keel:agent`, and reads each PR, its review and the agent's message on the issue.
+
+## Trajectory
+
+- **2026-10-09** — The rubric has one home, `scripts/keel/rubric.mjs` (climb practice, no imports): `keel issue new --agent` imports it from the practice tree, robot.mjs triages with it, and the issue template is it unfilled. The three boxes (nothing only the owner can give, one change, nothing unpushed) are ticked boxes under `## For an agent`; a comment never fills a field, editing the body does.
+- **2026-10-09** — The event only wakes the robot: `robot.mjs pick` reads the labelled issues and chooses the oldest never worked or with a writer's comment (or a reopen, or the label again) since its last run, the robot's own marked comment. So a queued run that GitHub replaces loses nothing, and the concurrency group is one per project (`keel-robot-queue`), with a run that will not work in a group of its own, as cross-review's.
+- **2026-10-09** — Each run starts from the default branch, not from the open robot PR: running the PR's code where the setup token is would break ledger#92's rule. The brief carries the open PR's diff instead, and the push replaces the PR's commits.
+- **2026-10-09** — The triage is posted by the publish job, which reads each issue again (`robot.mjs triage --post`) from the pick's issue numbers, never from anything the agent's job handed on: the agent could have written its hand-off.
+- **2026-10-09** — The weekly use counts every run whose agent step ran, an agent that stopped with an error too (it spent its minutes), unlike the Budget line's per-run suggestion, which skips a run whose agent never started. `"robot"` joined `AGENT_PASSES`, the adapters' passes and the Budget line (`runMinutes`, the per-run box: a pass's `field` and `on`).
+- **2026-10-09** — robot.mjs keeps its own copy of climb.mjs `lastResult`: climb.mjs loads robot.mjs for `guard --job robot`, and an import back under climb.mjs's top-level await never settled (the run hung, exit 13).

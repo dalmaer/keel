@@ -17,6 +17,7 @@
 //   node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" [--runs n] [--decide]
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
+//                                   (--job tend: tend.mjs's guard; --job robot: robot.mjs's, phase 54)
 //   node scripts/keel/climb.mjs sandbox --base r --head r     the agent's commits change no workflow, keel script, config or install file (git only)
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f] [--base r]
 //   (a judge passes --base, the run's commit, to settle, guard, compare --final and report: a
@@ -1729,7 +1730,10 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: r, text: r.dropped ? `settled on ${r.head.slice(0, 7)}: dropped what no compare kept` : `settled: HEAD ${r.head.slice(0, 7)} is the last decision` };
     }
     case 'guard': {
-      const g = o.job === 'tend' ? await tendGuard({ ...ctx, base: o.base, check: CHECK }) : await guard({ ...ctx, base: o.base, job: o.job });
+      // The robot's guard (phase 54) lives in robot.mjs, loaded only when it runs.
+      const g = o.job === 'tend' ? await tendGuard({ ...ctx, base: o.base, check: CHECK })
+        : o.job === 'robot' ? await (await import('./robot.mjs')).robotGuard({ ...ctx, base: o.base, check: CHECK })
+          : await guard({ ...ctx, base: o.base, job: o.job });
       const noted = (g.noted ?? []).map(n => `  note: ${n.message}`);
       return { data: g, text: g.ok ? [`guard: ${g.line}`, ...noted].join('\n') : `guard failed:\n${g.problems.map(p => `  ${p}`).join('\n')}`, exitCode: g.ok ? 0 : 1 };
     }

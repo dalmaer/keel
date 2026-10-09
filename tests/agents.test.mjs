@@ -1,6 +1,6 @@
 // Agents are providers (keel phase 45): which agent runs each pass, the
 // adapter each provider is, and the rules that hold for both. The config is
-// .keel/keel.json "agents" and an "agent" on crossReview, climb and tend; the
+// .keel/keel.json "agents" and an "agent" on crossReview, climb, tend and robot (phase 54); the
 // adapters are lib.mjs AGENTS. Synthetic Acme fixtures; no model, no network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,9 +18,9 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
 const CROSS = join(KEEL, 'practices/cross-review/files');
 const CLIMB = join(KEEL, 'practices/climb/files');
-const WORKFLOW = { crossReview: 'keel-cross-review.yml', climb: 'keel-climb.yml', tend: 'keel-tend.yml' };
+const WORKFLOW = { crossReview: 'keel-cross-review.yml', climb: 'keel-climb.yml', tend: 'keel-tend.yml', robot: 'keel-robot.yml' };
 // crossReview's prefix here is no provider's branch, so its "agent" decides (the fallback); per-PR choice is tested below.
-const ON = { crossReview: { for: ['acme/'] }, climb: { jobs: ['test-time'] }, tend: {} };
+const ON = { crossReview: { for: ['acme/'] }, climb: { jobs: ['test-time'] }, tend: {}, robot: { on: true, budgetMinutes: 60 } };
 
 /** The three scripts as a project has them: in scripts/keel beside the night's lib.mjs. */
 let loaded = null;
@@ -31,9 +31,9 @@ const scripts = () => loaded ??= (async () => {
   await mkdir(keel, { recursive: true });
   for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
   await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
-  for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
+  for (const f of ['climb.mjs', 'tend.mjs', 'robot.mjs', 'rubric.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
   const at = f => import(pathToFileURL(join(keel, f)).href);
-  return { cross: await at('cross-review.mjs'), climb: await at('climb.mjs'), tend: await at('tend.mjs') };
+  return { cross: await at('cross-review.mjs'), climb: await at('climb.mjs'), tend: await at('tend.mjs'), robot: await at('robot.mjs') };
 })();
 
 /** Each shipped workflow by its pass: { practice, path, text, declared }. */
@@ -57,7 +57,7 @@ const withOf = step => Object.fromEntries((/\n {8}with:\n((?: {10}.*\n?)+)/.exec
 
 test('config: an agent not listed in "agents", an unknown provider and a malformed "agents" are errors; no agent means claude', async () => {
   assert.equal(DEFAULT_AGENT, 'claude');
-  assert.deepEqual([...AGENT_PASSES], ['crossReview', 'climb', 'tend']);
+  assert.deepEqual([...AGENT_PASSES], ['crossReview', 'climb', 'tend', 'robot']);
   for (const key of AGENT_PASSES) {
     // No "agents", no "agent": claude, as before phase 45.
     assert.equal(agentOf({ [key]: ON[key] }, key), 'claude');
@@ -94,7 +94,7 @@ test('config: an agent not listed in "agents", an unknown provider and a malform
 test('config: Codex reviews, and runs a climb night and a tend pass (phase 47: it commits to its own git dir); listed, like any provider', async () => {
   const codex = { agents: { claude: {}, codex: {} } };
   assert.deepEqual(passAgentProblems({ ...codex, crossReview: { for: ['claude/'], agent: 'codex' } }, 'crossReview'), []);
-  for (const key of ['climb', 'tend']) {
+  for (const key of ['climb', 'tend', 'robot']) {
     assert.deepEqual(passAgentProblems({ ...codex, [key]: { ...ON[key], agent: 'codex' } }, key), [], key);
     assert.deepEqual(passAgentProblems({ agents: { codex: {} }, [key]: { ...ON[key], agent: 'codex' } }, key), [], `${key}: codex alone`);
     const unlisted = passAgentProblems({ [key]: { ...ON[key], agent: 'codex' } }, key);
@@ -102,13 +102,13 @@ test('config: Codex reviews, and runs a climb night and a tend pass (phase 47: i
     assert.match(unlisted[0], new RegExp(`^"${key}"\\.agent is codex, which "agents" does not list`));
   }
   assert.deepEqual(AGENTS.codex.refused, {});
-  assert.deepEqual([...AGENTS.codex.passes], ['crossReview', 'climb', 'tend']);
+  assert.deepEqual([...AGENTS.codex.passes], ['crossReview', 'climb', 'tend', 'robot']);
   // Never the sandbox that can write .git, never sudo: workspace-write and drop-sudo, as the workflows hold it.
   assert.deepEqual({ ...AGENTS.codex.editTree }, { sandbox: 'workspace-write', 'safety-strategy': 'drop-sudo' });
 });
 
 test('config: each pass\'s own validator holds the agent rules, and the scripts exit 2 naming the key', async () => {
-  const { cross, climb, tend } = await scripts();
+  const { cross, climb, tend, robot } = await scripts();
   const two = { agents: { claude: {}, codex: {} } };
   // The key is known to each validator.
   assert.deepEqual(cross.crossReviewProblems({ ...two, crossReview: { for: ['claude/'], agent: 'codex' } }), []);
@@ -124,6 +124,10 @@ test('config: each pass\'s own validator holds the agent rules, and the scripts 
   assert.throws(() => climb.climbConfigOf({ climb: { jobs: ['test-time'], agent: 'codex' } }), e => e.exitCode === 2 && /"climb"\.agent is codex, which "agents" does not list/.test(e.message));
   assert.throws(() => tend.tendConfigOf({ tend: { agent: 'codex' } }), e => e.exitCode === 2 && /"tend"\.agent is codex, which "agents" does not list/.test(e.message));
   assert.throws(() => tend.tendConfigOf({ agents: { acme: {} }, tend: {} }), e => /unknown provider "acme"/.test(e.message));
+  // Phase 54: the robot's validator holds them too.
+  assert.deepEqual(robot.robotProblems({ ...two, robot: { ...ON.robot, agent: 'codex' } }), []);
+  assert.equal(robot.robotConfigOf({ ...two, robot: { ...ON.robot, agent: 'codex' } }).agent, 'codex');
+  assert.throws(() => robot.robotConfigOf({ robot: { ...ON.robot, agent: 'codex' } }), e => e.exitCode === 2 && /"robot"\.agent is codex, which "agents" does not list/.test(e.message));
   // The command line, in an Acme project.
   const dir = await mkdtemp(join(tmpdir(), 'keel-agents-acme-'));
   try {

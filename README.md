@@ -79,7 +79,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
-| `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR | A speed-up nobody measured against noise; a test quietly gone |
+| `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR. With the robot on, an agent works the issues labelled `keel:agent`, one PR each, within a weekly budget | A speed-up nobody measured against noise; a test quietly gone; a tracked issue nobody works |
 | `cross-review` *(optional)* | An available provider reviews another provider's PRs, falling back to self-review when necessary; inline P1/P2/P3 findings validated against the code, read-only and budgeted, never approves or merges | Review tied to one provider or running in only one direction |
 
 **Who owns which file.** Every file keel writes is one of three kinds:
@@ -138,7 +138,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Plan with phases and goals](docs/guide/plan-with-phases-and-goals.md) | you are lining up the work and saying what done means |
 | [Conduct a phase](docs/guide/conduct-a-phase.md) | a phase is specified and you want it built without trusting the builder's word |
 | [The night shift](docs/guide/the-night-shift.md) | you want to know each morning whether the practice is holding |
-| [Climb and tend](docs/guide/climb-and-tend.md) | you want an agent to improve a number, or keep the records true, while you sleep |
+| [Climb and tend](docs/guide/climb-and-tend.md) | you want an agent to improve a number, keep the records true, or work the issues you hand it |
 | [Lessons and learning](docs/guide/lessons-and-learning.md) | a bug turned out to have a shape, or lessons are waiting at home |
 | [Keep the fleet current](docs/guide/keep-the-fleet-current.md) | the practice changed and every project should have it |
 | [Reviews and PRs](docs/guide/reviews-and-prs.md) | a PR from keel arrived, or a reviewer commented on one |
@@ -172,6 +172,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
 | `keel lessons` | Send what this project learned home to keel |
 | `keel drain <prefix>` | Keep one open PR per machine queue (the nightly runs this) |
+| `keel issue new --agent` | File an issue the robot can work, in its rubric's shape (what is wrong, how to see it, how to tell it is mended), labelled `keel:agent`; `--dry-run` prints it |
 | `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
 | `keel prove <test> --fix <path>...` | A fix is proven by its test failing without it: runs the test with the fix reverted in a scratch copy of the repository, then with it, and prints VERIFIED, NOT WORKING or INCONCLUSIVE; `--trailer` gives the `Proven-by:` line a `fix:` commit carries. Never touches your tree |
 

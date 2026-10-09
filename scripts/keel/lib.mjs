@@ -70,7 +70,7 @@
 //   AGENTS, agentOf(config, key), passAgentProblems(config, key), codexVerdict,
 //   AGENT_GIT_DIR, agentGitArgs(cwd)
 //                            which agent runs a pass (.keel/keel.json "agents",
-//                            and "agent" on crossReview, climb and tend):
+//                            and "agent" on crossReview, climb, tend and robot):
 //                            each provider an adapter, keel's rules its own
 //                            (phase 45); authorOf(head), reviewerOf(…): a PR
 //                            is reviewed by a provider other than its author;
@@ -1215,17 +1215,22 @@ export const BUDGET_STEPS = Object.freeze({
   'keel-tend.yml': Object.freeze({ agent: 'Tend', check: AGENT_CHECK }),
   'keel-climb.yml': Object.freeze({ agent: 'Climb', check: AGENT_CHECK }),
   'keel-cross-review.yml': Object.freeze({ agent: 'Review', check: AGENT_CHECK }),
+  'keel-robot.yml': Object.freeze({ agent: 'Work the issue', check: AGENT_CHECK }),
 });
 /**
  * The budgeted passes, in the line's order: the config key that turns each on,
  * its workflow, the default minutes (tend.mjs TEND_DEFAULTS, climb.mjs DEFAULTS,
- * cross-review.mjs DEFAULTS), and whether its runs are on the default branch
- * (cross-review runs on its PR's branch).
+ * cross-review.mjs DEFAULTS, robot.mjs DEFAULTS), and whether its runs are on
+ * the default branch (cross-review runs on its PR's branch). A pass whose
+ * minutes are not `budget.minutes` names its `field` (the robot's per-run box,
+ * runMinutes; its weekly budgetMinutes is robot.mjs's to spend), and one that
+ * is on only when its config says so names `on` (the robot's "on": true).
  */
 export const BUDGET_PASSES = Object.freeze([
   { pass: 'tend', key: 'tend', workflow: 'keel-tend.yml', minutes: 30, branch: true, defaults: [['0.0.0', 30]] },
   { pass: 'climb', key: 'climb', workflow: 'keel-climb.yml', minutes: 45, branch: true, defaults: [['0.0.0', 45]] },
   { pass: 'cross-review', key: 'crossReview', workflow: 'keel-cross-review.yml', minutes: 15, branch: false, defaults: [['0.0.0', 15]] },
+  { pass: 'robot', key: 'robot', workflow: 'keel-robot.yml', minutes: 30, branch: true, defaults: [['0.0.0', 30]], field: 'runMinutes', on: c => c?.on === true },
 ]);
 // `defaults`: [practice version, the default from it], oldest first. Changing a
 // pass's default appends an entry (a test holds the newest equal to `minutes`),
@@ -1241,14 +1246,19 @@ export const BUDGET_HISTORY = 10;
 
 /** The budgeted passes that are on: [{ pass, workflow, step, check, minutes, branch }], with today's budget. */
 export function budgetPasses(config) {
-  return BUDGET_PASSES.filter(p => config?.[p.key] !== undefined && config[p.key] !== null)
+  return BUDGET_PASSES.filter(p => passOn(config, p))
     .map(p => ({ pass: p.pass, key: p.key, workflow: p.workflow, step: BUDGET_STEPS[p.workflow].agent, check: BUDGET_STEPS[p.workflow].check, minutes: budgetOf(config, p), raw: budgetRaw(config, p), branch: p.branch }));
 }
 
-/** A pass's budget in a config: its budget.minutes, else its default (a missing key too). `pass`: a BUDGET_PASSES entry (or one with its key). */
+/** Whether a budgeted pass is on in a config: its key is there (and, for a pass with `on`, says so). */
+const passOn = (config, p) => config?.[p.key] !== undefined && config[p.key] !== null && (!p.on || p.on(config[p.key]));
+/** A pass's minutes as a config writes them: its `field`, else budget.minutes. */
+const minutesIn = (config, def) => (def.field ? config?.[def.key]?.[def.field] : config?.[def.key]?.budget?.minutes);
+
+/** A pass's budget in a config: its budget.minutes (or its `field`), else its default (a missing key too). `pass`: a BUDGET_PASSES entry (or one with its key). */
 export function budgetOf(config, pass) {
   const def = BUDGET_PASSES.find(p => p.key === pass.key) ?? pass;
-  const m = config?.[def.key]?.budget?.minutes;
+  const m = minutesIn(config, def);
   return Number.isFinite(m) && m > 0 ? m : def.minutes;
 }
 
@@ -1257,10 +1267,10 @@ const versionAtMost = (a, b) => { const x = versionParts(a), y = versionParts(b)
 
 /** A pass's budget as that config ran it: 'off' when the pass is not on there; its budget.minutes; else the default of the config's own practice version (a default can change between releases), never today's. */
 export function budgetRaw(config, pass) {
-  if (config?.[pass.key] === undefined || config?.[pass.key] === null) return 'off';
-  const m = config[pass.key]?.budget?.minutes;
-  if (Number.isFinite(m) && m > 0) return m;
   const def = pass.defaults ? pass : BUDGET_PASSES.find(p => p.key === pass.key) ?? pass;
+  if (!passOn(config, def)) return 'off';
+  const m = minutesIn(config, def);
+  if (Number.isFinite(m) && m > 0) return m;
   const table = def.defaults ?? [['0.0.0', def.minutes]];
   return (config?.practice ? table.filter(([v]) => versionAtMost(v, config.practice)).at(-1) : null)?.[1] ?? table[0][1];
 }
@@ -1749,8 +1759,8 @@ export async function main(fn, argv = process.argv.slice(2)) {
 //
 // A provider is an adapter; the rules are keel's. .keel/keel.json names the
 // providers a project uses ("agents": { "claude": {}, "codex": {} }) and each
-// pass names which one runs it ("agent" on crossReview, climb and tend,
-// default claude). The adapter says what differs: the action and its major,
+// pass names which one runs it ("agent" on crossReview, climb, tend and
+// robot, default claude). The adapter says what differs: the action and its major,
 // its secrets, how "read-only" and "may edit the tree" are said to it, where
 // its final message and its error are read, and who its comments carry.
 // What does not differ is tested once per provider (tests/workflows.test.mjs):
@@ -1759,7 +1769,7 @@ export async function main(fn, argv = process.argv.slice(2)) {
 // tests/agents.test.mjs holds these adapters to the shipped workflows.
 
 /** The passes an agent runs, by their .keel/keel.json key. */
-export const AGENT_PASSES = Object.freeze(['crossReview', 'climb', 'tend']);
+export const AGENT_PASSES = Object.freeze(['crossReview', 'climb', 'tend', 'robot']);
 /** A pass that names no agent runs this one, as it did before phase 45. */
 export const DEFAULT_AGENT = 'claude';
 /** Who posts a cross-review's findings since phase 45: the workflow's own step, with the job's token, for every provider. */
@@ -1810,7 +1820,7 @@ export const AGENTS = Object.freeze({
     // (claude-code-action's commits; Claude Code's "Co-Authored-By: Claude … <noreply@anthropic.com>").
     // An email, never a name: a person may be named Claude (keel#65).
     commits: Object.freeze({ emails: /^(?:noreply@anthropic\.com|(?:\d+\+)?claude\[bot\]@users\.noreply\.github\.com)$/i }),
-    passes: Object.freeze(['crossReview', 'climb', 'tend']),
+    passes: Object.freeze(['crossReview', 'climb', 'tend', 'robot']),
     refused: Object.freeze({}),
   }),
   codex: Object.freeze({
@@ -1829,7 +1839,7 @@ export const AGENTS = Object.freeze({
     login: null,
     // Phase 60: a commit is Codex's when its author or a Co-authored-by trailer is one of these (Codex cloud's connector, the Codex CLI).
     commits: Object.freeze({ emails: /^(?:noreply@openai\.com|codex@openai\.com|(?:\d+\+)?(?:chatgpt-codex-connector|codex)\[bot\]@users\.noreply\.github\.com)$/i }),
-    passes: Object.freeze(['crossReview', 'climb', 'tend']),
+    passes: Object.freeze(['crossReview', 'climb', 'tend', 'robot']),
     refused: Object.freeze({}),
   }),
 });
@@ -1854,6 +1864,8 @@ export const listedAgents = config => (isObject(config?.agents) ? Object.keys(co
 
 /** Who wrote a PR: the provider whose `branch` its head ref starts with, else null. */
 export const authorOf = (head, agents = AGENTS) => Object.keys(agents).find(n => agents[n].branch && String(head ?? '').startsWith(agents[n].branch)) ?? null;
+/** The robot's branches (keel phase 54, robot.mjs PREFIX): written by the provider "robot".agent names. */
+export const ROBOT_BRANCH = 'keel/robot-';
 
 /**
  * Every provider a "for" prefix's PRs can be written by: a prefix that
@@ -1881,7 +1893,9 @@ export function prefixAuthors(prefix, agents = AGENTS) {
  * { author, reviewer, self, why }: reviewer null when none can. Pure.
  */
 export function reviewerOf({ config, head, has, agents = AGENTS }) {
-  const author = authorOf(head, agents);
+  // A robot PR (keel/robot-<issue>) was written by the robot's provider: reviewed by another, as any provider's.
+  const robot = String(head ?? '').startsWith(ROBOT_BRANCH) && isObject(config?.robot) ? agentOf(config, 'robot') : null;
+  const author = authorOf(head, agents) ?? (Object.hasOwn(agents, robot ?? '') ? robot : null);
   const listed = listedAgents(config).filter(n => agents[n]?.passes.includes('crossReview'));
   const available = n => !has || has[n] !== false;
   if (!author) {
@@ -1890,7 +1904,7 @@ export function reviewerOf({ config, head, has, agents = AGENTS }) {
   }
   const others = listed.filter(n => n !== author);
   const other = others.find(available);
-  const wrote = `written by ${author} (${agents[author].branch})`;
+  const wrote = authorOf(head, agents) ? `written by ${author} (${agents[author].branch})` : `written by ${author} (${ROBOT_BRANCH}, "robot".agent)`;
   if (other) return { author, reviewer: other, self: false, why: `${wrote}: reviewed by ${other}, the first other provider "agents" lists${others[0] !== other ? ` with its secret set (${others.slice(0, others.indexOf(other)).join(', ')} has none)` : ''}` };
   if (listed.includes(author) && available(author)) {
     const reason = selfReason({ author, listed, has, agents });

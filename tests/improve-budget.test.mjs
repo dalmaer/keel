@@ -184,7 +184,7 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
   // Every shipped pass's newest default is its default today: a changed default must be recorded.
   for (const p of BUDGET_PASSES) assert.equal(p.defaults.at(-1)[1], p.minutes, p.pass);
   // And today's defaults are the passes' own: the scripts that set the timeout.
-  const own = { tend: (await import('../scripts/keel/tend.mjs')).TEND_DEFAULTS.minutes, climb: (await import('../scripts/keel/climb.mjs')).DEFAULTS.minutes, 'cross-review': Number(/export const DEFAULTS = Object\.freeze\(\{ minutes: (\d+) \}\)/.exec(await readFile(new URL('../practices/cross-review/files/scripts/keel/cross-review.mjs', import.meta.url), 'utf8'))?.[1]) };
+  const own = { tend: (await import('../scripts/keel/tend.mjs')).TEND_DEFAULTS.minutes, climb: (await import('../scripts/keel/climb.mjs')).DEFAULTS.minutes, 'cross-review': Number(/export const DEFAULTS = Object\.freeze\(\{ minutes: (\d+) \}\)/.exec(await readFile(new URL('../practices/cross-review/files/scripts/keel/cross-review.mjs', import.meta.url), 'utf8'))?.[1]), robot: (await import('../scripts/keel/robot.mjs')).DEFAULTS.runMinutes };
   assert.deepEqual(Object.fromEntries(BUDGET_PASSES.map(p => [p.pass, p.minutes])), own);
 
   // Lowered 30 to 15: the long runs before are not counted against 15 either.

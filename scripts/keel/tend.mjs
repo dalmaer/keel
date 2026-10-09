@@ -412,6 +412,28 @@ const firstAdded = (root, base, head, path) => {
 };
 
 /**
+ * The record rules any agent's branch keeps (keel phase 54: the robot's, as
+ * tend's): no file added or edited under docs/evidence/, no front-matter
+ * status changed to built, lived-in or accepted, no acceptance box ticked.
+ * [string], each naming the line. `who` names the agent in the text.
+ */
+export function recordRules(root, base, head, who = 'the agent') {
+  const refused = [];
+  const changes = git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [s, ...p] = l.split('\t'); return { status: s, path: p.join('\t') }; });
+  for (const { status, path } of changes) {
+    if (status.startsWith('D')) continue;
+    if (path.startsWith('docs/evidence/')) { refused.push(`${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; ${who} never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
+    if (!path.endsWith('.md')) continue;
+    const before = showAt(root, base, path), after = showAt(root, head, path);
+    const a = frontStatus(after), b = frontStatus(before);
+    if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; ${who} never marks a phase built, lived-in or accepted`);
+    const was = new Set(ticked(before).map(x => x.text));
+    for (const x of ticked(after)) if (!was.has(x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); ${who} never accepts a phase`);
+  }
+  return refused;
+}
+
+/**
  * The tend guard over base..head: { refused: [string] }. Refuses, naming the
  * line: any file added or edited under docs/evidence/; a front-matter status
  * changed to built, lived-in or accepted; an acceptance box ticked; any

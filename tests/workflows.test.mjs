@@ -25,6 +25,7 @@ export const PREFIX = {
   'keel-loop.yml': 'keel-loop/',
   'keel-climb.yml': 'keel-climb/',
   'keel-tend.yml': 'keel-tend/',
+  'keel-robot.yml': 'keel/robot-',
   'claude.yml': 'claude/',
   'keel-cross-review.yml': null,
   'check.yml': null,
@@ -99,7 +100,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-tend.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-robot.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -1123,10 +1124,11 @@ test('one major version per action across every workflow keel ships and keel\'s 
  * endsWith, contains and fromJSON. As GitHub does: == on strings ignores
  * case, a missing property is null, and null, false, 0 and '' are falsy.
  * With { value: true }, the value itself (a concurrency group's), and format.
+ * The object filter `.*` (phase 54: labels.*.name) maps what follows over a list.
  */
 export function evalExpression(source, ctx, { value = false } = {}) {
   const tokens = [];
-  const re = /\s*(?:('(?:[^']|'')*')|(\d+(?:\.\d+)?)|(&&|\|\||==|!=|!|\(|\)|,|\.|\[|\])|([A-Za-z_][\w-]*))/y;
+  const re = /\s*(?:('(?:[^']|'')*')|(\d+(?:\.\d+)?)|(&&|\|\||==|!=|!|\(|\)|,|\.|\[|\]|\*)|([A-Za-z_][\w-]*))/y;
   let at = 0;
   const src = source.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, '$1').trim();
   while (at < src.length) {
@@ -1170,9 +1172,13 @@ export function evalExpression(source, ctx, { value = false } = {}) {
       return fns[t.id](...args);
     }
     if (!t.id) throw new Error(`unexpected ${JSON.stringify(t)}`);
-    let v = ctx[t.id] ?? null;
+    let v = ctx[t.id] ?? null, spread = false;
     for (;;) {
-      if (op('.')) { const k = tokens[i++]?.id; v = v?.[k] ?? null; }
+      if (op('.')) {
+        if (op('*')) { v = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []; spread = true; continue; }
+        const k = tokens[i++]?.id;
+        v = spread ? v.map(x => x?.[k] ?? null) : v?.[k] ?? null;
+      }
       else if (op('[')) { const k = or(); need(']'); v = v?.[k] ?? null; }
       else return v;
     }
@@ -1902,5 +1908,196 @@ test('phase 47: Codex runs climb and tend in workspace-write with sudo dropped, 
       assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
       assert.ok(check(text, opts).length, `${name} ${why}: expected a problem`);
     }
+  }
+});
+
+// ---- phase 54: the robot ------------------------------------------------------------
+
+/** An issues event as the robot's `if:` reads it: { action, label, labels }. */
+const issueEvent = ({ action = 'labeled', label = 'keel:agent', labels = ['keel:agent'] } = {}) =>
+  ghEvent('issues', { action, ...(action === 'labeled' ? { label: { name: label } } : {}), issue: { number: 12, labels: labels.map(name => ({ name })) } });
+/** A comment on an issue (pr: on a pull request) as the robot's `if:` reads it. */
+const issueComment = ({ association = 'OWNER', login = 'acme-owner', type = 'User', labels = ['keel:agent'], pr = false, number = 12, body = 'Use the lid, not the box.' } = {}) =>
+  ghEvent('issue_comment', { action: 'created', issue: { number, labels: labels.map(name => ({ name })), ...(pr ? { pull_request: { url: `https://api.github.com/repos/${ACME}/pulls/${number}` } } : {}) }, comment: { body, author_association: association, user: { login, type } } });
+
+/**
+ * The robot's own rules (phase 54), on keel-robot.yml's text: [string]. Its
+ * triggers are GitHub's issue events, a comment, the schedule and a dispatch,
+ * nothing else; the agent's tools cannot push, merge, rebase, switch or reach
+ * gh; its step is time-boxed by the pick's minutes; the result is a PR on
+ * keel/robot-<issue> (the pick's issue, checked to be a number and the
+ * branch's), opened after the judge's guard, never merged; the agent's last
+ * message and the triage are posted by robot.mjs in the publish job, from the
+ * pick's issue numbers (never from what the agent handed on); the robot off
+ * is said first; and the weekly run is on Mondays.
+ */
+export function robotWorkflowProblems(text) {
+  const out = [];
+  const on = /\non:\n((?: {2}.*\n)+)/.exec(text)?.[1] ?? '';
+  const events = [...on.matchAll(/^ {2}([a-z_]+):/gm)].map(m => m[1]);
+  if (events.join(',') !== 'issues,issue_comment,schedule,workflow_dispatch') out.push(`triggers are ${events.join(', ') || 'none'}; only issues, issue_comment, schedule and workflow_dispatch`);
+  const types = name => /types: \[([^\]]*)\]/.exec(on.split(new RegExp(`^ {2}${name}:`, 'm'))[1]?.split(/^ {2}\S/m)[0] ?? '')?.[1].split(',').map(s => s.trim());
+  if (JSON.stringify(types('issues')) !== JSON.stringify(['labeled', 'reopened'])) out.push(`issues types ${JSON.stringify(types('issues'))}: only labeled and reopened`);
+  if (JSON.stringify(types('issue_comment')) !== JSON.stringify(['created'])) out.push('issue_comment types: only created');
+  if (/pull_request_target/.test(text)) out.push('pull_request_target');
+  if (!/^ {4}- cron: "\d+ \d+ \* \* 1"$/m.test(text)) out.push('the robot is not weekly on Mondays');
+  const tools = /--allowedTools "([^"]*)"/.exec(text)?.[1];
+  if (!tools) out.push('the agent has no --allowedTools list');
+  else for (const t of tools.split(',').map(x => x.trim())) {
+    if (/\bpush\b|\bmerge\b|\brebase\b|\breset\b|\bclean\b|\bbranch\b|\bcheckout\b|\bswitch\b|\bworktree\b/.test(t)) out.push(`the agent may run ${t}`);
+    if (/^Bash\(git( \*|:\*|\*)\)$/.test(t) || t === 'Bash' || t === 'Bash(*)') out.push(`the agent may run any git or shell command (${t})`);
+    if (/^Bash\(gh\b/.test(t)) out.push(`the agent may run gh (${t})`);
+  }
+  if ((text.match(/--allowedTools/g) ?? []).length !== 1 || /--(?:dangerously-skip-permissions|permission-mode)/.test(text)) out.push('one --allowedTools list, and no way around it');
+  const work = stepsOf(text).find(s => /uses: anthropics\/claude-code-action@/.test(s)) ?? '';
+  if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.pick\.outputs\.minutes\) \}\}\n/.test(work)) out.push('the agent\'s step is not time-boxed by the pick\'s minutes');
+  const jobs = jobsOf(text);
+  const publish = jobs.find(j => j.id === 'publish')?.text ?? '';
+  const pushes = code(text).filter(l => /\bgit push\b/.test(l.line));
+  if (pushes.length !== 1) out.push(`${pushes.length} git pushes; one, the robot's PR branch`);
+  for (const { line } of pushes) if (!/^\s*git push --force origin "\$head:refs\/heads\/keel\/robot-\$ISSUE"$/.test(line)) out.push(`a push that is not to the issue's own branch: ${line.trim()}`);
+  if (pushes.length && !publish.includes(pushes[0].line)) out.push('the push is not in the publish job');
+  const create = code(publish).find(l => /\bgh pr create\b/.test(l.line))?.line ?? '';
+  if (!/gh pr create --base "\$BASE" --head "\$BRANCH" --title "[^"]*" --body-file "\$RUNNER_TEMP\/run\/body\.md"/.test(create)) out.push('no PR opened on the robot\'s branch with the judge\'s body (it says Closes #<issue>)');
+  if (!/case "\$ISSUE" in ''\|\*\[!0-9\]\*\) [^\n]*exit 1 ;; esac/.test(publish) || !/if \[ "\$BRANCH" != "keel\/robot-\$ISSUE" \]; then/.test(publish)) out.push('the publish job does not check the issue is a number and the branch is its own');
+  const issueFrom = [...publish.matchAll(/^ {10}ISSUE: (.*)$/gm)].map(m => m[1]);
+  if (!issueFrom.length || issueFrom.some(v => v !== '${{ needs.agent.outputs.issue }}')) out.push('the issue the publish job writes to is not the pick\'s');
+  if (/\bgh (pr|issue) (merge|close|delete)\b|\bgh api\b[^\n]*(-X|--method)/.test(text)) out.push('merges, closes, deletes or writes through gh api');
+  if (!/\n {10}node scripts\/keel\/climb\.mjs guard --job robot --base "\$GITHUB_SHA"\n/.test(jobs.find(j => j.id === 'judge')?.text ?? '')) out.push('the judge does not run the robot\'s guard from the run\'s commit');
+  if (!/robot\.mjs post --repo "\$REPO" --issue "\$ISSUE" --message "\$RUNNER_TEMP\/run\/message\.md"/.test(publish)) out.push('the agent\'s last message is not posted on the issue by robot.mjs post');
+  if (!/robot\.mjs triage --repo "\$REPO" --issues "\$TRIAGE" --post\n/.test(publish) || !/TRIAGE: \$\{\{ needs\.agent\.outputs\.triage \}\}/.test(publish)) out.push('the triage is not answered by robot.mjs in the publish job, from the pick\'s issue numbers');
+  const steps = [...text.matchAll(/^ {6}- (?:name: (.+)|uses: (\S+))$/gm)].map(m => m[1] ?? m[2]);
+  if (!(steps[0]?.startsWith('actions/checkout') && steps[1] === 'Is the robot on?')) out.push('"Is the robot on?" is not the first step after checkout');
+  if (!/the robot is off/.test(text)) out.push('the robot off is not said');
+  if (!/node scripts\/keel\/robot\.mjs pick --repo "\$REPO" --record --json/.test(text)) out.push('robot.mjs pick does not choose the run');
+  return out;
+}
+
+const robotWorkflow = async () => (await shipped()).find(w => w.name === 'keel-robot.yml');
+const robotIf = text => jobsOf(text).find(j => j.id === 'agent').text.match(/\n {4}if: \|\n((?: {6}.*\n)+)/)[1];
+
+test('keel-robot.yml runs only for the keel:agent label, a reopen, a writer\'s comment, the schedule or a dispatch; a bot\'s or a stranger\'s comment runs nothing', async () => {
+  const w = await robotWorkflow();
+  assert.equal(w.practice, 'climb');
+  const t = w.template;
+  const cond = robotIf(t);
+  const runs = ctx => evalExpression(cond, ctx);
+  assert.equal(runs(issueEvent()), true, 'the label');
+  assert.equal(runs(issueEvent({ label: 'bug' })), false, 'another label');
+  assert.equal(runs(issueEvent({ action: 'reopened' })), true, 'a labelled issue reopened');
+  assert.equal(runs(issueEvent({ action: 'reopened', labels: ['bug'] })), false, 'an unlabelled issue reopened');
+  assert.equal(runs(issueEvent({ action: 'opened' })), false, 'opened is not a trigger');
+  for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) assert.equal(runs(issueComment({ association })), true, association);
+  for (const association of ['CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'FIRST_TIMER', 'NONE', '']) assert.equal(runs(issueComment({ association, login: 'mallory' })), false, `a stranger (${association || 'none'})`);
+  assert.equal(runs(issueComment({ type: 'Bot', login: 'github-actions[bot]', association: 'NONE' })), false, 'the robot\'s own comment');
+  assert.equal(runs(issueComment({ type: 'Bot', login: 'codex[bot]', association: 'MEMBER' })), false, 'a bot with write access');
+  assert.equal(runs(issueComment({ type: 'User', login: 'acme-ci[bot]', association: 'MEMBER' })), false, 'a [bot] login');
+  assert.equal(runs(issueComment({ labels: [] })), false, 'a comment on an issue not handed to the robot');
+  assert.equal(runs(issueComment({ pr: true })), false, 'a comment on a pull request');
+  assert.equal(runs(ghEvent('schedule', {})), true);
+  assert.equal(runs(ghEvent('workflow_dispatch', {})), true);
+  for (const name of ['push', 'pull_request', 'pull_request_target']) assert.equal(runs(ghEvent(name, {})), false, name);
+  assert.deepEqual(robotWorkflowProblems(t), []);
+  assert.deepEqual(robotWorkflowProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's rendered keel-robot.yml");
+  // Each guard in the if: is load-bearing: mutated, the event gets through.
+  for (const [why, from, to, ctx] of [
+    ['a stranger\'s comment', "contains(fromJSON('[\"OWNER\", \"MEMBER\", \"COLLABORATOR\"]'), github.event.comment.author_association) &&\n", '', issueComment({ association: 'NONE', login: 'mallory' })],
+    ['any association', '"COLLABORATOR"]', '"COLLABORATOR", "CONTRIBUTOR", "NONE"]', issueComment({ association: 'NONE', login: 'mallory' })],
+    ['a bot\'s comment', "github.event.comment.user.type != 'Bot' &&\n        !endsWith(github.event.comment.user.login, '[bot]'))", 'true)', issueComment({ type: 'Bot', login: 'codex[bot]', association: 'MEMBER' })],
+    ['an unlabelled issue', "contains(github.event.issue.labels.*.name, 'keel:agent') &&\n        contains(fromJSON", 'contains(fromJSON', issueComment({ labels: [] })],
+    ['a pull request', '!github.event.issue.pull_request &&\n', '', issueComment({ pr: true })],
+    ['any label', "github.event.action == 'labeled' && github.event.label.name == 'keel:agent'", "github.event.action == 'labeled'", issueEvent({ label: 'bug' })],
+  ]) {
+    const mutated = cond.replace(from, to);
+    assert.notEqual(mutated, cond, `${why}: the mutation did not apply`);
+    assert.equal(evalExpression(mutated, ctx), true, `${why}: the mutated condition lets it through`);
+    assert.equal(runs(ctx), false, why);
+  }
+  // The rules' own mutations.
+  const tools = /--allowedTools "([^"]*)"/.exec(t)[1];
+  for (const [why, text] of [
+    ['a pull_request trigger', t.replace('  workflow_dispatch: {}\n', '  workflow_dispatch: {}\n  pull_request_target:\n    types: [opened]\n')],
+    ['issues opened', t.replace('types: [labeled, reopened]', 'types: [opened, labeled, reopened]')],
+    ['git push allowed', t.replace(tools, `${tools},Bash(git push*)`)],
+    ['gh allowed', t.replace(tools, `${tools},Bash(gh issue comment *)`)],
+    ['any shell', t.replace(tools, `${tools},Bash(*)`)],
+    ['no time box', t.replace(/(id: work\n[\s\S]*?)\n\s+timeout-minutes: [^\n]*/, '$1')],
+    ['the issue from elsewhere', t.replace('          ISSUE: ${{ needs.agent.outputs.issue }}\n          PR_URL', '          ISSUE: ${{ steps.pr.outputs.issue }}\n          PR_URL')],
+    ['the branch unchecked', t.replace(/\n {10}if \[ "\$BRANCH" != "keel\/robot-\$ISSUE" \]; then\n[\s\S]*?\n {10}fi\n/, '\n')],
+    ['the message never posted', t.replace(/\n {6}# The issue is the conversation[\s\S]*$/, '\n')],
+    ['the triage from the agent\'s artifact', t.replace('--issues "$TRIAGE" --post', '--issues "$(cat "$RUNNER_TEMP/run/triage")" --post')],
+    ['a merge', t.replace('            gh pr edit "$num" --body-file "$RUNNER_TEMP/run/body.md"\n', '            gh pr merge "$num" --squash\n')],
+    ['the robot off said late', t.replace('      - name: Is the robot on?\n', '      - name: Acme first\n        run: true\n      - name: Is the robot on?\n')],
+    ['daily', t.replace('cron: "19 10 * * 1"', 'cron: "19 10 * * *"')],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    assert.ok(robotWorkflowProblems(text).length, `${why}: expected a problem`);
+  }
+});
+
+test('keel-robot.yml: one issue at a time per project; a run that will not work has a group of its own, so it never displaces a queued run', async () => {
+  const t = (await robotWorkflow()).template;
+  const cond = robotIf(t);
+  const withRun = (ctx, id) => ({ ...ctx, github: { ...ctx.github, run_id: id } });
+  const group = (text, ctx, id) => crossReviewGroup(text, withRun(ctx, id));
+  const events = [issueEvent(), issueEvent({ action: 'reopened' }), issueEvent({ label: 'bug' }), issueEvent({ action: 'reopened', labels: [] }),
+    issueComment(), issueComment({ association: 'MEMBER' }), issueComment({ association: 'NONE', login: 'mallory' }), issueComment({ type: 'Bot', login: 'github-actions[bot]', association: 'NONE' }),
+    issueComment({ pr: true }), issueComment({ labels: [] }), ghEvent('schedule', {}), ghEvent('workflow_dispatch', {})];
+  for (const [i, ctx] of events.entries()) {
+    const runs = evalExpression(cond, ctx);
+    assert.equal(group(t, ctx, 300 + i), runs ? 'keel-robot-queue' : `keel-robot-run-${300 + i}`, JSON.stringify(ctx.github.event?.comment ?? ctx.github.event?.action ?? ctx.github.event_name));
+  }
+  // One group for every issue: the robot works one issue at a time per project, whichever issue woke it.
+  assert.equal(group(t, issueComment({ number: 99 }), 400), group(t, issueComment(), 401));
+  assert.match(t, /^concurrency:\n {2}group: [^\n]*\n {2}cancel-in-progress: false$/m, 'queued, never cancelled');
+  // Mutation: a group per issue lets two issues run at once.
+  const perIssue = t.replace("&& 'queue' ||", "&& format('issue-{0}', github.event.issue.number) ||");
+  assert.notEqual(perIssue, t, 'the mutation did not apply');
+  assert.notEqual(group(perIssue, issueComment({ number: 99 }), 402), group(perIssue, issueComment(), 403));
+});
+
+test('keel-robot.yml holds every climb sandbox rule for both providers, and its result is a PR on keel/robot-<issue>, never a push to main', async () => {
+  const w = await robotWorkflow();
+  const t = w.template;
+  const opts = { step: 'Work the issue', id: 'work', cond: "steps.pick.outputs.action == 'work'" };
+  assert.deepEqual(jobsOf(t).map(j => j.id), ['agent', 'judge', 'publish'], 'the jobs, as GitHub shows them');
+  assert.deepEqual(agentSandboxProblems(t), []);
+  assert.deepEqual(codexEditProblems(t, opts), []);
+  assert.deepEqual(agentRanProblems(t, opts), []);
+  assert.deepEqual(permissionPath(t), []);
+  assert.deepEqual(problems('keel-robot.yml', t, w.declared), []);
+  const rendered = await readFile(join(KEEL, w.path), 'utf8');
+  for (const check of [agentSandboxProblems, x => codexEditProblems(x, opts), x => agentRanProblems(x, opts)]) assert.deepEqual(check(rendered), [], "keel's rendered keel-robot.yml");
+  assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY']);
+  const agentPerms = '    permissions:\n      contents: read\n      pull-requests: read\n      actions: read\n      issues: read\n';
+  assert.ok(t.includes(agentPerms));
+  const push = 'git push --force origin "$head:refs/heads/keel/robot-$ISSUE"';
+  assert.ok(t.includes(push));
+  const publish = jobsOf(t).find(j => j.id === 'publish').text;
+  const codexStep = stepsOf(t).find(s => s.includes('uses: openai/codex-action@'));
+  const claudeStep = stepsOf(t).find(s => s.includes('uses: anthropics/claude-code-action@'));
+  const rules = x => problems('keel-robot.yml', x, w.declared);
+  for (const [why, text, check] of [
+    // A push to main instead of a PR.
+    ['a push to main', t.replace(push, 'git push origin "$head:refs/heads/main"'), rules],
+    ['a push to main by name', t.replace(push, 'git push origin HEAD:main'), rules],
+    ['a push outside keel/robot-', t.replace(push, 'git push --force origin "$head:refs/heads/keel-tend/$ISSUE"'), rules],
+    ['a push instead of the PR', t.replace(/\n {10}num=\$\(gh pr list[\s\S]*?\n {10}fi\n {10}url=/, '\n          url='), robotWorkflowProblems],
+    ['the agent may write issues', t.replace(agentPerms, agentPerms.replace('issues: read', 'issues: write')), agentSandboxProblems],
+    ['the agent may write contents', t.replace(agentPerms, agentPerms.replace('contents: read', 'contents: write')), agentSandboxProblems],
+    ['the checkout keeps its credential', t.replace('          fetch-depth: 0\n          persist-credentials: false\n', '          fetch-depth: 0\n'), agentSandboxProblems],
+    ['Claude trades for its app token', t.replace(claudeStep, claudeStep.replace('          github_token: ${{ github.token }}\n', '')), agentSandboxProblems],
+    ['the push in the agent\'s job', t.replace(/(\n {6}- name: Did the agent run\?\n)/, `\n      - run: ${push}$1`), agentSandboxProblems],
+    ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n'), agentSandboxProblems],
+    ['the judge takes the commits unchecked', t.replace(/(\n {2}judge:\n[\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n'), agentSandboxProblems],
+    ['the judge\'s guard trusts a record', t.replace('climb.mjs guard --job robot --base "$GITHUB_SHA"', 'climb.mjs guard --job robot'), agentSandboxProblems],
+    ['Codex in danger-full-access', t.replace('          sandbox: workspace-write\n', '          sandbox: danger-full-access\n'), x => codexEditProblems(x, opts)],
+    ['Codex holds the token', t.replace('        env:\n          GH_TOKEN: ""\n', '        env:\n'), x => codexEditProblems(x, opts)],
+    ['Codex in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${codexStep}\n`), agentSandboxProblems],
+    ['Claude in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${claudeStep}\n`), agentSandboxProblems],
+    ['no check after the agent', t.replace(/\n {6}- name: Did the agent run\?\n[\s\S]*?(?=\n {6}(?:#|- ))/, ''), x => agentRanProblems(x, opts)],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    assert.ok(check(text).length, `${why}: expected a problem`);
   }
 });

@@ -1,0 +1,581 @@
+// keel robot (keel practice `climb`; managed: keel render rewrites it). An
+// agent works the issues it is handed: an issue labelled keel:agent that
+// holds the rubric (scripts/keel/rubric.mjs) is worked through climb's
+// sandbox, one at a time, and the result is a PR on keel/robot-<issue> that
+// a person merges (keel phase 54; docs/research/2026-10-09-robot-and-time.md).
+// This script is every choice the pass makes; the agent edits code, the
+// script decides what it works, what it may spend and what is posted.
+// Deterministic, no model, no dependency: Node built-ins, git and gh
+// (KEEL_GH stands in for gh).
+//
+//   node scripts/keel/robot.mjs config                 the robot config, validated
+//   node scripts/keel/robot.mjs pick --repo r [--record]   this run's action: work one issue,
+//                                   triage the ones that miss the rubric, wait on the budget, or none
+//   node scripts/keel/robot.mjs brief --out f          the agent's prompt, from the run's record
+//   node scripts/keel/robot.mjs message --agent a --file f --out f   the agent's last message (never printed)
+//   node scripts/keel/robot.mjs report --base r --issue n --title t --agent a [--body f]   the PR body, the run's line
+//   node scripts/keel/robot.mjs triage --repo r --issues "n n" [--post]   name what each issue misses, once per body
+//   node scripts/keel/robot.mjs post --repo r --issue n --message f [--pr url] [--judge result] [--line l] [--run url]
+//   node scripts/keel/climb.mjs guard --job robot --base r   the sandbox, the record rules, the gate
+//
+// Every subcommand takes --json. Exit: 0 ok; 1 a guard refused; 2 usage, a
+// bad config, or GitHub unreadable (pick never guesses).
+//
+// The rules (keel-robot.yml carries them out):
+//   - Off unless .keel/keel.json has "robot": { "on": true, "budgetMinutes": N },
+//     N the minutes a week the agent may run. Past it the run waits, green,
+//     and says so; the week is the ISO week (Monday 00:00 UTC), and its use is
+//     the agent step's minutes in this workflow's runs, read as the Budget
+//     line reads them (lib.mjs stepUse).
+//   - Which issue: the oldest open one labelled keel:agent that was never
+//     worked, or that has a comment from someone with write access (OWNER,
+//     MEMBER, COLLABORATOR; never a bot) since its last run, or was reopened
+//     or labelled again since. Its last run is the robot's own comment (its
+//     RUN_MARK, posted by the workflow's bot).
+//   - An issue that misses part of the rubric gets one comment naming what
+//     is missing, and is not worked; one per body (its TRIAGE_MARK holds
+//     the body's hash), so the same state is never answered twice.
+//   - The brief is .agents/climb/ROBOT.md, the issue, the comments from
+//     people with write access since its last run, and the open robot PR's
+//     diff when there is one (each run starts from the default branch).
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { join, resolve } from 'node:path';
+import { isMain, rootOf, main, gateEnv, passAgentProblems, agentOf, AGENTS, stepUse, reviewerOf, agentGitArgs } from './lib.mjs';
+import { prBody } from './pr-body.mjs';
+import { sandboxProblems, recordRules } from './tend.mjs';
+import { LABEL, triage, missingText } from './rubric.mjs';
+
+export const KEY = 'robot';
+export const PREFIX = 'keel/robot-';
+export const WORKFLOW = 'keel-robot.yml';
+/** The agent's step in keel-robot.yml, by name (lib.mjs BUDGET_STEPS holds it equal). */
+export const STEP = 'Work the issue';
+export const LIMITS = Object.freeze({ budgetMinutes: [5, 2400], runMinutes: [5, 180] });
+export const DEFAULTS = Object.freeze({ runMinutes: 30 });
+/** A run needs at least this many minutes of the week left; less, and it waits. */
+export const MIN_RUN = 5;
+/** Who may start a run with a comment, and whose comments reach the brief: GitHub's author_association for write access. */
+export const ASKERS = Object.freeze(['OWNER', 'MEMBER', 'COLLABORATOR']);
+/** The workflow's bot: the only author of the robot's own comments. */
+export const BOT = 'github-actions[bot]';
+export const RUN_MARK = '<!-- keel:robot run -->';
+const TRIAGE_RE = /<!-- keel:robot triage ([0-9a-f]{12}) -->/;
+export const triageMark = hash => `<!-- keel:robot triage ${hash} -->`;
+/** At most this many triage comments a run. */
+export const MAX_TRIAGE = 10;
+/** The agent's last message is posted up to this many characters. */
+export const MESSAGE_CHARS = 6000;
+/** The open PR's diff in the brief, up to this many characters. */
+export const DIFF_CHARS = 60_000;
+export const RECORD_DIR = '.keel/robot';
+export const RECORD = `${RECORD_DIR}/run.json`;
+export const JUDGED = `${RECORD_DIR}/judged.json`;
+const PAGE = 100, MAX_PAGES = 5;
+
+export class RobotError extends Error {
+  constructor(message, exitCode = 2) { super(`robot: ${message}`); this.exitCode = exitCode; }
+}
+
+const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+// ---- config ------------------------------------------------------------------
+
+/** What is wrong with .keel/keel.json "robot": [string]. Absent is fine: the robot is off. */
+export function robotProblems(config) {
+  const r = config?.[KEY];
+  if (r === undefined) return [];
+  if (!isObject(r)) return ['"robot" must be an object: { "on": true, "budgetMinutes": <minutes a week> }'];
+  const out = [];
+  const known = ['on', 'budgetMinutes', 'runMinutes', 'agent'];
+  for (const k of Object.keys(r)) if (!known.includes(k)) out.push(`"robot" has an unknown key ${k} (${known.join(', ')})`);
+  if (r.on !== undefined && typeof r.on !== 'boolean') out.push(`"robot".on must be true or false (got ${JSON.stringify(r.on)})`);
+  const whole = (k, [lo, hi]) => Number.isInteger(r[k]) && r[k] >= lo && r[k] <= hi;
+  if (r.budgetMinutes === undefined) { if (r.on === true) out.push('"robot".budgetMinutes must say the minutes a week the agent may run: the robot spends model tokens, so it has no default'); }
+  else if (!whole('budgetMinutes', LIMITS.budgetMinutes)) out.push(`"robot".budgetMinutes must be a whole number of minutes a week from ${LIMITS.budgetMinutes[0]} to ${LIMITS.budgetMinutes[1]} (got ${JSON.stringify(r.budgetMinutes)})`);
+  if (r.runMinutes !== undefined && !whole('runMinutes', LIMITS.runMinutes)) out.push(`"robot".runMinutes must be a whole number from ${LIMITS.runMinutes[0]} to ${LIMITS.runMinutes[1]} (got ${JSON.stringify(r.runMinutes)})`);
+  // The agent that works the issues (phase 45): listed in "agents", and one that can commit.
+  return [...out, ...passAgentProblems(config, KEY)];
+}
+
+/** The robot's settings, defaults filled in; null when it is off. A bad "robot" throws (exit 2). */
+export function robotConfigOf(config) {
+  const problems = robotProblems(config);
+  if (problems.length) throw new RobotError(`.keel/keel.json: ${problems.join('; ')}`);
+  const r = config?.[KEY];
+  if (!isObject(r) || r.on !== true) return null;
+  return { budgetMinutes: r.budgetMinutes, runMinutes: Math.min(r.runMinutes ?? DEFAULTS.runMinutes, r.budgetMinutes), agent: agentOf(config, KEY) };
+}
+
+const OFF = 'the robot is off: .keel/keel.json has no "robot": { "on": true, "budgetMinutes": N }';
+
+// ---- the week ------------------------------------------------------------------
+
+/** The ISO week's start (Monday 00:00 UTC) of `now`. */
+export function weekStart(now = new Date()) {
+  const d = new Date(now);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)));
+}
+
+/** The ISO week's name: 2026-W41. */
+export function isoWeek(now = new Date()) {
+  const d = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
+  const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((d - jan4) / 86_400_000 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * The agent step's use over these runs (each { jobs }, as the API gives
+ * them): every run whose "Work the issue" step ran, whatever its check said
+ * (an agent that stopped with an error still spent its minutes). Pure.
+ * { seconds, minutes (rounded up), runs }.
+ */
+export function weekUse(runs) {
+  let seconds = 0, counted = 0;
+  for (const r of Array.isArray(runs) ? runs : []) {
+    const u = stepUse(r?.jobs, { step: STEP, check: null, minutes: Infinity });
+    if (u) { seconds += u.seconds; counted++; }
+  }
+  return { seconds, minutes: Math.ceil(seconds / 60), runs: counted };
+}
+
+/** What the budget allows this run: { wait, minutes, used, left, line }. Pure. */
+export function budgetFor({ budgetMinutes, runMinutes }, use, now = new Date()) {
+  const week = isoWeek(now);
+  const left = budgetMinutes - use.minutes;
+  if (left < MIN_RUN) {
+    const next = new Date(weekStart(now).getTime() + 7 * 86_400_000).toISOString().slice(0, 10);
+    return { wait: true, minutes: 0, used: use.minutes, left: Math.max(0, left), line: `the robot waits: it used ${use.minutes} of its ${budgetMinutes} minutes in ${week} (${use.runs} run${use.runs === 1 ? '' : 's'}), less than ${MIN_RUN} are left; it starts again on ${next}` };
+  }
+  const minutes = Math.min(runMinutes, Math.floor(left));
+  return { wait: false, minutes, used: use.minutes, left, line: `${use.minutes} of ${budgetMinutes} minutes used in ${week}; this run may use ${minutes}` };
+}
+
+// ---- an issue's state --------------------------------------------------------------
+
+const isBot = c => c?.user?.type === 'Bot' || /\[bot\]$/i.test(c?.user?.login ?? '');
+const fromRobot = c => c?.user?.login === BOT && typeof c.body === 'string';
+const at = s => Date.parse(s ?? '');
+export const bodyHash = body => createHash('sha256').update(String(body ?? '').replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 12);
+/** A comment that may start a run and reaches the brief: a person with write access, never a bot. */
+export const fromWriter = c => !isBot(c) && ASKERS.includes(c?.author_association);
+
+/**
+ * One issue's state, pure, from its REST shape and its comments (oldest
+ * first): { number, title, kind, … }. kind is
+ *   triage        it misses part of the rubric, and this body has no triage comment yet;
+ *   waits-rubric  it misses part, and this body was answered already;
+ *   work          never worked, or a writer commented since its last run;
+ *   worked        worked, and nobody with write access has said more since.
+ * `comments` on work are the writers' comments since the last run.
+ */
+export function issueState(issue, comments = []) {
+  const base = { number: issue.number, title: String(issue.title ?? ''), url: issue.html_url ?? null, created: issue.created_at ?? null };
+  const mine = comments.filter(fromRobot);
+  const lastRun = mine.filter(c => c.body.includes(RUN_MARK)).at(-1)?.created_at ?? null;
+  const missing = triage(issue.body);
+  if (missing.length) {
+    const hash = bodyHash(issue.body);
+    const answered = mine.some(c => TRIAGE_RE.exec(c.body)?.[1] === hash);
+    return { ...base, kind: answered ? 'waits-rubric' : 'triage', missing, hash };
+  }
+  const writers = comments.filter(fromWriter);
+  const since = lastRun ? writers.filter(c => at(c.created_at) > at(lastRun)) : writers;
+  if (!lastRun) return { ...base, kind: 'work', fresh: true, lastRun, comments: since };
+  if (since.length) return { ...base, kind: 'work', fresh: false, lastRun, comments: since };
+  return { ...base, kind: 'worked', lastRun };
+}
+
+/**
+ * A worked issue reopened, or labelled keel:agent again, since its last run
+ * (by a person: a bot's event never counts) is work again, with no new
+ * comment. `events` is the issue's events API list. Pure.
+ */
+export function againSince(state, events = []) {
+  if (state.kind !== 'worked') return state;
+  const again = events.find(e => at(e?.created_at) > at(state.lastRun) && e?.actor?.type !== 'Bot' && !/\[bot\]$/i.test(e?.actor?.login ?? '')
+    && (e.event === 'reopened' || (e.event === 'labeled' && e.label?.name === LABEL)));
+  return again ? { ...state, kind: 'work', fresh: false, again: again.event, comments: [] } : state;
+}
+
+/** What a run does with these states (oldest issue first): every triage to post, and the one issue to work. Pure. */
+export function choose(states) {
+  return {
+    triage: states.filter(s => s.kind === 'triage').slice(0, MAX_TRIAGE).map(s => s.number),
+    work: states.find(s => s.kind === 'work') ?? null,
+    waiting: states.filter(s => s.kind === 'worked' || s.kind === 'waits-rubric').map(s => s.number),
+  };
+}
+
+// ---- reading GitHub ------------------------------------------------------------------
+
+function ghRun(env, args, input) {
+  const gh = env.KEEL_GH || 'gh';
+  const r = spawnSync(gh, args, { env, input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.error) throw new RobotError(`gh ${args[0]}: ${r.error.code === 'ENOENT' ? `gh is not installed (${gh})` : r.error.message}; the robot never guesses`);
+  if (r.status !== 0) throw new RobotError(`gh ${args.slice(0, 2).join(' ')} exited ${r.status}${(r.stderr || r.stdout || '').trim() ? `: ${(r.stderr || r.stdout).trim().split('\n')[0]}` : ''}; the robot never guesses`);
+  return r.stdout;
+}
+
+/** GitHub through gh: the reads pick needs, every list read whole or not at all. */
+export function githubOf(env = process.env) {
+  const api = path => {
+    const out = ghRun(env, ['api', path]);
+    try { return JSON.parse(out); } catch { throw new RobotError(`gh api ${path.split('?')[0]} did not print JSON`); }
+  };
+  const pages = (path, key) => {
+    const all = [];
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      const got = api(`${path}${path.includes('?') ? '&' : '?'}per_page=${PAGE}&page=${p}`);
+      const list = key ? got?.[key] : got;
+      if (!Array.isArray(list)) throw new RobotError(`gh api ${path.split('?')[0]} did not come back as a list`);
+      all.push(...list);
+      if (list.length < PAGE) return all;
+    }
+    throw new RobotError(`gh api ${path.split('?')[0]}: more than ${PAGE * MAX_PAGES} entries; the read is incomplete, and the robot never guesses`);
+  };
+  return {
+    issues: repo => pages(`repos/${repo}/issues?labels=${encodeURIComponent(LABEL)}&state=open&sort=created&direction=asc`).filter(i => !i.pull_request),
+    issue: (repo, n) => api(`repos/${repo}/issues/${n}`),
+    comments: (repo, n) => pages(`repos/${repo}/issues/${n}/comments`),
+    events: (repo, n) => pages(`repos/${repo}/issues/${n}/events`),
+    runs: (repo, since) => pages(`repos/${repo}/actions/workflows/${WORKFLOW}/runs?status=completed&created=${encodeURIComponent(`>=${since}`)}`, 'workflow_runs'),
+    jobs: (repo, id) => {
+      const j = api(`repos/${repo}/actions/runs/${id}/jobs?per_page=100`)?.jobs;
+      if (!Array.isArray(j)) throw new RobotError(`gh api: run ${id} came back without its jobs`);
+      return j;
+    },
+    openPr: (repo, branch) => {
+      const [owner] = repo.split('/');
+      const list = api(`repos/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${branch}`)}`);
+      if (!Array.isArray(list)) throw new RobotError('gh api pulls did not come back as a list');
+      return list[0] ? { number: list[0].number, url: list[0].html_url } : null;
+    },
+    prDiff: (repo, n) => ghRun(env, ['pr', 'diff', String(n), '--repo', repo]),
+    comment: (repo, n, body) => { ghRun(env, ['issue', 'comment', String(n), '--repo', repo, '--body-file', '-'], body); },
+  };
+}
+
+const REPO = /^[\w.-]+\/[\w.-]+$/;
+const repoOf = (repo, env) => {
+  const r = repo ?? env.GITHUB_REPOSITORY;
+  if (!REPO.test(r ?? '')) throw new RobotError('needs --repo <owner/name> (or GITHUB_REPOSITORY)');
+  return r;
+};
+
+async function readJson(path) {
+  try { return JSON.parse(await readFile(path, 'utf8')); }
+  catch (e) { if (e.code === 'ENOENT') return null; throw new RobotError(`${path}: ${e.message}`); }
+}
+async function writeRecord(root, path, data) {
+  await mkdir(join(root, RECORD_DIR), { recursive: true });
+  await writeFile(join(root, RECORD_DIR, '.gitignore'), '*\n');
+  await writeFile(join(root, path), `${JSON.stringify(data, null, 2)}\n`);
+}
+
+// ---- pick ----------------------------------------------------------------------------
+
+/**
+ * This run's action: { on, action, … }. action is
+ *   work    one issue, with its branch, its title and the minutes this run may use;
+ *   triage  only issues to answer (each misses part of the rubric);
+ *   wait    an issue to work, but the week's budget is spent (green, said);
+ *   none    nothing to do.
+ * `triage` lists the issues to answer whatever the action. With `record`,
+ * a work run writes .keel/robot/run.json for brief. gh is never asked when
+ * the robot is off.
+ */
+export async function pick({ root, config, env = process.env, repo, record = false, now = new Date(), github = githubOf(env) }) {
+  const c = robotConfigOf(config);
+  if (!c) return { on: false, action: 'none', triage: [], reason: OFF };
+  repo = repoOf(repo, env);
+  const states = [];
+  let work = null;
+  for (const issue of github.issues(repo)) {
+    let s = issueState(issue, github.comments(repo, issue.number));
+    if (!work && s.kind === 'worked') s = againSince(s, github.events(repo, issue.number));
+    if (!work && s.kind === 'work') work = { state: s, issue };
+    states.push(s);
+  }
+  const plan = choose(states);
+  const triaged = plan.triage;
+  const tail = triaged.length ? `; ${triaged.length} to answer for the rubric (${triaged.map(n => `#${n}`).join(', ')})` : '';
+  if (!work) return { on: true, action: triaged.length ? 'triage' : 'none', triage: triaged, waiting: plan.waiting, reason: `no issue to work${states.length ? `: ${plan.waiting.length} wait on the owner` : `: none open is labelled ${LABEL}`}${tail}` };
+  const since = weekStart(now).toISOString().slice(0, 10);
+  const runs = github.runs(repo, since).filter(r => r?.conclusion !== 'skipped').map(r => ({ id: r.id, jobs: github.jobs(repo, r.id) }));
+  const budget = budgetFor(c, weekUse(runs), now);
+  const s = work.state;
+  if (budget.wait) return { on: true, action: 'wait', triage: triaged, issue: s.number, budget, reason: `${budget.line}; #${s.number} is next${tail}` };
+  const branch = `${PREFIX}${s.number}`;
+  const pr = github.openPr(repo, branch);
+  const out = { on: true, action: 'work', triage: triaged, issue: s.number, title: oneLine(s.title), branch, minutes: budget.minutes, agent: c.agent, budget, pr, reason: `#${s.number} (${s.fresh ? 'never worked' : s.again ? `${s.again} since its last run` : `${s.comments.length} comment${s.comments.length === 1 ? '' : 's'} since its last run`}); ${budget.line}${tail}` };
+  if (record) {
+    let diff = null;
+    if (pr) {
+      const d = github.prDiff(repo, pr.number);
+      diff = d.length > DIFF_CHARS ? `${d.slice(0, DIFF_CHARS)}\n… (cut at ${DIFF_CHARS} characters of ${d.length})\n` : d;
+    }
+    await writeRecord(root, RECORD, {
+      date: new Date(now).toISOString(), repo, branch,
+      issue: { number: s.number, title: s.title, url: s.url, body: String(work.issue.body ?? '') },
+      fresh: s.fresh, again: s.again ?? null, lastRun: s.lastRun ?? null,
+      comments: s.comments.map(cm => ({ login: cm.user?.login ?? null, association: cm.author_association, at: cm.created_at, url: cm.html_url ?? null, body: String(cm.body ?? '') })),
+      pr, diff,
+    });
+  }
+  return out;
+}
+
+const oneLine = s => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+
+// ---- the brief -----------------------------------------------------------------------
+
+/** The agent's prompt, pure: the brief (ROBOT.md), the issue, the writers' comments since the last run, and the open PR. */
+export function briefText(brief, run) {
+  const i = run.issue;
+  const out = [brief.trimEnd(), '', `## The issue: #${i.number} ${i.title}`, '', i.url ? `${i.url}\n` : '', i.body.trim() || '(no body)', ''];
+  if (run.comments.length) {
+    out.push(`## ${run.fresh ? 'Comments on it' : 'Comments since your last run'} (people with write access, oldest first)`, '');
+    for (const c of run.comments) out.push(`### ${c.login ?? 'someone'} (${c.association}), ${c.at}`, '', c.body.trim(), '');
+  } else if (!run.fresh) out.push(`## Since your last run`, '', run.again ? `The issue was ${run.again === 'reopened' ? 'reopened' : 'labelled again'} with no comment: what you did last time did not hold. Read your last message on the issue, and the PR below if there is one.` : 'Nothing new.', '');
+  if (run.pr) {
+    out.push(`## Your open pull request: #${run.pr.number}`, '', `${run.pr.url ?? ''}`, '', `Your branch (\`${run.branch}\`) starts from the default branch, not from #${run.pr.number}: what you commit replaces its commits when it is pushed. Carry over what still holds from its diff, and change what the comments ask.`, '', '```diff', (run.diff ?? '').trimEnd(), '```', '');
+  }
+  return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
+}
+
+export async function brief({ root, out }) {
+  const run = await readJson(join(root, RECORD));
+  if (!run) throw new RobotError(`no run record at ${RECORD}: pick --record writes it`);
+  const text = await readFile(join(root, '.agents/climb/ROBOT.md'), 'utf8').catch(() => { throw new RobotError('.agents/climb/ROBOT.md is missing: keel render writes it'); });
+  const prompt = briefText(text, run);
+  if (out) await writeFile(out, prompt);
+  return { issue: run.issue.number, chars: prompt.length, comments: run.comments.length, pr: run.pr?.number ?? null, out: out ?? null, ...(out ? {} : { prompt }) };
+}
+
+// ---- the agent's last message ----------------------------------------------------------
+
+/**
+ * The last "result" message of Claude's execution file (a JSON array, or one
+ * message a line), as climb.mjs lastResult reads it. Its own copy: climb.mjs
+ * loads this module for `guard --job robot`, so this one never imports it
+ * (a cycle under climb.mjs's top-level await never settles).
+ */
+export function lastResult(text) {
+  if (typeof text !== 'string' || !text.trim()) return null;
+  let msgs;
+  try { const v = JSON.parse(text); msgs = Array.isArray(v) ? v : [v]; }
+  catch { msgs = text.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
+  return msgs.filter(m => m && typeof m === 'object' && m.type === 'result').at(-1) ?? null;
+}
+
+/**
+ * The agent's last message, as climb and tend read the agent's output:
+ * Claude's from its execution file (the last "result" message's text),
+ * Codex's from its final-message file. '' when there is none. Never printed:
+ * it goes on the issue, where the owner reads it.
+ */
+export async function lastMessage({ agent, file }) {
+  if (agent !== 'claude' && agent !== 'codex') throw new RobotError(`message --agent must be claude or codex (got ${agent})`);
+  let text = '';
+  if (file) try { text = await readFile(file, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new RobotError(`${file}: ${e.message}`); }
+  if (agent === 'codex') return text.trim();
+  const r = lastResult(text);
+  return r && !r.is_error && typeof r.result === 'string' ? r.result.trim() : '';
+}
+
+// ---- the judge ---------------------------------------------------------------------------
+
+function git(root, args, { allowFail = false } = {}) {
+  const r = spawnSync('git', [...agentGitArgs(root), ...args], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.error) throw new RobotError(`git ${args[0]}: ${r.error.message}`);
+  if (r.status !== 0 && !allowFail) throw new RobotError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+  return allowFail ? r : r.stdout.replace(/\n$/, '');
+}
+const sha = (root, ref) => git(root, ['rev-parse', '--verify', `${ref}^{commit}`]);
+
+/**
+ * guard --job robot: the agent's branch from the run's commit (`base`,
+ * never a record's) changes nothing off limits (climb.mjs sandbox), keeps
+ * the record rules (no evidence, no status marked built, lived-in or
+ * accepted, no acceptance box ticked), and passes the gate. { ok, problems, line? }.
+ */
+export async function robotGuard({ root, config, env = process.env, base, check = 'npm run check' }) {
+  if (!base) throw new RobotError('guard --job robot needs --base <the run\'s commit>');
+  const head = sha(root, 'HEAD'), b = sha(root, base);
+  if (head === b) return { ok: true, job: KEY, skipped: true, line: 'nothing changed: HEAD is the base, so there is nothing to guard', problems: [] };
+  const off = sandboxProblems(root, b, head);
+  if (off.length) return { ok: false, job: KEY, refused: off, problems: off };
+  const records = recordRules(root, b, head, 'the robot');
+  if (records.length) return { ok: false, job: KEY, refused: records, problems: records };
+  const gate = config.check ?? check;
+  const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+  if (r.error) throw new RobotError(`could not run the gate \`${gate}\`: ${r.error.message}`);
+  if (r.status !== 0) return { ok: false, job: KEY, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the robot's guard passed (nothing off limits changed, no evidence written, nothing marked built, lived-in or accepted, no box ticked)`;
+  await writeRecord(root, JUDGED, { base: b, head, gate: line });
+  return { ok: true, job: KEY, line, problems: [] };
+}
+
+/** The impact declaration a robot PR carries (phase 26): the records it edits, or none. */
+export function robotImpact(files, issue) {
+  const phases = files.filter(p => (/^docs\/phases\/.*\.md$/.test(p) && !/\/README\.md$/i.test(p)) || /^docs\/projects\/.*\/phases\.md$/.test(p)).sort();
+  const decisions = files.filter(p => /^docs\/decisions\/.*\.md$/.test(p) && !/\/README\.md$/i.test(p)).sort();
+  return phases.length || decisions.length
+    ? { version: 1, phases, decisions, supersedes: [], evidence: [], reconciliation: 'updated', reason: `The robot's change for #${issue} edits these records; a person merges it.` }
+    : { version: 1, phases: [], decisions: [], supersedes: [], evidence: [], reconciliation: 'none', reason: `The robot's change for #${issue} edits no phase or decision record.` };
+}
+
+/**
+ * The PR body and the run's line, from git alone (the commits since the run's
+ * commit) and the judge's gate line: { commits, files, line, text }. text is
+ * null with no commit (nothing is pushed). Pure but for git and the files it reads.
+ */
+export async function report({ root, config, base, issue, title, agent, body }) {
+  if (!base) throw new RobotError('report needs --base <the run\'s commit>');
+  if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('report needs --issue <number>');
+  if (agent !== 'claude' && agent !== 'codex') throw new RobotError(`report --agent must be claude or codex (got ${agent})`);
+  const b = sha(root, base);
+  const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..HEAD`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject }; });
+  const files = git(root, ['diff', '--name-only', '--no-renames', b, 'HEAD']).split('\n').filter(Boolean);
+  const branch = `${PREFIX}${issue}`;
+  const line = `Robot #${issue}: ${commits.length} commit${commits.length === 1 ? '' : 's'} on ${branch}, ${files.length} file${files.length === 1 ? '' : 's'} changed, by ${AGENTS[agent].name}`;
+  if (!commits.length) return { commits: 0, files, line, text: null };
+  const judged = await readJson(join(root, JUDGED));
+  const who = reviewerOf({ config, head: branch });
+  const input = {
+    summary: { lead: `keel robot: #${issue}${title ? ` (${oneLine(title)})` : ''}, worked by ${AGENTS[agent].name} on its own; a person merges.`, files },
+    evidence: { gate: judged?.gate ?? 'not run: the judge recorded no gate line' },
+    danger: { door: 'two-way', why: 'one issue\'s change, on its own branch; reverting the merge restores everything', surfaces: [], within: 'files' },
+    notes: [
+      `Closes #${issue}`,
+      `Commits:\n\n${commits.map(c => `- ${c.subject} (${c.sha.slice(0, 7)})`).join('\n')}`,
+      `Review: ${who.reviewer ? `${who.why}.` : 'no provider is listed to review it.'} A pull request the workflow's token opens starts no other workflow, so cross-review runs when someone with write access comments \`/review\` here (its "for" must name \`${PREFIX}\`).`,
+      'The robot never merges. Comment on the issue to start its next run on this branch.',
+    ],
+    impact: { declaration: robotImpact(files, issue) },
+  };
+  const text = prBody(input);
+  if (body) await writeFile(body, text);
+  return { commits: commits.length, files, line, text, body: body ?? null };
+}
+
+// ---- what is posted ------------------------------------------------------------------------
+
+/** The robot's comment on the issue, pure: its mark, the agent's last message as it wrote it, then keel's line. */
+export function runComment({ message, pr, judge, line, run }) {
+  let said = String(message ?? '').replace(/<!--\s*keel:[\s\S]*?-->/g, '').trim();
+  if (said.length > MESSAGE_CHARS) said = `${said.slice(0, MESSAGE_CHARS)}\n\n… (cut at ${MESSAGE_CHARS} characters)`;
+  const status = pr ? `The pull request: ${pr}`
+    : judge === 'failure' ? `No pull request: the judge refused the branch${run ? ` (${run})` : ''}.`
+      : `No pull request${line ? `: ${line}` : ': the agent committed nothing'}.`;
+  return [
+    RUN_MARK,
+    '**keel robot**: the agent\'s last message, as it wrote it.',
+    '',
+    said || '(The agent left no message.)',
+    '',
+    '---',
+    '',
+    status,
+    '',
+    'A comment here from someone with write access starts the next run on this issue, with the comment in its brief.',
+    '',
+  ].join('\n');
+}
+
+export async function post({ env = process.env, repo, issue, message, pr, judge, line, run, github = githubOf(env) }) {
+  repo = repoOf(repo, env);
+  if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('post needs --issue <number>');
+  let text = '';
+  if (message) try { text = await readFile(message, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new RobotError(`${message}: ${e.message}`); }
+  const body = runComment({ message: text, pr, judge, line, run });
+  github.comment(repo, Number(issue), body);
+  return { issue: Number(issue), chars: body.length, pr: pr || null };
+}
+
+/**
+ * Answer each named issue that misses part of the rubric, read again here
+ * (the publish job's own read, never anything the agent's job handed on):
+ * one comment per body, naming what is missing. [{ issue, posted, why }].
+ */
+export async function triagePost({ env = process.env, repo, issues, postIt = false, github = githubOf(env) }) {
+  repo = repoOf(repo, env);
+  const numbers = String(issues ?? '').split(/[\s,]+/).filter(Boolean);
+  if (numbers.some(n => !/^\d+$/.test(n))) throw new RobotError('triage --issues takes issue numbers');
+  const out = [];
+  for (const n of numbers.slice(0, MAX_TRIAGE).map(Number)) {
+    const issue = github.issue(repo, n);
+    if (issue?.state !== 'open' || !(issue.labels ?? []).some(l => (l?.name ?? l) === LABEL) || issue.pull_request) { out.push({ issue: n, posted: false, why: `not an open issue labelled ${LABEL}` }); continue; }
+    const s = issueState(issue, github.comments(repo, n));
+    if (s.kind !== 'triage') { out.push({ issue: n, posted: false, why: s.kind === 'waits-rubric' ? 'this body was answered already' : 'it holds the rubric' }); continue; }
+    const body = `${triageMark(s.hash)}\n${missingText(s.missing)}\n`;
+    if (postIt) github.comment(repo, n, body);
+    out.push({ issue: n, posted: postIt, missing: s.missing.map(m => m.id), why: `misses ${s.missing.map(m => m.id).join(', ')}`, ...(postIt ? {} : { body }) });
+  }
+  return out;
+}
+
+// ---- the command line ---------------------------------------------------------------------
+
+const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post [--json]';
+const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run' };
+const SWITCHES = { '--record': 'record', '--post': 'post' };
+
+export function parseArgs(args) {
+  const [verb, ...rest] = args;
+  const o = { verb };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (SWITCHES[a]) o[SWITCHES[a]] = true;
+    else if (FLAGS[a]) {
+      if (rest[i + 1] === undefined) throw new RobotError(`${a} needs a value; ${USAGE}`);
+      o[FLAGS[a]] = rest[++i];
+    } else throw new RobotError(`unexpected ${a}; ${USAGE}`);
+  }
+  return o;
+}
+
+export async function cli(args, { root = rootOf(import.meta), env = process.env } = {}) {
+  const o = parseArgs(args);
+  let config = {};
+  try { config = JSON.parse(await readFile(join(root, '.keel/keel.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw new RobotError(`.keel/keel.json: ${e.message}`); }
+  switch (o.verb) {
+    case 'config': {
+      const c = robotConfigOf(config);
+      return { data: c ? { on: true, ...c } : { on: false }, text: c ? `the robot is on: ${c.budgetMinutes} min a week, up to ${c.runMinutes} a run, by ${c.agent}` : OFF };
+    }
+    case 'pick': {
+      const p = await pick({ root, config, env, repo: o.repo, record: o.record });
+      const text = p.action === 'work' ? `work #${p.issue} on ${p.branch}: ${p.reason}` : p.action === 'wait' ? `::notice::${p.reason}` : p.action === 'triage' ? `triage only: ${p.reason}` : `nothing to do: ${p.reason}`;
+      return { data: p, text };
+    }
+    case 'brief': {
+      const b = await brief({ root, out: o.out ? resolve(o.out) : undefined });
+      return { data: b, text: b.out ? `the brief for #${b.issue}: ${b.chars} characters, ${b.comments} comment${b.comments === 1 ? '' : 's'}${b.pr ? `, PR #${b.pr}` : ''} → ${b.out}` : b.prompt };
+    }
+    case 'message': {
+      const m = await lastMessage({ agent: o.agent, file: o.file ? resolve(o.file) : undefined });
+      if (o.out) await writeFile(resolve(o.out), m ? `${m}\n` : '');
+      return { data: { chars: m.length, out: o.out ?? null }, text: m ? `the agent's last message: ${m.length} characters${o.out ? ` → ${o.out}` : ''} (never printed: it goes on the issue)` : 'the agent left no last message' };
+    }
+    case 'report': {
+      const r = await report({ root, config, base: o.base, issue: o.issue, title: o.title, agent: o.agent, body: o.body ? resolve(o.body) : undefined });
+      return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
+    }
+    case 'triage': {
+      const t = await triagePost({ env, repo: o.repo, issues: o.issues, postIt: o.post });
+      return { data: t, text: t.length ? t.map(x => `#${x.issue}: ${x.posted ? 'answered: ' : o.post ? 'nothing posted: ' : ''}${x.why}`).join('\n') : 'no issue to triage' };
+    }
+    case 'post': {
+      const p = await post({ env, repo: o.repo, issue: o.issue, message: o.message ? resolve(o.message) : undefined, pr: o.pr, judge: o.judge, line: o.line, run: o.run });
+      return { data: p, text: `posted the agent's last message on #${p.issue} (${p.chars} characters)` };
+    }
+    default: throw new RobotError(o.verb ? `unknown subcommand ${o.verb}; ${USAGE}` : USAGE);
+  }
+}
+
+if (isMain(import.meta)) await main(args => cli(args));

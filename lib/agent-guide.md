@@ -25,6 +25,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel fleet update` — keel only: the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
+- `keel issue new --agent` — an issue for the robot, in its rubric
 - `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
 - `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
@@ -48,7 +49,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `review` `robot` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -125,6 +126,8 @@ stderr as one line beginning `keel:`.
   done. Exit 1 when a gh call failed (`error` says which).
 - `release` → bare: `{version, tag, tagged, newest}`; with a version:
   `{ok, dryRun, version, from, tag, commit, review, rehearsal, files, entry, push}`
+- `issue new --agent` → `{ok, repo, title, label, body, url}`; `--dry-run`:
+  `{ok, dryRun: true, repo, title, label, body}` (the `robot` topic)
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -1288,6 +1291,64 @@ where its own diff holds the line and opens one issue, `keel review after
 are no findings): a failed post records nothing and is reviewed again. Read
 and answer it with `keel review <repo>@<sha>` (a sha covered only by a
 start was not reviewed: exit 1, saying so).
+
+<!-- topic: robot | the robot: an agent works the issues labelled keel:agent, one PR each, within a weekly budget -->
+
+The optional `climb` practice ships `keel-robot.yml`: an agent works the
+issues the owner hands it, one at a time, through climb's sandbox, and each
+becomes a PR on `keel/robot-<issue>` that a person merges.
+
+- **On, with a budget**: `.keel/keel.json` `"robot": { "on": true,
+  "budgetMinutes": 120 }`: the minutes a week the agent may run (5–2400; no
+  default: it spends model tokens). `"runMinutes"`: one run's box (5–180,
+  default 30). `"agent": "codex"` (listed in `"agents"`; secret
+  `OPENAI_API_KEY`), else Claude. An unknown key is red. ⚑ Turning it on is
+  scheduled model spend: the owner's yes.
+- **The rubric** (`scripts/keel/rubric.mjs`, and the issue template
+  `.github/ISSUE_TEMPLATE/keel-agent.md`): `## What is wrong`, `## How to
+  see it` (a command, a test, the steps), `## How to tell it is mended`,
+  each with text, and under `## For an agent` three ticked boxes: needs
+  nothing only the owner can give (no product choice, no secret, no exit-3
+  step); one change that fits in one run; waits on no work that is not on
+  the default branch.
+- `keel issue new --agent --title "…" --wrong "…" --see "…" --mended "…"
+  [--repo <owner/name>] [--dry-run]` writes that body (the boxes ticked:
+  filing it says they hold) and creates it with gh, labelled `keel:agent`
+  → `{ok, repo, title, label, body, url}`; `--dry-run` files nothing
+  (`dryRun: true`). Exit 2 for a missing field, no `--agent` or no repo
+  (`--repo`, else `"repo"`); 1 when gh fails (a missing label: `gh label
+  create keel:agent`). **An agent that finds a fault outside its own work
+  files one this way, when the three boxes hold, and goes on.**
+- **When it runs**: the `keel:agent` label put on an issue, a labelled issue
+  reopened, a comment on one from an OWNER, MEMBER or COLLABORATOR (never a
+  bot, never on a PR), Mondays for anything missed, or a dispatch. One
+  issue at a time per project (one concurrency group). The event only
+  wakes it: `node scripts/keel/robot.mjs pick` chooses the oldest labelled
+  issue never worked, or with a writer's comment (or a reopen, or the label
+  again) since its last run (the robot's own comment). An issue that misses
+  a rubric field gets one comment naming each missing one (once per body:
+  edit the body to fix it), and is not worked.
+- **A run**: three jobs, as climb's. The agent (read-only token) works on
+  `keel/robot-<issue>` from the default branch, its brief
+  `.agents/climb/ROBOT.md` with the issue, the writers' comments since its
+  last run, and its open PR's diff. The judge runs `climb.mjs guard --job
+  robot --base <run's commit>`: nothing off limits changed (`sandbox`), no
+  evidence written, nothing marked built, lived-in or accepted, no box
+  ticked, then the gate. Publish pushes only `refs/heads/keel/robot-<issue>`,
+  opens the PR (`Closes #<issue>`), never merges, and posts the agent's
+  last message on the issue (what changed, how it knows; or one question
+  with choices), then the PR. A comment there starts the next run.
+- **Review**: a robot PR's author is `"robot".agent`, so cross-review picks
+  the other provider (add `"keel/robot-"` to `"crossReview".for`). A PR the
+  workflow's token opens starts no other workflow, so comment `/review` on it.
+- **The budget**: the week is the ISO week (Monday 00:00 UTC); its use is the
+  agent step's minutes in this workflow's runs, as the Budget line reads
+  them. Under 5 minutes left: the run ends green with a notice naming the
+  minutes used and the day it starts again. The night's Budget line shows
+  the robot's runs against `runMinutes`.
+- `node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post`
+  (each `--json`): the run's steps; exit 2 on a bad config or GitHub
+  unreadable (it never guesses).
 
 <!-- topic: board | whose turn it is: the owner's board, and the verbs that settle its items -->
 

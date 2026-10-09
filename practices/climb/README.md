@@ -178,10 +178,35 @@ A pass that only proposed opens a PR carrying its page of proposals; a
 pass with neither commits nor proposals opens nothing. The workflow keeps
 the pass's record as the `keel-tend` artifact.
 
-**The Budget line.** With climb, tend or cross-review on, the night's
+**The robot** (phase 54). With `"robot": { "on": true, "budgetMinutes":
+N }` (N the minutes a week, 5–2400; `runMinutes` one run's box, 5–180,
+default 30; `agent` as climb's), `keel-robot.yml` works the issues labelled
+`keel:agent`, one at a time per project. It runs on the label, a reopen of a
+labelled issue, a comment on one from an OWNER, MEMBER or COLLABORATOR
+(never a bot, never on a PR), Mondays, and a dispatch; any other event runs
+nothing, in a concurrency group of its own. `scripts/keel/robot.mjs pick`
+chooses the oldest labelled issue never worked, or with a writer's comment
+(or a reopen, or the label again) since its last run; an issue that misses
+part of the rubric (`scripts/keel/rubric.mjs`: what is wrong, how to see it,
+how to tell it is mended, and three ticked boxes) gets one comment per body
+naming what is missing, and is not worked. Past the ISO week's budget (the
+agent step's minutes in this workflow's runs since Monday 00:00 UTC) the run
+ends green with a notice. The agent works on `keel/robot-<issue>` from the
+default branch under `.agents/climb/ROBOT.md`, with the issue, the writers'
+comments since its last run and its open PR's diff in its brief; the judge
+runs `climb.mjs guard --job robot` (the sandbox; no evidence, no status
+marked built, lived-in or accepted, no box ticked; the gate); publish pushes
+only `refs/heads/keel/robot-<issue>`, opens the PR (`Closes #<issue>`),
+never merges, answers the triage, and posts the agent's last message on the
+issue. A robot PR's author is `"robot".agent`, so cross-review (with
+`keel/robot-` in its `for`) picks the other provider, on a `/review`.
+`keel issue new --agent` files an issue in the rubric's shape.
+
+**The Budget line.** With climb, tend, cross-review or the robot on, the night's
 health page carries one `Budget:` line: for each pass, its agent step's
 minutes in its last runs (at most 8, newest first, from GitHub's record of
-the workflow's runs: the `Climb`, `Tend` or `Review` step's start to end),
+the workflow's runs: the `Climb`, `Tend`, `Review` or `Work the issue`
+step's start to end; the robot's against its `runMinutes`),
 ⏱ on each that ran out (cancelled, or used the budget less one minute), and
 a suggestion against today's budget: *extend* when half or more ran out,
 *shorten to N* when none used more than half (N the most used, rounded up
@@ -278,15 +303,16 @@ than pass.
 for itself until its owner says so with a budget.
 
 **Its files.** `.github/workflows/keel-climb.yml`, `keel-tend.yml`,
-`scripts/keel/climb.mjs`, `tend.mjs`, `distill.mjs` (phase 31's rules, which
+`keel-robot.yml`, `.github/ISSUE_TEMPLATE/keel-agent.md`,
+`scripts/keel/climb.mjs`, `tend.mjs`, `robot.mjs`, `rubric.mjs`, `distill.mjs` (phase 31's rules, which
 keel's `lib/distill.mjs` re-exports), `.agents/climb/PROTOCOL.md`,
-`TEND.md`, `.agents/climb/jobs/test-time.md`, `hygiene.md`,
+`TEND.md`, `ROBOT.md`, `.agents/climb/jobs/test-time.md`, `hygiene.md`,
 `build-time.md`, `perf.md`, `lessons.md` and `loop.md` (all managed). A
 loop night reads `STITCH_API_KEY`, the loop practice's secret. A hygiene night gathers
 CI's `keel-test-runs` artifacts first, and its workflow may file one issue
 (`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs`,
 `pr-body.mjs` and (tend) `improve.mjs`.
 
-**Lineage.** Keel phases 35, 36, 37 (perf, lessons, loop), 38 (tend) and 47 (Codex), from the 6 October 2026 hill-climb on keel's own
+**Lineage.** Keel phases 35, 36, 37 (perf, lessons, loop), 38 (tend), 47 (Codex) and 54 (the robot), from the 6 October 2026 hill-climb on keel's own
 suite; design in keel's `docs/research/2026-10-06-climb-nights.md` and
 `docs/research/2026-10-06-tend-pass.md`.

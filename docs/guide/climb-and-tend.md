@@ -13,7 +13,8 @@ something about it while you sleep, and leave one PR for you to read:
   lost proofs, stuck phases, placeholder evidence, lints, drift, loose ends.
   The night reports these every night; tend resolves them once a week.
 
-Both are opt-in, because both spend model tokens.
+Both are opt-in, because both spend model tokens. So is the third, the
+robot: an agent works the issues you label `keel:agent` (below).
 
 ## What it does, and why it works that way
 
@@ -127,6 +128,54 @@ The rest of `climb.mjs` (`measure`, `compare`, `guard`, `prove-steady`,
 `report`, the tend verbs) is what the workflows and the agent run; the
 reference is `keel --agent-help climb`. You don't need to run them yourself.
 
+## The robot: hand an agent an issue
+
+Climb and tend choose their own work. The robot works the work you hand it:
+an issue labelled `keel:agent`, one at a time, through the same sandbox. Each
+becomes a PR on `keel/robot-<issue>` that says `Closes #<issue>`, and you
+merge it, or close it.
+
+**The issue is the brief, so it has to be one an agent can do alone.** It
+says what is wrong and how to see it (a command, a test, the steps), how to
+tell when it is mended, and it ticks three boxes: it needs nothing only you
+can give (no product choice, no secret, no ⚑ step), it is one change that
+fits in one run, and it waits on nothing that is not on the default branch.
+`keel issue new --agent` writes it in that shape and files it with the label:
+
+```bash
+keel issue new --agent --title "The lid test is flaky" \
+  --wrong "tests/lid.test.mjs fails one run in ten" \
+  --see "node --test tests/lid.test.mjs, ten times" \
+  --mended "ten runs in a row pass" --dry-run
+```
+
+Drop `--dry-run` to file it. The issue template
+(`.github/ISSUE_TEMPLATE/keel-agent.md`) is the same shape, for an issue
+you write by hand; it puts no label on, so only someone who can label
+issues hands one to the robot. An issue that misses a field gets one
+comment naming what is missing, and is not worked; edit its body and the
+next run reads it again.
+
+**The issue is the conversation.** After a run, the agent's last message
+is posted on the issue: what it changed and how it knows it is mended, or
+one question with the choices it sees. Your comment there starts the next
+run on that issue, with your comment in its brief. Only comments from
+people with write access do; a stranger's or a bot's comment runs nothing.
+Reopening the issue, or labelling it again, also sends it back.
+
+Switch it on with a weekly budget, the minutes the agent may run each week:
+
+```json
+"robot": { "on": true, "budgetMinutes": 120 }
+```
+
+`runMinutes` (default 30) is one run's box, and `agent` picks Codex as for
+climb. When the week's minutes are spent the robot waits, green, and says
+so in the run until Monday. With `cross-review` on, add `"keel/robot-"` to
+its `for`: the PR is then reviewed by the provider that did not write it,
+when you comment `/review` on it (a PR the workflow opens starts no other
+workflow by itself).
+
 ## What you'll see
 
 - **A climb PR** on `keel-climb/<job>/<date>`: a before-and-after table,
@@ -134,6 +183,9 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
   reverted, the gate's line, and the merge danger (a two-way door).
 - **A proposals night's PR** lists each proposal or proposed rank; you
   decide each.
+- **A robot PR** on `keel/robot-<issue>`: the files it changed, the
+  judge's gate line, `Closes #<issue>`, and the agent's last message on the
+  issue itself.
 - **A tend PR** on `keel-tend/<date>`: each finding and what was done
   (resolved only when the measures, run again, no longer report it), the
   record count before and after, and a checklist of what only you can
@@ -166,7 +218,7 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 ## What it never does
 
 - It never pushes to `main` and never merges. The workflows push only their
-  own branch prefix.
+  own branch prefix (the robot's: `keel/robot-<issue>`).
 - The agent cannot write to the repo even if a brief or a finding talks it
   into trying: it runs in a job whose token only reads (Codex with no
   GitHub token at all, sudo dropped), and its commits are
