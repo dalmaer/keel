@@ -107,9 +107,19 @@ keel release 0.9.0 --notes notes.md
   it, not for keel.
 - `--practice <x.y.z>` only when the practice should move to a version other
   than the CLI's.
-- `--dry-run` first, because it says which kind of release this is.
-- The release runs the gate on the bumped tree; a failure puts every file
-  back. It makes a commit and a local tag, and never pushes.
+- `--dry-run` first, because it says which kind of release this is, and lists
+  the practice commits the review gate will check.
+- **The review gate comes first.** Each commit since the last release tag
+  that touches `practices/`, `migrations/` or `docs/lessons.md` must have
+  come through a merged PR whose review passes `keel review <repo>#<n>
+  --gate`: every comment answered, and its head reviewed by someone other
+  than its author (keel's own cross-review: Codex reviews `claude/` PRs).
+  A commit pushed straight to `main` refuses the release (exit 1, naming the
+  commit), and nothing is written. There is no `--yes` past it. The owner may
+  pass `--unreviewed "<why>"`; the reason goes in the release commit and the
+  WHATSNEW entry.
+- Then the release runs the gate on the bumped tree; a failure puts every
+  file back. It makes a commit and a local tag, and never pushes.
 
 In one project, by hand:
 

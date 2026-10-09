@@ -27,7 +27,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
-- `keel release <x.y.z> --notes <file>` — keel only: cut a version, tag it
+- `keel release <x.y.z> --notes <file>` — keel only: review gate, cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — cold start; `<topic>` or `all` for details
 - `keel --version` — CLI, commit and practice versions
@@ -120,7 +120,7 @@ stderr as one line beginning `keel:`.
   `--yes` and something to merge or close: exit 3, `needs: "yes"`, nothing
   done. Exit 1 when a gh call failed (`error` says which).
 - `release` → bare: `{version, tag, tagged, newest}`; with a version:
-  `{ok, dryRun, version, from, tag, commit, files, entry, push}`
+  `{ok, dryRun, version, from, tag, commit, review, files, entry, push}`
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -390,8 +390,19 @@ WHATSNEW entry written for the person receiving it, a commit and a local tag.
 The practice version (`practices/VERSION`) moves with it only when
 `practices/`, `migrations/` or `docs/lessons.md` (the catalogue every project's `docs/keel-lessons.md` is rendered from) changed since the last practice release (to
 the same version, or `--practice <x.y.z>`); otherwise the entry says "keel
-only" and every project stays current. `--dry-run` says which.
-It runs the gate (config `check`) on the bumped tree first; a failing gate
+only" and every project stays current. `--dry-run` says which, and lists the
+commits the review gate will check (it reads no GitHub).
+Before writing anything it runs the review gate: each commit since the last
+release tag touching `practices/`, `migrations/` or `docs/lessons.md` must have
+come through a merged PR (`gh api repos/<repo>/commits/<sha>/pulls`, one call a
+commit, at most 40) whose review passes `keel review <repo>#<n> --gate` (every
+comment answered, its head reviewed by someone other than its author). A
+commit outside a PR, or a PR that fails, refuses: exit 1, each commit named,
+nothing written; an unread GitHub is exit 2, never a pass. `--yes` is refused;
+only the owner's `--unreviewed "<why>"` goes past it, and the reason goes in
+the release commit and the WHATSNEW entry. Data: `review: {since, commits,
+unreviewed, checked?: [{sha, subject, pr, ok, why}]}`.
+Then it runs the gate (config `check`) on the bumped tree; a failing gate
 puts every file back, exits 1 and commits nothing. It never pushes.
 
 <!-- topic: lessons | sending what a project learned home to keel, once each -->

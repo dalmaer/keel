@@ -7,22 +7,76 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
-import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { release, entries, between, prepend, practiceChange, WHATSNEW_HEADER } from '../lib/release.mjs';
+import { release, entries, between, prepend, practiceChange, scopeCommits, GATE_CAP, WHATSNEW_HEADER } from '../lib/release.mjs';
 import { practiceVersion } from '../lib/practices.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
-const ENV = {
+const BASE_ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test',
   GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test',
   GIT_CONFIG_NOSYSTEM: '1',
 };
+
+// ---- the stub gh (phase 48's review gate) -------------------------------------------
+
+const H7 = '7777777777777777777777777777777777777777';
+const MERGED = '2026-10-08T10:00:00Z';
+/** PR #7: merged, written by acme-owner, its head reviewed by another provider's workflow, nothing to answer. */
+const REVIEWED = { head: H7, author: 'acme-owner', mergedAt: MERGED, threads: [], reviews: [{ user: 'github-actions[bot]', commit_id: H7 }] };
+
+/**
+ * A gh for keel release's review gate. State: pulls { <sha>: [{number, merged_at}] }
+ * (the commit's PRs), defaultPull (any other commit's; null: none), prs { <n>:
+ * { head, author, mergedAt, threads, reviews } }, down (every call fails).
+ * Every call is logged; anything else (a write) exits 1.
+ */
+async function stubGh(state = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-release-gh-'));
+  process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'gh'), statePath = join(dir, 'state.json'), log = join(dir, 'gh.log');
+  await writeFile(statePath, JSON.stringify({ pulls: {}, defaultPull: { number: 7, merged_at: MERGED }, prs: { 7: REVIEWED }, ...state }));
+  await writeFile(path, `#!${process.execPath}
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(argv) + '\\n');
+const s = JSON.parse(fs.readFileSync(${JSON.stringify(statePath)}, 'utf8'));
+if (s.down) { console.error('error connecting to api.github.com'); process.exit(1); }
+const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length + 1);
+let m;
+if (argv[0] === 'api' && (m = /^repos\\/acme\\/keel\\/commits\\/([0-9a-f]{40})\\/pulls$/.exec(argv[1] ?? ''))) {
+  console.log(JSON.stringify(s.pulls[m[1]] ?? (s.defaultPull ? [s.defaultPull] : [])));
+} else if (argv[0] === 'api' && argv[1] === 'graphql' && !field('query').startsWith('mutation')) {
+  const n = Number(field('number')), p = s.prs[n];
+  if (!p) { console.log(JSON.stringify({ data: { repository: { pullRequest: null } } })); process.exit(0); }
+  const node = c => ({ databaseId: c.databaseId, author: { login: c.author }, body: c.body, createdAt: '2026-10-08T09:00:00Z', url: 'https://github.com/acme/keel/pull/' + n });
+  console.log(JSON.stringify({ data: { repository: { pullRequest: {
+    number: n, title: 'Acme practice', url: 'https://github.com/acme/keel/pull/' + n, state: p.mergedAt ? 'MERGED' : 'OPEN', mergedAt: p.mergedAt ?? null, headRefOid: p.head,
+    author: { login: p.author },
+    reviewThreads: { pageInfo: { hasNextPage: false }, nodes: p.threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: 'practices/base/AGENTS.md', line: 1, comments: { pageInfo: { hasNextPage: false }, nodes: t.comments.map(node) } })) },
+    comments: { pageInfo: { hasNextPage: false }, nodes: [] },
+    reviews: { pageInfo: { hasNextPage: false }, nodes: [] },
+  } } } }));
+} else if (argv[0] === 'api' && (m = /^repos\\/acme\\/keel\\/pulls\\/(\\d+)\\/reviews/.exec(argv[1] ?? ''))) {
+  console.log(JSON.stringify((s.prs[m[1]]?.reviews ?? []).map(r => ({ user: { login: r.user }, state: 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-08T09:30:00Z' }))));
+} else { console.error('stub gh: unexpected ' + argv.join(' ')); process.exit(1); }
+`);
+  await chmod(path, 0o755);
+  return {
+    path,
+    env: { ...BASE_ENV, KEEL_GH: path },
+    calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
+    set: async f => { const st = JSON.parse(await readFile(statePath, 'utf8')); f(st); await writeFile(statePath, JSON.stringify(st)); },
+  };
+}
+/** Every test reads GitHub only through a stub, which by default says each commit came through reviewed PR #7. */
+const ENV = (await stubGh()).env;
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: ENV, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const NOTES = 'Acme projects get a conductor that names their gate.\n';
 
@@ -32,7 +86,7 @@ async function keelLike(t, { self = true, check = 'node -e 0' } = {}) {
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, '.keel'));
   await writeFile(join(dir, 'package.json'), '{\n  "name": "keel",\n  "version": "0.0.0",\n  "type": "module"\n}\n');
-  await writeFile(join(dir, '.keel/keel.json'), `{\n  "name": "Acme Keel",\n  ${self ? '"keel": "self",\n  ' : ''}"check": ${JSON.stringify(check)},\n  "practice": "0.0.0",\n  "practices": ["base", "phases"]\n}\n`);
+  await writeFile(join(dir, '.keel/keel.json'), `{\n  "name": "Acme Keel",\n  "repo": "acme/keel",\n  ${self ? '"keel": "self",\n  ' : ''}"check": ${JSON.stringify(check)},\n  "practice": "0.0.0",\n  "practices": ["base", "phases"]\n}\n`);
   await writeFile(join(dir, '.keel/lock.json'), '{\n  "practice": "0.0.0",\n  "files": {}\n}\n');
   await writeFile(join(dir, 'WHATSNEW.md'), WHATSNEW_HEADER);
   await mkdir(join(dir, 'practices', 'base'), { recursive: true });
@@ -257,4 +311,171 @@ test('prepend puts a new entry above the newest and keeps the header', () => {
   assert.equal(one, `${WHATSNEW_HEADER}\n## v0.1.0 — 2026-10-02\n\nFirst.\n`);
   const two = prepend(one, '0.2.0', 'Second.', '2026-10-09');
   assert.deepEqual(entries(two).map(e => [e.version, e.body]), [['0.2.0', 'Second.'], ['0.1.0', 'First.']]);
+});
+
+// ---- phase 48: a release is reviewed before the fleet sees it ------------------------
+
+/** Everything a refused release must leave alone: the files it would write, HEAD, the tags, the status. */
+const snapshot = async dir => ({
+  files: await Promise.all(['package.json', 'practices/VERSION', '.keel/keel.json', '.keel/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f)))),
+  head: git(dir, 'rev-parse', 'HEAD'), tags: git(dir, 'tag', '--list'), status: git(dir, 'status', '--porcelain'),
+});
+const lookups = calls => calls.filter(c => /\/commits\/[0-9a-f]{40}\/pulls$/.test(c[1] ?? ''));
+
+test('the review gate: a practice commit pushed straight to main refuses (exit 1, naming it) and writes nothing', async t => {
+  const gh = await stubGh({ defaultPull: null });
+  const dir = await keelLike(t);
+  await changePractice(dir);
+  const sha = git(dir, 'rev-parse', 'HEAD');
+  const before = await snapshot(dir);
+  let r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
+  assert.equal(r.exitCode, 1, r.text);
+  assert.match(r.text, /the review gate refused v0\.1\.0: 1 of 1 practice commit/);
+  assert.ok(r.text.includes(`${sha.slice(0, 7)} practice: base — pushed straight to main: no merged pull request brought it`), r.text);
+  assert.match(r.text, /--unreviewed "<why>"/);
+  assert.deepEqual(await snapshot(dir), before, 'nothing written: no file, commit or tag');
+  assert.deepEqual((await gh.calls()).map(c => c[1]), [`repos/acme/keel/commits/${sha}/pulls`], 'one call for the one commit, and no PR read');
+  // In a PR that never merged: it still reached main outside one.
+  await gh.set(s => { s.pulls[sha] = [{ number: 9, merged_at: null }]; });
+  r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
+  assert.equal(r.exitCode, 1, r.text);
+  assert.match(r.text, /only in unmerged #9: it reached main outside a PR/);
+  assert.deepEqual(await snapshot(dir), before);
+});
+
+test('the review gate: a merged PR whose keel review --gate fails refuses, naming the PR and why; answered, it passes', async t => {
+  const OLD = '6666666666666666666666666666666666666666';
+  const open = { id: 'PRRT_open', comments: [{ databaseId: 1, author: 'github-actions', body: '**P1** The hatch is open.' }] };
+  const dir = await keelLike(t);
+  await changePractice(dir);
+  const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
+  const before = await snapshot(dir);
+  for (const [pr, why] of [
+    [{ ...REVIEWED, threads: [open] }, /#7: 1 review comment unanswered \(PRRT_open\)/],
+    [{ ...REVIEWED, reviews: [{ user: 'acme-owner', commit_id: H7 }] }, /#7: nobody but its author \(acme-owner\) reviewed its head 7777777/],
+    [{ ...REVIEWED, reviews: [{ user: 'github-actions[bot]', commit_id: OLD }] }, /#7: nobody but its author \(acme-owner\) reviewed its head 7777777/],
+    [{ ...REVIEWED, reviews: [] }, /#7: nobody but its author/],
+  ]) {
+    const gh = await stubGh({ prs: { 7: pr } });
+    const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
+    assert.equal(r.exitCode, 1, r.text);
+    assert.ok(r.text.includes(`${short} practice: base — #7`), r.text);
+    assert.match(r.text, why);
+    assert.deepEqual(await snapshot(dir), before, 'nothing written');
+  }
+  // The comment answered by the author: the gate passes.
+  const answered = { ...open, comments: [...open.comments, { databaseId: 2, author: 'acme-owner', body: 'Fixed in abc1234.' }] };
+  const gh = await stubGh({ prs: { 7: { ...REVIEWED, threads: [answered] } } });
+  const r = await release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env });
+  assert.deepEqual(r.data.review.checked, [{ sha: short, subject: 'practice: base', pr: 7, ok: true, why: '#7, reviewed by github-actions[bot]' }]);
+});
+
+test('the review gate passes when each practice commit came through a reviewed PR: one call a commit, each PR read once, only commits since the last tag', async t => {
+  const gh = await stubGh();
+  const dir = await keelLike(t);
+  await changePractice(dir, 'Acme keeps a gate.');
+  await changePractice(dir, 'Acme keeps two.');
+  await writeFile(join(dir, 'README.md'), '# Acme keel\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'docs: readme');
+  let r = await release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env });
+  assert.deepEqual(r.data.review.checked.map(c => [c.subject, c.pr, c.ok]), [['practice: base', 7, true], ['practice: base', 7, true]], 'the README commit is not practice scope');
+  assert.match(r.text, /Review gate passed: 2 practice commit\(s\), each through a reviewed PR/);
+  const calls = await gh.calls();
+  assert.equal(lookups(calls).length, 2, 'one lookup a commit');
+  assert.equal(calls.length, 4, 'two lookups, then PR #7 read once: its threads and its reviews');
+  assert.equal(git(dir, 'log', '-1', '--format=%B').trim(), 'release v0.1.0', 'a reviewed release says nothing more');
+  assert.doesNotMatch(await readFile(join(dir, 'WHATSNEW.md'), 'utf8'), /without the review gate/);
+
+  // The next release checks only what came after v0.1.0, through its own PR.
+  await changePractice(dir, 'Acme answers its reviews.');
+  const sha = git(dir, 'rev-parse', 'HEAD');
+  const H8 = '8888888888888888888888888888888888888888';
+  await gh.set(s => { s.pulls[sha] = [{ number: 8, merged_at: MERGED }]; s.prs[8] = { ...REVIEWED, head: H8, reviews: [{ user: 'claude[bot]', commit_id: H8 }] }; });
+  assert.deepEqual(scopeCommits(dir, null, gh.env).commits.map(c => c.sha), [sha]);
+  r = await release({ root: dir, version: '0.2.0', notes: 'Acme answers.' }, { env: gh.env });
+  assert.equal(r.data.review.since, 'v0.1.0');
+  assert.deepEqual(r.data.review.checked.map(c => [c.pr, c.ok, c.why]), [[8, true, '#8, reviewed by claude[bot]']]);
+});
+
+test('--unreviewed "<why>" passes the gate unread and writes the reason into the release commit and WHATSNEW', async t => {
+  const gh = await stubGh({ defaultPull: null });
+  const dir = await keelLike(t);
+  await changePractice(dir);
+  const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
+  const before = await snapshot(dir);
+  let r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES, unreviewed: 'hotfix' }, { env: gh.env }));
+  assert.equal(r.exitCode, 2, 'a reason is words, not one');
+  assert.match(r.text, /--unreviewed needs the reason/);
+  assert.deepEqual(await snapshot(dir), before);
+  const why = 'Acme hotfix: the hatch was open';
+  r = await release({ root: dir, version: '0.1.0', notes: NOTES, unreviewed: why }, { env: gh.env, date: '2026-10-09' });
+  assert.deepEqual(await gh.calls(), [], 'skipped: GitHub is not read');
+  assert.equal(r.data.review.unreviewed, why);
+  assert.match(r.text, /Review gate skipped \(--unreviewed\): Acme hotfix/);
+  assert.equal(entries(await readFile(join(dir, 'WHATSNEW.md'), 'utf8'))[0].body, `${NOTES.trim()}\n\nReleased without the review gate (1 practice commit unchecked): ${why}`);
+  assert.equal(git(dir, 'log', '-1', '--format=%s'), 'release v0.1.0');
+  assert.equal(git(dir, 'log', '-1', '--format=%b').trim(), `Unreviewed: ${why}\n\n${short} practice: base`);
+  assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
+  // A keel-only release has no review to skip.
+  r = await attempt(release({ root: dir, version: '0.1.1', notes: NOTES, unreviewed: why }, { env: gh.env }));
+  assert.equal(r.exitCode, 2);
+  assert.match(r.text, /no commit under practices\/, migrations\/ or docs\/lessons\.md since v0\.1\.0, so there is no review to skip/);
+});
+
+test('--yes does not skip the review gate: the CLI refuses it and writes nothing; only --unreviewed passes', async t => {
+  const gh = await stubGh({ defaultPull: null });
+  const dir = await keelLike(t);
+  await changePractice(dir);
+  const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
+  const before = await snapshot(dir);
+  const cli = args => run(process.execPath, [BIN, 'release', '0.1.0', '--notes', '-', ...args, '--json'], { cwd: dir, env: gh.env, input: NOTES });
+  const yes = cli(['--yes']);
+  assert.notEqual(yes.status, 0, yes.stdout);
+  assert.match(JSON.parse(yes.stdout).error, /takes no --yes[\s\S]*--unreviewed "<why>"/);
+  assert.deepEqual(await snapshot(dir), before, '--yes wrote nothing');
+  const plain = cli([]);
+  assert.equal(plain.status, 1, plain.stdout);
+  assert.ok(JSON.parse(plain.stdout).error.includes(`${short} practice: base — pushed straight to main`));
+  assert.deepEqual(await snapshot(dir), before);
+  const empty = cli(['--unreviewed']);
+  assert.equal(empty.status, 2);
+  assert.match(JSON.parse(empty.stdout).error, /--unreviewed needs the reason/);
+  const owner = cli(['--unreviewed', 'Acme owner releases it unread']);
+  assert.equal(owner.status, 0, owner.stdout + owner.stderr);
+  assert.equal(JSON.parse(owner.stdout).review.unreviewed, 'Acme owner releases it unread');
+});
+
+test('the review gate never passes on an unread review: GitHub down is exit 2, nothing written', async t => {
+  const gh = await stubGh({ down: true });
+  const dir = await keelLike(t);
+  await changePractice(dir);
+  const before = await snapshot(dir);
+  const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
+  assert.equal(r.exitCode, 2, r.text);
+  assert.match(r.text, /GitHub could not be read[\s\S]*cannot pass on an unread review, and nothing was written/);
+  assert.deepEqual(await snapshot(dir), before);
+});
+
+test(`the review gate reads at most ${GATE_CAP} commits: past it, a clear refusal before any GitHub call`, async t => {
+  const gh = await stubGh();
+  const dir = await keelLike(t);
+  for (let i = 0; i <= GATE_CAP; i++) await changePractice(dir, `Acme rule ${i}.`);
+  const before = await snapshot(dir);
+  const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
+  assert.equal(r.exitCode, 1, r.text);
+  assert.match(r.text, new RegExp(`${GATE_CAP + 1} commits under practices/[\\s\\S]*reads at most ${GATE_CAP}[\\s\\S]*Release more often, or pass --unreviewed`));
+  assert.deepEqual(await gh.calls(), []);
+  assert.deepEqual(await snapshot(dir), before);
+});
+
+test('a dry run lists the commits the review gate will check and reads no GitHub', async t => {
+  const gh = await stubGh({ defaultPull: null });
+  const dir = await keelLike(t);
+  await changePractice(dir);
+  const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
+  const r = await release({ root: dir, version: '0.1.0', notes: NOTES, dryRun: true }, { env: gh.env });
+  assert.deepEqual(r.data.review, { since: r.data.practice.since, commits: [{ sha: short, subject: 'practice: base' }], unreviewed: null });
+  assert.match(r.text, new RegExp(`check that each of 1 practice commit\\(s\\)[^\\n]*a dry run reads no GitHub\\): ${short}`));
+  assert.deepEqual(await gh.calls(), []);
 });

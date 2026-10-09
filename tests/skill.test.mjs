@@ -189,6 +189,34 @@ test('the conduct skill and the climb and tend briefs say: validate each review 
   }
 });
 
+// Phase 48: in keel itself, a practice change lands as a claude/ PR reviewed by the other provider before a release.
+test('the conduct skill says: in keel, a practice change lands as a claude/ PR, waits for the other provider\'s review, answers it, then merges; records and CLI-only changes may go to main', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const four = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## ', skill.indexOf('\n## 4.') + 1));
+  const at = four.indexOf('**In keel itself, a practice change is reviewed before a release**');
+  assert.ok(at > 0, 'the rule is in §4, Commit');
+  const rule = four.slice(at, four.indexOf('\n\n', at));
+  assert.match(rule, /`"keel": "self"`/, 'keel only: a project has no practice of its own to release');
+  assert.match(rule, /`practices\/`,\s+`migrations\/` or `docs\/lessons\.md`/, 'the release gate\'s scope, named');
+  assert.match(rule, /lands as\s+a `claude\/` PR/);
+  assert.match(rule, /wait for the\s+other provider's review/);
+  assert.match(rule, /keel review <repo>#<n> --wait/);
+  assert.match(rule, /Answer every comment/);
+  assert.match(rule, /Merge when every comment is answered\s+and someone other than the PR's author has reviewed its head/);
+  assert.match(rule, /`keel release`\s+refuses a practice commit that came any other way/);
+  assert.match(rule, /`--unreviewed "<why>"`[\s\S]*never `--yes`/);
+  assert.match(rule, /Records\s+\(`docs\/phases\/`, evidence, the roadmap\) and CLI-only changes may still go to\s+`main`/);
+  // keel's own copy is rendered from it, and keel's own cross-review is on: Codex reviews the conductor's claude/ PRs.
+  assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('**In keel itself, a practice change is reviewed before a release**'));
+  const config = JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8'));
+  assert.ok(config.practices.includes('cross-review'));
+  assert.deepEqual(config.agents, { claude: {}, codex: {} });
+  assert.deepEqual([...config.crossReview.for].sort(), ['claude/', 'codex/']);
+  const { reviewerOf } = await import('../practices/night/files/scripts/keel/lib.mjs');
+  assert.equal(reviewerOf({ config, head: 'claude/phase-48' }).reviewer, 'codex');
+  assert.equal(reviewerOf({ config, head: 'codex/fix' }).reviewer, 'claude');
+});
+
 // ledger #60, #73, #74: the conduct skill assumes nothing a project with its own roadmap lacks, and agrees with the AGENTS block.
 test('the conduct skill reads the project\'s roadmap command, says whose check guards a stale status, and the AGENTS block names the small-phase exception', async () => {
   const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');

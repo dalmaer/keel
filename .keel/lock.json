@@ -33,9 +33,13 @@
       "practice": "climb",
       "sha256": "bae6c801d98d6c33be349d2b93d2083b6f662ced42c052f8e4984df6c1e736b9"
     },
+    ".agents/cross-review/REVIEW.md": {
+      "practice": "cross-review",
+      "sha256": "3aeffb8fc0cf4cb06b10c168f9b9a14865590f045426ed0e4ab204bdff6d00f0"
+    },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "74a2fe760d0279d87917af7d60e5ae4706a9c10e3c9b5a1eef85ecae1b1839ac"
+      "sha256": "6c910cd26dc0c53301fc43084f485dbd2746c1cf1426d921a4fa6e2d0f3a0401"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -60,6 +64,10 @@
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
       "sha256": "fe7d73550d06318d88095c30bc8c9e596b60b9c3ecb3c5bc9e3785ac42e2e443"
+    },
+    ".github/workflows/keel-cross-review.yml": {
+      "practice": "cross-review",
+      "sha256": "647df67abc1a4a277462a8c13e1253892ef8c3936fb76b28d50eec07c465989c"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -128,6 +136,10 @@
     "scripts/keel/climb.mjs": {
       "practice": "climb",
       "sha256": "83da09238640f8adab1069dab54cdc607ed6a3cda01d78d26012759ecefbe6ea"
+    },
+    "scripts/keel/cross-review.mjs": {
+      "practice": "cross-review",
+      "sha256": "e6ae5a21f824a89eea4299682e80ae9d4f58f686e3e0bafc6deb08126678587f"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",

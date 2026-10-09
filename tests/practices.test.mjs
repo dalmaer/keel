@@ -81,11 +81,11 @@ test('every managed target exists on keel, and keel switches on every practice',
     if (f.link) assert.ok(info.isSymbolicLink(), `${f.path} should be a symlink`);
   }
   // Optional practices are each project's own choice: keel has no Loop workspace, keeps claude on (its owner set the token),
-  // and climbs nightly (the owner's call, 6 Oct).
-  assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].filter(n => !practices.get(n).optional || ['claude', 'climb', 'reconciliation'].includes(n)).sort(),
+  // climbs nightly (the owner's call, 6 Oct), and has its own PRs cross-reviewed (phase 48).
+  assert.deepEqual([...(await config(KEEL)).practices].sort(), [...practices.keys()].filter(n => !practices.get(n).optional || ['claude', 'climb', 'cross-review', 'reconciliation'].includes(n)).sort(),
     "keel's .keel/keel.json switches on every practice that is not optional (and the optional ones its owner chose, named here)");
   assert.deepEqual([...practices.values()].filter(p => p.optional).map(p => p.name).sort(), optionalPractices(), 'load() reads each practice.json\'s optional flag');
-  assert.ok(['claude', 'climb', 'reconciliation'].every(n => practices.get(n)?.optional), 'the optional practices keel switches on are optional');
+  assert.ok(['claude', 'climb', 'cross-review', 'reconciliation'].every(n => practices.get(n)?.optional), 'the optional practices keel switches on are optional');
 });
 
 test('conduct pins its upstream source', async () => {

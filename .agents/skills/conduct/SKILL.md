@@ -317,6 +317,19 @@ when `keel review <repo>#<n> --gate` exits 0 (every comment answered, each
 named reviewer has reviewed the head commit). The default is neither: no PR,
 no wait.
 
+**In keel itself, a practice change is reviewed before a release**
+(`.keel/keel.json` says `"keel": "self"`). A change under `practices/`,
+`migrations/` or `docs/lessons.md` is what the fleet receives, so it lands as
+a `claude/` PR: push it to `claude/phase-<N>`, open the PR, and wait for the
+other provider's review (cross-review: Codex reviews `claude/` PRs) with
+`keel review <repo>#<n> --wait`. Answer every comment; after a fix, comment
+`/review` so the head is reviewed again. Merge when every comment is answered
+and someone other than the PR's author has reviewed its head. `keel release`
+refuses a practice commit that came any other way, naming it; only the
+owner's `--unreviewed "<why>"` goes past it, never `--yes`. Records
+(`docs/phases/`, evidence, the roadmap) and CLI-only changes may still go to
+`main`.
+
 Write a short report between phases (the phase, its new status, the proof and
 what it printed, what changed course). Don't wait for a reply.
 

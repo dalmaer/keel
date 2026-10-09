@@ -21,8 +21,19 @@
     "claude",
     "renovate",
     "reconciliation",
-    "climb"
+    "climb",
+    "cross-review"
   ],
+  "agents": {
+    "claude": {},
+    "codex": {}
+  },
+  "crossReview": {
+    "for": [
+      "claude/",
+      "codex/"
+    ]
+  },
   "climb": {
     "jobs": [
       "test-time"

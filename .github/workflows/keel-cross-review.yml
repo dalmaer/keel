@@ -1,0 +1,358 @@
+# Cross-review (keel practice `cross-review`; managed: keel render rewrites it).
+#
+# An agent reviews the pull requests another model wrote (keel phase 45):
+# Claude reviews Codex's codex/ PRs, Codex Claude's claude/ PRs, the
+# reviewer chosen per PR from "agents" (the first other provider with its
+# secret; its own provider only when no other is available, said in a
+# notice and in the review): findings
+# tagged P1/P2/P3, each validated against the code before it is written,
+# and a one-paragraph summary, posted by this workflow as one COMMENT review
+# with the findings inline. The brief is
+# .agents/cross-review/REVIEW.md. The rules:
+#
+#   - Off unless .keel/keel.json has "crossReview"; with no secret, a notice and green.
+#   - Which PRs: a head branch starting with a "crossReview".for prefix
+#     ("codex/"), in this repo (never a fork), when it is opened or marked
+#     ready for review, and again when a person with write access comments
+#     `/review` on it. Never on a push: a review per push costs more than it
+#     tells. The job's `if:` and scripts/keel/cross-review.mjs `which` both say so.
+#   - The config, the brief and the checks come from the default branch; the
+#     agent reads the PR's head, checked out after them.
+#   - The agent reads, and writes nothing: Claude's tools are Read, Grep,
+#     Glob, gh pr diff and gh pr view; Codex runs in its read-only sandbox
+#     (no write, no network: it reads the diff the workflow wrote), with
+#     sudo dropped and no GitHub token. It never pushes, approves, requests
+#     changes or merges. Its step is time-boxed to the budget.
+#   - Two jobs (keel phase 46). The agent's (`review`) holds a token that
+#     only reads: no write, no id-token, no persisted credential, and
+#     Claude's action is handed that token (github_token), so it never trades
+#     OIDC for its app's token, which could write. The only job that can
+#     write (`publish`, pull-requests: write) runs no agent and nothing from
+#     the PR's branch: the default branch's checkout, and the review job's
+#     artifact (the agent's final message, the PR and its diff) as data.
+#   - The final message is the summary and a JSON block of findings; the
+#     publish job validates them against the diff and posts one COMMENT
+#     review (cross-review.mjs summary), never APPROVE or REQUEST_CHANGES:
+#     the valid findings inline, each dropped one named in the summary.
+#   - An agent that failed before its budget ran out is red, printing only the
+#     error line (lesson 29), and the publish job does not run.
+#
+# SECRET: for Claude (the default), CLAUDE_CODE_OAUTH_TOKEN (`claude
+# setup-token`) or ANTHROPIC_API_KEY, as the claude practice's; for Codex,
+# OPENAI_API_KEY (billed per token to the API account). Each review spends
+# model tokens, up to the configured minutes. No model is pinned here: a
+# pinned model is a fact that ages.
+name: keel-cross-review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+# One review at a time per PR, queued, never cancelled. GitHub keeps one
+# pending run per group, so a run that will not review (any other comment on
+# the PR: a bot's, an edit of a summary, a /review from someone without write
+# access) gets a group of its own, keyed by its run id; otherwise it would
+# replace a person's /review queued behind a running review, then skip, and
+# the /review would be lost. The condition is the review job's `if:`, word
+# for word. The group is the workflow's, so it holds both jobs: a queued
+# review starts after the one before it has posted.
+concurrency:
+  group: keel-cross-review-${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/review') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]'))) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+# Each job asks for its own; nothing is granted by default.
+permissions: {}
+
+jobs:
+  # The agent's job: its token reads and nothing more. No id-token: Claude's
+  # action is handed this token (github_token), so it never exchanges OIDC
+  # for the Claude app's token, which could write; Codex's step is given no
+  # token at all.
+  review:
+    # The trigger, before a runner starts: a same-repo PR that is not a draft,
+    # or `/review` on a PR from a person with write access, never a bot. The
+    # branch prefix lives in .keel/keel.json, so the first steps read it.
+    if: |
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/review') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+        github.event.comment.user.type != 'Bot' &&
+        !endsWith(github.event.comment.user.login, '[bot]'))
+    runs-on: ubuntu-latest
+    # The agent's own step is bounded by the budget (5 to 60 minutes); this
+    # bounds the whole run.
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ran: ${{ steps.ran.outputs.ran }}
+      agent: ${{ steps.which.outputs.agent }}
+      author: ${{ steps.which.outputs.author }}
+      reason: ${{ steps.which.outputs.reason }}
+      minutes: ${{ steps.which.outputs.minutes }}
+    env:
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      # The config, validated before the secret gate (a bad one, "agents"
+      # with a typo too, is red, naming the key, never a quiet notice), and
+      # the providers it lists, as the script read them.
+      - name: Is cross-review on?
+        id: on
+        run: |
+          if ! config=$(node scripts/keel/cross-review.mjs config --json); then
+            node -e 'let e; try { e = JSON.parse(process.argv[1]).error; } catch {} console.log(`::error::${e ?? process.argv[1]}`);' "$config"
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(process.argv[1]);
+            if (!c.on) console.log("cross-review is off: .keel/keel.json has no \"crossReview\", so this run does nothing.");
+            const agents = (c.agents ?? ["claude"]).join(",");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${c.on}\n${c.on ? `agents=${agents}\n` : ""}`);
+          ' "$config"
+      - name: Configured?
+        id: configured
+        if: steps.on.outputs.on == 'true'
+        # On when a listed provider has its secret; which one reviews this PR
+        # (never its author's) is the next step's, and so is its secret.
+        env:
+          AGENTS: ${{ steps.on.outputs.agents }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          enabled=false
+          AGENTS="${AGENTS:-claude}"
+          case ",$AGENTS," in *,claude,*) if [ -n "$OAUTH" ] || [ -n "$API_KEY" ]; then enabled=true; fi ;; esac
+          case ",$AGENTS," in *,codex,*) if [ -n "$OPENAI" ]; then enabled=true; fi ;; esac
+          if [ "$enabled" = false ]; then
+            case "$AGENTS" in
+              claude) echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a cross-review to run." ;;
+              codex) echo "::notice::Skipped: add the OPENAI_API_KEY secret for a cross-review by Codex to run." ;;
+              *) echo "::notice::Skipped: add a reviewer's secret for a cross-review to run: CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) for Claude, OPENAI_API_KEY for Codex." ;;
+            esac
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+      # The config, validated (a bad one is red, naming the key), and the PR
+      # as GitHub has it now: its branch against the prefixes, a fork, a
+      # draft, a closed PR, and for /review who asked. Then who reviews it:
+      # never the provider that wrote it (its branch says which), so the
+      # first other provider "agents" lists; one with no secret is a notice.
+      # A reviewer that would be the author is red, and no agent runs.
+      - name: Which pull request?
+        id: which
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENTER_TYPE: ${{ github.event.comment.user.type }}
+          HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          node scripts/keel/cross-review.mjs config
+          gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
+          node scripts/keel/cross-review.mjs which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
+          node -e '
+            const fs = require("fs");
+            const [file, out] = process.argv.slice(1);
+            const w = JSON.parse(fs.readFileSync(file, "utf8"));
+            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\nreason=${w.reason ?? ""}\n`);
+            // Its own provider reviews only when no other is available: said, never silent.
+            console.log(w.review ? `${w.self ? "::notice::" : ""}review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
+          ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
+
+      # The brief, from the default branch: REVIEW.md, this PR, the project's
+      # context. The checks that run after the agent are copied out first, so
+      # the PR's own copy of them never judges its review. The diff is read
+      # here, before the agent: the findings are checked against it, and
+      # Codex (no network) reads it.
+      - name: Brief
+        id: brief
+        if: steps.which.outputs.review == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AGENT: ${{ steps.which.outputs.agent }}
+        run: |
+          if ! gh pr diff "$PR" --repo "$REPO" > "$RUNNER_TEMP/pr.diff"; then
+            echo "::warning::The pull request's diff could not be read; its findings cannot be posted inline."
+            : > "$RUNNER_TEMP/pr.diff"
+          fi
+          node scripts/keel/cross-review.mjs brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
+          mkdir -p "$RUNNER_TEMP/keel/scripts/keel"
+          cp scripts/keel/cross-review.mjs scripts/keel/lib.mjs "$RUNNER_TEMP/keel/scripts/keel/"
+          eof="KEEL_EOF_$(date +%s%N)"
+          {
+            echo "prompt<<$eof"
+            cat "$RUNNER_TEMP/prompt.md"
+            echo "$eof"
+            echo "started=$(date +%s)"
+          } >> "$GITHUB_OUTPUT"
+
+      # The PR's head, for the agent to read. Nothing here runs its code.
+      - name: Check out the pull request
+        if: steps.which.outputs.review == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.which.outputs.sha }}
+          persist-credentials: false
+
+      # The agent, time-boxed to the budget: the step of the provider the
+      # config names (each step's if:). Claude has read-only tools and the
+      # job's read-only token (gh pr diff and gh pr view read with it); Codex
+      # its read-only sandbox, sudo dropped (the key stays out of its reach),
+      # and no GitHub token. Neither can comment: its final message is the
+      # review. A timeout is not red: what it said is posted.
+      # Codex's TMPDIR, which even its read-only sandbox may write: pinned
+      # under /tmp, never the runner's temp, where GITHUB_ENV and
+      # GITHUB_OUTPUT would carry what it wrote into every later step.
+      - name: Give Codex its temp dir
+        if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'
+        run: mkdir -p /tmp/keel-codex
+      - name: Review
+        id: review
+        if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'claude'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.which.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.brief.outputs.prompt }}
+          # A provider's bot may open the PR (claude[bot]: Claude reviewing its
+          # own, the fallback); the action allows no bot unless named. The
+          # adapters' logins only (lib.mjs AGENTS login), never "*".
+          allowed_bots: claude[bot]
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*)"
+      - name: Review
+        id: review_codex
+        if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.which.outputs.minutes) }}
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ""
+          TMPDIR: /tmp/keel-codex
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/prompt.md
+          output-file: ${{ runner.temp }}/codex-final-message.md
+          sandbox: read-only
+          safety-strategy: drop-sudo
+          # Providers' bots open the PRs it reviews (a claude/ PR by Claude's
+          # app): the action refuses a bot actor unless named. The adapters'
+          # logins only (lib.mjs AGENTS login), never "*" or allow-bots.
+          allow-bot-users: claude[bot]
+
+      # An agent that failed before its budget ran out (no secret, a bad
+      # model: is_error after one turn) is red, printing only the error line,
+      # and the publish job does not run (lesson 29). A budget timeout is not red.
+      - name: Did the agent run?
+        id: ran
+        if: steps.which.outputs.review == 'true'
+        env:
+          AGENT: ${{ steps.which.outputs.agent }}
+          OUTCOME: ${{ steps.which.outputs.agent == 'codex' && steps.review_codex.outcome || steps.review.outcome }}
+          EXECUTION: ${{ steps.review.outputs.execution_file }}
+          MINUTES: ${{ steps.which.outputs.minutes }}
+          STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          if [ "$AGENT" = codex ]; then
+            node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
+          else
+            node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+          fi
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+
+      # What the publish job reads, as data: the agent's final message (the
+      # action's execution file, or Codex's output file), the PR and its diff
+      # as this job read them before the agent. Never the working tree.
+      - name: Hand the review on
+        if: steps.which.outputs.review == 'true'
+        env:
+          AGENT: ${{ steps.which.outputs.agent }}
+          EXECUTION: ${{ steps.review.outputs.execution_file }}
+        run: |
+          out="$RUNNER_TEMP/handoff"
+          rm -rf "$out"
+          mkdir -p "$out"
+          cp "$RUNNER_TEMP/pr.json" "$RUNNER_TEMP/pr.diff" "$out/"
+          if [ "$AGENT" = codex ]; then
+            if [ -f "$RUNNER_TEMP/codex-final-message.md" ]; then cp "$RUNNER_TEMP/codex-final-message.md" "$out/codex-final-message.md"; fi
+          else
+            file="${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}"
+            if [ -f "$file" ]; then cp "$file" "$out/claude-execution-output.json"; fi
+          fi
+      - name: Keep the review
+        if: steps.which.outputs.review == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-cross-review
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+  # The only job that can write: no agent, and nothing of the PR's branch
+  # runs here. It runs only when the agent ran (a red "Did the agent run?"
+  # fails the review job, so this one is skipped), from a checkout of the
+  # default branch, on the review job's artifact.
+  publish:
+    needs: review
+    if: needs.review.outputs.ran == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: keel-cross-review
+          path: ${{ runner.temp }}/review
+
+      # The review: the agent's final message as its summary (opened by a
+      # hidden marker, so it owes no answer) and its valid findings as inline
+      # comments, posted as a COMMENT review (the event is the script's, never
+      # the agent's). Should GitHub refuse the inline comments, the same
+      # review goes with the findings listed in its summary.
+      - name: Post the summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+          AGENT: ${{ needs.review.outputs.agent }}
+          AUTHOR: ${{ needs.review.outputs.author }}
+          REASON: ${{ needs.review.outputs.reason }}
+          MINUTES: ${{ needs.review.outputs.minutes }}
+        run: |
+          in="$RUNNER_TEMP/review"
+          file="$in/claude-execution-output.json"
+          if [ "$AGENT" = codex ]; then file="$in/codex-final-message.md"; fi
+          node scripts/keel/cross-review.mjs summary --agent "${AGENT:-claude}" --author "$AUTHOR" --reason "$REASON" --file "$file" --pr "$in/pr.json" --diff "$in/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
+          if ! gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review.json" --jq '"posted review \(.id) (\(.state))"'; then
+            echo "::warning::GitHub refused the review with its inline comments; posting it with the findings in its summary."
+            gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-plain.json" --jq '"posted review \(.id) (\(.state))"'
+          fi
