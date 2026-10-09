@@ -243,3 +243,18 @@ test('the conduct skill treats owes: walk as done for /conduct <N>, and leaves a
   assert.match(skill, /\*\*Its dependencies are built\.\*\*[^\n]*a partial one marked `owes: walk` counts as built here/, 'the §0 gate too (Codex on duo#81)');
   assert.match(skill, /keeps its own phases \(`"local"`\s+names `phases`\) follows its own roadmap's rules for both/);
 });
+
+// Phase 62: a fix is proven by its test failing without it, and the commit says so.
+test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-by: trailer from keel prove', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const commit = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## 5.'));
+  assert.match(commit, /\*\*A fix is proven by its test failing without it\.\*\* A `fix:` commit\s+carries a `Proven-by:` trailer, from `keel prove <test> --fix <the fix's\s+files> --trailer`/);
+  assert.match(commit, /Only\s+VERIFIED proves the fix\. NOT WORKING means the test does not catch the bug/);
+  assert.match(commit, /never touches the tree/);
+  assert.match(commit, /Never write the\s+trailer by hand/);
+  const block = await readFile(join(KEEL, 'practices', 'conduct', 'files', 'AGENTS.block.md'), 'utf8');
+  assert.match(block, /A `fix:` commit\s+carries a `Proven-by:` trailer from `keel prove <test> --fix <files>\s+--trailer`/);
+  // keel's own copies say it too (render --self).
+  assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('carries a `Proven-by:` trailer'));
+  assert.match(await readFile(join(KEEL, 'AGENTS.md'), 'utf8'), /A `fix:` commit\s+carries a `Proven-by:` trailer/);
+});

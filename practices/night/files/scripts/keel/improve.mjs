@@ -531,6 +531,8 @@ export async function conductCost(dir, check, root) {
 
 /** A fix commit's subject: `fix:` or `fix(` at its very start. */
 export const isFixSubject = subject => /^fix[:(]/i.test(String(subject ?? ''));
+/** A commit body that carries a `Proven-by:` trailer (phase 62: `keel prove --trailer`). */
+export const hasProvenBy = body => /^Proven-by:\s*\S/im.test(String(body ?? ''));
 /** The Trajectory marker of an escape (docs/phases/README.md). */
 export const ESCAPE_ENTRY = /^- \*\*\d{4}-\d{2}-\d{2}\*\* — Escape:/;
 
@@ -585,7 +587,7 @@ function escapesBetween(ctx, from, to) {
     const [sha, subject, body = ''] = rec.replace(/^\n/, '').split(SEP);
     if (!sha || !isFixSubject(subject)) continue;
     const lessons = [...`${subject}\n${body}`.matchAll(/\blesson (\d+)\b/gi)].map(m => Number(m[1]));
-    found.push({ kind: 'commit', ref: sha.slice(0, 7), phase: phaseOf(`${subject}\n${body}`), text: subject, lessons });
+    found.push({ kind: 'commit', ref: sha.slice(0, 7), phase: phaseOf(`${subject}\n${body}`), text: subject, lessons, proven: hasProvenBy(body) });
   }
   const path = lessonsPathOf(ctx.config);
   const before = from ? textAt(ctx, from, path) : null, after = textAt(ctx, to, path);
@@ -599,6 +601,9 @@ function escapesBetween(ctx, from, to) {
       found.push({ kind: 'lesson', ref: `lesson ${row.n}`, n: row.n, phase: phaseOf(`${row.shape} ${row.cost}`), text: row.shape.replace(/\*\(([^)]*)\)\*/g, '').replace(/\*\*/g, '').trim().slice(0, 100) });
     }
   }
+  // Phase 62: every fix: commit without a Proven-by: trailer, kept before a lesson folds its commit in. A note, never counted.
+  const unproven = found.filter(e => e.kind === 'commit' && !e.proven).map(e => e.ref);
+  for (const e of found) delete e.proven;
   // One defect, one count: a fix commit naming a lesson counted here is that lesson's escape (the lesson keeps the commit).
   for (const c of found.filter(e => e.kind === 'commit')) {
     const lesson = found.find(e => e.kind === 'lesson' && c.lessons.includes(e.n));
@@ -609,6 +614,8 @@ function escapesBetween(ctx, from, to) {
   for (const e of escapeEntries(gitOut(ctx, ['diff', '--no-renames', '--no-color', '-U0', base, to, '--', 'docs/phases/']))) {
     found.push({ kind: 'trajectory', ref: e.file, phase: e.phase, text: e.text.replace(ESCAPE_ENTRY, '').trim().slice(0, 100) });
   }
+  // Not an element: the escapes stay one array, and the count stays theirs.
+  Object.defineProperty(found, 'unproven', { value: unproven });
   return found;
 }
 
@@ -933,15 +940,19 @@ export const MEASURES = [
       const bound = r.before ? r.before.length : null;
       const window = r.tag ? `since ${r.tag}` : 'since the first commit (no release tag)';
       const prior = r.tag ? `; the release before (${r.prev ? `${r.prev}..` : 'up to '}${r.tag}) had ${r.before.length}` : '; no release before to compare';
+      // Phase 62: a note on the fix commits, not a bound: those without a Proven-by: trailer (keel prove --trailer).
+      const unproven = r.now.unproven ?? [];
+      const fixes = r.now.filter(e => e.kind === 'commit').length + r.now.reduce((n, e) => n + (e.commits?.length ?? 0), 0);
+      const proof = fixes ? `; ${unproven.length} of ${plural(fixes, 'fix: commit')} without a Proven-by: trailer${unproven.length ? ` (${list(unproven, 6)})` : ''}` : '';
       const ceremony = r.ceremony.length
         ? `ceremony, ${plural(r.ceremony.length, 'phase')} built ${r.tag ? `since ${r.tag}` : 'so far'}: ${list(r.ceremony.map(c => `${c.phase} ${c.days}d/${c.words ?? '?'}w`), 8)}`
         : `ceremony: no phase built ${r.tag ? `since ${r.tag}` : 'yet'}`;
       return {
         value: r.now.length, bound,
-        detail: `${r.now.length} ${window} (${kinds}); ${by.length ? `by phase: ${list(by.map(([p, es]) => `${p} ×${es.length}`), 6)}` : 'none names a phase'}${unattributed ? `; ${unattributed} unattributed` : ''}${prior}; ${ceremony}`,
+        detail: `${r.now.length} ${window} (${kinds}); ${by.length ? `by phase: ${list(by.map(([p, es]) => `${p} ×${es.length}`), 6)}` : 'none names a phase'}${unattributed ? `; ${unattributed} unattributed` : ''}${prior}${proof}; ${ceremony}`,
         facts: {
           since: r.tag, ref: r.ref, previous: r.tag ? { from: r.prev, to: r.tag, value: r.before.length } : null,
-          escapes: r.now, byPhase: Object.fromEntries(by.map(([p, es]) => [p, es.length])), unattributed, ceremony: r.ceremony,
+          escapes: r.now, byPhase: Object.fromEntries(by.map(([p, es]) => [p, es.length])), unattributed, unproven, ceremony: r.ceremony,
         },
       };
     },

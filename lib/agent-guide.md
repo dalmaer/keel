@@ -11,23 +11,24 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
 - `keel phase new|list` — scaffold or list phases under goals
 - `keel render` — render practices; `--check` reads only, exit 1 on differences
-- `keel init [dir] --description "<paragraph>"` — new project; `--github` plans a private repo (exit 3)
+- `keel init [dir] --description "<paragraph>"` — new project; `--github` plans a repo (exit 3)
 - `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
-- `keel doctor` — drift from keel's files and practice lints; `--fix <path> restore|eject` (exit 3)
-- `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3), or `--local`
-- `keel lessons` — send lessons, drift and practice commits home as issues; exit 3
-- `keel learn` — keel only: lessons and sources → proposals; `propose`, `decide` (a person's), `render`, `distill`
-- `keel improve` — is the practice working: measures, bounds, one proposal; `--report` writes a health page
+- `keel doctor` — drift and practice lints; `--fix <path> restore|eject` (exit 3)
+- `keel update` — migrations, re-render, check; a PR branch (exit 3), or `--local`
+- `keel lessons` — send lessons, drift, practice commits home as issues; exit 3
+- `keel learn` — keel only: lessons → proposals; `propose`, `decide`, `render`, `distill`
+- `keel improve` — measures, bounds, one proposal; `--report` a health page
 - `keel test <file> --stalls` — names tests that judge the wall clock
-- `keel drain <prefix>` — one open PR per machine queue; the newest only `--gate-passed`; exit 3
-- `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI, lessons
-- `keel fleet update` — keel only: open the update PR in each project behind; exit 3
-- `keel loose-ends` — unfinished work across projects; `mark <id> resume|park|drop`
-- `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
-- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`
+- `keel drain <prefix>` — one open PR per machine queue; newest only `--gate-passed`; exit 3
+- `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI
+- `keel fleet update` — keel only: the update PR in each project behind; exit 3
+- `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
+- `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
+- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
 - `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
+- `keel prove <test> --fix <path>...` — does the test fail without the fix?
 - `keel release <x.y.z> --notes <file>` — keel only: review gate, cut a version, tag it
 - `keel help` — the verbs
 - `keel --agent-help` — cold start; `<topic>` or `all` for details
@@ -46,7 +47,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `test`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `board`, `retro`, `canvas`, `install`, `coming`, `reconciliation`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `test` `drain` `loop` `climb` `fleet` `loose-ends` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -1265,6 +1266,44 @@ chooses candidates or publishes transcripts, commands or private local pointers.
 Invalid records exit 2. JSON includes `schema`, `operation`, `changes`,
 `coverage`, `warnings`, `exitCode` and the reviewed record. The ordinary
 worksheet above remains read-only. See `keel --agent-help canvas` for publishing.
+
+<!-- topic: prove | a fix is proven by its test failing without it, and the Proven-by: trailer that says so -->
+
+`keel prove <test file> [--name <pattern>] --fix <path>... [--base <ref>] [--trailer] [--evidence <phase>] [--json]`
+runs the named test twice and says whether it proves the fix. Every `fix:`
+commit carries the `Proven-by:` line it prints (the conduct skill's rule);
+the night's `escapes` measure notes the `fix:` commits without one.
+
+- **Without the fix**: a scratch `git worktree add --detach` of the current
+  tree (HEAD with your staged, unstaged and untracked changes laid over it,
+  and `node_modules` linked), with each `--fix` path put back as it was at
+  the base (a file the fix added is removed). The test runs there. The
+  scratch worktree is removed in every case. Your working tree is never
+  changed: no stash, no checkout, no revert (lesson 54).
+- **With the fix**: the test runs in your tree.
+- **The base**: `--base <ref>`; else HEAD's parent when the fix's files are
+  committed and clean, else HEAD.
+- **The runner**: `node --test --test-reporter=tap` with the preloads
+  (`--import`, `--require`) of the first `node … --test` in `package.json`'s
+  test script, and `.keel/keel.json` `env`. Another runner is named in
+  `.keel/keel.json` `"prove": {"command": "<command> {file}"}` (`{name}` for
+  `--name`); keel then reads its exit code and the first lines that look
+  like a failure.
+- **Verdicts**: `VERIFIED` (red without the fix, green with it), `NOT
+  WORKING` (green without it: the test does not catch the bug; or red with
+  it), `INCONCLUSIVE` (the test cannot run without the fix: it does not load,
+  or its file is part of the fix; the fix's files are the same at the base;
+  or no test matched `--name`), each with its reason.
+- `--trailer` prints `Proven-by: <test>[ (<name>)] — <VERDICT> — "<the
+  failure's first line>"` (for any verdict but VERIFIED, the reason).
+  `--evidence <phase>` appends it, dated, to the first file the phase's
+  front matter lists under `evidence:` (exit 2 when it lists none).
+
+`--json` → `{verdict, reason, test, name, fix, base, runner, without: {ran,
+exit, red, loadError, tests, reason, failure: [line], first}, with: {…},
+line, trailer, evidence}`. Exit 0 when VERIFIED, 1 for NOT WORKING or
+INCONCLUSIVE, 2 on usage (no test file, no `--fix`, a path outside the
+repository, not a git repository, a phase with no evidence file).
 
 <!-- topic: canvas | local project snapshots and optional isocan publishing -->
 

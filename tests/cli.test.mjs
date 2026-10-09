@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verbs, FLAGS, GUIDE, COLD_START_LIMIT, parseGuide, surfaceGaps, announced } from '../lib/cli.mjs';
+import { acmeRepo } from './helpers/prove.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -139,14 +140,18 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     await writeFile(join(dir, 'acme-stalls.test.mjs'), "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n");
     const needs = { walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
-      'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
+      'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'],
+      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'] };
+    // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
+    const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
+    const cwdOf = name => name === 'prove' ? proving : dir;
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     // canvas status reads local binding/receipts only; any accidental transport call
     // hits a nonexistent synthetic executable instead of the installed isocan.
     // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
-      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], dir, BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
+      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
       assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
@@ -154,6 +159,7 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // render onto an unchanged copy rewrites nothing.
     await rm(join(dir, 'fresh'), { recursive: true, force: true });
     assert.equal(JSON.parse(keel(['render', '--check', '--json'], dir).out).ok, true);
+    await rm(dirname(proving), { recursive: true, force: true });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

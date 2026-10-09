@@ -403,3 +403,41 @@ test('phases_stuck does not count a partial phase that owes a walk; a plain part
   assert.equal(r.state, 'outside', JSON.stringify(r));
   assert.deepEqual(r.facts.stuck.map(s => s.id), [1], 'the walk owed is not stuck');
 });
+
+// ---- escapes: fix: commits without a Proven-by: trailer (phase 62) ---------
+
+const escapesMeasure = MEASURES.filter(m => m.id === 'escapes');
+
+test('escapes notes the fix: commits since the release that carry no Proven-by: trailer; its value and bound do not change', async t => {
+  const dir = await scratch(t);
+  const git = args => {
+    const r = run('git', args, { cwd: dir, env: ENV });
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  const commit = (subject, body) => {
+    git(['commit', '--allow-empty', '-q', '-m', subject, ...(body ? ['-m', body] : [])]);
+    return git(['rev-parse', '--short=7', 'HEAD']);
+  };
+  git(['init', '-q', '-b', 'main']);
+  await mkdir(join(dir, 'docs'));
+  await writeFile(join(dir, 'docs', 'lessons.md'), '# Lessons\n\n| # | The shape of it | What it cost | Guard |\n| --- | --- | --- | --- |\n');
+  git(['add', '-A']);
+  commit('acme: the first anvil');
+  commit('fix: before the release, and unproven');
+  git(['tag', 'v0.1.0']);
+  const proven = commit('fix: phase 2 counted each anvil twice', 'Proven-by: tests/count.test.mjs — VERIFIED — "2 !== 1"');
+  const bare = commit('fix: phase 3 dropped the anvil early');
+  // A fix folded into the lesson it names is still a fix: commit, and still unproven.
+  await appendFile(join(dir, 'docs', 'lessons.md'), '| 1 | **A counter counts twice.** *(Acme, phase 2)* | Double anvils. | a test |\n');
+  git(['add', '-A']);
+  const folded = commit('fix: the counter again (lesson 1)', 'proven-by is said in prose here, not as a trailer.');
+  const [m] = await measure({ root: dir, config: { name: 'Acme', repo: 'acme/storefront' }, measures: escapesMeasure });
+  // The escapes as before: the two unfolded fix commits and lesson 1 (which keeps its commit).
+  assert.equal(m.value, 3, m.detail);
+  assert.equal(m.bound, 1, 'the release before: its one fix commit');
+  assert.deepEqual(m.facts.unproven, [bare, folded]);
+  assert.ok(!m.facts.unproven.includes(proven), 'the trailer counts as proven');
+  assert.match(m.detail, new RegExp(`; 2 of 3 fix: commits without a Proven-by: trailer \\(${bare}, ${folded}\\); ceremony`));
+  assert.ok(m.facts.escapes.every(e => !('proven' in e)), 'the escapes keep their shape');
+});
