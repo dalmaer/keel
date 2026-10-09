@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 52 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 54 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [48. A release is reviewed before the fleet sees it](phases/48-a-release-is-reviewed-before-the-fleet-sees-it.md). Brief a builder on the release gate; keel's own cross-review (Codex reviewing the conductor's claude/ PRs) is switched on with it. OPENAI_API_KEY is set on keel (2026-10-08). (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -57,7 +57,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-12/15 built; 2 owe a walk.
+12/17 built; 2 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -76,6 +76,8 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [45. Agents are providers: Claude and Codex behind keel's rules](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | partial, walk owed (external) | 2026-10-07 | [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [38](phases/38-the-records-are-tended-a-weekly-pass-resolves.md), [42](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | Built: agents ("agents", and "agent" per pass, default claude), adapters for Claude and Codex in the night lib, findings as JSON that keel validates against the diff and posts (no agent holds a comment tool), Codex reviewing in a read-only, drop-sudo sandbox. Codex cannot commit under workspace-write, so climb and tend stay Claude-only. Owes the Codex run on ledger. · [#29](https://github.com/dalmaer/keel/issues/29) |
 | [46. Cross-review runs its agent in a read-only job, and posts from another](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | partial, walk owed (external) | 2026-10-07 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | Built: a read-only review job (Claude handed the job's read-only github_token, no id-token; Codex as before) and a publish job with no agent that posts keel's validated findings from the default branch's script. Owes a real review on ledger after the update. · [#32](https://github.com/dalmaer/keel/issues/32) |
 | [48. A release is reviewed before the fleet sees it](phases/48-a-release-is-reviewed-before-the-fleet-sees-it.md) | planned | 2026-10-07 | [41](phases/41-no-pr-keel-merges-has-an-unread-review-every.md), [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md) | v0.8.12 to v0.8.19 each drew new Codex findings on the fleet update PRs, in code written that day; each round cost a release and a fleet round. Shipped practice changes land through a keel PR reviewed by another provider before keel release runs. Design: research/2026-10-07-review-hardening.md §3. · [#34](https://github.com/dalmaer/keel/issues/34) |
+| [52. A fleet update always leaves a PR](phases/52-a-fleet-update-always-leaves-a-pr.md) | planned | 2026-10-09 | — | On 2026-10-09 the fleet update threw away its work twice: isocan's main was already red, and the update broke ledger's rule that every variable it reads is documented. The fleet keeps the update on its branch and opens the PR anyway: ordinary on an already-red main, a draft naming the failure otherwise. Design: research/2026-10-09-updates-never-block.md. · [#39](https://github.com/dalmaer/keel/issues/39) |
+| [53. A release is rehearsed on the fleet before it is tagged](phases/53-a-release-is-rehearsed-on-the-fleet-before-it.md) | planned | 2026-10-09 | [52](phases/52-a-fleet-update-always-leaves-a-pr.md) | v0.8.23 to v0.8.26 went out in one day, each fleet round finding a project's check or a review that keel could have found before the tag. keel release rehearses the update on every fleet project (clone, install, update, check; nothing pushed) and refuses when one passes on main and fails with the release. Design: research/2026-10-09-updates-never-block.md. · [#40](https://github.com/dalmaer/keel/issues/40) |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
@@ -92,6 +94,8 @@ Existing projects come under keel without losing what is theirs, and a practice 
 - **45 done when:** A project chooses which agent runs each pass in `.keel/keel.json` (`"agents"`, and an `"agent"` on cross-review, climb and tend), Claude and Codex are both adapters held to the same rules by the same tests, a reviewing agent's findings are posted by keel's own step, and on ledger one pass runs on Codex by changing one line, its result read by the owner.
 - **46 done when:** keel-cross-review.yml runs the agent (Claude or Codex) in a job whose token can only read, with no OIDC App token, and posts the review from a second job that runs no agent and nothing from the PR's branch; the workflows test holds that for both providers, and a real review on ledger posts its findings as before.
 - **48 done when:** `keel release` refuses while a shipped practice change since the last release has not come through a keel PR reviewed by a provider other than its author with every comment answered, and three releases have gone through that gate; the owner has compared the fleet rounds' findings after it with the eight rounds before.
+- **52 done when:** `keel fleet update` never ends a project at FAILED for its check: when the check fails after the update it pushes the branch and opens the PR, ordinary when main fails the same check without the update and a draft otherwise, each opening with what failed; the board lists a draft update PR under Broken; and one real update that failed a project's check has been fixed by a commit on its own branch.
+- **53 done when:** `keel release` rehearses the update on every managed fleet project before it commits and tags, and refuses while a project's check passes on main and fails with the release, unless the owner records why; three releases have gone through it, and the owner has compared their fleet rounds with v0.8.23 to v0.8.26.
 
 ## G3 — Lessons come home
 
