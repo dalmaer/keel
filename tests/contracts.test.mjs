@@ -3,6 +3,8 @@
 // agents-md block as a table (and leaves the block's bytes alone without
 // them), seeds the Claude Code hook that names the document before an edit,
 // and doctor notes a document that is missing or a pattern matching nothing.
+// Git the same on every machine, also when this file is run alone without npm test's --import (the phase's Proof).
+import './helpers/hermetic.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
@@ -13,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { load, fill, contractsTable, blockBody } from '../lib/practices.mjs';
 import { contractsFor, contractProblems, hookLines } from '../practices/agents-md/files/scripts/keel/contract-hook.mjs';
+import { hookGap } from '../lib/doctor.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -189,4 +192,49 @@ test('the hook prints the document for a matching path, and stays silent otherwi
   assert.equal(broken.status, 0);
   assert.equal(broken.stdout, '');
   assert.deepEqual(hookLines({ tool_input: { file_path: join(root, 'src/index/a.mjs') } }, { contracts: [{ paths: 'x' }] }, root), [], 'bad contracts: silent');
+});
+
+test('doctor counts the hook only when settings run it as a PreToolUse hook on Edit, Write and MultiEdit (review of PR 58)', async () => {
+  const seeded = await readFile(join(KEEL, 'practices', 'agents-md', 'files', '.claude', 'settings.json'), 'utf8');
+  assert.equal(hookGap(seeded), null, 'what keel seeds runs it');
+  const hook = (matcher, command = 'node "$CLAUDE_PROJECT_DIR"/scripts/keel/contract-hook.mjs', extra = {}) =>
+    JSON.stringify({ ...extra, hooks: { PreToolUse: [{ ...(matcher === undefined ? {} : { matcher }), hooks: [{ type: 'command', command }] }] } });
+  assert.equal(hookGap(hook('Edit|Write|MultiEdit')), null);
+  assert.equal(hookGap(hook(undefined)), null, 'no matcher: every tool');
+  assert.equal(hookGap(hook('Edit|MultiEdit|Write|NotebookEdit')), null);
+  for (const [why, text] of [
+    ['named only in a permission', JSON.stringify({ permissions: { allow: ['Bash(node scripts/keel/contract-hook.mjs)'] } })],
+    ['on another event', JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Edit|Write|MultiEdit', hooks: [{ type: 'command', command: 'node scripts/keel/contract-hook.mjs' }] }] } })],
+    ['a matcher that misses Write', hook('Edit|MultiEdit')],
+    ['a matcher for Bash', hook('Bash')],
+    ['another script', hook('Edit|Write|MultiEdit', 'node scripts/keel/contract-hook.mjs.bak')],
+    ['every hook off', hook('Edit|Write|MultiEdit', undefined, { disableAllHooks: true })],
+    ['not JSON', '{ hooks'],
+  ]) assert.ok(hookGap(text), why);
+});
+
+test('a conditional target turned off keeps its lock row, so an edit made while dormant is never overwritten (review of PR 58)', async t => {
+  const root = await project(t);
+  await contractFiles(root);
+  await setConfig(root, c => { c.contracts = CONTRACTS; });
+  assert.equal(keel(['render'], root).status, 0);
+  const lockOf = async () => JSON.parse(await readFile(join(root, '.keel/lock.json'), 'utf8')).files;
+  const row = (await lockOf())['scripts/keel/contract-hook.mjs'];
+  assert.ok(row);
+
+  // Contracts off: the file stays where it is, and so does its row.
+  await setConfig(root, c => { delete c.contracts; });
+  const off = keel(['render'], root);
+  assert.equal(off.status, 0, off.stderr);
+  assert.deepEqual((await lockOf())['scripts/keel/contract-hook.mjs'], row, 'the dormant target keeps its row');
+  assert.equal(await exists(join(root, 'scripts/keel/contract-hook.mjs')), true);
+
+  // The project edits it while it is dormant, then turns contracts back on: render refuses, naming it.
+  const edited = `${await readFile(HOOK, 'utf8')}// Acme's own line\n`;
+  await writeFile(join(root, 'scripts/keel/contract-hook.mjs'), edited);
+  await setConfig(root, c => { c.contracts = CONTRACTS; });
+  const on = keel(['render'], root);
+  assert.equal(on.status, 1, on.stdout + on.stderr);
+  assert.match(on.stderr, /refusing to overwrite what the project changed \(scripts\/keel\/contract-hook\.mjs edited\)/);
+  assert.equal(await readFile(join(root, 'scripts/keel/contract-hook.mjs'), 'utf8'), edited, 'the edit is kept');
 });

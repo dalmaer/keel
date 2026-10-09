@@ -47,7 +47,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/contracts.test.mjs tests/doctor.test.mjs`; `npm run check`.
+Automated: `node --test tests/contracts.test.mjs tests/doctor.test.mjs` (both load the hermetic bootstrap themselves; `tests/hermetic.test.mjs` runs them alone under a hostile git config); `npm run check`.
 By hand: one agent edit pointed to its contract.
 
 ## Deliberately open
@@ -64,3 +64,4 @@ The ⚑ walk: set one adopted project's `contracts`, run `keel render`, and let 
 - **2026-10-09** — `.claude/settings.json` is seeded, not managed: a project's own settings are never written over. A project that has one gets a `contract-hook` note naming the entry to add. The hook script and the settings are conditional targets (practice.json `"when": "contracts"`), so no project gets them until it sets contracts.
 - **2026-10-09** — The table lives in the `agents-md` block, not a block of its own: a new block would need markers in every project's AGENTS.md. Without contracts the block's bytes are the template's.
 - **2026-10-09** — A skip counts only when it compares `process.platform` with the tool's own platform: `{ skip: process.platform !== 'win32' }` does not guard an `hdiutil` call. The lint also runs in the night's project-side reading (PROJECT_LINTS).
+- **2026-10-09** — Review of PR 58 (two Codex reviewers) changed the guard. A skip now clears only the command it covers (its test, its `if` branch, or the rest of the block after an early return), and only in the right direction: `skip: process.platform === 'darwin'` runs the command on Linux, so it is a finding. A command counts only through a process runner the file imports (child_process, execa, zx), not a helper of its own named `run` or `sh`, and outside the shell's quotes. `stat -f` became `stat -f %` (BSD's format form): GNU's `stat -f .` runs on Linux. Doctor parses `.claude/settings.json` for a real PreToolUse hook instead of finding the path anywhere. A conditional target turned off keeps its lock row, so an edit made while it is dormant is refused, not overwritten, when it comes back.

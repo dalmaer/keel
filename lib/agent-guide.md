@@ -369,11 +369,16 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   it), `stack-evidence` (a declared tag nothing in the repo shows, or
   evidence for an undeclared one; with no `stack` at all it is a note naming
   what the files show), `platform-guard` (a tracked test file that runs a
-  macOS-only tool such as `hdiutil`, `ditto`, `codesign` or `stat -f`, or a
-  Windows-only one, as a command with no skip for that platform: it passes
-  on the Mac gate and fails on Linux CI; fix: `{ skip: process.platform !==
-  'darwin' }`; `.keel/keel.json` `platformTools` adds tools, a name for
-  macOS or `{ "tool", "platform" }`; prose and comments never count),
+  macOS-only tool such as `hdiutil`, `ditto`, `codesign` or BSD `stat -f
+  <format>`, or a Windows-only one, as a command with no guard covering it:
+  it passes on the Mac gate and fails on Linux CI. A command counts only as
+  the first argument of a process runner the file imports (child_process,
+  execa, zx's `$`), outside the shell's quotes. A guard covers only its own
+  test or branch, and only in the right direction: that test's `{ skip:
+  process.platform !== 'darwin' }`, `skipIf`, an `if` on the platform, or an
+  early return. `.keel/keel.json` `platformTools` adds tools, a name for
+  macOS or `{ "tool", "platform" }`; a word `%` stands for a format
+  argument; prose and comments never count),
   `contracts-config` (a `contracts` list keel cannot read), and in the projects
   shape `off-vocabulary` (Status: DONE, or an unknown word) and
   `phase-status` (status in a heading, or none).

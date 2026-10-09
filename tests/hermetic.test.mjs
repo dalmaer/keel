@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
@@ -38,4 +39,26 @@ test('a spawned child sees the same git', () => {
   const r = run(process.execPath, ['-e', PROBE]);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout), EXPECTED);
+});
+
+// A phase's Proof may run a test file alone (`node --test tests/<file>`), without
+// npm test's --import. Files that commit import the bootstrap themselves, so a
+// hostile global config (signing on, with a signer that always fails; no
+// identity) still never reaches their git (review of PR 58, phase 65's proof).
+test('a test file run alone, without npm test\'s --import, is hermetic too', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-hostile-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const hostile = join(dir, 'gitconfig');
+  await writeFile(hostile, '[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = false\n[user]\n\tuseConfigOnly = true\n');
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/.test(k)));
+  env.GIT_CONFIG_GLOBAL = hostile;
+  const alone = [
+    ['tests/contracts.test.mjs', 'contracts render into the guide'],
+    ['tests/doctor.test.mjs', 'platform guard: doctor fails a tracked test'],
+  ];
+  for (const [file, name] of alone) {
+    const r = run(process.execPath, ['--test', `--test-name-pattern=${name}`, file], { cwd: ROOT, env });
+    assert.equal(r.status, 0, `${file} run alone under a hostile git config:\n${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /^ℹ pass 1$/m, `${file}: the named test ran`);
+  }
 });

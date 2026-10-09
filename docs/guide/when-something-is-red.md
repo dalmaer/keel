@@ -76,9 +76,10 @@ Doctor has findings. It changes nothing without `--fix`. Read it by section:
   means a phase still holds template text, or a spec 2 box names no check
   ([Plan with phases and goals](plan-with-phases-and-goals.md)). A
   `platform-guard` lint means a test runs a macOS-only tool (`hdiutil`,
-  `ditto`, `codesign`, `stat -f`…) with no skip, so it passes on your Mac and
-  fails on Linux CI. Add `{ skip: process.platform !== 'darwin' }` to that
-  test. A tool of your own goes in `.keel/keel.json` `platformTools`.
+  `ditto`, `codesign`, `stat -f %z`…) with no skip, so it passes on your Mac
+  and fails on Linux CI. Add `{ skip: process.platform !== 'darwin' }` to
+  that test. A skip on another test in the file does not count. A tool of
+  your own goes in `.keel/keel.json` `platformTools`.
 - **Notes**: information. They never change the exit code.
 
 ### `keel render --check` differs
