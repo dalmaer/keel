@@ -13,7 +13,8 @@ import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, fill } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
-import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, HEADING, REPORT } from '../lib/adopt.mjs';
+import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, HEADING, REPORT } from '../lib/adopt.mjs';
+import { testsConfigProblems } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -555,7 +556,7 @@ test('adopt detects bun test or vitest in the gate, records the runner, and prop
   const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
   doc = JSON.parse(keel(['doctor', '--json'], dir).out);
-  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a path inside the repo, relative to its root']);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a path inside the repo, relative to its root, of letters, digits, _ . / and - only']);
 
   // vitest as one step of the gate itself: the step goes in braces, so the steps around it run as they did.
   const v = await scratch(t);
@@ -619,4 +620,43 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   assert.equal(runs.length, 3);
   const last = JSON.parse(await readFile(join(dir, '.keel', 'test-runs', runs.sort().at(-1)), 'utf8'));
   assert.deepEqual([last.runner, last.dirty], ['bun', false]);
+});
+
+/** A proposal is a shell line sh can parse, and keeps every byte of the project's own steps. */
+function assertProposals(make = ledgerCommand) {
+  const ledger = (r, j = '.keel/test-runs/junit.xml') => `node scripts/keel/test-ledger.mjs --junit ${j} --runner ${r} --status $?`;
+  const cases = [
+    // A quoted operator is part of a word, not a step's end (review on #56).
+    ["bun test -t 'one|two' && echo done", `{ mkdir -p .keel/test-runs && bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml -t 'one|two'; ${ledger('bun')}; } && echo done`],
+    ['echo "a && b; c" && bun test', `echo "a && b; c" && { mkdir -p .keel/test-runs && bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml; ${ledger('bun')}; }`],
+    ["vitest run -t 'x;y' --coverage", `vitest run --reporter=default --reporter=junit --outputFile.junit=.keel/test-runs/junit.xml -t 'x;y' --coverage; ${ledger('vitest')}`],
+    ['tsc && bun test a\\&b.test.ts || true', `tsc && { mkdir -p .keel/test-runs && bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml a\\&b.test.ts; ${ledger('bun')}; } || true`],
+  ];
+  for (const [command, want] of cases) {
+    const got = make(command, command.includes('vitest') ? 'vitest' : 'bun');
+    assert.equal(got, want, command);
+    const r = run('sh', ['-n', '-c', got], { env: ENV });
+    assert.equal(r.status, 0, `sh -n: ${got}\n${r.stderr}`);
+  }
+  // Only a runner outside quotes is the runner: a quoted one is an argument.
+  assert.equal(make("echo 'bun test' && bun test", 'bun'), `echo 'bun test' && { mkdir -p .keel/test-runs && bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml; ${ledger('bun')}; }`);
+  // What keel will not split by hand gets no proposal, never a broken one.
+  for (const command of ["bun test 'unclosed", 'bun test $(cat list)', 'bun test `cat list`', '(cd web && bun test)', 'bun test > out.txt', 'echo "$(bun test)"']) {
+    assert.equal(make(command, 'bun'), null, command);
+  }
+  // A JUnit path is written into the line as it is, so one a shell would read differently gets no proposal.
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml']) {
+    assert.equal(make('bun test', 'bun', junit), null, junit);
+  }
+  assert.equal(make('bun test', 'bun', 'reports/junit-1.xml'), `mkdir -p reports && bun test --reporter=junit --reporter-outfile=reports/junit-1.xml; ${ledger('bun', 'reports/junit-1.xml')}`);
+}
+
+test('a proposal parses in sh: a quoted operator or runner is a word, and a command or JUnit path keel cannot write safely gets none', () => {
+  assertProposals();
+  const plan = testsPlan({ tests: { junit: 'reports/test results.xml' } }, 'bun test', {});
+  assert.equal(plan.proposal, null);
+  assert.match(plan.declined, /holds characters a shell reads/);
+  assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /the gate has quotes, a substitution, a group or a redirection/);
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  assert.deepEqual(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }), []);
 });

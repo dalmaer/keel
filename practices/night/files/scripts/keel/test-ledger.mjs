@@ -117,7 +117,8 @@ export function testsConfigProblems(config) {
   const out = [];
   for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k) && !OTHER_KEYS.includes(k)) out.push(`"tests" has an unknown key ${k} (window, factor, floorMs, ${OTHER_KEYS.join(', ')})`);
   if (t.runner !== undefined && !RUNNERS.includes(t.runner)) out.push(`"tests".runner must be one of ${RUNNERS.join(', ')}`);
-  if (t.junit !== undefined && !(typeof t.junit === 'string' && t.junit.trim() && !isAbsolute(t.junit) && !t.junit.split(/[\\/]/).includes('..'))) out.push('"tests".junit must be a path inside the repo, relative to its root');
+  // keel writes it into the gate's shell line as it is (adopt's proposal), so it holds no character a shell reads: never quoted, never wrong.
+  if (t.junit !== undefined && !(typeof t.junit === 'string' && /^[A-Za-z0-9_.][A-Za-z0-9_./-]*$/.test(t.junit) && !t.junit.split('/').includes('..'))) out.push('"tests".junit must be a path inside the repo, relative to its root, of letters, digits, _ . / and - only');
   if (t.configEnv !== undefined && !(Array.isArray(t.configEnv) && t.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))) out.push('"tests".configEnv must be a list of environment variable names');
   if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2 && t.window <= MAX_WINDOW)) out.push(`"tests".window must be a whole number of runs, 2 to ${MAX_WINDOW}`);

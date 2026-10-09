@@ -81,7 +81,7 @@ stderr as one line beginning `keel:`.
   {dir, name, repo, steps, secrets}}`; with `--yes`, `github: {repo,
   created, secrets}` in place of `secrets`
 - `adopt` → `{dir, dryRun, check: {check, from}, lessons: {path, from}, stack: {stack, from, detected},
-  tests: {runner, from, junit, proposal: {where, now, to} | null} | null, config, practices: [{name,
+  tests: {runner, from, junit, proposal: {where, now, to} | null, declined?} | null, config, practices: [{name,
   state, why}], files: [{practice, path, kind, block?, status, note?}],
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
 - `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
@@ -305,6 +305,11 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   then `node scripts/keel/test-ledger.mjs --junit <file> --runner <r>
   --status $?`, in braces when the step is one of several (the dry run's
   `Tests:` line, `data.tests.proposal`, and `docs/keel-adoption.md`).
+  Operators inside quotes or after a backslash are words, not step ends. A
+  step keel will not split by hand (an unclosed quote, `$(` or a backtick, a
+  group or subshell, a redirection) gets no proposal, and `data.tests.declined`
+  says why. `junit` is written into the line as it is, so it must be
+  relative, inside the repo, and only letters, digits, `_ . / -`.
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 
@@ -340,7 +345,7 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   `gate-config` (a
   `setup` or `env` that is not a command or `NAME: "value"`), `tests-config`
   (a `tests` the test ledger cannot read: an unknown key, a `runner` other
-  than node, bun or vitest, a `junit` outside the repo, a bad window, factor,
+  than node, bun or vitest, a `junit` outside the repo or with a character other than letters, digits, `_ . / -`, a bad window, factor,
   floorMs, allowEmpty or configEnv), `health-config`
   (a `health` that is not a relative directory inside the repo),
   `health-ignored` (the health directory is git-ignored, so the night's page
