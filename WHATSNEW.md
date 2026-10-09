@@ -12,6 +12,10 @@ between your version and the new one into its pull request.
 
 ## v0.8.22 — practice 0.8.22 (2026-10-08)
 
+- **`keel board`: whose turn it is.** A local page (`keel board --open`) that sorts every open item by what it waits on: yours, broken, the agent's, time. Your walks lead with a plain-words ask, the data to judge, and one button per choice; your answer is recorded in the phase's evidence (`keel walk done`, `keel walk decide`). Phases gain `after:` (not before a date), `waits:` (whose walk), and a `## Your part` section for each walk (the template has it).
+- **Codex can run climb and tend**: `"agent": "codex"` with `codex` in `"agents"` and `OPENAI_API_KEY` set. Codex commits to a second git dir; keel takes only the commits from it. Billed per token to the OpenAI API account.
+- **keel spends far less of your GitHub quota**: a review read costs 12 points instead of 103, the board caches GitHub for 10 minutes, and below 1,000 points left keel stops its optional reads ("saving your GitHub quota").
+- **Timing tests** that time a suite must give the base at least a 1000 ms sleep, so a slow runner cannot decide them.
 - **Loop collection and validation have separate outcomes.** Nightly summaries show successful insight collection even when the project's validation fails. Validation remains a gate; collection never implies acceptance.
 - **Transient Loop reads recover within bounds.** Recognized temporary service errors retry at most twice, with two- and four-second delays. Writes, authentication failures, unreadable responses and validation checks are not automatically retried.
 
