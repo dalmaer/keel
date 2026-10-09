@@ -13,14 +13,14 @@ issue: 43
 
 ## Done when
 
-Every recorded run carries how busy the machine was; a slow run on a busy machine is never counted as a slower test; each test's usual time, its failures' text and the gate's wall time over weeks are in `keel time --json`; the gate starts its slowest files first; and the tests agents worked around on this machine are reported locally.
+Every recorded run carries how busy the machine was; a slow run on a busy machine is never counted as a slower test; each test's usual time, its failures' text and the gate's wall time over weeks are in `keel time --json`; and the tests agents worked around on this machine are reported locally.
 
 ## Scope
 
 The design is [The robot, and keel's sense of time](../research/2026-10-09-robot-and-time.md), phase 56.
 
 - **The machine, with each run**: the ledger record gains `busy`: the load average and core count at the run's start and end and, on Linux, the CPU pressure (`/proc/pressure/cpu`, or the cgroup's) over the run. `slow_tests` and `flaky_tests` skip a run whose machine was busy (load above cores), and say so.
-- **Usual times**: each test's median over its last ten passes on the same machine class and config, written for the runner as `KEEL_USUAL` (a JSON file path). keel's gate orders its test files longest first by it.
+- **Usual times**: each test's median over its last ten passes on the same machine class and config, written for the runner as `KEEL_USUAL` (a JSON file path). A runner can order its files longest first by it (keel's own gate measured no gain from that; see Trajectory).
 - **Failure memory**: a failed test's record keeps the first lines of what it said (bounded, secrets redacted as the ledger already does). A failure that matches an earlier one on a flaky test says so in the hygiene block. A test that ends differently on an identical tree says it was decided by something besides the files, with each run's `busy`.
 - **Trend**: the gate's wall time and each test's median, by week, for the last eight weeks.
 - **Worked around** (local only, never in CI): from the coding agent's session records on this machine (Claude Code's transcripts under `~/.claude/projects/<this project>`), the test commands given a long timeout, run in the background, or interrupted. Read only; nothing is uploaded or committed.
@@ -29,7 +29,7 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 ## Acceptance
 
 - [ ] A run's record carries `busy`; a run whose machine was busy is left out of `slow_tests` and `flaky_tests`, which say how many were left out. `tests/test-ledger.test.mjs`, `tests/improve-ledger.test.mjs`
-- [ ] `KEEL_USUAL` names each test's median of its last ten passes; the gate's files run longest first. `tests/test-ledger.test.mjs`
+- [ ] `KEEL_USUAL` names each test's median of its last ten passes. `tests/test-ledger.test.mjs`
 - [ ] A failed test keeps the start of what it said; a repeat of an earlier failure on a flaky test is named as one; a different end on an identical tree is named as decided by something else. `tests/test-ledger.test.mjs`
 - [ ] `keel time --json` reports the gate's and each test's weekly medians. `tests/time.test.mjs`
 - [ ] Worked-around tests are read from a fixture transcript (a long timeout, a background run, an interrupt); nothing is read in CI, and nothing is written outside the cache. `tests/time.test.mjs`
@@ -63,3 +63,7 @@ Over time: two weeks of keel's own runs, read by the owner.
 ## Next action
 
 Brief a builder on `busy` and failure memory in the ledger; `keel time` follows.
+
+## Trajectory
+
+- **2026-10-09** — Splitting `tests/climb.test.mjs` (29 tests, 96 s run one after another) into five files took keel's `npm test` from 96 s to 47–51 s, with all 760 passing. Running the files longest first, by the ledger's times, gave 50–53 s: no gain at 32 concurrent files on 14 cores. So the lever is a file that runs longer than the rest of the suite, not order. `KEEL_USUAL` stays, as a measure and for runners that start few files at once.

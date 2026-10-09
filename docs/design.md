@@ -285,10 +285,12 @@ generate views from their owners, without another tracking system.
   need, and would mean porting 760 tests. Bun's runner was measured the same
   day (Bun 1.2.13, every file run alone, 8 at a time): 60 s against Node's
   95 s, but only 734 of 760 tests passed. It also registered only 23 of the
-  760 when given every file at once. The bigger saving is in the suite
-  itself: `tests/climb.test.mjs` alone takes about 100 s, so the gate can't
-  finish sooner, and splitting it and running the longest files first
-  (phase 56) costs no porting. keel *reads* other runners: phase 59 brings
+  760 when given every file at once. The bigger saving was in the suite
+  itself: `tests/climb.test.mjs` alone took about 96 s, one test after
+  another, so the gate couldn't finish sooner. Splitting it into five files
+  took `npm test` from 96 s to 47–51 s (measured the same day, all 760
+  passing). Running the longest files first gave nothing more (50–53 s):
+  with 32 files started at once on 14 cores, order barely matters. keel *reads* other runners: phase 59 brings
   `bun test` and vitest projects into the ledger. **Reopen** if Node's runner
   stops keeping up with a need of phases 55 to 57, or if Bun's runner
   registers keel's whole suite at once and passes all of it.
