@@ -771,3 +771,30 @@ test('the proof pass: read-only tools and no bypass; an allowlisted environment;
   assert.equal(proposalOf(JSON.stringify({ result: 'no idea' })), null);
   assert.deepEqual(proposeArgv('acme-gap', { rank: 'next', phase: 3, note: 'n; rm -rf .', read: 'r' }), ['propose', 'acme-gap', '--rank', 'next', '--phase', '3', '--note', 'n; rm -rf .', '--read', 'r']);
 });
+
+test('Loop read resilience is bounded and cannot retry writes or deterministic failures', async () => {
+  const { retryRead } = await import('../practices/loop/files/scripts/loop.mjs');
+  const transient = Object.assign(new Error('temporary service failure'), {retryable:true});
+  const delays=[], warnings=[];let calls=0;
+  assert.equal(await retryRead(async()=>{if(++calls<3)throw transient;return 'insights';},{readOnly:true,sleep:async ms=>delays.push(ms),warn:s=>warnings.push(s)}),'insights');
+  assert.deepEqual(delays,[2000,4000]);assert.equal(warnings.length,2);
+  for(const [readOnly,error,expected] of [[true,transient,3],[false,transient,1],[true,new Error('invalid credentials'),1]]) {
+    let attempts=0;
+    await assert.rejects(retryRead(async()=>{attempts++;throw error;},{readOnly,sleep:async()=>{},warn:()=>{}}));
+    assert.equal(attempts,expected);
+  }
+});
+
+test('Loop workflow reports collection separately and only judges validation after collection', async()=>{
+  const yml=await readFile(join(PRACTICE,'.github/workflows/keel-loop.yml'),'utf8');
+  assert.match(yml,/name: Pull Loop's insights\n\s+id: insights/);
+  assert.match(yml,/name: Validation verdict[\s\S]*if: always\(\) && steps.insights.outcome == 'success'/);
+  assert.match(yml,/COLLECTION: \$\{\{ steps.insights.outcome \}\}/);
+  assert.match(yml,/VALIDATION: \$\{\{ steps.gate.outputs.gate \}\}/);
+});
+
+test('structured authentication errors do not retry the Stitch process', async t=>{
+ const {loop,calls}=await project(t,{error:{code:401,message:'Acme credentials rejected'}});
+ const result=await loop('pull','--json');
+ assert.equal(result.status,1);assert.equal((await calls()).length,1);
+});

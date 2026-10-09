@@ -379,7 +379,7 @@ test('the setupToken secret reaches only the Install step, as GH_TOKEN, and is n
       ['no token for setup', t.replace(expr, '')],
       ['no fallback to the job token', t.replace(' || github.token }}', ' }}')],
       ['at job level', t.replace(expr, '').replace('    env:\n      GH_TOKEN: ${{ github.token }}\n', '    env:\n      GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}\n')],
-      ['also in another step', t.replace(/(      - name: Verdict\n(?:        if:[^\n]*\n)?)/, `$1        env:\n${expr}`)],
+      ['also in another step', t.replace(/(      - name: (?:Validation verdict|Verdict)\n(?:        id:[^\n]*\n)?(?:        if:[^\n]*\n)?)/, `$1        env:\n${expr}`)],
       ['echoed', t.replace('bash -e -c "$SETUP"', 'echo "$GH_TOKEN"\n            bash -e -c "$SETUP"')],
       ['exported to later steps', t.replace('bash -e -c "$SETUP"', 'bash -e -c "$SETUP"\n            echo "GH_TOKEN=x" >> "$GITHUB_ENV"')],
       ['the name never output', t.replace(/fs\.appendFileSync\(process\.env\.GITHUB_OUTPUT, `setup_token=[^\n]*\n/, '')],

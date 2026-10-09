@@ -210,3 +210,16 @@ practice came from, where each keeps a version of its own:
   isocan sets `loop.hedge` and `loop.prove` to keep its hedge rule and its
   model proving. Which loop script keel pins as a source is still open
   (phase 14).
+
+### Collection and validation are separate outcomes
+
+The nightly summary reports **Getting insights** separately from **Project
+validation**. A successful pull can preserve findings in a PR even when the
+project build fails; it is not acceptance, a merged change, or a verified fix.
+The final validation verdict stays red until the gate passes on that tree.
+
+Read-only Stitch `find` and `get` calls retry recognized transient service
+failures at most twice, after two and four seconds, with a notice for each retry.
+Authentication/permission errors, malformed output, writes and the project gate
+are never automatically retried. Resolve a persistent failure before starting a
+fresh workflow on the corrected revision; rerunning an old run uses its old code.

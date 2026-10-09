@@ -527,7 +527,7 @@ const asked = async (w, kind) => (await w.gh.calls()).filter(c => kind === 'revi
 
 test('loose-ends keeps its GitHub reads 10 minutes (--fresh reads again) and says what they cost', async t => {
   const w = await world(t);
-  await setRate(w, { remaining: 4000, resetAt: '2026-10-08T22:00:00Z' });
+  await setRate(w, { remaining: 4000, resetAt: new Date(Date.now() + 60 * 60_000).toISOString() });
   const first = json(w);
   assert.ok(item(first, 'acme/app', 'review:https://github.com/acme/app/pull/1'), 'the review read');
   const n = { reviews: await asked(w, 'reviews'), prs: await asked(w, 'pr list'), repos: await asked(w, 'repo list') };
@@ -546,7 +546,7 @@ test('loose-ends keeps its GitHub reads 10 minutes (--fresh reads again) and say
 
 test('under the quota floor loose-ends leaves the reviews unread and says why', async t => {
   const w = await world(t);
-  await setRate(w, { remaining: 500, resetAt: '2026-10-08T22:00:00Z' });
+  await setRate(w, { remaining: 500, resetAt: new Date(Date.now() + 60 * 60_000).toISOString() });
   const d = json(w);
   assert.ok(!item(d, 'acme/app', 'review:https://github.com/acme/app/pull/1'));
   assert.ok(project(d, 'acme/app').notes.some(x => /^reviews not checked: saving your GitHub quota \(500 left until \d\d:\d\d\)$/.test(x)), JSON.stringify(project(d, 'acme/app').notes));

@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.22 — practice 0.8.22 (2026-10-08)
+
+- **Loop collection and validation have separate outcomes.** Nightly summaries show successful insight collection even when the project's validation fails. Validation remains a gate; collection never implies acceptance.
+- **Transient Loop reads recover within bounds.** Recognized temporary service errors retry at most twice, with two- and four-second delays. Writes, authentication failures, unreadable responses and validation checks are not automatically retried.
+
 ## v0.8.21 — practice 0.8.21 (2026-10-07)
 
 - **Cross-review runs its agent with a read-only token.** The workflow is now two jobs: `review` (the agent, reading only; Claude's action is handed the job's read-only token, so it needs no GitHub App token) and `publish` (no agent, nothing from the PR's branch: it validates the findings with your default branch's script and posts the review). Reviews look the same on the PR.

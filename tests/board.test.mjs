@@ -612,7 +612,7 @@ test('the board runs a choice through walk done, with the note written beside it
  * repo-wide read (lib.mjs windowFragment) answering one open PR with an
  * unanswered thread and costing 3 points. Every call is logged.
  */
-async function quotaGh(dir, { remaining = 4000, resetAt = '2026-10-08T22:00:00Z' } = {}) {
+async function quotaGh(dir, { remaining = 4000, resetAt = new Date(Date.now() + 60 * 60_000).toISOString() } = {}) {
   const path = join(dir, 'gh'), log = join(dir, 'gh.log');
   const pr = { keelWindow: 'PullRequest', number: 7, title: 'Acme anvils', url: 'https://github.com/acme/app/pull/7', state: 'OPEN', mergedAt: null, updatedAt: '2026-10-07T00:00:00Z', author: { login: 'acme-owner' },
     reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [{ id: 'T1', isResolved: false, tail: { totalCount: 1, nodes: [{ databaseId: 1, author: { login: 'acme-reviewer' }, body: 'Brakes.', createdAt: '2026-10-01T09:00:00Z', url: 'https://github.com/acme/app/pull/7#c1' }] } }] },

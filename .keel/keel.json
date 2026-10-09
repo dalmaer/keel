@@ -8,7 +8,7 @@
     "node",
     "github-actions"
   ],
-  "practice": "0.8.21",
+  "practice": "0.8.22",
   "practices": [
     "base",
     "agents-md",
