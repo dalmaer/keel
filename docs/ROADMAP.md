@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 67 phases built; 14 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 67 phases built; 15 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Owner: approve the Keel identity and owner-only space/canvas on the selected home, then run the reviewed connection and immutable sync through Keel. Verify native groups, both faces, source links, human edits and restart recovery in the real UI. Separately establish a deployed conditional-edit contract before implementing the stable live pulse; provision and walk the existing night only with explicit scheduled-access approval. No scheduled publication is enabled. (Dated: phase 13 is on or after 2026-11-01.)
 
