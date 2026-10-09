@@ -958,7 +958,7 @@ export class IncompleteRead extends Error {
  * smaller window first and this full one only when a list overflows it.
  */
 export const reviewFragment = ({ threads = 100, replies = 100, comments = 100, reviews = 100 } = {}) => `fragment KeelReview on PullRequest {
-  number title url state mergedAt updatedAt headRefName headRefOid author { login }
+  number title url state mergedAt updatedAt headRefName headRefOid author { __typename login }
   reviewThreads(first: ${threads}) { pageInfo { hasNextPage } nodes { id isResolved path line
     comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
   comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { login } body createdAt url } }
@@ -1088,7 +1088,7 @@ export const WINDOW_BODIES = 10;
 export const SOLO_READS = 6;
 const NODE = 'databaseId author { login } body createdAt url';
 export const windowFragment = () => `fragment KeelReviewWindow on PullRequest {
-  keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid author { login }
+  keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid author { __typename login }
   reviewThreads(first: ${WINDOW_THREADS}) { pageInfo { hasNextPage } nodes { id isResolved path line
     tail: comments(last: ${WINDOW_TAIL}) { totalCount nodes { ${NODE} } } } }
   comments(last: ${WINDOW_CONVO}) { pageInfo { hasPreviousPage } nodes { id ${NODE} } }
@@ -1202,7 +1202,7 @@ export function unansweredPrs(repository, reviewers, date) {
   const prs = [];
   for (const pr of [...open, ...merged]) {
     const left = reviewComments(pr, reviewers).filter(c => !c.answered && /^\d{4}-\d{2}-\d{2}/.test(c.at ?? '') && c.at.slice(0, 10) <= addDays(date, -1));
-    if (left.length) prs.push({ number: pr.number, title: pr.title, state: pr.state === 'MERGED' ? 'merged' : 'open', url: pr.url, unanswered: left.length, oldest: left.map(c => c.at.slice(0, 10)).sort()[0] });
+    if (left.length) prs.push({ number: pr.number, title: pr.title, state: pr.state === 'MERGED' ? 'merged' : 'open', url: pr.url, author: pr.author ? `${pr.author.__typename === 'Bot' ? 'app/' : ''}${pr.author.login}` : null, unanswered: left.length, oldest: left.map(c => c.at.slice(0, 10)).sort()[0] });
   }
   return { prs, open: open.length, merged: merged.length };
 }

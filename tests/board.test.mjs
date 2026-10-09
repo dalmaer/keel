@@ -151,6 +151,20 @@ test('keel board --json puts each kind of item in its column, from every source'
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test('unanswered reviews are broken only on the owner\'s or an agent\'s PRs; anyone else\'s wait outside', async () => {
+  const mixed = [{ number: 7, title: 'Mine', state: 'open', url: 'u7', author: 'acme-owner', unanswered: 1, oldest: '2026-10-01' },
+    { number: 8, title: 'Claude\'s', state: 'open', url: 'u8', author: 'claude[bot]', unanswered: 1, oldest: '2026-10-01' },
+    { number: 9, title: 'Renovate', state: 'open', url: 'u9', author: 'app/renovate', unanswered: 1, oldest: '2026-10-01' },
+    { number: 10, title: 'Paul\'s idea', state: 'open', url: 'u10', author: 'pkinlan', unanswered: 3, oldest: '2026-10-01' }];
+  const r = await reviewItems([{ repo: 'acme/app' }], { today: TODAY, me: 'acme-owner', read: async () => mixed });
+  const where = Object.fromEntries(r.items.map(i => [i.title.split(':')[0], i.waits]));
+  assert.deepEqual(where, { 'acme/app#7': 'broken', 'acme/app#8': 'broken', 'acme/app#9': 'broken', 'acme/app#10': 'external' });
+  assert.match(r.items.find(i => i.waits === 'external').why, /^Someone else's PR \(pkinlan\)/);
+  // Who the owner is unknown: every PR stays broken, never hidden.
+  const blind = await reviewItems([{ repo: 'acme/app' }], { today: TODAY, read: async () => mixed });
+  assert.ok(blind.items.every(i => i.waits === 'broken'));
+});
+
 test('a source that cannot be read is n/a with why, never missing', async () => {
   const root = await acme();
   try {

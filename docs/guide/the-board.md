@@ -20,7 +20,9 @@ it waits on, in the order you read them:
   asked you, a step marked "⚑ yours" (a repo to keep or delete, lessons to
   send home).
 - **Broken**: a red CI on a fleet project's default branch, review comments
-  unanswered on an open PR.
+  unanswered on an open PR you or an agent opened (Claude, Codex, a bot). A
+  PR someone else opened waits outside, as "Someone else's PR": its review is
+  theirs to answer.
 - **The agent's**: buildable phases in the order `keel next` would take
   them, then the agent's loose ends (branches, uncommitted files, open PRs).
 - **Waiting on time**: a phase dated `after:` a day still to come, a walk

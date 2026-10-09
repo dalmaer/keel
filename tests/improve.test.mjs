@@ -395,7 +395,7 @@ test('reviews_unanswered reads alone, with the full fragment, a PR whose thread 
   const KEEL_GH = await ghStub(t, { reviews: [page([win]), JSON.stringify({ data: { repository: { pullRequest: full } } })] });
   const [r] = await measure({ root: await scratch(t), config: { name: 'Acme', repo: 'acme/storefront' }, env: { ...ENV, KEEL_GH }, date: '2026-10-06', measures: reviewsMeasure });
   assert.deepEqual([r.state, r.value], ['outside', 1], JSON.stringify(r));
-  assert.deepEqual(r.facts.prs, [{ number: 1, state: 'open', url: 'https://github.com/acme/storefront/pull/1', unanswered: 1, oldest: '2026-10-03' }]);
+  assert.deepEqual(r.facts.prs, [{ number: 1, state: 'open', url: 'https://github.com/acme/storefront/pull/1', author: null, unanswered: 1, oldest: '2026-10-03' }]);
   const calls = (await readFile(`${KEEL_GH}.log`, 'utf8')).trim().split('\n').map(l => JSON.parse(l));
   assert.equal(calls.length, 2);
   assert.ok(calls[1].includes('number=1'), 'the second read is that PR alone');

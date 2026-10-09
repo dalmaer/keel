@@ -530,6 +530,12 @@ test('what the window cannot see whole is never decided from it: a longer thread
   assert.deepEqual(fromWindow(pr, R), { pr, whole: true });
 });
 
+test('each unanswered PR names its author; a bot author is marked app/', () => {
+  const at = (n, author) => ({ ...prOf({ threads: [{ id: `T${n}`, comments: [c(500 + n, 'acme-reviewer', 'Oil.', '2026-10-01')] }] }), number: n, title: `Acme ${n}`, url: `https://github.com/acme/app/pull/${n}`, state: 'OPEN', mergedAt: null, author });
+  const got = unansweredPrs({ open: { pageInfo: {}, nodes: [at(1, { __typename: 'User', login: 'acme-owner' }), at(2, { __typename: 'Bot', login: 'renovate' }), at(3, null)] }, merged: { pageInfo: {}, nodes: [] } }, R, '2026-10-08');
+  assert.deepEqual(got.prs.map(p => p.author), ['acme-owner', 'app/renovate', null]);
+});
+
 test('the repo-wide read reads alone, with the full fragment, each PR the window did not cover, and at most SOLO_READS of them', async () => {
   const at = (n, threads, extra = {}) => ({ ...prOf({ threads }), number: n, title: `Acme ${n}`, url: `https://github.com/acme/app/pull/${n}`, state: 'OPEN', mergedAt: null, ...extra });
   const full = new Map([[1, at(1, [long('T_long1')])], [2, at(2, [{ id: 'T_short', comments: [c(400, 'acme-reviewer', 'Oil.', '2026-10-01')] }])],
