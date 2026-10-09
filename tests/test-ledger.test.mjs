@@ -857,6 +857,30 @@ test('mutations: an empty JUnit file that passes without allowEmpty, or a stale 
   }
 });
 
+/** One report's bytes at two paths (two packages, each its own folder) are two runs; the same path read again is stale. */
+async function assertStalePerPath(dir, mod) {
+  const xml = passing(await fixture('bun.xml'));
+  await junitAt(dir, 'junit.xml', xml);
+  await junitAt(dir, 'web/junit.xml', xml);
+  assert.equal((await mod.junitRun({ junit: 'junit.xml', cwd: dir })).code, 0);
+  const web = await mod.junitRun({ junit: 'junit.xml', cwd: join(dir, 'web') });
+  assert.equal(web.code, 0, `web's identical report is its own run, not the root's read again\n${web.lines.join('\n')}`);
+  const twice = await mod.junitRun({ junit: 'junit.xml', cwd: dir });
+  assert.equal(twice.code, 1, 'the root\'s report read again is stale');
+  assert.deepEqual((await readRuns(dir)).runs.map(r => r.dir), ['.', 'web']);
+}
+
+test('stale is per path: two packages\' byte-identical reports are two runs; one report read twice is one (review on #56)', async t => {
+  const { dir } = await acmeRepo(t);
+  await assertStalePerPath(dir, ledger);
+});
+
+test('mutation: a stale check on the bytes alone takes the second package\'s run for the first\'s, and fails the per-path test', async t => {
+  const { dir } = await acmeRepo(t);
+  const m = await mutant(t, 'const hash = sha12(`${shown}\\u0000${xml}`);', 'const hash = sha12(xml);');
+  await assert.rejects(assertStalePerPath(dir, m), assert.AssertionError);
+});
+
 test('mutation: a JUnit file outside keel\'s directories left in the dirty check makes every run dirty, and fails the record test\'s clean tree', async t => {
   const { dir } = await acmeRepo(t);
   const m = await mutant(t, '...where(root, { exclude: shown === at ? [] : [shown] })', '...where(root)');

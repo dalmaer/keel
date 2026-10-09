@@ -301,10 +301,15 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   reaches (`npm|pnpm|yarn|bun run <s>`, `npm test`) for `bun test`, vitest
   or `node --test`, and records bun or vitest (an existing runner stands;
   `junit` defaults to `.keel/test-runs/junit.xml`). It proposes the test
-  ledger's part and never writes it: the runner's step with its JUnit flags,
-  then `node scripts/keel/test-ledger.mjs --junit <file> --runner <r>
-  --status $?`, in braces when the step is one of several (the dry run's
-  `Tests:` line, `data.tests.proposal`, and `docs/keel-adoption.md`).
+  ledger's part and never writes it: the old JUnit file removed, the
+  runner's step with its JUnit flags and `|| keel_status=$?` (so `set -e`
+  never skips the ledger), then `node scripts/keel/test-ledger.mjs --junit
+  <file> --runner <r> --status $keel_status`, in braces when the step is one
+  of several, with paths from `$keel_root` (git's top level) when a step
+  before it runs `cd` or `pushd` (the dry run's `Tests:` line,
+  `data.tests.proposal`, and `docs/keel-adoption.md`). Only where the night
+  practice is on, or the project already has `scripts/keel/test-ledger.mjs`:
+  otherwise nothing installs the ledger, and `declined` says so.
   Operators inside quotes or after a backslash are words, not step ends. A
   step keel will not split by hand (an unclosed quote, `$(` or a backtick, a
   group or subshell, a redirection) gets no proposal, and `data.tests.declined`
@@ -652,13 +657,17 @@ default branch before improve, and keeps its own after.
 
 On `bun test` or vitest the ledger is a command after the run, reading the
 runner's JUnit XML (phase 59): `node scripts/keel/test-ledger.mjs --junit
-<file> [--runner bun|vitest] [--status <exit code>]`, e.g. `bun test
---reporter=junit --reporter-outfile=.keel/test-runs/junit.xml; node
-scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner bun
---status $?` (vitest: `--reporter=default --reporter=junit
---outputFile.junit=<file>`; `keel adopt` proposes it). The record is a node
-run's plus `runner` and `junit` (a short hash of the file: a file already
-recorded is stale, and not counted), with each top-level test or describe.
+<file> [--runner bun|vitest] [--status <exit code>]`, e.g. `keel_status=0;
+rm -f .keel/test-runs/junit.xml; mkdir -p .keel/test-runs && bun test
+--reporter=junit --reporter-outfile=.keel/test-runs/junit.xml ||
+keel_status=$?; node scripts/keel/test-ledger.mjs --junit
+.keel/test-runs/junit.xml --runner bun --status $keel_status` (vitest:
+`--reporter=default --reporter=junit --outputFile.junit=<file>`; `keel
+adopt` proposes it; `|| keel_status=$?` survives `set -e`; after a `cd` the
+paths start from `$keel_root`, git's top level). The record is a node run's
+plus `runner` and `junit` (a short hash of the file's path and bytes: the
+same report at the same path again is stale, and not counted), with each
+top-level test or describe.
 The exit code: 1 when no tests ran (no file, none in it, or stale; unless
 `allowEmpty`), else `--status`, else 1 when a testcase failed; a file that is
 not JUnit is 1 and never recorded; a bad flag is 2. The runner is part of the

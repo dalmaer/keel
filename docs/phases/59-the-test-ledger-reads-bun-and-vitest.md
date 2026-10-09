@@ -63,6 +63,7 @@ Over time: a week of records on each runner.
 ## Trajectory
 
 - **2026-10-09** — Real output changed three things. bun leaves a file that would not load out of its JUnit entirely (it says "1 error" and exits 1, and the file has no testcase for it), so a gate of `bun test …; node test-ledger.mjs --junit …` would pass it: the ledger takes the runner's exit code as `--status $?`. bun writes no JUnit file when no test ran, so a file from an earlier run would be read again: each record keeps a short hash of its file, and a file already recorded is stale, "no tests ran". bun makes no directory for `--reporter-outfile`, so the proposal starts with `mkdir -p .keel/test-runs`. doctor had never checked `"tests"`: it now does (`tests-config`).
+- **2026-10-09** — Review on #56 reshaped the proposed line. `runner; ledger --status $?` never reaches the ledger under `set -e` (GitHub's `bash -e`), so a red run went unrecorded: the line now keeps the code as `|| keel_status=$?`. It removes the old JUnit file first, so a run that writes none is "no tests ran", and the stale check is per path (a hash of the path and the bytes), so two packages' identical reports are two runs. After a `cd`, the paths start from git's top level. No line is proposed where the night practice is not on and the ledger is not there. Quoted operators are words, and a JUnit path must need no shell quoting.
 
 ## Next action
 

@@ -47,14 +47,19 @@
 // bun test and vitest (keel phase 59) write JUnit XML instead, and the
 // ledger reads it after the run, as its own command in the gate:
 //
-//   bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml; \
-//     node scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner bun --status $?
+//   keel_status=0; rm -f .keel/test-runs/junit.xml; mkdir -p .keel/test-runs && \
+//     bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml || keel_status=$?; \
+//     node scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner bun --status $keel_status
 //
 // (vitest: --reporter=default --reporter=junit --outputFile.junit=<file>.)
+// The runner's exit code is kept by `|| keel_status=$?`, so a shell under
+// set -e (GitHub's bash -e) still reaches the ledger after a red run, and the
+// old file is removed first, so a run that writes none is "no tests ran".
 // The record is a node run's, plus `runner` ("bun" or "vitest"; a record
-// without one is node's), and `junit`, a short hash of the file it was read
-// from: a file already recorded is stale (the runner wrote nothing new, as
-// bun does when no test ran) and is not recorded again. `node` is the
+// without one is node's), and `junit`, a short hash of the file's path and
+// bytes: the same bytes at the same path again are stale (the runner wrote
+// nothing new, as bun does when no test ran) and are not recorded again;
+// two packages' identical reports at their own paths are two runs. `node` is the
 // version of node that read it; the preloads are none. Each top-level test
 // is the file's own testcase, or one top-level describe() with every
 // testcase in it (failed if any failed): bun names a testcase's describes in
@@ -710,7 +715,9 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
     lines.push(`${LABEL}: ${shown} is not JUnit the ledger can read (${e.message}); nothing recorded.`);
     return { lines, code: status || 1 };
   }
-  const hash = sha12(xml);
+  // The file's own identity: its path and its bytes. Two packages' identical reports at their own paths are two runs;
+  // the same bytes at the same path again are one report read twice (stale).
+  const hash = sha12(`${shown}\u0000${xml}`);
   let history = null;
   try { history = await readRuns(root); } catch { /* record() below says what is wrong with the directory */ }
   if (history?.runs.some(r => r.junit === hash)) {
