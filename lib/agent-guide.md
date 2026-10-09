@@ -120,7 +120,7 @@ stderr as one line beginning `keel:`.
   `--yes` and something to merge or close: exit 3, `needs: "yes"`, nothing
   done. Exit 1 when a gh call failed (`error` says which).
 - `release` → bare: `{version, tag, tagged, newest}`; with a version:
-  `{ok, dryRun, version, from, tag, commit, review, files, entry, push}`
+  `{ok, dryRun, version, from, tag, commit, review, rehearsal, files, entry, push}`
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -403,7 +403,18 @@ only the owner's `--unreviewed "<why>"` goes past it, and the reason goes in
 the release commit and the WHATSNEW entry. Data: `review: {since, commits,
 unreviewed, checked?: [{sha, subject, pr, ok, why}]}`.
 Then it runs the gate (config `check`) on the bumped tree; a failing gate
-puts every file back, exits 1 and commits nothing. It never pushes.
+puts every file back, exits 1 and commits nothing. Then, before it commits,
+the fleet rehearsal (`keel fleet update --rehearse` with the practice this
+release carries, from this checkout's `practices/` and `migrations/`): a
+managed project whose check passes on main and fails with the release
+refuses it (exit 1, the project and its tail named, every file put back,
+no commit, no tag). Main already red, and a project that could not be
+cloned or installed, are said, never a refusal. The owner's `--despite
+<repo> "<why>"` (repeatable; a managed repo in `fleet.json`, else exit 2)
+releases anyway, and the reason goes in the release commit and the WHATSNEW
+entry; the fleet round then opens that project's PR as a draft. No managed
+project: the rehearsal is skipped, and said. Data: `rehearsal: {projects,
+despite: [{repo, why}], ms?, rows?, resting?, skipped?}`. It never pushes.
 
 <!-- topic: lessons | sending what a project learned home to keel, once each -->
 
@@ -826,6 +837,24 @@ cli, plans: [{repo, from, to, pending, possiblyPending, branch, title,
 open}], resting: [{repo, why}], results?: [{…plan, ok, pr?, draft?, failure?,
 check?: {command, ok, exit, tail}, mainCheck?: {exit, line, tail}, note?,
 step?, error?}], needs?}`.
+
+`keel fleet update --rehearse` runs the same path with the candidate
+practice and stops before the push: clone, install, `keel update` without
+`--yes` (the update is committed on its branch in a temp clone, then the
+clone is removed), the project's check, and main's check when it fails.
+Nothing is pushed and no PR is opened. The candidate is this checkout's
+`practices/` and `migrations/`, at the version its next release would carry
+(the next patch when the practice changed since its last release;
+`KEEL_FLEET_PRACTICE` overrides it). It rehearses each project fleet update
+would touch, at most 4 at once, each command with fleet update's timeout,
+and prints one row a project and the total time: `passed`, `FAILS with the
+release` (main passes, or main's check did not finish; the tail under it),
+`main already red`, or `not rehearsed: <step> failed`. Exit 1 only when a
+project fails with the release; `--yes` with it is a usage error. No managed
+project in `fleet.json`: skipped, and said. `--json` → `{ok, cli, ms, rows:
+[{…plan, status: passed|unchanged|fails|main-red|error, check?, mainCheck?,
+step?, error?}], resting: [{repo, why}], fails: [repo], skipped?}`.
+`keel release` runs it before it commits.
 
 `--json` → `{ok, root, cli, at, ms, rows: [{repo, role, kind, note,
 unreadable?, branch, adopted, practice: {version, behind, unrecorded, pending, possiblyPending},

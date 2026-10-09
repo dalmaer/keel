@@ -1,10 +1,11 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G2
 spec: 2
 depends: [52]
-note: "v0.8.23 to v0.8.26 went out in one day, each fleet round finding a project's check or a review that keel could have found before the tag. keel release rehearses the update on every fleet project (clone, install, update, check; nothing pushed) and refuses when one passes on main and fails with the release. Design: research/2026-10-09-updates-never-block.md."
+note: "Built: keel fleet update --rehearse (phase 52's path with the candidate practice, stopped before the push; at most 4 projects at once, in worker threads) and keel release running it after its gate and before its commit, refusing while a project passes on main and fails with the release; --despite <repo> \"<why>\" the owner's way past, written into the commit and WHATSNEW. Owes the walk: three rehearsed releases, and the owner's comparison of their fleet rounds with v0.8.23 to v0.8.26. Design: research/2026-10-09-updates-never-block.md."
 evidence: []
 issue: 40
 ---
@@ -26,9 +27,9 @@ The design is [A fleet update never dead-ends](../research/2026-10-09-updates-ne
 
 ## Acceptance
 
-- [ ] `keel fleet update --rehearse` runs each project's update and check and pushes nothing, opens nothing (a stubbed gh records no push or PR call). `tests/fleet.test.mjs`
-- [ ] `keel release` refuses (exit 1, writing no commit or tag) when a rehearsed project passes on main and fails with the release, naming it and its tail; passes when every project passes or its main was already red. `tests/release.test.mjs`
-- [ ] `--despite <repo> "<why>"` releases and records the reason in the release commit and WHATSNEW; a repo not in the fleet is refused. `tests/release.test.mjs`
+- [x] `keel fleet update --rehearse` runs each project's update and check and pushes nothing, opens nothing (a stubbed gh records no push or PR call). `tests/fleet.test.mjs`
+- [x] `keel release` refuses (exit 1, writing no commit or tag) when a rehearsed project passes on main and fails with the release, naming it and its tail; passes when every project passes or its main was already red. `tests/release.test.mjs`
+- [x] `--despite <repo> "<why>"` releases and records the reason in the release commit and WHATSNEW; a repo not in the fleet is refused. `tests/release.test.mjs`
 - [ ] ⚑ by hand: three releases go through the rehearsal; the owner compares their fleet rounds (FAILED rows, draft PRs, releases per day) with v0.8.23 to v0.8.26.
 
 ## Your part
@@ -58,4 +59,11 @@ Over time: the fleet rounds before and after, in the evidence.
 
 ## Next action
 
-After phase 52, brief a builder on `--rehearse` and the release step.
+⚑ Walk: cut the next three releases through the rehearsal, then compare their fleet rounds (FAILED rows, draft PRs, releases per day) with v0.8.23 to v0.8.26 in this phase's evidence, and answer Your part.
+
+## Trajectory
+
+- **2026-10-09** — The rehearsal runs after keel's own gate (on the bumped tree) and before the commit, as Scope says; so a refusal puts every file back byte for byte, as a failing gate does. Nothing is committed or tagged and the tree is as it was. The WHATSNEW line for `--despite` is the owner's reason, written before the rehearsal runs; the commit message adds what the rehearsal found for that project.
+- **2026-10-09** — The candidate is the release's own checkout: `practices/` and `migrations/` under its root, at the practice version the release carries (`to`). Run alone, `--rehearse` uses the next patch when the practice changed since its last release, because update to the version a project already has would change nothing. update runs without `--yes`, so it stops at its ⚑ push: the stop is update's own, not a new flag.
+- **2026-10-09** — Four at once needs threads: update, its check and main's check are synchronous child processes. Each project rehearses in a worker thread (`lib/fleet-rehearse.mjs`); fleet update's commands keep their 15-minute timeout, and the update's own check now has it too (`checkTimeout`, the fleet's only; fleet update passes it as well).
+- **2026-10-09** — Only "passes on main, fails with the release" refuses; main's check not finishing counts as that (as phase 52 makes it a draft). An update step that throws (a project's own edit of a managed file, say) is reported as not rehearsed, never a refusal, like a failed clone or install. No `--no-rehearse`: the phase names only `--despite`.

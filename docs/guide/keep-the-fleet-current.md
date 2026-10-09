@@ -68,6 +68,7 @@ At home, in keel's checkout:
 keel fleet                 # every project at once; changes nothing
 keel fleet update          # the update PR each project behind would get; exit 3
 keel fleet update --yes    # ⚑ open them, one at a time, with your gh login
+keel fleet update --rehearse   # run each update and check in a clone; push nothing
 ```
 
 - `keel fleet` reads `fleet.json` at keel's root and asks GitHub about every
@@ -94,6 +95,12 @@ keel fleet update --yes    # ⚑ open them, one at a time, with your gh login
   `opened <url> (main was already red)`, never FAILED. `keel board` lists the
   draft under Broken. `keel update` in one checkout still puts everything back
   and exits 1: you are there to read it.
+- `keel fleet update --rehearse` is the same path without the push. It uses
+  this checkout's `practices/` and `migrations/` as the next release would
+  carry them, runs up to 4 projects at once, and prints one row each:
+  passed, FAILS with the release (main passes; the end of the output under
+  it), main already red, or not rehearsed (the clone or install failed). It
+  opens nothing. Exit 1 only when a project fails with the release.
 
 Cutting a release, in keel:
 
@@ -119,7 +126,19 @@ keel release 0.9.0 --notes notes.md
   pass `--unreviewed "<why>"`; the reason goes in the release commit and the
   WHATSNEW entry.
 - Then the release runs the gate on the bumped tree; a failure puts every
-  file back. It makes a commit and a local tag, and never pushes.
+  file back.
+- **Then it rehearses the fleet round.** Before it commits, it runs the
+  rehearsal above on every managed project in `fleet.json`, with the
+  practice this release carries. A project whose check passes on main and
+  fails with the release refuses it: exit 1, the project and the end of its
+  output named, every file put back. Fix it in keel (or the project) and
+  release again. A project whose main is already red, or that could not be
+  cloned or installed, is reported and never refuses. The owner may pass
+  `--despite <repo> "<why>"` (repeatable, a managed repo only); the reason
+  goes in the release commit and the WHATSNEW entry, and the fleet round
+  then opens that project's PR as a draft. The release says how long the
+  rehearsal took; with no managed project it is skipped, and said.
+- It makes a commit and a local tag, and never pushes.
 
 In one project, by hand:
 
@@ -163,7 +182,8 @@ own.
 - **3**: committed on the branch; the push and PR need `--yes`.
 
 `keel fleet` exits 0 whenever it drew the table. `keel fleet update` exits 3
-with its plan (0 when nothing is behind) and 1 when any repo failed.
+with its plan (0 when nothing is behind) and 1 when any repo failed. With
+`--rehearse` it exits 1 only when a project fails with the release.
 
 ## What it never does
 
@@ -173,7 +193,7 @@ with its plan (0 when nothing is behind) and 1 when any repo failed.
   tree.
 - Fleet update never touches keel itself, or a project whose update PR is
   already open, and never merges.
-- Release never pushes.
+- Release never pushes, and its rehearsal never pushes or opens a PR.
 
 ## See also
 

@@ -479,3 +479,117 @@ test('a dry run lists the commits the review gate will check and reads no GitHub
   assert.match(r.text, new RegExp(`check that each of 1 practice commit\\(s\\)[^\\n]*a dry run reads no GitHub\\): ${short}`));
   assert.deepEqual(await gh.calls(), []);
 });
+
+// ---- the fleet rehearsal (phase 53) -------------------------------------------------
+
+/** fleet.json at the keel-shaped repo, committed: these repos are managed, and acme/upstream is a source. */
+async function withFleet(dir, repos) {
+  await writeFile(join(dir, 'fleet.json'), JSON.stringify([...repos.map(repo => ({ repo, kind: 'node', role: 'managed' })), { repo: 'acme/upstream', kind: 'other', role: 'source' }]));
+  git(dir, 'add', 'fleet.json');
+  git(dir, 'commit', '-qm', 'acme fleet');
+}
+/** The rows lib/fleet.mjs rehearse returns; the stand-in records what it was asked. */
+const ROWS = {
+  passed: repo => ({ repo, status: 'passed', check: { command: 'npm run check', ok: true } }),
+  fails: repo => ({ repo, status: 'fails', check: { command: 'npm run check', ok: false, exit: 5, tail: 'not ok 3 - acme ledger balances\nacme-tail-line' }, mainCheck: { exit: 0, line: 'main passes', tail: '' } }),
+  red: repo => ({ repo, status: 'main-red', check: { command: 'npm run check', ok: false, exit: 4, tail: 'acme-red' }, mainCheck: { exit: 4, line: 'main fails', tail: 'acme-red' } }),
+  gone: repo => ({ repo, status: 'error', step: 'clone', error: 'gh repo clone failed: Could not resolve to a Repository' }),
+};
+function rehearsal(rows) {
+  const asked = [];
+  const fn = async (opts, deps) => { asked.push({ opts, deps }); return { data: { ok: true, cli: deps.cli, ms: 4321, rows, resting: [], fails: [] }, text: '' }; };
+  return Object.assign(fn, { asked });
+}
+
+test('the rehearsal refuses a release while a project passes on main and fails with it: exit 1, naming it and its tail, nothing written', async t => {
+  const dir = await keelLike(t);
+  await withFleet(dir, ['acme/picky', 'acme/red', 'acme/gone']);
+  await changePractice(dir);
+  const before = await snapshot(dir);
+  const rehearse = rehearsal([ROWS.fails('acme/picky'), ROWS.red('acme/red'), ROWS.gone('acme/gone')]);
+  const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: ENV, rehearse }));
+  assert.equal(r.exitCode, 1, r.text);
+  assert.match(r.text, /^the fleet rehearsal refused v0\.1\.0: acme\/picky passes its check on main and fails it with this release\. Nothing was committed or tagged and every file is as it was\./);
+  assert.match(r.text, /acme\/picky: FAILS with the release: `npm run check` exit 5; main passes without it\. Its output ended:\n {6}not ok 3 - acme ledger balances\n {6}acme-tail-line/);
+  assert.match(r.text, /acme\/red: main already red/);
+  assert.match(r.text, /acme\/gone: not rehearsed: clone failed/);
+  assert.match(r.text, /in 4\.3s/, 'the rehearsal\'s time is said');
+  assert.match(r.text, /pass --despite <repo> "<why>"/);
+  assert.deepEqual(await snapshot(dir), before, 'no file, commit or tag');
+  // It rehearsed the candidate: this checkout's practices/ and migrations/, at the practice version the release carries.
+  assert.equal(rehearse.asked.length, 1);
+  assert.deepEqual([rehearse.asked[0].opts.dir, rehearse.asked[0].deps.cli, rehearse.asked[0].deps.practicesDir, rehearse.asked[0].deps.migrationsDir],
+    [dir, '0.1.0', join(dir, 'practices'), join(dir, 'migrations')]);
+});
+
+test('the rehearsal passes a release when every project passes, or its main was already red, or it could not be cloned; no fleet skips it and says so', async t => {
+  const dir = await keelLike(t);
+  await withFleet(dir, ['acme/ok', 'acme/red', 'acme/gone']);
+  await changePractice(dir);
+  const rehearse = rehearsal([ROWS.passed('acme/ok'), ROWS.red('acme/red'), ROWS.gone('acme/gone')]);
+  const r = await release({ root: dir, version: '0.1.0', notes: NOTES }, { env: ENV, rehearse });
+  assert.equal(git(dir, 'log', '-1', '--format=%s'), 'release v0.1.0');
+  assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
+  assert.deepEqual(r.data.rehearsal.rows.map(x => [x.repo, x.status]), [['acme/ok', 'passed'], ['acme/red', 'main-red'], ['acme/gone', 'error']]);
+  assert.deepEqual(r.data.rehearsal.projects, ['acme/ok', 'acme/red', 'acme/gone'], 'managed only, never a source');
+  assert.equal(r.data.rehearsal.ms, 4321);
+  assert.match(r.text, /Rehearsed practice 0\.1\.0 on 3 fleet projects \(at most 4 at once\) in 4\.3s/);
+  assert.match(r.text, /acme\/ok: passed: `npm run check` exit 0 with the release/);
+
+  // No fleet.json: the rehearsal is skipped and said, never run.
+  const bare = await keelLike(t);
+  await changePractice(bare);
+  const never = rehearsal([ROWS.fails('acme/picky')]);
+  const s = await release({ root: bare, version: '0.1.0', notes: NOTES }, { env: ENV, rehearse: never });
+  assert.equal(never.asked.length, 0);
+  assert.equal(s.data.rehearsal.skipped, 'no managed project in fleet.json');
+  assert.match(s.text, /Rehearsal skipped: no managed project in fleet\.json\./);
+  const dry = await release({ root: bare, version: '0.1.1', notes: NOTES, dryRun: true }, { env: ENV });
+  assert.match(dry.text, /skip the fleet rehearsal: no managed project in fleet\.json/);
+});
+
+test('--despite <repo> "<why>" releases past a project the rehearsal fails, writing the reason into the commit and WHATSNEW; a repo not in the fleet is refused', async t => {
+  const dir = await keelLike(t);
+  await withFleet(dir, ['acme/picky', 'acme/ok']);
+  await changePractice(dir);
+  const before = await snapshot(dir);
+  const why = 'Acme picky flakes on a clock test, tracked in acme/picky#3';
+  // Not in the fleet (a source is not managed), a reason of one word, or given twice: refused before anything runs.
+  for (const [despite, error] of [
+    [[{ repo: 'acme/stranger', why }], /--despite acme\/stranger: not a managed project in fleet\.json/],
+    [[{ repo: 'acme/upstream', why }], /--despite acme\/upstream: not a managed project in fleet\.json/],
+    [[{ repo: 'acme/picky', why: 'flaky' }], /--despite acme\/picky needs the reason, in a few words/],
+    [[{ repo: 'acme/picky', why }, { repo: 'acme/picky', why }], /--despite acme\/picky is given twice/],
+  ]) {
+    const never = rehearsal([]);
+    const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES, despite }, { env: ENV, rehearse: never }));
+    assert.equal(r.exitCode, 2, r.text);
+    assert.match(r.text, error);
+    assert.equal(never.asked.length, 0);
+    assert.deepEqual(await snapshot(dir), before);
+  }
+  const dry = await release({ root: dir, version: '0.1.0', notes: NOTES, dryRun: true, despite: [{ repo: 'acme/picky', why }] }, { env: ENV });
+  assert.match(dry.text, /rehearse the update on the 2 managed fleet project\(s\) \(clone, install, update to practice 0\.1\.0, check; nothing pushed\)[^\n]*, except acme\/picky \(--despite\)/);
+
+  const rehearse = rehearsal([ROWS.fails('acme/picky'), ROWS.passed('acme/ok')]);
+  const r = await release({ root: dir, version: '0.1.0', notes: NOTES, despite: [{ repo: 'acme/picky', why }] }, { env: ENV, rehearse, date: '2026-10-09' });
+  assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
+  assert.deepEqual(r.data.rehearsal.despite, [{ repo: 'acme/picky', why }]);
+  assert.match(r.text, /acme\/picky: FAILS with the release/);
+  assert.match(r.text, /Released despite the fleet rehearsal: acme\/picky \(Acme picky flakes/);
+  assert.equal(entries(await readFile(join(dir, 'WHATSNEW.md'), 'utf8'))[0].body, `${NOTES.trim()}\n\nReleased despite the fleet rehearsal: acme/picky (${why})`);
+  assert.equal(git(dir, 'log', '-1', '--format=%b').trim(), `Despite the fleet rehearsal:\nacme/picky: ${why} (fails with the release: \`npm run check\` exit 5)`);
+
+  // The CLI: --despite needs both values; a repo not in the fleet is exit 2, nothing written.
+  const notes = join(dir, '..', `${dir.split('/').pop()}-notes.md`);
+  await writeFile(notes, NOTES);
+  t.after(() => rm(notes, { force: true }));
+  const after = await snapshot(dir);
+  let cli = run(process.execPath, [BIN, 'release', '0.2.0', '--notes', notes, '--despite', 'acme/picky'], { cwd: dir, env: ENV });
+  assert.equal(cli.status, 2);
+  assert.match(cli.stderr, /--despite needs the project and the reason: --despite <owner\/name> "<why>"/);
+  cli = run(process.execPath, [BIN, 'release', '0.2.0', '--notes', notes, '--despite', 'acme/stranger', why, '--json'], { cwd: dir, env: ENV });
+  assert.equal(cli.status, 2, cli.stdout);
+  assert.match(JSON.parse(cli.stdout).error, /--despite acme\/stranger: not a managed project in fleet\.json/);
+  assert.deepEqual(await snapshot(dir), after);
+});

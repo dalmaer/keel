@@ -14,8 +14,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile, realpath, chmod } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fleet, fleetUpdate, healthOf, gateName, gateOf, runCommands, onPush, parseFleet } from '../lib/fleet.mjs';
+import { fleet, fleetUpdate, healthOf, gateName, gateOf, runCommands, onPush, parseFleet, rehearse, pool, REHEARSE_AT_ONCE } from '../lib/fleet.mjs';
 import { execFileSync } from 'node:child_process';
+import { cpSync } from 'node:fs';
 import { init } from '../lib/init.mjs';
 import { load as loadMigrations } from '../lib/migrations.mjs';
 import { practiceVersion } from '../lib/practices.mjs';
@@ -700,4 +701,94 @@ test('fleet update --yes: a failed check keeps the update and opens its PR: ordi
     assert.match(p.body, /^Gate: `[^\n]+` exit [456] on this change: it fails/m, 'the Evidence never claims exit 0');
     assert.doesNotMatch(p.body, /exit 0 on this change/);
   }
+});
+
+// ---- the rehearsal (phase 53) ---------------------------------------------------
+
+/** A home whose practices/ and migrations/ (and the lib/ they import) are keel's own: the candidate the rehearsal renders. */
+async function rehearsalHome(t, list) {
+  const dir = await home(t, list);
+  await rm(join(dir, 'practices'), { recursive: true, force: true });
+  for (const d of ['practices', 'migrations', 'lib']) cpSync(join(KEEL, d), join(dir, d), { recursive: true });
+  return dir;
+}
+
+test('fleet update --rehearse: each project updated and checked in a clone, main\'s check where it fails; nothing pushed, no PR opened (phase 53)', async t => {
+  const ok = await remoteProject(t, 'ok');
+  // Fails only with the candidate's own text (a line only the home's practices/ has): main passes.
+  const picky = await remoteProject(t, 'picky', BEHIND, { check: 'if grep -q "Acme candidate line" CLAUDE.md; then echo acme-picky-update; exit 5; fi' });
+  const red = await remoteProject(t, 'red', BEHIND, { check: 'echo acme-red-main; exit 4' });
+  const broke = await remoteProject(t, 'broke', BEHIND, { setup: 'echo acme-install-broke >&2; exit 3' });
+  const projects = { ok, picky, red, broke };
+  const st = {
+    repos: Object.fromEntries([...Object.entries(projects), ['gone', ok]].map(([n, p]) => [`acme/${n}`, { default_branch: 'main', files: { '.keel/keel.json': p.config } }])),
+    commits: {},
+    prepared: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, p.prepared])),
+  };
+  const dir = await rehearsalHome(t, ['ok', 'picky', 'red', 'broke', 'gone'].map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
+  // The candidate: the home's practices/ as they are now, not as any release shipped them.
+  await writeFile(join(dir, 'practices/agents-md/files/CLAUDE.md'), `${await readFile(join(KEEL, 'practices/agents-md/files/CLAUDE.md'), 'utf8')}Acme candidate line.\n`);
+  const gh = await stubGh(t, st);
+  gh.env = { ...gh.env, ...GIT_ENV };
+  const r = await rehearse({ dir }, { env: gh.env, now: NOW, cli: CLI });
+  const by = repo => r.data.rows.find(x => x.repo === repo);
+  assert.deepEqual(r.data.rows.map(x => [x.repo, x.status, x.step]), [
+    ['acme/ok', 'passed', undefined], ['acme/picky', 'fails', undefined], ['acme/red', 'main-red', undefined],
+    ['acme/broke', 'error', 'setup'], ['acme/gone', 'error', 'clone'],
+  ], r.text);
+  assert.equal(r.exitCode, 1, 'a project that passes on main and fails with the release');
+  assert.deepEqual(r.data.fails, ['acme/picky']);
+  assert.deepEqual([by('acme/picky').check.exit, by('acme/picky').mainCheck.exit, by('acme/red').mainCheck.exit], [5, 0, 4]);
+  assert.match(r.text, /acme\/picky: FAILS with the release: `[^`]+` exit 5; main passes without it\. Its output ended:\n {6}acme-picky-update/);
+  assert.match(r.text, /acme\/red: main already red: `echo acme-red-main; exit 4` exits 4 on main too/);
+  assert.match(r.text, /acme\/broke: not rehearsed: setup failed: setup `[^`]+` failed \(exit 3\):\n {6}acme-install-broke/);
+  assert.match(r.text, /acme\/gone: not rehearsed: clone failed/);
+  assert.match(r.text, /Rehearsed practice 0\.3\.0 on 5 fleet projects \(at most 4 at once\) in \d+\.\ds/);
+
+  // Nothing left the machine: no push, no PR, no update branch on any origin.
+  const calls = await gh.calls();
+  assert.deepEqual(calls.filter(c => c[0] === 'pr' && c[1] !== 'list'), [], 'gh opened no PR');
+  assert.deepEqual(await gh.prs(), []);
+  assert.deepEqual(calls.filter(c => c[0] === 'repo').map(c => c[2]).sort(), ['acme/broke', 'acme/gone', 'acme/ok', 'acme/picky', 'acme/red']);
+  for (const [name, { origin }] of Object.entries(projects)) {
+    assert.equal(git(origin, 'branch', '--list', 'keel/*'), '', `${name}: nothing pushed`);
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, BEHIND, `${name}: main untouched`);
+  }
+
+  // The CLI (on one project, to stay quick): --json; a clone that fails is said, never exit 1. --rehearse with --yes is refused.
+  await writeFile(join(dir, 'fleet.json'), JSON.stringify([{ repo: 'acme/gone', kind: 'node', role: 'managed' }]));
+  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--rehearse', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: CLI } });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.deepEqual(JSON.parse(cli.stdout).rows.map(x => [x.repo, x.status, x.step]), [['acme/gone', 'error', 'clone']]);
+  assert.deepEqual(await gh.prs(), []);
+  const both = runCmd(process.execPath, [BIN, 'fleet', 'update', '--rehearse', '--yes'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: CLI } });
+  assert.equal(both.status, 2);
+  assert.match(both.stderr, /--rehearse pushes nothing/);
+});
+
+test('the rehearsal runs at most 4 projects at once, and skips (saying so) when fleet.json has no managed project', async t => {
+  const names = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const config = JSON.stringify({ name: 'Acme', repo: 'acme/a', practice: BEHIND, practices: ['base'] });
+  const st = { repos: Object.fromEntries(names.map(n => [`acme/${n}`, { default_branch: 'main', files: { '.keel/keel.json': config } }])), commits: {} };
+  const dir = await rehearsalHome(t, names.map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
+  const gh = await stubGh(t, st);
+  let now = 0, most = 0;
+  const rehearseOne = async u => {
+    most = Math.max(most, ++now);
+    await new Promise(done => setTimeout(done, 20));
+    now--;
+    return { ...u, status: 'passed', check: { command: 'npm run check', ok: true } };
+  };
+  const r = await rehearse({ dir }, { env: gh.env, now: NOW, cli: CLI, rehearseOne });
+  assert.equal(r.exitCode, 0, r.text);
+  assert.equal(r.data.rows.length, 6);
+  assert.equal(most, REHEARSE_AT_ONCE);
+  assert.equal(REHEARSE_AT_ONCE, 4);
+  assert.deepEqual(await pool([3, 1, 2], 2, async x => x * 2), [6, 2, 4], 'results in the items\' order');
+
+  const empty = await rehearsalHome(t, [{ repo: 'acme/upstream', kind: 'other', role: 'source' }]);
+  const s = await rehearse({ dir: empty }, { env: gh.env, now: NOW, cli: CLI, rehearseOne });
+  assert.equal(s.exitCode, 0);
+  assert.equal(s.data.skipped, 'no managed project in fleet.json');
+  assert.match(s.text, /Rehearsal skipped: no managed project in fleet\.json\./);
 });
