@@ -172,7 +172,9 @@ export function yourPartNotes(file, raw) {
   const yp = yourPartOf(sections['Your part']);
   if (!yp) return walks.length ? [`docs/phases/${file}: phase ${id} has a walk but no Your part: say in plain words what the owner should do`] : [];
   const out = [];
-  for (const p of yp.parts ?? [yp]) {
+  const parts = yp.parts ?? [yp];
+  if (walks.length > 1 && parts.length < walks.length) out.push(`docs/phases/${file}: phase ${id} has ${walks.length} walks but ${parts.length === 1 ? 'one Your part' : `${parts.length} Your parts`}: give each walk box its own \`### \` part, in order`);
+  for (const p of parts) {
     const where = `docs/phases/${file}: ## Your part${p.heading ? ` (${p.heading})` : ''}`;
     if (!p.ask) out.push(`${where} has no **Ask:**; say in one plain sentence what the owner does`);
     if (!p.choices.length) out.push(`${where} has no **Choices:**; list what the owner can answer, A | B`);

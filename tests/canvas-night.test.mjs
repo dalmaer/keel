@@ -114,7 +114,7 @@ if(a[0]==='api') {
  else process.exit(92);
  console.log(JSON.stringify(out));
 } else if(a[0]==='run'&&a[1]==='download') {
- const never=${JSON.stringify(neverRan)}[a[2]];
+ const never=${JSON.stringify(neverRan)}[a[2]+'-'+a[a.indexOf('--name')+1].split('-').pop()];
  if(never) fs.writeFileSync(path.join(a[a.indexOf('--dir')+1],'never-ran.json'),JSON.stringify({neverRan:true,provenance:never}));
  else fs.writeFileSync(path.join(a[a.indexOf('--dir')+1],'recovery.json'),JSON.stringify(${JSON.stringify(bundle ?? {})}));
 } else process.exit(93);
@@ -240,14 +240,29 @@ test('a preflight failure leaves a never-ran receipt, and the next night recover
   const receipt = JSON.parse(await readFile(join(failed.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
   assert.deepEqual(receipt, { neverRan: true, provenance: { repo: 'Acme/app', workflow: '.github/workflows/keel-night.yml', runId: '200', attempt: 1, headSha: 'b'.repeat(40) } });
   const broken = trustedRun({ id: 150, conclusion: 'failure', head_sha: 'c'.repeat(40) }), previous = trustedRun();
-  const out = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { 150: provenanceFor(broken) }, bundle: { provenance: provenanceFor(previous) } });
+  const out = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { '150-1': provenanceFor(broken) }, bundle: { provenance: provenanceFor(previous) } });
   assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['150', '100']);
   assert.ok(out.calls.some(a => a[1] === 'canvas'));
   // A never-ran receipt for another attempt is refused, never skipped.
-  const forged = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { 150: provenanceFor(previous) }, bundle: { provenance: provenanceFor(previous) } });
+  const forged = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { '150-1': provenanceFor(previous) }, bundle: { provenance: provenanceFor(previous) } });
   assert.notEqual(forged.status, 0);
   assert.ok(!forged.calls.some(a => a[1] === 'canvas'));
+});
+test('a rerun asks for its own earlier attempt only, never a newer run\'s (duo#91, cajones#63)', async t => {
+  const queued = trustedRun({ id: 250, status: 'queued', conclusion: null });
+  const first = trustedRun({ id: 200, conclusion: 'failure' });
+  const out = await workflow(t, { runs: [queued, trustedRun({ id: 200, run_attempt: 2, status: 'in_progress' })], attempt: 2, priorAttempt: first, artifacts: [artifactFor(first)], bundle: { provenance: provenanceFor(first) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!out.ghCalls.some(a => a[1]?.includes('/runs/250/')), 'the queued run is never read');
+  assert.equal(out.ghCalls.find(a => a[0] === 'run')[2], '200');
+});
+test('a rerun whose preflight failed falls back to that run\'s earlier attempt before any older run (cajones#63)', async t => {
+  const rerun = trustedRun({ id: 150, run_attempt: 2, conclusion: 'failure' }), first = trustedRun({ id: 150, run_attempt: 1 }), older = trustedRun();
+  const out = await workflow(t, { runs: [rerun, older], priorAttempt: first, artifacts: [artifactFor(rerun), artifactFor(first), artifactFor(older)], neverRan: { '150-2': provenanceFor(rerun) }, bundle: { provenance: provenanceFor(first) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(out.ghCalls.some(a => a[1]?.endsWith('/runs/150/attempts/1')));
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['150', 'keel-canvas-night-2'], ['150', 'keel-canvas-night-1']]);
 });
 async function recoveryFixture(t, { seed = true, manifest = initialManifest() } = {}) {
   const root = await realpath(await fixture(t, { ...binding, enabled: true, cadence: 'nightly' }));

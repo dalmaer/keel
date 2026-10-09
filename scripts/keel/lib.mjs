@@ -1033,6 +1033,8 @@ const page = (conn, what, pr) => {
  */
 export function reviewComments(pr, reviewers = []) {
   if (!pr || typeof pr !== 'object' || !pr.reviewThreads || !Array.isArray(pr.reviewThreads.nodes)) throw new Error('the pull request came back without its review threads');
+  // A connection GitHub could not read comes back null beside other data: never an empty list.
+  for (const [k, what] of [['comments', 'conversation comments'], ['reviews', 'reviews']]) if (pr[k] !== undefined && !Array.isArray(pr[k]?.nodes)) throw new Error(`the pull request came back without its ${what}`);
   const isNamed = login => reviewers.some(r => sameLogin(r, login));
   const out = [];
   for (const t of page(pr.reviewThreads, 'review threads', pr)) {
@@ -1135,11 +1137,12 @@ export function fromWindow(pr, reviewers = []) {
     if (!all) whole = false;
     return { ...th, comments: { pageInfo: { hasNextPage: !all }, nodes } };
   });
-  const list = conn => ({ pageInfo: { hasNextPage: !!conn?.pageInfo?.hasPreviousPage }, nodes: conn?.nodes ?? [] });
+  // A missing connection stays missing, so reviewComments refuses it.
+  const list = conn => conn && Array.isArray(conn.nodes) ? { pageInfo: { hasNextPage: !!conn.pageInfo?.hasPreviousPage }, nodes: conn.nodes } : conn;
   const comments = list(rest.comments), reviews = list(rest.reviews);
-  const bodies = reviews.nodes.some(r => String(r?.body ?? '').trim() && !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login)));
-  if (reviews.pageInfo.hasNextPage) whole = false;
-  if (comments.pageInfo.hasNextPage && (reviewers.length || bodies)) whole = false;
+  const bodies = (reviews?.nodes ?? []).some(r => String(r?.body ?? '').trim() && !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login)));
+  if (reviews?.pageInfo.hasNextPage) whole = false;
+  if (comments?.pageInfo.hasNextPage && (reviewers.length || bodies)) whole = false;
   return { pr: { ...rest, reviewThreads: { pageInfo: { hasNextPage: !!rest.reviewThreads?.pageInfo?.hasNextPage }, nodes: threads }, comments, reviews }, whole };
 }
 

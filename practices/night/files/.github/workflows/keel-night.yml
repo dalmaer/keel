@@ -365,7 +365,7 @@ jobs:
             for (const run of runs) {
               // Only older runs: a night queued behind this one has no state yet.
               if (Number(run.id) < Number(process.env.GITHUB_RUN_ID)) previous.push(run);
-              else if (Number(process.env.GITHUB_RUN_ATTEMPT) > 1) previous.push(api(`repos/${repo}/actions/runs/${run.id}/attempts/${Number(process.env.GITHUB_RUN_ATTEMPT) - 1}`));
+              else if (String(run.id) === String(process.env.GITHUB_RUN_ID) && Number(process.env.GITHUB_RUN_ATTEMPT) > 1) previous.push(api(`repos/${repo}/actions/runs/${run.id}/attempts/${Number(process.env.GITHUB_RUN_ATTEMPT) - 1}`));
             }
             const eligible = previous.filter(r => Number.isSafeInteger(r.id) && Number.isSafeInteger(r.run_attempt) && /^[a-f0-9]{40}$/.test(r.head_sha ?? "") && r.head_repository?.full_name === repo && r.repository?.full_name === repo && r.head_branch === base && r.path === ".github/workflows/keel-night.yml" && ["schedule", "workflow_dispatch"].includes(r.event) && Array.isArray(r.pull_requests) && r.pull_requests.length === 0).sort((a, b) => b.id - a.id);
             const bounded = file => fs.existsSync(file) && !fs.lstatSync(file).isSymbolicLink() && fs.lstatSync(file).isFile() && fs.statSync(file).size <= 64 * 1024 * 1024;
@@ -374,7 +374,9 @@ jobs:
               if (p?.repo !== repo || p.workflow !== ".github/workflows/keel-night.yml" || String(p.runId) !== String(run.id) || p.attempt !== run.run_attempt || p.headSha !== run.head_sha) fail("Recovery provenance does not match the selected attempt.");
             };
             let latest, file;
-            for (const run of eligible) {
+            const queue = [...eligible];
+            while (queue.length) {
+              const run = queue.shift();
               const committed = api(`repos/${repo}/contents/.keel/keel.json?ref=${run.head_sha}`);
               if (committed.encoding !== "base64" || typeof committed.content !== "string" || committed.size > 1024 * 1024) fail("Cannot establish whether the previous night had canvas enabled.");
               const config = JSON.parse(Buffer.from(committed.content, "base64").toString("utf8"));
@@ -389,8 +391,13 @@ jobs:
               execFileSync("gh", ["run", "download", String(run.id), "--repo", repo, "--name", name, "--dir", dir], { timeout: 60000, maxBuffer: 1024 * 1024 });
               file = path.join(dir, "recovery.json");
               const never = path.join(dir, "never-ran.json");
-              // An attempt whose preflight failed never touched the canvas: recover from the one before it.
-              if (!fs.existsSync(file) && bounded(never)) { provenanceOf(never, run); continue; }
+              // An attempt whose preflight failed never touched the canvas: recover from the attempt before it,
+              // in this run if it was a rerun, else the run before.
+              if (!fs.existsSync(file) && bounded(never)) {
+                provenanceOf(never, run);
+                if (run.run_attempt > 1) queue.unshift(api(`repos/${repo}/actions/runs/${run.id}/attempts/${run.run_attempt - 1}`));
+                continue;
+              }
               if (!bounded(file)) fail("The trusted artifact has no bounded recovery.json; snapshots alone cannot reconstruct ownership.");
               provenanceOf(file, run);
               latest = run;

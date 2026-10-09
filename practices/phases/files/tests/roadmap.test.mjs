@@ -542,6 +542,10 @@ test('a walk with no Your part is a note from --check, never a failure; a filled
   const bare = phase({ status: 'partial', extra: 'owes: walk\n', acceptance: '- [x] Built. `npm test`\n- [ ] ⚑ by hand: the owner reads the anvil.' });
   assert.deepEqual(specNotes('05-acme.md', bare), ['docs/phases/05-acme.md: phase 5 has a walk but no Your part: say in plain words what the owner should do']);
   assert.deepEqual(specProblems('05-acme.md', bare), []);
+  const twoWalks = phase({ status: 'partial', extra: 'owes: walk\n', acceptance: '- [x] Built. `npm test`\n- [ ] ⚑ by hand: the owner reads the anvil.\n- [ ] ⚑ by hand: the owner drops the anvil.' })
+    .replace('## Acceptance', '## Your part\n\n- **Ask:** Read the anvil.\n- **Choices:** Fine | Not fine\n- **Ready:** yes\n\n## Acceptance');
+  assert.ok(specNotes('05-acme.md', twoWalks).some(n => /has 2 walks but one Your part/.test(n)), 'one part for two walk boxes is noted (cajones#63)');
+
   assert.deepEqual(specNotes('05-acme.md', asked(plain)), []);
   assert.deepEqual(specProblems('05-acme.md', asked(plain)), [], 'Ready: yes and the rest are the phase\'s own words');
   assert.deepEqual(specNotes('05-acme.md', phase()), [], 'no walk, no note');

@@ -353,6 +353,14 @@ test('a reviewer\'s conversation comment is answered only by a later comment tha
   assert.equal(answered(prOf({ comments: [before, finding] })).IC_find, false, 'a quote from before it is not an answer to it');
 });
 
+test('a connection GitHub could not read (null beside other data) is refused, never an empty list (duo#91)', () => {
+  const pr = { number: 7, author: { login: 'acme-owner' }, reviewThreads: { pageInfo: {}, nodes: [] }, comments: null, reviews: { pageInfo: {}, nodes: [] } };
+  assert.throws(() => reviewComments(pr, ['acme-reviewer']), /without its conversation comments/);
+  assert.throws(() => reviewComments({ ...pr, comments: { pageInfo: {}, nodes: [] }, reviews: null }, []), /without its reviews/);
+  const windowed = { ...pr, keelWindow: 'PullRequest', reviews: { pageInfo: {}, nodes: [] } };
+  assert.throws(() => reviewComments(fromWindow(windowed, ['acme-reviewer']).pr, ['acme-reviewer']), /without its conversation comments/);
+});
+
 test('a thread with more comments than one page is an incomplete read: keel review exits 2, never a count', async t => {
   assert.throws(() => reviewComments(prOf({ threads: [{ id: 'T_long', more: true, comments: [c(1, 'acme-reviewer', 'One.'), c(2, 'acme-owner', 'Two.')] }] })), e => e.incomplete === true && /more comments in a review thread than one page/.test(e.message));
   const dir = await project(t);
