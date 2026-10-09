@@ -155,7 +155,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "0ed0e6a88c07805a655641d4f2a50caaf5d54b01b20d40770df9f6f736e6837f"
+      "sha256": "4e3959c73df12005c3aff00f131c6f6d374b39ccb89d83ced96e17b045e291b7"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -175,7 +175,7 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "000ae038cd6ecc24537f53366129015efafc65596ab4dd61e34b34cebfe1be06"
+      "sha256": "c3d6b8bec4d79fe6f398ec1263dbb2511575785d8384eeef8cbd69f12549afaf"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

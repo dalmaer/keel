@@ -749,7 +749,7 @@ export const MEASURES = [
         value: found.length,
         detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${opts.window} of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}${nightNote(runs)}`,
         // A bun or vitest finding carries its runner, so the run-alone command is that runner's (phase 59).
-        facts: { flaky: found.map(({ file, name, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
+        facts: { flaky: found.map(({ file, name, describe, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, ...(describe ? { describe } : {}), tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
       };
     },
   },

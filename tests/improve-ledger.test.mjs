@@ -203,7 +203,8 @@ async function junitRun(dir, runner, xml) {
   return r;
 }
 
-const ALONE = { bun: (file, name) => `bun test ${file} -t '^ ?${name}( |$)'`, vitest: (file, name) => `npx vitest run ${file} -t '^ ?${name}( |$)'` };
+/** A describe's filter is the start of its tests' names; a test's is its whole name. */
+const ALONE = { bun: (file, name, end = '$') => `bun test ${file} -t '^ ?${name}${end}'`, vitest: (file, name, end = '$') => `npx vitest run ${file} -t '^ ?${name}${end}'` };
 
 test('flaky_tests and slow_tests read bun and vitest records as they read node\'s, and say each runner\'s run-alone command', async t => {
   for (const runner of ['bun', 'vitest']) {
@@ -217,7 +218,7 @@ test('flaky_tests and slow_tests read bun and vitest records as they read node\'
     assert.deepEqual([flaky.state, flaky.value], ['outside', 2], `${runner}: ${flaky.detail}`);
     assert.deepEqual(flaky.facts.flaky.map(f => [f.file, f.name, f.passed, f.failed, f.runner]), [['a.test.ts', 'Acme widgets', 2, 1, runner], ['a.test.ts', 'fails on purpose', 2, 1, runner]]);
     // The run's own setting goes first (NODE_OPTIONS as it was, `env -u` when unset), as a node finding's does.
-    assert.ok(proposalText(flaky).includes(` ${ALONE[runner]('a.test.ts', 'Acme widgets')}\`.`), proposalText(flaky));
+    assert.ok(proposalText(flaky).includes(` ${ALONE[runner]('a.test.ts', 'Acme widgets', '( |$)')}\`.`), proposalText(flaky));
     assert.equal(byId(data, 'slow_tests').state, 'n/a', 'two runs before the newest: not judged yet');
     // Tonight's run: slow-ish at 900 ms against a median of 31.
     await junitRun(dir, runner, slowIsh(green, 900));

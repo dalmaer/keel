@@ -190,7 +190,9 @@ own (`--status`: bun leaves a file that would not load out of its JUnit),
 else 1 when a test failed. A file that is not JUnit is 1, never recorded.
 The runner is part of the config and the lane: a bun run is only ever
 compared with bun runs, and its run-alone command is `bun test <file> -t
-'^ ?<name>( |$)'` (vitest: `npx vitest run <file> -t …`).
+'^ ?<name>$'` for a test, or `'^ ?<name>( |$)'` for a describe (vitest:
+`npx vitest run <file> -t …`). A `--runner` or `"tests".runner` that
+contradicts the runner the file names is refused (exit 1, not recorded).
 
 **The build, timed** (phase 36). When `.keel/keel.json` names
 `"climb": { "build": "<command>" }`, the night runs it once as `build_time`:

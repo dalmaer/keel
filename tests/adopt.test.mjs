@@ -616,7 +616,7 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   // Failed, then passed, on one clean tree: the hygiene block names it, with bun's command to run it alone; a note, never a red gate.
   assert.match(r.stdout, /^keel test ledger: 2 hygiene items \(2 runs in \.keel\/test-runs\)\./m);
   assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
-  assert.match(r.stdout, /bun test a\.test\.ts -t '\^ \?fails on purpose\( \|\$\)'\nafter\n$/);
+  assert.match(r.stdout, /bun test a\.test\.ts -t '\^ \?fails on purpose\$'\nafter\n$/);
   r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '1' });
   assert.equal(r.status, 1, 'a failure bun left out of its JUnit (a file that would not load) still fails the gate');
   r = sh({ ACME_JUNIT: '', ACME_EXIT: '0' });
@@ -648,7 +648,8 @@ function assertProposals(make = ledgerCommand) {
     ["bun test -t 'one|two' && echo done", `{ ${bun(" -t 'one|two'")}; } && echo done`],
     ['echo "a && b; c" && bun test', `echo "a && b; c" && { ${bun('')}; }`],
     ["vitest run -t 'x;y' --coverage", stepOf('vitest', `vitest run --reporter=default --reporter=junit --outputFile.junit=${J} -t 'x;y' --coverage`)],
-    ['tsc && bun test a\\&b.test.ts || true', `tsc && { ${bun(' a\\&b.test.ts')}; } || true`],
+    ['tsc && bun test a\\&b.test.ts && echo ok', `tsc && { ${bun(' a\\&b.test.ts')}; } && echo ok`],
+    ['pnpm exec vitest run; echo ok', `{ ${stepOf('vitest', `pnpm exec vitest run --reporter=default --reporter=junit --outputFile.junit=${J}`)}; }; echo ok`],
   ];
   for (const [command, want] of cases) {
     const got = make(command, command.includes('vitest') ? 'vitest' : 'bun');
@@ -664,6 +665,15 @@ function assertProposals(make = ledgerCommand) {
   assert.equal(run('sh', ['-n', '-c', moved], { env: ENV }).status, 0);
   assert.match(make('pushd web; bun test', 'bun'), /mkdir -p "\$keel_root\/\.keel\/test-runs" && bun test/);
   assert.doesNotMatch(make("echo 'cd web' && bun test", 'bun'), /keel_root/, 'a quoted cd moves nothing');
+  // Outside the shape keel rewrites, no proposal (review on #56): a control clause or ! (the status means something else),
+  // ||, a pipe or & after the runner, an inline variable or `time` before it (the ledger would not see it), or a script
+  // whose name holds the runner's (`npm run vitest:unit` is its own step; its body is read where it is defined).
+  for (const [command, runner] of [['if bun test; then echo ok; fi', 'bun'], ['! bun test', 'bun'], ['while bun test; do :; done', 'bun'],
+    ['bun test || true', 'bun'], ['bun test | tee out.txt', 'bun'], ['bun test &', 'bun'], ['ACME_MODE=fast bun test', 'bun'],
+    ['NODE_OPTIONS=--max-old-space-size=64 vitest run', 'vitest'], ['time bun test', 'bun'], ['env CI=1 bun test', 'bun'],
+    ['npm run vitest:unit', 'vitest'], ['npx vitest-preview', 'vitest']]) {
+    assert.equal(make(command, runner), null, command);
+  }
   // What keel will not split by hand gets no proposal, never a broken one.
   for (const command of ["bun test 'unclosed", 'bun test $(cat list)', 'bun test `cat list`', '(cd web && bun test)', 'bun test > out.txt', 'echo "$(bun test)"']) {
     assert.equal(make(command, 'bun'), null, command);
@@ -680,7 +690,12 @@ test('a proposal parses in sh: a quoted operator or runner is a word, and a comm
   const plan = testsPlan({ tests: { junit: 'reports/test results.xml' } }, 'bun test', {});
   assert.equal(plan.proposal, null);
   assert.match(plan.declined, /holds characters a shell reads/);
-  assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /the gate has quotes, a substitution, a group or a redirection/);
+  assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /^the gate is not the shape keel rewrites \(plain steps joined by && or ;, an optional cd, the runner as its step's own command/);
+  assert.match(testsPlan({}, 'ACME_MODE=fast bun test', {}).declined, /no inline variable/);
+  // A script whose name holds "vitest" is followed to its body, which is what gets the flags (review on #56).
+  const unit = testsPlan({}, 'npm run vitest:unit', { 'vitest:unit': 'vitest run' });
+  assert.deepEqual([unit.runner, unit.from, unit.proposal?.where], ['vitest', 'package.json scripts.vitest:unit', 'package.json scripts.vitest:unit']);
+  assert.equal(unit.proposal.to, stepOf('vitest', `vitest run --reporter=default --reporter=junit --outputFile.junit=${J}`));
   for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
   assert.deepEqual(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }), []);
 });

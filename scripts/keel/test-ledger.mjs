@@ -73,7 +73,10 @@
 // testcase failed. A file that is not JUnit is 1, never recorded. The runner
 // is part of the config hash and the lane, so runs of two runners are never
 // compared. .keel/keel.json "tests": { "runner", "junit" } names the runner
-// and the file (default .keel/test-runs/junit.xml); the flags win.
+// and the file (default .keel/test-runs/junit.xml); the flags win, but a
+// runner that contradicts the one the file names is refused (exit 1). A
+// describe is recorded with `describe: true`, so its run-alone filter is a
+// prefix of its tests' names, and a test's is its whole name.
 //
 // The analysis is here too, so the reporter and the night's improve.mjs
 // (flaky_tests, slow_tests, proofs_hold) read history one way:
@@ -177,6 +180,8 @@ const dirOf = r => r?.dir ?? '.';
 export const runnerOf = r => r?.runner ?? 'node';
 /** A run's lane: its suite's folder, its config and its runner (node's lane is as it was). Retention keeps each lane's own newest runs. */
 export const laneOf = r => `${dirOf(r)}\u0000${configOf(r)}${runnerOf(r) === 'node' ? '' : `\u0000${runnerOf(r)}`}`;
+/** A JUnit describe() recorded as one top-level test: its run-alone filter is a prefix, not a whole name. */
+const suiteOf = t => t?.describe === true ? { describe: true } : {};
 /** What a finding carries of the run it was seen in, so its run-alone command reproduces that run. */
 const seenUnder = r => ({ dir: dirOf(r), config: configOf(r), setting: r?.setting ?? null, ...(runnerOf(r) === 'node' ? {} : { runner: runnerOf(r) }) });
 const median = xs => { const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
@@ -195,7 +200,7 @@ export function flaky(runs) {
     for (const t of r.tests ?? []) {
       if (!['pass', 'fail'].includes(t.outcome)) continue;
       const k = `${r.tree}\u0000${laneOf(r)}\u0000${key(t)}`;
-      const s = seen.get(k) ?? { file: t.file ?? null, name: t.name, tree: r.tree, passed: 0, failed: 0, ...seenUnder(r) };
+      const s = seen.get(k) ?? { file: t.file ?? null, name: t.name, ...suiteOf(t), tree: r.tree, passed: 0, failed: 0, ...seenUnder(r) };
       s[t.outcome === 'pass' ? 'passed' : 'failed']++;
       seen.set(k, s);
     }
@@ -225,7 +230,7 @@ export function slower(runs, { window = DEFAULTS.window, factor = DEFAULTS.facto
     }
     if (past.length < window) continue;
     const m = median(past);
-    if (t.ms > factor * m && t.ms - m > floorMs) out.push({ file: t.file ?? null, name: t.name, ms: t.ms, median: Math.round(m), over: Math.round(t.ms - m), window, machine, ...seenUnder(current) });
+    if (t.ms > factor * m && t.ms - m > floorMs) out.push({ file: t.file ?? null, name: t.name, ...suiteOf(t), ms: t.ms, median: Math.round(m), over: Math.round(t.ms - m), window, machine, ...seenUnder(current) });
   }
   return out.sort((a, b) => b.over - a.over);
 }
@@ -284,9 +289,9 @@ const isSet = v => typeof v === 'string' || (v !== null && typeof v === 'object'
 export function aloneCommand(test, preload = [], { here = '.' } = {}) {
   const runner = runnerOf(test);
   const escaped = test.name.replace(RE_SPECIAL, '\\$&');
-  // bun and vitest match -t against the full name, describes joined by spaces (bun's with a leading one):
-  // a top-level test or describe is the start of it, then a space or the end.
-  const pattern = runner === 'node' ? `^${escaped}$` : `^ ?${escaped}( |$)`;
+  // bun and vitest match -t against the full name, describes joined by spaces (bun's with a leading one).
+  // A describe is the start of its tests' names; a test is its whole name, so `save` never runs `save draft` too.
+  const pattern = runner === 'node' ? `^${escaped}$` : test.describe ? `^ ?${escaped}( |$)` : `^ ?${escaped}$`;
   const dir = test.dir ?? '.';
   const vars = Object.entries(test.setting?.env ?? {});
   // A value is printed for NODE_OPTIONS only (never a secret: one that looks like one is recorded as a hash);
@@ -654,7 +659,7 @@ export function junitTests(root, runner, fileOf = f => f) {
   };
   for (const suite of suites) {
     const groups = new Map();
-    const add = (key, file, name) => groups.get(key) ?? groups.set(key, { file, name, outcomes: [], ms: 0 }).get(key);
+    const add = (key, file, name) => groups.get(key) ?? groups.set(key, { file, name, describe: key.split('\u0000')[1] === 'd', outcomes: [], ms: 0 }).get(key);
     for (const child of suite.children) {
       const raw = child.attrs.file ?? suite.attrs.file ?? suite.attrs.name ?? '';
       const file = raw ? fileOf(raw) : null;
@@ -672,7 +677,7 @@ export function junitTests(root, runner, fileOf = f => f) {
       }
     }
     for (const g of groups.values()) {
-      if (g.outcomes.length) tests.push({ file: g.file, name: g.name, outcome: groupOutcome(g.outcomes), ms: Math.round(g.ms * 10) / 10 });
+      if (g.outcomes.length) tests.push({ file: g.file, name: g.name, ...(g.describe ? { describe: true } : {}), outcome: groupOutcome(g.outcomes), ms: Math.round(g.ms * 10) / 10 });
     }
   }
   return { tests, ran, failed };
@@ -708,7 +713,10 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
   try {
     const doc = readXml(xml);
     const configured = RUNNERS.includes(config?.tests?.runner) && config.tests.runner !== 'node' ? config.tests.runner : undefined;
-    kind = runner ?? configured ?? junitRunner(doc);
+    const says = junitRunner(doc);
+    kind = runner ?? configured ?? says;
+    // A file that names its runner is read as that runner's: a stale "tests".runner or a wrong --runner would misread every name.
+    if (says && kind !== says) throw new Error(`it is ${says}'s JUnit, but the runner is ${kind} (${runner ? '--runner' : '.keel/keel.json "tests".runner'}); say ${says}`);
     if (kind !== 'bun' && kind !== 'vitest') throw new Error('its runner is not known: pass --runner bun or --runner vitest');
     parsed = junitTests(doc, kind, f => relative(root, real(resolve(cwd, f))).split(sep).join('/'));
   } catch (e) {

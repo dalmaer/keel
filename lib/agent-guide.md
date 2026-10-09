@@ -310,10 +310,15 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   `data.tests.proposal`, and `docs/keel-adoption.md`). Only where the night
   practice is on, or the project already has `scripts/keel/test-ledger.mjs`:
   otherwise nothing installs the ledger, and `declined` says so.
-  Operators inside quotes or after a backslash are words, not step ends. A
-  step keel will not split by hand (an unclosed quote, `$(` or a backtick, a
-  group or subshell, a redirection) gets no proposal, and `data.tests.declined`
-  says why. `junit` is written into the line as it is, so it must be
+  A person reads the line, so adopt rewrites one small shape and declines
+  the rest: plain steps joined by `&&` or `;`, an optional `cd` or `pushd`
+  before, and the runner as its step's own command (`bun test`, or vitest
+  alone or through npx, bunx, pnpm [exec] or yarn). Operators inside quotes
+  or after a backslash are words. `||`, a pipe, `&`, a newline, a control
+  clause (`if`, `!`), an inline variable, `time` or `env` before the runner,
+  an unclosed quote, `$(` or a backtick, a group, or a redirection: no
+  proposal, and `data.tests.declined` says why. A script whose name holds
+  `vitest` (`npm run vitest:unit`) is followed to its body. `junit` is written into the line as it is, so it must be
   relative, inside the repo, and only letters, digits, `_ . / -`.
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
@@ -673,7 +678,10 @@ The exit code: 1 when no tests ran (no file, none in it, or stale; unless
 not JUnit is 1 and never recorded; a bad flag is 2. The runner is part of the
 config hash and the lane, so two runners' runs are never compared, and a
 finding's run-alone command is the runner's own (`bun test <file> -t '^
-?<name>( |$)'`, `npx vitest run <file> -t …`).
+?<name>$'` for a test, `'^ ?<name>( |$)'` for a describe, which the JUnit
+reading keeps as `describe: true`; `npx vitest run <file> -t …`). A
+`--runner` or `"tests".runner` that contradicts the runner the file names
+is refused, exit 1, never read as the wrong runner's.
 
 `--selftest` runs every measure on keel's own unhealthy fixture (gh, git and
 npm stubbed; a projects-shaped part under its docs/projects) and exits 1

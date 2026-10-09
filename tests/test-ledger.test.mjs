@@ -722,7 +722,7 @@ async function assertFixtures(mod) {
   assert.deepEqual(mod.junitTests(mod.readXml(await fixture('vitest-empty.xml')), 'vitest'), { tests: [], ran: 0, failed: 0 });
   // A nested <testsuite> is a describe: one top-level test, of every testcase inside it.
   const nested = mod.junitTests(mod.readXml('<testsuites><testsuite name="t.test.ts"><testsuite name="Acme crates" time="0.5"><testcase name="opens" time="0.1"/><testsuite name="deep"><testcase name="shuts" time="0.2"><error/></testcase></testsuite></testsuite></testsuite></testsuites>'), 'bun');
-  assert.deepEqual(nested, { tests: [{ file: 't.test.ts', name: 'Acme crates', outcome: 'fail', ms: 500 }], ran: 2, failed: 1 });
+  assert.deepEqual(nested, { tests: [{ file: 't.test.ts', name: 'Acme crates', describe: true, outcome: 'fail', ms: 500 }], ran: 2, failed: 1 });
 }
 
 test('a JUnit file from bun test or vitest reads as each top-level test, its outcome and time (a describe is one, failed if a test in it failed)', async () => {
@@ -927,12 +927,79 @@ test('mutations: a lane without the runner, or a config hash without it, fails t
   }
 });
 
+/**
+ * A run-alone filter runs the finding and nothing else (review on #56): a top-level test `save` is its whole
+ * name, so not `save draft`; a describe `save` is the start of its tests' names. The JUnit reading keeps which is which.
+ */
+async function assertAlone(mod) {
+  // bun's full name has a leading space and joins describes with spaces; vitest's has none.
+  const runs = (test, full) => new RegExp(/-t '(.*)'$/.exec(mod.aloneCommand(test))[1]).test(full);
+  for (const runner of ['bun', 'vitest']) {
+    const save = { file: 'a.test.ts', name: 'save', runner };
+    assert.equal(runs(save, ' save'), true, runner);
+    assert.equal(runs(save, 'save'), true, runner);
+    assert.equal(runs(save, ' save draft'), false, `${runner}: a test's filter is its whole name`);
+    const group = { ...save, describe: true };
+    assert.equal(runs(group, ' save opens the file'), true, `${runner}: a describe's filter is the start of its tests' names`);
+  }
+  assert.deepEqual(mod.junitTests(mod.readXml(await fixture('bun.xml')), 'bun').tests.filter(x => x.describe).map(x => x.name), ['Acme widgets', 'rockets & <crates>']);
+  assert.deepEqual(mod.junitTests(mod.readXml(await fixture('vitest.xml')), 'vitest').tests.filter(x => x.describe).map(x => x.name), ['Acme widgets', 'rockets & <crates>']);
+  // A finding carries it: flaky and slower.
+  const one = (outcome, ms) => ({ ...runOf({ tests: {} }), runner: 'bun', tests: [{ file: 'a.test.ts', name: 'Acme widgets', describe: true, outcome, ms }] });
+  assert.equal(mod.flaky([one('pass', 1), one('fail', 1)])[0].describe, true);
+  assert.equal(mod.slower([one('pass', 100), one('pass', 100), one('pass', 100), one('pass', 900)], { window: 3, factor: 2, floorMs: 200 })[0].describe, true);
+}
+
+test('a run-alone filter runs the finding alone: a test is its whole name, a describe the start of its tests\' names', async () => {
+  await assertAlone(ledger);
+});
+
+test('mutations: one filter for both, or a describe not kept from the JUnit or in a finding, fails the run-alone test', async t => {
+  for (const [from, to] of [
+    ["test.describe ? `^ ?${escaped}( |$)` : `^ ?${escaped}$`", '`^ ?${escaped}( |$)`'],
+    ['...(g.describe ? { describe: true } : {}), ', ''],
+    ['const s = seen.get(k) ?? { file: t.file ?? null, name: t.name, ...suiteOf(t),', 'const s = seen.get(k) ?? { file: t.file ?? null, name: t.name,'],
+  ]) {
+    const m = await mutant(t, from, to);
+    await assert.rejects(assertAlone(m), assert.AssertionError, `mutant survived: ${to}`);
+  }
+});
+
+/** A file that names its runner is read as that runner's: a --runner or "tests".runner that says otherwise is refused, never a misread record. */
+async function assertRunnerAgrees(dir, mod) {
+  await junitAt(dir, 'junit.xml', await fixture('vitest.xml'));
+  let r = await mod.junitRun({ junit: 'junit.xml', runner: 'bun', cwd: dir });
+  assert.equal(r.code, 1, r.lines.join('\n'));
+  assert.match(r.lines[0], /junit\.xml is not JUnit the ledger can read \(it is vitest's JUnit, but the runner is bun \(--runner\); say vitest\)/);
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { runner: 'bun' } }));
+  r = await mod.junitRun({ junit: 'junit.xml', cwd: dir });
+  assert.equal(r.code, 1);
+  assert.match(r.lines[0], /the runner is bun \(\.keel\/keel\.json "tests"\.runner\); say vitest/);
+  assert.equal((await readRuns(dir)).runs.length, 0, 'nothing recorded');
+  r = await mod.junitRun({ junit: 'junit.xml', runner: 'vitest', cwd: dir });
+  assert.equal(r.code, 1, 'the flag wins over the config, and agrees with the file: read, and red for its failed tests');
+  assert.equal((await readRuns(dir)).runs[0].runner, 'vitest');
+}
+
+test('a --runner or "tests".runner that contradicts the JUnit file is refused, never read as the wrong runner\'s (review on #56)', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await assertRunnerAgrees(dir, ledger);
+});
+
+test('mutation: a runner that overrides what the file says reads vitest as bun, and fails the runner test', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  const m = await mutant(t, '    if (says && kind !== says) throw', '    if (false) throw');
+  await assert.rejects(assertRunnerAgrees(dir, m), assert.AssertionError);
+});
+
 test('a bun or vitest finding\'s run-alone command is that runner\'s, from its suite\'s folder; "tests" takes runner and junit', () => {
-  assert.equal(aloneCommand({ file: 'sub/b.test.ts', name: 'slow-ish (x)', runner: 'bun' }), "bun test sub/b.test.ts -t '^ ?slow-ish \\(x\\)( |$)'");
-  assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', runner: 'vitest', dir: 'web' }), `cd "$(git rev-parse --show-toplevel)"/'web' && npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'`);
-  assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', runner: 'vitest', dir: 'web' }, [], { here: 'web' }), "npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'");
+  assert.equal(aloneCommand({ file: 'sub/b.test.ts', name: 'slow-ish (x)', runner: 'bun' }), "bun test sub/b.test.ts -t '^ ?slow-ish \\(x\\)$'");
+  assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', describe: true, runner: 'vitest', dir: 'web' }), `cd "$(git rev-parse --show-toplevel)"/'web' && npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'`);
+  assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', describe: true, runner: 'vitest', dir: 'web' }, [], { here: 'web' }), "npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'");
   const block = hygiene([{ ...runOf({ tests: { 'fails on purpose': ['pass', 1] } }), runner: 'bun' }, { ...runOf({ tests: { 'fails on purpose': ['fail', 1] } }), runner: 'bun' }], { window: 3, factor: 2, floorMs: 200 });
-  assert.equal(block[2].trim(), "bun test tests/anvils.test.mjs -t '^ ?fails on purpose( |$)'");
+  assert.equal(block[2].trim(), "bun test tests/anvils.test.mjs -t '^ ?fails on purpose$'");
   assert.deepEqual(testsConfigProblems({ tests: { runner: 'bun', junit: '.keel/test-runs/junit.xml' } }), []);
   for (const tests of [{ runner: 'jest' }, { junit: '' }, { junit: '/tmp/acme.xml' }, { junit: '../acme.xml' }, { junit: 3 }]) {
     assert.ok(testsConfigProblems({ tests }).length, JSON.stringify(tests));
