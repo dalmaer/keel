@@ -276,6 +276,22 @@ generate views from their owners, without another tracking system.
   for a yes.
 - **Never invent evidence.** A planned feature is not an implemented one. A
   scripted run is not a person's use.
+- **keel's own tests run on `node --test`** (decided 9 October 2026, after
+  the owner asked whether vitest would be better). Node 24's runner already
+  has what keel needs: parallel files, `mock.timers`, mocking, and custom
+  reporters. The test ledger, the hermetic setup (`--import`) and the gate
+  are all built on it, and phases 55 to 57 rely on it. Vitest would be keel's
+  first dependency, would add a transform step that plain `.mjs` tests don't
+  need, and would mean porting 760 tests. Bun's runner was measured the same
+  day (Bun 1.2.13, every file run alone, 8 at a time): 60 s against Node's
+  95 s, but only 734 of 760 tests passed. It also registered only 23 of the
+  760 when given every file at once. The bigger saving is in the suite
+  itself: `tests/climb.test.mjs` alone takes about 100 s, so the gate can't
+  finish sooner, and splitting it and running the longest files first
+  (phase 56) costs no porting. keel *reads* other runners: phase 59 brings
+  `bun test` and vitest projects into the ledger. **Reopen** if Node's runner
+  stops keeping up with a need of phases 55 to 57, or if Bun's runner
+  registers keel's whole suite at once and passes all of it.
 
 ## Deliberately open
 
