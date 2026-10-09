@@ -532,6 +532,10 @@ test('## Your part parses: each field, the choices, ready or ready when, a table
   assert.equal(two.ask, 'Read one.', 'the first part, on the phase');
   assert.deepEqual(two.parts.map(x => [x.heading, x.ask, x.ready]), [['Box 2', 'Read one.', true], ['Box 3', 'Read two.', { when: 'Monday.' }]]);
   assert.equal(yourPartReady(two), false, 'ready only when every part is');
+  // The template's comment (or a line of preamble) before the headings is not a part (cajones#62).
+  const kept = yourPartOf('<!-- One part per walk box. -->\nA line of preamble.\n\n### Box 2\n\n- **Ask:** Read one.\n- **Choices:** Fine | Not fine\n- **Ready:** yes\n\n### Box 3\n\n- **Ask:** Read two.\n- **Ready:** yes\n');
+  assert.equal(kept.ask, 'Read one.');
+  assert.deepEqual(kept.parts.map(x => x.heading), ['Box 2', 'Box 3']);
 });
 
 test('a walk with no Your part is a note from --check, never a failure; a filled-in Your part is not template text', async () => {

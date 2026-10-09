@@ -89,7 +89,7 @@ function shell(yaml) {
   const block = yaml.split('      - name: Project the night onto its canvas\n')[1].split('\n      - name:')[0];
   return block.split('        run: |\n')[1].split('\n').map(l => l.startsWith('          ') ? l.slice(10) : l).join('\n');
 }
-async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule' } = {}) {
+async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {} } = {}) {
   const root = await fixture(t, { ...binding, enabled, cadence: 'nightly' });
   if (local) { await mkdir(join(root, '.keel/canvas')); await writeFile(join(root, '.keel/canvas/manifest.json'), JSON.stringify(initialManifest())); }
   const bin = join(root, 'bin'); await mkdir(bin);
@@ -114,7 +114,9 @@ if(a[0]==='api') {
  else process.exit(92);
  console.log(JSON.stringify(out));
 } else if(a[0]==='run'&&a[1]==='download') {
- fs.writeFileSync(path.join(a[a.indexOf('--dir')+1],'recovery.json'),JSON.stringify(${JSON.stringify(bundle ?? {})}));
+ const never=${JSON.stringify(neverRan)}[a[2]];
+ if(never) fs.writeFileSync(path.join(a[a.indexOf('--dir')+1],'never-ran.json'),JSON.stringify({neverRan:true,provenance:never}));
+ else fs.writeFileSync(path.join(a[a.indexOf('--dir')+1],'recovery.json'),JSON.stringify(${JSON.stringify(bundle ?? {})}));
 } else process.exit(93);
 `); await chmod(gh, 0o755);
   // Isolate PATH completely, so a developer's isocan can never satisfy the test.
@@ -225,6 +227,28 @@ test('workflow skips a committed disabled night and restores the previous attemp
   assert.ok(rerun.ghCalls.some(a => a[1]?.endsWith('/attempts/1')));
 });
 
+test('a night queued behind this one is never the one recovered from (duo#90)', async t => {
+  const queued = trustedRun({ id: 250, status: 'queued', conclusion: null }), previous = trustedRun();
+  const out = await workflow(t, { runs: [queued, previous], artifacts: [artifactFor(previous)], bundle: { provenance: provenanceFor(previous) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.ghCalls.find(a => a[0] === 'run')[2], '100');
+  assert.ok(!out.ghCalls.some(a => a[1]?.includes('ref=' + queued.head_sha) && a[1]?.includes('/runs/250')));
+});
+test('a preflight failure leaves a never-ran receipt, and the next night recovers from the attempt before it (duo#90)', async t => {
+  const failed = await workflow(t, { creds: false });
+  assert.notEqual(failed.status, 0);
+  const receipt = JSON.parse(await readFile(join(failed.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
+  assert.deepEqual(receipt, { neverRan: true, provenance: { repo: 'Acme/app', workflow: '.github/workflows/keel-night.yml', runId: '200', attempt: 1, headSha: 'b'.repeat(40) } });
+  const broken = trustedRun({ id: 150, conclusion: 'failure', head_sha: 'c'.repeat(40) }), previous = trustedRun();
+  const out = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { 150: provenanceFor(broken) }, bundle: { provenance: provenanceFor(previous) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['150', '100']);
+  assert.ok(out.calls.some(a => a[1] === 'canvas'));
+  // A never-ran receipt for another attempt is refused, never skipped.
+  const forged = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { 150: provenanceFor(previous) }, bundle: { provenance: provenanceFor(previous) } });
+  assert.notEqual(forged.status, 0);
+  assert.ok(!forged.calls.some(a => a[1] === 'canvas'));
+});
 async function recoveryFixture(t, { seed = true, manifest = initialManifest() } = {}) {
   const root = await realpath(await fixture(t, { ...binding, enabled: true, cadence: 'nightly' }));
   const output = await realpath(await mkdtemp(join(tmpdir(), 'acme-night-state-')));

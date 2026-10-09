@@ -377,6 +377,19 @@ test('lessons-table-split: a row an unescaped | splits into more cells than the 
 const stuckMeasure = MEASURES.filter(m => m.id === 'phases_stuck');
 const acmePhase = (status, acceptance, extra = '') => `---\nstatus: ${status}\nsince: 2026-01-05\ngoal: G0\ndepends: []\nnote: "Acme anvils."\nevidence: []\n${extra}---\n\n# Acme anvils\n\n## Done when\n\nAn anvil drops.\n\n## Scope\n\nOne anvil.\n\n## Acceptance\n\n${acceptance}\n\n## Proof\n\nA command.\n\n## Deliberately open\n\nNothing.\n\n## Next action\n\nDrop it.\n`;
 
+test('phases_stuck ages a phase dated after: from that day, never before it (cajones#62)', async t => {
+  const dir = await scratch(t);
+  await mkdir(join(dir, '.keel'));
+  await mkdir(join(dir, 'docs', 'phases'), { recursive: true });
+  const config = { name: 'Acme', practices: ['phases'] };
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify(config));
+  await writeFile(join(dir, 'docs', 'goals.json'), JSON.stringify([{ id: 'G0', title: 'Anvils', outcome: 'Anvils drop.' }]));
+  await writeFile(join(dir, 'docs', 'phases', '01-later.md'), acmePhase('planned', '- [ ] Drop it. `tests/anvil.test.mjs`', 'after: 2026-11-01\n'));
+  await writeFile(join(dir, 'docs', 'phases', '02-due.md'), acmePhase('planned', '- [ ] Drop it. `tests/anvil.test.mjs`', 'after: 2026-09-01\n'));
+  const [r] = await measure({ root: dir, config, env: {}, date: '2026-10-03', measures: stuckMeasure });
+  assert.deepEqual(r.facts.stuck.map(s => [s.id, s.since]), [[2, '2026-09-01']], 'not yet buildable is not stuck; once due, aged from after:');
+});
+
 test('phases_stuck does not count a partial phase that owes a walk; a plain partial one still counts', async t => {
   const dir = await scratch(t);
   await mkdir(join(dir, '.keel'));

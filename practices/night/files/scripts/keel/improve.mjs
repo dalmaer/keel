@@ -841,8 +841,10 @@ export const MEASURES = [
       }
       const { DONE } = await roadmapModule(ctx);
       // A partial phase that owes only a walk waits on the world, not on the work (keel phase 44).
-      const stuck = (await roadmapData(ctx)).phases.filter(p => unfinished(p, DONE) && !(p.status === 'partial' && p.owes === 'walk') && days(p.since, ctx.date) > STUCK_DAYS)
-        .map(p => ({ id: p.id, status: p.status, since: p.since, days: days(p.since, ctx.date) }));
+      // A phase dated `after:` is not buildable before then: it ages from that day, not from when it was planned.
+      const from = p => typeof p.after === 'string' && p.after > (p.since ?? '') ? p.after : p.since;
+      const stuck = (await roadmapData(ctx)).phases.filter(p => unfinished(p, DONE) && !(p.status === 'partial' && p.owes === 'walk') && days(from(p), ctx.date) > STUCK_DAYS)
+        .map(p => ({ id: p.id, status: p.status, since: from(p), days: days(from(p), ctx.date) }));
       return {
         value: stuck.length,
         detail: stuck.length ? list(stuck.map(p => `${p.id} ${p.status} since ${p.since} (${p.days}d)`), 4) : `none older than ${STUCK_DAYS} days`,

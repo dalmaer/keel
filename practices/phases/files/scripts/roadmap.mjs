@@ -111,7 +111,10 @@ export function yourPartOf(text) {
     else current.lines.push(line);
   }
   blocks.push(current);
-  const parts = blocks.filter(b => b.heading !== null || b.lines.some(l => l.trim())).map(b => partOf(b.lines, b.heading));
+  const headed = blocks.some(b => b.heading !== null);
+  // With headed parts, text before the first heading (the template's comment, a line of preamble) is not a part unless it says something a part says.
+  const parts = blocks.filter(b => b.heading !== null || b.lines.some(l => l.trim())).map(b => partOf(b.lines, b.heading))
+    .filter(p => p.heading !== null || !headed || p.ask || p.choices.length || p.ready !== null || p.table);
   if (!parts.length) return null;
   return parts.length === 1 ? parts[0] : { ...parts[0], parts };
 }
