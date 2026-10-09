@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 54 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 58 phases built; 11 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [48. A release is reviewed before the fleet sees it](phases/48-a-release-is-reviewed-before-the-fleet-sees-it.md). Brief a builder on the release gate; keel's own cross-review (Codex reviewing the conductor's claude/ PRs) is switched on with it. OPENAI_API_KEY is set on keel (2026-10-08). (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-6/7 built; 1 owes a walk.
+6/8 built; 1 owes a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -24,6 +24,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [44. A walk owed does not block the next phase, and lived-in is a project's choice](phases/44-a-walk-owed-does-not-block-the-next-phase.md) | built | 2026-10-07 | [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built and walked: owes: walk, lived-in opt-in, phases_stuck skipping a walk owed. keel runs it (34 of 46 built, 11 owe a walk); in the fleet, cajones (the one project on keel's roadmap script) took v0.8.16 to v0.8.20 green with its lived-in kept by migration 0006; duo, ledger and isocan keep their own phases. · [#28](https://github.com/dalmaer/keel/issues/28) |
 | [49. Keel starts faster and its guidance describes the code it ships](phases/49-faster-simpler-keel.md) | built | 2026-10-07 | [2](phases/02-the-keel-cli.md), [5](phases/05-managed-files-and-drift.md) | Practice loading uses 60% less local warm-read time; deterministic fresh reads are tested and current guidance matches shipped workflows. |
 | [51. The board: whose turn it is, and what is mine](phases/51-the-board-whose-turn-it-is.md) | partial, walk owed | 2026-10-08 | [44](phases/44-a-walk-owed-does-not-block-the-next-phase.md) | Built: after: and waits: on phases; keel board --json from the roadmap, loose ends, reviews, the health proposal, the inbox and the fleet; keel walk done / walk decide; a localhost page (127.0.0.1, per-launch token) whose buttons run those verbs. On keel it found a review backlog on isocan and ledger. Owes the owner's week of use. · [#37](https://github.com/dalmaer/keel/issues/37) |
+| [55. A test judges the code, not the machine](phases/55-a-test-judges-the-code-not-the-machine.md) | planned | 2026-10-09 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | keel 'fixed' a flaky climb test by raising its sleep from 600 to 1500 ms and the timing floor from 300 to 1000 ms: still a wall-clock test, only slower. keel test --stalls pauses a test's process group at seeded random moments and names the tests that judge the wall clock; they move to mock timers, and the timing rule becomes 'with stalls or mock timers', not 'sleep longer'. Design: research/2026-10-09-robot-and-time.md (phase 55). · [#42](https://github.com/dalmaer/keel/issues/42) |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
@@ -32,6 +33,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 - **44 done when:** keel's own roadmap runs with lived-in off (its headline counts built, not lived-in), every keel phase whose building is done and whose rest is a walk or time is marked `owes: walk`, and `keel next` names the next buildable phase instead of one waiting on a walk; no phase is built that was not proven.
 - **49 done when:** Repeated measurements on the same machine demonstrate faster practice loading or CLI startup, existing command and validation behavior remains tested, and current documentation agrees with the implemented workflows.
 - **51 done when:** `keel board` serves a localhost page that sorts every open item by what it waits on (yours, broken, the agent's, time), each "yours" item settles through a keel verb, phases say when they are not yet buildable and whose walk they owe, and the owner has settled a week of walks from the board instead of in chat.
+- **55 done when:** `keel test <file> --stalls` names every test that passes plainly and fails when paused at random moments; keel's own tests it names have moved to mock timers or an injected clock, and run with stalls without failing; the timing-hygiene rule says "with stalls or mock timers" instead of a sleep floor; and the practice ships it to the fleet.
 
 ## G1 — Start a project in one command
 
@@ -127,7 +129,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-6/13 built; 7 owe a walk.
+6/15 built; 7 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -144,6 +146,8 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [38. The records are tended: a weekly pass resolves what the night found, and a person merges it](phases/38-the-records-are-tended-a-weekly-pass-resolves.md) | partial, walk owed (time) | 2026-10-06 | [26](phases/26-reconciliation.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md), [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [39](phases/39-every-pr-keel-opens-can-be-judged-in-a-minute-a.md) | Built and on for keel and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). keel's first pass (keel#22) was read and closed with a reason. Owes ledger's first pass and the night after it. · [#16](https://github.com/dalmaer/keel/issues/16) |
 | [43. Each budgeted pass shows what it used, and says when to extend or shorten](phases/43-each-budgeted-pass-shows-what-it-used.md) | partial, walk owed (time) | 2026-10-07 | [35](phases/35-a-project-can-send-an-agent-to-climb-one-number.md), [38](phases/38-the-records-are-tended-a-weekly-pass-resolves.md), [42](phases/42-claude-reviews-what-codex-writes-the-way-codex.md) | Built and on GitHub: the Budget line (agent-step minutes per run from GitHub, ran out, a suggestion; runs whose agent never started skipped); the night of 2026-10-07 (run 37580217231, keel#26) wrote tend 2 of 30, climb 3, 0 of 45. Waits on the owner's read after four or more tend runs. · [#25](https://github.com/dalmaer/keel/issues/25) |
 | [47. Codex runs climb and tend](phases/47-codex-runs-climb-and-tend.md) | partial, walk owed (external) | 2026-10-08 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md), [46](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | Built (Path A): Codex runs climb and tend with workspace-write and drop-sudo, TMPDIR pinned to /tmp/keel-codex, commits to .keel/agent-git; keel takes only objects from that git dir (no git command reads it) into a fresh repo, then the judge and publish jobs as before. Owes one real Codex night of each pass, read by the owner. · [#33](https://github.com/dalmaer/keel/issues/33) |
+| [54. The robot: an agent works the issues it is handed](phases/54-the-robot-an-agent-works-the-issues-it-is-handed.md) | planned | 2026-10-09 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md), [47](phases/47-codex-runs-climb-and-tend.md) | Review comments answered 'tracked' file issues nobody works. An issue labelled keel:agent, written to a rubric (what is wrong, how to see it, how to tell it is mended, nothing only the owner can give, one change), is worked by an agent through climb's sandbox: a PR reviewed by the other provider, the agent's last message posted on the issue, the next run started by the owner's comment. Opt-in with a weekly budget. Design: research/2026-10-09-robot-and-time.md (phase 54). · [#41](https://github.com/dalmaer/keel/issues/41) |
+| [57. Time getting worse becomes a proposal, and a fix](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md) | planned | 2026-10-09 | [54](phases/54-the-robot-an-agent-works-the-issues-it-is-handed.md), [56](phases/56-keel-knows-where-time-goes.md) | The night writes one proposal, but nothing watches time get worse: the gate creeping, a test's median rising, wall-clock tests left unmoved, a test agents keep waiting out. New time measures with bounds feed the proposal with the fix named; an accepted one is filed as a keel:agent issue the robot builds, and the next night says whether it worked. Design: research/2026-10-09-robot-and-time.md (phase 57). · [#44](https://github.com/dalmaer/keel/issues/44) |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
@@ -158,12 +162,14 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 - **38 done when:** On keel and one adopted project, a scheduled tend pass has read the night's record findings and opened one `keel-tend/<date>` PR that resolves them (corrections applied, lost proofs repaired or proposed back to partial, docs brought in line, drift and loose ends described for the owner to choose), the owner has merged it, and the next night's record findings fell to what the PR left, each of those named on the health page with what was tried.
 - **43 done when:** keel's health page shows a Budget line for tend and climb: the agent step's minutes in each of the last runs (at most 8), which ran out, and a suggestion (extend, shorten to N, hold, or too few to say), read from GitHub's record of the runs; and the owner has read tend's line and kept or changed its budget by it.
 - **47 done when:** A project can set `"agent": "codex"` on climb and on tend, and one Codex climb night and one Codex tend pass have run on a project under the unchanged three-job sandbox and guard, each PR read by the owner; Codex never runs with `danger-full-access` or `unsafe`.
+- **54 done when:** An issue labelled `keel:agent` that meets the rubric is worked by an agent with no person starting it: a PR through climb's sandbox, reviewed by the other provider, the agent's last message posted on the issue, and the owner's comment starting the next run; on a project with the pass turned on and a budget set, three such issues have been merged.
+- **57 done when:** The night measures time against bounds (`gate_time`, `time_creep`, `wall_clock_tests`, `inconclusive_share`; `worked_around` from the conductor's machine), its proposal names the fix when one is outside, an accepted time proposal is filed as a `keel:agent` issue that the robot builds, and two such fixes have been merged and their measure seen back inside its bound.
 
 ## G5 — Keel knows whether it helps
 
 Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-1/4 built; 1 owes a walk.
+1/5 built; 1 owes a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -171,11 +177,13 @@ Keel can show, with numbers across the fleet, whether projects it manages ship m
 | [13. Keel can show it makes projects better, or find out that it does not](phases/13-does-keel-help.md) | partial, on or after 2026-11-01 | 2026-10-02 | [12](phases/12-the-fleet.md) | Measures and comparison pre-registered and committed before any adoption (45a52ee). The results page is due no earlier than 2026-11-01 and needs two adopted projects. · [#31](https://github.com/dalmaer/keel/issues/31) |
 | [34. Keel counts its escapes, and every rigour change is judged by them](phases/34-keel-counts-its-escapes-and-every-rigour-change.md) | partial, walk owed | 2026-10-06 | [11](phases/11-keel-improve.md), [13](phases/13-does-keel-help.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Built: escapes on the night (fix: commits, the project's own lessons and — Escape: Trajectory lines since the last release, attributed only when one phase is named; bound: the previous release's count), with ceremony beside it. Baseline: 10 before v0.7.0, matching the analysis. Waits on the owner judging phases 32 and 33's levers after a release with them. · [#12](https://github.com/dalmaer/keel/issues/12) |
 | [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md) | partial | 2026-10-08 | [2](phases/02-the-keel-cli.md), [10](phases/10-the-night-shift.md), [26](phases/26-reconciliation.md), [40](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Owner-approved remote walk, conditional live pulse and deployed night proof remain. |
+| [56. keel knows where time goes](phases/56-keel-knows-where-time-goes.md) | planned | 2026-10-09 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | An agent sees one run: not what a test usually takes, not whether the machine was busy, not what a failure said before. The ledger records machine load with each run, each test's usual time, failure text, the gate's trend, and (locally) the tests agents worked around; keel time reports it, and the gate runs its slowest files first. Design: research/2026-10-09-robot-and-time.md (phase 56). · [#43](https://github.com/dalmaer/keel/issues/43) |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
 - **13 done when:** A dated research page compares the fleet before and after adoption on measures fixed in advance (red-streak length, time from lesson to guard, phases moved per week, conduct cost per phase) and says plainly what it found.
 - **34 done when:** The night reports `escapes` for keel and each adopted project (defects found after a phase was built, since the last release, each pointing at the phase it escaped where the record names one), the baseline from the spec-rigour analysis is recorded, and phases 32 and 33 each have a before-and-after reading in their evidence.
 - **50 done when:** An adopted project has a persistent isocan canvas showing its complete Keel lifecycle, with source-linked measures of fixes and improvement that survive repeated synchronization without changing source acceptance or overwriting human work.
+- **56 done when:** Every recorded run carries how busy the machine was; a slow run on a busy machine is never counted as a slower test; each test's usual time, its failures' text and the gate's wall time over weeks are in `keel time --json`; the gate starts its slowest files first; and the tests agents worked around on this machine are reported locally.
 
 ## Updating this roadmap
 
