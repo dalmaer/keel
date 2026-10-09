@@ -4,7 +4,7 @@
 // tree is byte-identical before and after, whatever the verdict (lesson 54).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, readdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +36,8 @@ async function prove(dir, args, code) {
   const r = keel(['prove', ...args, '--json'], dir);
   assert.deepEqual(await treeState(dir), before, 'the working tree is byte-identical after keel prove');
   assert.deepEqual(await readdir(scratchOf.get(dir)), [], 'the scratch worktree is removed');
-  assert.equal(r.code, code, r.out + r.err);
+  const j = (() => { try { return r.json(); } catch { return null; } })();
+  assert.equal(r.code, code, j?.verdict ? `the verdict was ${j.verdict}: ${j.reason}` : r.out + r.err);
   assert.equal(r.err, '');
   return r.json();
 }
@@ -80,7 +81,7 @@ test('NOT WORKING: green without the fix (the test does not catch the bug), or r
   await writeFile(join(dir, 'tests', 'wrong.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib/add.mjs';\ntest('four anvils', () => { assert.equal(add(1, 2), 4); });\n");
   const red = await prove(dir, ['tests/wrong.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(red.verdict, 'NOT WORKING');
-  assert.match(red.reason, /^red with the fix: Expected values to be strictly equal: 3 !== 4 \(four anvils\)$/);
+  assert.match(red.reason, /^red with the fix: Expected values to be strictly equal: 3 !== 4 \(four anvils\) \(run in a scratch worktree of the tree: ignored files other than node_modules are not there\)$/);
 });
 
 test('INCONCLUSIVE: the test cannot load without the fix, its file is the fix, or no test matched --name', async t => {
@@ -148,6 +149,91 @@ test('a project on another runner names it in .keel/keel.json prove.command; kee
   assert.equal(j.verdict, 'VERIFIED');
   assert.equal(j.runner, '.keel/keel.json prove.command');
   assert.equal(j.without.first, 'FAIL: 2 + 2 is 0');
+  // --name with a command that has no {name}: the whole file would run, so it is refused (Codex on #55).
+  const named = keel(['prove', 'tests/plain.mjs', '--name', 'two and two', '--fix', 'lib/add.mjs', '--json'], dir);
+  assert.equal(named.code, 2, named.out);
+  assert.match(named.json().error, /--name needs \{name\} in \.keel\/keel\.json "prove"\.command/);
+});
+
+// ---- what Codex found on #55 ------------------------------------------------
+
+const commitAll = (dir, subject) => { git(dir, ['add', '-A']); git(dir, ['commit', '-q', '-m', subject]); };
+
+test('an ignored file the test needs never makes a false VERIFIED: both sides run in the same kind of scratch tree', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, '.gitignore'), 'fixture.txt\n');
+  commitAll(dir, 'acme: ignore the fixture');
+  await writeFile(join(dir, 'fixture.txt'), 'anvil\n');
+  // The test needs only the ignored fixture: lib/add.mjs (the "fix") has nothing to do with it.
+  await writeFile(join(dir, 'tests', 'fixture.test.mjs'), "import { test } from 'node:test';\nimport { readFileSync } from 'node:fs';\ntest('the fixture is there', () => { readFileSync('fixture.txt'); });\n");
+  const j = await prove(dir, ['tests/fixture.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'NOT WORKING', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.match(j.reason, /^red with the fix: .*ENOENT.*\(run in a scratch worktree of the tree: ignored files other than node_modules are not there\)$/);
+});
+
+test('a test that writes into its tree writes into the scratch tree, never the user\'s', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, 'tests', 'snap.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { writeFileSync } from 'node:fs';\nimport { add } from '../lib/add.mjs';\ntest('snapshots the sum', () => { writeFileSync('tests/sum.snap', String(add(1, 2))); assert.equal(add(1, 2), 3); });\n");
+  // prove() asserts the tree is byte-identical: no tests/sum.snap left behind.
+  const j = await prove(dir, ['tests/snap.test.mjs', '--fix', 'lib/add.mjs'], 0);
+  assert.equal(j.verdict, 'VERIFIED');
+});
+
+test('a skipped or todo test did not run: never VERIFIED on a skip', async t => {
+  const dir = await repo(t);
+  // Skipped once fixed: red without the fix, then skipped (exit 0) with it.
+  await writeFile(join(dir, 'tests', 'skip.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib/add.mjs';\ntest('three anvils', { skip: add(1, 2) === 3 }, () => { assert.equal(add(1, 2), 3); });\n");
+  const only = await prove(dir, ['tests/skip.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(only.verdict, 'INCONCLUSIVE', JSON.stringify(only, null, 2));
+  assert.equal(only.reason, 'no test ran with the fix: 1 skipped or todo');
+  // Beside a test that passes either way: what failed without the fix must pass with it.
+  await writeFile(join(dir, 'tests', 'skip.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib/add.mjs';\ntest('three anvils', { todo: add(1, 2) === 3 }, () => { assert.equal(add(1, 2), 3); });\ntest('zero anvils', () => { assert.equal(add(0, 0), 0); });\n");
+  const beside = await prove(dir, ['tests/skip.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(beside.verdict, 'INCONCLUSIVE', JSON.stringify(beside, null, 2));
+  assert.equal(beside.reason, 'what failed without the fix did not pass with it (skipped, todo or not run): three anvils');
+  const entries = tapEntries('ok 1 - a # SKIP\nnot ok 2 - b # TODO\nok 3 - c\n');
+  assert.deepEqual(entries.map(e => [e.name, e.directive]), [['a', 'SKIP'], ['b', 'TODO'], ['c', null]]);
+});
+
+test('a fix that changes only a file\'s executable bit is reverted and judged', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, 'lib', 'run.sh'), '#!/bin/sh\necho anvil\n', { mode: 0o644 });
+  commitAll(dir, 'acme: the run script');
+  await chmod(join(dir, 'lib', 'run.sh'), 0o755);
+  await writeFile(join(dir, 'tests', 'mode.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { statSync } from 'node:fs';\ntest('the run script is executable', () => { assert.equal(statSync('lib/run.sh').mode & 0o100, 0o100); });\n");
+  const j = await prove(dir, ['tests/mode.test.mjs', '--fix', 'lib/run.sh'], 0);
+  assert.equal(j.verdict, 'VERIFIED', JSON.stringify(j, null, 2));
+});
+
+test('a test file changed by the fix is not run in its old form: INCONCLUSIVE, and why', async t => {
+  const dir = await repo(t);
+  commitAll(dir, 'fix: add adds');
+  // The next fix changes the code and adds an assertion to the existing test.
+  await writeFile(join(dir, 'lib', 'add.mjs'), 'export const add = (a, b) => Math.round(a + b);\n');
+  await writeFile(join(dir, 'tests', 'add.test.mjs'), `${await readFile(join(dir, 'tests', 'add.test.mjs'), 'utf8')}test('rounds', () => { assert.equal(add(0.4, 0.4), 1); });\n`);
+  const j = await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs', 'tests/add.test.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE');
+  assert.equal(j.reason, 'tests/add.test.mjs is part of the fix: without it the old test would run; name only the fixed code in --fix');
+  // Naming only the code proves it.
+  assert.equal((await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
+});
+
+test('a submodule, clean or dirty, is laid over the scratch tree (its files, not its .git)', async t => {
+  const dir = await repo(t);
+  const sub = join(dirname(dir), 'sub');
+  await mkdir(sub);
+  await writeFile(join(sub, 'two.mjs'), 'export const two = 2;\n');
+  git(sub, ['init', '-q', '-b', 'main']);
+  commitAll(sub, 'sub: two');
+  git(dir, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'vendor/sub']);
+  commitAll(dir, 'acme: vendor the sub');
+  await writeFile(join(dir, 'tests', 'sub.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { two } from '../vendor/sub/two.mjs';\nimport { add } from '../lib/add.mjs';\ntest('one and one is two', () => { assert.equal(add(1, 1), two); });\n");
+  assert.equal((await prove(dir, ['tests/sub.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
+  // Dirty: a changed file inside the submodule is listed by git diff as the submodule's path, a directory.
+  await writeFile(join(dir, 'vendor', 'sub', 'note.txt'), 'acme\n');
+  await writeFile(join(dir, 'vendor', 'sub', 'two.mjs'), 'export const two = 2; // still two\n');
+  const j = await prove(dir, ['tests/sub.test.mjs', '--fix', 'lib/add.mjs'], 0);
+  assert.equal(j.verdict, 'VERIFIED', JSON.stringify(j, null, 2));
 });
 
 test('usage: the test and --fix are required, and keel prove runs in a git repository', async t => {

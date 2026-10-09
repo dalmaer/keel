@@ -531,8 +531,12 @@ export async function conductCost(dir, check, root) {
 
 /** A fix commit's subject: `fix:` or `fix(` at its very start. */
 export const isFixSubject = subject => /^fix[:(]/i.test(String(subject ?? ''));
-/** A commit body that carries a `Proven-by:` trailer (phase 62: `keel prove --trailer`). */
-export const hasProvenBy = body => /^Proven-by:\s*\S/im.test(String(body ?? ''));
+/**
+ * Whether a commit carries a `Proven-by:` trailer (phase 62: `keel prove --trailer`), from the
+ * values git itself parsed (`%(trailers:key=Proven-by,valueonly)`): a line in a prose
+ * paragraph is not a trailer, and only git knows where the trailer block is.
+ */
+export const hasProvenBy = trailers => String(trailers ?? '').trim() !== '';
 /** The Trajectory marker of an escape (docs/phases/README.md). */
 export const ESCAPE_ENTRY = /^- \*\*\d{4}-\d{2}-\d{2}\*\* — Escape:/;
 
@@ -583,11 +587,11 @@ function textAt(ctx, rev, path) {
 function escapesBetween(ctx, from, to) {
   const found = [];
   const range = from ? `${from}..${to}` : to;
-  for (const rec of gitOut(ctx, ['log', range, '--reverse', '--no-merges', `--format=%H${SEP}%s${SEP}%b${REC}`]).split(REC)) {
-    const [sha, subject, body = ''] = rec.replace(/^\n/, '').split(SEP);
+  for (const rec of gitOut(ctx, ['log', range, '--reverse', '--no-merges', `--format=%H${SEP}%s${SEP}%(trailers:key=Proven-by,valueonly)${SEP}%b${REC}`]).split(REC)) {
+    const [sha, subject, proof = '', body = ''] = rec.replace(/^\n/, '').split(SEP);
     if (!sha || !isFixSubject(subject)) continue;
     const lessons = [...`${subject}\n${body}`.matchAll(/\blesson (\d+)\b/gi)].map(m => Number(m[1]));
-    found.push({ kind: 'commit', ref: sha.slice(0, 7), phase: phaseOf(`${subject}\n${body}`), text: subject, lessons, proven: hasProvenBy(body) });
+    found.push({ kind: 'commit', ref: sha.slice(0, 7), phase: phaseOf(`${subject}\n${body}`), text: subject, lessons, proven: hasProvenBy(proof) });
   }
   const path = lessonsPathOf(ctx.config);
   const before = from ? textAt(ctx, from, path) : null, after = textAt(ctx, to, path);

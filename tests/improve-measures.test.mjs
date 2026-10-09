@@ -428,16 +428,19 @@ test('escapes notes the fix: commits since the release that carry no Proven-by: 
   git(['tag', 'v0.1.0']);
   const proven = commit('fix: phase 2 counted each anvil twice', 'Proven-by: tests/count.test.mjs — VERIFIED — "2 !== 1"');
   const bare = commit('fix: phase 3 dropped the anvil early');
+  // A Proven-by: line with prose after it is not a trailer: git's own trailer block decides (Codex on #55).
+  git(['commit', '--allow-empty', '-q', '-m', 'fix: phase 3 the hammer', '-m', 'Proven-by: tests/hammer.test.mjs — VERIFIED — "1 !== 2"', '-m', 'More prose after it, so that line is not a trailer.']);
+  const prose = git(['rev-parse', '--short=7', 'HEAD']);
   // A fix folded into the lesson it names is still a fix: commit, and still unproven.
   await appendFile(join(dir, 'docs', 'lessons.md'), '| 1 | **A counter counts twice.** *(Acme, phase 2)* | Double anvils. | a test |\n');
   git(['add', '-A']);
   const folded = commit('fix: the counter again (lesson 1)', 'proven-by is said in prose here, not as a trailer.');
   const [m] = await measure({ root: dir, config: { name: 'Acme', repo: 'acme/storefront' }, measures: escapesMeasure });
-  // The escapes as before: the two unfolded fix commits and lesson 1 (which keeps its commit).
-  assert.equal(m.value, 3, m.detail);
+  // The escapes as before: the three unfolded fix commits and lesson 1 (which keeps its commit).
+  assert.equal(m.value, 4, m.detail);
   assert.equal(m.bound, 1, 'the release before: its one fix commit');
-  assert.deepEqual(m.facts.unproven, [bare, folded]);
+  assert.deepEqual(m.facts.unproven, [bare, prose, folded]);
   assert.ok(!m.facts.unproven.includes(proven), 'the trailer counts as proven');
-  assert.match(m.detail, new RegExp(`; 2 of 3 fix: commits without a Proven-by: trailer \\(${bare}, ${folded}\\); ceremony`));
+  assert.match(m.detail, new RegExp(`; 3 of 4 fix: commits without a Proven-by: trailer \\(${bare}, ${prose}, ${folded}\\); ceremony`));
   assert.ok(m.facts.escapes.every(e => !('proven' in e)), 'the escapes keep their shape');
 });

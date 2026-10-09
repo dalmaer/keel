@@ -67,9 +67,11 @@ keel retro --since <the commit before the phase>   # the retro worksheet, after 
 
 **A fix is proven by its test failing without it.** Every `fix:` commit
 carries a `Proven-by:` trailer, and `keel prove` writes it. It runs the
-named test twice: once in a scratch git worktree with the fix's files put
-back as they were before the fix, and once in your tree with the fix. Your
-working tree is never touched.
+named test twice, each time in a fresh scratch git worktree of your tree:
+once with the fix's files put back as they were before the fix, once with
+the fix. Both sides see the same tree, and your working tree is never
+touched, not even by what the test writes. List only the fixed code in
+`--fix`, not the test: a test changed by the fix would run in its old form.
 
 ```bash
 keel prove tests/anvil.test.mjs --fix lib/anvil.mjs --trailer

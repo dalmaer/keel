@@ -5,7 +5,7 @@ since: 2026-10-09
 goal: G0
 spec: 2
 depends: []
-note: "Built: keel prove runs the named test in a scratch worktree with the fix's files put back at the base, then in the tree with the fix, and prints VERIFIED, NOT WORKING or INCONCLUSIVE with the failure's first line; --trailer and --evidence record it; the conduct skill and AGENTS block ask a Proven-by: trailer of every fix: commit; the night's escapes notes the fix: commits without one. Owes the walk: two weeks of keel's own fixes carry it, and the owner reads three."
+note: "Built: keel prove runs the named test in a scratch worktree with the fix's files put back at the base, then in a second scratch worktree with the fix, and prints VERIFIED, NOT WORKING or INCONCLUSIVE with the failure's first line; --trailer and --evidence record it; the conduct skill and AGENTS block ask a Proven-by: trailer of every fix: commit; the night's escapes notes the fix: commits without one. Owes the walk: two weeks of keel's own fixes carry it, and the owner reads three."
 evidence: ["evidence/2026-10-09-prove.md"]
 issue: 49
 ---
@@ -68,3 +68,4 @@ The walk: for two weeks, every `fix:` commit in keel carries a `Proven-by:` trai
 - **2026-10-09** — The runner is `node --test` with the preloads of the project's `package.json` test script (keel's own needs `--import ./tests/helpers/hermetic.mjs`). Another runner is named in `.keel/keel.json` `"prove": {"command": "<command> {file}"}` and read by its exit code alone. A load error is a file-level failure with an exit code and no failing test.
 - **2026-10-09** — INCONCLUSIVE also covers a fix whose files are the same at the base (nothing to revert: a committed fix given the wrong base) and a `--name` that matched no test, so a misused command never reads as NOT WORKING.
 - **2026-10-09** — The cold start was at 3182 of 3200 characters. Six verb lines were trimmed to fit `keel prove` (3175 now); the next verb needs a trim first.
+- **2026-10-09** — Codex on #55: the with-fix run in the real tree could give a false VERIFIED (an ignored file present there, absent in scratch) and let the test write into the user's tree. Both sides now run in fresh scratch worktrees built the same way, which cannot make one side red for a reason the other lacks; copying ignored files was rejected (it can never be sure it copied what the test reads). A skip or todo no longer counts as run, a test changed by the fix is not run in its old form, file modes count, `--name` needs `{name}` in a custom runner, submodules are laid over, and the night reads `Proven-by:` from git's own trailer block.

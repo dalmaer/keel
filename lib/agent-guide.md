@@ -1274,36 +1274,48 @@ runs the named test twice and says whether it proves the fix. Every `fix:`
 commit carries the `Proven-by:` line it prints (the conduct skill's rule);
 the night's `escapes` measure notes the `fix:` commits without one.
 
-- **Without the fix**: a scratch `git worktree add --detach` of the current
-  tree (HEAD with your staged, unstaged and untracked changes laid over it,
-  and `node_modules` linked), with each `--fix` path put back as it was at
-  the base (a file the fix added is removed). The test runs there. The
-  scratch worktree is removed in every case. Your working tree is never
-  changed: no stash, no checkout, no revert (lesson 54).
-- **With the fix**: the test runs in your tree.
+- **Two scratch trees, built the same way**: each run gets a fresh `git
+  worktree add --detach` of the current tree (HEAD with your staged,
+  unstaged and untracked changes and your submodules' files laid over it,
+  `node_modules` linked). Both sides run in one, so an ignored file the
+  test needs (a `.env`, a generated fixture) is missing from both sides,
+  never from one: it can make the verdict NOT WORKING, never a false
+  VERIFIED. Each scratch tree is removed in every case. Your working tree
+  is never changed, not even by what the test writes: no stash, no
+  checkout, no revert (lesson 54).
+- **Without the fix**: in the first, each `--fix` path is put back as it
+  was at the base (bytes and executable bit; a file the fix added is
+  removed), and the test runs there.
+- **With the fix**: in the second, the test runs as the tree is.
 - **The base**: `--base <ref>`; else HEAD's parent when the fix's files are
   committed and clean, else HEAD.
 - **The runner**: `node --test --test-reporter=tap` with the preloads
   (`--import`, `--require`) of the first `node … --test` in `package.json`'s
   test script, and `.keel/keel.json` `env`. Another runner is named in
-  `.keel/keel.json` `"prove": {"command": "<command> {file}"}` (`{name}` for
-  `--name`); keel then reads its exit code and the first lines that look
-  like a failure.
-- **Verdicts**: `VERIFIED` (red without the fix, green with it), `NOT
-  WORKING` (green without it: the test does not catch the bug; or red with
-  it), `INCONCLUSIVE` (the test cannot run without the fix: it does not load,
-  or its file is part of the fix; the fix's files are the same at the base;
-  or no test matched `--name`), each with its reason.
+  `.keel/keel.json` `"prove": {"command": "<command> {file}"}`; `--name`
+  needs `{name}` in it (exit 2 otherwise); keel then reads its exit code and
+  the first lines that look like a failure.
+- **Verdicts**: `VERIFIED` (red without the fix, and every test that failed
+  then passed with it), `NOT WORKING` (green without it: the test does not
+  catch the bug; or red with it), `INCONCLUSIVE` (the test cannot run
+  without the fix: it does not load, or its file is part of the fix, even
+  changed rather than added: name only the fixed code; the fix's files are
+  the same at the base; no test ran with the fix: none matched `--name`,
+  or all were skipped or todo; or what failed without the fix was skipped,
+  todo or not run with it), each with its reason. A skipped or todo test
+  never counts as run.
 - `--trailer` prints `Proven-by: <test>[ (<name>)] — <VERDICT> — "<the
   failure's first line>"` (for any verdict but VERIFIED, the reason).
   `--evidence <phase>` appends it, dated, to the first file the phase's
   front matter lists under `evidence:` (exit 2 when it lists none).
 
 `--json` → `{verdict, reason, test, name, fix, base, runner, without: {ran,
-exit, red, loadError, tests, reason, failure: [line], first}, with: {…},
+exit, red, loadError, tests, skipped, passed: [name], failed: [name], reason,
+failure: [line], first}, with: {…},
 line, trailer, evidence}`. Exit 0 when VERIFIED, 1 for NOT WORKING or
 INCONCLUSIVE, 2 on usage (no test file, no `--fix`, a path outside the
-repository, not a git repository, a phase with no evidence file).
+repository, not a git repository, `--name` a runner cannot apply, a phase
+with no evidence file).
 
 <!-- topic: canvas | local project snapshots and optional isocan publishing -->
 
