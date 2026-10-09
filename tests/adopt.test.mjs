@@ -527,3 +527,96 @@ test('adopt detects the stack, says it in the dry run, records it, and doctor ag
   assert.equal(none.data.config.stack, undefined);
   assert.match(none.text, /^Stack: none \(detected: nothing; docs\/keel-lessons\.md carries keel's universal lessons\)$/m);
 });
+
+// ---- the test runner (phase 59) ---------------------------------------------------
+
+const BUN_STEP = 'mkdir -p .keel/test-runs && bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml; node scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner bun --status $?';
+
+test('adopt detects bun test or vitest in the gate, records the runner, and proposes the ledger\'s reporter flags without rewriting the gate', async t => {
+  const dir = await scratch(t);
+  const pkg = `${JSON.stringify({ name: 'acme-bun', scripts: { check: 'npm run lint && npm test', lint: 'node -e 0', test: 'bun test' } }, null, 2)}\n`;
+  await writeFile(join(dir, 'package.json'), pkg);
+  const dry = await adopt({ dir, dryRun: true }, { version: VERSION });
+  assert.deepEqual(dry.data.tests, { runner: 'bun', from: 'package.json scripts.test', junit: '.keel/test-runs/junit.xml', proposal: { where: 'package.json scripts.test', now: 'bun test', to: BUN_STEP } });
+  assert.deepEqual(dry.data.config.tests, { runner: 'bun', junit: '.keel/test-runs/junit.xml' });
+  assert.match(dry.text, /^Tests: bun \(package\.json scripts\.test\); the test ledger reads its JUnit from \.keel\/test-runs\/junit\.xml$/m);
+  assert.ok(dry.text.includes(`\n  Proposal for package.json scripts.test (adopt never rewrites the gate): ${BUN_STEP}\n`), dry.text);
+  // Written: the runner is recorded, the proposal is in the report, and the gate is the project's own bytes.
+  const { data } = await adopt({ dir }, { version: VERSION });
+  assert.equal(await readFile(join(dir, 'package.json'), 'utf8'), pkg, 'adopt never rewrites the gate');
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).tests, { runner: 'bun', junit: '.keel/test-runs/junit.xml' });
+  const report = await readFile(join(dir, REPORT), 'utf8');
+  assert.match(report, /^## The test ledger$/m);
+  assert.ok(report.includes(`\`\`\`sh\nbun test\n\`\`\`\n\nto\n\n\`\`\`sh\n${BUN_STEP}\n\`\`\``), report);
+  assert.ok(data.written.includes('.keel/keel.json'));
+  // doctor reads "tests": a known runner is fine, an unknown one is a lint.
+  let doc = JSON.parse(keel(['doctor', '--json'], dir).out);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config'), []);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
+  doc = JSON.parse(keel(['doctor', '--json'], dir).out);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a path inside the repo, relative to its root']);
+
+  // vitest as one step of the gate itself: the step goes in braces, so the steps around it run as they did.
+  const v = await scratch(t);
+  await writeFile(join(v, 'package.json'), JSON.stringify({ name: 'acme-vite', scripts: { check: 'tsc && npx vitest run --coverage && eslint .' } }));
+  const vd = (await adopt({ dir: v, dryRun: true }, { version: VERSION })).data;
+  assert.deepEqual([vd.tests.runner, vd.tests.from], ['vitest', 'package.json scripts.check']);
+  assert.equal(vd.tests.proposal.to, 'tsc && { npx vitest run --reporter=default --reporter=junit --outputFile.junit=.keel/test-runs/junit.xml --coverage; node scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner vitest --status $?; } && eslint .');
+  // node --test: the reporter is node's own (init, migration 0004); nothing recorded, nothing proposed.
+  const n = await scratch(t);
+  await writeFile(join(n, 'package.json'), JSON.stringify({ name: 'acme-node', scripts: { check: 'npm test', test: 'node --test' } }));
+  const nd = await adopt({ dir: n, dryRun: true }, { version: VERSION });
+  assert.deepEqual(nd.data.tests, { runner: 'node', from: 'package.json scripts.test', junit: null, proposal: null });
+  assert.equal(nd.data.config.tests, undefined);
+  assert.match(nd.text, /^Tests: node --test \(package\.json scripts\.test\)/m);
+  // Already wired, or a runner the config names: nothing proposed twice, and the config's runner stands.
+  const w = await scratch(t);
+  await writeFile(join(w, 'package.json'), JSON.stringify({ name: 'acme-wired', scripts: { check: 'npm test', test: BUN_STEP } }));
+  assert.equal((await adopt({ dir: w, dryRun: true }, { version: VERSION })).data.tests.proposal, null);
+  await mkdir(join(w, '.keel'), { recursive: true });
+  await writeFile(join(w, '.keel', 'keel.json'), JSON.stringify({ check: 'npm test', tests: { runner: 'vitest', window: 30 } }));
+  const own = (await adopt({ dir: w, dryRun: true }, { version: VERSION })).data;
+  assert.deepEqual([own.tests.runner, own.tests.from, own.tests.proposal], ['vitest', '.keel/keel.json', null]);
+  assert.deepEqual(own.config.tests, { runner: 'vitest', window: 30, junit: '.keel/test-runs/junit.xml' });
+  // No runner keel knows: nothing said, nothing recorded.
+  const none = await adopt({ dir: await scratch(t), dryRun: true }, { version: VERSION });
+  assert.equal(none.data.tests, null);
+  assert.doesNotMatch(none.text, /^Tests:/m);
+});
+
+test('the proposed gate runs: the ledger records the bun run, and the gate fails exactly when bun did, or when no test ran', async t => {
+  const outer = await scratch(t), dir = join(outer, 'acme-bun');
+  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
+  const git = (...args) => run('git', ['-C', dir, ...args], { env: ENV });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-qm', 'acme');
+  // Acme's stand-in for bun: writes the fixture (a new copy each run) where --reporter-outfile says, and exits ACME_EXIT.
+  const bin = join(outer, 'bin');
+  await mkdir(bin, { recursive: true });
+  await writeFile(join(bin, 'bun'), '#!/bin/sh\nfor a in "$@"; do case "$a" in --reporter-outfile=*) out="${a#--reporter-outfile=}";; esac; done\n[ -n "$ACME_JUNIT" ] && { cat "$ACME_JUNIT"; echo "<!-- $$ -->"; } > "$out"\nexit "${ACME_EXIT:-0}"\n', { mode: 0o755 });
+  const fixtures = join(KEEL, 'tests', 'fixtures', 'junit');
+  await writeFile(join(bin, 'green.xml'), (await readFile(join(fixtures, 'bun.xml'), 'utf8')).replace(/<failure\b[^>]*\/>/g, ''));
+  const gate = `${BUN_STEP} && echo after`;
+  const sh = env => run('sh', ['-c', gate], { cwd: dir, env: { ...ENV, PATH: `${bin}:${process.env.PATH}`, ...env } });
+  let r = sh({ ACME_JUNIT: join(fixtures, 'bun.xml'), ACME_EXIT: '1' });
+  assert.equal(r.status, 1, `bun failed: so does the gate\n${r.stdout}${r.stderr}`);
+  assert.doesNotMatch(r.stdout, /after/);
+  r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '0' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  // Failed, then passed, on one clean tree: the hygiene block names it, with bun's command to run it alone; a note, never a red gate.
+  assert.match(r.stdout, /^keel test ledger: 2 hygiene items \(2 runs in \.keel\/test-runs\)\./m);
+  assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
+  assert.match(r.stdout, /bun test a\.test\.ts -t '\^ \?fails on purpose\( \|\$\)'\nafter\n$/);
+  r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '1' });
+  assert.equal(r.status, 1, 'a failure bun left out of its JUnit (a file that would not load) still fails the gate');
+  r = sh({ ACME_JUNIT: '', ACME_EXIT: '0' });
+  assert.equal(r.status, 1, 'bun ran nothing and wrote nothing new: no tests ran');
+  assert.match(r.stdout, /no tests ran/);
+  const runs = (await readdir(join(dir, '.keel', 'test-runs'))).filter(n => n.endsWith('.json'));
+  assert.equal(runs.length, 3);
+  const last = JSON.parse(await readFile(join(dir, '.keel', 'test-runs', runs.sort().at(-1)), 'utf8'));
+  assert.deepEqual([last.runner, last.dirty], ['bun', false]);
+});

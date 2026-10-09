@@ -101,6 +101,13 @@ it measures, so the history spans every machine the suite ran on. A run that
 executed no test exits 1, "no tests ran"; a project with no tests yet sets
 `"tests": {"allowEmpty": true}`.
 
+On `bun test` or vitest, the runner writes a JUnit file and the ledger reads
+it, as a command right after the tests in the gate. `keel adopt` finds the
+runner and proposes the exact line; it never changes the gate itself. The
+records, the hygiene block and the "no tests ran" rule are the same, and the
+command to run a test alone is the runner's own. Runs of two runners are
+never compared with each other.
+
 ## The commands
 
 The night runs itself. You run the same measures by hand when you want to

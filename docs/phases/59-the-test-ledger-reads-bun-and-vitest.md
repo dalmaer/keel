@@ -1,10 +1,11 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G4
 spec: 2
 depends: [33]
-note: "The test ledger is a node --test reporter, so on a project that runs bun test or vitest it records nothing, and flaky_tests, slow_tests and phases 55 to 57 are n/a there. Both can write JUnit XML; keel reads it into the same per-test record. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
+note: "Built: scripts/keel/test-ledger.mjs --junit reads bun's and vitest's JUnit XML into the node ledger's record (plus runner and a hash of the file), with the same no-tests rule and hygiene block; the runner is in the config hash and the lane; adopt records the runner and proposes the gate line; doctor lints \"tests\". Owes the walk: a week of records on one bun project and one vitest project, read by the owner. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
 evidence: []
 issue: 46
 ---
@@ -26,10 +27,10 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] A JUnit file from each of `bun test` and vitest (fixtures) becomes a ledger record with every test's outcome and time, and the run's commit, tree and config. `tests/test-ledger.test.mjs`
-- [ ] A JUnit file with no tests is "no tests ran" (exit 1), as a node run is; `allowEmpty` lets it pass. `tests/test-ledger.test.mjs`
-- [ ] `flaky_tests` and `slow_tests` read bun and vitest records as they read node's. `tests/improve-ledger.test.mjs`
-- [ ] Adopt detects the runner and proposes the reporter flags for the gate. `tests/adopt.test.mjs`
+- [x] A JUnit file from each of `bun test` and vitest (fixtures) becomes a ledger record with every test's outcome and time, and the run's commit, tree and config. `tests/test-ledger.test.mjs`
+- [x] A JUnit file with no tests is "no tests ran" (exit 1), as a node run is; `allowEmpty` lets it pass. `tests/test-ledger.test.mjs`
+- [x] `flaky_tests` and `slow_tests` read bun and vitest records as they read node's. `tests/improve-ledger.test.mjs`
+- [x] Adopt detects the runner and proposes the reporter flags for the gate. `tests/adopt.test.mjs`
 - [ ] ⚑ by hand: one project on bun and one on vitest record a week of runs, and the owner reads their hygiene block.
 
 ## Your part
@@ -54,8 +55,15 @@ Over time: a week of records on each runner.
 
 ## Deliberately open
 
-- **Parts inside a test**: JUnit nests suites and cases differently per runner. Top-level tests first, as the node ledger does.
+- **Parts inside a test**: JUnit nests suites and cases differently per runner. Top-level tests first, as the node ledger does. Settled 2026-10-09 for now: a top-level `describe()` is one entry, failed when a test in it failed, as node records it; the tests inside are not kept.
+- **A name with " > " in it** (a known limitation): bun joins describe names in `classname` with " > ", innermost first, and vitest joins them into the test's name, outermost first. The ledger splits on " > ", so a describe (vitest: also a test) whose own name holds " > " is cut there, and two top-level tests can be read as one. Settled when a real project shows one, by reading bun's nested `<testsuite>` form if it writes one.
+- **A narrowed bun or vitest run** (a known limitation): the ledger reads the file after the run and cannot see `-t` or a path filter, so such a run is never marked `filtered`. `proofs_hold` could read a cited test the run left out as renamed. Settled when a project narrows the gate's run, by a `--filtered` flag the gate passes.
+- **bun's escaping**: bun 1.2.13 escapes `classname` twice. The ledger reads it once more, and also reads a `classname` escaped once, should a later bun fix it.
+
+## Trajectory
+
+- **2026-10-09** — Real output changed three things. bun leaves a file that would not load out of its JUnit entirely (it says "1 error" and exits 1, and the file has no testcase for it), so a gate of `bun test …; node test-ledger.mjs --junit …` would pass it: the ledger takes the runner's exit code as `--status $?`. bun writes no JUnit file when no test ran, so a file from an earlier run would be read again: each record keeps a short hash of its file, and a file already recorded is stale, "no tests ran". bun makes no directory for `--reporter-outfile`, so the proposal starts with `mkdir -p .keel/test-runs`. doctor had never checked `"tests"`: it now does (`tests-config`).
 
 ## Next action
 
-Collect a JUnit file from bun and from vitest as fixtures; brief a builder on `--junit`.
+⚑ Walk: put the proposed gate line on one project that uses bun test and one that uses vitest; after a week of records, read each project's flaky and slow tests line on its newest health page, and say Right, Missed some or Wrong.

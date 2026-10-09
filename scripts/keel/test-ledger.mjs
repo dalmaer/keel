@@ -44,6 +44,32 @@
 // is the GitHub Actions workflow that ran it (none outside Actions), so the
 // night can tell its own runs from CI's.
 //
+// bun test and vitest (keel phase 59) write JUnit XML instead, and the
+// ledger reads it after the run, as its own command in the gate:
+//
+//   bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml; \
+//     node scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner bun --status $?
+//
+// (vitest: --reporter=default --reporter=junit --outputFile.junit=<file>.)
+// The record is a node run's, plus `runner` ("bun" or "vitest"; a record
+// without one is node's), and `junit`, a short hash of the file it was read
+// from: a file already recorded is stale (the runner wrote nothing new, as
+// bun does when no test ran) and is not recorded again. `node` is the
+// version of node that read it; the preloads are none. Each top-level test
+// is the file's own testcase, or one top-level describe() with every
+// testcase in it (failed if any failed): bun names a testcase's describes in
+// its classname, innermost first, escaped twice; vitest in its name,
+// outermost first, joined by " > "; a nested <testsuite> is a describe too.
+// "No tests ran" is the same rule (a missing file, or one with no testcase
+// that passed or failed, is a run of nothing; vitest's testcase for a file
+// that would not load is the file's, not a test). The exit code: 1 when no
+// tests ran (unless allowEmpty), else --status (the runner's own exit code,
+// $?: bun leaves a file that would not load out of its JUnit), else 1 when a
+// testcase failed. A file that is not JUnit is 1, never recorded. The runner
+// is part of the config hash and the lane, so runs of two runners are never
+// compared. .keel/keel.json "tests": { "runner", "junit" } names the runner
+// and the file (default .keel/test-runs/junit.xml); the flags win.
+//
 // The analysis is here too, so the reporter and the night's improve.mjs
 // (flaky_tests, slow_tests, proofs_hold) read history one way:
 //   flaky   a test that both passed and failed on the same clean tree in
@@ -60,8 +86,9 @@ import { readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { join, relative, resolve, sep, posix } from 'node:path';
+import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
 import { platform, arch, availableParallelism } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 export const RUNS = '.keel/test-runs';
 /** Runs kept on disk per lane (a suite's folder and config), at least; older ones are pruned. */
@@ -74,6 +101,11 @@ export const DEFAULTS = Object.freeze({ window: 20, factor: 2, floorMs: 200 });
 export const LABEL = 'keel test ledger';
 /** keel's machine directories: the night writes or gathers them, so they never make a tree dirty. */
 export const MACHINE_DIRS = Object.freeze([RUNS, '.keel/climb', '.keel/tend']);
+/** The test runners the ledger reads: node's own reporter, and bun's and vitest's JUnit. */
+export const RUNNERS = Object.freeze(['node', 'bun', 'vitest']);
+/** Where a JUnit file is written and read by default: in the ledger's own directory, which ignores itself. */
+export const JUNIT = `${RUNS}/junit.xml`;
+const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit'];
 
 // ---- config ------------------------------------------------------------------
 
@@ -83,7 +115,9 @@ export function testsConfigProblems(config) {
   if (t === undefined) return [];
   if (!t || typeof t !== 'object' || Array.isArray(t)) return ['"tests" must be an object of window, factor, floorMs'];
   const out = [];
-  for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k) && k !== 'allowEmpty' && k !== 'configEnv') out.push(`"tests" has an unknown key ${k} (window, factor, floorMs, allowEmpty, configEnv)`);
+  for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k) && !OTHER_KEYS.includes(k)) out.push(`"tests" has an unknown key ${k} (window, factor, floorMs, ${OTHER_KEYS.join(', ')})`);
+  if (t.runner !== undefined && !RUNNERS.includes(t.runner)) out.push(`"tests".runner must be one of ${RUNNERS.join(', ')}`);
+  if (t.junit !== undefined && !(typeof t.junit === 'string' && t.junit.trim() && !isAbsolute(t.junit) && !t.junit.split(/[\\/]/).includes('..'))) out.push('"tests".junit must be a path inside the repo, relative to its root');
   if (t.configEnv !== undefined && !(Array.isArray(t.configEnv) && t.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))) out.push('"tests".configEnv must be a list of environment variable names');
   if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2 && t.window <= MAX_WINDOW)) out.push(`"tests".window must be a whole number of runs, 2 to ${MAX_WINDOW}`);
@@ -133,10 +167,12 @@ const key = t => `${t.file ?? ''}\u0000${t.name}`;
 const configOf = r => r?.config ?? null;
 /** The folder a run's `node --test` ran in, relative to the repo's root; a record from before folders ran at the root. */
 const dirOf = r => r?.dir ?? '.';
-/** A run's lane: its suite's folder and its config. Retention keeps each lane's own newest runs. */
-export const laneOf = r => `${dirOf(r)}\u0000${configOf(r)}`;
+/** The runner that ran a run: a record without one is node's (the reporter's own records). */
+export const runnerOf = r => r?.runner ?? 'node';
+/** A run's lane: its suite's folder, its config and its runner (node's lane is as it was). Retention keeps each lane's own newest runs. */
+export const laneOf = r => `${dirOf(r)}\u0000${configOf(r)}${runnerOf(r) === 'node' ? '' : `\u0000${runnerOf(r)}`}`;
 /** What a finding carries of the run it was seen in, so its run-alone command reproduces that run. */
-const seenUnder = r => ({ dir: dirOf(r), config: configOf(r), setting: r?.setting ?? null });
+const seenUnder = r => ({ dir: dirOf(r), config: configOf(r), setting: r?.setting ?? null, ...(runnerOf(r) === 'node' ? {} : { runner: runnerOf(r) }) });
 const median = xs => { const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
 
 /**
@@ -240,7 +276,11 @@ const quote = s => `'${s.replaceAll("'", "'\\''")}'`;
 const isSet = v => typeof v === 'string' || (v !== null && typeof v === 'object' && v.set === true);
 
 export function aloneCommand(test, preload = [], { here = '.' } = {}) {
-  const pattern = `^${test.name.replace(RE_SPECIAL, '\\$&')}$`;
+  const runner = runnerOf(test);
+  const escaped = test.name.replace(RE_SPECIAL, '\\$&');
+  // bun and vitest match -t against the full name, describes joined by spaces (bun's with a leading one):
+  // a top-level test or describe is the start of it, then a space or the end.
+  const pattern = runner === 'node' ? `^${escaped}$` : `^ ?${escaped}( |$)`;
   const dir = test.dir ?? '.';
   const vars = Object.entries(test.setting?.env ?? {});
   // A value is printed for NODE_OPTIONS only (never a secret: one that looks like one is recorded as a hash);
@@ -249,7 +289,10 @@ export function aloneCommand(test, preload = [], { here = '.' } = {}) {
   const env = vars.filter(([, v]) => isSet(v)).map(([k, v]) => k === 'NODE_OPTIONS' && typeof v === 'string' ? `${k}=${quote(v)}` : `${k}="\${${k}?set ${k} as it was in the run}"`);
   const unset = vars.filter(([, v]) => !isSet(v)).map(([k]) => `-u ${k}`);
   const file = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';
-  const command = [...env, ...(unset.length ? ['env', ...unset] : []), 'node', ...(test.setting?.preload ?? preload), '--test', `--test-name-pattern=${quote(pattern)}`, file].filter(Boolean).join(' ');
+  const run = runner === 'bun' ? ['bun', 'test', file, '-t', quote(pattern)]
+    : runner === 'vitest' ? ['npx', 'vitest', 'run', file, '-t', quote(pattern)]
+    : ['node', ...(test.setting?.preload ?? preload), '--test', `--test-name-pattern=${quote(pattern)}`, file];
+  const command = [...env, ...(unset.length ? ['env', ...unset] : []), ...run].filter(Boolean).join(' ');
   return dir === here ? command : `cd "$(git rev-parse --show-toplevel)"${dir === '.' ? '' : `/${quote(dir)}`} && ${command}`;
 }
 
@@ -302,12 +345,13 @@ export function rootOf(cwd = process.cwd()) {
 /**
  * Where this run happened: commit, tree, dirty, machine, node. Dirty reads
  * the whole repo (from its top), git-ignored files aside (porcelain never
- * lists them) and keel's machine directories aside.
+ * lists them) and keel's machine directories aside, and `exclude` (root-relative
+ * paths: the JUnit file a run wrote, wherever it was told to).
  */
-export function where(cwd = process.cwd()) {
+export function where(cwd = process.cwd(), { exclude = [] } = {}) {
   const commit = gitOut(cwd, ['rev-parse', 'HEAD'])?.trim() || null;
   const tree = commit ? gitOut(cwd, ['rev-parse', 'HEAD^{tree}'])?.trim() || null : null;
-  const status = commit ? gitOut(cwd, ['status', '--porcelain', '--', ':/', ...MACHINE_DIRS.map(d => `:(top,exclude)${d}`)]) : null;
+  const status = commit ? gitOut(cwd, ['status', '--porcelain', '--', ':/', ...[...MACHINE_DIRS, ...exclude].map(d => `:(top,exclude)${d}`)]) : null;
   return {
     commit, tree, dirty: status === null ? null : status.trim() !== '',
     machine: { os: platform(), arch: arch(), cpus: availableParallelism() },
@@ -360,11 +404,12 @@ async function projectConfig(root) {
 /**
  * The run's config identity: a short stable hash of NODE_OPTIONS, the run's
  * preloads, and each variable named in "tests".configEnv (absent and empty
- * differ). Two runs under different configs never make a test flaky or slower.
+ * differ), and the runner when it is not node (node's hash is as it was).
+ * Two runs under different configs never make a test flaky or slower.
  */
-export function configHash({ env = process.env, preload = preloads(), configEnv = [] } = {}) {
+export function configHash({ env = process.env, preload = preloads(), configEnv = [], runner = 'node' } = {}) {
   const vars = Object.fromEntries(settingNames(configEnv).map(n => [n, env[n] ?? null]));
-  return createHash('sha256').update(JSON.stringify({ vars, preload })).digest('hex').slice(0, 12);
+  return createHash('sha256').update(JSON.stringify({ vars, preload, ...(runner === 'node' ? {} : { runner }) })).digest('hex').slice(0, 12);
 }
 
 const settingNames = configEnv => [...new Set(['NODE_OPTIONS', ...configEnv])].sort();
@@ -460,5 +505,271 @@ export default async function* ledger(source) {
     yield `${LABEL}: could not record this run (${String(e?.message ?? e).split('\n')[0]}).\n`;
   } finally {
     if (empty) yield `${empty}\n`;
+  }
+}
+
+// ---- JUnit: bun test and vitest (phase 59) ----------------------------------
+
+const ENTITIES = Object.freeze({ lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" });
+
+/** XML text with its entities read: the five named ones and character references; any other stays as written. */
+export function xmlText(s) {
+  return String(s).replace(/&(#x[0-9a-fA-F]+|#[0-9]+|[A-Za-z]+);/g, (m, e) => {
+    if (e[0] !== '#') return Object.hasOwn(ENTITIES, e) ? ENTITIES[e] : m;
+    const n = e[1] === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+    return n <= 0x10ffff ? String.fromCodePoint(n) : m;
+  });
+}
+
+const XNAME = '[A-Za-z_:][\\w:.-]*';
+const OPEN = new RegExp(`<(${XNAME})`, 'y');
+const ATTR = new RegExp(`\\s+(${XNAME})\\s*=\\s*(?:"([^"<]*)"|'([^'<]*)')`, 'y');
+const OPEN_END = /\s*(\/?)>/y;
+const END = new RegExp(`</(${XNAME})\\s*>`, 'y');
+
+/**
+ * A small XML reader, enough for JUnit: elements, their attributes (entities
+ * read) and children. Text is dropped (a failure's message body is not kept);
+ * comments, CDATA, the declaration, processing instructions and a DOCTYPE are
+ * skipped. What is not well formed throws: a tag left open, an end tag that
+ * does not match, an attribute without a quoted value or given twice, a second
+ * root, no root. Returns the root element: { name, attrs, children }.
+ */
+export function readXml(text) {
+  const doc = { name: '#document', attrs: Object.create(null), children: [] };
+  const stack = [doc];
+  let i = 0;
+  const fail = what => { throw new Error(`${what} (at character ${i})`); };
+  const past = (end, what) => { const j = text.indexOf(end, i); if (j < 0) fail(`an unterminated ${what}`); i = j + end.length; };
+  for (;;) {
+    const lt = text.indexOf('<', i);
+    if (lt < 0) break;
+    i = lt;
+    if (text.startsWith('<!--', i)) past('-->', 'comment');
+    else if (text.startsWith('<![CDATA[', i)) past(']]>', 'CDATA section');
+    else if (text.startsWith('<?', i)) past('?>', 'declaration');
+    else if (text.startsWith('<!', i)) {
+      const close = text.indexOf('>', i), bracket = text.indexOf('[', i);
+      if (close < 0) fail('an unterminated DOCTYPE');
+      if (bracket >= 0 && bracket < close) past(']>', 'DOCTYPE'); else i = close + 1;
+    } else if (text[i + 1] === '/') {
+      END.lastIndex = i;
+      const m = END.exec(text);
+      if (!m) fail('a malformed end tag');
+      const open = stack.at(-1);
+      if (stack.length === 1 || open.name !== m[1]) fail(`</${m[1]}> closes ${stack.length === 1 ? 'nothing' : `<${open.name}>`}`);
+      stack.pop();
+      i = END.lastIndex;
+    } else {
+      OPEN.lastIndex = i;
+      const m = OPEN.exec(text);
+      if (!m) fail('a malformed tag');
+      const el = { name: m[1], attrs: Object.create(null), children: [] };
+      i = OPEN.lastIndex;
+      for (;;) {
+        ATTR.lastIndex = i;
+        const a = ATTR.exec(text);
+        if (!a) break;
+        if (Object.hasOwn(el.attrs, a[1])) fail(`<${el.name}> repeats ${a[1]}`);
+        el.attrs[a[1]] = xmlText(a[2] ?? a[3]);
+        i = ATTR.lastIndex;
+      }
+      OPEN_END.lastIndex = i;
+      const c = OPEN_END.exec(text);
+      if (!c) fail(`a malformed <${el.name}> (each attribute needs a quoted value)`);
+      i = OPEN_END.lastIndex;
+      if (stack.length === 1 && doc.children.length) fail('a second root element');
+      stack.at(-1).children.push(el);
+      if (!c[1]) stack.push(el);
+    }
+  }
+  if (stack.length > 1) fail(`<${stack.at(-1).name}> is never closed`);
+  if (!doc.children.length) fail('no root element');
+  return doc.children[0];
+}
+
+/** The runner a JUnit document came from, by the <testsuites name> each writes ("bun test", "vitest tests"); else null. */
+export function junitRunner(root) {
+  const name = root?.attrs?.name;
+  return name === 'bun test' ? 'bun' : name === 'vitest tests' ? 'vitest' : null;
+}
+
+/** A testcase's outcome: fail (a failure or an error), todo (bun's skipped message="TODO"), skip, or pass. */
+const caseOutcome = c => {
+  if (c.children.some(x => x.name === 'failure' || x.name === 'error')) return 'fail';
+  const s = c.children.find(x => x.name === 'skipped');
+  return s ? (s.attrs.message === 'TODO' ? 'todo' : 'skip') : 'pass';
+};
+const msOf = v => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n * 1000 : 0; };
+const casesIn = el => el.children.flatMap(c => c.name === 'testcase' ? [c] : c.name === 'testsuite' ? casesIn(c) : []);
+
+/**
+ * Where a testcase sits at the top of its file: { name, describe }, its own
+ * name, or its outermost describe's. bun names the describes in classname,
+ * innermost first, joined by " > " and escaped twice; vitest in name,
+ * outermost first, joined by " > ".
+ */
+export function topOf(c, runner) {
+  const name = c.attrs.name ?? '';
+  if (runner === 'bun') {
+    const cls = c.attrs.classname ?? '';
+    if (!cls) return { name, describe: false };
+    const parts = cls.includes(' &gt; ') ? cls.split(' &gt; ') : cls.split(' > ');
+    return { name: xmlText(parts.at(-1)), describe: true };
+  }
+  if (runner === 'vitest') {
+    const parts = name.split(' > ');
+    if (parts.length > 1) return { name: parts[0], describe: true };
+  }
+  return { name, describe: false };
+}
+
+/** One top-level test's outcome from its testcases': any fail fails it, else any pass passes it. */
+const groupOutcome = os => os.length === 1 ? os[0] : os.includes('fail') ? 'fail' : os.includes('pass') ? 'pass' : os.every(o => o === 'todo') ? 'todo' : 'skip';
+
+/**
+ * A JUnit document's top-level tests, as the node reporter records them:
+ * { tests: [{ file, name, outcome, ms }], ran, failed }. `ran` counts the
+ * testcases that passed or failed (a file's own entry, vitest's for a file
+ * that would not load, aside: it is recorded as the file, not a test),
+ * `failed` every testcase that failed. A nested <testsuite> is a describe.
+ * `fileOf` turns a JUnit path into the record's (root-relative).
+ */
+export function junitTests(root, runner, fileOf = f => f) {
+  if (root?.name !== 'testsuites' && root?.name !== 'testsuite') throw new Error(`its root is <${root?.name}>, not <testsuites>`);
+  const suites = root.name === 'testsuite' ? [root] : root.children.filter(e => e.name === 'testsuite');
+  const tests = [];
+  let ran = 0, failed = 0;
+  const count = (c, own) => {
+    const o = caseOutcome(c);
+    if (o === 'fail') failed++;
+    if (!own && (o === 'pass' || o === 'fail')) ran++;
+    return o;
+  };
+  for (const suite of suites) {
+    const groups = new Map();
+    const add = (key, file, name) => groups.get(key) ?? groups.set(key, { file, name, outcomes: [], ms: 0 }).get(key);
+    for (const child of suite.children) {
+      const raw = child.attrs.file ?? suite.attrs.file ?? suite.attrs.name ?? '';
+      const file = raw ? fileOf(raw) : null;
+      if (child.name === 'testcase') {
+        const own = Boolean(raw) && child.attrs.name === raw;
+        const top = own ? { name: file, describe: false } : topOf(child, runner);
+        const g = add(`${file}\u0000${top.describe ? 'd' : 't'}\u0000${top.name}`, file, top.name);
+        g.outcomes.push(count(child, own));
+        g.ms += msOf(child.attrs.time);
+      } else if (child.name === 'testsuite') {
+        const name = child.attrs.name ?? '';
+        const g = add(`${file}\u0000d\u0000${name}`, file, name);
+        for (const c of casesIn(child)) { g.outcomes.push(count(c, false)); g.ms += msOf(c.attrs.time); }
+        if (child.attrs.time !== undefined) g.ms = msOf(child.attrs.time);
+      }
+    }
+    for (const g of groups.values()) {
+      if (g.outcomes.length) tests.push({ file: g.file, name: g.name, outcome: groupOutcome(g.outcomes), ms: Math.round(g.ms * 10) / 10 });
+    }
+  }
+  return { tests, ran, failed };
+}
+
+/**
+ * Read a JUnit file into the ledger, as the reporter records a node run, and
+ * say the hygiene block: { lines, code }. `junit` is relative to `cwd` (the
+ * folder the tests ran in), else .keel/keel.json "tests".junit, else JUNIT,
+ * relative to the repo's root; `runner` is bun or vitest, else "tests".runner,
+ * else what the file says; `status` is the runner's own exit code, or null.
+ */
+export async function junitRun({ junit, runner, status = null, cwd = process.cwd() } = {}) {
+  const root = rootOf(cwd);
+  const config = await projectConfig(root);
+  const lines = [];
+  const at = junit !== undefined ? resolve(cwd, junit) : resolve(root, typeof config?.tests?.junit === 'string' ? config.tests.junit : JUNIT);
+  const inside = relative(root, at).split(sep).join('/');
+  const shown = inside && !inside.startsWith('../') && !isAbsolute(inside) ? inside : at;
+  const done = (ran, failed) => {
+    const empty = emptyRun(ran, config);
+    if (empty) lines.push(empty);
+    return { lines, code: empty ? 1 : status || (failed ? 1 : 0) };
+  };
+  let xml;
+  try { xml = await readFile(at, 'utf8'); }
+  catch (e) {
+    if (e.code !== 'ENOENT') { lines.push(`${LABEL}: could not read ${shown} (${e.code ?? e.message}); nothing recorded.`); return { lines, code: status || 1 }; }
+    lines.push(`${LABEL}: no JUnit file at ${shown}: the tests did not run, or wrote it elsewhere.`);
+    return done(0, 0);
+  }
+  let parsed, kind;
+  try {
+    const doc = readXml(xml);
+    const configured = RUNNERS.includes(config?.tests?.runner) && config.tests.runner !== 'node' ? config.tests.runner : undefined;
+    kind = runner ?? configured ?? junitRunner(doc);
+    if (kind !== 'bun' && kind !== 'vitest') throw new Error('its runner is not known: pass --runner bun or --runner vitest');
+    parsed = junitTests(doc, kind, f => relative(root, real(resolve(cwd, f))).split(sep).join('/'));
+  } catch (e) {
+    lines.push(`${LABEL}: ${shown} is not JUnit the ledger can read (${e.message}); nothing recorded.`);
+    return { lines, code: status || 1 };
+  }
+  const hash = sha12(xml);
+  let history = null;
+  try { history = await readRuns(root); } catch { /* record() below says what is wrong with the directory */ }
+  if (history?.runs.some(r => r.junit === hash)) {
+    lines.push(`${LABEL}: ${shown} is one already recorded: the tests wrote no new one (bun writes none when no test ran), so this run is not counted.`);
+    return done(0, 0);
+  }
+  if (!parsed.tests.length) return done(parsed.ran, parsed.failed); // nothing reported: nothing to remember
+  try {
+    const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
+    const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
+    const here = relative(root, real(cwd)).split(sep).join('/') || '.';
+    const run = {
+      ...where(root, { exclude: shown === at ? [] : [shown] }), runner: kind, dir: here,
+      config: configHash({ configEnv, preload: [], runner: kind }), setting: settingOf({ configEnv, preload: [] }),
+      ...workflow, junit: hash, date: new Date().toISOString(), tests: parsed.tests,
+    };
+    const w = config?.tests?.window;
+    await record(root, run, { window: Number.isInteger(w) && w >= 2 && w <= MAX_WINDOW ? w : DEFAULTS.window });
+    let opts;
+    try { opts = testsConfigOf(config); }
+    catch (e) { lines.push(`${LABEL}: recorded; not judged: ${e.message}`); return done(parsed.ran, parsed.failed); }
+    const { runs, skipped } = await readRuns(root);
+    lines.push(...hygiene(runs, opts, { preload: [], skipped, here }));
+  } catch (e) {
+    lines.push(`${LABEL}: could not record this run (${String(e?.message ?? e).split('\n')[0]}).`);
+  }
+  return done(parsed.ran, parsed.failed);
+}
+
+export const USAGE = 'usage: node scripts/keel/test-ledger.mjs --junit <file> [--runner bun|vitest] [--status <exit code>]';
+
+/** The command line's { junit, runner?, status? }; throws on anything else. */
+export function junitArgs(argv) {
+  const out = {};
+  for (let i = 0; i < argv.length; i++) {
+    const eq = argv[i].indexOf('=');
+    const flag = eq > 0 ? argv[i].slice(0, eq) : argv[i];
+    const value = () => { const v = eq > 0 ? argv[i].slice(eq + 1) : argv[++i]; if (v === undefined || v === '') throw new Error(`${flag} needs a value`); return v; };
+    if (flag === '--junit') out.junit = value();
+    else if (flag === '--runner') out.runner = value();
+    else if (flag === '--status') out.status = value();
+    else throw new Error(`unknown argument ${argv[i]}`);
+  }
+  if (out.junit === undefined) throw new Error('--junit <file> is required');
+  if (out.runner !== undefined && out.runner !== 'bun' && out.runner !== 'vitest') throw new Error('--runner must be bun or vitest');
+  if (out.status !== undefined) {
+    if (!/^\d{1,3}$/.test(out.status) || Number(out.status) > 255) throw new Error('--status must be an exit code, 0 to 255');
+    out.status = Number(out.status);
+  }
+  return out;
+}
+
+// Run as a command (node scripts/keel/test-ledger.mjs --junit …), never when node loads it as a reporter.
+if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(import.meta.url))) {
+  let args = null;
+  try { args = junitArgs(process.argv.slice(2)); }
+  catch (e) { process.stderr.write(`${LABEL}: ${e.message}\n${USAGE}\n`); process.exitCode = 2; }
+  if (args) {
+    const { lines, code } = await junitRun(args);
+    process.stdout.write(`${lines.join('\n')}\n`);
+    process.exitCode = code;
   }
 }

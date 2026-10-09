@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- vitest 5.0.3: vitest run --reporter=junit --outputFile=vitest.xml, run on the same synthetic Acme tests; the only edits are hostname (acme-ci) and timestamp. vitest joins describe() names into the testcase name, outermost first. -->
+<testsuites name="vitest tests" tests="9" failures="2" errors="0" time="0.04697275">
+    <testsuite name="a.test.ts" timestamp="2026-10-09T12:00:00.000Z" hostname="acme-ci" tests="6" failures="2" errors="0" skipped="2" time="0.01083125">
+        <testcase classname="a.test.ts" name="adds &lt;one&gt; &amp; &quot;two&quot;" time="0.001623">
+        </testcase>
+        <testcase classname="a.test.ts" name="fails on purpose" time="0.006367667">
+            <failure message="expected 1 to be 2 // Object.is equality" type="AssertionError">
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ a.test.ts:3:44
+            </failure>
+        </testcase>
+        <testcase classname="a.test.ts" name="skipped one" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="a.test.ts" name="todo one" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="a.test.ts" name="Acme widgets &gt; inner passes" time="0.000242375">
+        </testcase>
+        <testcase classname="a.test.ts" name="Acme widgets &gt; deeper &gt; inner fails" time="0.000799375">
+            <failure message="boom" type="Error">
+Error: boom
+ ❯ a.test.ts:8:64
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="sub/b.test.ts" timestamp="2026-10-09T12:00:00.000Z" hostname="acme-ci" tests="1" failures="0" errors="0" skipped="0" time="0.032507375">
+        <testcase classname="sub/b.test.ts" name="slow-ish" time="0.031227667">
+        </testcase>
+    </testsuite>
+    <testsuite name="sub/c.test.ts" timestamp="2026-10-09T12:00:00.000Z" hostname="acme-ci" tests="2" failures="0" errors="0" skipped="0" time="0.003634125">
+        <testcase classname="sub/c.test.ts" name="rockets &amp; &lt;crates&gt; &gt; launch &gt; countdown &gt; reaches zero" time="0.0018865">
+        </testcase>
+        <testcase classname="sub/c.test.ts" name="rockets &amp; &lt;crates&gt; &gt; one lands" time="0.000161667">
+        </testcase>
+    </testsuite>
+</testsuites>
