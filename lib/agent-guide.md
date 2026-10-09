@@ -1277,33 +1277,40 @@ the night's `escapes` measure notes the `fix:` commits without one.
 - **Two scratch trees, built the same way**: each run gets a fresh `git
   worktree add --detach` of the current tree (HEAD with your staged,
   unstaged and untracked changes and your submodules' files laid over it,
-  `node_modules` linked). Both sides run in one, so an ignored file the
-  test needs (a `.env`, a generated fixture) is missing from both sides,
-  never from one: it can make the verdict NOT WORKING, never a false
-  VERIFIED. Each scratch tree is removed in every case. Your working tree
-  is never changed, not even by what the test writes: no stash, no
-  checkout, no revert (lesson 54).
+  and a `node_modules` of its own that links each installed entry, so a
+  new `.cache` stays in the scratch tree). Both sides run in one, so an
+  ignored file the test needs (a `.env`, a generated fixture) is missing
+  from both sides, never from one: it can make the verdict NOT WORKING,
+  never a false VERIFIED. Each scratch tree is removed in every case. Your
+  working tree is never changed by keel or by what the test writes: no
+  stash, no checkout, no revert (lesson 54). A test that writes inside an
+  installed package still writes through its link.
 - **Without the fix**: in the first, each `--fix` path is put back as it
   was at the base (bytes and executable bit; a file the fix added is
   removed), and the test runs there.
 - **With the fix**: in the second, the test runs as the tree is.
 - **The base**: `--base <ref>`; else HEAD's parent when the fix's files are
   committed and clean, else HEAD.
-- **The runner**: `node --test --test-reporter=tap` with the preloads
-  (`--import`, `--require`) of the first `node … --test` in `package.json`'s
-  test script, and `.keel/keel.json` `env`. Another runner is named in
-  `.keel/keel.json` `"prove": {"command": "<command> {file}"}`; `--name`
-  needs `{name}` in it (exit 2 otherwise); keel then reads its exit code and
-  the first lines that look like a failure.
+- **The runner**, read from each side's own tree (a fix to `package.json`
+  or `.keel/keel.json` is reverted with the rest): `node --test
+  --test-reporter=tap` with the preloads (`--import`, `--require`) of the
+  first `node … --test` in `package.json`'s test script, and
+  `.keel/keel.json` `env`. Another runner is named in `.keel/keel.json`
+  `"prove": {"command": "<command> {file}", "tap": true}`; `--name` needs
+  `{name}` in it (exit 2 otherwise). With `"tap": true` the command prints
+  TAP and keel reads it as it reads node's. Without it keel has only the
+  exit code, which cannot tell a failing test from one that never loaded,
+  so red-then-green is INCONCLUSIVE there, never VERIFIED.
 - **Verdicts**: `VERIFIED` (red without the fix, and every test that failed
-  then passed with it), `NOT WORKING` (green without it: the test does not
-  catch the bug; or red with it), `INCONCLUSIVE` (the test cannot run
-  without the fix: it does not load, or its file is part of the fix, even
-  changed rather than added: name only the fixed code; the fix's files are
-  the same at the base; no test ran with the fix: none matched `--name`,
-  or all were skipped or todo; or what failed without the fix was skipped,
-  todo or not run with it), each with its reason. A skipped or todo test
-  never counts as run.
+  then passed with it, matched by its suites' names and its own, never by
+  name alone), `NOT WORKING` (green without it: the test does not catch the
+  bug; or red with it), `INCONCLUSIVE` (the test cannot run without the
+  fix: it does not load, or its file is part of the fix, even changed
+  rather than added: name only the fixed code; the fix's files are the
+  same at the base; no test ran with the fix: none matched `--name`, or all
+  were skipped or todo; what failed without the fix was skipped, todo or
+  not run with it; or the runner is read by exit code alone), each with its
+  reason. A skipped or todo test never counts as run.
 - `--trailer` prints `Proven-by: <test>[ (<name>)] — <VERDICT> — "<the
   failure's first line>"` (for any verdict but VERIFIED, the reason).
   `--evidence <phase>` appends it, dated, to the first file the phase's

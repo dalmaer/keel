@@ -140,15 +140,27 @@ test('--trailer prints the Proven-by: line; --evidence appends it, dated, to the
   assert.match(bare.json().error, /phase 8 names no evidence file: create one from docs\/templates\/evidence\.md/);
 });
 
-test('a project on another runner names it in .keel/keel.json prove.command; keel reads its exit code', async t => {
+test('a project on another runner names it in .keel/keel.json prove.command; an exit code alone never proves, TAP does', async t => {
   const dir = await repo(t);
   await mkdir(join(dir, '.keel'));
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', prove: { command: 'node {file}' } }));
   await writeFile(join(dir, 'tests', 'plain.mjs'), "import { add } from '../lib/add.mjs';\nif (add(2, 2) !== 4) { console.error('FAIL: 2 + 2 is', add(2, 2)); process.exit(1); }\n");
-  const j = await prove(dir, ['tests/plain.mjs', '--fix', 'lib/add.mjs'], 0);
-  assert.equal(j.verdict, 'VERIFIED');
+  const j = await prove(dir, ['tests/plain.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', 'red then green, but by exit code alone');
+  assert.match(j.reason, /read by exit code alone, which cannot tell a failing test from one that never loaded/);
   assert.equal(j.runner, '.keel/keel.json prove.command');
   assert.equal(j.without.first, 'FAIL: 2 + 2 is 0');
+  // Codex on #55: the fix adds a module the test imports; without it the command exits non-zero before any test. Never VERIFIED.
+  await writeFile(join(dir, 'lib', 'mul.mjs'), 'export const mul = (a, b) => a * b;\n');
+  await writeFile(join(dir, 'tests', 'mul.mjs'), "import { mul } from '../lib/mul.mjs';\nif (mul(2, 3) !== 6) process.exit(1);\n");
+  assert.equal((await prove(dir, ['tests/mul.mjs', '--fix', 'lib/mul.mjs'], 1)).verdict, 'INCONCLUSIVE');
+  // A command that prints TAP ("tap": true) is read as node --test is: a proof, and a load error is told apart.
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', prove: { command: 'node --import ./tests/setup.mjs --test --test-reporter=tap {file}', tap: true } }));
+  assert.equal((await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
+  await writeFile(join(dir, 'tests', 'mul.test.mjs'), "import { test } from 'node:test';\nimport { mul } from '../lib/mul.mjs';\ntest('two by three', () => { if (mul(2, 3) !== 6) throw new Error('no'); });\n");
+  const load = await prove(dir, ['tests/mul.test.mjs', '--fix', 'lib/mul.mjs'], 1);
+  assert.equal(load.verdict, 'INCONCLUSIVE');
+  assert.match(load.reason, /^the test cannot run without the fix: Error \[ERR_MODULE_NOT_FOUND\]/);
   // --name with a command that has no {name}: the whole file would run, so it is refused (Codex on #55).
   const named = keel(['prove', 'tests/plain.mjs', '--name', 'two and two', '--fix', 'lib/add.mjs', '--json'], dir);
   assert.equal(named.code, 2, named.out);
@@ -216,6 +228,54 @@ test('a test file changed by the fix is not run in its old form: INCONCLUSIVE, a
   assert.equal(j.reason, 'tests/add.test.mjs is part of the fix: without it the old test would run; name only the fixed code in --fix');
   // Naming only the code proves it.
   assert.equal((await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
+});
+
+// ---- Codex's second round on #55 -------------------------------------------
+
+test('tests are matched by their whole identity: a failing test skipped with the fix is not saved by a namesake', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, 'tests', 'twins.test.mjs'), [
+    "import { describe, test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { add } from '../lib/add.mjs';",
+    "describe('anvils', () => { test('works', { skip: add(1, 2) === 3 }, () => { assert.equal(add(1, 2), 3); }); });",
+    "describe('hammers', () => { test('works', () => { assert.equal(add(0, 0), 0); }); });", ''].join('\n'));
+  const j = await prove(dir, ['tests/twins.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.equal(j.reason, 'what failed without the fix did not pass with it (skipped, todo or not run): anvils > works');
+  // Same path twice: told apart by place.
+  assert.deepEqual(tapEntries('# Subtest: s\n    # Subtest: w\n    ok 1 - w\n    # Subtest: w\n    not ok 2 - w\nnot ok 1 - s\n').map(e => e.id), ['s > w', 's > w #2', 's']);
+});
+
+test('the runner is read from each side\'s tree: a fix to the test script is reverted with the rest', async t => {
+  const dir = await repo(t);
+  // HEAD: the code is right, but the test script lacks the preload the test needs, so the test is red.
+  const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+  await writeFile(join(dir, 'package.json'), `${JSON.stringify({ ...pkg, scripts: { test: 'node --test tests/*.test.mjs' } }, null, 2)}\n`);
+  commitAll(dir, 'acme: the test, without its preload');
+  // The fix is the preload.
+  await writeFile(join(dir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
+  const j = await prove(dir, ['tests/add.test.mjs', '--name', 'adds two anvils', '--fix', 'package.json'], 0);
+  assert.equal(j.verdict, 'VERIFIED', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.match(j.without.first, /the preload ran/);
+});
+
+test('what a test writes under node_modules stays in the scratch tree; the installed packages still load', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, '.gitignore'), 'node_modules/\n');
+  commitAll(dir, 'acme: ignore node_modules');
+  await mkdir(join(dir, 'node_modules', 'acme-anvil'), { recursive: true });
+  await writeFile(join(dir, 'node_modules', 'acme-anvil', 'package.json'), JSON.stringify({ name: 'acme-anvil', type: 'module', exports: './index.js' }));
+  await writeFile(join(dir, 'node_modules', 'acme-anvil', 'index.js'), 'export const weight = 3;\n');
+  await writeFile(join(dir, 'tests', 'cache.test.mjs'), [
+    "import { test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { mkdirSync, writeFileSync } from 'node:fs';",
+    "import { weight } from 'acme-anvil';",
+    "import { add } from '../lib/add.mjs';",
+    "test('weighs', () => { mkdirSync('node_modules/.cache', { recursive: true }); writeFileSync('node_modules/.cache/acme.txt', 'x'); assert.equal(add(1, 2), weight); });", ''].join('\n'));
+  // prove() asserts the tree, node_modules included, is byte-identical after.
+  assert.equal((await prove(dir, ['tests/cache.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
 });
 
 test('a submodule, clean or dirty, is laid over the scratch tree (its files, not its .git)', async t => {
