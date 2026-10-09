@@ -1,0 +1,240 @@
+// Stalls (phase 55): keel test <file> --stalls pauses a test's whole process
+// group at seeded moments, and names each test that passed without stalls and
+// failed with them: it judges the wall clock. Files pinned in .keel/keel.json
+// "tests": { "stalls": [...] } run with stalls in the gate, through the test
+// ledger. The fixtures are tiny synthetic Acme tests; KEEL_STALLS_SHAPE (a test
+// seam) makes a stall land inside a 50 ms wait every time, so what is named
+// depends on the seed and the shape, never on how busy this machine is.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { run } from './helpers/run.mjs';
+import { runFiles, judge, planOf, stallsOf, shapeOf, seedOf, replay, SHAPE } from '../practices/night/files/scripts/keel/stalls.mjs';
+
+const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
+const BIN = join(KEEL, 'bin/keel.mjs');
+
+/** A stall lands inside any 50 ms wait (never 40 ms running between stalls) and outlasts a 100 ms deadline. */
+const TIGHT = { firstMs: [0, 40], gapMs: [0, 40], stallMs: [120, 200] };
+const tightEnv = () => ({ ...process.env, KEEL_STALLS_SHAPE: JSON.stringify(TIGHT) });
+
+const DEADLINE = 'a crate arrives by its deadline';
+const MOCKED = 'a crate arrives by its deadline, on mock timers';
+/** A 100 ms deadline on a 50 ms wait: by the wall clock, and the same under mock.timers. */
+const CRATE = `import { test, mock } from 'node:test';
+import assert from 'node:assert/strict';
+const wait = ms => new Promise(r => setTimeout(r, ms));
+test(${JSON.stringify(DEADLINE)}, async () => {
+  const t0 = Date.now();
+  await wait(50);
+  assert.ok(Date.now() - t0 < 100, \`took \${Date.now() - t0} ms\`);
+});
+test(${JSON.stringify(MOCKED)}, async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  try {
+    const t0 = Date.now();
+    const p = wait(50);
+    mock.timers.tick(50);
+    await p;
+    assert.ok(Date.now() - t0 < 100);
+  } finally { mock.timers.reset(); }
+});
+`;
+const MOCKED_ONLY = CRATE.replace(/test\(".*?deadline",[\s\S]*?\n\}\);\n/, '');
+
+async function scratch(t, prefix = 'keel-stalls-') {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+/** An Acme repo: `files` committed, with the night's ledger and stalls scripts in scripts/keel. */
+async function acme(t, files, config = {}) {
+  const dir = await scratch(t);
+  const all = {
+    '.keel/keel.json': `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`,
+    'scripts/keel/test-ledger.mjs': await readFile(join(NIGHT, 'test-ledger.mjs'), 'utf8'),
+    'scripts/keel/stalls.mjs': await readFile(join(NIGHT, 'stalls.mjs'), 'utf8'),
+    ...files,
+  };
+  for (const [p, text] of Object.entries(all)) {
+    await mkdir(dirname(join(dir, p)), { recursive: true });
+    await writeFile(join(dir, p), text);
+  }
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-qm', 'acme');
+  return { dir, git };
+}
+
+test('the same seed gives the same stalls, about once a second and never two seconds apart; another seed, others', () => {
+  assert.deepEqual(planOf(7, 50), planOf(7, 50));
+  assert.notDeepEqual(planOf(7, 50), planOf(8, 50));
+  const plan = planOf(20261009, 1000);
+  assert.ok(plan[0].gap >= 0 && plan[0].gap <= 1000, 'the first comes within a second');
+  for (const [i, s] of plan.entries()) {
+    assert.ok(s.ms >= 50 && s.ms <= 500, `stall ${i}: ${s.ms} ms`);
+    if (i) assert.ok(s.gap >= 500 && s.gap <= 1500, `gap ${i}: ${s.gap} ms`);
+    if (i) assert.ok(s.gap + plan[i - 1].ms <= 2000, `stall ${i} starts within two seconds of the last`);
+  }
+  const mean = plan.slice(1).reduce((a, s, i) => a + s.gap + plan[i].ms, 0) / (plan.length - 1);
+  assert.ok(mean > 1000 && mean < 1600, `about once a second: every ${Math.round(mean)} ms`);
+  assert.deepEqual(shapeOf({}), SHAPE);
+  assert.deepEqual(shapeOf({ KEEL_STALLS_SHAPE: JSON.stringify(TIGHT) }), TIGHT);
+  assert.throws(() => shapeOf({ KEEL_STALLS_SHAPE: '{"stallMs":[9,1]}' }), /stallMs/);
+  assert.equal(seedOf('42'), 42);
+  for (const bad of ['-1', '1.5', 'x', String(2 ** 32)]) assert.equal(seedOf(bad), null, bad);
+  assert.equal(stallsOf(1).next().value.gap, planOf(1, 1)[0].gap);
+});
+
+test('judge names only what passed without stalls and failed with them', () => {
+  const t = (name, outcome) => ({ file: 'tests/acme.test.mjs', name, outcome, ms: 1 });
+  const plain = [t('waits', 'pass'), t('broken', 'fail'), t('steady', 'pass'), t('plays', 'pass'), t('gone', 'pass')];
+  const stalled = [t('waits', 'fail'), t('broken', 'fail'), t('steady', 'pass'), t('plays', 'inconclusive')];
+  const j = judge(plain, stalled);
+  assert.deepEqual(j.named.map(x => x.name), ['waits']);
+  assert.deepEqual(j.both.map(x => x.name), ['broken'], 'a plain failure: stalls cannot judge it');
+  assert.deepEqual(j.inconclusive.map(x => x.name), ['plays']);
+  assert.deepEqual(j.missing.map(x => x.name), ['gone']);
+});
+
+test('--stalls pauses the whole process group, a test\'s own child too, at the seed\'s stalls', async t => {
+  const dir = await scratch(t);
+  const ticks = join(dir, 'ticks.json');
+  // tests/fixtures/stalls/group.mjs: its child ticks every 5 ms for 800 ms and writes when each tick ran.
+  const shape = { firstMs: [100, 150], gapMs: [60, 100], stallMs: [60, 100] };
+  const r = await runFiles({ files: [join(KEEL, 'tests/fixtures/stalls/group.mjs')], cwd: dir, seed: 55, shape, env: { ...process.env, ACME_TICKS: ticks } });
+  assert.deepEqual(r.tests.map(x => [x.name, x.outcome]), [['a child ticks', 'pass']], r.stderr);
+  assert.deepEqual(r.stalls.map(s => s.ms), planOf(55, r.stalls.length, shape).map(s => s.ms), 'the stalls are the seed\'s, in order');
+  const plan = planOf(55, r.stalls.length, shape);
+  let due = 0;
+  for (const [i, s] of r.stalls.entries()) {
+    due += plan[i].gap;
+    assert.ok(s.at >= due - 5, `stall ${i} at ${s.at} ms, not before its seeded ${due} ms`);
+    due = s.at + (s.end - s.start);
+  }
+  const at = JSON.parse(await readFile(ticks, 'utf8'));
+  const inside = r.stalls.filter(s => s.start > at[0] && s.end < at.at(-1));
+  assert.ok(inside.length >= 2, `stalls landed while the child ran: ${inside.length}`);
+  for (const s of inside) {
+    const during = at.filter(x => x >= s.start + 25 && x <= s.end - 5);
+    assert.deepEqual(during, [], `the child ran during a ${s.end - s.start} ms stall`);
+  }
+  assert.ok(r.paused >= inside.reduce((a, s) => a + s.ms, 0));
+});
+
+test('paused time is not counted against the timeout; running time is', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'quick.test.mjs'), "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n");
+  await writeFile(join(dir, 'slow.test.mjs'), "import { test } from 'node:test';\ntest('an anvil takes its time', () => new Promise(r => setTimeout(r, 5000)));\n");
+  // One 2.5 s stall at the start, against a 2 s limit: the wall passes it, the running time does not.
+  const once = { firstMs: [0, 0], gapMs: [60_000, 60_000], stallMs: [2500, 2500] };
+  const paused = await runFiles({ files: ['quick.test.mjs'], cwd: dir, seed: 1, shape: once, timeoutMs: 2000 });
+  assert.equal(paused.timedOut, false);
+  assert.ok(paused.wall > 2000 && paused.paused >= 2500, JSON.stringify({ wall: paused.wall, paused: paused.paused }));
+  assert.deepEqual(paused.tests.map(x => x.outcome), ['pass']);
+  const slow = await runFiles({ files: ['slow.test.mjs'], cwd: dir, timeoutMs: 800 });
+  assert.equal(slow.timedOut, true, 'running time past the limit stops the run');
+  assert.ok(slow.wall < 4000, `stopped near its limit, not at the test's end: ${slow.wall} ms`);
+});
+
+test('a 100 ms deadline on a 50 ms wait passes plainly and is named under stalls; under mock.timers it passes both', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'crate.test.mjs'), CRATE);
+  const stalled = await runFiles({ files: ['crate.test.mjs'], cwd: dir, seed: 9, env: tightEnv() });
+  assert.deepEqual(stalled.tests.map(x => [x.name, x.outcome]), [[DEADLINE, 'fail'], [MOCKED, 'pass']], 'the wall-clock test fails with stalls, every time; the mocked one never');
+  assert.match(stalled.tests[0].error, /^took \d+ ms$/);
+  const plain = await runFiles({ files: ['crate.test.mjs'], cwd: dir });
+  assert.equal(plain.stalls.length, 0);
+  assert.equal(plain.tests.find(x => x.name === MOCKED).outcome, 'pass');
+  if (plain.tests.find(x => x.name === DEADLINE).outcome !== 'pass') {
+    // The plain half judges this machine's wall clock: busy enough to miss 100 ms with no stall, it cannot say.
+    t.diagnostic(`keel:inconclusive the plain 50 ms wait overran 100 ms with no stall: ${plain.tests[0].error}`);
+    return;
+  }
+  assert.deepEqual(judge(plain.tests, stalled.tests).named.map(x => x.name), [DEADLINE]);
+});
+
+test('keel test --stalls names the wall-clock test against the ledger\'s pass on this tree, and replays its seed', async t => {
+  const { dir, git } = await acme(t, { 'tests/crate.test.mjs': CRATE });
+  // The ledger's run of this very tree, an hour ago: both passed. keel test reads it in place of a plain run.
+  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: process.version, dir: '.', config: 'acmeconfig01', date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
+  await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
+  await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T10-00-00-000Z-1.json'), JSON.stringify(record));
+
+  const r = run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7', '--json'], { cwd: dir, env: tightEnv() });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.seed, 7);
+  assert.equal(out.plain.from, 'ledger');
+  assert.deepEqual(out.named.map(x => [x.file, x.name]), [['tests/crate.test.mjs', DEADLINE]]);
+  assert.equal(out.stalled.tests.find(x => x.name === MOCKED).outcome, 'pass', 'mock timers pass with stalls');
+  assert.ok(out.stalled.stalls.length >= 1);
+  assert.deepEqual(out.stalled.stalls.map(s => s.ms), planOf(7, out.stalled.stalls.length, TIGHT).map(s => s.ms), 'seed 7\'s stalls');
+  assert.equal(out.replay, 'keel test tests/crate.test.mjs --stalls --seed 7');
+  assert.equal(replay(['tests/crate.test.mjs'], 7, "it's"), "keel test tests/crate.test.mjs --name 'it'\\''s' --stalls --seed 7");
+
+  const text = run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7'], { cwd: dir, env: tightEnv() });
+  assert.equal(text.status, 1);
+  assert.match(text.stdout, /^Judges the wall clock \(passed without stalls, failed with them\):\n {2}tests\/crate\.test\.mjs "a crate arrives by its deadline": took \d+ ms$/m);
+  assert.match(text.stdout, /"tests": \{ "stalls": \["tests\/crate\.test\.mjs"\] \}/);
+  assert.match(text.stdout, /^Replay these stalls: keel test tests\/crate\.test\.mjs --stalls --seed 7$/m);
+
+  // Narrowed, it runs plainly itself: the ledger's whole-file run is not this run.
+  const named = JSON.parse(run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--name', 'mock timers', '--stalls', '--json'], { cwd: dir, env: tightEnv() }).stdout);
+  assert.equal(named.plain.from, 'run');
+  assert.deepEqual(named.stalled.tests.map(x => [x.name, x.outcome]), [[MOCKED, 'pass']]);
+  assert.deepEqual(named.named, []);
+  assert.match(String(named.seed), /^\d+$/, 'a fresh seed, printed');
+
+  for (const [args, why] of [[['tests/crate.test.mjs'], /--stalls/], [['tests/crate.test.mjs', '--stalls', '--seed', 'x'], /--seed/], [['tests/nope.test.mjs', '--stalls'], /no test file/], [['--stalls'], /keel test <file>/]]) {
+    const bad = run(process.execPath, [BIN, 'test', ...args, '--json'], { cwd: dir });
+    assert.equal(bad.status, 2, args.join(' '));
+    assert.match(JSON.parse(bad.stdout).error, why);
+  }
+});
+
+const WITH = ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=./scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout'];
+const gate = (dir, extra = [], env = tightEnv()) => run(process.execPath, ['--test', ...WITH, ...extra, 'tests/crate.test.mjs', 'tests/anvil.test.mjs'], { cwd: dir, env });
+const ANVIL = "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n";
+const PIN = { tests: { stalls: ['tests/crate.test.mjs'] } };
+
+test('a file pinned to stalls runs with them in the gate, from a fresh seed a failure prints with its replay', async t => {
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': CRATE, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const r = gate(dir);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const m = /^keel stalls: tests\/crate\.test\.mjs failed with stalls \(\d+ stalls?, [\d.]+ s paused, [\d.]+ s in all\), seed (\d+)\. Replay: keel test tests\/crate\.test\.mjs --stalls --seed (\d+)$/m.exec(r.stdout);
+  assert.ok(m, r.stdout);
+  assert.equal(m[1], m[2], 'the replay carries the seed');
+  assert.match(r.stdout, /^ {2}"a crate arrives by its deadline" (passed plainly and failed with stalls: it judges the wall clock|failed with stalls and plainly): took \d+ ms$/m);
+  assert.doesNotMatch(r.stdout, /anvil\.test\.mjs (passed|failed) with/, 'an unpinned file runs once');
+  const again = gate(dir);
+  const seed = /seed (\d+)\./.exec(again.stdout)?.[1];
+  assert.ok(seed && seed !== m[1], `a fresh seed each gate: ${m[1]} then ${seed}`);
+});
+
+test('a pinned file on mock timers passes with stalls; a narrowed run, or nothing pinned, runs none', async t => {
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const r = gate(dir);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with \d+ stalls?, [\d.]+ s paused, [\d.]+ s in all, seed \d+\.$/m);
+  assert.doesNotMatch(gate(dir, ['--test-name-pattern=anvil']).stdout, /keel stalls/, 'a narrowed run');
+  const { dir: bare } = await acme(t, { 'tests/crate.test.mjs': CRATE, 'tests/anvil.test.mjs': ANVIL });
+  assert.doesNotMatch(gate(bare).stdout, /keel stalls/, 'nothing pinned');
+});
+
+test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const path = join(dir, 'scripts/keel/test-ledger.mjs');
+  const text = await readFile(path, 'utf8');
+  assert.ok(text.includes('    pins?.saw(e);\n'));
+  await writeFile(path, text.replace('    pins?.saw(e);\n', ''));
+  assert.doesNotMatch(gate(dir).stdout, /keel stalls/, 'the test above, which asks for the line, would fail');
+});

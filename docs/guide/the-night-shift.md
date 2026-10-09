@@ -108,6 +108,31 @@ records, the hygiene block and the "no tests ran" rule are the same, and the
 command to run a test alone is the runner's own. Runs of two runners are
 never compared with each other.
 
+### A test judges the code, not the machine
+
+A test that waits real time and then checks how long it took passes on a
+quiet machine and fails on a busy one. Giving it a longer sleep only makes
+every run slower. `keel test` finds such a test by making the machine busy on
+purpose:
+
+```bash
+keel test tests/acme.test.mjs --stalls            # names each test that judges the wall clock
+keel test tests/acme.test.mjs --stalls --seed 42  # the same stalls again
+keel test tests/acme.test.mjs --name '^a crate' --stalls
+```
+
+It runs the file paused at random moments (the whole process group, 50 to
+500 ms, about once a second, from a seed it prints) and again without, and
+names each test that passed without and failed with. Paused time does not
+count against the time limit. Give a named test its clock (`mock.timers` in
+`node:test`, or a clock passed in), then pin the file in `.keel/keel.json`:
+`"tests": {"stalls": ["tests/acme.test.mjs"]}`. The test ledger then runs it
+with stalls on every gate, from a fresh seed, and a failure prints the seed
+and the command that replays it. A test that judges real time on purpose (a
+frame rate, playback) can say the machine kept it from judging:
+`t.diagnostic('keel:inconclusive <what it measured>')`. The ledger records it
+as inconclusive, neither pass nor fail.
+
 ## The commands
 
 The night runs itself. You run the same measures by hand when you want to

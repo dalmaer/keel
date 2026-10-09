@@ -13,17 +13,18 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel render` — render practices; `--check` reads only, exit 1 on differences
 - `keel init [dir] --description "<paragraph>"` — new project; `--github` plans a private repo (exit 3)
 - `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
-- `keel doctor` — drift from keel's files and practice lints; exit 1 on findings; `--fix <path> restore|eject` (exit 3)
+- `keel doctor` — drift from keel's files and practice lints; `--fix <path> restore|eject` (exit 3)
 - `keel update` — CLI first, then migrations, re-render, check; a branch for a PR (exit 3), or `--local`
 - `keel lessons` — send lessons, drift and practice commits home as issues; exit 3
 - `keel learn` — keel only: lessons and sources → proposals; `propose`, `decide` (a person's), `render`, `distill`
-- `keel improve` — is the practice working: measures, bounds, one proposal; exit 1 outside, 2 broken; `--report` writes a health page
+- `keel improve` — is the practice working: measures, bounds, one proposal; `--report` writes a health page
+- `keel test <file> --stalls` — names tests that judge the wall clock
 - `keel drain <prefix>` — one open PR per machine queue; the newest only `--gate-passed`; exit 3
 - `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI, lessons
 - `keel fleet update` — keel only: open the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished work across projects; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments, answered or not; `--wait`; `--close` answers one
-- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json` (`--fresh`: read GitHub again)
+- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`
 - `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
@@ -45,7 +46,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `board`, `retro`, `canvas`, `install`, `coming`, `reconciliation`.
+Topics: `json`, `goals`, `render`, `init`, `adopt`, `doctor`, `update`, `lessons`, `learn`, `improve`, `test`, `drain`, `loop`, `climb`, `fleet`, `loose-ends`, `review`, `board`, `retro`, `canvas`, `install`, `coming`, `reconciliation`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -336,6 +337,8 @@ keel doctor --fix CLAUDE.md eject --yes               # keep the project's versi
 keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
 ```
 
+It exits 1 on findings (drift or a broken practice rule), 0 when clean.
+
 - `.keel/lock.json` records the sha256 of what render wrote for each managed
   file, block (`path#block`, hashed by its inside) and link. Render writes it;
   `render --check` never does. Seeded files are not in it.
@@ -576,7 +579,8 @@ keel learn distill propose --kind standardise --family "<name>" --check "<what i
 <!-- topic: improve | is the practice working here: measures, bounds, a ratchet, one proposal -->
 
 `keel improve` runs each measure and compares it with its bound. Measures
-first, a model's opinion never: every number comes from a command.
+first, a model's opinion never: every number comes from a command. It exits
+1 when a measure is outside its bound, and 2 when an instrument is broken.
 
 - `gate` — the project's `check` (`.keel/keel.json`), run with its `env` and
   no `NODE_TEST_*`: fails, or passes having run no tests (lesson 14). `roadmap_stale` — the roadmap check.
@@ -685,7 +689,11 @@ none is the file, not a test) exits 1, "no tests ran", unless
 machine, node, each top-level test's file, name, outcome, ms; the newest 50
 kept; the directory ignores itself) and ends the run with a hygiene block:
 one line when clean, else each flaky or slower test with its history and
-`node --test --test-name-pattern='^<name>$' <file>`. A hygiene note is work:
+`node --test --test-name-pattern='^<name>$' <file>`. A passing test that said
+`t.diagnostic('keel:inconclusive <what it measured>')` is recorded
+`inconclusive`: neither pass nor fail (topic `test`). A file pinned in
+`"tests": {"stalls": [...]}` runs again with stalls whenever the run reaches
+it, and a failure there fails the run with its seed. A hygiene note is work:
 fix it or file it, never rerun until green. `keel init` wires it into a
 node `npm test`; migration 0004 adds it to an adopted project's `node --test`
 script (any other runner is left alone). check.yml keeps each run's ledger
@@ -723,6 +731,49 @@ unless every one reports `outside`.
 value, state, detail, facts?}], proposal: {id, state, text} | null, report,
 bounds, tightened: [{id, from, to}]}`; `--selftest --json` → `{ok, fixture,
 measures, missed}`.
+
+<!-- topic: test | keel test --stalls: does a test judge the code, or the machine's wall clock -->
+
+```bash
+keel test tests/acme.test.mjs --stalls            # with stalls and without; names wall-clock tests
+keel test tests/acme.test.mjs --stalls --seed 42  # replay the same stalls
+keel test tests/acme.test.mjs --name '^a crate' --stalls --json
+```
+
+- It runs the files under `node --test` (with the `--import`/`--require`
+  preloads of package.json's `scripts.test`) in a process group of its own,
+  and pauses the whole group (SIGSTOP, then SIGCONT: the runner, each file's
+  process, anything they spawned) for 50 to 500 ms at moments from a seed:
+  the first within a second, each next 500 to 1500 ms after the last ended.
+  The seed is printed; `--seed N` replays the same stalls. Paused time is not
+  counted against the run's time limit (30 minutes of running time). macOS
+  and Linux; no cgroups.
+- It compares that run with one without stalls: a fresh run, or, when the
+  tree is clean and nothing is narrowed, the test ledger's newest whole run
+  of this tree within a day. Each test that passed without stalls and failed
+  with them is **named**: it judges the wall clock. Exit 1 when one is named,
+  or anything failed; 0 when none.
+- A stall only catches a wait it lands in: a file whose timing tests are a
+  few ms long may see none. Run it again with another seed, or narrow it.
+- The fix is never a longer sleep. Give the code its clock: `mock.timers` in
+  `node:test`, a clock passed in, events counted rather than waited for.
+  Then pin the file: `.keel/keel.json` `"tests": {"stalls": ["<file>"]}`. The
+  test ledger runs each pinned file again with stalls, beside the suite,
+  whenever a whole run reaches it, from a fresh seed; a failure fails the
+  run and prints `keel stalls: <file> failed with stalls (…), seed N.
+  Replay: keel test <file> --stalls --seed N`.
+- A test that judges real time on purpose (playback, a frame rate) says so
+  when the machine kept it from judging:
+  `t.diagnostic('keel:inconclusive <what it measured>')`. The ledger records
+  it `inconclusive`, neither pass nor fail; it is never flaky or slower, and
+  never a cited proof's pass. A failing test stays a failure.
+
+`--json` → `{files, name, seed, replay, plain: {from: "run"|"ledger", run?,
+date?, wall?, tests}, stalled: {stalls: [{at, ms}], paused, wall, timedOut,
+exitCode, tests}, named, both, inconclusive, missing}`; each test is `{file,
+name, outcome, ms, error?, inconclusive?}`. `named` passed without and failed
+with; `both` failed in each (stalls cannot judge it); `missing` ran without
+and not with.
 
 <!-- topic: drain | the night shift's queue: one open machine PR, the newest -->
 

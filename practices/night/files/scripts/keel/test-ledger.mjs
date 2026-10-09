@@ -22,11 +22,19 @@
 // is not a test; a describe() is a suite, and only a test inside it counts)
 // exits 1, "no tests ran" — a gate that ran nothing would
 // pass anything (keel's lessons 14 and 38). A project with no tests yet
-// says so in .keel/keel.json: "tests": { "allowEmpty": true }.
+// says so in .keel/keel.json: "tests": { "allowEmpty": true }. And a file
+// pinned to stalls ("tests": { "stalls": ["tests/acme.test.mjs"] }) runs
+// again, paused at random moments (./stalls.mjs, keel phase 55), beside the
+// suite whenever the suite reaches it; a failure there fails the run and
+// prints the seed that replays it. A narrowed run never does this.
 //
 // A record: { commit, tree, dirty, machine: { os, arch, cpus }, node, dir,
 // config, setting: { env, preload }, filtered?, date, tests: [{ file, name,
-// outcome, ms }] } for each top-level test. `dir` is the folder `node --test`
+// outcome, ms, inconclusive? }] } for each top-level test. An outcome is pass,
+// fail, skip, todo, or inconclusive: a passing test that said
+// t.diagnostic('keel:inconclusive <what it measured>') judges real time on
+// purpose and the machine kept it from judging; it is neither pass nor fail,
+// so it is never flaky, never slower, and never a proof. `dir` is the folder `node --test`
 // ran in, relative to the repo's root ('.' at the root); a test's `file` is
 // root-relative wherever it ran. `dirty` ignores git-ignored files and keel's machine directories
 // (.keel/test-runs, .keel/climb, .keel/tend: the night writes or gathers them).
@@ -86,7 +94,7 @@
 //           last `window` passing runs on the same machine class and lane,
 //           AND more than floorMs above it, so noise on a fast test is not news.
 // window 20, factor 2, floorMs 200; .keel/keel.json "tests" overrides each
-// (and "allowEmpty", above, and "configEnv").
+// (and "allowEmpty", above, "configEnv" and "stalls").
 //
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
@@ -113,7 +121,7 @@ export const MACHINE_DIRS = Object.freeze([RUNS, '.keel/climb', '.keel/tend']);
 export const RUNNERS = Object.freeze(['node', 'bun', 'vitest']);
 /** Where a JUnit file is written and read by default: in the ledger's own directory, which ignores itself. */
 export const JUNIT = `${RUNS}/junit.xml`;
-const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit'];
+const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit', 'stalls'];
 /** A "tests".junit keel accepts: a .xml file directly in the ledger's directory, a name a shell reads as it is. */
 export const JUNIT_PATH = /^\.keel\/test-runs\/[A-Za-z0-9_][A-Za-z0-9_.-]*\.xml$/;
 
@@ -130,6 +138,7 @@ export function testsConfigProblems(config) {
   // keel writes it into the gate's shell line as it is (adopt's proposal), so it holds no character a shell reads: never quoted, never wrong.
   // It lives in the ledger's own directory, which ignores itself: a report anywhere else would stay behind, untracked, after every gate.
   if (t.junit !== undefined && !(typeof t.junit === 'string' && JUNIT_PATH.test(t.junit))) out.push(`"tests".junit must be a .xml file in ${RUNS}/ (which ignores itself), of letters, digits, _ . and - only`);
+  if (t.stalls !== undefined && !(Array.isArray(t.stalls) && t.stalls.every(pinnable))) out.push('"tests".stalls must be a list of test files, each relative to the repo\'s root (tests/acme.test.mjs)');
   if (t.configEnv !== undefined && !(Array.isArray(t.configEnv) && t.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))) out.push('"tests".configEnv must be a list of environment variable names');
   if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2 && t.window <= MAX_WINDOW)) out.push(`"tests".window must be a whole number of runs, 2 to ${MAX_WINDOW}`);
@@ -137,6 +146,12 @@ export function testsConfigProblems(config) {
   if (t.floorMs !== undefined && !(Number.isFinite(t.floorMs) && t.floorMs >= 0)) out.push('"tests".floorMs must be a number of milliseconds, 0 or more');
   return out;
 }
+
+/** A file pinned to stalls: a path relative to the repo's root, never outside it. */
+const pinnable = f => typeof f === 'string' && f.trim() !== '' && !isAbsolute(f) && !f.split(/[\\/]/).includes('..');
+
+/** The files .keel/keel.json pins to stalls ("tests": { "stalls": [...] }), as written; [] when none or malformed. */
+export const stallsPins = config => Array.isArray(config?.tests?.stalls) && config.tests.stalls.every(pinnable) ? config.tests.stalls.map(f => posix.normalize(f.split(sep).join('/'))) : [];
 
 /** The ledger's settings for this project; throws on a bad "tests". */
 export function testsConfigOf(config) {
@@ -486,31 +501,135 @@ const outcomeOf = e => {
   return d.skip !== undefined && d.skip !== false ? 'skip' : d.todo !== undefined && d.todo !== false ? 'todo' : e.type === 'test:pass' ? 'pass' : 'fail';
 };
 
+/** What a test said it could not judge (`t.diagnostic('keel:inconclusive <what it measured>')`), or null. */
+export function inconclusiveOf(message) {
+  const m = /^keel:inconclusive(?:\s+([\s\S]*))?$/.exec(String(message ?? '').trim());
+  return m ? (m[1] ?? '').trim() || 'the machine kept it from judging' : null;
+}
+
+/**
+ * The top-level tests of a run, from its reporter events: push(e) each one,
+ * read `tests` at the end ([{ file, name, outcome, ms, inconclusive?, error? }]).
+ * `file` is relative to `root` (absolute without one). A passing test that
+ * said keel:inconclusive, itself or in a subtest, is `inconclusive`: neither
+ * pass nor fail. It never hides a failure: a failing test stays `fail`.
+ * node reports a test's own diagnostic right after its result, and a
+ * subtest's before its parent's.
+ */
+export function topLevel({ root = null, errors = false } = {}) {
+  const tests = [], last = new Map(), pending = new Map(), names = new Map();
+  const fileOf = f => {
+    if (!names.has(f)) names.set(f, root ? relative(root, real(f)).split(sep).join('/') : real(f));
+    return names.get(f);
+  };
+  const mark = (t, what) => { if (t.outcome === 'pass') { t.outcome = 'inconclusive'; t.inconclusive = what; } };
+  return {
+    tests,
+    push(e) {
+      const d = e.data;
+      if (e.type === 'test:diagnostic') {
+        const what = inconclusiveOf(d?.message);
+        if (what === null || !d?.file) return;
+        if (d.nesting === 0) { const at = last.get(d.file); if (at && at.line === d.line) mark(at.test, what); }
+        else pending.set(d.file, what);
+        return;
+      }
+      if ((e.type !== 'test:pass' && e.type !== 'test:fail') || d?.nesting !== 0) return;
+      const t = { file: d.file ? fileOf(d.file) : null, name: String(d.name), outcome: outcomeOf(e), ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10 };
+      if (errors && t.outcome === 'fail') {
+        const err = d.details?.error;
+        t.error = String(err?.cause?.message ?? err?.message ?? err ?? '').split('\n')[0].slice(0, 300);
+      }
+      if (d.file && pending.has(d.file)) { mark(t, pending.get(d.file)); pending.delete(d.file); }
+      if (d.file) last.set(d.file, { test: t, line: d.line });
+      tests.push(t);
+    },
+  };
+}
+
 /** Whether an event is a test that executed: a test (never a suite: an empty describe() runs nothing), passed or failed, not a file's own entry. */
 export const executed = (cwd, e) => (e.type === 'test:pass' || e.type === 'test:fail') && e.data?.details?.type === 'test'
   && ['pass', 'fail'].includes(outcomeOf(e)) && !fileOwn(cwd, e.data);
+
+export const STALLS_LABEL = 'keel stalls';
+
+/**
+ * Files pinned to stalls ("tests": { "stalls": [...] }): each one this run
+ * reaches is run again, with stalls (./stalls.mjs), from the moment it is
+ * first seen, beside the rest of the suite, from one fresh seed per run.
+ * said(tests) waits for them and returns their lines; a pinned file that
+ * fails with stalls fails the run and prints the seed and the command that
+ * replays it. Null when nothing is pinned.
+ */
+export function pinned(root, config, { env = process.env, preload = preloads(), seed: given } = {}) {
+  const pins = new Set(stallsPins(config));
+  if (!pins.size) return null;
+  const started = new Map(), seen = new Map();
+  let seed = given;
+  const relOf = f => {
+    if (!seen.has(f)) seen.set(f, relative(root, real(f)).split(sep).join('/'));
+    return seen.get(f);
+  };
+  const start = rel => (async () => {
+    const m = await import('./stalls.mjs');
+    seed ??= m.freshSeed();
+    return { m, run: await m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload, env, seed }) };
+  })().catch(error => ({ error }));
+  return {
+    saw(e) {
+      const f = e.data?.file;
+      if (!f || typeof f !== 'string') return;
+      const rel = relOf(f);
+      if (pins.has(rel) && !started.has(rel)) started.set(rel, start(rel));
+    },
+    async said(tests) {
+      const lines = [];
+      for (const [rel, p] of started) {
+        const { m, run, error } = await p;
+        if (error) {
+          lines.push(`${STALLS_LABEL}: ${rel} is pinned to stalls and could not run with them (${String(error?.message ?? error).split('\n')[0]}).`);
+          process.exitCode = 1;
+          continue;
+        }
+        const j = m.judge(tests.filter(t => t.file === rel), run.tests);
+        const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all`;
+        const failed = run.tests.filter(t => t.outcome === 'fail');
+        if (!failed.length && !run.timedOut && run.exitCode === 0) {
+          lines.push(`${STALLS_LABEL}: ${rel} passed with ${s}, seed ${run.seed}.`);
+          continue;
+        }
+        process.exitCode = 1;
+        lines.push(`${STALLS_LABEL}: ${rel} failed with stalls (${s}), seed ${run.seed}. Replay: ${m.replay([rel], run.seed)}`);
+        for (const t of j.named) lines.push(`  "${t.name}" passed plainly and failed with stalls: it judges the wall clock${t.error ? `: ${t.error}` : ''}`);
+        for (const t of j.both) lines.push(`  "${t.name}" failed with stalls${tests.some(x => x.file === rel && x.name === t.name) ? ' and plainly' : ''}${t.error ? `: ${t.error}` : ''}`);
+        if (run.timedOut) lines.push('  it ran past its time limit (paused time not counted)');
+        else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${run.stderr.split('\n').slice(-3).join(' | ') || 'no output'}`);
+      }
+      return lines;
+    },
+  };
+}
 
 /** The reporter: records each top-level test, then yields the hygiene block; a run that executed no test fails. */
 export default async function* ledger(source) {
   const cwd = process.cwd();
   const root = rootOf(cwd);
-  const tests = [];
+  const config = await projectConfig(root);
+  const top = topLevel({ root });
+  const { tests } = top;
+  const pins = narrowed() ? null : pinned(root, config);
   let ran = 0;
   for await (const e of source) {
     if (executed(cwd, e)) ran++;
-    if ((e.type !== 'test:pass' && e.type !== 'test:fail') || e.data?.nesting !== 0) continue;
-    const d = e.data;
-    const outcome = outcomeOf(e);
-    tests.push({
-      file: d.file ? relative(root, real(d.file)).split(sep).join('/') : null,
-      name: String(d.name),
-      outcome,
-      ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10,
-    });
+    top.push(e);
+    pins?.saw(e);
   }
-  const config = await projectConfig(root);
   const empty = emptyRun(ran, config);
   if (empty && !process.exitCode) process.exitCode = 1;
+  if (pins) {
+    const said = await pins.said(tests);
+    if (said.length) yield `${said.join('\n')}\n`;
+  }
   if (!tests.length) { if (empty) yield `${empty}\n`; return; } // nothing reported: nothing to remember
   try {
     const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];

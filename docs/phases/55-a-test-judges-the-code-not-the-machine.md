@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G0
 spec: 2
 depends: [33]
-note: "keel 'fixed' a flaky climb test by raising its sleep from 600 to 1500 ms and the timing floor from 300 to 1000 ms: still a wall-clock test, only slower. keel test --stalls pauses a test's process group at seeded random moments and names the tests that judge the wall clock; they move to mock timers, and the timing rule becomes 'with stalls or mock timers', not 'sleep longer'. Design: research/2026-10-09-robot-and-time.md (phase 55)."
-evidence: []
+note: "Built: keel test <file> --stalls (scripts/keel/stalls.mjs, shipped by the night practice); files pinned in tests.stalls run with stalls through the test ledger in every gate; keel:inconclusive is recorded as neither pass nor fail; keel's three climb compare tests run on the suite's own clock (KEEL_CLIMB_CLOCK), and its six suite-timing files are pinned. Owes the owner's read of what moved and the gate's time before and after."
+evidence: ["evidence/2026-10-09-stalls.md"]
 issue: 42
 ---
 
@@ -27,11 +28,11 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 
 ## Acceptance
 
-- [ ] `--stalls` pauses the test's whole process group (children too) at seeded moments; the same seed gives the same stalls; paused time is not counted against the timeout. `tests/stalls.test.mjs`
-- [ ] A synthetic wall-clock test (a 100 ms deadline on a 50 ms wait) passes plainly and is named under stalls; the same test under `mock.timers` passes both. `tests/stalls.test.mjs`
-- [ ] A file pinned in `"tests": { "stalls": [...] }` runs with stalls in the gate and a failure prints its seed. `tests/stalls.test.mjs`
-- [ ] An inconclusive diagnostic is recorded as inconclusive, never pass or fail. `tests/test-ledger.test.mjs`
-- [ ] keel's own suite has no test `--stalls` names, and its timing tests are pinned to stalls. `tests/timing-hygiene.test.mjs`
+- [x] `--stalls` pauses the test's whole process group (children too) at seeded moments; the same seed gives the same stalls; paused time is not counted against the timeout. `tests/stalls.test.mjs`
+- [x] A synthetic wall-clock test (a 100 ms deadline on a 50 ms wait) passes plainly and is named under stalls; the same test under `mock.timers` passes both. `tests/stalls.test.mjs`
+- [x] A file pinned in `"tests": { "stalls": [...] }` runs with stalls in the gate and a failure prints its seed. `tests/stalls.test.mjs`
+- [x] An inconclusive diagnostic is recorded as inconclusive, never pass or fail. `tests/test-ledger.test.mjs`
+- [x] keel's own suite has no test `--stalls` names, and its timing tests are pinned to stalls. `tests/timing-hygiene.test.mjs`
 - [ ] ⚑ by hand: the owner reads the list of tests that moved and the gate's time before and after.
 
 ## Your part
@@ -61,4 +62,13 @@ By hand: keel's gate time before and after, from the ledger.
 
 ## Next action
 
-Brief a builder on `keel test --stalls` and run it over keel's own suite.
+⚑ The owner reads which of keel's tests moved and the gate's time before and after (this phase's evidence), and picks: ship the rule to the fleet, advice only, or keep it in keel.
+
+## Trajectory
+
+- **2026-10-09** — `keel test` did not exist; it is a new verb (`lib/test.mjs`), and its engine is `scripts/keel/stalls.mjs` in the night practice, beside the ledger, so a project's gate runs it from its own repo.
+- **2026-10-09** — Pinned files run through the test ledger, not the test script: every node project already loads the ledger (`keel init`, migration 0004), so a pin is one line of `.keel/keel.json` and no migration rewrites anyone's `scripts.test`. The ledger starts a pinned file's stalled run when it first sees that file, beside the rest of the suite, from one fresh seed per run; a narrowed run starts none. It imports `stalls.mjs` only when something is pinned, so a copy of `test-ledger.mjs` alone keeps working.
+- **2026-10-09** — Paused time is kept out of the limit by running `node --test` with no timeout of its own and keeping one of running time (30 minutes). A test's own `{ timeout }` still judges the wall clock, which is what stalls should catch.
+- **2026-10-09** — `keel test --stalls` over the base commit's climb compare tests named none: at their 1500 ms base (seeds 55, 1, 2, 3) and at their old 600 ms base (seeds 1, 2, 3). A stall about once a second slows base and candidate in proportion, and the 30% margin holds. Stalls catch a fixed deadline, not a ratio with a wide margin, and not node's start-up cost, which failed CI in 9734581. The tests moved anyway: they judge the wall clock by construction, and every gate paid for their sleeps.
+- **2026-10-09** — Per test: `compare: keep for a real gain…` and `compare --decide, revert, settle and report…` (tests/climb.test.mjs) and `phase 47: under KEEL_AGENT_GIT…` (tests/climb-codex.test.mjs) moved to injected durations. climb.mjs's measure reads the time the suite writes to `KEEL_CLIMB_CLOCK` (a test seam, like `KEEL_GH`) in place of the wall clock, and the fixtures wait no real time. The decide test keeps one real, unjudged wall-clock baseline. None reports inconclusive: what they judge is compare's decision, whose input is a duration, so the duration moved into the fixture. All six files that run climb compare or measure (climb, climb-codex, climb-guard, climb-hygiene, climb-pick, climb-tend) are pinned to stalls; with stalls (seed 55) they named none.
+- **2026-10-09** — There is no practice lint for timing hygiene yet; the rule lives in `tests/timing-hygiene.test.mjs`. Shipping it to the fleet is the owner's choice in Your part.

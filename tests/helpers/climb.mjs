@@ -1,7 +1,8 @@
 // Shared by the climb test files (tests/climb*.test.mjs): the synthetic Acme
 // repo, the climb.mjs runner, and the gh and keel stubs. Split out of
-// climb.test.mjs (2026-10-09) so its tests run in parallel. `sleeper` stays
-// in each test file that times a suite, where tests/timing-hygiene.test.mjs reads it.
+// climb.test.mjs (2026-10-09) so its tests run in parallel. `clocked` stays
+// in each test file that times a suite, beside the stalls pin
+// tests/timing-hygiene.test.mjs asks of it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, mkdir, cp, realpath, readdir } from 'node:fs/promises';

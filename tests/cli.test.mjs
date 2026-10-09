@@ -135,7 +135,9 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     await writeFile(join(dir, 'fleet.json'), '[]\n');
     // walk decide records a decision on a health page's proposal: a synthetic one, outside the health directory.
     await writeFile(join(dir, 'acme-health.md'), '# Acme health\n\n## Proposal\n\n**`acme_measure`** (outside) — Acme proposes.\n');
-    const needs = { walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'],
+    // keel test runs a file with stalls: a synthetic one-test file, not one of keel's own suites.
+    await writeFile(join(dir, 'acme-stalls.test.mjs'), "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n");
+    const needs = { walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'] };
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',

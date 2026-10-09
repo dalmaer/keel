@@ -135,7 +135,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "9c38d8272d0100c531af8c383a6d7ec8b17a1e15e2cc4e314ff116cf248ba264"
+      "sha256": "13bc267d51a57d39c66fa4e54c9751484aee1b7bec12e3a2de470fc439d29a06"
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
@@ -169,13 +169,17 @@
       "practice": "reconciliation",
       "sha256": "dc1a6db156a1759a0a6e37a96331bada458806545e7a520c3be4ce8f371f999e"
     },
+    "scripts/keel/stalls.mjs": {
+      "practice": "night",
+      "sha256": "88f8dc0101d04ab0cec9ddd9865b797b7989cdd16a26c11f3de8e3be3e14e166"
+    },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
       "sha256": "0bdb0763f9d7ea8bd18526e254b5cff06e716a68ef4410c401a169bab3158208"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "edb969b261495349f5ece5013c4b714da5c7d3511f131aafc1cf3f498d0d8e31"
+      "sha256": "bbfc2fca83beebcaa4c50711675e2d540919f5b6aa177fc58252e5afb5462cf5"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

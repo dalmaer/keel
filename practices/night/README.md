@@ -196,6 +196,24 @@ compared with bun runs, and its run-alone command is `bun test <file> -t
 `npx vitest run <file> -t …`). A `--runner` or `"tests".runner` that
 contradicts the runner the file names is refused (exit 1, not recorded).
 
+**A test judges the code, not the machine** (phase 55).
+`scripts/keel/stalls.mjs` runs test files in a process group of their own
+and pauses the whole group (SIGSTOP, then SIGCONT) for 50 to 500 ms at
+moments from a seed: about once a second, never two seconds apart. Paused
+time is not counted against the run's time limit. `keel test <file>
+--stalls` runs a file that way and without, and names each test that passed
+without and failed with: it judges the wall clock. The fix is the code's own
+clock (`mock.timers`, a clock passed in), never a longer sleep. A file listed
+in `.keel/keel.json` `"tests": {"stalls": [...]}` is pinned: whenever a whole
+run reaches it, the ledger runs it again with stalls beside the suite, from
+a fresh seed, and a failure fails the run and prints `keel stalls: <file>
+failed with stalls (…), seed N. Replay: keel test <file> --stalls --seed N`.
+A narrowed run never does. A passing test that said
+`t.diagnostic('keel:inconclusive <what it measured>')` judges real time on
+purpose and the machine kept it from judging: the ledger records it
+`inconclusive`, neither pass nor fail, so it is never flaky, never slower,
+and never a cited proof's pass. A failing test stays a failure.
+
 **The build, timed** (phase 36). When `.keel/keel.json` names
 `"climb": { "build": "<command>" }`, the night runs it once as `build_time`:
 its wall time in ms, bound `"climb".buildBudgetMs` (no ratchet), else
@@ -253,7 +271,7 @@ the drain.
 
 **Its files.** `.github/workflows/keel-night.yml`, `scripts/keel/improve.mjs`,
 `scripts/keel/drain.mjs`, `scripts/keel/lib.mjs`, `scripts/keel/test-ledger.mjs`,
-`scripts/keel/pr-body.mjs` (managed), and the `night` block of `AGENTS.md` (so it needs agents-md). They need the
+`scripts/keel/stalls.mjs`, `scripts/keel/pr-body.mjs` (managed), and the `night` block of `AGENTS.md` (so it needs agents-md). They need the
 phases practice's `scripts/roadmap.mjs` for the phase measures; with phases
 off or local those measures are n/a.
 

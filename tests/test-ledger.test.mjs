@@ -1069,3 +1069,57 @@ test('a bun or vitest finding\'s run-alone command is that runner\'s, from its s
     assert.ok(testsConfigProblems({ tests }).length, JSON.stringify(tests));
   }
 });
+
+// ---- phase 55: inconclusive, and files pinned to stalls ---------------------------
+
+const INCONCLUSIVE_TESTS = `import { test } from 'node:test';
+test('a frame rate is measured', t => { t.diagnostic('keel:inconclusive 31 fps measured; the machine was busy'); });
+test('a reel plays', async t => { await t.test('one frame', t2 => { t2.diagnostic('keel:inconclusive one frame late'); }); });
+test('a crate says so and fails', t => { t.diagnostic('keel:inconclusive no frames'); throw new Error('anvil'); });
+test('an anvil is ordered', t => { t.diagnostic('ordered at 9'); });
+`;
+
+/** The Acme repo with the inconclusive tests as its suite, committed; the outcomes of one run with the ledger. */
+async function inconclusiveRun(t, source) {
+  const { dir, git } = await acmeRepo(t, source);
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), INCONCLUSIVE_TESTS);
+  git('commit', '-qam', 'acme: inconclusive');
+  const r = nodeTest(dir, WITH);
+  assert.equal(r.status, 1, 'the failing test fails the run; an inconclusive one does not');
+  return (await readRuns(dir)).runs.at(-1).tests.map(x => [x.name, x.outcome, x.inconclusive ?? null]);
+}
+
+test('phase 55: a passing test that says keel:inconclusive (itself or in a subtest) is recorded inconclusive, never pass or fail; a failure stays a failure', async t => {
+  assert.deepEqual(await inconclusiveRun(t), [
+    ['a frame rate is measured', 'inconclusive', '31 fps measured; the machine was busy'],
+    ['a reel plays', 'inconclusive', 'one frame late'],
+    ['a crate says so and fails', 'fail', null],
+    ['an anvil is ordered', 'pass', null],
+  ]);
+  // Neither pass nor fail: never flaky beside a pass or a fail, never slower, and never a cited proof's pass.
+  const runs = [runOf({ tests: { 'a frame': ['pass', 10] } }), runOf({ tests: { 'a frame': ['inconclusive', 900] } })];
+  assert.deepEqual(flaky(runs), []);
+  assert.deepEqual(flaky([...runs, runOf({ tests: { 'a frame': ['fail', 10] } })]).map(f => [f.passed, f.failed]), [[1, 1]], 'only the pass and the fail count');
+  const steadyRuns = [...Array(4)].map(() => runOf({ tests: { 'a frame': ['pass', 10] } }));
+  assert.deepEqual(slower([...steadyRuns, runOf({ tests: { 'a frame': ['inconclusive', 5000] } })], { window: 3, factor: 2, floorMs: 0 }), []);
+  assert.deepEqual(lastOutcome([runOf({ tests: { 'a frame': ['inconclusive', 1] } })], 'tests/anvils.test.mjs', 'a frame').matched.map(x => x.outcome), ['inconclusive'], 'not a pass');
+  assert.equal(ledger.inconclusiveOf('keel:inconclusive'), 'the machine kept it from judging');
+  assert.equal(ledger.inconclusiveOf('keel:inconclusively'), null);
+  assert.equal(ledger.inconclusiveOf('ordered at 9'), null);
+});
+
+test('mutation: a ledger that ignores the inconclusive diagnostic records those tests as passes', async t => {
+  const source = await mutated('const what = inconclusiveOf(d?.message);', 'const what = null;');
+  const got = await inconclusiveRun(t, source);
+  assert.deepEqual(got.map(([, o]) => o), ['pass', 'pass', 'fail', 'pass'], 'the mutant says pass, which the test above refuses');
+});
+
+test('"tests".stalls: a list of files relative to the repo\'s root, pinned to stalls', () => {
+  assert.deepEqual(testsConfigProblems({ tests: { stalls: ['tests/acme.test.mjs'] } }), []);
+  for (const bad of ['tests/acme.test.mjs', ['/abs/acme.test.mjs'], ['../acme.test.mjs'], [''], [3]]) {
+    assert.ok(testsConfigProblems({ tests: { stalls: bad } }).length, JSON.stringify(bad));
+  }
+  assert.deepEqual(ledger.stallsPins({ tests: { stalls: ['./tests/acme.test.mjs'] } }), ['tests/acme.test.mjs']);
+  assert.deepEqual(ledger.stallsPins({ tests: { stalls: ['../x.mjs'] } }), [], 'a bad list pins nothing; doctor says why');
+  assert.equal(ledger.pinned('/acme', {}), null, 'nothing pinned: nothing runs');
+});

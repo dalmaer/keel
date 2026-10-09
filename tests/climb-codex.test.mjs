@@ -11,12 +11,12 @@ import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { WORKFLOW, git, write, commit, acme, climb, json, TIMED, tendAcme, TEND_WORKFLOW, runStep, agentGit, sandboxGit, plantHostile } from './helpers/climb.mjs';
 
-/** A "suite" that sleeps `ms`; `tag` keeps two equal sleeps different commits. */
-const sleeper = (ms, tag = '') => `// acme suite ${tag}\nsetTimeout(() => {}, ${ms});\n`;
+/** A "suite" that took `ms` by the clock compare reads (KEEL_CLIMB_CLOCK) and waits no real time (phase 55); `tag` keeps two equal suites different commits. */
+const clocked = (ms, tag = '') => `// acme suite ${tag}\nimport { writeFileSync } from 'node:fs';\nif (process.env.KEEL_CLIMB_CLOCK) writeFileSync(process.env.KEEL_CLIMB_CLOCK, '${ms}');\n`;
 
 test('phase 47: under KEEL_AGENT_GIT, with .git and the checkout\'s parent read-only as Codex\'s sandbox keeps them, a climb night commits, compares, keeps and reverts in .keel/agent-git; .git never moves', async t => {
   // The checkout's parent is outside Codex's writable roots too: read-only here, so worktrees beside it would fail.
-  const made = await acme(t, { climb: TIMED, files: { 't.mjs': sleeper(1500), 'package.json': '{ "name": "acme" }\n' } });
+  const made = await acme(t, { climb: TIMED, files: { 't.mjs': clocked(1500), 'package.json': '{ "name": "acme" }\n' } });
   const parent = await mkdtemp(join(tmpdir(), 'keel-codex-parent-'));
   t.after(async () => { run('chmod', ['u+w', parent]); await rm(parent, { recursive: true, force: true }); });
   const dir = join(parent, 'acme');
@@ -33,18 +33,21 @@ test('phase 47: under KEEL_AGENT_GIT, with .git and the checkout\'s parent read-
   assert.equal(git(dir, ['status', '--porcelain']), '', '.git ignores the agent\'s git dir');
   assert.equal(agentGit(dir, ['status', '--porcelain']), '', 'so does the agent\'s own');
   const restore = await sandboxGit(t, dir);
-  const A = { KEEL_AGENT_GIT: '.keel/agent-git' };
+  // The suite's own clock, not the wall clock: compare's keep and revert are the fixture's (phase 55).
+  const clock = join(parent, '..', `${parent.split('/').pop()}-clock`);
+  t.after(() => rm(clock, { force: true }));
+  const A = { KEEL_AGENT_GIT: '.keel/agent-git', KEEL_CLIMB_CLOCK: clock };
 
-  // timing: measured baseline — the fast candidate, written in place (the agent's git dir commits it, not commit()); short is the point
-  await writeFile(join(dir, 't.mjs'), sleeper(10, 'fast'));
+  // The fast candidate, written in place (the agent's git dir commits it, not commit()).
+  await writeFile(join(dir, 't.mjs'), clocked(10, 'fast'));
   agentGit(dir, ['commit', '-q', '-am', 'acme: share one fixture']);
   const kept = climb(dir, ['compare', '--decide', '--runs', '1', '--json'], A);
   assert.equal(kept.status, 0, kept.stdout + kept.stderr);
   assert.equal(json(kept).verdict, 'keep', json(kept).why);
   assert.match(agentGit(dir, ['log', '-1', '--format=%B']), /^acme: share one fixture\n\nclimb test-time: \d+ ms → \d+ ms/, 'the numbers go in the agent\'s commit');
   const keptSha = agentGit(dir, ['rev-parse', 'HEAD']);
-  // timing: measured baseline — a slower candidate against the kept 10 ms one: 30x, noise cannot hide it
-  await writeFile(join(dir, 't.mjs'), sleeper(300, 'slower'));
+  // A slower candidate against the kept 10 ms one.
+  await writeFile(join(dir, 't.mjs'), clocked(300, 'slower'));
   agentGit(dir, ['commit', '-q', '-am', 'acme: nothing really']);
   const missed = climb(dir, ['compare', '--decide', '--runs', '1', '--json'], A);
   assert.equal(json(missed).verdict, 'revert');
