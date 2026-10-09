@@ -155,11 +155,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "4e3959c73df12005c3aff00f131c6f6d374b39ccb89d83ced96e17b045e291b7"
+      "sha256": "6631214d253effd112a24e2bf5b7565d2b8ea86c83528e9b358e8436bc8c5c0d"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "c96fcf9f35f160a51cbd39812acfadc8d1b40470c6ebf14ce54e80c04fde77a5"
+      "sha256": "6a97ca6473bd6316f8da8560341ecd4b114978c518a7e35469788e39b1e8e60b"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",

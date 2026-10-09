@@ -38,6 +38,10 @@
 //                            directory git ignores (health-ignored): the night
 //                            writes its page and never commits it (a promise:
 //                            git answers while the caller reads on)
+//   platformLints(root, config)  a tracked test file that runs a macOS-only
+//                            (or Windows-only) tool with no platform skip
+//                            (platform-guard, phase 65); .keel/keel.json
+//                            `platformTools` adds tools
 //   readProjectRecords(root) the projects shape, read only: docs/projects/<p>/
 //                            with its primary doc's status and issue, and its
 //                            phases.md's sections (phaseSections); with
@@ -648,6 +652,162 @@ export async function healthLints(root, config, day = new Date().toISOString().s
   const ignored = await new Promise(done => execFile('git', ['check-ignore', '-q', '--', healthPage(dir, day)], { cwd: root, encoding: 'utf8' }, e => done(!e)));
   if (!ignored) return [];
   return [{ rule: 'health-ignored', path: dir, message: `${dir} is git-ignored here, so the night writes its health page and never commits it; set "health" in .keel/keel.json to a directory that is not ignored (like ".keel/health")` }];
+}
+
+// ---- the platform guard (phase 65) ---------------------------------------------
+//
+// The gate runs on the owner's Mac; CI runs on Linux. A test that calls a
+// macOS-only tool passes the one and fails the other, unless it says so with a
+// platform skip. The lint reads tracked test files (*.test.*, *.spec.*, and
+// anything under a test/, tests/ or __tests__/ directory) and counts a tool
+// only where it runs as a command: the first argument (or array) of a spawn,
+// exec, execFile or run call, a shell string (`sh -c`, zx's $`…`), or a
+// line of a shell script. Prose, test names and comments never count.
+
+/** Tools that run on one platform only, by process.platform's name. */
+export const PLATFORM_TOOLS = Object.freeze({
+  darwin: Object.freeze(['ditto', 'hdiutil', 'launchctl', 'codesign', 'osascript', 'mdls', 'stat -f', 'defaults write', 'pbcopy', 'security']),
+  win32: Object.freeze(['powershell', 'reg.exe']),
+});
+export const PLATFORM_NAMES = Object.freeze({ darwin: 'macOS', win32: 'Windows', linux: 'Linux' });
+
+/** What is wrong with .keel/keel.json "platformTools": a tool name (macOS) or { tool, platform }. */
+export function platformToolProblems(list) {
+  if (list === undefined) return [];
+  const shape = `"platformTools" must be a list of tool names (macOS-only) or { "tool": "<name>", "platform": "${Object.keys(PLATFORM_NAMES).join('" | "')}" }`;
+  if (!Array.isArray(list)) return [shape];
+  return list.some(t => typeof t === 'string' ? !t.trim()
+    : !t || typeof t.tool !== 'string' || !t.tool.trim() || !Object.hasOwn(PLATFORM_NAMES, t.platform)) ? [shape] : [];
+}
+
+/** keel's tools and the project's ("platformTools"), by platform. */
+export function platformTools(config) {
+  const out = Object.fromEntries(Object.entries(PLATFORM_TOOLS).map(([p, tools]) => [p, [...tools]]));
+  if (platformToolProblems(config?.platformTools).length) return out;
+  for (const t of config?.platformTools ?? []) {
+    const [tool, platform] = typeof t === 'string' ? [t.trim(), 'darwin'] : [t.tool.trim(), t.platform];
+    if (!(out[platform] ??= []).includes(tool)) out[platform].push(tool);
+  }
+  return out;
+}
+
+/** A tracked file the platform guard reads: a test file, in a language that runs commands. */
+export const isTestFile = path => /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[^/]+$/.test(path) && /\.(?:[cm]?[jt]sx?|sh|bash|zsh)$/.test(path);
+
+/**
+ * A JS file's string literals, and its text with comments blanked (same
+ * length, so positions agree). A light scanner, not a parser: enough to tell
+ * a command from a comment.
+ */
+export function scanSource(text) {
+  const strings = [];
+  let code = '', i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i], d = text[i + 1];
+    if (c === '/' && d === '/') { const e = text.indexOf('\n', i); const stop = e < 0 ? n : e; code += ' '.repeat(stop - i); i = stop; continue; }
+    if (c === '/' && d === '*') { const e = text.indexOf('*/', i + 2); const stop = e < 0 ? n : e + 2; code += text.slice(i, stop).replace(/[^\n]/g, ' '); i = stop; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1, value = '';
+      while (j < n && text[j] !== c) {
+        if (text[j] === '\\') { value += text[j + 1] ?? ''; j += 2; continue; }
+        if (c !== '`' && text[j] === '\n') break;
+        if (c === '`' && text[j] === '$' && text[j + 1] === '{') {
+          let depth = 0, k = j + 1;
+          for (; k < n; k++) { if (text[k] === '{') depth++; else if (text[k] === '}' && --depth === 0) break; }
+          value += text.slice(j, k + 1); j = k + 1; continue;
+        }
+        value += text[j++];
+      }
+      const stop = Math.min(n, j + 1);
+      strings.push({ value, start: i, end: stop });
+      code += text.slice(i, stop);
+      i = stop; continue;
+    }
+    code += c; i++;
+  }
+  return { code, strings };
+}
+
+const RUNNERS = 'spawn|spawnSync|exec|execSync|execFile|execFileSync|execa|execaSync|execaCommand|execaCommandSync|run|runSync|sh|shell';
+/** The text before a string literal that makes it a command: a runner's first argument (or array), zx's $, or sh -c's script. */
+const COMMAND_BEFORE = new RegExp(`(?:\\b(?:${RUNNERS})\\s*\\(\\s*(?:\\[\\s*)?|\\b(?:${RUNNERS})\\s*\\)\\s*\\(\\s*(?:\\[\\s*)?|\\$\\s*|['"](?:-c|/c|-Command)['"]\\s*,\\s*)$`);
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** A tool at a command's position in a shell string: its start, or after ; & | ( $( sudo xcrun env exec command. */
+export function commandRegex(tool, platform = 'darwin') {
+  const words = tool.trim().split(/\s+/).map(escapeRe).join('\\s+');
+  const exe = platform === 'win32' && !/\.exe$/i.test(tool) ? '(?:\\.exe)?' : '';
+  return new RegExp(`(?:^|[;&|(\\n]|\\$\\(|\\b(?:sudo|xcrun|env|exec|command|time|nohup)\\s)\\s*(?:[\\w.~-]*/)*${words}${exe}(?=$|[\\s;&|)'"\`])`, platform === 'win32' ? 'i' : '');
+}
+
+const PLATFORM_EXPR = String.raw`(?:process\.platform|os\.platform\(\)|\bplatform\(\))`;
+/** Whether code says it runs only on `platform`: a comparison with it, or a skip on process.platform. */
+export function skipsFor(code, platform, shell = false) {
+  if (shell) return platform === 'darwin' ? /uname/.test(code) && /Darwin/.test(code)
+    : platform === 'win32' ? /MINGW|MSYS|CYGWIN|Windows_NT/.test(code) : /uname/.test(code) && /Linux/.test(code);
+  const name = escapeRe(platform);
+  // `{ skip: process.platform !== 'darwin' }`, `skipIf(process.platform !== 'darwin')`, `const mac = process.platform === 'darwin'`:
+  // a comparison with this platform. A skip that names another platform guards nothing here.
+  return new RegExp(`${PLATFORM_EXPR}\\s*[!=]==?\\s*['"\`]${name}['"\`]|['"\`]${name}['"\`]\\s*[!=]==?\\s*${PLATFORM_EXPR}`).test(code);
+}
+
+/**
+ * The platform-only tools a test file's text runs as commands, by platform:
+ * { darwin: ['hdiutil'], … } (a platform with none is absent). Only where
+ * the file has no skip for that platform.
+ */
+export function platformCalls(text, path, tools = PLATFORM_TOOLS) {
+  const shell = /\.(?:sh|bash|zsh)$/.test(path);
+  const found = {};
+  let code, hits;
+  if (shell) {
+    code = text.split('\n').map(line => line.startsWith('#!') ? '' : line.replace(/(^|\s)#.*$/, '$1')).join('\n');
+    hits = tool => code.split('\n').some(line => tool.re.test(line.trim()));
+  } else {
+    const scanned = scanSource(text);
+    code = scanned.code;
+    const commands = scanned.strings.filter(s => COMMAND_BEFORE.test(code.slice(Math.max(0, s.start - 200), s.start)));
+    hits = tool => commands.some(s => {
+      if (tool.re.test(s.value.trim())) return true;
+      // The array form of a two-word tool: ('defaults', ['write', …]) or (['stat', '-f', …]).
+      const [first, second] = tool.words;
+      if (!second || s.value.trim().replace(/^(?:[\w.~-]*\/)*/, '') !== first) return false;
+      const next = scanned.strings.find(x => x.start >= s.end);
+      return next?.value === second && /^\s*,\s*\[?\s*$/.test(code.slice(s.end, next.start));
+    });
+  }
+  for (const [platform, list] of Object.entries(tools)) {
+    const used = list.filter(t => hits({ re: commandRegex(t, platform), words: t.trim().split(/\s+/) }));
+    if (used.length && !skipsFor(code, platform, shell)) found[platform] = used;
+  }
+  return found;
+}
+
+/** The repo's tracked files: git ls-files, or every file (walk) outside a git repository. */
+export async function trackedFiles(root) {
+  const listed = await new Promise(done => execFile('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, (e, out) => done(e ? null : out)));
+  return listed === null ? walk(root) : listed.split('\0').filter(Boolean);
+}
+
+/**
+ * platform-guard: a tracked test file that runs a platform-only tool with no
+ * skip for that platform, one lint per file and platform; a bad
+ * "platformTools" is one lint on .keel/keel.json.
+ */
+export async function platformLints(root, config) {
+  const problems = platformToolProblems(config?.platformTools);
+  const lint = problems.map(message => ({ rule: 'platform-guard', path: '.keel/keel.json', message }));
+  const tools = platformTools(config);
+  for (const path of (await trackedFiles(root)).filter(isTestFile).sort()) {
+    const text = await read(join(root, path)).catch(() => null);
+    if (text === null || text.length > 1_000_000) continue;
+    for (const [platform, used] of Object.entries(platformCalls(text, path, tools))) {
+      const name = PLATFORM_NAMES[platform] ?? platform;
+      lint.push({ rule: 'platform-guard', path, message: `runs ${used.join(', ')} (${name} only) with no ${platform} skip: it passes on a ${name} machine and fails on the others (a Linux CI). Say so: test('…', { skip: process.platform !== '${platform}' }, …)` });
+    }
+  }
+  return lint;
 }
 
 // ---- the climb's night ---------------------------------------------------------

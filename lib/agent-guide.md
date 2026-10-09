@@ -368,7 +368,13 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   `stack-unknown` (a `stack` tag outside the vocabulary; drift reads past
   it), `stack-evidence` (a declared tag nothing in the repo shows, or
   evidence for an undeclared one; with no `stack` at all it is a note naming
-  what the files show), and in the projects
+  what the files show), `platform-guard` (a tracked test file that runs a
+  macOS-only tool such as `hdiutil`, `ditto`, `codesign` or `stat -f`, or a
+  Windows-only one, as a command with no skip for that platform: it passes
+  on the Mac gate and fails on Linux CI; fix: `{ skip: process.platform !==
+  'darwin' }`; `.keel/keel.json` `platformTools` adds tools, a name for
+  macOS or `{ "tool", "platform" }`; prose and comments never count),
+  `contracts-config` (a `contracts` list keel cannot read), and in the projects
   shape `off-vocabulary` (Status: DONE, or an unknown word) and
   `phase-status` (status in a heading, or none).
 - `local` lists the project's local variants as information; `qualifies`
@@ -379,7 +385,20 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   commit is older than the newest built or lived-in phase's `since`;
   `acceptance-unchecked`, per built or lived-in phase without `spec`, counts
   its boxes that name no check. Never rewrite the phase for it; bring it up
-  to date when it is next edited.
+  to date when it is next edited. With `contracts` set:
+  `contract-doc-missing` (a contract's `read` is not a file),
+  `contract-unmatched` (a pattern no tracked file matches) and
+  `contract-hook` (the project's own `.claude/settings.json` never runs the
+  hook).
+- **Contracts** (phase 65): `.keel/keel.json` `"contracts": [{ "paths":
+  ["src/index/**"], "read": "docs/engine/indexing.md", "why": "<one line>"
+  }]` names the document to read before editing a file a pattern matches
+  (whole paths from the root; `*`, `**`, `?`, `{a,b}`). Render appends them
+  to the `agents-md` block as a table (the block is unchanged without
+  them), writes `scripts/keel/contract-hook.mjs`, and seeds
+  `.claude/settings.json` with a `PreToolUse` hook on Edit, Write and
+  MultiEdit that says "Before editing <path>, read <doc>: <why>" and never
+  blocks. Read the named document before you edit.
 - `--fix <path> restore` rewrites it from the template; `--fix <path> eject`
   drops it from the lock and adds it to `.keel/keel.json` `ejected`, which
   render honours forever. Each needs `--yes`, or exits 3 with the plan.
@@ -643,7 +662,7 @@ a project cannot read alone is never a zero: `drift` there is by
 `lint` is the rules its own files show (`PROJECT_LINTS` in
 `scripts/keel/improve.mjs`: phase, goal-without-phase, claude-md-pointer,
 second-copy, symlink-replaced, lessons-table-split, health-config,
-health-ignored), and `inbox_waiting` is
+health-ignored, platform-guard), and `inbox_waiting` is
 `n/a` (keel-side only). `keel improve` is the same module with keel's
 doctor and inbox, so it reads the full set.
 

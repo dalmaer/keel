@@ -41,6 +41,19 @@ said twice.
 What stays local is never a failure. `keel doctor` lists local variants as
 information, and says when one would now switch on if adopted again.
 
+**Read this before touching that.** If some code has a document an agent
+must read before changing it (an as-built contract), name it in
+`.keel/keel.json`:
+
+```json
+"contracts": [{ "paths": ["src/index/**"], "read": "docs/engine/indexing.md", "why": "the index format is measured" }]
+```
+
+`keel render` then lists the contracts as a table in `AGENTS.md`, and adds a
+Claude Code hook that names the document before an edit to a matching file.
+The hook never blocks an edit. `keel doctor` notes a document that is
+missing or a pattern that matches no file.
+
 ## The commands
 
 Read first. A dry run writes nothing and prints the whole plan:

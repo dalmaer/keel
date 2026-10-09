@@ -5,7 +5,7 @@ import { run as spawnRun, testsRan } from './helpers/run.mjs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load, claims, fill, plan, config } from '../lib/practices.mjs';
+import { load, claims, fill, plan, config, wanted } from '../lib/practices.mjs';
 import { optionalPractices } from './helpers/practices.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -75,7 +75,9 @@ test('no target is claimed by two practices', async () => {
 
 test('every managed target exists on keel, and keel switches on every practice', async () => {
   const practices = await load();
-  for (const p of [...practices.values()].filter(p => !p.optional)) for (const f of p.files.filter(f => f.kind === 'managed')) {
+  const self = await config(KEEL);
+  // A conditional target (practice.json "when") is on keel only while keel's config meets it.
+  for (const p of [...practices.values()].filter(p => !p.optional)) for (const f of p.files.filter(f => f.kind === 'managed' && wanted(f, self))) {
     const info = await lstat(join(KEEL, f.path)).catch(() => null);
     assert.ok(info, `${f.path} (${p.name}) is missing on keel`);
     if (f.link) assert.ok(info.isSymbolicLink(), `${f.path} should be a symlink`);

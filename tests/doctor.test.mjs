@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lineDiff, blockBody, lessonsTableShapes, runsTest, globRegex } from '../lib/doctor.mjs';
-import { lessonsTableSplit, setupEnvProblems } from '../practices/night/files/scripts/keel/lib.mjs';
+import { lessonsTableSplit, setupEnvProblems, platformCalls, platformLints } from '../practices/night/files/scripts/keel/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -678,4 +678,79 @@ test('stack: a declaration the evidence disagrees with is a finding either way; 
   r = doctor(dir);
   assert.deepEqual(stackRules(r.data), ['stack-evidence note']);
   assert.match(r.data.notes.find(n => n.rule === 'stack-evidence').message, /no "stack" declared; the files show node \(package\.json\), github-actions/);
+});
+
+// ---- the platform guard (phase 65) ------------------------------------------
+
+test('platform guard: a tool counts only where it runs as a command, and a platform skip clears it', () => {
+  const calls = (text, path = 'tests/a.test.mjs') => platformCalls(text, path);
+  // Run as a command: a runner's first argument or array, a shell string, sh -c, zx, a path to it, a two-word tool's array form.
+  assert.deepEqual(calls("execFileSync('hdiutil', ['attach', 'acme.dmg']);"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execSync('cd /tmp && hdiutil attach acme.dmg');"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execFileSync('/usr/bin/hdiutil', ['info']);"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execFile('sh', ['-c', 'pbcopy < notes.txt']);"), { darwin: ['pbcopy'] });
+  assert.deepEqual(calls("await $`osascript -e 'beep'`;"), { darwin: ['osascript'] });
+  assert.deepEqual(calls("await promisify(execFile)('codesign', ['-v', app]);"), { darwin: ['codesign'] });
+  assert.deepEqual(calls("execFileSync('defaults', ['write', 'com.acme', 'x', '1']);"), { darwin: ['defaults write'] });
+  assert.deepEqual(calls('execSync(`stat -f %z ${file}`);'), { darwin: ['stat -f'] });
+  assert.deepEqual(calls("execSync('powershell -Command Get-Date');"), { win32: ['powershell'] });
+  assert.deepEqual(calls('#!/bin/sh\nhdiutil attach acme.dmg\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  // Prose, test names, comments and fixtures held in a string: not a command.
+  assert.deepEqual(calls("// hdiutil attach is macOS only\ntest('hdiutil attaches the image', () => { assert.ok(says('uses hdiutil')); });"), {});
+  assert.deepEqual(calls("/* execFileSync('hdiutil', []) */ const x = 1;"), {});
+  assert.deepEqual(calls("const fixture = `execFileSync('hdiutil', ['attach'])`;"), {});
+  assert.deepEqual(calls("execFileSync('defaults', ['read', 'com.acme']);"), {}, 'defaults read is not defaults write');
+  assert.deepEqual(calls('# hdiutil is macOS only\necho ok\n', 'tests/mount.sh'), {});
+  // A skip for the platform clears it; a skip for another platform does not.
+  assert.deepEqual(calls("test('mounts', { skip: process.platform !== 'darwin' }, () => { execFileSync('hdiutil', ['attach']); });"), {});
+  assert.deepEqual(calls("describe.skipIf(process.platform !== 'darwin')('mac', () => { execFileSync('ditto', [a, b]); });"), {});
+  assert.deepEqual(calls("if (process.platform === 'win32') execSync('powershell x');"), {});
+  assert.deepEqual(calls("test('x', { skip: process.platform !== 'win32' }, () => { execFileSync('hdiutil', ['attach']); });"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls('[ "$(uname)" = Darwin ] || exit 0\nhdiutil attach acme.dmg\n', 'tests/mount.sh'), {});
+});
+
+test('platform guard: doctor fails a tracked test calling hdiutil without a darwin skip, passes one with it, and checks a project\'s added tool', async t => {
+  const dir = await project(t);
+  const git = (...args) => assert.equal(run('git', ['-C', dir, ...args], { env: ENV }).status, 0, `git ${args.join(' ')}`);
+  const guard = data => data.lint.filter(l => l.rule === 'platform-guard').map(l => l.path);
+  // After the CLI's report is checked once, the rule runs in-process: each doctor run takes about a second.
+  const guarded = async () => (await platformLints(dir, JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')))).map(l => l.path);
+  await mkdir(join(dir, 'tests'), { recursive: true });
+  const bare = "import { test } from 'node:test';\nimport { execFileSync } from 'node:child_process';\ntest('mounts the image', () => { execFileSync('hdiutil', ['attach', 'acme.dmg']); });\n";
+  await writeFile(join(dir, 'tests', 'mount.test.mjs'), bare);
+  git('add', '-A'); git('commit', '-q', '-m', 'acme: mount test');
+  let r = doctor(dir);
+  assert.equal(r.code, 1, JSON.stringify(r.data.lint));
+  assert.deepEqual(guard(r.data), ['tests/mount.test.mjs']);
+  assert.match(r.data.lint.find(l => l.rule === 'platform-guard').message, /runs hdiutil \(macOS only\) with no darwin skip/);
+  assert.match(keel(['doctor'], dir).out, /platform-guard\s+tests\/mount\.test\.mjs/, 'the text report names it');
+
+  // An untracked test is not the gate's: only tracked files are read.
+  await writeFile(join(dir, 'tests', 'scratch.test.mjs'), bare);
+  assert.deepEqual(await guarded(), ['tests/mount.test.mjs']);
+  await rm(join(dir, 'tests', 'scratch.test.mjs'));
+
+  // With the skip: clean.
+  await writeFile(join(dir, 'tests', 'mount.test.mjs'), bare.replace("test('mounts the image', ()", "test('mounts the image', { skip: process.platform !== 'darwin' }, ()"));
+  git('commit', '-q', '-am', 'acme: skip off macOS');
+  r = doctor(dir);
+  assert.deepEqual(guard(r.data), []);
+  assert.equal(r.code, 0, JSON.stringify(r.data.lint));
+
+  // A tool the project adds ("platformTools"): checked too; a bad list is a finding on the config.
+  await writeFile(join(dir, 'tests', 'sim.test.mjs'), "import { execFileSync } from 'node:child_process';\nexecFileSync('xcrun', ['simctl', 'list']);\n");
+  git('add', '-A'); git('commit', '-q', '-m', 'acme: simulator test');
+  assert.deepEqual(await guarded(), [], 'xcrun is not on keel\'s list');
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: ['xcrun'] }, null, 2)}\n`);
+  assert.deepEqual(await guarded(), ['tests/sim.test.mjs']);
+  await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: [{ tool: 'xcrun', platform: 'darwin' }] }, null, 2)}\n`);
+  assert.deepEqual(await guarded(), ['tests/sim.test.mjs']);
+  await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: [{ tool: 'xcrun' }] }, null, 2)}\n`);
+  assert.deepEqual(await guarded(), ['.keel/keel.json']);
+});
+
+test('platform guard: keel\'s own tests are clean of it', async () => {
+  assert.deepEqual(await platformLints(KEEL, JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8'))), []);
 });

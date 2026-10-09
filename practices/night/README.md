@@ -47,7 +47,7 @@ drift there is by `.keel/lock.json` (bytes keel did not write are `edited`;
 `behind` needs keel's templates), lint is the rules its own files show
 (`PROJECT_LINTS` in `scripts/keel/improve.mjs`: phase, goal-without-phase,
 claude-md-pointer, second-copy, symlink-replaced, lessons-table-split,
-health-config, health-ignored), and the inbox is keel's.
+health-config, health-ignored, platform-guard), and the inbox is keel's.
 
 **Proof lost.** `proofs_hold` (bound 0, no ratchet) counts the built or
 lived-in phases whose Acceptance cites a `tests/` path that no longer

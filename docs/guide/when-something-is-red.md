@@ -74,7 +74,11 @@ Doctor has findings. It changes nothing without `--fix`. Read it by section:
   finding to fix by hand; `keel update` brings them.
 - **Practice rules**: lints, each naming its file and line. A `phase` lint
   means a phase still holds template text, or a spec 2 box names no check
-  ([Plan with phases and goals](plan-with-phases-and-goals.md)).
+  ([Plan with phases and goals](plan-with-phases-and-goals.md)). A
+  `platform-guard` lint means a test runs a macOS-only tool (`hdiutil`,
+  `ditto`, `codesign`, `stat -f`…) with no skip, so it passes on your Mac and
+  fails on Linux CI. Add `{ skip: process.platform !== 'darwin' }` to that
+  test. A tool of your own goes in `.keel/keel.json` `platformTools`.
 - **Notes**: information. They never change the exit code.
 
 ### `keel render --check` differs
