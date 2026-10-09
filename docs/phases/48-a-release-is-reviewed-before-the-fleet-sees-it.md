@@ -33,14 +33,13 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 
 ## Your part
 
-- **Ask:** Let the next three keel releases go through the review check, then compare how many review comments the projects' update pull requests drew after it with the eight releases before (v0.8.12 to v0.8.19).
-- **Why:** The check costs a review before each release. It earns its keep only if the projects' update rounds draw fewer findings.
+- **Ask:** After three keel releases have gone through the review check, compare the review comments your projects' update pull requests drew for them with those for v0.8.12 to v0.8.19, and say whether the check stays.
+- **Why:** The check adds a review before every release. It earns that only if the projects' update rounds draw fewer findings.
 - **Look at:** The reviews on each project's update pull request for the three releases (`keel review <repo>#<n>`), beside those for v0.8.12 to v0.8.19.
-- **Choices:** Fewer findings | No change | Not three releases yet
-- **Keeps it open:** Not three releases yet
-- **Ready when:** three keel releases have gone through the review check and the projects' update pull requests for them have been reviewed
-- **Takes:** 30 minutes, after the third release; each reviewed keel PR bills the OpenAI API account per token, up to its minutes budget
-- **Then:** Fewer findings: recorded in an evidence file, and this is done. No change: recorded, and the check goes (Deliberately open). Not three releases yet: nothing changes.
+- **Choices:** Keep the gate | Keep it, narrower | Drop it
+- **Takes:** 30 minutes, after the third release. Each reviewed keel PR bills the OpenAI API account per token, up to its minutes budget.
+- **Then:** Keep the gate: the comparison goes in an evidence file, and this is done. Keep it, narrower: say which commits should still count in the note; the conductor narrows the scope and records it. Drop it: recorded, and the conductor takes the gate out of keel release.
+- **Ready when:** three releases have gone through the gate.
 
 ## Real surfaces
 
