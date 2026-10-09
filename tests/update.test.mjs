@@ -213,6 +213,29 @@ test('a failing check after a migration restores every byte, and names the check
   assert.equal(cli.code, 1, cli.err);
   assert.match(cli.err, /Its output ended:\nacme: the anvil fell/);
   assert.equal(await treeHash(dir), before);
+  // Even with --yes, one checkout restores: a person is there to read it.
+  const yes = await run({ dir, yes: true });
+  assert.equal(yes.exitCode, 1, yes.text);
+  assert.match(yes.text, /the project is as it was/);
+  assert.equal(await treeHash(dir), before);
+  assert.equal(git(dir, 'branch', '--list', BRANCH(TARGET)), '', 'no branch: nothing kept');
+
+  // Only the fleet's option keeps the work (phase 52): committed on the branch, the failed check returned, nothing pushed.
+  const tmp = await scratch(t, 'keel-gh-');
+  const ghLog = join(tmp, 'gh.log'), gh = join(tmp, 'gh');
+  await writeFile(gh, `#!/bin/sh\necho "$@" >> ${JSON.stringify(ghLog)}\n`);
+  await chmod(gh, 0o755);
+  const kept = await run({ dir, yes: true, keepFailedCheck: true }, deps({ env: { ...ENV, KEEL_GH: gh } }));
+  assert.equal(kept.exitCode, 1, kept.text);
+  assert.equal(kept.error, undefined, 'returned, not thrown');
+  assert.deepEqual([kept.data.ok, kept.data.kept, kept.data.branch, kept.data.base], [false, true, BRANCH(TARGET), 'main']);
+  assert.deepEqual({ ...kept.data.check, tail: undefined }, { command: `node -e "console.log('acme: the anvil fell'); process.exit(7)"`, ok: false, exit: 7, tail: undefined });
+  assert.match(kept.data.check.tail, /acme: the anvil fell/);
+  assert.match(kept.text, /Check FAILED: [^\n]+ \(exit 7\)[^]*Nothing was pushed\./);
+  assert.equal(JSON.parse(git(dir, 'show', `${BRANCH(TARGET)}:.keel/keel.json`)).practice, TARGET, 'the update is on its branch');
+  assert.equal(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD'), 'main');
+  assert.equal(await treeHash(dir), before, 'main is as it was');
+  await assert.rejects(readFile(ghLog), 'gh is never called: the fleet opens the PR');
 });
 
 test('0001 converts acme-groove: milestones become goals, keel\'s roadmap replaces its own, phases is on, the gate passes', async t => {

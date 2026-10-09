@@ -115,6 +115,8 @@ else if (a === 'api') {
   if (!from) { console.error('GraphQL: Could not resolve to a Repository with the name ' + argv[2] + '.'); process.exit(1); }
   fs.cpSync(from, argv[3], { recursive: true, verbatimSymlinks: true });
 } else if (a === 'pr' && b === 'create') {
+  // What was opened, from which clone: draft or not, and the description gh was handed.
+  fs.appendFileSync(${JSON.stringify(log)} + '.prs', JSON.stringify({ clone: require('node:path').basename(process.cwd()), draft: argv.includes('--draft'), body: fs.readFileSync(opt('--body-file'), 'utf8') }) + '\\n');
   console.log('https://github.com/acme/pulls/' + opt('--head'));
 } else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
@@ -122,6 +124,7 @@ else if (a === 'api') {
   return {
     env: { ...cleanEnv(), KEEL_GH: gh },
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
+    prs: async () => (await readFile(`${log}.prs`, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
   };
 }
 
@@ -146,7 +149,8 @@ function state() {
         files: { '.keel/keel.json': cfg(), 'docs/health/2026-09-25.md': '#', 'docs/health/2026-09-28.md': '#', 'docs/lessons.md': LESSONS, '.keel/sent.json': sentOne, 'acme-two.todo': 'x' },
         runs: [run('check', '', '2026-10-02T03:00:00Z', { status: 'in_progress' }), run('check', 'failure', '2026-10-01T03:00:00Z'),
           run('deploy', 'success', '2026-10-01T04:00:00Z'), run('check', 'success', '2026-10-01T05:00:00Z', { headBranch: 'feature' })],
-        prs: [{ number: 1, headRefName: 'keel-night/2026-10-01' }, { number: 2, headRefName: 'keel-night/2026-10-02' }, { number: 3, headRefName: 'person/fix' }],
+        prs: [{ number: 1, headRefName: 'keel-night/2026-10-01' }, { number: 2, headRefName: 'keel-night/2026-10-02' }, { number: 3, headRefName: 'person/fix', isDraft: true },
+          { number: 4, headRefName: 'keel/update-v0.2.0', isDraft: true }],
       },
       'acme/fresh': {
         default_branch: 'trunk',
@@ -181,7 +185,8 @@ test('a project behind: how far, which migrations it has not recorded (fleet upd
   assert.equal(row.ci.workflow, 'check');
   assert.equal(row.ci.rule, 'named check');
   assert.equal(row.ci.state, 'red', 'the newest completed check on main failed; the running one and the feature branch do not count');
-  assert.equal(row.machinePrs.total, 2);
+  assert.equal(row.machinePrs.total, 3);
+  assert.deepEqual(row.machinePrs.drafts, [{ number: 4, head: 'keel/update-v0.2.0' }], 'a draft machine PR is named (the board lists a draft update as broken); a person\'s draft is not a machine PR');
   assert.ok(needsOf(r, 'acme/behind').includes('behind: 0.1.0 → 0.2.0; 1 unrecorded (0002-acme-two); keel fleet update checks them (keel update)'));
   assert.ok(needsOf(r, 'acme/behind').some(w => w.startsWith('red: check failure')));
   assert.ok(needsOf(r, 'acme/behind').includes('2 open keel-night/ PRs (keel drain keel-night/)'));
@@ -630,33 +635,69 @@ test('fleet update --yes installs the way the project says: its setup in the gat
   assert.match(r.text, /acme\/failing: FAILED at setup: setup `[^`]+` failed \(exit 7\):\n {6}acme-setup-detail/);
 });
 
-test('fleet update --yes: a failed check runs once more on main without the update, and the row says which failed', async t => {
-  // Fails on main too: not this update.
+test('fleet update --yes: a failed check keeps the update and opens its PR: ordinary on an already-red main, a draft otherwise, each opening with what failed (phase 52)', async t => {
+  // Fails on main too: main was already red.
   const red = await remoteProject(t, 'red', BEHIND, { check: 'echo acme-red-main; exit 4' });
   // Fails only with the update's files present (its practice bumped to the CLI's): main passes.
-  const picky = await remoteProject(t, 'picky', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .keel/keel.json; then echo acme-picky; exit 5; fi` });
+  const picky = await remoteProject(t, 'picky', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .keel/keel.json; then echo acme-picky-update; exit 5; fi` });
+  // Fails with the update; on main the check never finishes (killed): unknown, so a draft too.
+  const stuck = await remoteProject(t, 'stuck', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .keel/keel.json; then echo acme-stuck-update; exit 6; fi; kill -TERM $$` });
+  // An install that fails: FAILED, nothing pushed.
+  const broke = await remoteProject(t, 'broke', BEHIND);
+  await writeFile(join(broke.prepared, 'package-lock.json'), '{}\n');
+  git(broke.prepared, 'add', 'package-lock.json');
+  git(broke.prepared, 'commit', '-qm', 'Acme: a lockfile');
+  const npm = join(await scratch(t, 'keel-fleet-npm-'), 'npm');
+  await writeFile(npm, '#!/bin/sh\necho "npm ERR! acme-install-broke" >&2\nexit 1\n');
+  await chmod(npm, 0o755);
+  const projects = { red, picky, stuck, broke };
   const st = {
-    repos: {
-      'acme/red': { default_branch: 'main', files: { '.keel/keel.json': red.config } },
-      'acme/picky': { default_branch: 'main', files: { '.keel/keel.json': picky.config } },
-    },
+    repos: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, { default_branch: 'main', files: { '.keel/keel.json': p.config } }])),
     commits: {},
-    prepared: { 'acme/red': red.prepared, 'acme/picky': picky.prepared },
+    prepared: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, p.prepared])),
   };
-  const dir = await home(t, [{ repo: 'acme/red', kind: 'node', role: 'managed' }, { repo: 'acme/picky', kind: 'node', role: 'managed' }]);
+  const dir = await home(t, Object.keys(projects).map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
   const gh = await stubGh(t, st);
-  gh.env = { ...gh.env, ...GIT_ENV };
+  gh.env = { ...gh.env, ...GIT_ENV, KEEL_NPM: npm };
   const r = await fleetUpdate({ dir, yes: true }, updateDeps(gh));
-  assert.equal(r.exitCode, 1, r.text);
   const by = repo => r.data.results.find(x => x.repo === repo);
-  for (const repo of ['acme/red', 'acme/picky']) {
-    assert.deepEqual([by(repo).ok, by(repo).step], [false, 'update']);
-    assert.match(by(repo).error, /the project's check failed after the update/);
+  const url = `https://github.com/acme/pulls/${UPDATE_BRANCH}`;
+
+  // A check never makes a row FAILED: each kept update is pushed and its PR opened.
+  for (const repo of ['acme/red', 'acme/picky', 'acme/stuck']) {
+    assert.deepEqual([by(repo).ok, by(repo).pr, by(repo).step], [true, url, undefined], `${repo}: ${r.text}`);
+    assert.equal(by(repo).check.ok, false);
+    const origin = projects[repo.split('/')[1]].origin;
+    assert.equal(JSON.parse(git(origin, 'show', `${UPDATE_BRANCH}:.keel/keel.json`)).practice, CLI, `${repo}: the update is pushed on its branch, not restored`);
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, BEHIND, `${repo}: main is untouched`);
   }
-  assert.deepEqual(by('acme/red').mainCheck.exit, 4);
-  assert.match(by('acme/red').error, /\nmain fails the same check without the update \(exit 4\): not this update$/);
-  assert.deepEqual(by('acme/picky').mainCheck.exit, 0);
-  assert.match(by('acme/picky').error, /\nmain passes without the update: the update, or a test that fails only sometimes$/);
-  assert.match(r.text, /acme\/red: FAILED at update: [^]*\n {6}main fails the same check without the update \(exit 4\): not this update/);
-  assert.equal((await gh.calls()).filter(c => c[0] === 'pr' && c[1] === 'create').length, 0, 'nothing opened');
+  assert.doesNotMatch(r.text, /FAILED at update/);
+  assert.deepEqual([by('acme/red').draft, by('acme/picky').draft, by('acme/stuck').draft], [false, true, true]);
+  assert.deepEqual([by('acme/red').mainCheck.exit, by('acme/picky').mainCheck.exit, by('acme/stuck').mainCheck.exit], [4, 0, null]);
+  assert.match(r.text, re(`acme/red: opened ${url} (main was already red)`));
+  assert.match(r.text, re(`acme/picky: opened ${url} (draft: the update fails the check)`));
+  assert.match(r.text, re(`acme/stuck: opened ${url} (draft: the update fails the check; main's check did not finish)`));
+
+  // Clone, setup and install failures stay FAILED: there is nothing to push.
+  assert.deepEqual([by('acme/broke').ok, by('acme/broke').step], [false, 'install']);
+  assert.match(by('acme/broke').error, /npm ci failed: npm ERR! acme-install-broke/);
+  assert.equal(git(broke.origin, 'branch', '--list', UPDATE_BRANCH), '', 'nothing pushed for the failed install');
+  assert.match(r.text, /acme\/broke: FAILED at install/);
+  assert.equal(r.exitCode, 1, 'the install failed; the checks did not count');
+
+  // Each description opens with what failed; the draft flag goes with a main that passes or did not finish.
+  const prs = Object.fromEntries((await gh.prs()).map(p => [p.clone, p]));
+  assert.deepEqual(Object.keys(prs).sort(), ['picky', 'red', 'stuck'], 'one PR per kept update, none for the failed install');
+  assert.equal(prs.red.draft, false, 'main already red: an ordinary PR');
+  assert.match(prs.red.body, /^main was already red: `echo acme-red-main; exit 4` fails without this update \(exit 4\); this update did not cause it\.\n\nmain's output ended:\n\n```text\nacme-red-main\n```/);
+  assert.equal(prs.picky.draft, true, 'main passes: a draft');
+  assert.match(prs.picky.body, /^This update fails the project's check: `if grep [^`]+` \(exit 5\)\. main passes without it, so the fix is one commit on this branch\./);
+  assert.match(prs.picky.body, /\n\nThe update's output ended:\n\n```text\nacme-picky-update\n```/);
+  assert.equal(prs.stuck.draft, true, "main's check did not finish: a draft");
+  assert.match(prs.stuck.body, /^This update fails the project's check: `[^`]+` \(exit 6\)\. main's check did not finish without it \(SIGTERM\), so whether main fails it too is unknown\./);
+  for (const p of Object.values(prs)) {
+    assert.ok(p.body.indexOf('## Summary') > 0, 'the failure comes before the usual Summary');
+    assert.match(p.body, /^Gate: `[^\n]+` exit [456] on this change: it fails/m, 'the Evidence never claims exit 0');
+    assert.doesNotMatch(p.body, /exit 0 on this change/);
+  }
 });

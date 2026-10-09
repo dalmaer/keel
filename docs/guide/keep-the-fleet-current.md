@@ -78,11 +78,22 @@ keel fleet update --yes    # ⚑ open them, one at a time, with your gh login
 - `keel fleet update` without `--yes` is the plan: each project it would
   update, and why the rest are not planned. With `--yes` it clones each into
   a temp directory, installs as that project's night would, and runs
-  `keel update --yes --no-self-update` there. A repo that fails says which
-  step and why; the others go on. When the update's check fails, the same
-  check runs once more on the clone without the update, and the row says
-  whether main fails it too (not this update) or passes (the update, or a
-  test that fails only sometimes).
+  `keel update --yes --no-self-update` there. A clone, setup or install that
+  fails says which step and why, and pushes nothing; the others go on.
+- A failing check never throws the update away. The fleet keeps it on its
+  branch, runs the same check once more on main without it, and opens the PR
+  anyway. Its description opens with what failed:
+  - main fails the check too: an ordinary PR, "main was already red", with
+    the end of main's output. Merge it on its own merits; fix main elsewhere.
+  - main passes: a draft, "This update fails the project's check", with the
+    command and the end of its output. The fix is one commit on that branch;
+    then mark it ready and merge it. A draft cannot be merged by accident.
+  - main's check did not finish: a draft, saying so.
+
+  The row says `opened <url> (draft: the update fails the check)` or
+  `opened <url> (main was already red)`, never FAILED. `keel board` lists the
+  draft under Broken. `keel update` in one checkout still puts everything back
+  and exits 1: you are there to read it.
 
 Cutting a release, in keel:
 

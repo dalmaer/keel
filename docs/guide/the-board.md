@@ -19,7 +19,10 @@ it waits on, in the order you read them:
   your read), the night's proposal, lessons to decide, a question a session
   asked you, a step marked "⚑ yours" (a repo to keep or delete, lessons to
   send home).
-- **Broken**: a red CI on a fleet project's default branch, review comments
+- **Broken**: a red CI on a fleet project's default branch, a draft keel
+  update PR ("acme/ledger: keel update v0.8.26 fails ledger's check": the
+  fleet kept an update whose check failed; its description says what to
+  fix), review comments
   unanswered on an open PR you or an agent opened (Claude, Codex, a bot). A
   PR someone else opened waits outside, as "Someone else's PR": its review is
   theirs to answer.
@@ -184,7 +187,7 @@ phone to a wide screen.
   their cards across refreshes; a card that left the board (a walk done
   moves its phase to built) shows under "Done this session".
 - **Broken**, in red: the PR with unanswered review comments, the red CI,
-  each with its link and what to do.
+  the draft update PR, each with its link and what to do.
 - **The agent's**: the buildable phases in order, the first marked
   **next**, then the agent's loose ends.
 - **Waiting**: "on a date" (sorted by the date) and "on something else" (a

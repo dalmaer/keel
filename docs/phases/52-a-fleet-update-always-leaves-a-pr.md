@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G2
 spec: 2
 depends: []
-note: "On 2026-10-09 the fleet update threw away its work twice: isocan's main was already red, and the update broke ledger's rule that every variable it reads is documented. The fleet keeps the update on its branch and opens the PR anyway: ordinary on an already-red main, a draft naming the failure otherwise. Design: research/2026-10-09-updates-never-block.md."
-evidence: []
+note: "Built: a failing check keeps the fleet's update on its branch and opens the PR anyway (ordinary on an already-red main, a draft otherwise, each opening with what failed); the board lists a draft update PR under Broken. Owes the walk: the first real update that fails a project's check, fixed on its own branch and merged. Design: research/2026-10-09-updates-never-block.md."
+evidence: ["evidence/2026-10-09-fleet-update-leaves-a-pr.md"]
 issue: 39
 ---
 
@@ -30,11 +31,11 @@ The design is [A fleet update never dead-ends](../research/2026-10-09-updates-ne
 
 ## Acceptance
 
-- [ ] The update's check fails, main passes without it: `keel fleet update` pushes the branch and opens a draft PR whose description opens with the failure and its tail; the row says draft, never FAILED. `tests/fleet.test.mjs`
-- [ ] The update's check fails and main fails the same check: an ordinary PR whose description opens with "main was already red" and main's tail. `tests/fleet.test.mjs`
-- [ ] `keel update` in one checkout still restores and exits 1 on a failing check; only the fleet's option keeps the files. `tests/update.test.mjs`
-- [ ] Clone, setup and install failures are still FAILED with nothing pushed. `tests/fleet.test.mjs`
-- [ ] A draft PR on a keel update branch is a Broken item on the board, linking the PR. `tests/board.test.mjs`
+- [x] The update's check fails, main passes without it: `keel fleet update` pushes the branch and opens a draft PR whose description opens with the failure and its tail; the row says draft, never FAILED. `tests/fleet.test.mjs`
+- [x] The update's check fails and main fails the same check: an ordinary PR whose description opens with "main was already red" and main's tail. `tests/fleet.test.mjs`
+- [x] `keel update` in one checkout still restores and exits 1 on a failing check; only the fleet's option keeps the files. `tests/update.test.mjs`
+- [x] Clone, setup and install failures are still FAILED with nothing pushed. `tests/fleet.test.mjs`
+- [x] A draft PR on a keel update branch is a Broken item on the board, linking the PR. `tests/board.test.mjs`
 - [ ] ⚑ by hand: the next real update that fails a project's check opens its draft; the owner (or the agent) fixes it with one commit on that branch, and the owner merges it.
 
 ## Your part
@@ -64,4 +65,10 @@ By hand: the next real failing update, read by the owner as a PR.
 
 ## Next action
 
-Brief a builder on the update option and the fleet's PR path (lib/update.mjs, lib/fleet.mjs `updateOne`).
+⚑ Walk: when a fleet update next fails a project's check, read its draft PR (the board lists it under Broken), fix it with one commit on its branch, and merge it.
+
+## Trajectory
+
+- **2026-10-09** — `update()` with `keepFailedCheck` commits the update on its branch and returns the failed check without pushing; the fleet then runs main's check on the clone (back on main, so without the update) and opens the PR itself (`publishUpdate`, lib/update.mjs). The scope had update return the check with the files left in place: committing first is what gives main's check a tree without the update.
+- **2026-10-09** — A kept check is not a failure: its row is `ok`, so `keel fleet update` exits 0 when the only trouble was a check (the PR says it). The PR's Evidence line says the check's real exit, never "exit 0".
+- **2026-10-09** — The fleet's existing machine-PR read asks `isDraft` too (no new call; same cache and quota floor); `machinePrs.drafts` names the draft ones. A draft update PR in a fleet checkout's loose ends is not listed twice: the fleet's Broken item wins.

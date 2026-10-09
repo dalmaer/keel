@@ -187,7 +187,37 @@ test('a source that cannot be read is n/a with why, never missing', async () => 
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-const snapshot = async root => Object.fromEntries(await Promise.all(['docs/phases/01-walk.md', 'docs/phases/07-mixed.md', 'docs/evidence/acme-1.md', 'docs/ROADMAP.md'].map(async p => [p, await readFile(join(root, p), 'utf8')])));
+test('a draft keel update PR is broken, linking the PR; other drafts are not, and loose-ends does not list it twice (phase 52)', async () => {
+  const root = await acme();
+  try {
+    const site = fleetData.rows[1];
+    const rows = [fleetData.rows[0], { ...site, machinePrs: { total: 3, queues: {}, heads: [], drafts: [
+      { number: 12, head: 'keel/update-v0.8.21' },
+      { number: 13, head: 'keel-night/2026-10-07' }, // a draft night PR is the night's, not an update that fails
+      { number: '14"><script>', head: 'keel/update-v0.8.22' }, // never a link built from what is not a PR number
+    ] } }];
+    const pr = 'https://github.com/acme/site/pull/12';
+    const loose = root2 => {
+      const data = looseData(root2);
+      data.projects.push({ repo: 'acme/site', dir: '/acme/site', items: [{ kind: 'pr', title: 'keel update: practice 0.8.20 → 0.8.21', url: pr, detail: 'keel/update-v0.8.21, draft', move: 'review it: merge, or close it', commands: [] }] });
+      return data;
+    };
+    const data = await board({ root }, { ...deps(root), fleet: async () => ({ rows }), looseEnds: async () => loose(root) });
+    const it = data.items.find(i => i.kind === 'update');
+    assert.deepEqual([it.waits, it.title, it.link, it.source], ['broken', "acme/site: keel update v0.8.21 fails site's check", pr, 'fleet']);
+    assert.match(it.why, /^a draft PR on keel\/update-v0\.8\.21: its description opens with what failed/);
+    assert.equal(data.items.filter(i => i.kind === 'update').length, 1, 'only the draft on a keel update branch, with a real PR number');
+    assert.equal(data.items.filter(i => i.link === pr).length, 1, 'listed once: the fleet\'s broken item, not loose-ends\' PR as well');
+    assert.deepEqual(titles(data, 'broken').sort(), ['acme/app#7: 2 review comments unanswered', 'acme/site: CI red on main', "acme/site: keel update v0.8.21 fails site's check"]);
+    assert.equal(data.counts.broken, 3);
+    assert.match(boardText(data), /acme\/site: keel update v0\.8\.21 fails site's check\n {6}a draft PR[^\n]*\n {6}read: gh pr view 12 -R acme\/site/);
+    // Machine PRs the fleet could not read: nothing is invented.
+    const blind = await board({ root }, { ...deps(root), fleet: async () => ({ rows: [{ ...site, machinePrs: { unreadable: 'saving your GitHub quota' } }] }) });
+    assert.equal(blind.items.filter(i => i.kind === 'update').length, 0);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+const snapshot = async root =>Object.fromEntries(await Promise.all(['docs/phases/01-walk.md', 'docs/phases/07-mixed.md', 'docs/evidence/acme-1.md', 'docs/ROADMAP.md'].map(async p => [p, await readFile(join(root, p), 'utf8')])));
 
 test('keel walk done checks the walk, appends the owner\'s read, and moves a phase with nothing else open to built', async () => {
   const root = await acme({ git: true });

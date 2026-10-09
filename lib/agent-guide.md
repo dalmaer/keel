@@ -799,16 +799,28 @@ the PR it would open; exit 3 (0 when none). ⚑ With `--yes`, one at a time,
 with your own gh login: `gh repo clone` into a temp dir, a git identity only
 if none is set, the project's install (its `setup` under `bash -e` in the
 gate env, else `npm ci` with a lockfile, else nothing), then `keel update
---yes --no-self-update` there (push and PR). A repo that fails says the step
-and why; the others go on; exit 1 if any failed. `--json` → `{ok, cli,
-plans: [{repo, from, to, pending, possiblyPending, branch, title, open}],
-resting: [{repo, why}], results?: [{…plan, ok, pr?, note?, step?, error?}],
-needs?}`.
+--yes --no-self-update` there (push and PR). A clone, setup or install that
+fails says the step and why and pushes nothing; the others go on; exit 1 if
+any failed. A failing check is never FAILED: the update stays committed on
+its branch (update's `keepFailedCheck`, the fleet's only), the same check runs
+on main without it, and the PR is opened anyway, its description opening with
+what failed: main fails too → an ordinary PR, "main was already red: `<check>`
+fails without this update (exit N); this update did not cause it", and main's
+tail; main passes → a draft, "This update fails the project's check", the
+command and the update's tail (the fix is one commit on that branch); main's
+check did not finish → a draft, saying so. The row says `opened <url> (draft:
+the update fails the check)` or `opened <url> (main was already red)`.
+`keel update` in one checkout still restores and exits 1. `--json` → `{ok,
+cli, plans: [{repo, from, to, pending, possiblyPending, branch, title,
+open}], resting: [{repo, why}], results?: [{…plan, ok, pr?, draft?, failure?,
+check?: {command, ok, exit, tail}, mainCheck?: {exit, line, tail}, note?,
+step?, error?}], needs?}`.
 
 `--json` → `{ok, root, cli, at, ms, rows: [{repo, role, kind, note,
 unreadable?, branch, adopted, practice: {version, behind, unrecorded, pending, possiblyPending},
 health: {last, age, state}, ci: {state, workflow, rule, conclusion, at}, lessons:
-{project, rows, unsent}, machinePrs: {total, queues, heads}} | {repo, role:
+{project, rows, unsent}, machinePrs: {total, queues, heads, drafts: [{number,
+head}]}} | {repo, role:
 'source', pins: [{practice, path, pinned, head, moved}]}], needs: [{repo,
 why}]}`. A cell that failed is `{unreadable}`.
 
@@ -985,7 +997,9 @@ Sources: `roadmap` (a walk owed → `owner`/`time`/`external` by the phase's
 action → `owner`; the rest by kind), `reviews` (unanswered comments on open
 PRs, home and the fleet → `broken`), `health` (the newest page's undecided
 proposal → `owner`), `inbox` (lessons proposed → `owner`), `fleet` (home only:
-the strip; red CI → `broken`). A source that cannot be read is `n/a` with
+the strip; red CI → `broken`; a draft PR on a `keel/update-` branch →
+`broken`, kind `update`, "<repo>: keel update <version> fails <name>'s
+check", linking the PR, and not listed again by loose-ends). A source that cannot be read is `n/a` with
 why, never missing. An action's `note` is `required` or `optional`: the verb
 takes it as `--note` (walk done, learn decide) or as the why (walk decide).
 A walk item carries `yourPart` (the phase's `## Your part`: `{ask, why, look,
