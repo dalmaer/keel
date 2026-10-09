@@ -5,6 +5,13 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.24 — practice 0.8.24 (2026-10-09)
+
+- **Canvas nights recover after a preflight failure.** A missing tool, pin or home now leaves a never-ran receipt, and the next night recovers from the attempt before it instead of refusing until someone recovers it by hand. Recovery also ignores a night queued behind the running one.
+- **`keel board` keeps someone else's PR out of Broken.** Unanswered review comments are yours on PRs you or an agent opened; anyone else's wait under "Someone else's PR".
+- **Your part**: text before the first `###` heading (the template's comment) is no longer read as a blank first part.
+- **phases_stuck** ages a phase dated `after:` from that day, so deferred work is never reported as stuck before it can be built.
+
 ## v0.8.23 — practice 0.8.23 (2026-10-08)
 
 - **Loop retries recognize Google error envelopes.** A symbolic status no longer hides a numeric transient error code; explicit authentication and permission failures still never retry.
