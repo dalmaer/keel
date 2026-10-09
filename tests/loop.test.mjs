@@ -798,3 +798,21 @@ test('structured authentication errors do not retry the Stitch process', async t
  const result=await loop('pull','--json');
  assert.equal(result.status,1);assert.equal((await calls()).length,1);
 });
+
+
+test('Google canonical status cannot hide a numeric retry or override an authentication rejection', async () => {
+  const {retryableServiceError} = await import('../practices/loop/files/scripts/loop.mjs');
+  for (const error of [
+    {status:'RESOURCE_EXHAUSTED',code:429,message:'Acme quota temporarily exceeded'},
+    {status:'UNAVAILABLE',code:503},
+    {status:'RESOURCE_EXHAUSTED'},
+    {statusCode:503},
+  ]) assert.equal(retryableServiceError(error),true);
+  for (const error of [
+    {status:'PERMISSION_DENIED',code:403,message:'UNAVAILABLE'},
+    {status:'UNAUTHENTICATED',code:429},
+    {status:'RESOURCE_EXHAUSTED',code:401},
+    {status:'INVALID_ARGUMENT',code:400},
+    {message:'unreadable response'},
+  ]) assert.equal(retryableServiceError(error),false);
+});

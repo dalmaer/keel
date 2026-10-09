@@ -878,14 +878,21 @@ async function stitchOnce(args, { root, env, format = true }) {
   try { out = JSON.parse(stdout); } catch { throw new LoopError(`stitch ${args.join(' ')} (exit ${code}): unreadable output\n${stdout.slice(0, 500)}`); }
   if (code !== 0 || out.success === false || out.error) {
     const error = new LoopError(`stitch ${args.slice(0, 2).join(' ')}: ${out.error?.message ?? JSON.stringify(out.error ?? {})}`);
-    const status = Number(out.error?.status ?? out.error?.statusCode ?? out.error?.code);
-    const message = String(out.error?.message ?? '');
-    // Structured service failures only; never retry invalid output or auth errors.
-    error.retryable = ![400, 401, 403, 404].includes(status) &&
-      ([408, 429, 500, 502, 503, 504].includes(status) || /\b(ECONNRESET|ETIMEDOUT|EAI_AGAIN|UNAVAILABLE|RESOURCE_EXHAUSTED)\b/.test(String(out.error?.code ?? '') + ' ' + message));
+    error.retryable = retryableServiceError(out.error);
     throw error;
   }
   return out.data ?? out;
+}
+
+/** Numeric and canonical Google error statuses can coexist in one envelope. */
+export function retryableServiceError(error) {
+  const fields = [error?.status, error?.statusCode, error?.code];
+  const numbers = fields.map(Number);
+  const symbols = fields.map(value => String(value ?? '')).join(' ');
+  if (numbers.some(code => [400, 401, 403, 404].includes(code)) ||
+      /\b(INVALID_ARGUMENT|UNAUTHENTICATED|PERMISSION_DENIED|NOT_FOUND)\b/.test(symbols)) return false;
+  return numbers.some(code => [408, 429, 500, 502, 503, 504].includes(code)) ||
+    /\b(ECONNRESET|ETIMEDOUT|EAI_AGAIN|UNAVAILABLE|RESOURCE_EXHAUSTED)\b/.test(symbols + ' ' + String(error?.message ?? ''));
 }
 
 /** Retry read-only service calls, never mutations, parse failures or the project gate. */

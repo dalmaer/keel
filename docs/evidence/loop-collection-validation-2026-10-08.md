@@ -40,3 +40,19 @@ Final Keel gate: 748 tests passed, zero failed; roadmap, managed-file render
 and inbox checks passed. The final run additionally flagged the canvas flag
 validation test (4.57s vs a 2.02s median); the idle-checkout investigation above
 includes it. No test assertion was loosened and no validation retry was added.
+
+## Hosted recovery and follow-up review
+
+Ledger PR #109 merged as `91440d4e3eb9abeecfd136565d5884c435cbe848`.
+Fresh run https://github.com/dalmaer/ledger/actions/runs/37883548697 passed
+collection and validation. Deployment and Verify deploy also passed on that
+revision; these checks do not establish lived-in acceptance.
+
+A late review found that Google's symbolic `status` could hide its numeric
+`code`. Practice 0.8.23 reads both representations and gives explicit auth and
+permission rejections precedence. The mixed-envelope regression and integrated
+`npm run check` passed: 749 tests, no flaky or slower-test warnings.
+
+The shared canvas select styling was checked on Keel and Loop previews, including
+narrow layouts, and the Keel edition was read back on isocan. Its preceding
+748-test gate and GitHub CI passed without hygiene warnings.

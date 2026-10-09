@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.23 — practice 0.8.23 (2026-10-08)
+
+- **Loop retries recognize Google error envelopes.** A symbolic status no longer hides a numeric transient error code; explicit authentication and permission failures still never retry.
+- **Canvas dropdowns have consistent spacing and keyboard focus**, including narrow layouts.
+
 ## v0.8.22 — practice 0.8.22 (2026-10-08)
 
 - **Loop collection and validation have separate outcomes.** Nightly summaries show successful insight collection even when the project's validation fails. Validation remains a gate; collection never implies acceptance.
