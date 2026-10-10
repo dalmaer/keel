@@ -172,7 +172,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
 | `keel lessons` | Send what this project learned home to keel |
 | `keel drain <prefix>` | Keep one open PR per machine queue (the nightly runs this) |
-| `keel issue new --agent` | File an issue the robot can work, in its rubric's shape (what is wrong, how to see it, how to tell it is mended), labelled `keel:agent`; `--dry-run` prints it |
+| `keel issue new --agent` | File an issue the robot can work, in its rubric's shape (what is wrong, how to see it, how to tell it is mended), labelled `keel:agent`, once you add `--yes` (the label starts the robot's spend); `--dry-run` prints it |
 | `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
 | `keel prove <test> --fix <path>...` | A fix is proven by its test failing without it: runs the test with the fix reverted in a scratch copy of the repository, then with it, and prints VERIFIED, NOT WORKING or INCONCLUSIVE; `--trailer` gives the `Proven-by:` line a `fix:` commit carries. Never touches your tree |
 

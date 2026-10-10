@@ -93,6 +93,26 @@ export function pushedHead(comments = []) {
  */
 const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b\s*:?\s+((?:[\w.-]+\/[\w.-]+)?#\d+|https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+)/gi;
 export const closingRefs = text => [...String(text ?? '').matchAll(CLOSING)].map(m => m[1]);
+/**
+ * What base..head's commit messages and the PR's description (`body`, a
+ * file) would close besides #issue: [string] (PR #59). The publish job
+ * runs it in its own repository, the judged bundle fetched as objects: the
+ * judge ran the gate, which can rewrite a loose object report() then reads.
+ */
+export async function closesOf({ root, base, head, issue, body }) {
+  if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('closes needs --issue <number>');
+  const b = sha(root, base), h = sha(root, head);
+  const out = [];
+  for (const id of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
+    for (const r of closingRefs(git(root, ['show', '-s', '--format=%B', id])).filter(r => r !== `#${issue}`)) out.push(`${id.slice(0, 7)} would close ${r}`);
+  }
+  if (body) {
+    let text;
+    try { text = await readFile(body, 'utf8'); } catch (e) { throw new RobotError(`${body}: ${e.message}`); }
+    for (const r of closingRefs(text).filter(r => r !== `#${issue}`)) out.push(`the PR's description would close ${r}`);
+  }
+  return out;
+}
 /** A comment's id list as the mark carries it: digits, comma-separated. */
 const SEEN = /^\d+(?:,\d+)*$/;
 /** A time to the second, as GitHub stamps a comment. */
@@ -741,7 +761,7 @@ export async function triagePost({ env = process.env, repo, issues, postIt = fal
 
 // ---- the command line ---------------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post|pushed [--json]';
+const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post|pushed|closes [--json]';
 const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--head': 'head', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run', '--read': 'read', '--seen': 'seen' };
 const SWITCHES = { '--record': 'record', '--post': 'post' };
 
@@ -793,6 +813,10 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     case 'post': {
       const p = await post({ env, repo: o.repo, issue: o.issue, message: o.message ? resolve(o.message) : undefined, pr: o.pr, judge: o.judge, line: o.line, run: o.run, read: o.read, seen: o.seen, head: o.head });
       return { data: p, text: `posted the agent's last message on #${p.issue} (${p.chars} characters)` };
+    }
+    case 'closes': {
+      const c = await closesOf({ root: process.cwd(), base: o.base, head: o.head, issue: o.issue, body: o.body ? resolve(o.body) : undefined });
+      return { data: { ok: !c.length, closes: c }, text: c.length ? `::error::the branch would close issues besides #${o.issue}: ${c.join('; ')}; nothing is pushed` : `closes #${o.issue} alone`, exitCode: c.length ? 1 : 0 };
     }
     case 'pushed': {
       if (!/^\d+$/.test(String(o.issue ?? ''))) throw new RobotError('pushed needs --issue <number>');

@@ -114,7 +114,8 @@ export function sandboxProblems(root, base, head) {
   const out = [];
   // Each commit as well as the whole (PR #59): a file added in one commit and taken out in a later one is
   // not in base..head, yet the branch's history carries it into main on any merge but a squash.
-  for (const c of pathsOf(root, ['rev-list', '--reverse', `${b}..${h}`])) {
+  // rev-list's own lines (PR #59): its -z applies only to --objects and kin, so commits are one a line.
+  for (const c of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
     const whole = new Set(changesOf(root, b, h).map(x => x.path));
     for (const { path } of changesOf(root, `${c}^`, c)) {
       if (whole.has(path)) continue;
@@ -136,7 +137,9 @@ export function sandboxProblems(root, base, head) {
  * The files an install reads besides package.json, at any depth: lockfiles
  * and the package manager's config. The agent's branch changes none of them.
  */
-export const INSTALL_FILES = Object.freeze(['package-lock.json', 'npm-shrinkwrap.json', '.npmrc', 'yarn.lock', '.yarnrc', '.yarnrc.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb']);
+export const INSTALL_FILES = Object.freeze(['package-lock.json', 'npm-shrinkwrap.json', '.npmrc', 'yarn.lock', '.yarnrc', '.yarnrc.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb',
+  // The runtime the setup picks (PR #59): setup-node reads it from the base's checkout, before the agent's commits are taken.
+  '.nvmrc', '.node-version', '.tool-versions']);
 /** The scripts npm runs on an install (or a pack), never on `npm run <name>` alone. */
 export const INSTALL_SCRIPTS = Object.freeze(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare', 'prepack', 'postpack', 'prepublish', 'dependencies']);
 

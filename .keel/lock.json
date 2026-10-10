@@ -87,7 +87,7 @@
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
-      "sha256": "66ba9924d97cfbd8e660e76bd1f0e92b0a4913505d9bbc38410888a6dbff8b65"
+      "sha256": "9a71d0b7d2a9d1c11c9fdc5006434a2f9b80acbb59da89ef57d7d9abab085417"
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
@@ -187,7 +187,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "cd80a6358128adce74d453fd3dea69ec33a9ab466b61e16303c11fffc1048651"
+      "sha256": "20eaa5e4adce49b2a50cdf72682bef79de52c4a105937af53b2214cfbbffd419"
     },
     "scripts/keel/rubric.mjs": {
       "practice": "climb",
@@ -199,7 +199,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "ecf5a4121c90d0a2babe91eaa9057400a92c3e284ab7d3535acfe610b4e4a073"
+      "sha256": "9668dbe1310fcb437154e088b93a4b7457360acfc014eae9243de70cf7381d51"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",

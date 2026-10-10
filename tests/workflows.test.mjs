@@ -1968,6 +1968,9 @@ export function robotWorkflowProblems(text) {
   // PR #59: the branch is replaced only when the robot pushed what is there: absent, or the tip its last run mark names.
   const owns = /\n {10}mine=\$\(node scripts\/keel\/robot\.mjs pushed --repo "\$REPO" --issue "\$ISSUE"\)\n {10}tip=\$\(git ls-remote origin "refs\/heads\/keel\/robot-\$ISSUE" \| cut -f1\)\n {10}if \[ -n "\$tip" \] && \[ "\$tip" != "\$mine" \]; then\n[^\n]*\n {12}exit 1\n {10}fi\n {10}git push --force-with-lease/;
   if (!owns.test(publish)) out.push('the push does not first refuse a branch whose tip the robot did not push (robot.mjs pushed against git ls-remote)');
+  // PR #59: what merging would close is read in publish, from the bundle's objects, before the push.
+  const closes = publish.indexOf('node scripts/keel/robot.mjs closes --base "$GITHUB_SHA" --head "$head" --issue "$ISSUE" --body "$RUNNER_TEMP/run/body.md"');
+  if (closes < 0 || closes > publish.indexOf('git push')) out.push('publish does not check what merging would close (robot.mjs closes) before the push');
   if (pushes.length && !publish.includes(pushes[0].line)) out.push('the push is not in the publish job');
   const create = code(publish).find(l => /\bgh pr create\b/.test(l.line))?.line ?? '';
   if (!/gh pr create --base "\$BASE" --head "\$BRANCH" --title "[^"]*" --body-file "\$RUNNER_TEMP\/run\/body\.md"/.test(create)) out.push('no PR opened on the robot\'s branch with the judge\'s body (it says Closes #<issue>)');
@@ -2124,6 +2127,7 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
     ['a push to main by name', t.replace(push, 'git push origin HEAD:main'), rules],
     ['a push outside keel/robot-', t.replace(push, 'git push --force origin "$head:refs/heads/keel-tend/$ISSUE"'), rules],
     ['a force without the lease', t.replace(push, 'git push --force origin "$head:refs/heads/keel/robot-$ISSUE"'), robotWorkflowProblems],
+    ['no check of what merging closes', t.replace(/\n {10}node scripts\/keel\/robot\.mjs closes [^\n]*/, ''), robotWorkflowProblems],
     ['no check of who pushed the tip', t.replace('          if [ -n "$tip" ] && [ "$tip" != "$mine" ]; then\n', '          if false; then\n'), robotWorkflowProblems],
     ['a push instead of the PR', t.replace(/\n {10}num=\$\(gh pr list[\s\S]*?\n {10}fi\n {10}url=/, '\n          url='), robotWorkflowProblems],
     ['the agent may write issues', t.replace(agentPerms, agentPerms.replace('issues: read', 'issues: write')), agentSandboxProblems],

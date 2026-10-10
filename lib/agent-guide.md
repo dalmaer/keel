@@ -127,8 +127,8 @@ stderr as one line beginning `keel:`.
 - `release` → bare: `{version, tag, tagged, newest}`; with a version:
   `{ok, dryRun, version, from, tag, commit, review, rehearsal, files, entry, push}`
 - `issue new --agent` → `{ok, repo, title, label, body, url}`; `--dry-run`:
-  `{ok, dryRun: true, repo, title, label, body}`; another repo than the
-  project's, without `--yes`: exit 3, `{ok: false, needs: "yes", plan}` (the `robot` topic)
+  `{ok, dryRun: true, repo, title, label, body}`; without `--yes` (any
+  repo): exit 3, `{ok: false, needs: "yes", plan}` (the `robot` topic)
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -1324,12 +1324,13 @@ becomes a PR on `keel/robot-<issue>` that a person merges.
   [--repo <owner/name>] [--yes] [--dry-run]` writes that body (the boxes
   ticked: filing it says they hold) and creates it with gh, labelled
   `keel:agent` → `{ok, repo, title, label, body, url}`; `--dry-run` files
-  nothing (`dryRun: true`). A repo other than the project's own `"repo"`
-  (or any repo outside a project) is a ⚑ step: exit 3, `{ok: false, needs:
-  "yes", plan}`, nothing filed, until the owner's `--yes`. Exit 2 for a
+  nothing (`dryRun: true`). Filing is a ⚑ step on any repo (the label
+  starts the robot, which spends on the owner's budget): exit 3, `{ok: false,
+  needs: "yes", plan}`, nothing filed, until the owner's `--yes`. Exit 2 for a
   missing field, no `--agent` or no repo (`--repo`, else `"repo"`); 1 when
   gh fails (a missing label: `gh label create keel:agent`). **An agent that finds a fault outside its own work
-  files one this way, when the three boxes hold, and goes on.**
+  writes one this way, when the three boxes hold (exit 3: it shows the
+  issue and files nothing), hands it to the owner, and goes on.**
 - **When it runs**: the `keel:agent` label put on an issue, a labelled issue
   reopened, a comment on one from an OWNER, MEMBER or COLLABORATOR (never a
   bot, never on a PR), Mondays for anything missed, or a dispatch. That

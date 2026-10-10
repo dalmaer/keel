@@ -179,14 +179,19 @@ test('keel issue new --agent writes an issue with every rubric field, and files 
   assert.equal(yes.status, 0, yes.stderr);
   assert.equal((await calls())[0].args[3], 'acme/elsewhere', 'with --yes, filed there');
 
-  // The project's own repo (named, or from .keel/keel.json) needs no --yes.
-  const filed = run(process.execPath, [BIN, 'issue', 'new', ...flags, '--json'], { env, cwd: project });
+  // PR #59: the project's own repo too: the label starts the robot's spend, so filing waits for the owner's --yes.
+  const own = run(process.execPath, [BIN, 'issue', 'new', ...flags], { env, cwd: project });
+  assert.equal(own.status, 3, own.stdout + own.stderr);
+  assert.match(own.stdout, /^Would file on acme\/anvils, labelled keel:agent:\n\n# Acme lid sticks\n/);
+  assert.match(own.stdout, /the keel:agent label starts the robot, which spends model time on the owner's budget: filing is the owner's step\. Nothing was filed/);
+  assert.equal((await calls()).length, 1, 'nothing more filed without --yes');
+  const filed = run(process.execPath, [BIN, 'issue', 'new', ...flags, '--yes', '--json'], { env, cwd: project });
   assert.equal(filed.status, 0, filed.stderr);
   assert.equal(JSON.parse(filed.stdout).url, `https://github.com/${REPO}/issues/77`);
   const create = (await calls())[1];
   assert.deepEqual(create.args, ['issue', 'create', '--repo', REPO, '--title', 'Acme lid sticks', '--label', LABEL, '--body-file', '-']);
   assert.equal(create.input, plan.body, 'the body goes on stdin, as written');
-  const fromConfig = run(process.execPath, [BIN, 'issue', 'new', ...flags.filter((f, i) => f !== '--repo' && flags[i - 1] !== '--repo'), '--json'], { env, cwd: project });
+  const fromConfig = run(process.execPath, [BIN, 'issue', 'new', ...flags.filter((f, i) => f !== '--repo' && flags[i - 1] !== '--repo'), '--yes', '--json'], { env, cwd: project });
   assert.equal(fromConfig.status, 0, fromConfig.stderr);
   assert.equal((await calls())[2].args[3], REPO);
 
@@ -559,6 +564,8 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('- [ ] the lid opens', '- [x] the lid opens').replace(/\n/g, '\r\n') }, /^docs\/projects\/lid\/phases\.md:6: ticks a box \("the lid opens"\)/],
     // PR #59: a status taken out of the front matter.
     [{ 'docs/phases/06-lid.md': LID_PHASE.replace('status: partial\n', '') }, /^docs\/phases\/06-lid\.md: removes the front matter's status \(partial, line 2 on the base\); the robot never marks a phase$/],
+    // PR #59: the runtime the setup picks, read from the base's checkout before the agent's commits are taken.
+    [{ '.nvmrc': '22\n' }, /^\.nvmrc: changed on the agent's branch; an install's own files .* are off limits to it/],
     [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
@@ -680,6 +687,16 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   // The title goes into the PR's description: a closing keyword there is refused the same, its own issue fine.
   await assert.rejects(robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Lid sticks; fixes #99', agent: 'claude' }), /the issue's title \("Lid sticks; fixes #99"\) would close #99/);
   assert.equal((await robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Lid sticks; fixes #12', agent: 'claude' })).commits, 2);
+  // The publish job's own read of what merging would close (robot.mjs closes): commits and the PR's description.
+  const closesCli = (head, body) => run(process.execPath, [join(dir, 'scripts/keel/robot.mjs'), 'closes', '--base', base, '--head', head, '--issue', '12', ...(body ? ['--body', body] : []), '--json'], { cwd: dir });
+  const bodyFile = join(dirname(mark), 'body.md');
+  await writeFile(bodyFile, 'keel robot: #12\n\nCloses #12\n');
+  assert.equal(closesCli(own, bodyFile).status, 0, 'its own issue, in a commit and the description');
+  const refusedCloses = closesCli(closer, bodyFile);
+  assert.equal(refusedCloses.status, 1, refusedCloses.stdout);
+  assert.deepEqual(parse(refusedCloses).closes, [`${closer.slice(0, 7)} would close acme/anvils#99`]);
+  await writeFile(bodyFile, 'keel robot: #12\n\nCloses #12\nResolves #13\n');
+  assert.deepEqual(parse(closesCli(own, bodyFile)).closes, ['the PR\'s description would close #13']);
   git(dir, ['reset', '-q', '--hard', checked]);
   // PR #59: the run mark names the commit the run pushed; the next run force-pushes only over that, by the bot's marks alone.
   const head = 'b'.repeat(40);

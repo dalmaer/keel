@@ -149,9 +149,9 @@ keel issue new --agent --title "The lid test is flaky" \
   --mended "ten runs in a row pass" --dry-run
 ```
 
-Drop `--dry-run` to file it on the project's own repo. Another repo
-(`--repo`) waits for your yes: it exits 3 and files nothing until
-`--yes`. The issue template
+Without `--dry-run` it shows the issue and exits 3: the label starts the
+robot, which spends on your budget, so filing waits for your `--yes`, on
+the project's own repo as on another (`--repo`). The issue template
 (`.github/ISSUE_TEMPLATE/keel-agent.md`) is the same shape, for an issue
 you write by hand; it puts no label on, so only someone who can label
 issues hands one to the robot. An issue that misses a field gets one
