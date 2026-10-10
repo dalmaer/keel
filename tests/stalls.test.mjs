@@ -197,11 +197,14 @@ test('keel test --stalls names the wall-clock test against the ledger\'s pass on
   // The ledger's run of this very tree, an hour ago: both passed. keel test reads it in place of a plain run.
   // It must be this run's lane: the same folder and config (keel test runs here with no preload, and this env).
   const config = configHash({ env: cleanEnv(tightEnv()), preload: [], configEnv: [] });
-  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: platform(), arch: arch(), cpus: 4 }, node: process.version, dir: '.', config, date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
+  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: platform(), arch: arch(), cpus: 4 }, node: process.version, dir: '.', config, flags: [], date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
   await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
   await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
   // PR #57 review: a pass under another config (NODE_OPTIONS, a preload, a configEnv value), or from another folder, never stands in.
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-00-00-000Z-1.json'), JSON.stringify({ ...record, config: 'acmeother01' }));
+  // PR #57 review: nor a pass under other node flags (conditions, setup), or one recorded before flags were.
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-05-00-000Z-1.json'), JSON.stringify({ ...record, flags: ['--conditions=other'] }));
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-06-00-000Z-1.json'), JSON.stringify({ ...record, flags: undefined }));
   // Nor does a pass on another node, OS or architecture.
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-10-00-000Z-1.json'), JSON.stringify({ ...record, node: 'v0.0.0' }));
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-20-00-000Z-1.json'), JSON.stringify({ ...record, machine: { ...record.machine, os: 'acmeos' } }));
@@ -214,6 +217,8 @@ test('keel test --stalls names the wall-clock test against the ledger\'s pass on
   assert.deepEqual(preloadsOfScript(script), ['--import', './test helpers/setup.mjs']);
   assert.deepEqual(flagsOfScript(script), ['--import', './test helpers/setup.mjs', '--conditions=acme', '-C', 'dev', '--experimental-vm-modules']);
   assert.deepEqual(flagsOfScript('vitest run'), [], 'not node\'s runner: nothing to carry');
+  // PR #57 review: a rerun to judge never rewrites the project's snapshots.
+  assert.deepEqual(flagsOfScript('node --test-update-snapshots --test-global-setup=./g.mjs --test tests/'), ['--test-global-setup=./g.mjs']);
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T10-00-00-000Z-1.json'), JSON.stringify(record));
 
   const r = run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7', '--json'], { cwd: dir, env: tightEnv() });
@@ -380,6 +385,23 @@ test('an anvil is ordered', () => new Promise(done => setTimeout(done, n === 1 ?
   assert.equal(q.status, 1, q.stdout);
   assert.match(q.stdout, /^keel stalls: tests\/crate\.test\.mjs is inconclusive: no stall landed \(0 stalls, .*run again with the first stall within \d+ ms/m);
   assert.doesNotMatch(q.stdout, /passed with 0 stalls/);
+});
+
+test('PR #57 review: with a global setup, a pinned file reruns after the whole suite, never beside the setup it holds', async t => {
+  // The setup takes an exclusive lock until the suite's teardown: a rerun's own setup beside it would fail with no stall.
+  const SETUP = `import { openSync, closeSync, unlinkSync } from 'node:fs';
+let fd;
+export async function globalSetup() { fd = openSync(process.env.ACME_LOCK, 'wx'); }
+export async function globalTeardown() { closeSync(fd); unlinkSync(process.env.ACME_LOCK); }
+`;
+  // Zinc keeps the suite going after the crate's own run is over; node reports files in name order, so the
+  // crate's summary arrives while zinc still runs and the setup still holds its lock.
+  const SLOW = "import { test } from 'node:test';\ntest('zinc is mined', () => new Promise(done => setTimeout(done, 1500)));\n";
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/zinc.test.mjs': SLOW, 'tests/setup.mjs': SETUP }, PIN);
+  const env = { ...tightEnv(), ACME_LOCK: join(await scratch(t), 'acme.lock') };
+  const r = run(process.execPath, ['--test', '--test-global-setup=./tests/setup.mjs', ...WITH, 'tests/crate.test.mjs', 'tests/zinc.test.mjs'], { cwd: dir, env });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with /m);
 });
 
 test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {

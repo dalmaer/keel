@@ -30,8 +30,10 @@
 // nothing. A narrowed run never does this.
 //
 // A record: { commit, tree, dirty, machine: { os, arch, cpus }, node, dir,
-// config, setting: { env, preload }, filtered?, date, tests: [{ file, name,
-// outcome, ms, inconclusive? }] } for each top-level test. An outcome is pass,
+// config, setting: { env, preload }, flags, filtered?, date, tests: [{ file, name,
+// outcome, ms, inconclusive? }] } for each top-level test. `flags` are the
+// node flags a rerun of the suite carries (preloads, conditions, setup; not
+// in the config hash, so lanes stay as they were). An outcome is pass,
 // fail, skip, todo, or inconclusive: a passing test that said
 // t.diagnostic('keel:inconclusive <what it measured>') judges real time on
 // purpose and the machine kept it from judging; it is neither pass nor fail,
@@ -125,6 +127,61 @@ export const JUNIT = `${RUNS}/junit.xml`;
 const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit', 'stalls'];
 /** A "tests".junit keel accepts: a .xml file directly in the ledger's directory, a name a shell reads as it is. */
 export const JUNIT_PATH = /^\.keel\/test-runs\/[A-Za-z0-9_][A-Za-z0-9_.-]*\.xml$/;
+
+// ---- a run's node flags --------------------------------------------------------
+
+/** A shell line's words: quotes ('…', "…") and backslashes read as the shell reads them, never run. */
+export function shellWords(line) {
+  const words = [];
+  let word = null, quote = null;
+  for (let i = 0; i < String(line ?? '').length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      else if (c === '\\' && quote === '"' && i + 1 < line.length) word += line[++i];
+      else word += c;
+    } else if (c === "'" || c === '"') { quote = c; word ??= ''; }
+    else if (c === '\\' && i + 1 < line.length) word = (word ?? '') + line[++i];
+    else if (/\s/.test(c)) { if (word !== null) words.push(word); word = null; }
+    else word = (word ?? '') + c;
+  }
+  if (word !== null) words.push(word);
+  return words;
+}
+
+/** Node flags that take the next word as their value when written without `=`. */
+const VALUED = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader', '--conditions', '-C', '--env-file', '--env-file-if-exists',
+  '--input-type', '--test-global-setup', '--test-isolation', '--test-concurrency', '--test-coverage-include', '--test-coverage-exclude',
+  '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-timeout', '--test-shard', '--watch-path']);
+/**
+ * The run's own: which files, which tests, what it reports, and its time limit (paused time must not count);
+ * and what writes the project's own files (--test-update-snapshots): a rerun to judge never rewrites them.
+ */
+const DROPPED = new Set(['--test', '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-only',
+  '--test-timeout', '--test-shard', '--watch', '--watch-path', '--test-update-snapshots']);
+export const PRELOADS = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader']);
+
+/**
+ * The node flags in a list of words ({ name, words }), as written: `--import
+ * x` is two words, `--import=x` one, the form node's execArgv has. A flag
+ * not known to take a value is taken as one without (write `--flag=value`).
+ * Words that are not flags (files, folders) are left out.
+ */
+export function flagsIn(words) {
+  const out = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (w === '--') break;
+    if (!w.startsWith('-') || w === '-') continue;
+    const eq = w.indexOf('=');
+    const name = eq > 0 ? w.slice(0, eq) : w;
+    out.push({ name, words: eq < 0 && VALUED.has(name) && i + 1 < words.length ? [w, words[++i]] : [w] });
+  }
+  return out;
+}
+
+/** The node flags a run of the suite carries over to a stalled one: all but the run's own (files, names, reporters, time limit). */
+export const runnerFlags = words => flagsIn(words).filter(f => !DROPPED.has(f.name)).flatMap(f => f.words);
 
 // ---- config ------------------------------------------------------------------
 
@@ -573,6 +630,9 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
   const pins = new Set(stallsPins(config)), bad = stallsBad(config);
   if (!pins.size && !bad.length) return null;
   const started = new Map(), seen = new Map(), reached = new Set();
+  // A suite with a global setup holds what it set up until the whole suite is over (its teardown): a rerun
+  // that starts at one file's summary would set it up a second time beside it. Then every rerun waits.
+  const whole = process.execArgv.some(a => a === '--test-global-setup' || a.startsWith('--test-global-setup='));
   let seed = given;
   const relOf = f => {
     if (!seen.has(f)) seen.set(f, relative(root, real(f)).split(sep).join('/'));
@@ -599,7 +659,7 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
       const rel = relOf(f);
       if (!pins.has(rel) || started.has(rel)) return;
       reached.add(rel);
-      if (e.type === 'test:summary') started.set(rel, start(rel));
+      if (e.type === 'test:summary' && !whole) started.set(rel, start(rel));
     },
     async said(tests) {
       const lines = [];
@@ -674,7 +734,9 @@ export default async function* ledger(source) {
     const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
     const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
-    const run = { ...where(root), dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
+    // flags: the node flags a rerun of this suite carries (runnerFlags), so keel test reuses this run as a
+    // baseline only under the same ones; the config hash, and so the lanes, are as they were.
+    const run = { ...where(root), dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
     const w = config?.tests?.window;
     await record(root, run, { window: Number.isInteger(w) && w >= 2 && w <= MAX_WINDOW ? w : DEFAULTS.window });
     let opts;

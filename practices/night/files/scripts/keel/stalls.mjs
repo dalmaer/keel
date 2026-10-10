@@ -33,7 +33,9 @@ import { randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { relative, sep } from 'node:path';
 import { realpathSync } from 'node:fs';
-import { topLevel, executed } from './test-ledger.mjs';
+import { topLevel, executed, shellWords, flagsIn, runnerFlags, PRELOADS } from './test-ledger.mjs';
+
+export { shellWords, runnerFlags };
 
 export const SHAPE = Object.freeze({ firstMs: [0, 1000], gapMs: [500, 1500], stallMs: [50, 500] });
 /** A run's limit, of running time: paused time never counts. */
@@ -90,53 +92,6 @@ export function shapeOf(env = process.env) {
   return shape;
 }
 
-/** A shell line's words: quotes ('…', "…") and backslashes read as the shell reads them, never run. */
-export function shellWords(line) {
-  const words = [];
-  let word = null, quote = null;
-  for (let i = 0; i < String(line ?? '').length; i++) {
-    const c = line[i];
-    if (quote) {
-      if (c === quote) quote = null;
-      else if (c === '\\' && quote === '"' && i + 1 < line.length) word += line[++i];
-      else word += c;
-    } else if (c === "'" || c === '"') { quote = c; word ??= ''; }
-    else if (c === '\\' && i + 1 < line.length) word = (word ?? '') + line[++i];
-    else if (/\s/.test(c)) { if (word !== null) words.push(word); word = null; }
-    else word = (word ?? '') + c;
-  }
-  if (word !== null) words.push(word);
-  return words;
-}
-
-/** Node flags that take the next word as their value when written without `=`. */
-const VALUED = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader', '--conditions', '-C', '--env-file', '--env-file-if-exists',
-  '--input-type', '--test-global-setup', '--test-isolation', '--test-concurrency', '--test-coverage-include', '--test-coverage-exclude',
-  '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-timeout', '--test-shard', '--watch-path']);
-/** The run's own: which files, which tests, what it reports, and its time limit (paused time must not count). */
-const DROPPED = new Set(['--test', '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-only',
-  '--test-timeout', '--test-shard', '--watch', '--watch-path']);
-const PRELOADS = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader']);
-
-/**
- * The node flags in a list of words ({ name, words }), as written: `--import
- * x` is two words, `--import=x` one, the form node's execArgv has. A flag
- * not known to take a value is taken as one without (write `--flag=value`).
- * Words that are not flags (files, folders) are left out.
- */
-function flagsIn(words) {
-  const out = [];
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i];
-    if (w === '--') break;
-    if (!w.startsWith('-') || w === '-') continue;
-    const eq = w.indexOf('=');
-    const name = eq > 0 ? w.slice(0, eq) : w;
-    out.push({ name, words: eq < 0 && VALUED.has(name) && i + 1 < words.length ? [w, words[++i]] : [w] });
-  }
-  return out;
-}
-
 /** The words after `node` in a test script (package.json's scripts.test), to its first `&&`, `||`, `;` or `|`. */
 function nodeWords(script) {
   const words = shellWords(script);
@@ -147,8 +102,6 @@ function nodeWords(script) {
   return end < 0 ? rest : rest.slice(0, end);
 }
 
-/** The node flags a run of the suite carries over to a stalled one: all but the run's own (files, names, reporters, time limit). */
-export const runnerFlags = words => flagsIn(words).filter(f => !DROPPED.has(f.name)).flatMap(f => f.words);
 /** The flags of a test script a file runs with, so it runs as the suite runs it: preloads, conditions, setup and the rest. */
 export const flagsOfScript = script => runnerFlags(nodeWords(script));
 /** A test script's --import/--require preloads, as written: what the test ledger's config hash reads. */

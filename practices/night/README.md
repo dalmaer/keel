@@ -206,7 +206,8 @@ without and failed with: it judges the wall clock. The fix is the code's own
 clock (`mock.timers`, a clock passed in), never a longer sleep. A file listed
 in `.keel/keel.json` `"tests": {"stalls": [...]}` is pinned: when a whole
 run reaches it, the ledger runs it again with stalls once its own run is
-over (never two copies of one file at once), from a fresh seed, and a
+over (never two copies of one file at once; with a `--test-global-setup`,
+after the whole suite and its teardown), from a fresh seed, and a
 failure fails the run and prints `keel stalls: <file> failed with stalls
 (…), seed N. Replay: keel test <file> --stalls --seed N`. An entry that pins
 nothing (outside the repo, absolute, or a file that is gone) fails the run

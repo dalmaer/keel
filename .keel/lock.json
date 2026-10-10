@@ -171,7 +171,7 @@
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",
-      "sha256": "f811eaf94994b9ca051ef3ec1f79ce8881ece8e7e1649efd9ac173177529a684"
+      "sha256": "dec60dadebef72f2e25cc91ae60f47adf869734a4c7ebdc4ca5c32d4e523cdcd"
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
@@ -179,7 +179,7 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "4ff9d778ec4c89e06a8d12a1328e1efff3fd0748d9b1bb80424030439c0295e7"
+      "sha256": "3cc296a4d9cb82f64068ef8ed149be0226ebf446b0ad5da894439ebd9fb419a0"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

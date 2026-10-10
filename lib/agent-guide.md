@@ -766,7 +766,8 @@ keel test tests/acme.test.mjs --name '^a crate' --stalls --json
   `node:test`, a clock passed in, events counted rather than waited for.
   Then pin the file: `.keel/keel.json` `"tests": {"stalls": ["<file>"]}`. The
   test ledger runs each pinned file again with stalls once its own run in
-  a whole run is over (never two copies at once), from a fresh seed; a
+  a whole run is over (never two copies at once; with a
+  `--test-global-setup`, after the whole suite), from a fresh seed; a
   failure, an entry that pins nothing, a pin to a file that is gone, or a
   run no stall landed in (it reruns once, its first stall earlier) fails
   the run, which prints `keel stalls: <file> failed with stalls (…), seed N.

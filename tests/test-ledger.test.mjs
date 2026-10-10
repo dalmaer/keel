@@ -1086,7 +1086,9 @@ async function inconclusiveRun(t, source) {
   git('commit', '-qam', 'acme: inconclusive');
   const r = nodeTest(dir, WITH);
   assert.equal(r.status, 1, 'the failing test fails the run; an inconclusive one does not');
-  return (await readRuns(dir)).runs.at(-1).tests.map(x => [x.name, x.outcome, x.inconclusive ?? null]);
+  const last = (await readRuns(dir)).runs.at(-1);
+  assert.deepEqual(last.flags, [], 'the node flags a rerun carries: none here (the reporters are the run\'s own)');
+  return last.tests.map(x => [x.name, x.outcome, x.inconclusive ?? null]);
 }
 
 test('phase 55: a passing test that says keel:inconclusive (itself or in a subtest) is recorded inconclusive, never pass or fail; a failure stays a failure', async t => {
