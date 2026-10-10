@@ -17,6 +17,8 @@ const page = (key, rows, total = rows.length) => ({ [key]: rows, total_count: to
 const baseApi = (runs = [run(1)], jobs = [job(101)]) => ({
   [`repos/${repo}`]: { private: false, default_branch: 'main', created_at: '2020-01-01T00:00:00Z' },
   [`repos/${repo}/actions/runs`]: page('workflow_runs', runs),
+  [`repos/${repo}/actions/workflows/check.yml`]: { id: 7, path: '.github/workflows/check.yml', created_at: '2020-01-01T00:00:00Z' },
+  [`repos/${repo}/actions/workflows/check.yml/runs`]: page('workflow_runs', runs),
   [`repos/${repo}/actions/runs/1/attempts/1/jobs`]: page('jobs', jobs),
 });
 const read = async (t, api, opts = {}) => readCiUsage({ repo, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, ...opts });
@@ -184,7 +186,7 @@ test('CI adoption validates cached units weights and shapes, then refetches or s
   const root = await scratch(t);
   await mkdir(join(root, '.keel'));
   const path = '.github/workflows/check.yml';
-  const report = await read(t, baseApi(), { days: 28 });
+  const report = await read(t, baseApi(), { days: 28, workflow: 'check.yml' });
   const config = { ci: { historyRepo: repo } };
   const workflows = [{ path, triggers: ['push'], text: 'on: [push]' }];
   const cache = async history => writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: history } }));
@@ -240,18 +242,18 @@ test('CI adoption uses repository exposure including quiet days and validates ca
   };
   const api = baseApi([run(1)], [job(101, 1, { started_at: stamp(82) })]);
   api[`repos/${repo}`].created_at = stamp(8 * 1440);
-  const report = await read(t, api, { days: 28 });
+  const report = await read(t, api, { days: 28, workflow: 'check.yml' });
   assert.equal(report.window.days, 28);
   assert.equal(report.window.observedDays, 8);
   assert.equal(report.window.observedSince, api[`repos/${repo}`].created_at);
   assert.equal((await invoke(report)).monthlyWeightedMinutes, 300);
   assert.match((await invoke(report)).workflows[0].assumptions.join(' '), /source per-run runtime; target setup, gate and runtime may differ; not a benchmark/);
-  assert.match((await invoke(report)).workflows[0].assumptions.join(' '), /8-day exposure.*requested 28 days/);
+  assert.match((await invoke(report)).workflows[0].assumptions.join(' '), /8-day workflow exposure.*requested 28 days/);
   api[`repos/${repo}`].created_at = stamp(7.5 * 1440);
-  assert.equal((await invoke(await read(t, api, { days: 28 }))).monthlyWeightedMinutes, 320);
+  assert.equal((await invoke(await read(t, api, { days: 28, workflow: 'check.yml' }))).monthlyWeightedMinutes, 320);
   for (const age of [undefined, 'bad', stamp(-1)]) {
     api[`repos/${repo}`].created_at = age;
-    const unknown = await read(t, api, { days: 28 });
+    const unknown = await read(t, api, { days: 28, workflow: 'check.yml' });
     assert.equal(unknown.window.observedDays, null);
     assert.equal((await invoke(unknown)).monthlyWeightedMinutes, null);
     unknown.workflows[0].runs[0].event = 'schedule';
@@ -352,5 +354,134 @@ test('CI adoption excludes every attempt of unfinished logical runs and rejects 
       legacy.workflows[0].runs[0].runComplete = missing;
       assert.equal((await estimate(legacy)).monthlyWeightedMinutes, null, 'cache cannot infer logical completion from attempt completion');
     }
+  }
+});
+
+test('CI adoption rejects window-truncated logical runs across attempts and jobs', async t => {
+  const { adoptionCost } = await import('../lib/ci-adoption.mjs');
+  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const path = '.github/workflows/check.yml';
+  const estimate = async report => {
+    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+  };
+  const old = job(101, 1, { started_at: stamp(29 * 1440 + 100), completed_at: stamp(29 * 1440) });
+  for (const split of [true, false]) {
+    const api = baseApi([run(1, { event: 'schedule', run_attempt: split ? 2 : 1 })], split ? [old] : [job(102), old]);
+    if (split) api[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', [job(102, 1, { run_attempt: 2 })]);
+    const report = await read(t, api, { days: 28 });
+    assert.equal(report.coverage.complete, true);
+    assert.equal(report.weightedMinutes, 1, 'window still contains only the one-minute job');
+    assert.equal((await estimate(report)).monthlyWeightedMinutes, null, '100 old minutes cannot disappear from a whole-run mean');
+    assert.ok(report.workflows[0].runs.every(r => r.runComplete === false));
+    api[`repos/${repo}/actions/runs`].workflow_runs.push(run(2, { event: 'schedule' }));
+    api[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', [job(201, 2, { started_at: stamp(6) })]);
+    const mixed = await read(t, api, { days: 28 });
+    assert.equal(mixed.weightedMinutes, 5);
+    assert.equal((await estimate(mixed)).monthlyWeightedMinutes, 120, 'only the complete four-minute logical run supplies the daily mean');
+    const legacy = structuredClone(mixed); delete legacy.assumptions.logicalRunBasis;
+    assert.equal((await estimate(legacy)).monthlyWeightedMinutes, null, 'older cached runComplete semantics cannot authorize an estimate');
+  }
+});
+
+test('CI whole-run eligibility propagates missing attempt data and timing gaps to every sample', async t => {
+  for (const fault of ['empty', 'page', 'identity', 'future', 'timing', 'weight', 'attempt-cap']) {
+    const api = baseApi([run(1, { run_attempt: 2 })]);
+    const latest = `repos/${repo}/actions/runs/1/attempts/2/jobs`;
+    const bad = { identity: { run_id: 8 }, future: { completed_at: stamp(-1) }, timing: { started_at: null }, weight: { labels: ['acme-unknown'] } }[fault] ?? {};
+    api[latest] = page('jobs', fault === 'empty' ? [] : [job(102, 1, { run_attempt: 2, ...bad })]);
+    if (fault === 'page') delete api[latest];
+    const report = await read(t, api, { days: 28, ...(fault === 'attempt-cap' ? { limits: { attempts: 1 } } : {}) });
+    assert.equal(report.coverage.complete, false, fault);
+    assert.ok(report.workflows[0].runs.length > 0);
+    assert.ok(report.workflows[0].runs.every(r => r.runComplete === false), `${fault}: earlier valid rows cannot claim whole-run eligibility`);
+  }
+  const skipped = await read(t, baseApi([run(1)], [job(101), job(102, 1, { conclusion: 'skipped', started_at: stamp(29 * 1440), completed_at: stamp(29 * 1440) })]), { days: 28 });
+  assert.equal(skipped.workflows[0].runs[0].runComplete, true, 'positively skipped zero execution does not truncate a run cost');
+});
+
+test('CI workflow creation bounds event exposure and cached provenance without inventing quiet days', async t => {
+  const { adoptionCost } = await import('../lib/ci-adoption.mjs');
+  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const path = '.github/workflows/check.yml', metadata = `repos/${repo}/actions/workflows/check.yml`;
+  const api = baseApi(); api[`repos/${repo}`].created_at = stamp(7 * 1440); api[metadata].created_at = stamp(7 * 60);
+  const estimate = async (report, schedule = false) => {
+    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: [schedule ? 'schedule' : 'push'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+  };
+  const report = await read(t, api, { days: 28, workflow: 'check.yml' });
+  assert.equal(report.window.observedDays, 7 / 24);
+  assert.equal(report.window.workflowCreatedAt, stamp(7 * 60));
+  assert.equal(report.window.observedSince, stamp(7 * 60));
+  assert.equal((await estimate(report)).monthlyWeightedMinutes, 102.86, 'one minute over seven hours, not seven repository days');
+  for (const mutate of [r => { delete r.window.workflowCreatedAt; }, r => { r.window.workflowCreatedAt = stamp(-1); }, r => { r.window.observedDays = 7; }, r => { r.window.workflowPath = '.github/workflows/other.yml'; }]) {
+    const bad = structuredClone(report); mutate(bad);
+    assert.equal((await estimate(bad)).monthlyWeightedMinutes, null);
+  }
+  for (const bad of [null, { ...api[metadata], created_at: 'bad' }, { ...api[metadata], path: '.github/workflows/other.yml' }]) {
+    const missing = { ...api, [metadata]: bad };
+    const history = await read(t, missing, { days: 28, workflow: 'check.yml' });
+    assert.equal(history.coverage.complete, true);
+    assert.equal(history.coverage.exposureUnavailable, true);
+    assert.equal((await estimate(history)).monthlyWeightedMinutes, null);
+    history.workflows[0].runs[0].event = 'schedule';
+    assert.equal((await estimate(history, true)).monthlyWeightedMinutes, 30, 'schedule mean does not require event exposure');
+  }
+  assert.equal((await estimate(await read(t, api, { days: 28 }))).monthlyWeightedMinutes, null, 'repository-wide history alone cannot establish workflow event exposure');
+});
+
+test('CI adoption includes dated known-zero scheduled runs but never infers zero from absent execution evidence', async t => {
+  const { adoptionCost } = await import('../lib/ci-adoption.mjs');
+  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const path = '.github/workflows/check.yml';
+  const estimate = async api => {
+    const history = await read(t, api, { days: 28 });
+    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: history } }));
+    const cost = await adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+    return { history, cost };
+  };
+  const zero = job(201, 2, { conclusion: 'skipped', started_at: stamp(2), completed_at: stamp(2), labels: [], runner_id: null });
+  const api = baseApi([run(1, { event: 'schedule' }), run(2, { event: 'schedule', conclusion: 'skipped' })], [job(101, 1, { started_at: stamp(12) })]);
+  api[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', [zero]);
+  const mixed = await estimate(api);
+  assert.equal(mixed.history.weightedMinutes, 10);
+  assert.equal(mixed.cost.monthlyWeightedMinutes, 150, 'ten-minute and dated zero-minute runs both contribute to the mean');
+  api[`repos/${repo}/actions/runs`].workflow_runs.shift();
+  api[`repos/${repo}/actions/runs`].total_count = 1;
+  const allZero = await estimate(api);
+  assert.equal(allZero.cost.monthlyWeightedMinutes, 0);
+  assert.equal(allZero.history.workflows[0].runs[0].runComplete, true);
+  for (const jobs of [[], [{ ...zero, started_at: null, completed_at: null }], [{ ...zero, started_at: stamp(29 * 1440), completed_at: stamp(29 * 1440) }], [{ ...zero, status: 'queued', conclusion: null, started_at: null, completed_at: null }], [{ ...zero, run_id: 99 }]]) {
+    const unknown = structuredClone(api); unknown[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', jobs);
+    assert.equal((await estimate(unknown)).cost.monthlyWeightedMinutes, null);
+  }
+});
+
+test('CI attempt-scoped readers allow absent job attempts but reject present mismatches and foreign identities', async t => {
+  const withoutAttempt = (id, extra = {}) => { const value = job(id, 1, extra); delete value.run_attempt; return value; };
+  const api = baseApi([run(1, { run_attempt: 2 })], [withoutAttempt(101)]);
+  api[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', [withoutAttempt(102)]);
+  const usage = await read(t, api);
+  assert.equal(usage.coverage.complete, true);
+  assert.equal(usage.weightedMinutes, 2);
+  assert.deepEqual(usage.workflows[0].jobs.map(j => j.attempt), [1, 2], 'attempt-scoped request paths supply absent response fields');
+  const reuse = async (jobs, conclusion = 'success') => {
+    const data = gateApi(run(1, { run_attempt: 2, conclusion }));
+    data[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', jobs);
+    return readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api: data }) } });
+  };
+  for (const conclusion of ['success', 'failure']) {
+    const result = await reuse([withoutAttempt(102, { conclusion })], conclusion);
+    assert.equal(result.reused, true);
+    assert.equal(result.attempt, 2);
+    assert.equal(result.status, conclusion === 'success' ? 0 : 1);
+  }
+  for (const extra of [{ run_attempt: null }, { run_attempt: '2' }, { run_attempt: 1 }, { run_attempt: 0 }, { run_attempt: 2.5 }, { run_id: 9 }, { head_sha: 'b'.repeat(40) }]) {
+    const invalid = { ...withoutAttempt(102), ...extra };
+    const data = structuredClone(api); data[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', [invalid]);
+    const unknown = await read(t, data);
+    assert.equal(unknown.coverage.complete, false, JSON.stringify(extra));
+    assert.equal(unknown.weightedMinutes, null);
+    assert.equal((await reuse([invalid])).reused, false, JSON.stringify(extra));
   }
 });

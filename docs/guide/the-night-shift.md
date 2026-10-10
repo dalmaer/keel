@@ -291,21 +291,29 @@ Both adoption paths preview only workflows they would create, with triggers,
 history source/window and monthly weighted-minute estimates. They query the
 same production reader for each workflow's history in `dalmaer/keel` (override
 with `ci.historyRepo`). Daily/weekly scheduled runs use the proposed schedule
-and observed mean cost including retries. Logical runs with unfinished latest
-attempts are excluded in their entirety from adoption samples, including
+and observed mean cost including retries. Completed logical runs whose jobs
+are all positively skipped at known in-window times supply zero-cost samples;
+empty job lists and undated skips do not establish such a sample. Logical runs with unfinished latest
+attempts, out-of-window non-skipped jobs, or incomplete job reads are excluded
+in their entirety from adoption samples, including
 earlier completed attempts; their completed jobs still count in window usage.
-Cached attempt rows require explicit boolean `runComplete` provenance; older
-caches lacking it must be refreshed. Other events use the source's
+Cached attempt rows require explicit boolean `runComplete` provenance and
+`assumptions.logicalRunBasis` matching the reader; older caches must be
+refreshed. Whole-run eligibility requires all non-skipped jobs across all
+attempts to contribute, even when an excluded attempt has no in-window rows. Other events use the source's
 observed event rate scaled to 30 days, **not a nightly frequency**. Target
 activity may differ. Estimates reuse source per-run runtime: target setup, gate
 and runtime may differ too. This is not a benchmark of the new project.
 Requested history and observed exposure are separate:
-`window.observedSince` is the later of requested start and repository
-creation time (the API’s created_at field), with fractional `observedDays` as the event-rate denominator.
+`window.observedSince` is the latest of requested start, repository creation,
+and workflow creation for per-workflow history. The reader fetches workflow
+metadata separately and records `window.workflowPath` and
+`window.workflowCreatedAt`; fractional `observedDays` as the event-rate denominator.
 Quiet days count; the first returned run does not set exposure. Missing or
-invalid repository age makes event projections unknown, while a schedule-only
+invalid repository or workflow age makes event projections unknown, while a schedule-only
 mean × cadence estimate remains possible. Cached exposure must match these
-dates and arithmetic. Unsupported schedules or incomplete/missing history yield
+dates, workflow identity, and arithmetic. Repository-wide cached history cannot
+supply workflow event exposure. Unsupported schedules or incomplete/missing history yield
 unknown estimates and an unknown total. Preview installs no schedules.
 
 For offline preview, `.keel/ci-history.json` may hold

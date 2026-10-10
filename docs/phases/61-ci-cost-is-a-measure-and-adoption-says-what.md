@@ -74,3 +74,5 @@ After merge and successful default-branch CI, verify reuse from a clean checkout
 - **2026-10-09** — Monthly event estimates use actual repository exposure, not days before it existed. Cached weights, windows and source identity are validated; scheduled means and event rates remain distinct. Real Keel history exercised the positive path, while month-long predictive accuracy remains an owner walk.
 
 - **2026-10-10** — A completion-based usage window excludes and discloses active work; otherwise the night invalidates its own report. Adoption averages require the whole logical run to finish, including retries. Incomplete completed-job data remains a gap. [Review evidence](../evidence/2026-10-09-ci-usage.md).
+
+- **2026-10-10** — Per-run estimates exclude partial-window logical runs, retain positively dated zero-cost runs, and use workflow age for event exposure. A completed-window total and a complete per-run sample answer different questions. [Review evidence](../evidence/2026-10-09-ci-usage.md).
