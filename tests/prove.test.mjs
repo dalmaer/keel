@@ -347,6 +347,47 @@ test('a test named like a suite path is never matched to the nested test it read
   assert.equal(j.reason, 'what failed without the fix did not pass with it (skipped, todo or not run): a > b');
 });
 
+// ---- Codex's fifth round on #55 --------------------------------------------
+
+test('a suite is not a test: an empty suite where the failing test was is no proof', async t => {
+  const dir = await repo(t);
+  // Without the fix: test 'works' fails. With it: an empty suite 'works', which "passes" having run nothing.
+  await writeFile(join(dir, 'tests', 'empty.test.mjs'), [
+    "import { describe, test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { add } from '../lib/add.mjs';",
+    "if (add(1, 2) !== 3) test('works', () => { assert.equal(add(1, 2), 3); });",
+    "else describe('works', () => {});", ''].join('\n'));
+  const j = await prove(dir, ['tests/empty.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.equal(j.reason, 'the file ran no test');
+  assert.equal(j.with.tests, 0);
+});
+
+test('a test script that sets environment inline is not run without it: INCONCLUSIVE', async t => {
+  const dir = await repo(t);
+  // As the project runs it, ACME_EXPECT=-1 makes the test green with the bug; without it, it would read as a proof.
+  const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+  await writeFile(join(dir, 'package.json'), `${JSON.stringify({ ...pkg, scripts: { test: 'ACME_EXPECT=-1 node --import ./tests/setup.mjs --test tests/*.test.mjs' } }, null, 2)}\n`);
+  commitAll(dir, 'acme: the expected sum, inline');
+  await writeFile(join(dir, 'tests', 'env.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib/add.mjs';\ntest('the expected sum', () => { assert.equal(add(1, 2), Number(process.env.ACME_EXPECT ?? 3)); });\n");
+  const j = await prove(dir, ['tests/env.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.equal(j.reason, 'the test script sets environment inline (ACME_EXPECT=-1): keel runs node --test without it; name the runner in .keel/keel.json "prove" instead');
+  const { inlineEnv } = await import('../lib/prove.mjs');
+  assert.deepEqual([inlineEnv('node --import ./x.mjs --test --test-reporter=spec'), inlineEnv('export A=1 && node --test'), inlineEnv('cross-env A=1 node --test')], [null, 'export A=1', 'cross-env']);
+});
+
+test('a sparse checkout is not reproduced by a full scratch copy: INCONCLUSIVE', async t => {
+  const dir = await repo(t);
+  commitAll(dir, 'acme: the fix');
+  git(dir, ['sparse-checkout', 'set', 'lib', 'tests']);
+  const r = keel(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--json'], dir);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.equal(r.json().verdict, 'INCONCLUSIVE');
+  assert.match(r.json().reason, /^this checkout is sparse \(core\.sparseCheckout\)/);
+});
+
 test('a workspace package linked from node_modules is the scratch copy\'s own: the test never loads or writes the user\'s source', async t => {
   const dir = await repo(t);
   await writeFile(join(dir, '.gitignore'), 'node_modules/\n');
