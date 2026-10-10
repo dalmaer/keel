@@ -66,7 +66,7 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 
 ## Next action
 
-⚑ Owner: assess the usefulness of a Codex cross-review on a Ledger change authored by Claude. Configuration was enabled in [Ledger PR #105](https://github.com/dalmaer/ledger/pull/105); that configuration change does not prove the owner assessment. Phases 46 and 47 own the later sandbox and provider changes.
+⚑ Owner: assess the usefulness of a Codex cross-review on a Ledger change authored by Claude. The configuration history below does not prove the owner assessment. Phases 46 and 47 own the later sandbox and provider changes.
 
 ## Trajectory
 
@@ -74,6 +74,8 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 - **2026-10-07** — Findings became data: no agent holds a comment tool; keel's step validates each finding against the PR's diff hunks and posts one COMMENT review. Its comments are now `github-actions[bot]`'s, so `cross_review_valid`'s tally counts them by a marker.
 - **2026-10-07** — Cross-review is still one job with pull-requests: write; Codex is contained by its read-only, no-network sandbox and a blanked GH_TOKEN, Claude by read-only tools. Splitting it into agent and publish jobs, as climb and tend are, is the next hardening.
 - **2026-10-07** — The owner's rule: a PR is always reviewed by a different provider than the one that wrote it. The reviewer is derived per PR from its author (the provider whose branch, `claude/` or `codex/`, its head starts with): the first other provider `"agents"` lists. A prefix whose author has no other provider listed, or an `agent` equal to a prefix's author, is a config error; a run that would review its own author ends red with no agent run. `codex/` matches the fleet; OpenAI does not document it.
-- **2026-10-07** — Switched on for ledger (ledger#105): `OPENAI_API_KEY` set by the owner, `"agents": {"claude": {}, "codex": {}}`, and `crossReview.for: ["codex/", "claude/"]`; ledger's own reviewerOf routes codex/ to Claude and claude/ to Codex.
+- **2026-10-07** — Switched on for ledger ([Ledger PR #105](https://github.com/dalmaer/ledger/pull/105)): `OPENAI_API_KEY` set by the owner, `"agents": {"claude": {}, "codex": {}}`, and `crossReview.for: ["codex/", "claude/"]`; ledger's own reviewerOf routes codex/ to Claude and claude/ to Codex.
 
 - **2026-10-09** — Reconciled current architecture with phases 46 and 47: split review/publication and Codex agent-git transfer supersede the original one-job/Claude-only restrictions. Historical trajectory is preserved, and the owner usefulness assessment remains unchecked.
+
+- **2026-10-10** — Historical enablement belongs in the trajectory, not the current owner-assessment action. The default-branch reconciliation walk could not access that private configuration PR with its repository token; this does not establish or refute review usefulness.

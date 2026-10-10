@@ -101,3 +101,9 @@ nor closes phases, adopts decisions or changes acceptance boxes.
 No Ledger PR was merged, no issue closed, no deployment or benchmark run, and
 no production/lived-in claim is made by this verification. Keel's own use is
 initial adoption, not evidence of repeated nights or lived-in reliability.
+
+## Qualified-link correction — 2026-10-10
+
+Default-branch runs 38027064158 and 38031566161 exposed an invented local reference from the label of a qualified Ledger link. The parser now uses the link destination for both extraction and advisory association, preserving standalone bare references, explicit qualifiers, history/fence exclusions and genuine unknown remote observations.
+
+The conductor ran `keel prove tests/reconciliation.test.mjs --name 'linked PR identity owns its label' --fix practices/reconciliation/files/scripts/keel/reconcile.mjs --base 5588093 --trailer`: exit 0, VERIFIED red without and green with the correction. The builder's full reconciliation test file passed 29 checks with no hygiene findings. Separately, phase 45's historical configuration reference moved from its current owner-assessment action to its trajectory, preserving the evidence. Live reconciliation after that record correction returned no findings or unknowns. The final integrated gate is `npm run check`; its result belongs in the commit.

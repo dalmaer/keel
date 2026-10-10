@@ -62,3 +62,5 @@ own reviewed records; this phase did not edit Ledger.
 - **2026-10-04** — Implementation depends on phase 15's shipped repo-local night runtime, which is built. Phase 10's remaining seven-night observation is not a prerequisite to adding another check.
 - **2026-10-04** — Legacy prose stays advisory. The real Ledger audit exposed ordinary review-history false positives; bounded PR wording and explicit reference checks replaced broad matching. Main produces four manual proposals; the corrected branch head retains coverage notes only.
 - **2026-10-04** — Reconciliation ships as an optional standalone practice shared by existing doctor and night checks. Typed metadata augments both phase shapes; no forced migration, status duplication or automatic record application.
+
+- **2026-10-10** — Escape: a qualified Markdown PR link was also interpreted from its label as a local PR, creating an invented reference and failing default-branch reconciliation. The destination now owns its label for extraction and advisory association; unavailable genuine references remain unknown. [Correction proof](../evidence/2026-10-04-reconciliation.md).

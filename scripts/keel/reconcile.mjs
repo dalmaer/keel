@@ -22,6 +22,14 @@ const prKey = value => {
   const m = /^(?:https:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:#|\/pull\/)([1-9]\d*)$/.exec(value);
   return m ? `${m[1]}/${m[2]}#${m[3]}` : null;
 };
+function prosePRs(text, repo) {
+  // A PR link's destination owns its label; do not infer a local PR from it.
+  const references = text.replace(/\[(?:\\.|[^\]\\\n])*\]\(\s*(https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*)\s*\)/g, '$1');
+  const keys = new Set();
+  for (const match of references.matchAll(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*|\b[\w.-]+\/[\w.-]+#[1-9]\d*/g)) keys.add(prKey(match[0]));
+  if (repo) for (const match of references.matchAll(/(?<![\w./-])PR\s*#?([1-9]\d*)\b/gi)) keys.add(`${repo}#${match[1]}`);
+  return keys;
+}
 function refParts(ref) {
   if (!string(ref) || ref.length > 1024) throw Error('invalid record reference');
   const [path, anchor, ...rest] = ref.split('#');
@@ -187,8 +195,7 @@ export async function reconcile({ root, github = false, env = process.env, prFac
       } catch (e) { add('record-schema', path, e.message); }
     }
     if (phase && !phases.some(p => p.doc.path === doc.path)) out.notes.push(issue('legacy-record', path, 'No structured reconciliation references; prose observations are advisory.'));
-    if (phase && repo) for (const match of active(doc).matchAll(/(?<![\w./-])PR\s*#?([1-9]\d*)\b/gi)) prs.add(`${repo}#${match[1]}`);
-    if (phase) for (const match of active(doc).matchAll(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*|\b[\w.-]+\/[\w.-]+#[1-9]\d*/g)) prs.add(prKey(match[0]));
+    if (phase) for (const key of prosePRs(active(doc), repo)) prs.add(key);
   }
   if (github) {
     out.snapshot.remote = 'observed';
@@ -278,9 +285,7 @@ export async function reconcile({ root, github = false, env = process.env, prFac
   for (const doc of docs.filter(d => /^docs\/(phases|projects)\//.test(d.path))) {
     for (const section of doc.sections.filter(s => /deliberately open/i.test(s.title))) for (const d of decisions.values()) if (d.status === 'accepted' && section.lines.some(line => line.includes(d.key))) add('decision-still-open', doc.path, `Open entry points to accepted decision ${d.key}`);
     const currentText = active(doc);
-    const documentPRs = new Set();
-    for (const match of currentText.matchAll(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*|\b[\w.-]+\/[\w.-]+#[1-9]\d*/g)) documentPRs.add(prKey(match[0]));
-    if (repo) for (const match of currentText.matchAll(/(?<![\w./-])PR\s*#?([1-9]\d*)\b/gi)) documentPRs.add(`${repo}#${match[1]}`);
+    const documentPRs = prosePRs(currentText, repo);
     const nextLines = new Set(doc.sections.filter(s => /^Next action\b/i.test(s.title)).flatMap(s => s.lines));
     for (const paragraph of currentText.split(/\n\s*\n/)) if (/^\*\*Next action[.:]?\*\*/i.test(paragraph.trim())) for (const line of paragraph.split('\n')) nextLines.add(line);
     for (const line of currentText.split('\n')) {
@@ -290,11 +295,11 @@ export async function reconcile({ root, github = false, env = process.env, prFac
       if (!pendingPR && !reviewPR && !(nextLines.has(line) && /\breview\b.*\b(?:PR|pull request)\b/i.test(line))) continue;
       const concreteUnresolved = /\b(?:the|this)\s+draft\s+(?:PR|pull request)\b/i.test(line) || (nextLines.has(line) && /\breview\b.*\b(?:PR|pull request)\b/i.test(line));
       if (!documentPRs.size && concreteUnresolved) out.notes.push(issue('pr-reference-unresolved', doc.path, 'Current draft/review wording needs a repo-qualified PR reference before its state can be checked.', { confidence: 'advisory', observed: line.trim() }));
+      const linePRs = prosePRs(line, repo);
       for (const key of documentPRs) {
         const fact = out.snapshot.prs[key];
         if (!fact) continue;
-        const n = key.split('#')[1];
-        const direct = line.includes(key) || line.includes(fact.html_url) || (repo && key.startsWith(`${repo}#`) && new RegExp(`(?<![\\w./-])PR\\s*#?${n}\\b`, 'i').test(line));
+        const direct = linePRs.has(key);
         if ((!direct && documentPRs.size !== 1) || (!fact.merged_at && fact.state !== 'closed' && !(/\bdraft\b/i.test(line) && !fact.draft))) continue;
         out.notes.push(issue('pr-state-contradiction', doc.path, `Prose may describe ${key} as pending; GitHub reports ${fact.merged_at ? 'merged' : fact.state}. Review wording; do not infer acceptance.`, { confidence: 'advisory', association: direct ? 'explicit reference' : 'single same-document PR reference', source: { pr: key, ...fact, observed_at: observedAt }, observed: line.trim() }));
       }
