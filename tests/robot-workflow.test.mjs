@@ -244,3 +244,20 @@ test('robot publisher runs for blocked-only triage scans without a selected issu
  assert.match(publish,/name: robot-plan/);
  assert.match(publish,/run: node scripts\/keel\/robot\.mjs publish --json/);
 });
+
+test('robot publisher learns whether model or judge time was spent',async()=>{
+ const text=await readFile(workflow,'utf8');
+ const section=name=>text.split(`\n  ${name}:\n`)[1].split(/\n  [a-z-]+:\n/)[0];
+ const expression=(name,output)=>new RegExp(`^      ${output}: \\$\\{\\{ (.+) \\}\\}$`,'m').exec(section(name))?.[1];
+ assert.equal(expression('agent','model_ran'),"(steps.build_claude.outcome != '' && steps.build_claude.outcome != 'skipped') || (steps.build_codex.outcome != '' && steps.build_codex.outcome != 'skipped')");
+ assert.equal(expression('judge','judge_ran'),"steps.judge.outcome != '' && steps.judge.outcome != 'skipped'");
+ assert.match(section('publish'),/^          ROBOT_MODEL_RAN: \$\{\{ needs\.agent\.outputs\.model_ran \}\}$/m);
+ assert.match(section('publish'),/^          ROBOT_JUDGE_RAN: \$\{\{ needs\.judge\.outputs\.judge_ran \}\}$/m);
+ // Evaluate the expressions: a step skipped after an Install failure spent nothing.
+ const evaluate=(source,steps)=>Function('steps',`return ${source.replaceAll(' != ',' !== ')};`)(steps);
+ const model=(claude,codex)=>evaluate(expression('agent','model_ran'),{build_claude:{outcome:claude},build_codex:{outcome:codex}});
+ for(const [claude,codex] of [['skipped','skipped'],['','skipped'],['','']])assert.equal(model(claude,codex),false);
+ for(const [claude,codex] of [['success','skipped'],['failure','skipped'],['cancelled','skipped'],['skipped','failure']])assert.equal(model(claude,codex),true);
+ for(const outcome of ['skipped',''])assert.equal(evaluate(expression('judge','judge_ran'),{judge:{outcome}}),false);
+ assert.equal(evaluate(expression('judge','judge_ran'),{judge:{outcome:'failure'}}),true);
+});

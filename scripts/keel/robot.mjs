@@ -1,14 +1,14 @@
 // Trusted robot orchestration. Issue/comment content is data, never executable policy.
 import { readFile, writeFile, mkdir, rm, mkdtemp, symlink } from 'node:fs/promises';
 import { existsSync, appendFileSync } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { robotPolicy } from './robot-policy.mjs';
 import { readRobotBudget, robotAdmission } from './robot-budget.mjs';
 import { robotGithub, robotRead, robotPages, robotRepo, robotSha, robotId, robotAssociation, robotAssociationOf, robotContinuation, robotDeliveryMetadata } from './robot-delivery.mjs';
 import { agentsProblems, listedAgents, agentOf, gateEnv, isMain } from './lib.mjs';
-import { sandboxProblems } from './tend.mjs';
+import { sandboxProblems, packageProblem, OFF_LIMITS, INSTALL_FILES } from './tend.mjs';
 import { missingTests, ranOn, packageDirs, lastResult } from './climb.mjs';
 import { prBody } from './pr-body.mjs';
 import { readRuns } from './test-ledger.mjs';
@@ -218,7 +218,9 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     const state = stateOf(comments, repo, issue.number);
     if (!state && comments.some(c=>isBot(c.user) && /^<!-- keel:robot-note [a-f0-9]{64} -->\n<!-- keel:robot-state /.test(String(c.body ?? '')))) return reject('recorded robot state malformed; owner resolution needed');
     const pending = publicationOf(comments, repo, issue.number);
-    if (pending && (!state || pending.commentId > state.commentId)) {
+    // keel#74 follow-up: an intent for the unchanged previous head published
+    // nothing (older publishers saved one, then failed), so it is complete.
+    if (pending && (!state || pending.commentId > state.commentId) && pending.headSha !== pending.plan.previousHead) {
       await revalidateAuthorization({repo,issueNumber:issue.number,authorization:pending.plan.authorization,fresh,github});
       if (pending.plan.issueHash !== sha256(issue.body ?? '')) return reject('pending publication issue changed; owner resolution needed');
       const ref = await github({method:'GET',path:`/repos/${repo}/git/ref/heads/${pending.plan.branch}`});
@@ -320,18 +322,72 @@ export function robotFetch({root,repo,ref,env=process.env}) {
   if (r.error || r.status !== 0) throw new Error('authenticated robot fetch failed');
   return git(root,['rev-parse','FETCH_HEAD']);
 }
-export function robotSandbox(root, base, head) {
-  const problems = sandboxProblems(root, base, head);
-  const files = git(root, ['diff', '--name-only', '--no-renames', '-z', base, head]).split('\0').filter(Boolean);
+const changedPaths = (root, from, to) => git(root, ['diff', '--name-only', '--no-renames', '-z', from, to]).split('\0').filter(Boolean);
+const showAt = (root, ref, path) => { const r = git(root, ['show', `${ref}:${path}`], { allowFail: true }); return r.status === 0 ? r.stdout : null; };
+const scriptsOf = text => { if (text === null) return 'absent'; try { return JSON.stringify(JSON.parse(text)?.scripts ?? null); } catch { return 'unreadable'; } };
+// The robot's own rules for the paths one change touches; `befores` are the
+// commits it is measured against (a merge has one per parent).
+function robotPathProblems(root, files, befores, after) {
+  const problems = [];
   // Both gates use the runtime selected from the trusted checkout. A changed
   // selector cannot be verified under that old environment, even in a subproject.
   for (const path of files) if (/(?:^|\/)(?:\.nvmrc|\.node-version|\.tool-versions)$/.test(path)) problems.push(`${path}: runtime selectors are off limits; the judge uses the trusted base runtime, so runtime changes require owner verification`);
+  // keel#74 follow-up: climb may edit a gate script, the robot may not. The
+  // judge runs the configured gate, and a changed script changes what it runs.
+  for (const path of files) if (basename(path) === 'package.json' && befores.every(b => scriptsOf(showAt(root, b, path)) !== scriptsOf(showAt(root, after, path)))) problems.push(`${path}: "scripts" are off limits to the robot; the judge runs the configured gate, so a changed script requires owner verification`);
   if (files.some(p => /^docs\/(?:phases\/|decisions\/|evidence\/|research\/|projects\/|design\.md$|goals\.json$|ROADMAP\.md$)/.test(p))) problems.push('record changes require owner reconciliation; robot cannot publish phase, decision, evidence or project-record changes');
   if (files.some(p => p.startsWith('.agents/') || p.startsWith('.claude/') || p.startsWith('.codex/') || /(?:^|\/)(?:AGENTS|CLAUDE)\.md$/i.test(p))) problems.push('agent protocols and settings are off limits');
   return problems;
 }
-export async function judgeRobot({ root, config, baseSha, headSha, env = process.env }) {
-  const problems = robotSandbox(root, baseSha, headSha);
+// sandboxProblems' path rules for what a merge itself introduced.
+function mergeProblems(root, commit, parents, files) {
+  const problems = [];
+  for (const path of files) {
+    if (OFF_LIMITS.some(p => (p.endsWith('/') ? path.startsWith(p) : path === p))) problems.push(`${path}: changed by a merge on the agent's branch; ${OFF_LIMITS.join(', ')} are off limits to it`);
+    else if (INSTALL_FILES.includes(basename(path))) problems.push(`${path}: changed by a merge on the agent's branch; an install's own files are off limits to it`);
+    else if (basename(path) === 'package.json') {
+      const whys = parents.map(p => packageProblem(showAt(root, p, path), showAt(root, commit, path)));
+      if (whys.every(Boolean)) problems.push(`${path}: ${whys[0]}`);
+    }
+  }
+  return problems;
+}
+export function robotSandbox(root, base, head) {
+  const problems = sandboxProblems(root, base, head);
+  if (git(root, ['merge-base', '--is-ancestor', base, head], { allowFail: true }).status !== 0) return problems;
+  problems.push(...robotPathProblems(root, changedPaths(root, base, head), [base], head));
+  // keel#74 follow-up: the bundle carries every commit and is pushed as-is, so
+  // each commit meets the same rules; a later revert does not hide a path. A
+  // merge answers only for what it introduced, so merging main stays clean.
+  for (const commit of git(root, ['rev-list', '--reverse', `${base}..${head}`]).split('\n').filter(Boolean)) {
+    const parents = git(root, ['show', '-s', '--format=%P', commit]).split(' ').filter(Boolean);
+    let found;
+    if (!parents.length) found = ['has no parent; the agent\'s history must descend from the base'];
+    else if (parents.length === 1) found = [...sandboxProblems(root, parents[0], commit), ...robotPathProblems(root, changedPaths(root, parents[0], commit), parents, commit)];
+    else {
+      const merged = git(root, ['diff-tree', '--no-commit-id', '--cc', '--name-only', '-z', '-r', commit]).split('\0').filter(Boolean);
+      found = [...mergeProblems(root, commit, parents, merged), ...robotPathProblems(root, merged, parents, commit)];
+    }
+    problems.push(...found.map(p => `commit ${commit.slice(0, 12)}: ${p}`));
+  }
+  return [...new Set(problems)];
+}
+// keel#74 follow-up: commits are pushed verbatim, so a closing keyword in any
+// message would close its target on merge. Only the robot's own issue may be
+// named; without that identity, every closing reference is refused.
+const CLOSING = /\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\b:?\s*(https?:\/\/[^\s<>()[\]]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#\d+|#\d+|gh-\d+)/gi;
+export function robotClosingProblems(root, base, head, { repo, issueNumber } = {}) {
+  const own = robotRepo(repo) && robotId(issueNumber) ? [`#${issueNumber}`, `${repo}#${issueNumber}`, `https://github.com/${repo}/issues/${issueNumber}`].map(s => s.toLowerCase()) : [];
+  const problems = [];
+  for (const commit of git(root, ['rev-list', '--reverse', `${base}..${head}`]).split('\n').filter(Boolean)) {
+    const message = git(root, ['show', '-s', '--format=%B', commit]);
+    // Never echo the reference: shown on GitHub it would notify its target.
+    if ([...message.matchAll(CLOSING)].some(m => !own.includes(m[1].replace(/[.,;:!?]+$/, '').toLowerCase()))) problems.push(`commit ${commit.slice(0, 12)}: its message would close an issue other than the robot's own on merge`);
+  }
+  return problems;
+}
+export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNumber, env = process.env }) {
+  const problems = [...robotSandbox(root, baseSha, headSha), ...robotClosingProblems(root, baseSha, headSha, { repo, issueNumber })];
   if (problems.length) return { ok: false, problems };
   if (baseSha === headSha) return { ok: false, problems: ['no change committed'] };
   const gate = config.check;
@@ -354,6 +410,10 @@ export async function judgeRobot({ root, config, baseSha, headSha, env = process
       results.push(record);
     } finally { git(root, ['worktree', 'remove', '--force', dir], { allowFail: true }); await rm(dir, { recursive: true, force: true }); }
   }
+  // keel#74 follow-up: the candidate's tests run inside its gate and can write
+  // ledger records too. A record beyond what the trusted base's gate wrote could
+  // claim a dropped test passed, so the candidate may not leave more.
+  if (results[1].runs > results[0].runs) return { ok: false, problems: [`candidate gate left ${results[1].runs} test-ledger records for ${headSha}, more than the base gate's ${results[0].runs}; an extra record could forge a passing test`] };
   const missing = missingTests(...results);
   return { ok: !missing.length, problems: missing.map(t => `${t.how}: ${t.file} ${t.name}`), baseSha, headSha };
 }
@@ -390,6 +450,8 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
   if (!budget.complete) throw new Error('publication budget unavailable');
   await revalidateIssue(plan, github);
   if (!robotSha(headSha) || headSha === baseSha || robotSandbox(root, baseSha, headSha).length) throw new Error('candidate fails trusted sandbox');
+  // Read from the publisher's own fetched objects, before any intent or push.
+  if (robotClosingProblems(root, baseSha, headSha, { repo, issueNumber: plan.issueNumber }).length) throw new Error('candidate commit message would close another issue; nothing pushed');
   if (plan.previousHead && git(root, ['merge-base','--is-ancestor',plan.previousHead,headSha], {allowFail:true}).status !== 0) throw new Error('candidate discards continuation history');
   const repository = await robotBase(repo, null, github);
   if (git(root,['check-ref-format','--branch',repository.default_branch],{allowFail:true}).status !== 0) throw new Error('default branch unavailable');
@@ -410,6 +472,9 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
     }
     const mark = metadata.association;
     if (!metadata.authorization || (mark.headSha !== plan.previousHead && !(resuming && mark.headSha === headSha)) || mark.instanceId !== plan.instanceId || mark.author !== plan.author || mark.issueNumber !== plan.issueNumber || mark.repo !== repo) throw new Error('continuation changed; refusing to overwrite');
+    // keel#74 follow-up: a follow-up may end without a new commit (a reply).
+    // There is nothing to push or bind; the caller records the reply's cursor.
+    if (headSha === plan.previousHead) return {prNumber:pr.number,prUrl:pr.html_url,headSha,unchanged:true};
     if (resuming && mark.headSha === headSha) {
       if (mark.cursor !== plan.cursor || JSON.stringify(metadata.authorization) !== JSON.stringify(plan.authorization)) throw new Error('continuation authorization changed');
       return {prNumber:pr.number,prUrl:pr.html_url,headSha};
@@ -585,7 +650,7 @@ export async function robotCli(args, env = process.env) {
     validateRobotPlan(plan,{repo,baseSha:trustedBase});
     git(root,['fetch','--no-tags',join(temp,'handoff/robot.bundle'),`refs/heads/${plan.branch}`]);
     const headSha=git(root,['rev-parse','FETCH_HEAD']);
-    const result=await judgeRobot({root,config,baseSha:trustedBase,headSha});
+    const result=await judgeRobot({root,config,baseSha:trustedBase,headSha,repo,issueNumber:plan.issueNumber});
     if (!result.ok) throw new Error(result.problems.join('; '));
     await write('robot-judgment.json',result); outputs({head:headSha}); return result;
   }
@@ -618,7 +683,13 @@ export async function robotCli(args, env = process.env) {
     if (plan.state !== 'ready') throw new Error('unsupported publication plan state');
     validateRobotPlan(plan,{repo,baseSha:trustedBase});
     const message=await readFile(join(temp,'handoff/message.txt'),'utf8').catch(()=> 'Agent supplied no final message.');
-    if (env.ROBOT_JUDGE_OK !== 'true') { await robotComment({plan,result:{state:'failed',reason:'Agent or trusted judge failed; no PR published.'},message}); return finish({state:'failed'}); }
+    if (env.ROBOT_JUDGE_OK !== 'true') {
+      // keel#74 follow-up: only spent model or judge time marks the issue worked.
+      // An infrastructure failure before either posts no state, so the next scan retries.
+      if (env.ROBOT_MODEL_RAN === 'true' || env.ROBOT_JUDGE_RAN === 'true') { await robotComment({plan,result:{state:'failed',reason:'Agent or trusted judge failed; no PR published.'},message}); return finish({state:'failed'}); }
+      await robotComment({plan,result:{state:'blocked',reason:'Robot infrastructure failed before the agent or judge ran; no PR published. The next scan retries this issue.'}});
+      return finish({state:'blocked',retry:true});
+    }
     const judgment=await json(join(temp,'judged/robot-judgment.json'));
     if (!judgment.ok || judgment.baseSha !== trustedBase || !robotSha(judgment.headSha) || judgment.headSha !== env.ROBOT_JUDGED_HEAD) throw new Error('judged identity mismatch');
     git(root,['fetch','--no-tags',join(temp,'handoff/robot.bundle'),`refs/heads/${plan.branch}`]);
@@ -630,7 +701,7 @@ export async function robotCli(args, env = process.env) {
       await robotComment({plan,result:{state:'blocked',reason:`Publication blocked: ${error.message}`},message});
       throw error;
     }
-    await robotComment({plan,result:{...result,state:'published',reason:`Published; ${plan.reviewer} review is pending.`},message});
+    await robotComment({plan,result:{...result,state:'published',reason:result.unchanged ? 'No new commit; the pull request is unchanged.' : `Published; ${plan.reviewer} review is pending.`},message});
     outputs({pr:result.prNumber,head:headSha});return finish(result);
   }
   if(command==='review-prepare') {

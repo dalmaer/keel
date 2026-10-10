@@ -32,6 +32,9 @@ jobs:
       ready: ${{ steps.prepare.outputs.ready }}
       issue: ${{ steps.prepare.outputs.issue }}
       triage: ${{ steps.prepare.outputs.triage }}
+      # Whether model time was spent: an earlier failure (Install, say) skips it,
+      # and the publisher then leaves the issue for the next scan (keel#74 follow-up).
+      model_ran: ${{ (steps.build_claude.outcome != '' && steps.build_claude.outcome != 'skipped') || (steps.build_codex.outcome != '' && steps.build_codex.outcome != 'skipped') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -265,6 +268,7 @@ jobs:
       contents: read
     outputs:
       head: ${{ steps.judge.outputs.head }}
+      judge_ran: ${{ steps.judge.outcome != '' && steps.judge.outcome != 'skipped' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -377,6 +381,8 @@ jobs:
           ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
           ROBOT_JUDGE_OK: ${{ needs.judge.result == 'success' }}
           ROBOT_JUDGED_HEAD: ${{ needs.judge.outputs.head }}
+          ROBOT_MODEL_RAN: ${{ needs.agent.outputs.model_ran }}
+          ROBOT_JUDGE_RAN: ${{ needs.judge.outputs.judge_ran }}
         run: node scripts/keel/robot.mjs publish --json
   review-agent:
     outputs:
