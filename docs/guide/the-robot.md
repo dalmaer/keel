@@ -119,8 +119,18 @@ Runtime changes require owner verification. Both gates run under the runtime
 selected from the trusted checkout, so the robot refuses changes to `.nvmrc`,
 `.node-version` and `.tool-versions`, including nested files, deletion and rename.
 Existing guards also protect workflows, keel configuration and package metadata
-such as `engines`, `volta`, `devEngines` and `packageManager`; ordinary gate scripts
-remain editable.
+such as `engines`, `volta`, `devEngines` and `packageManager`. Unlike climb, the
+robot may not change any package.json `"scripts"`: the judge runs the configured
+gate, so a changed script needs owner verification. The judge also refuses a
+candidate whose gate leaves more test-ledger records for its head than the base's
+gate wrote, since an extra record could claim a dropped test passed.
+
+The pushed bundle carries every commit, so each commit meets the same path rules
+as the whole change; a later revert does not hide an off-limits path. A merge
+answers only for what it introduced, so the robot's own merge of the default
+branch into a follow-up stays clean. Commit messages are pushed verbatim: the
+judge and the publisher refuse a closing keyword (`close`, `fix`, `resolve` and
+their forms) aimed at anything but the robot's own issue.
 
 Continuations preserve the PR description, including owner edits. Its initial
 association anchors identity; a canonical bot comment binds each later judged
@@ -130,7 +140,13 @@ without duplicating its comment. Reviews resolve the association for their own
 commit, so unanswered earlier reviews remain visible. Agent text has Markdown
 controls escaped and closing verbs visibly interrupted (for example, `C·loses`);
 only the trusted task reference emits an issue-closing directive. These display
-changes do not alter filenames or identity checks.
+changes do not alter filenames or identity checks. A follow-up that ends without
+a new commit publishes nothing: the PR is left as it is and the reply is recorded
+on the issue.
+
+A failure before any model or judge time (an install, say) posts a notice
+without recorded state, so the next scan retries the issue; once the agent or
+judge has run, a failure is recorded and waits for a fresh writer action.
 
 The owner walk is still required: choose a project and allowance, enable the
 practice there, and read three small issues' PRs and reviews before deciding to
