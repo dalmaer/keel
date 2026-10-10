@@ -1329,7 +1329,10 @@ becomes a PR on `keel/robot-<issue>` that a person merges.
   files one this way, when the three boxes hold, and goes on.**
 - **When it runs**: the `keel:agent` label put on an issue, a labelled issue
   reopened, a comment on one from an OWNER, MEMBER or COLLABORATOR (never a
-  bot, never on a PR), Mondays for anything missed, or a dispatch. One
+  bot, never on a PR), Mondays for anything missed, or a dispatch. That
+  association only lets the run start: the script asks GitHub each
+  commenter's, labeller's and reopener's permission (write, maintain or
+  admin), and nobody else's comment, label or reopen counts. One
   issue at a time per project (one concurrency group). The event only
   wakes it: `node scripts/keel/robot.mjs pick` chooses the oldest labelled
   issue never worked, or with a writer's comment (or a reopen, or the label

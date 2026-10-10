@@ -22,7 +22,19 @@ const BOT = { login: 'github-actions[bot]', type: 'Bot' };
 const OWNER = { login: 'acme-owner', type: 'User' };
 
 /** robot.mjs as a project has it (beside the night's lib.mjs), loaded once. */
-let loaded = null, crossLoaded = null;
+let loaded = null, crossLoaded = null, robotMod = null;
+/**
+ * Who has write access in these tests (PR #59: GitHub's permission, never the association): the owner (admin)
+ * and acme-dev (write). Everyone else reads. The fake gh answers the same (fakeGithub permissions).
+ */
+const PERMISSIONS = Object.freeze({ 'acme-owner': 'admin', 'acme-dev': 'write', 'acme-triager': 'triage', 'acme-member': 'read' });
+const WRITER = login => ['admin', 'maintain', 'write'].includes(PERMISSIONS[login]);
+/** The pure rules with this test's writers (pick and the triage ask GitHub instead). */
+const R = {
+  issueState: (i, c, o = {}) => robotMod.issueState(i, c, { writer: WRITER, ...o }),
+  againSince: (s, e, o = {}) => robotMod.againSince(s, e, { writer: WRITER, ...o }),
+  approvalOf: (a, o = {}) => robotMod.approvalOf(a, { writer: WRITER, ...o }),
+};
 /** cross-review.mjs beside the same lib.mjs: loaded with robot.mjs. */
 const crossReviewLib = async () => { await robotLib(); return crossLoaded; };
 const robotLib = () => loaded ??= (async () => {
@@ -34,7 +46,8 @@ const robotLib = () => loaded ??= (async () => {
   for (const f of ['climb.mjs', 'tend.mjs', 'robot.mjs', 'rubric.mjs']) await cp(join(ROBOT_DIR, f), join(keel, f));
   await cp(join(KEEL, 'practices/cross-review/files/scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
   crossLoaded = import(pathToFileURL(join(keel, 'cross-review.mjs')).href);
-  return import(pathToFileURL(join(keel, 'robot.mjs')).href);
+  robotMod = await import(pathToFileURL(join(keel, 'robot.mjs')).href);
+  return robotMod;
 })();
 
 /** An Acme project with the robot's scripts and brief, committed on main. */
@@ -67,6 +80,7 @@ const fx = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'));
 let input = ''; try { input = readFileSync(0, 'utf8'); } catch {}
 appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input }) + '\\n');
 if (args[0] === 'api' && args[1] === 'graphql') { process.stdout.write(JSON.stringify(fx.graphql ?? { data: { repository: { issue: { author: { login: 'acme-owner' }, authorAssociation: 'OWNER', lastEditedAt: null, editor: null, timelineItems: { nodes: [{ createdAt: '2026-10-01T00:00:00Z', label: { name: 'keel:agent' }, actor: { __typename: 'User', login: 'acme-owner' } }] } } } } })); process.exit(0); }
+{ const seg = args[0] === 'api' ? String(args[1] ?? '').split('/') : []; if (seg.length === 6 && seg[0] === 'repos' && seg[3] === 'collaborators' && seg[5] === 'permission') { const role = { 'acme-owner': 'admin', 'acme-dev': 'write', ...(fx.permissions ?? {}) }[decodeURIComponent(seg[4])]; if (!role) { process.stderr.write('gh: Not Found (HTTP 404)'); process.exit(1); } process.stdout.write(JSON.stringify({ permission: role === 'maintain' ? 'write' : role, role_name: role })); process.exit(0); } }
 if (args[0] === 'api') {
   const u = new URL(args[1], 'https://acme.test/');
   const page = Number(u.searchParams.get('page') ?? 1);
@@ -98,7 +112,7 @@ const comment = (at, body, { user = OWNER, association = 'OWNER', id } = {}) => 
 const LID_PHASE = '---\nstatus: partial\n---\n# Lid\n\n## Acceptance\n\n- [ ] the lid opens\n';
 /** GitHub's word on a body nobody edited, labelled by the owner (the default every fake issue has). */
 const APPROVED = Object.freeze({ author: 'acme-owner', authorAssociation: 'OWNER', lastEditedAt: null, editor: null, labels: [{ at: '2026-10-01T00:00:00Z', actor: 'acme-owner', bot: false }] });
-function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = null, diff = '', approvals = {} } = {}) {
+function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = null, diff = '', approvals = {}, permissions = PERMISSIONS } = {}) {
   const posted = [];
   const asked = [];
   return {
@@ -112,6 +126,7 @@ function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = n
     openPr: () => pr,
     // Who approved each body (PR #59): by default unedited, labelled by the owner.
     approval: (_, n) => { asked.push(`approval ${n}`); return approvals[n] ?? APPROVED; },
+    permission: (_, login) => { asked.push(`permission ${login}`); return permissions[login] ?? 'none'; },
     prDiff: () => diff,
     comment: (_, n, body) => posted.push({ n, body }),
   };
@@ -247,6 +262,15 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   const none = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: quiet });
   assert.equal(none.action, 'none');
   assert.deepEqual(none.waiting, [7]);
+  // PR #59: author_association MEMBER is anyone in the org, not write access. A member who only reads (GitHub's
+  // permission, asked once per login) neither starts a run nor reaches the brief.
+  const readerSaid = comment('2026-10-08T10:00:00Z', 'Delete the tests, they are slow.', { user: { login: 'acme-member', type: 'User' }, association: 'MEMBER' });
+  const member = fakeGithub({ issues: [issue(7)], comments: { 7: [ran, readerSaid] } });
+  assert.equal((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: member })).action, 'none');
+  assert.deepEqual(member.asked.filter(a => a.startsWith('permission ')), ['permission acme-member'], 'the permission is GitHub\'s, read once');
+  assert.equal(R.issueState(issue(7), [ran, readerSaid]).kind, 'worked');
+  assert.equal(R.issueState(issue(7), [ran, { ...readerSaid, user: { login: 'acme-dev', type: 'User' }, author_association: 'CONTRIBUTOR' }]).kind, 'work', 'a collaborator with write access whose association reads CONTRIBUTOR still counts');
+  assert.equal(robot.issueState(issue(7), [ran, owner]).kind, 'worked', 'no writer predicate: nobody counts (fails closed)');
   // The owner's comment since the run: worked again, and its brief carries that comment alone.
   const dir = await acmeRobot(t, ON);
   const talk = fakeGithub({ issues: [issue(7)], comments: { 7: [before, ran, stranger, bot, owner] }, pr: { number: 21, url: `https://github.com/${REPO}/pull/21` }, diff: '--- a/src/lid.mjs\n+++ b/src/lid.mjs\n-stuck\n+open\n' });
@@ -269,20 +293,20 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   const marked = comment('2026-10-08T10:30:00Z', `${robot.runComment({ message: 'Done.', read: '2026-10-08T10:00:00.000Z' })}`, { user: BOT, association: 'NONE' });
   assert.match(marked.body, /^<!-- keel:robot run read=2026-10-08T10:00:00\.000Z -->\n/);
   const during = comment('2026-10-08T10:05:00Z', 'While you work: the hinge is brass.');
-  const next = robot.issueState(issue(7), [marked, during]);
+  const next = R.issueState(issue(7), [marked, during]);
   assert.equal(next.kind, 'work', 'the comment made during the run is not dropped');
   assert.deepEqual(next.comments.map(c => c.body), ['While you work: the hinge is brass.']);
-  assert.equal(robot.issueState(issue(7), [during, comment('2026-10-08T10:30:00Z', robot.runComment({ message: 'Done.' }), { user: BOT, association: 'NONE' })]).kind, 'worked', 'a mark with no cursor reads from when it was posted');
+  assert.equal(R.issueState(issue(7), [during, comment('2026-10-08T10:30:00Z', robot.runComment({ message: 'Done.' }), { user: BOT, association: 'NONE' })]).kind, 'worked', 'a mark with no cursor reads from when it was posted');
   // A cursor after its own mark is not believed: the mark's time stands.
   const future = comment('2026-10-08T10:30:00Z', robot.runComment({ message: 'Done.', read: '2026-10-09T00:00:00.000Z' }), { user: BOT, association: 'NONE' });
-  assert.equal(robot.issueState(issue(7), [future, comment('2026-10-08T11:00:00Z', 'Later.')]).kind, 'work');
+  assert.equal(R.issueState(issue(7), [future, comment('2026-10-08T11:00:00Z', 'Later.')]).kind, 'work');
   // PR #59: GitHub stamps a comment to the second. Pick read at 10:00:00.400, having read #11 (10:00:00);
   // #12 came at 10:00:00 too, after the read. #12 starts the next run, and #11 is never read twice.
   const read = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: new Date('2026-10-08T10:00:00.400Z'), env: {}, github: fakeGithub({ issues: [issue(7)], comments: { 7: [comment('2026-10-08T10:00:00Z', 'Same second, read.', { id: 11 })] } }) });
   assert.deepEqual(read.seen, [11], 'the comments read in the cursor\'s own second');
   const sameSecond = comment('2026-10-08T10:20:00Z', robot.runComment({ message: 'Done.', read: read.read, seen: read.seen }), { user: BOT, association: 'NONE' });
   assert.match(sameSecond.body, /^<!-- keel:robot run read=2026-10-08T10:00:00\.400Z seen=11 -->\n/);
-  const after = robot.issueState(issue(7), [comment('2026-10-08T10:00:00Z', 'Same second, read.', { id: 11 }), comment('2026-10-08T10:00:00Z', 'Same second, after the read.', { id: 12 }), sameSecond]);
+  const after = R.issueState(issue(7), [comment('2026-10-08T10:00:00Z', 'Same second, read.', { id: 11 }), comment('2026-10-08T10:00:00Z', 'Same second, after the read.', { id: 12 }), sameSecond]);
   assert.equal(after.kind, 'work');
   assert.deepEqual(after.comments.map(c => c.id), [12]);
   // PR #59: the brief is bounded: each comment, the comments in all (the newest kept), and the body, each cut said.
@@ -294,16 +318,24 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   assert.match(big, /\(3 earlier comments are left out: the comments here are cut at 16000 characters in all, the newest kept/);
   assert.ok(big.includes('comment 6:') && big.includes('comment 4:') && !big.includes('comment 3:'), 'the newest kept, the oldest left out');
   // A never-worked issue's brief carries every writer's comment, and no stranger's.
-  const fresh = robot.issueState(issue(8), [before, stranger]);
+  const fresh = R.issueState(issue(8), [before, stranger]);
   assert.equal(fresh.kind, 'work');
   assert.deepEqual(fresh.comments.map(c => c.body), ['Before the run: the lid is iron.']);
   // Reopened, or labelled again, by a person since the run: worked again; by a bot: not.
-  const worked = robot.issueState(issue(7), [ran]);
+  const worked = R.issueState(issue(7), [ran]);
   assert.equal(worked.kind, 'worked');
-  assert.equal(robot.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: OWNER }]).kind, 'work');
-  assert.equal(robot.againSince(worked, [{ event: 'labeled', label: { name: LABEL }, created_at: '2026-10-08T00:00:00Z', actor: OWNER }]).kind, 'work');
-  assert.equal(robot.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'acme-bot[bot]', type: 'Bot' } }]).kind, 'worked');
-  assert.equal(robot.againSince(worked, [{ event: 'reopened', created_at: '2026-10-06T00:00:00Z', actor: OWNER }]).kind, 'worked', 'a reopen before the run');
+  assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: OWNER }]).kind, 'work');
+  assert.equal(R.againSince(worked, [{ event: 'labeled', label: { name: LABEL }, created_at: '2026-10-08T00:00:00Z', actor: OWNER }]).kind, 'work');
+  assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'acme-bot[bot]', type: 'Bot' } }]).kind, 'worked');
+  assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-06T00:00:00Z', actor: OWNER }]).kind, 'worked', 'a reopen before the run');
+  // PR #59: anyone who wrote an issue can close and reopen it; only a writer's reopen (or label) sends it back.
+  assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'mallory', type: 'User' } }]).kind, 'worked', 'a reopen by someone without write access');
+  assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'acme-member', type: 'User' } }]).kind, 'worked', 'a reopen by an org member who only reads');
+  const reopened = fakeGithub({ issues: [issue(7)], comments: { 7: [ran] }, events: { 7: [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'mallory', type: 'User' } }] } });
+  assert.equal((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: reopened })).action, 'none', 'pick: a stranger\'s reopen runs nothing');
+  assert.ok(reopened.asked.includes('permission mallory'), 'the reopener\'s permission is GitHub\'s');
+  const ownerReopen = fakeGithub({ issues: [issue(7)], comments: { 7: [ran] }, events: { 7: [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: OWNER }] } });
+  assert.equal((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: ownerReopen })).issue, 7, 'pick: the owner\'s reopen works it again');
   // The oldest issue that needs work goes first.
   const two = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [issue(2), issue(4)] }) });
   assert.equal(two.issue, 2);
@@ -350,8 +382,8 @@ test('the agent\'s last message is posted on the issue under the robot\'s mark, 
   assert.match(robot.runComment({ message: said, judge: 'success', line: 'Robot #12: 0 commits' }), /No pull request: Robot #12: 0 commits\./);
   // The posted comment is the issue's last run: nothing more until a writer answers it.
   const posted = comment('2026-10-09T10:00:00Z', call.input, { user: BOT, association: 'NONE' });
-  assert.equal(robot.issueState(issue(12), [posted]).kind, 'worked');
-  assert.equal(robot.issueState(issue(12), [posted, comment('2026-10-09T11:00:00Z', 'Good; now the box too.')]).kind, 'work');
+  assert.equal(R.issueState(issue(12), [posted]).kind, 'worked');
+  assert.equal(R.issueState(issue(12), [posted, comment('2026-10-09T11:00:00Z', 'Good; now the box too.')]).kind, 'work');
 });
 
 // ---- on, off and the budget ----------------------------------------------------------------
@@ -462,7 +494,7 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const config = { agents: { claude: {}, codex: {} }, robot: { ...ON.robot, agent: 'codex' }, crossReview: { for: ['keel/robot-'] } };
   const dir = await acmeRobot(t, config);
   // An old proof on the base: no phase cites it, and it is still never the robot's to remove (PR #59).
-  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n', 'docs/phases/06-lid.md': LID_PHASE }, 'acme: an old proof');
+  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n', 'docs/phases/06-lid.md': LID_PHASE, 'docs/decisions/0001-lid.md': '# Hinged lids\n', 'docs/projects/lid/phases.md': '# Lid phases\n' }, 'acme: an old proof');
   const guard = () => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'guard', '--job', 'robot', '--base', base, '--json'], { cwd: dir });
   git(dir, ['switch', '-q', '-c', 'keel/robot-12']);
   // Nothing committed: nothing to guard, and nothing to open.
@@ -514,6 +546,10 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     // PR #59: a phase converted to CRLF (and a BOM) on the way to built, or to a ticked box, reads the same.
     [{ 'docs/phases/06-lid.md': LID_PHASE.replace('status: partial', 'status: built').replace(/\n/g, '\r\n') }, /^docs\/phases\/06-lid\.md:2: status partial → built; the robot never marks a phase built/],
     [{ 'docs/phases/06-lid.md': `﻿${LID_PHASE.replace('- [ ] the lid opens', '- [x] the lid opens').replace(/\n/g, '\r\n')}` }, /^docs\/phases\/06-lid\.md:\d+: ticks an acceptance box \("the lid opens"\)/],
+    // PR #59: a deleted record takes its status and boxes with it; refused as evidence is.
+    [{ 'docs/phases/06-lid.md': null }, /^docs\/phases\/06-lid\.md: deletes a record; the robot never removes a phase, project or decision record/],
+    [{ 'docs/decisions/0001-lid.md': null }, /^docs\/decisions\/0001-lid\.md: deletes a record/],
+    [{ 'docs/projects/lid/phases.md': null }, /^docs\/projects\/lid\/phases\.md: deletes a record/],
     [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
@@ -606,16 +642,18 @@ test('an issue whose body was edited after it was labelled, by someone the robot
   const labelled = { at: '2026-10-02T09:00:00Z', actor: 'acme-owner', bot: false };
   const outsider = { author: 'mallory', authorAssociation: 'NONE', lastEditedAt: '2026-10-03T09:00:00Z', editor: 'mallory', labels: [labelled] };
   // Pure: the rule.
-  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: null }).ok, true, 'an outsider\'s body, unedited since a writer labelled it');
-  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: '2026-10-01T09:00:00Z' }).ok, true, 'edited before the label: the labeller read that body');
-  assert.equal(robot.approvalOf(outsider).ok, false, 'edited after the label by its outsider author');
-  assert.match(robot.approvalOf(outsider).why, /its body was last edited 2026-10-03T09:00:00Z by mallory, after acme-owner put keel:agent on it/);
-  assert.equal(robot.approvalOf({ ...outsider, editor: 'acme-owner' }).ok, true, 'edited after the label by the writer who labelled it');
-  assert.equal(robot.approvalOf({ ...outsider, author: 'acme-dev', authorAssociation: 'MEMBER', editor: 'acme-dev' }).ok, true, 'edited by its author, a member');
-  assert.equal(robot.approvalOf({ ...outsider, editor: 'acme-dev' }).ok, false, 'edited by someone else the robot cannot place');
-  assert.equal(robot.approvalOf({ ...outsider, labels: [{ ...labelled, at: '2026-10-04T09:00:00Z' }] }).ok, true, 'labelled again after the edit: approved');
-  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: null, labels: [{ ...labelled, actor: 'acme-bot[bot]', bot: true }] }).ok, false, 'a bot\'s label approves nothing');
-  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: null, labels: [] }).ok, false, 'no label event found: never assumed');
+  assert.equal(R.approvalOf({ ...outsider, lastEditedAt: null }).ok, true, 'an outsider\'s body, unedited since a writer labelled it');
+  assert.equal(R.approvalOf({ ...outsider, lastEditedAt: '2026-10-01T09:00:00Z' }).ok, true, 'edited before the label: the labeller read that body');
+  assert.equal(R.approvalOf(outsider).ok, false, 'edited after the label by its outsider author');
+  assert.match(R.approvalOf(outsider).why, /its body was last edited 2026-10-03T09:00:00Z by mallory, after acme-owner put keel:agent on it/);
+  assert.equal(R.approvalOf({ ...outsider, editor: 'acme-owner' }).ok, true, 'edited after the label by the writer who labelled it');
+  assert.equal(R.approvalOf({ ...outsider, author: 'acme-dev', authorAssociation: 'MEMBER', editor: 'acme-dev' }).ok, true, 'edited by its author, a member');
+  assert.equal(R.approvalOf({ ...outsider, editor: 'acme-dev' }).ok, true, 'edited after the label by another writer');
+  assert.equal(R.approvalOf({ ...outsider, editor: 'acme-member', authorAssociation: 'MEMBER' }).ok, false, 'edited by an org member who only reads: MEMBER is not write access');
+  assert.equal(R.approvalOf({ ...outsider, lastEditedAt: null, labels: [{ ...labelled, actor: 'acme-triager' }] }).ok, false, 'a label put on by someone who can only triage approves nothing');
+  assert.equal(R.approvalOf({ ...outsider, labels: [{ ...labelled, at: '2026-10-04T09:00:00Z' }] }).ok, true, 'labelled again after the edit: approved');
+  assert.equal(R.approvalOf({ ...outsider, lastEditedAt: null, labels: [{ ...labelled, actor: 'acme-bot[bot]', bot: true }] }).ok, false, 'a bot\'s label approves nothing');
+  assert.equal(R.approvalOf({ ...outsider, lastEditedAt: null, labels: [] }).ok, false, 'no label event found: never assumed');
 
   // pick: the outsider-edited issue (#3, the oldest) is not worked and is answered; #5, a writer's edit, is worked.
   const github = fakeGithub({ issues: [issue(3), issue(5)], approvals: { 3: outsider, 5: { ...outsider, author: 'acme-dev', authorAssociation: 'COLLABORATOR', editor: 'acme-dev' } } });

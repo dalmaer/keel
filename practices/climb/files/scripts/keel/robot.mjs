@@ -58,7 +58,7 @@ export const LIMITS = Object.freeze({ budgetMinutes: [5, 2400], runMinutes: [5, 
 export const DEFAULTS = Object.freeze({ runMinutes: 30 });
 /** A run needs at least this many minutes of the week left; less, and it waits. */
 export const MIN_RUN = 5;
-/** Who may start a run with a comment, and whose comments reach the brief: GitHub's author_association for write access. */
+/** The associations the workflow's if: lets through early (a cheap pre-filter only: MEMBER is not write access; writersOf decides). */
 export const ASKERS = Object.freeze(['OWNER', 'MEMBER', 'COLLABORATOR']);
 /** The workflow's bot: the only author of the robot's own comments. */
 export const BOT = 'github-actions[bot]';
@@ -200,8 +200,27 @@ const isBot = c => c?.user?.type === 'Bot' || /\[bot\]$/i.test(c?.user?.login ??
 const fromRobot = c => c?.user?.login === BOT && typeof c.body === 'string';
 const at = s => Date.parse(s ?? '');
 export const bodyHash = body => createHash('sha256').update(String(body ?? '').replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 12);
-/** A comment that may start a run and reaches the brief: a person with write access, never a bot. */
-export const fromWriter = c => !isBot(c) && ASKERS.includes(c?.author_association);
+/**
+ * Write access, as GitHub's permission says it (PR #59): admin, maintain or
+ * write. author_association is not that (MEMBER is anyone in the org, with
+ * whatever access), so the workflow's if: uses it only to skip early, and
+ * the script asks GitHub (writersOf). A writer predicate takes a login.
+ */
+export const WRITE = Object.freeze(['admin', 'maintain', 'write']);
+/** Nobody: the default of every pure rule here, so a caller that forgets to ask GitHub fails closed. */
+const NOBODY = () => false;
+/** A comment that may start a run and reaches the brief: a person with write access (`writer`), never a bot. */
+export const fromWriter = (c, writer = NOBODY) => !isBot(c) && writer(c?.user?.login);
+/** The writer predicate pick and the triage use: each login's permission, read once from GitHub. */
+export function writersOf(github, repo) {
+  const known = new Map();
+  return login => {
+    if (typeof login !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(login)) return false;
+    const k = login.toLowerCase();
+    if (!known.has(k)) known.set(k, WRITE.includes(github.permission(repo, login)));
+    return known.get(k);
+  };
+}
 
 /**
  * One issue's state, pure, from its REST shape and its comments (oldest
@@ -212,7 +231,7 @@ export const fromWriter = c => !isBot(c) && ASKERS.includes(c?.author_associatio
  *   worked        worked, and nobody with write access has said more since.
  * `comments` on work are the writers' comments since the last run.
  */
-export function issueState(issue, comments = []) {
+export function issueState(issue, comments = [], { writer = NOBODY } = {}) {
   const base = { number: issue.number, title: String(issue.title ?? ''), url: issue.html_url ?? null, created: issue.created_at ?? null, hash: bodyHash(issue.body) };
   const mine = comments.filter(fromRobot);
   // The last run: its mark's cursor (when that run read the comments), else when the mark was posted.
@@ -227,7 +246,7 @@ export function issueState(issue, comments = []) {
     const answered = mine.some(c => TRIAGE_RE.exec(c.body)?.[1] === hash);
     return { ...base, kind: answered ? 'waits-rubric' : 'triage', missing, hash };
   }
-  const writers = comments.filter(fromWriter);
+  const writers = comments.filter(c => fromWriter(c, writer));
   const since = lastRun ? writers.filter(c => second(c.created_at) >= second(lastRun) && !seen.has(String(c.id))) : writers;
   if (!lastRun) return { ...base, kind: 'work', fresh: true, lastRun, comments: since };
   if (since.length) return { ...base, kind: 'work', fresh: false, lastRun, comments: since };
@@ -236,12 +255,13 @@ export function issueState(issue, comments = []) {
 
 /**
  * A worked issue reopened, or labelled keel:agent again, since its last run
- * (by a person: a bot's event never counts) is work again, with no new
- * comment. `events` is the issue's events API list. Pure.
+ * by a person with write access (`writer`, PR #59: anyone who wrote an
+ * issue can close and reopen it; a bot's event never counts) is work again,
+ * with no new comment. `events` is the issue's events API list. Pure.
  */
-export function againSince(state, events = []) {
+export function againSince(state, events = [], { writer = NOBODY } = {}) {
   if (state.kind !== 'worked') return state;
-  const again = events.find(e => at(e?.created_at) > at(state.lastRun) && e?.actor?.type !== 'Bot' && !/\[bot\]$/i.test(e?.actor?.login ?? '')
+  const again = events.find(e => at(e?.created_at) > at(state.lastRun) && e?.actor?.type !== 'Bot' && !/\[bot\]$/i.test(e?.actor?.login ?? '') && writer(e?.actor?.login)
     && (e.event === 'reopened' || (e.event === 'labeled' && e.label?.name === LABEL)));
   return again ? { ...state, kind: 'work', fresh: false, again: again.event, comments: [] } : state;
 }
@@ -259,32 +279,30 @@ export function choose(states) {
 //
 // PR #59: the label is the approval. Only someone who can label issues puts keel:agent on one, but anyone
 // who wrote the issue can edit its body after. So the body worked is one a person approved: unedited since
-// a person (never a bot) last put keel:agent on it, or last edited by a writer (the person who labelled it,
-// or the issue's author when the author has write access). Otherwise one comment asks a writer to put the
-// label on again, and the issue is not worked.
+// a person with write access (never a bot) last put keel:agent on it, or last edited by a person with write
+// access (GitHub's permission, writersOf). Otherwise one comment asks a writer to put the label on again,
+// and the issue is not worked.
 
 const APPROVE_RE = /<!-- keel:robot approve ([0-9a-f]{12}) -->/;
 export const approveMark = hash => `<!-- keel:robot approve ${hash} -->`;
-const sameLogin = (a, b) => typeof a === 'string' && typeof b === 'string' && a.replace(/\[bot\]$/i, '').toLowerCase() === b.replace(/\[bot\]$/i, '').toLowerCase();
 
 /**
  * Whether the body as it stands was approved, pure: { ok, why }. `a` is
  * what GitHub says of the issue: { author, authorAssociation, lastEditedAt,
  * editor, labels: [{ at, actor, bot }] } (the keel:agent labelled events).
  */
-export function approvalOf(a) {
-  const label = (a?.labels ?? []).filter(l => l?.actor && !l.bot && Number.isFinite(at(l.at))).sort((x, y) => at(x.at) - at(y.at)).at(-1);
-  if (!label) return { ok: false, why: `no person's ${LABEL} label was found on it` };
+export function approvalOf(a, { writer = NOBODY } = {}) {
+  const label = (a?.labels ?? []).filter(l => l?.actor && !l.bot && Number.isFinite(at(l.at)) && writer(l.actor)).sort((x, y) => at(x.at) - at(y.at)).at(-1);
+  if (!label) return { ok: false, why: `no ${LABEL} label put on it by a person with write access was found` };
   if (!a.lastEditedAt || at(a.lastEditedAt) <= at(label.at)) return { ok: true, why: `${label.actor} put ${LABEL} on it after its last edit` };
-  if (sameLogin(a.editor, label.actor)) return { ok: true, why: `last edited by ${a.editor}, who put ${LABEL} on it` };
-  if (sameLogin(a.editor, a.author) && ASKERS.includes(a.authorAssociation)) return { ok: true, why: `last edited by its author ${a.editor}, who has write access (${a.authorAssociation})` };
-  return { ok: false, why: `its body was last edited ${a.lastEditedAt}${a.editor ? ` by ${a.editor}` : ''}, after ${label.actor} put ${LABEL} on it (${label.at}), and the robot cannot tell that editor has write access` };
+  if (writer(a.editor)) return { ok: true, why: `last edited by ${a.editor}, who has write access` };
+  return { ok: false, why: `its body was last edited ${a.lastEditedAt}${a.editor ? ` by ${a.editor}` : ''}, after ${label.actor} put ${LABEL} on it (${label.at}), and that editor has no write access` };
 }
 
 /** A state that would be worked, held to its approval (PR #59): unapproved, answered once per body. Pure. */
-export function withApproval(state, approval, comments = []) {
+export function withApproval(state, approval, comments = [], { writer = NOBODY } = {}) {
   if (state.kind !== 'work') return state;
-  const v = approvalOf(approval);
+  const v = approvalOf(approval, { writer });
   if (v.ok) return { ...state, approved: v.why };
   const answered = comments.some(c => fromRobot(c) && APPROVE_RE.exec(c.body)?.[1] === state.hash);
   return { ...state, kind: answered ? 'waits-approval' : 'unapproved', unapproved: v.why };
@@ -343,6 +361,19 @@ export function githubOf(env = process.env) {
       return list[0] ? { number: list[0].number, url: list[0].html_url } : null;
     },
     prDiff: (repo, n) => ghRun(env, ['pr', 'diff', String(n), '--repo', repo]),
+    // A login's permission on the repo (PR #59): admin, maintain, write, triage, read, or none (not a collaborator).
+    permission: (repo, login) => {
+      const gh = env.KEEL_GH || 'gh';
+      const r = spawnSync(gh, ['api', `repos/${repo}/collaborators/${encodeURIComponent(login)}/permission`], { env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      if (r.error) throw new RobotError(`gh api: ${r.error.code === 'ENOENT' ? `gh is not installed (${gh})` : r.error.message}; the robot never guesses`);
+      if (r.status !== 0) {
+        if (/\b404\b|not found|is not a user/i.test(`${r.stderr}${r.stdout}`)) return 'none';
+        throw new RobotError(`gh api repos/${repo}/collaborators/${login}/permission exited ${r.status}: ${(r.stderr || r.stdout || '').trim().split('\n')[0]}; the robot never guesses`);
+      }
+      let v;
+      try { v = JSON.parse(r.stdout); } catch { throw new RobotError('gh api collaborators permission did not print JSON'); }
+      return String(v?.role_name || v?.permission || 'none');
+    },
     // Who wrote and edited the body, and who labelled it when (PR #59): GraphQL, read whole or not at all.
     approval: (repo, n) => {
       const [owner, name] = repo.split('/');
@@ -396,12 +427,13 @@ export async function pick({ root, config, env = process.env, repo, record = fal
   repo = repoOf(repo, env);
   const states = [];
   let work = null;
+  const writer = writersOf(github, repo);
   for (const issue of github.issues(repo)) {
     const comments = github.comments(repo, issue.number);
-    let s = issueState(issue, comments);
-    if (!work && s.kind === 'worked') s = againSince(s, github.events(repo, issue.number));
+    let s = issueState(issue, comments, { writer });
+    if (!work && s.kind === 'worked') s = againSince(s, github.events(repo, issue.number), { writer });
     // PR #59: only a body a person approved is worked; an unapproved one is answered once, not worked.
-    if (!work && s.kind === 'work') s = withApproval(s, github.approval(repo, issue.number), comments);
+    if (!work && s.kind === 'work') s = withApproval(s, github.approval(repo, issue.number), comments, { writer });
     if (!work && s.kind === 'work') work = { state: s, issue };
     states.push(s);
   }
@@ -649,13 +681,14 @@ export async function triagePost({ env = process.env, repo, issues, postIt = fal
   const numbers = String(issues ?? '').split(/[\s,]+/).filter(Boolean);
   if (numbers.some(n => !/^\d+$/.test(n))) throw new RobotError('triage --issues takes issue numbers');
   const out = [];
+  const writer = writersOf(github, repo);
   for (const n of numbers.slice(0, MAX_TRIAGE).map(Number)) {
     const issue = github.issue(repo, n);
     if (issue?.state !== 'open' || !(issue.labels ?? []).some(l => (l?.name ?? l) === LABEL) || issue.pull_request) { out.push({ issue: n, posted: false, why: `not an open issue labelled ${LABEL}` }); continue; }
     const comments = github.comments(repo, n);
-    let s = issueState(issue, comments);
+    let s = issueState(issue, comments, { writer });
     // PR #59: a body edited since a person approved it is answered once, as pick found it.
-    if (s.kind === 'work') s = withApproval(s, github.approval(repo, n), comments);
+    if (s.kind === 'work') s = withApproval(s, github.approval(repo, n), comments, { writer });
     if (s.kind === 'unapproved') {
       const body = approvalText(s.hash, s.unapproved);
       if (postIt) github.comment(repo, n, body);

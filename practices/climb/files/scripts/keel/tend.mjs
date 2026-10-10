@@ -452,13 +452,16 @@ export function heldProblems(root, before, what) {
  * status changed to built, lived-in or accepted, no acceptance box ticked.
  * [string], each naming the line. `who` names the agent in the text.
  */
+/** The records a deletion of is refused (PR #59), beside docs/evidence/. */
+export const RECORD_DIRS = Object.freeze(['docs/phases/', 'docs/projects/', 'docs/decisions/']);
 export function recordRules(root, base, head, who = 'the agent') {
   const refused = [];
   const changes = changesOf(root, base, head);
   for (const { status, path } of changes) {
     // Evidence first, a deletion too (PR #59): historical proof is kept, whether or not a phase still cites it.
     if (path.startsWith('docs/evidence/')) { refused.push(status.startsWith('D') ? `${path}: deletes evidence; ${who} never removes evidence (historical proof is kept)` : `${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; ${who} never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
-    if (status.startsWith('D')) continue;
+    // PR #59: a deleted phase, project or decision record takes its status and boxes with it: refused, as evidence is.
+    if (status.startsWith('D')) { if (RECORD_DIRS.some(d => path.startsWith(d))) refused.push(`${path}: deletes a record; ${who} never removes a phase, project or decision record (propose it for the owner instead)`); continue; }
     if (!path.endsWith('.md')) continue;
     const before = showAt(root, base, path), after = showAt(root, head, path);
     const a = frontStatus(after), b = frontStatus(before);
