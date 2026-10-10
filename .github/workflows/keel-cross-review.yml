@@ -128,9 +128,12 @@ jobs:
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
     steps:
       # After a push, main's whole history: where the last review ended, and who wrote each commit since.
+      # After a push (keel#65) the event's own commit, the one the publisher
+      # is checked at, never the default branch's tip when this job starts:
+      # a later push could change the scripts this job runs.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.sha || github.event.repository.default_branch }}
           fetch-depth: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && '0' || '1' }}
           persist-credentials: false
       # The config, validated before the secret gate (a bad one, "agents"

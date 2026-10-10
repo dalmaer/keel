@@ -67,7 +67,7 @@
     },
     ".github/workflows/keel-cross-review.yml": {
       "practice": "cross-review",
-      "sha256": "c991d0bd8ec9f5eaedb7a57b33ce94dc80e7cbaf80c0fdc02f53e15f4bf30d05"
+      "sha256": "d00de61f6e8c4aba525619e542d8a3a0a2e7eafdf595234efc6df9ef48d5fd14"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",

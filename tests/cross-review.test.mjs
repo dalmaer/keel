@@ -175,7 +175,8 @@ test('off: with no crossReview key the workflow ends at its first step; with no 
   const steps = text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
   const names = steps.map(s => /^ {6}- (?:name: (.+)|uses: (\S+))/.exec(s)).map(m => m[1] ?? m[2]);
   assert.deepEqual(names.slice(0, 4), ['actions/checkout@v7', 'Is cross-review on?', 'Configured?', 'Which pull request or push?']);
-  assert.match(steps[0], /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/, 'the config is the default branch\'s');
+  // A PR's config is the default branch's; after a push (keel#65), the event's commit the publisher is checked at.
+  assert.ok(steps[0].includes("\n          ref: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.sha || github.event.repository.default_branch }}\n"), 'the config is the default branch\'s, or the pushed commit\'s');
   assert.match(steps[2], /if: steps\.on\.outputs\.on == 'true'/);
   assert.match(steps[3], /if: steps\.configured\.outputs\.enabled == 'true'/);
   for (const s of steps.slice(4)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'(?: && steps\.which\.outputs\.agent == '(?:claude|codex)')?\n/, `step without the guard: ${s.split('\n')[0]}`);
