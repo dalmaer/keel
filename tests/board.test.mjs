@@ -143,7 +143,7 @@ test('keel board --json puts each kind of item in its column, from every source'
     assert.deepEqual(data.items.find(i => i.kind === 'proposal').actions.map(a => [a.verb, ...a.args].join(' ')), ['walk decide --proposal docs/health/2026-10-07.md --accept', 'walk decide --proposal docs/health/2026-10-07.md --decline']);
     assert.deepEqual(data.items.find(i => i.kind === 'lesson').actions.map(a => [a.verb, ...a.args].join(' ')), ['learn decide acme-lesson accepted', 'learn decide acme-lesson declined']);
     assert.deepEqual(data.fleet.map(r => [r.repo, r.ci]), [['acme/app', 'green'], ['acme/site', 'red']]);
-    assert.deepEqual(data.sources.map(s => [s.source, s.state]), [['roadmap', 'ok'], ['loose-ends', 'ok'], ['reviews', 'ok'], ['health', 'ok'], ['inbox', 'ok'], ['fleet', 'ok']]);
+    assert.deepEqual(data.sources.map(s => [s.source, s.state]), [['roadmap', 'ok'], ['loose-ends', 'ok'], ['reviews', 'ok'], ['health', 'ok'], ['inbox', 'ok'], ['robot', 'ok'], ['fleet', 'ok']]);
     assert.deepEqual(data.counts, { owner: 8, broken: 2, agent: 4, time: 2, external: 1 });
     // A fleet row that could not be read: the strip says so, and the source is partial.
     const some = await board({ root }, { ...deps(root), fleet: async () => ({ rows: [...fleetData.rows, { repo: 'acme/lost', role: 'managed', unreadable: 'HTTP 404' }] }) });
@@ -803,4 +803,19 @@ test('round4: board distinguishes same-machine gate configs commands and sources
   assert.match(html, /linux-x64-4cpu: 100 ms[^;]+config=acme-subset command=acme-subset-hash source=explicit-command/);
   assert.match(html, /config=acme-&lt;escaped&gt; command=acme-&lt;hash&gt; source=acme-&lt;source&gt;/);
   assert.doesNotMatch(html, /acme-<(?:escaped|hash|source)>/);
+});
+
+test('board exposes robot OFF exhausted invalid and unavailable usage without enabling work', async t => {
+  const root = await acme(); t.after(() => rm(root, { recursive: true, force: true }));
+  const off = await board({ root }, deps(root));
+  assert.equal(off.robot.policy.enabled, false); assert.equal(off.robot.budget.state, 'off');
+  assert.match(boardText(off), /robot OFF/); assert.match(pageHtml(off, 'acme-token'), /robot OFF/);
+  for (const state of ['exhausted', 'unknown', 'invalid', 'available']) {
+    const got = await board({ root }, { ...deps(root), robotStatus: async () => ({ policy: { valid: state !== 'invalid', enabled: true, weeklyMinutes: 10 }, budget: { state, remainingSeconds: state === 'available' ? 300 : null, reasons: ['Acme usage unavailable'], complete: state === 'available' } }) });
+    assert.equal(got.robot.budget.state, state);
+    if (state !== 'available') {
+      const item = got.items.find(i => i.source === 'robot'); assert.equal(item.waits, state === 'exhausted' ? 'time' : 'broken'); assert.deepEqual(item.actions, []);
+      assert.match(boardText(got), new RegExp(`robot ${state}`));
+    } else assert.match(boardText(got), /300s left for build and review/);
+  }
 });

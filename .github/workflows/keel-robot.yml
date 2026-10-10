@@ -1,0 +1,466 @@
+# Robot extends climb; OFF unless trusted robot.on and budgetMinutes permit it.
+# Build's three trust boundaries: read-only agent, read-only judge, trusted publisher.
+# Review follows explicitly on this same serialized workflow, never by bot-PR triggers.
+name: keel-robot
+on:
+  issues:
+    types: [labeled, reopened]
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: "37 11 * * 1"
+  workflow_dispatch: {}
+concurrency:
+  group: keel-robot
+  cancel-in-progress: false
+permissions: {}
+jobs:
+  agent:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read
+    outputs:
+      ready: ${{ steps.prepare.outputs.ready }}
+      issue: ${{ steps.prepare.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Admit one issue from trusted policy
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROBOT_HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+          ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: node scripts/keel/robot.mjs prepare --json
+      # Upload BEFORE any untrusted agent runs: immutable admission, not agent-written metadata.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: robot-plan
+          path: ${{ runner.temp }}/robot-plan.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Read the config
+        if: steps.prepare.outputs.ready == 'true'
+        id: config
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        if: steps.prepare.outputs.ready == 'true'
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other
+        # step. It runs on the run's own commit, before the agent's commits are
+        # taken: no code of theirs (a preinstall script, a changed lockfile)
+        # ever runs where the setup token is, and the sandbox below refuses
+        # an install file changed, so what is installed is what they run on.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      - name: Prepare isolated git objects for either provider
+        if: steps.prepare.outputs.ready == 'true'
+        env:
+          ISSUE: ${{ steps.prepare.outputs.issue }}
+        run: |
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git config core.hooksPath /dev/null
+          git config core.fsmonitor false
+          git config user.name keel-robot
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p "$RUNNER_TEMP/trusted"
+          cp scripts/keel/*.mjs "$RUNNER_TEMP/trusted/"
+          BRANCH="keel/robot-$ISSUE"
+          previous=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).previousHead || "")' "$RUNNER_TEMP/robot-plan.json")
+          if [ -n "$previous" ]; then
+            git fetch --no-tags origin "refs/heads/$BRANCH"
+            [ "$(git rev-parse FETCH_HEAD)" = "$previous" ]
+            git switch -c "$BRANCH" "$previous"
+            git merge --no-edit "$GITHUB_SHA"
+            node "$RUNNER_TEMP/trusted/robot.mjs" sandbox --json
+          else
+            git switch -c "$BRANCH" "$GITHUB_SHA"
+          fi
+          git init -q --bare .keel/agent-git
+          git --git-dir=.keel/agent-git fetch -q --no-tags "$PWD/.git" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          git --git-dir=.keel/agent-git symbolic-ref HEAD "refs/heads/$BRANCH"
+          git --git-dir=.keel/agent-git config user.name keel-robot
+          git --git-dir=.keel/agent-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git --git-dir=.keel/agent-git --work-tree=. reset -q
+          mkdir -p .keel/agent-git/info
+          echo "/.keel/agent-git/" >> .keel/agent-git/info/exclude
+          mkdir -p /tmp/keel-codex
+      - name: Robot build Claude
+        id: build_claude
+        if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.author == 'claude'
+        timeout-minutes: ${{ fromJSON(steps.prepare.outputs.build_minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Read the trusted task brief at ${{ runner.temp }}/robot-prompt.md and carry out its one bounded change.
+          claude_args: |
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm test*),Bash(npm run *),Bash(node *),Bash(git --git-dir=.keel/agent-git --work-tree=. *)"
+      - name: Robot build Codex
+        id: build_codex
+        if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.author == 'codex'
+        timeout-minutes: ${{ fromJSON(steps.prepare.outputs.build_minutes) }}
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ""
+          TMPDIR: /tmp/keel-codex
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/robot-prompt.md
+          output-file: ${{ runner.temp }}/codex-final-message.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+      - name: Capture final message without transcript
+        if: always() && steps.prepare.outputs.ready == 'true'
+        env:
+          ROBOT_PROVIDER: ${{ steps.prepare.outputs.author }}
+          ROBOT_OUTCOME: ${{ steps.prepare.outputs.author == 'codex' && steps.build_codex.outcome || steps.build_claude.outcome }}
+          ROBOT_MESSAGE_FILE: ${{ steps.prepare.outputs.author == 'codex' && format('{0}/codex-final-message.md', runner.temp) || steps.build_claude.outputs.execution_file }}
+        run: node "$RUNNER_TEMP/trusted/robot.mjs" message --json
+      - name: Preserve bounded final message even when the agent failed
+        if: always() && steps.prepare.outputs.ready == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/handoff"
+          if [ -f "$RUNNER_TEMP/message.txt" ]; then cp "$RUNNER_TEMP/message.txt" "$RUNNER_TEMP/handoff/message.txt"; fi
+      - name: Take agent commits as objects only
+        if: steps.prepare.outputs.ready == 'true'
+        env:
+          ISSUE: ${{ steps.prepare.outputs.issue }}
+        run: |
+          BRANCH="keel/robot-$ISSUE"
+          src=.keel/agent-git
+          dst="$RUNNER_TEMP/agent-objects"
+          out="$RUNNER_TEMP/handoff"
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false --git-dir="$dst" "$@"; }
+          rm -rf "$dst"
+          mkdir -p "$out"
+          git init -q --bare "$dst"
+          echo "$PWD/.git/objects" > "$dst/objects/info/alternates"
+          if [ -d "$src/objects" ] && [ ! -L "$src" ] && [ ! -L "$src/objects" ]; then
+            (cd "$src/objects" && find . -type f -print0) | while IFS= read -r -d '' f; do
+              case "$f" in
+                */*/*/*) continue ;;
+                ./[0-9a-f][0-9a-f]/[0-9a-f]*|./pack/pack-*.pack|./pack/pack-*.idx) ;;
+                *) continue ;;
+              esac
+              d=$(dirname "$f")
+              if [ -L "$src/objects/$d" ] || [ -L "$src/objects/$f" ] || [ ! -f "$src/objects/$f" ]; then continue; fi
+              mkdir -p "$dst/objects/$d"
+              cp "$src/objects/$f" "$dst/objects/$f"
+            done
+          fi
+          ref="refs/heads/$BRANCH"
+          tip=""
+          if [ -f "$src/$ref" ] && [ ! -L "$src/$ref" ]; then
+            tip=$(sed -n 1p "$src/$ref")
+          elif [ -f "$src/packed-refs" ] && [ ! -L "$src/packed-refs" ]; then
+            tip=$(awk -v r="$ref" '$2 == r { print $1; exit }' "$src/packed-refs")
+          fi
+          if [ -z "$tip" ]; then
+            echo "::warning::Agent's git dir has no $ref: nothing of Agent's is handed on."
+            exit 0
+          fi
+          case "$tip" in *[!0-9a-f]*) echo "::error::Agent's $ref is not an object name; nothing is handed on."; exit 1 ;; esac
+          if [ "${#tip}" != 40 ] && [ "${#tip}" != 64 ]; then
+            echo "::error::Agent's $ref is not an object name; nothing is handed on."
+            exit 1
+          fi
+          if ! g cat-file -e "$tip^{commit}" 2> /dev/null; then
+            echo "::error::Agent's $ref names no commit its objects hold; nothing is handed on."
+            exit 1
+          fi
+          if ! g merge-base --is-ancestor "$GITHUB_SHA" "$tip"; then
+            echo "::error::Agent's $ref ($tip) is not on top of the run's commit ($GITHUB_SHA); nothing is handed on."
+            exit 1
+          fi
+          g update-ref "$ref" "$tip"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            g bundle create "$out/robot.bundle" "$GITHUB_SHA..$ref"
+          fi
+          echo "Agent's commits: $(g rev-list --count "$GITHUB_SHA..$tip") on $BRANCH, taken as objects"
+
+          cp "$RUNNER_TEMP/message.txt" "$out/message.txt"
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.prepare.outputs.ready == 'true'
+        with:
+          name: robot-agent
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 7
+  judge:
+    needs: agent
+    if: needs.agent.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    outputs:
+      head: ${{ steps.judge.outputs.head }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Read the config
+        id: config
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".keel/keel.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".keel/keel.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".keel/keel.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".keel/keel.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `KEEL_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.keel/keel.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other
+        # step. It runs on the run's own commit, before the agent's commits are
+        # taken: no code of theirs (a preinstall script, a changed lockfile)
+        # ever runs where the setup token is, and the sandbox below refuses
+        # an install file changed, so what is installed is what they run on.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.keel/keel.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: robot-plan
+          path: ${{ runner.temp }}/plan
+      - uses: actions/download-artifact@v8
+        with:
+          name: robot-agent
+          path: ${{ runner.temp }}/handoff
+      - name: Trusted sandbox full gate and dropped-test guard
+        id: judge
+        run: node scripts/keel/robot.mjs judge --json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: robot-judged
+          path: ${{ runner.temp }}/robot-judgment.json
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: [agent, judge]
+    if: always() && needs.agent.outputs.issue != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      pr: ${{ steps.publish.outputs.pr }}
+      head: ${{ steps.publish.outputs.head }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v8
+        with:
+          name: robot-plan
+          path: ${{ runner.temp }}/plan
+      - uses: actions/download-artifact@v8
+        if: needs.agent.outputs.ready == 'true'
+        continue-on-error: true
+        with:
+          name: robot-agent
+          path: ${{ runner.temp }}/handoff
+      - uses: actions/download-artifact@v8
+        if: needs.judge.result == 'success'
+        with:
+          name: robot-judged
+          path: ${{ runner.temp }}/judged
+      # Runs trusted-base code only; bundle is fetched as objects, never checked out.
+      - name: Publish verified candidate or explicit blocked outcome
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROBOT_JUDGE_OK: ${{ needs.judge.result == 'success' }}
+          ROBOT_JUDGED_HEAD: ${{ needs.judge.outputs.head }}
+        run: node scripts/keel/robot.mjs publish --json
+  review-agent:
+    needs: publish
+    if: needs.publish.outputs.pr != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Verify actual published head and remaining shared allowance
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROBOT_PR: ${{ needs.publish.outputs.pr }}
+          ROBOT_HEAD: ${{ needs.publish.outputs.head }}
+          ROBOT_HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+          ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          node scripts/keel/robot.mjs review-prepare --json
+          mkdir -p /tmp/keel-codex
+      - uses: actions/upload-artifact@v7
+        with:
+          name: robot-review-plan
+          path: ${{ runner.temp }}/robot-review.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Robot review Claude
+        id: review_claude
+        if: steps.review.outputs.reviewer == 'claude'
+        timeout-minutes: ${{ fromJSON(steps.review.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Review the trusted brief and untrusted diff in ${{ runner.temp }}/robot-review-prompt.md. Do not execute branch code. Return concrete findings only.
+          claude_args: |
+            --allowedTools "Read,Glob,Grep"
+      - name: Robot review Codex
+        id: review_codex
+        if: steps.review.outputs.reviewer == 'codex'
+        timeout-minutes: ${{ fromJSON(steps.review.outputs.minutes) }}
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ""
+          TMPDIR: /tmp/keel-codex
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/robot-review-prompt.md
+          output-file: ${{ runner.temp }}/codex-review-message.md
+          sandbox: read-only
+          safety-strategy: drop-sudo
+      - name: Capture reviewer final message
+        env:
+          ROBOT_PROVIDER: ${{ steps.review.outputs.reviewer }}
+          ROBOT_OUTCOME: ${{ steps.review.outputs.reviewer == 'codex' && steps.review_codex.outcome || steps.review_claude.outcome }}
+          ROBOT_MESSAGE_FILE: ${{ steps.review.outputs.reviewer == 'codex' && format('{0}/codex-review-message.md', runner.temp) || steps.review_claude.outputs.execution_file }}
+        run: node scripts/keel/robot.mjs message --json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: robot-review-message
+          path: ${{ runner.temp }}/message.txt
+          if-no-files-found: error
+          retention-days: 7
+  review-post:
+    needs: [publish, review-agent]
+    if: always() && needs.publish.outputs.pr != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v8
+        if: needs.review-agent.result == 'success'
+        with:
+          name: robot-review-plan
+          path: ${{ runner.temp }}/review
+      - uses: actions/download-artifact@v8
+        if: needs.review-agent.result == 'success'
+        with:
+          name: robot-review-message
+          path: ${{ runner.temp }}/review
+      - uses: actions/download-artifact@v8
+        with:
+          name: robot-plan
+          path: ${{ runner.temp }}/plan
+      - name: Post COMMENT on the verified head, never approve or merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROBOT_REVIEW_OK: ${{ needs.review-agent.result == 'success' }}
+          ROBOT_PR: ${{ needs.publish.outputs.pr }}
+          ROBOT_HEAD: ${{ needs.publish.outputs.head }}
+          ROBOT_HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+          ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: node scripts/keel/robot.mjs review-post --json

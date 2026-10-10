@@ -43,7 +43,28 @@ const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length 
 const deny = () => { console.error('stub gh: a write the test did not expect: ' + argv.join(' ')); process.exit(1); };
 if (s.down) { console.error('error connecting to api.github.com'); process.exit(1); }
 const node = c => ({ databaseId: c.databaseId, author: { login: c.author }, body: c.body, createdAt: c.createdAt, url: 'https://github.com/acme/app/pull/3#c' + c.databaseId });
-if (argv[0] === 'api' && argv[1] === 'graphql') {
+if (argv[0] === 'api' && argv.includes('--include')) {
+  const method = argv[argv.indexOf('--method') + 1], path = argv[argv.indexOf('--method') + 2];
+  s.agentIssues ??= [];
+  let status = 200, data;
+  if (method === 'POST') {
+    if (!s.writes) deny();
+    const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+    const number = s.agentIssues.length + 10;
+    data = { number, state: 'open', body: input.body, labels: input.labels, html_url: 'https://github.com/acme/app/issues/' + number, url: 'https://api.github.com/repos/acme/app/issues/' + number };
+    if (s.agentFailPost) { status = 503; data = {}; }
+    else { s.agentIssues.push(data); status = 201; }
+    if (s.followupOnCreate) { s.threads[0].comments.push({ databaseId: 700, author: 'acme-reviewer', body: 'Acme new evidence', createdAt: '2026-10-06T13:00:00Z' }); s.followupOnCreate = false; }
+    save();
+  } else if (path.includes('/contents/')) {
+    if (!s.contents) { status = 404; data = {}; }
+    else data = { path: '.keel/keel.json', encoding: 'base64', content: Buffer.from(JSON.stringify(s.contents)).toString('base64') };
+  } else {
+    const number = /issues\\/(\\d+)$/.exec(path);
+    data = number ? s.agentIssues.find(i => i.number === Number(number[1])) : s.agentIssues;
+  }
+  console.log('HTTP/2.0 ' + status + ' OK\\ncontent-type: application/json\\n\\n' + JSON.stringify(data));
+} else if (argv[0] === 'api' && argv[1] === 'graphql') {
   const q = field('query');
   if (q.startsWith('mutation')) {
     if (!s.writes) deny();
@@ -64,6 +85,7 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
   if (m) s.threads.find(t => t.comments[0].databaseId === Number(m[1])).comments.push({ databaseId: 900 + s.threads.length, author: 'acme-owner', body: field('body'), createdAt: '2026-10-06T12:00:00Z' });
   else s.comments.push({ id: 'IC_new', databaseId: 999, author: 'acme-owner', body: field('body'), createdAt: '2026-10-06T12:00:00Z' });
   save();
+  if (s.loseReply) { s.loseReply = false; save(); console.error('Acme reply response lost'); process.exit(1); }
   console.log('{}');
 } else if (argv[0] === 'api' && /\\/pulls\\/\\d+\\/reviews/.test(argv[1])) {
   s.reviewReads++; save();
@@ -593,4 +615,78 @@ test('keel review reads a window first and the full fragment only when a list ov
   assert.equal(r.code, 0, r.err);
   assert.match(r.json().warning, /your GitHub quota is low: 900 left until \d\d:\d\d/);
   assert.match(keel(dir, gh, ['acme/app#3']).out, /Warning: your GitHub quota is low: 900 left/);
+});
+
+const AGENT_RUBRIC = { version: 1, problem: 'Acme sorting fails.', reproduction: 'Run Acme regression.', acceptance: 'Both keys retained.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
+async function agentArgs(dir) {
+  const file = join(dir, 'rubric.json'); await writeFile(file, JSON.stringify(AGENT_RUBRIC));
+  return ['acme/app#3', '--close', 'PRRT_open', '--tracked', '--file-agent-issue', '--title', 'Fix Acme equality', '--rubric', file, '--json'];
+}
+test('review agent issue requires fresh receipt before even approved creation and rechecks changed head', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true });
+  const args = await agentArgs(dir);
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  await gh.change(s => { s.head = OLD; });
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  await gh.change(s => { s.threads[0].comments.push(c(100, 'acme-reviewer', 'Acme follow-up')); });
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+});
+test('review agent issue previews OFF then creates once and supplies verified tracked link leaving thread open', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true });
+  const args = await agentArgs(dir);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const preview = keel(dir, gh, args);
+  assert.equal(preview.code, 3, preview.out + preview.err);
+  assert.equal(preview.json().state, 'preview'); assert.equal(writesIn(await gh.calls()).length, 0);
+  const created = keel(dir, gh, [...args, '--yes']);
+  assert.equal(created.code, 0, created.out + created.err);
+  assert.equal(created.json().value, 'https://github.com/acme/app/issues/10');
+  const st = await gh.state(); assert.deepEqual(st.agentIssues[0].labels, []); assert.equal(st.threads[0].isResolved, undefined);
+  assert.equal(st.threads[0].comments.length, 2);
+  const retry = keel(dir, gh, [...args, '--yes']);
+  assert.equal(retry.code, 0, retry.out + retry.err);
+  const after = await gh.state(); assert.equal(after.agentIssues.length, 1); assert.equal(after.threads[0].comments.length, 2);
+});
+test('review agent issue creation grammar rejects explicit tracking references multiple targets and bare tracked elsewhere', async t => {
+  const dir = await project(t), gh = await stubGh(t, {}), args = await agentArgs(dir);
+  for (const bad of [args.map(x => x === 'PRRT_open' ? 'PRRT_open,PRRT_two' : x), [...args, '--close', 'PRRT_two'], [...args.slice(0, 4), 'acme/app#12', ...args.slice(4)], [...args, '--fixed', 'abc1234'], ['acme/app#3', '--close', 'PRRT_open', '--tracked']]) {
+    const r = keel(dir, gh, bad); assert.equal(r.code, 2, r.out + r.err);
+  }
+  assert.equal((await gh.calls()).length, 0);
+});
+
+
+test('review agent issue lost reply response recovers without duplicate issue or tracked reply', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, loseReply: true });
+  const args = await agentArgs(dir);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const first = keel(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
+  const retry = keel(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
+  const state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
+});
+test('review agent issue new evidence during creation requires reread before tracked reply', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, followupOnCreate: true });
+  const args = await agentArgs(dir);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const first = keel(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
+  assert.match(first.out, /review changed/);
+  let state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const retry = keel(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
+  state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 3);
+});
+test('review agent issue uncertain creation never supplies a tracked reply or retries POST', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, agentFailPost: true });
+  const args = await agentArgs(dir); keel(dir, gh, ['acme/app#3', '--json']);
+  for (let i = 0; i < 2; i++) {
+    const result = keel(dir, gh, [...args, '--yes']); assert.equal(result.code, 2, result.out); assert.equal(result.json().state, 'pending'); assert.equal(result.json().issue, null);
+  }
+  assert.equal(writesIn(await gh.calls()).length, 1);
+  const state = await gh.state(); assert.equal(state.threads[0].comments.length, 1);
 });

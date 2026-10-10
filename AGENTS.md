@@ -129,6 +129,15 @@ first; remote writes require an explicit destination and approval. A canvas
 never owns acceptance, merge facts or architecture. Preserve human content and
 report unavailable sources as gaps. See [the integration spec](docs/specs/isocan-project-canvas.md).
 
+## Robot issues
+
+`keel issue new --agent` previews a rubric-shaped issue before `--yes` creates
+it. Keep its durable `.keel/robot-issues` intents when recovering interrupted
+writes; an uncertain POST is never permission to create a duplicate. The robot
+extends `climb` and stays off until the owner approves a project and weekly
+`robot.budgetMinutes` allowance covering both build and other-provider review.
+A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for

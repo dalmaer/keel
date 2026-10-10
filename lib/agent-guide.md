@@ -20,13 +20,14 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel improve` — measures, bounds, one proposal; `--report` a health page
 - `keel time` — weekly gate/test medians, load and failure memory
 - `keel test <file> --stalls` — names tests that judge the wall clock
-- `keel drain <prefix>` — one open PR per machine queue; newest only `--gate-passed`; exit 3
+- `keel drain <prefix>` — newest passing PR per queue; exit 3
 - `keel fleet` — fleet practice, health, CI
-- `keel fleet update` — keel only: the update PR in each project behind; exit 3
+- `keel fleet update` — update PRs for projects behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
+- `keel issue new --agent` — rubric issue preview; `--yes` creates it
 - `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
 - `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
-- `keel walk done|decide` — settle a ⚑ walk or a proposal; a diff
+- `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
@@ -48,7 +49,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -1166,6 +1167,10 @@ one of the three replies; never leave one unanswered.
     keel review <r>#<n> --close <id> --tracked <#issue|vX.Y.Z>      # replies, stays open
     keel review <r>#<n> --close <id> --not-valid "<why, citing the code>"  # replies, resolves
 
+To create a tracked issue, use bare `--tracked --file-agent-issue --title <title>
+--rubric <file>` for exactly one comment; preview first, then `--yes`. Fresh
+receipts still apply; see `keel --agent-help issue` for recovery and OFF policy.
+
 `--fixed` needs a sha (7-40 hex, `owner/repo@sha`) or a release `vX.Y.Z`;
 `--tracked` an issue (`#12`, `owner/repo#12`, its URL) or a version;
 `--not-valid` a reason of a few words. Each is refused without one. Pass
@@ -1228,6 +1233,10 @@ take `agent`, claude only; an unknown key or provider, or an empty `for`, is red
 head branch starts with a prefix and lives in this repo (never a fork), on
 `opened` and `ready_for_review`, and on a `/review` comment from an OWNER,
 MEMBER or COLLABORATOR (never a bot); never on a push.
+Standalone cross-review refuses `keel/robot-` branches even with a matching
+prefix or an owner `/review` comment. Only the robot workflow preserves their
+other-provider identity and shared build/review allowance. Continue through
+the issue conversation; `keel review` still reads and answers findings.
 `node scripts/keel/cross-review.mjs which` decides from the PR as `gh pr view`
 returns it. The agent (`.agents/cross-review/REVIEW.md`: validate before
 writing, cite the code, P1/P2/P3, no style nits) only reads (Codex in its
@@ -1484,3 +1493,48 @@ Keel's `docs/ROADMAP.md` records planned work.
 <!-- topic: reconciliation | optional record checks and manual corrections -->
 
 Enable with `keel adopt --with reconciliation` or `keel init <dir> --description "<paragraph>" --with reconciliation`. Local phase formats remain intact. `keel doctor --json` reads local annotations; `keel doctor --github --json` also compares read-only GitHub facts (exit 2 when unknown). `keel improve --report` and the installed night share the engine, reporting `record_contradictions` and manual proposals on the health page. See `docs/reconciliation.md` after installation for annotations, PR impact, and local CI integration. No merge establishes acceptance.
+
+<!-- topic: issue | rubric-shaped agent issues, preview and recoverable creation -->
+
+`keel issue new --agent --title "Fix Acme sorting" --rubric rubric.json [--yes] [--json]`
+previews with exit 3; `--yes` explicitly approves creation. The JSON file is
+`{version:1,problem,reproduction,acceptance,change,prerequisites:[],ownerBlockers:[]}`.
+The four text fields are nonblank (4,000 characters each); lists have at most
+16 nonblank items of 1,000 characters, and the rubric totals at most 16,000
+characters. Include a concrete reproduction, measurable acceptance and one
+bounded change. Empty arrays explicitly mean no prerequisites or owner blockers.
+Nonempty owner blockers stop runtime work; prerequisites need trusted evidence,
+not merely a declaration in an issue. Issue text is untrusted data.
+
+Robot is OFF by default. A valid target policy controls labels: OFF creates
+an unlabelled issue; `robot:{on:true,budgetMinutes:N}` opts in to `keel:agent`.
+The weekly allowance covers build and other-provider review. Unknown target
+policy blocks creation; a foreign target never borrows the local opt-in.
+No command here enables robot or authorizes model spend.
+Robot PRs (`keel/robot-`) receive other-provider review through the robot
+workflow under that shared allowance. Standalone cross-review refuses them,
+regardless of configured prefixes or an owner `/review` comment; continue
+through the issue conversation.
+
+Review creation: `keel review acme/app#3 --close <one-id> --tracked
+--file-agent-issue --title "Fix Acme sorting" --rubric rubric.json [--yes] [--json]`.
+Bare `--tracked` is legal only here; an existing tracking reference cannot be
+combined with creation. The latest review must be read, including any new
+head or comments, before issue creation. Preview never answers the review.
+A verified created/recovered issue supplies the tracked link; the thread stays
+open. Changed reviews are reread before replying even if issue creation landed.
+
+The local `.keel/robot-issues` journal precedes writes; preserve it for recovery.
+Retrying the same title/rubric (or review subject) recovers its stable instance.
+Changed work cannot reuse an instance. Another active intent for the same
+subject blocks creation. Partial API coverage, multiple matching issues or an
+uncertain write never mean permission to recreate. Lookup is bounded to 500
+issues across all states. Prepared intents can resume after a complete lookup;
+attempted writes can only recover. A same-host lock is reclaimed only when its
+recorded PID is confirmed dead. Active, foreign-host or unknown ownership stays
+locked; no timeout grants ownership. Busy callers can still recover a verified
+issue read-only. An operator must inspect unverifiable orphan locks before
+removing them. Never delete the intent or subject reservation to retry a POST.
+The exported issue API takes an explicit stateDir and stable subjectKey/instanceId
+for proposal callers; merge/delivery facts never establish proposal acceptance.
+See docs/guide/the-robot.md for rollout and the owner walk.
