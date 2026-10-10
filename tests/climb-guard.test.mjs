@@ -778,3 +778,40 @@ test('sandbox: a merge of the agent\'s own branches changing only a test script 
   assert.equal(deps.status, 1, deps.stdout);
   assert.match(json(deps).problems.join('\n'), /^package\.json: /m);
 });
+
+// #85: a merge's protected file is compared by its blob, not by text decoded from it. M1 merges the default
+// branch's B1 but alters a binary lockfile byte (0xff to 0xfe: both decode to the replacement character); M2
+// merges B2 and takes the lockfile back as the default branch has it. Only the blob tells M1's lockfile apart.
+test('sandbox: a merge that alters a binary lockfile byte is refused, though the next merge restores it; a merge taking the default branch\'s deletion of a package.json passes', async t => {
+  const dir = await acme(t, { files: { 'acme.mjs': 'export const anvil = 1;\n', 'web/package.json': `${JSON.stringify({ name: 'web', private: true }, null, 2)}\n` } });
+  await writeFile(join(dir, 'bun.lockb'), Buffer.from([0x62, 0xff, 0x0a]));
+  git(dir, ['add', '-A']); git(dir, ['commit', '-q', '-m', 'acme: a binary lockfile']);
+  const start = git(dir, ['rev-parse', 'HEAD']);
+  const b1 = await commit(dir, { 'acme-one.mjs': 'export const one = 1;\n' }, 'acme: release 1');
+  const b2 = await commit(dir, { 'acme-two.mjs': 'export const two = 2;\n' }, 'acme: release 2');
+  git(dir, ['checkout', '-q', '-b', 'agent', start]);
+  const x = await commit(dir, { 'acme.mjs': 'export const anvil = 2;\n' }, 'acme: the agent\'s change');
+  git(dir, ['merge', '-q', '--no-commit', b1]);
+  await writeFile(join(dir, 'bun.lockb'), Buffer.from([0x62, 0xfe, 0x0a]));
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '--no-edit']);
+  const m1 = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['merge', '-q', '--no-commit', b2], { allowFail: true });
+  await writeFile(join(dir, 'bun.lockb'), Buffer.from([0x62, 0xff, 0x0a]));
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '--no-edit']);
+  assert.equal(git(dir, ['diff', '--name-only', b2, 'HEAD']), 'acme.mjs', 'the whole diff shows only the agent\'s change');
+  const sb = climb(dir, ['sandbox', '--base', b2, '--head', 'HEAD', '--json']);
+  assert.equal(sb.status, 1, sb.stdout);
+  assert.match(json(sb).problems.join('\n'), new RegExp(`^bun\\.lockb: the merge ${m1.slice(0, 7)} on the agent's branch leaves it unlike its first parent and unlike any default-branch commit it brought in`, 'm'));
+  // The honest merge of a default branch that deleted a workspace's package.json: as it is there, so it passes.
+  git(dir, ['checkout', '-q', 'main']);
+  await rm(join(dir, 'web/package.json'));
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'acme: drop the web workspace']);
+  const b3 = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-B', 'agent2', x]);
+  git(dir, ['merge', '-q', '--no-edit', b3]);
+  const honest = climb(dir, ['sandbox', '--base', b3, '--head', 'HEAD', '--json']);
+  assert.equal(honest.status, 0, honest.stdout + honest.stderr);
+});

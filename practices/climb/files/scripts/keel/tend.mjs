@@ -134,10 +134,12 @@ export function sandboxProblems(root, base, head) {
       for (const { path } of changesOf(root, first, c)) {
         if (basename(path) === 'package.json') {
           // Install keys as its first parent has them (only "scripts" changed), or as a commit it brought in has them.
-          if (!packageProblem(showAt(root, first, path), showAt(root, c, path)) || brought.some(p => !packageProblem(showAt(root, p, path), showAt(root, c, path)))) continue;
+          // Absent on both sides is alike (#85): a merge taking the default branch's deletion of a workspace's package.json.
+          const alike = p => { const x = showAt(root, p, path), y = showAt(root, c, path); return (x === null && y === null) || !packageProblem(x, y); };
+          if (alike(first) || brought.some(alike)) continue;
           const why = packageProblem(showAt(root, b, path), showAt(root, c, path)) ?? 'install keys unlike any default-branch commit it merged';
           out.push(`${path}: ${why} in the merge ${c.slice(0, 7)}; a merge brings only what the default branch had, so the branch is refused whole (ledger#92)`);
-        } else if ((offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) && !brought.some(p => showAt(root, c, path) === showAt(root, p, path))) {
+        } else if ((offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) && !brought.some(p => entryOf(root, c, path) === entryOf(root, p, path))) {
           out.push(`${path}: the merge ${c.slice(0, 7)} on the agent's branch leaves it unlike its first parent and unlike any default-branch commit it brought in; a merge brings only what the default branch had (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
         }
       }
@@ -476,6 +478,11 @@ const ticked = text => {
   return out;
 };
 
+/**
+ * A path's tree entry at ref, its mode and blob id, or '' when absent (#85): the bytes compared exactly, as git
+ * names them, never text decoded from them (two different binary files can decode alike).
+ */
+const entryOf = (root, ref, path) => { const r = git(root, ['ls-tree', '-z', ref, '--', path], { allowFail: true }); return r.status === 0 ? (r.stdout.split('\0')[0] ?? '').split('\t')[0] : ''; };
 const showAt = (root, ref, path) => { const r = git(root, ['show', `${ref}:${path}`], { allowFail: true }); return r.status === 0 ? r.stdout : null; };
 const firstAdded = (root, base, head, path) => {
   const diff = git(root, ['diff', '-U0', '--no-color', '--no-ext-diff', base, head, '--', path]);
