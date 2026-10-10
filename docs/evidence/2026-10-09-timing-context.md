@@ -66,3 +66,7 @@ The timing/board builder passed 48 focused tests, the ledger/measure builder six
 - Proven-by: tests/board.test.mjs (^round3: board gate timing) — VERIFIED — "The input did not match the regular expression /acme-mixed: 2000 ms \(2 successful, 3 unsuccessful\)/. Input: '<!doctype html>\n' + '<html lang='en'><head><m..."
 - Proven-by: tests/test-ledger.test.mjs (equals-form Authorization|concurrent Node parents) — VERIFIED — "The input was expected to not match the regular expression /acme-fake-credential/. Input: 'Authorization=Bearer acme-fake-credential' (equals-form Authorizat..."
 - Proven-by: tests/improve-ledger.test.mjs (backfills its eligible window) — VERIFIED — "Expected values to be strictly equal: null !== 1 (flaky_tests backfills its eligible window and leaves all-busy history unavailable)"
+
+The final head review found the hygiene block still sliced before busy filtering, unlike the corrected nightly measure. Both now select eligible observations first. A quiet pass/fail pair remains visible behind twenty busy runs; the conductor's focused test passed, and the isolated-copy proof is VERIFIED against `93029f2`.
+
+- Proven-by: tests/test-ledger.test.mjs (^hygiene retains quiet flake proof behind twenty busy observations$) — VERIFIED — "The input did not match the regular expression /^keel test ledger: 1 hygiene item /. Input: 'keel test ledger: no flaky or slower test (22 runs in .keel/test..."

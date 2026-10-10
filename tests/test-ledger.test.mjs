@@ -1295,3 +1295,19 @@ test('concurrent Node parents retain only explicitly correlated child failure de
     assert.doesNotMatch(parent.error, /Acme [AB] detail/);
   }
 });
+
+test('hygiene retains quiet flake proof behind twenty busy observations', () => {
+  const quiet = { start: { load: [0], cores: 4 }, end: { load: [0], cores: 4 } };
+  const busy = { start: { load: [8], cores: 4 }, end: { load: [8], cores: 4 } };
+  const runs = [
+    { ...runOf({ tests: { Acme: ['pass', 1] } }), busy: quiet },
+    { ...runOf({ tests: { Acme: ['fail', 1] } }), busy: quiet },
+    ...Array.from({ length: 20 }, () => ({ ...runOf({ tests: { Acme: ['pass', 1] } }), busy })),
+  ];
+  const lines = hygiene(runs).join('\n');
+  assert.match(lines, /^keel test ledger: 1 hygiene item /);
+  assert.match(lines, /22 runs in \.keel\/test-runs; 20 busy runs omitted/);
+  assert.match(lines, /flaky +tests\/anvils\.test\.mjs "Acme": passed 1, failed 1/);
+  assert.match(lines, /in the last 2 runs/);
+  assert.doesNotMatch(hygiene(runs.slice(2)).join('\n'), /^ {2}flaky /m);
+});

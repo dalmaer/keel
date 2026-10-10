@@ -520,7 +520,7 @@ const named = t => `${t.file ?? '(no file)'} "${t.name}"`;
 /** The block printed at the end of a run: [line]. One line when clean. */
 export function hygiene(runs, opts = DEFAULTS, { preload = [], skipped = 0, here = '.' } = {}) {
   runs = runs.filter(r => r.kind !== 'gate');
-  const recent = runs.slice(-opts.window);
+  const recent = runs.filter(r => busyState(r) !== 'busy').slice(-opts.window);
   const f = flaky(recent), s = slower(runs, opts);
   const memory = failureMemory(runs);
   const of = `${runs.length} run${runs.length === 1 ? '' : 's'} in ${RUNS}${skipped ? `, ${skipped} unreadable` : ''}${busyNote(runs)}`;
