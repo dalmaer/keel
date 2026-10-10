@@ -1271,7 +1271,31 @@ async function gateRun(cwd, gate, { env, config }) {
  * fails or records nothing throws (exit 2): there is nothing to compare.
  * { ok, problems, count?, missing? }.
  */
-export async function ledgerCheck({ root, config, env = process.env, gate, base: b, head }) {
+/**
+ * The base's own gate run, in a worktree of the base beside the checkout (its
+ * siblings resolve as the checkout's): the base's ledger record, or a throw
+ * (exit 2) when it fails or records nothing. Run before any of the agent's
+ * code (#82): code that ran could rewrite the base commit's object, and the
+ * base would then be the candidate's tree.
+ */
+export async function baseLedger({ root, config, env = process.env, gate, base: b }) {
+  let dir = null;
+  try {
+    dir = await siblingWorktree(root, b, 'guard');
+    const t = await gateRun(dir, gate, { env, config });
+    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
+    const run = ranOn(t.runs, b);
+    if (!run) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for the base ${b.slice(0, 7)}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
+    return run;
+  } finally {
+    await dropWorktree(root, dir);
+  }
+}
+
+export async function ledgerCheck({ root, config, env = process.env, gate, base: b, head, baseRun = null }) {
+  // The base first (#82), unless the guard ran it before any of the agent's code: nothing the candidate's gate
+  // does to the object store can make the base look like the candidate.
+  baseRun ??= await baseLedger({ root, config, env, gate, base: b });
   const held = treeState(root);
   const r = await gateRun(root, gate, { env, config });
   if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
@@ -1281,19 +1305,6 @@ export async function ledgerCheck({ root, config, env = process.env, gate, base:
   const moved = heldProblems(root, held, `the gate \`${gate}\``);
   if (moved.length) return { ok: false, refused: moved, problems: moved };
   const cand = ranOn(r.runs, head);
-  // The base's names, from the base's own gate, run now in a worktree beside
-  // the tree (its siblings resolve as the checkout's): never a record read
-  // from the ledger, which the agent's job hands back.
-  let baseRun = null, dir = null;
-  try {
-    dir = await siblingWorktree(root, b, 'guard');
-    const t = await gateRun(dir, gate, { env, config });
-    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
-    baseRun = ranOn(t.runs, b);
-  } finally {
-    await dropWorktree(root, dir);
-  }
-  if (!baseRun) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for the base ${b.slice(0, 7)}${cand ? '' : ` or ${head.slice(0, 7)}`}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
   const ranBase = (baseRun.tests ?? []).filter(ran).length;
   if (!cand) return { ok: false, problems: [`the gate \`${gate}\` exited 0 on ${head.slice(0, 7)} but recorded no test ledger run, where the base ${b.slice(0, 7)}'s ran ${ranBase} tests: the candidate's gate does not run what the base's does (its gate script changed?)`] };
   // PR #59: each suite's reporter writes one record; a record more than the base's gate wrote is one the
@@ -1326,8 +1337,12 @@ export async function guard({ root, config, env = process.env, base, job }) {
   const off = sandboxProblems(root, b, head);
   if (off.length) return { ok: false, job, refused: off, problems: off };
   // PR #59: what is checked below is this HEAD and this tree; the build, the perf check and the gate are
-  // the agent's code, so before passing, the guard confirms neither moved.
+  // the agent's code, so before passing, the guard confirms neither moved. Taken before the base's gate too, so
+  // nothing its run leaves in the shared git dir becomes the baseline.
   const before = treeState(root);
+  // #82: the base's gate first, before the build, the perf check or the gate, which are the agent's code and
+  // could rewrite the base commit's object so the base looked like the candidate.
+  const baseRun = JOBS[job]?.kind === 'proposals' ? null : await baseLedger({ root, config, env, gate: config.check ?? CHECK, base: b });
   if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job, before });
   const extra = {};
   if (job === 'hygiene') {
@@ -1365,7 +1380,7 @@ export async function guard({ root, config, env = process.env, base, job }) {
     if (night) night.perfCheck = extra.perfCheck;
   }
   const gate = config.check ?? CHECK;
-  const ledger = await ledgerCheck({ root, config, env, gate, base: b, head });
+  const ledger = await ledgerCheck({ root, config, env, gate, base: b, head, baseRun });
   if (!ledger.ok) return { ok: false, gate, ...(ledger.missing ? { missing: ledger.missing } : {}), problems: ledger.problems };
   const count = ledger.count;
   const moved = heldProblems(root, before, `the agent's code the guard ran (the gate \`${gate}\`${extra.perfCheck ? ', the perf check' : ''}${extra.build ? ', the build' : ''})`);

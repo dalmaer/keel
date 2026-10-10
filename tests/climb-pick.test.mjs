@@ -9,7 +9,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
-import { NIGHT, WORKFLOW, git, write, commit, acme, climb, json, load, stubGh, page, step, execution, bench, setConfig } from './helpers/climb.mjs';
+import { NIGHT, WORKFLOW, git, write, commit, acme, climb, json, load, stubGh, page, step, execution, bench, setConfig, LEDGER_TEST, suite } from './helpers/climb.mjs';
 
 test('pick: the job tied to the worst measure, rotation when none is outside, and a job with an open PR waits', async t => {
   const dir = await acme(t, { files: { 'docs/health/2026-10-05.md': page([['gate', 0, '≤ 0', 'ok'], ['slow_tests', 3, '≤ 0', 'outside']]) } });
@@ -298,8 +298,11 @@ test('perf: reads the last line\'s number, honours "better" both ways past the m
   }
 
   // A night: the baseline and the decided commit carry the number in its unit; the report says which way is better.
-  await setConfig(dir, { climb: perf('higher'), check: 'node -e ""' });
-  git(dir, ['commit', '-q', '-am', 'acme: perf higher']);
+  // The guard compares the gate's test ledger with the base's own (#82: the base's gate runs first), so the gate records one.
+  await write(dir, { 'acme.test.mjs': suite('acme adds') });
+  await setConfig(dir, { climb: perf('higher'), check: LEDGER_TEST });
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'acme: perf higher']);
   const night0 = json(climb(dir, ['measure', 'perf', '--baseline', '--runs', '1', '--json']));
   assert.deepEqual([night0.median, night0.better, night0.unit], [100, 'higher', 'ops/s']);
   await commit(dir, { 'bench.mjs': bench(150) }, 'acme: a faster loop');
@@ -310,7 +313,7 @@ test('perf: reads the last line\'s number, honours "better" both ways past the m
   assert.match(climb(dir, ['report']).stdout, /^\| `node bench\.mjs`'s number \(its last line; higher is better\), median \(the baseline against the last kept change\) \| 100 ops\/s \| 150 ops\/s \| \+50% \|$/m);
 
   // The project's own perf check runs in the guard: failing, the guard fails and names it.
-  await setConfig(dir, { climb: { ...perf('higher'), perf: { ...perf('higher').perf, check: 'node -e "process.exit(4)"' } }, check: 'node -e ""' });
+  await setConfig(dir, { climb: { ...perf('higher'), perf: { ...perf('higher').perf, check: 'node -e "process.exit(4)"' } }, check: LEDGER_TEST });
   const g = climb(dir, ['guard', '--json']);
   assert.equal(g.status, 1, g.stdout + g.stderr);
   assert.match(json(g).problems[0], /the project's own perf check `node -e "process\.exit\(4\)"` failed \(exit 4\)/);
