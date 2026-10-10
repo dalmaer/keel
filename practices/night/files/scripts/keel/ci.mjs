@@ -89,7 +89,7 @@ export async function readCiUsage({ repo, env, config = {}, now = Date.now(), da
   if (report.window.observedDays === null) coverage.exposureUnavailable = true;
   const runs = await pages(workflow ? `repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/runs` : `repos/${repo}/actions/runs`, 'workflow_runs', 'runPages');
   let runPagesComplete = coverage.complete;
-  coverage.runs = runs.length; coverage.jobs = 0; coverage.attempts = 0; coverage.excludedJobs = 0; coverage.unknownJobs = 0;
+  coverage.runs = runs.length; coverage.jobs = 0; coverage.attempts = 0; coverage.excludedJobs = 0; coverage.unknownJobs = 0; coverage.unfinishedJobs = 0; coverage.queuedAttemptsWithoutJobs = 0; coverage.unfinishedWeightedMinutes = null;
   const groups = new Map(), jobIds = new Set();
   for (const run of runs) {
     // updated_at changes on a rerun. Only positively old, completed runs can be skipped.
@@ -98,17 +98,35 @@ export async function readCiUsage({ repo, env, config = {}, now = Date.now(), da
     if (!path || !Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1) { gap('run missing workflow path or attempt count'); runPagesComplete = false; continue; }
     const group = groups.get(path) ?? { path, name: run.name ?? path, keel: owned.has(path), keelNamed: /\/keel-[^/]+\.ya?ml$/.test(path), observedWeightedMinutes: 0, weightedMinutes: null, jobs: [], runs: [], complete: runPagesComplete };
     groups.set(path, group);
+    let runComplete = run.status === 'completed';
+    const logicalRows = [];
     if (run.run_attempt > client.caps.attempts) { gap('run attempt limit reached'); group.complete = false; }
     for (let attempt = 1; attempt <= Math.min(run.run_attempt, client.caps.attempts); attempt++) {
       coverage.attempts++;
       const gaps = coverage.failures ?? 0;
       const jobs = await pages(`repos/${repo}/actions/runs/${run.id}/attempts/${attempt}/jobs`, 'jobs', 'jobPages');
+      // A successful total_count:0 response for the current queued attempt
+      // positively places it outside the completion window. Earlier attempts
+      // still need observable jobs; an empty failed read is never authoritative.
+      if (!jobs.length && (coverage.failures ?? 0) === gaps && attempt === run.run_attempt && run.status === 'queued' && run.conclusion == null) {
+        coverage.queuedAttemptsWithoutJobs++;
+        continue;
+      }
       if ((coverage.failures ?? 0) !== gaps || !jobs.length) { group.complete = false; if (!jobs.length) gap('attempt has no observable jobs'); }
       const observed = { id: run.id, attempt, event: run.event ?? 'unknown', weightedMinutes: 0, complete: group.complete, jobs: 0 };
       for (const job of jobs) {
         if (job.run_id !== run.id || job.run_attempt !== attempt || (run.head_sha && job.head_sha !== run.head_sha)) { gap('job run/attempt/SHA mismatch'); group.complete = observed.complete = false; coverage.unknownJobs++; continue; }
         if (jobIds.has(job.id)) continue; // carried-forward jobs on partial reruns are charged once
         jobIds.add(job.id); coverage.jobs++;
+        // A completion-window total excludes positively unfinished jobs. Their
+        // eventual cost is unknown, not zero; contradictory completion metadata
+        // still goes through timing validation below.
+        if (['queued', 'in_progress'].includes(job.status) && job.completed_at == null && job.conclusion == null) {
+          coverage.excludedJobs++; coverage.unfinishedJobs++;
+          observed.complete = false; // not a complete attempt for per-run means
+          runComplete = false;
+          continue;
+        }
         const start = Date.parse(job.started_at), end = Date.parse(job.completed_at);
         if (job.status === 'completed' && job.conclusion === 'skipped' && ((!Number.isFinite(start) && !Number.isFinite(end)) || (Number.isFinite(start) && start === end && end <= now))) { coverage.excludedJobs++; continue; }
         if (Number.isFinite(end) && end < since) { coverage.excludedJobs++; continue; }
@@ -121,8 +139,11 @@ export async function readCiUsage({ repo, env, config = {}, now = Date.now(), da
         observed.jobs++; observed.weightedMinutes += weightedMinutes ?? 0;
         group.observedWeightedMinutes += weightedMinutes ?? 0;
       }
-      if (observed.jobs) group.runs.push(observed);
+      if (observed.jobs) { group.runs.push(observed); logicalRows.push(observed); }
     }
+    // Completion-window coverage is distinct from a whole logical run's cost.
+    // A queued retry makes every earlier attempt ineligible for per-run means.
+    for (const observed of logicalRows) observed.runComplete = runComplete;
   }
   report.workflows = [...groups.values()];
   for (const group of report.workflows) {

@@ -50,7 +50,8 @@ test('CI reader discloses pagination truncation, failed pages and unknown cost r
   assert.equal(capped.workflows[0].complete, false);
   assert.equal(capped.observedWeightedMinutes, 1);
   for (const bad of [
-    { labels: ['unidentified-runner'] }, { status: 'in_progress', completed_at: null },
+    { labels: ['unidentified-runner'] }, { completed_at: null },
+    { status: 'in_progress', completed_at: null }, // contradictory success conclusion
     { completed_at: stamp(-1) }, { started_at: null, conclusion: 'cancelled' },
     { run_id: 99 }, { run_attempt: 2 }, { head_sha: 'b'.repeat(40) },
   ]) {
@@ -259,5 +260,97 @@ test('CI adoption uses repository exposure including quiet days and validates ca
   for (const mutate of [r => { r.window.observedDays = 28; }, r => { r.window.repoCreatedAt = stamp(-1); }, r => { r.window.observedSince = r.window.since; }, r => { delete r.window.repoCreatedAt; }]) {
     const bad = structuredClone(report); mutate(bad);
     assert.equal((await invoke(bad)).monthlyWeightedMinutes, null, 'malformed cached exposure is unavailable offline');
+  }
+});
+
+test('ci_minutes counts completed history while excluding the running night and queued jobs', async t => {
+  const root = await scratch(t);
+  const night = run(2, { path: '.github/workflows/keel-night.yml', status: 'in_progress', conclusion: null });
+  const api = baseApi([run(1), night]);
+  api[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', [
+    job(201, 2, { status: 'in_progress', conclusion: null, completed_at: null }),
+    job(202, 2, { status: 'queued', conclusion: null, started_at: null, completed_at: null }),
+  ]);
+  const invoke = async data => (await measure({ root, now, config: { repo, ci: { weeklyMinutes: 100 } }, env: { ...ENV, KEEL_GH: await ghStub(t, { api: data }) }, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
+  const result = await invoke(api);
+  assert.equal(result.state, 'ok');
+  assert.equal(result.value, 1);
+  assert.equal(result.facts.coverage.complete, true);
+  assert.equal(result.facts.coverage.unfinishedJobs, 2);
+  assert.equal(result.facts.coverage.excludedJobs, 2);
+  assert.equal(result.facts.coverage.unfinishedWeightedMinutes, null);
+  assert.match(result.what, /completed-job/);
+  assert.match(result.detail, /completed jobs only; 2 queued\/in-progress jobs excluded; 0 current queued attempts with no jobs excluded; unfinished usage not estimated/);
+  for (const bad of [{ status: 'completed', conclusion: 'success', completed_at: null }, { status: 'completed', conclusion: 'failure', completed_at: stamp(-1) }]) {
+    const malformed = structuredClone(api);
+    Object.assign(malformed[`repos/${repo}/actions/runs/2/attempts/1/jobs`].jobs[0], bad);
+    const unavailable = await invoke(malformed);
+    assert.equal(unavailable.state, 'n/a', 'malformed completed timing remains a coverage gap');
+    assert.equal(unavailable.facts.weightedMinutes, null);
+    assert.equal(unavailable.facts.coverage.unknownJobs, 1);
+  }
+});
+
+test('ci_minutes excludes only authoritative empty current queued attempts', async t => {
+  const root = await scratch(t);
+  const queued = run(1, { run_attempt: 2, status: 'queued', conclusion: null });
+  const api = baseApi([queued]);
+  const latest = `repos/${repo}/actions/runs/1/attempts/2/jobs`;
+  api[latest] = page('jobs', []);
+  const invoke = async data => (await measure({ root, now, config: { repo, ci: { weeklyMinutes: 100 } }, env: { ...ENV, KEEL_GH: await ghStub(t, { api: data }) }, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
+  const result = await invoke(api);
+  assert.equal(result.state, 'ok');
+  assert.equal(result.value, 1, 'older completed attempt is still accounted');
+  assert.equal(result.facts.coverage.complete, true);
+  assert.equal(result.facts.coverage.attempts, 2);
+  assert.equal(result.facts.coverage.queuedAttemptsWithoutJobs, 1);
+  assert.equal(result.facts.coverage.unfinishedJobs, 0, 'no job count invented for an empty attempt');
+  assert.equal(result.facts.coverage.unfinishedWeightedMinutes, null);
+  assert.match(result.detail, /1 current queued attempts with no jobs excluded/);
+  for (const mutate of [
+    a => { a[`repos/${repo}/actions/runs`].workflow_runs[0] = run(1, { run_attempt: 2 }); },
+    a => { a[`repos/${repo}/actions/runs/1/attempts/1/jobs`] = page('jobs', []); },
+    a => { delete a[latest]; },
+    a => { a[latest] = { jobs: [] }; },
+    a => { a[latest] = page('jobs', [], 1); },
+  ]) {
+    const incomplete = structuredClone(api); mutate(incomplete);
+    const unknown = await invoke(incomplete);
+    assert.equal(unknown.state, 'n/a', 'empty completed/older attempts and non-authoritative responses remain unknown');
+    assert.equal(unknown.facts.weightedMinutes, null);
+    assert.ok(unknown.facts.coverage.gaps.length);
+  }
+});
+
+test('CI adoption excludes every attempt of unfinished logical runs and rejects legacy cache completion', async t => {
+  const { adoptionCost } = await import('../lib/ci-adoption.mjs');
+  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const path = '.github/workflows/check.yml';
+  const config = { ci: { historyRepo: repo } };
+  const estimate = async report => {
+    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+  };
+  for (const status of ['queued', 'in_progress']) {
+    const api = baseApi([run(1, { event: 'schedule', run_attempt: 2, status, conclusion: null })]);
+    api[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', status === 'queued' ? [] : [job(102, 1, { run_attempt: 2, status, conclusion: null, completed_at: null })]);
+    const unfinished = await read(t, api, { days: 28 });
+    assert.equal(unfinished.coverage.complete, true);
+    assert.equal(unfinished.weightedMinutes, 1, 'completed attempt still contributes to window total');
+    assert.equal((await estimate(unfinished)).monthlyWeightedMinutes, null, 'earlier attempt is not a whole-run sample');
+    assert.equal(unfinished.workflows[0].runs[0].runComplete, false);
+    api[`repos/${repo}/actions/runs`].workflow_runs.push(run(2, { event: 'schedule' }));
+    api[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', [job(201, 2, { started_at: stamp(6) })]);
+    const mixed = await read(t, api, { days: 28 });
+    assert.equal(mixed.weightedMinutes, 5);
+    const cost = await estimate(mixed);
+    assert.equal(cost.monthlyWeightedMinutes, 120, 'daily mean uses only the completed four-minute logical run');
+    assert.equal(cost.workflows[0].excludedLogicalRuns, 1);
+    assert.match(cost.workflows[0].assumptions.join(' '), /1 incomplete logical runs excluded with all their attempts/);
+    for (const missing of [undefined, 'true', null]) {
+      const legacy = structuredClone(mixed);
+      legacy.workflows[0].runs[0].runComplete = missing;
+      assert.equal((await estimate(legacy)).monthlyWeightedMinutes, null, 'cache cannot infer logical completion from attempt completion');
+    }
   }
 });

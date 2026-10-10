@@ -732,7 +732,7 @@ export const CROSS_REVIEW_VALID = Object.freeze({
 
 export const MEASURES = [
   {
-    id: 'ci_minutes', what: 'last seven days of job-rounded weighted Actions minutes (estimate, not invoice)', unit: 'weighted minutes', bound: null, better: 'lower', ratchet: false,
+    id: 'ci_minutes', what: 'last seven days of completed-job rounded weighted Actions minutes (estimate, not invoice)', unit: 'weighted minutes', bound: null, better: 'lower', ratchet: false,
     async run(ctx) {
       const options = ciOptions(ctx.config);
       if (!ctx.config.repo) return { na: 'no repo for Actions usage', facts: { coverage: { complete: false, gaps: ['no repo'] } } };
@@ -740,7 +740,7 @@ export const MEASURES = [
       const ownedWorkflows = Object.entries(lock?.files ?? {}).filter(([path, entry]) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) && typeof entry?.practice === 'string').map(([path]) => path);
       const facts = await readCiUsage({ repo: ctx.config.repo, config: ctx.config, env: ctx.env, now: ctx.now, ownedWorkflows });
       const observed = facts.observedWeightedMinutes;
-      const detail = `${facts.workflows.map(w => `${w.keel ? 'keel-owned: ' : w.keelNamed ? 'keel-named: ' : ''}${w.path} ${w.weightedMinutes ?? 'unknown'} (${w.observedWeightedMinutes} observed)`).join('; ') || 'no jobs observed'}; ${facts.visibility} billing context; weights ${JSON.stringify(options.weights)} dated ${options.weightsDate}, not an invoice; ${facts.coverage.complete ? 'complete bounded read' : 'incomplete: ' + facts.coverage.gaps.join('; ')}`;
+      const detail = `completed jobs only; ${facts.coverage.unfinishedJobs} queued/in-progress jobs excluded; ${facts.coverage.queuedAttemptsWithoutJobs} current queued attempts with no jobs excluded; unfinished usage not estimated; ${facts.workflows.map(w => `${w.keel ? 'keel-owned: ' : w.keelNamed ? 'keel-named: ' : ''}${w.path} ${w.weightedMinutes ?? 'unknown'} (${w.observedWeightedMinutes} observed)`).join('; ') || 'no jobs observed'}; ${facts.visibility} billing context; weights ${JSON.stringify(options.weights)} dated ${options.weightsDate}, not an invoice; ${facts.coverage.complete ? 'complete bounded read' : 'incomplete: ' + facts.coverage.gaps.join('; ')}`;
       if (facts.weightedMinutes === null && !(options.weeklyMinutes !== null && observed > options.weeklyMinutes)) return { na: detail, facts };
       return { value: facts.weightedMinutes ?? observed, bound: options.weeklyMinutes, detail, facts };
     },

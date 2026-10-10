@@ -257,7 +257,13 @@ Direct `readCiUsage` callers can pass `ownedWorkflows` paths explicitly.
 Set `"ci": { "weeklyMinutes": 1000 }` to choose a weekly bound; without one
 usage is reported without a budget verdict. The seven-day window attributes
 jobs by completion time and includes their full runtime, including failed and
-canceled jobs. Future or unfinished timing is unknown. API errors, missing
+canceled jobs. Positively queued/in-progress jobs are outside this completed-job
+window: reports count their exclusion and leave unfinished usage unestimated,
+never a full in-flight billing total. An authoritative empty job list for the
+current queued attempt is counted separately as an exclusion; older attempts
+still require observable jobs. Empty completed attempts remain unknown.
+Future completion timestamps and malformed
+completed-job timing remain unknown. API errors, missing
 attempts and unknown labels are gaps, never free zero usage. Observed usage
 already above a bound remains a finding even when the total is incomplete.
 
@@ -285,7 +291,11 @@ Both adoption paths preview only workflows they would create, with triggers,
 history source/window and monthly weighted-minute estimates. They query the
 same production reader for each workflow's history in `dalmaer/keel` (override
 with `ci.historyRepo`). Daily/weekly scheduled runs use the proposed schedule
-and observed mean cost including retries; other events use the source's
+and observed mean cost including retries. Logical runs with unfinished latest
+attempts are excluded in their entirety from adoption samples, including
+earlier completed attempts; their completed jobs still count in window usage.
+Cached attempt rows require explicit boolean `runComplete` provenance; older
+caches lacking it must be refreshed. Other events use the source's
 observed event rate scaled to 30 days, **not a nightly frequency**. Target
 activity may differ. Estimates reuse source per-run runtime: target setup, gate
 and runtime may differ too. This is not a benchmark of the new project.
