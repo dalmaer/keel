@@ -222,11 +222,14 @@ export function busyCoverage(runs) {
 export const busyNote = runs => { const c = busyCoverage(runs); return `; ${c.omitted} busy runs omitted; ${c.unknown} runs with unavailable load context (not known quiet)`; };
 
 /** First eight lines, at most 1 KiB, redacted before truncation (including configured secrets). */
-export function failureText(value, env = process.env) {
+export function failureText(value, env = process.env, { configEnv = [] } = {}) {
   let text = stripVTControlCharacters(String(value ?? ''));
-  for (const [name, secret] of Object.entries(env)) {
-    if (/token|secret|password|credential|api.?key/i.test(name) && secret) text = text.split(secret).join('[redacted]');
-  }
+  const configured = new Set(configEnv);
+  const secrets = [...new Set(Object.entries(env)
+    .filter(([name, secret]) => secret && (configured.has(name) || /token|secret|password|credential|api.?key/i.test(name)))
+    .map(([, secret]) => stripVTControlCharacters(String(secret))).filter(Boolean))]
+    .sort((a, b) => b.length - a.length);
+  for (const secret of secrets) text = text.split(secret).join('[redacted]');
   text = text.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g, '[redacted]')
     .replace(/((?:[\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, '$1[redacted]')
     .replace(/(authorization["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|(?:bearer|basic)\s+[^\s,;}]+)/gi, '$1[redacted]')
@@ -713,7 +716,8 @@ export function inconclusiveOf(message) {
  * node reports a test's own diagnostic right after its result, and a
  * subtest's before its parent's.
  */
-export function topLevel({ root = null, errors = false } = {}) {
+export function topLevel({ root = null, errors = false, configEnv = [], env = process.env } = {}) {
+  const redact = value => failureText(value, env, { configEnv });
   const tests = [], last = new Map(), pending = new Map(), names = new Map(), failures = new Map();
   const fileOf = f => {
     if (!names.has(f)) names.set(f, root ? relative(root, real(f)).split(sep).join('/') : real(f));
@@ -737,15 +741,15 @@ export function topLevel({ root = null, errors = false } = {}) {
       if (errors && e.type === 'test:fail' && d?.nesting > 0 && d.file && d.parentId != null) {
         const parent = JSON.stringify([d.file, d.parentId]);
         const err = d.details?.error;
-        if (!failures.has(parent)) failures.set(parent, failures.get(id) ?? failureText(err?.cause?.message ?? err?.message ?? err ?? ''));
+        if (!failures.has(parent)) failures.set(parent, failures.get(id) ?? redact(err?.cause?.message ?? err?.message ?? err ?? ''));
         failures.delete(id);
       }
       if ((e.type !== 'test:pass' && e.type !== 'test:fail') || d?.nesting !== 0) return;
       const t = { file: d.file ? fileOf(d.file) : null, name: String(d.name), outcome: outcomeOf(e), ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10 };
       if (errors && t.outcome === 'fail') {
         const err = d.details?.error;
-        t.error = failures.get(id) ?? failureText(err?.cause?.message ?? err?.message ?? err ?? '');
-        if (!failures.has(id) && err?.failureType === 'subtestsFailed') t.error = failureText(t.error + '\nChild failure detail unavailable: no correlated parent link.');
+        t.error = failures.get(id) ?? redact(err?.cause?.message ?? err?.message ?? err ?? '');
+        if (!failures.has(id) && err?.failureType === 'subtestsFailed') t.error = redact(t.error + '\nChild failure detail unavailable: no correlated parent link.');
       }
       if (d.file && pending.has(d.file)) { mark(t, pending.get(d.file)); pending.delete(d.file); }
       if (d.file) last.set(d.file, { test: t, line: d.line });
@@ -862,8 +866,9 @@ export default async function* ledger(source) {
   const cwd = process.cwd();
   const root = rootOf(cwd);
   const config = await projectConfig(root);
+  const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
   const started = Date.now(), start = await busySample();
-  const top = topLevel({ root, errors: true });
+  const top = topLevel({ root, errors: true, configEnv });
   const { tests } = top;
   const pins = narrowed() ? null : pinned(root, config);
   let ran = 0;
@@ -880,7 +885,6 @@ export default async function* ledger(source) {
   }
   if (!tests.length) { if (empty) yield `${empty}\n`; return; } // nothing reported: nothing to remember
   try {
-    const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
     const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
     // flags: the node flags a rerun of this suite carries (runnerFlags), so keel test reuses this run as a
@@ -1028,7 +1032,8 @@ const groupOutcome = os => os.length === 1 ? os[0] : os.includes('fail') ? 'fail
  * `failed` every testcase that failed. A nested <testsuite> is a describe.
  * `fileOf` turns a JUnit path into the record's (root-relative).
  */
-export function junitTests(root, runner, fileOf = f => f) {
+export function junitTests(root, runner, fileOf = f => f, { configEnv = [], env = process.env } = {}) {
+  const redact = value => failureText(value, env, { configEnv });
   if (root?.name !== 'testsuites' && root?.name !== 'testsuite') throw new Error(`its root is <${root?.name}>, not <testsuites>`);
   const suites = root.name === 'testsuite' ? [root] : root.children.filter(e => e.name === 'testsuite');
   const tests = [];
@@ -1053,12 +1058,12 @@ export function junitTests(root, runner, fileOf = f => f) {
         const g = add(`${file}\u0000${top.describe ? 'd' : 't'}\u0000${top.name}`, file, top.name);
         g.outcomes.push(count(child, own));
         const failure = child.children.find(c => ['failure', 'error'].includes(c.name));
-        if (failure && !g.error) g.error = failureText([failure.attrs.message, failure.text].filter(Boolean).join('\n'));
+        if (failure && !g.error) g.error = redact([failure.attrs.message, failure.text].filter(Boolean).join('\n'));
         g.ms += msOf(child.attrs.time);
       } else if (child.name === 'testsuite') {
         const name = child.attrs.name ?? '';
         const g = add(`${file}\u0000d\u0000${name}`, file, name);
-        for (const c of casesIn(child)) { g.outcomes.push(count(c, false)); g.ms += msOf(c.attrs.time); const failure = c.children.find(x => ['failure', 'error'].includes(x.name)); if (failure && !g.error) g.error = failureText([failure.attrs.message, failure.text].filter(Boolean).join('\n')); }
+        for (const c of casesIn(child)) { g.outcomes.push(count(c, false)); g.ms += msOf(c.attrs.time); const failure = c.children.find(x => ['failure', 'error'].includes(x.name)); if (failure && !g.error) g.error = redact([failure.attrs.message, failure.text].filter(Boolean).join('\n')); }
         if (child.attrs.time !== undefined) g.ms = msOf(child.attrs.time);
       }
     }
@@ -1079,6 +1084,7 @@ export function junitTests(root, runner, fileOf = f => f) {
 export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start } = {}) {
   const root = rootOf(cwd);
   const config = await projectConfig(root);
+  const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
   const lines = [];
   const at = junit !== undefined ? resolve(cwd, junit) : resolve(root, typeof config?.tests?.junit === 'string' ? config.tests.junit : JUNIT);
   const inside = relative(root, at).split(sep).join('/');
@@ -1106,7 +1112,7 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
     // A file that names its runner is read as that runner's: a stale "tests".runner or a wrong --runner would misread every name.
     if (says && kind !== says) throw new Error(`it is ${says}'s JUnit, but the runner is ${kind} (${runner ? '--runner' : '.keel/keel.json "tests".runner'}); say ${says}`);
     if (kind !== 'bun' && kind !== 'vitest') throw new Error('its runner is not known: pass --runner bun or --runner vitest');
-    parsed = junitTests(doc, kind, f => relative(root, real(resolve(cwd, f))).split(sep).join('/'));
+    parsed = junitTests(doc, kind, f => relative(root, real(resolve(cwd, f))).split(sep).join('/'), { configEnv });
   } catch (e) {
     lines.push(`${LABEL}: ${shown} is not JUnit the ledger can read (${e.message}); nothing recorded.`);
     return { lines, code: status || 1 };
@@ -1122,7 +1128,6 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
   }
   if (!parsed.tests.length) return done(parsed.ran, parsed.failed); // nothing reported: nothing to remember
   try {
-    const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
     const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
     if (start === undefined) {

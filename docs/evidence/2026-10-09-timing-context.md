@@ -70,3 +70,7 @@ The timing/board builder passed 48 focused tests, the ledger/measure builder six
 The final head review found the hygiene block still sliced before busy filtering, unlike the corrected nightly measure. Both now select eligible observations first. A quiet pass/fail pair remains visible behind twenty busy runs; the conductor's focused test passed, and the isolated-copy proof is VERIFIED against `93029f2`.
 
 - Proven-by: tests/test-ledger.test.mjs (^hygiene retains quiet flake proof behind twenty busy observations$) — VERIFIED — "The input did not match the regular expression /^keel test ledger: 1 hygiene item /. Input: 'keel test ledger: no flaky or slower test (22 runs in .keel/test..."
+
+Configured environment values are now passed into failure redaction by both actual collectors regardless of variable-name heuristics. Values and text are normalized before longest-first replacement and truncation. The end-to-end regression checks saved Node and JUnit records, nested failures, overlapping values, ANSI and a value crossing the length boundary. Five focused checks passed; the conductor proof against `225922a` is VERIFIED.
+
+- Proven-by: tests/test-ledger.test.mjs (^configured environment secrets are redacted end to end) — VERIFIED — "collector redacts configured, overlapping, colored and heuristic values before bounding (configured environment secrets are redacted end to end by Node and J..."

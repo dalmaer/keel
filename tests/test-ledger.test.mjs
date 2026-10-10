@@ -1311,3 +1311,38 @@ test('hygiene retains quiet flake proof behind twenty busy observations', () => 
   assert.match(lines, /in the last 2 runs/);
   assert.doesNotMatch(hygiene(runs.slice(2)).join('\n'), /^ {2}flaky /m);
 });
+
+test('configured environment secrets are redacted end to end by Node and JUnit before truncation', async t => {
+  const { dir } = await acmeRepo(t);
+  const configEnv = ['ACME_SHORT', 'ACME_AUTH', 'ACME_EMPTY', 'ACME_CONTROL'];
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv } }));
+  const env = { ...process.env, ACME_SHORT: 'acme-fake', ACME_AUTH: 'acme-\x1b[32mfake-sensitive-value\x1b[0m', ACME_EMPTY: '', ACME_CONTROL: '\x1b[32m', ACME_SECRET: 'acme-heuristic-value' };
+  const message = 'Acme observed acme-fake-sensitive-value and acme-fake and acme-heuristic-value';
+  const bounded = 'x'.repeat(1000) + 'acme-fake-sensitive-value';
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), `import { test } from 'node:test';
+    test('Acme direct', () => { throw new Error(${JSON.stringify(message)}); });
+    test('Acme parent', async t => { await t.test('Acme child', () => { throw new Error(${JSON.stringify(message)}); }); });
+    test('Acme bounded', () => { throw new Error(${JSON.stringify(bounded)}); });
+  `);
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+  assert.equal(node.status, 1, 'the intentional Node failures ran');
+  await writeFile(join(dir, 'acme.xml'), `<testsuites name="vitest tests"><testsuite name="acme.test.ts">
+    <testcase name="Acme direct"><failure><![CDATA[${message}]]></failure></testcase>
+    <testsuite name="Acme parent"><testcase name="Acme child"><failure><![CDATA[${message}]]></failure></testcase></testsuite>
+    <testcase name="Acme bounded"><failure><![CDATA[${bounded}]]></failure></testcase>
+  </testsuite></testsuites>`);
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir, env });
+  assert.equal(junit.status, 1, 'the intentional JUnit failures ran');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2, 'both actual collectors persisted records');
+  for (const record of runs) {
+    assert.equal(record.tests.length, 3);
+    for (const result of record.tests) {
+      const expected = result.name === 'Acme bounded' ? 'x'.repeat(1000) + '[redacted]' : 'Acme observed [redacted] and [redacted] and [redacted]';
+      assert.ok(result.error === expected, 'collector redacts configured, overlapping, colored and heuristic values before bounding');
+    }
+    const stored = JSON.stringify(record);
+    assert.ok(!stored.includes('acme-fake') && !stored.includes('-sensitive-value') && !stored.includes('acme-heuristic-value'), 'persisted record contains no credential or overlap suffix');
+  }
+});
