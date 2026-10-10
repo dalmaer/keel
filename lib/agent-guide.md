@@ -1280,7 +1280,9 @@ the night's `escapes` measure notes the `fix:` commits without one.
   your staged, unstaged and untracked changes, your submodules' files and
   your ignored files (a `.env`, a generated fixture) laid over it, and a
   `node_modules` of its own that links each installed entry, so a new
-  `.cache` stays in the copy. The test runs there with `PWD` set to it.
+  `.cache` stays in the copy; a workspace package (a link into the
+  repository) is linked to the copy's own, and one the copy cannot hold
+  makes the verdict INCONCLUSIVE. The test runs there with `PWD` set to it.
   Both sides see the files the test sees here. Ignored files over 256 MB
   are not copied: the verdict is then INCONCLUSIVE. Each copy is removed
   in every case. Your working tree is never changed by keel or by what the
@@ -1306,7 +1308,8 @@ the night's `escapes` measure notes the `fix:` commits without one.
   so red-then-green is INCONCLUSIVE there, never VERIFIED.
 - **Verdicts**: `VERIFIED` (red without the fix, and every test that failed
   then passed with it, matched by its suites' names and its own, never by
-  name alone; tests that share a name are never matched by place), `NOT WORKING` (green without it: the test does not catch the
+  name alone, as a list, so a test named `a > b` is not test `b` in suite
+  `a`; tests that share a name are never matched by place), `NOT WORKING` (green without it: the test does not catch the
   bug; or red with it), `INCONCLUSIVE` (the test cannot run without the
   fix: it does not load, or its file is part of the fix, even changed
   rather than added: name only the fixed code; the fix's files are the

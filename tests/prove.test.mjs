@@ -4,7 +4,7 @@
 // tree is byte-identical before and after, whatever the verdict (lesson 54).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, readdir, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, readdir, chmod, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -326,7 +326,60 @@ test('tests are matched by their whole identity: a failing test skipped with the
   assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
   assert.equal(j.reason, 'what failed without the fix did not pass with it (skipped, todo or not run): anvils > works');
   // Same path twice: told apart by place.
-  assert.deepEqual(tapEntries('# Subtest: s\n    # Subtest: w\n    ok 1 - w\n    # Subtest: w\n    not ok 2 - w\nnot ok 1 - s\n').map(e => e.id), ['s > w', 's > w #2', 's']);
+  assert.deepEqual(tapEntries('# Subtest: s\n    # Subtest: w\n    ok 1 - w\n    # Subtest: w\n    not ok 2 - w\nnot ok 1 - s\n').map(e => e.label), ['s > w', 's > w #2', 's']);
+  // A name holding ' > ' is not a suite: the identities differ (keel's review of #55).
+  const [flat, nested] = tapEntries('# Subtest: a > b\nok 1 - a > b\n# Subtest: a\n    # Subtest: b\n    ok 1 - b\nok 2 - a\n');
+  assert.equal(flat.label, nested.label, 'they read alike');
+  assert.notEqual(flat.id, nested.id, 'but are not the same test');
+});
+
+test('a test named like a suite path is never matched to the nested test it reads like', async t => {
+  const dir = await repo(t);
+  // Without the fix: a top-level test named 'a > b' fails. With it: that test is gone, and suite 'a' holds a passing 'b'.
+  await writeFile(join(dir, 'tests', 'arrow.test.mjs'), [
+    "import { describe, test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { add } from '../lib/add.mjs';",
+    "if (add(1, 2) !== 3) test('a > b', () => { assert.equal(add(1, 2), 3); });",
+    "else describe('a', () => { test('b', () => { assert.equal(add(0, 0), 0); }); });", ''].join('\n'));
+  const j = await prove(dir, ['tests/arrow.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.equal(j.reason, 'what failed without the fix did not pass with it (skipped, todo or not run): a > b');
+});
+
+test('a workspace package linked from node_modules is the scratch copy\'s own: the test never loads or writes the user\'s source', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, '.gitignore'), 'node_modules/\n');
+  for (const [pkg, at] of [['acme-anvil', 'packages/anvil'], ['@acme/hammer', 'packages/hammer']]) {
+    await mkdir(join(dir, at), { recursive: true });
+    await writeFile(join(dir, at, 'package.json'), JSON.stringify({ name: pkg, type: 'module', exports: './index.js' }));
+    await writeFile(join(dir, at, 'index.js'), 'export const weight = 3;\n');
+    await mkdir(dirname(join(dir, 'node_modules', pkg)), { recursive: true });
+    await symlink(join('..', ...(pkg.startsWith('@') ? ['..'] : []), at), join(dir, 'node_modules', pkg));
+  }
+  commitAll(dir, 'acme: the workspace packages');
+  // The test writes beside the package it loaded: in the user's packages/, if it loaded the user's.
+  await writeFile(join(dir, 'tests', 'workspace.test.mjs'), [
+    "import { test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { writeFileSync } from 'node:fs';",
+    "import { weight } from 'acme-anvil';",
+    "import { weight as heavy } from '@acme/hammer';",
+    "import { add } from '../lib/add.mjs';",
+    "test('weighs', () => {",
+    "  writeFileSync(new URL('./touched.txt', import.meta.resolve('acme-anvil')), 'x');",
+    "  writeFileSync(new URL('./touched.txt', import.meta.resolve('@acme/hammer')), 'x');",
+    "  assert.equal(add(1, 2), weight); assert.equal(heavy, 3);",
+    "});", ''].join('\n'));
+  // prove() asserts the tree, packages/ and node_modules/ included, is byte-identical after.
+  assert.equal((await prove(dir, ['tests/workspace.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
+  // A link into the repository the scratch copy cannot hold (inside .git, which it never copies): no proof.
+  await mkdir(join(dir, '.git', 'acme-private'));
+  await symlink(join('..', '.git', 'acme-private'), join(dir, 'node_modules', 'acme-private'));
+  const r = keel(['prove', 'tests/workspace.test.mjs', '--fix', 'lib/add.mjs', '--json'], dir);
+  assert.equal(r.code, 1, r.out);
+  assert.equal(r.json().verdict, 'INCONCLUSIVE');
+  assert.match(r.json().reason, /^node_modules\/acme-private links into the repository at \.git\/acme-private, which the scratch copy does not hold$/);
 });
 
 test('the runner is read from each side\'s tree: a fix to the test script is reverted with the rest', async t => {
