@@ -69,9 +69,12 @@ these issues one at a time, as a pass beside climb and tend.
   on the issue: what changed, how it knows, the PR, or the one question it
   needs answered, with choices. A comment from the owner starts the next
   run on that issue with the comment included.
+- **Authorization binds the issue body.** Settled 2026-10-10: the trusted event router compares the writer event snapshot with the fresh body and records its hash in a bot receipt on the issue. The worker accepts that exact body only while the writer still has permission. An edited body needs a new writer action; a surviving label is not renewed approval. Scheduled scans skip rejected work with reasons.
 - **Spend is opt-in.** The pass is off until `.keel/keel.json` turns it
   on, with a budget the owner sets per week. When the budget runs out, the
-  robot waits and says so on the board.
+  robot waits and says so on the board. Admission, publication and independent
+  review fetch current default-branch policy; a newer OFF setting revokes queued
+  work even when its immutable checkout was enabled.
 - **Where issues come from.** A review comment answered `--tracked` can
   file its issue in the agent's shape. So can an accepted proposal from the
   night (phase 57). So can any agent that finds a fault outside its own
