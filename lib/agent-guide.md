@@ -1138,7 +1138,7 @@ mark?, session?, ending?, name?, files?, url?}]}], shown, hidden, github:
 shown, the GraphQL points this run spent, and what is left); `mark`
 → `{ok, id, project, file, mark}`. Exit 0; 2 on usage or an unknown id.
 
-<!-- topic: review | a PR's review comments: read each, validate it, answer it; not a gate -->
+<!-- topic: review | a PR's review comments, or a push's (<repo>@<sha>): read each, validate it, answer it; not a gate -->
 
 `keel review <owner/repo>#<n>` (or a PR URL, or `#<n>` for the project's own
 `repo`) reads every review thread (GraphQL `reviewThreads`, with
@@ -1222,6 +1222,29 @@ comments: [{kind: thread|review|comment, id, author, at, path, line, text,
 url, resolved, status?, answered}], unanswered, answered, ok}`; `--close --json` → `{repo, number,
 answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
 
+**A push reviewed after it landed** (phase 60, `"crossReview": {"after":
+"push"}`): `keel review <owner/repo>@<sha>` (7 to 40 hex; `@<sha>` for the
+project's own `repo`) reads that push's tracking issue (label
+`keel:review-after`, opened by the workflow; a person's issue is never the
+record) and lists its findings by id (`F1`, `F2`, …), answered or not. A
+finding is answered by a comment on the issue opening `**F1**` and carrying
+keel's reply (`--close` posts it). Same exits (0 all answered, 1 one is not,
+2 unreadable, or no review records that sha) and the same receipt rule
+(`reviews/<owner>__<repo>__after-<sha>.json`: the ids shown, every comment
+id the issue had); `--wait`, `--gate` and `--reviewer` are refused (nothing
+waits on a push). A read shows every other comment on the issue whole
+(`followUps`) before its receipt counts it read. `--close <F…>
+--fixed|--tracked|--not-valid` posts one comment per finding and closes the
+issue once every finding is answered (tracked counts, and its reply says the
+issue may close). `--json` → `{repo, sha, from, alone, reviewer, issue, url,
+state, title, comments: [{kind: finding, id, severity, path, line, text (the
+whole finding), url, answered, answer}], unanswered, answered, ok,
+followUps: [{id, author, at, url, body}]}`; `--close --json` →
+`{repo, sha, issue, answer, value, reply, closed: [{id, kind, answer,
+replied}], left, issueClosed, work: [{id, draft: {title, labels:
+[keel:agent], body}}]}`: `work` drafts the `keel:agent` issue a tracked
+finding becomes (phase 54 files it; keel review never does).
+
 **Cross-review** (the optional `cross-review` practice, needs `night`):
 `keel-cross-review.yml` has an agent review the PRs another model wrote, as
 Codex reviews Claude Code's. `.keel/keel.json` `"crossReview": {"for":
@@ -1245,6 +1268,35 @@ findings; the workflow checks them against the diff and posts one `COMMENT`
 review, findings inline, opened by a `<!-- keel:cross-review -->` marker. No
 secret: green with a notice; an agent that failed to start: red, the error
 line only. Its comments are answered like any reviewer's.
+**After the push** (phase 60): `"crossReview": {"after": "push", "budget":
+{"minutes": 15, "pushes": 8}}` (`for` optional then; `pushes` 1–48 reviews a
+UTC day, default 8, only with `after`). `keel render` then adds `push:
+branches: [main]` and a daily schedule to the workflow (without `after` it
+has neither). One concurrency group for every push: pushes during a review
+coalesce. `cross-review.mjs which-push` reviews main's commits since the
+last review (its tracking issue's record) as one diff; a review only ever
+starts from a record. With none that can serve, nothing is reviewed and the
+record starts first (`mode: start`, a closed issue, nothing spent): at the
+push's before when main's history holds it, else at the head (a first or
+force push, a daily run before any review). The author
+is the provider whose email its commits' authors, or their `Co-authored-by`
+trailers (the trailer block, as git parses it), carry (`pushReviewerOf`; a
+name alone is never evidence); the reviewer never is while another is
+available; a person's push goes to the first listed. Past the day's budget:
+a notice, and the next run reviews the waiting pushes together (a review
+whose post failed, its issue left pending, counts). Claude reads
+the diff from `$RUNNER_TEMP/keel-diff/` (`--add-dir`, that folder alone).
+After a push the publish job checks out nothing (keel#65): it fetches
+`cross-review.mjs` and `lib.mjs` alone and runs them only when their
+sha256 is what `keel render` wrote into the workflow (`KEEL_PUBLISHER`),
+else it is red and runs nothing; a start, at the push's before only when
+GitHub puts it below the run's commit, runs no repository code. `push-review`
+checks findings against the diff, `push-post` comments on the head commit
+where its own diff holds the line and opens one issue, `keel review after
+<sha>`, pending until one edit writes its record (and closes it when there
+are no findings): a failed post records nothing and is reviewed again. Read
+and answer it with `keel review <repo>@<sha>` (a sha covered only by a
+start was not reviewed: exit 1, saying so).
 
 <!-- topic: board | whose turn it is: the owner's board, and the verbs that settle its items -->
 

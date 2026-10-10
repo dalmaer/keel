@@ -36,6 +36,21 @@
 #     the valid findings inline, each dropped one named in the summary.
 #   - An agent that failed before its budget ran out is red, printing only the
 #     error line (lesson 29), and the publish job does not run.
+#   - After the push (keel phase 60), only with "crossReview": { "after":
+#     "push" }: keel render adds `push: branches: [main]` and a daily
+#     schedule to the triggers below (a project without it has neither, so
+#     no push is ever reviewed). Each run reviews main's commits since the
+#     last review as one batch, by a provider other than the one its commits'
+#     authors and trailers name; at most "budget".pushes a UTC day, the rest
+#     waiting for the next run. Findings go on the head commit (where its own
+#     diff holds the line) and into one tracking issue per push, the record
+#     the next run starts from. The same two jobs; after a push the publish
+#     job checks out nothing and runs only keel's publisher (cross-review.mjs
+#     and lib.mjs), fetched alone and checked against the sha256 keel render
+#     wrote into this file, so nothing a push changes runs where the token
+#     writes unless it changes this file too. A review only ever starts from a record: with
+#     none that can serve it starts one first (at the push's before, or the
+#     run's commit), running no repository code and spending nothing.
 #
 # SECRET: for Claude (the default), CLAUDE_CODE_OAUTH_TOKEN (`claude
 # setup-token`) or ANTHROPIC_API_KEY, as the claude practice's; for Codex,
@@ -57,9 +72,11 @@ on:
 # replace a person's /review queued behind a running review, then skip, and
 # the /review would be lost. The condition is the review job's `if:`, word
 # for word. The group is the workflow's, so it holds both jobs: a queued
-# review starts after the one before it has posted.
+# review starts after the one before it has posted. Pushes to main (and the
+# daily run) share one group: pushes that land during a review coalesce into
+# the one pending run, which reviews everything since the last review.
 concurrency:
-  group: keel-cross-review-${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/review') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]'))) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
+  group: keel-cross-review-${{ (github.event_name == 'push' || github.event_name == 'schedule') && 'after-push' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/review') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]'))) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 # Each job asks for its own; nothing is granted by default.
@@ -74,6 +91,8 @@ jobs:
     # The trigger, before a runner starts: a same-repo PR that is not a draft,
     # or `/review` on a PR from a person with write access, never a bot. The
     # branch prefix lives in .keel/keel.json, so the first steps read it.
+    # A push to the default branch and the daily run are reviewed after the
+    # push only with "after": "push" (the which step reads it).
     if: |
       (github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
@@ -83,27 +102,39 @@ jobs:
         startsWith(github.event.comment.body, '/review') &&
         contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
         github.event.comment.user.type != 'Bot' &&
-        !endsWith(github.event.comment.user.login, '[bot]'))
+        !endsWith(github.event.comment.user.login, '[bot]')) ||
+      (github.event_name == 'push' &&
+        github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) ||
+      github.event_name == 'schedule'
     runs-on: ubuntu-latest
     # The agent's own step is bounded by the budget (5 to 60 minutes); this
     # bounds the whole run.
     timeout-minutes: 75
+    # issues: read, for the tracking issues of the reviews after a push.
     permissions:
       contents: read
       pull-requests: read
+      issues: read
     outputs:
       ran: ${{ steps.ran.outputs.ran }}
       agent: ${{ steps.which.outputs.agent }}
       author: ${{ steps.which.outputs.author }}
       reason: ${{ steps.which.outputs.reason }}
       minutes: ${{ steps.which.outputs.minutes }}
+      mode: ${{ steps.which.outputs.mode }}
+      start: ${{ steps.which.outputs.start }}
     env:
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
     steps:
+      # After a push, main's whole history: where the last review ended, and who wrote each commit since.
+      # After a push (keel#65) the event's own commit, the one the publisher
+      # is checked at, never the default branch's tip when this job starts:
+      # a later push could change the scripts this job runs.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.sha || github.event.repository.default_branch }}
+          fetch-depth: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && '0' || '1' }}
           persist-credentials: false
       # The config, validated before the secret gate (a bad one, "agents"
       # with a typo too, is red, naming the key, never a quiet notice), and
@@ -152,13 +183,18 @@ jobs:
       # never the provider that wrote it (its branch says which), so the
       # first other provider "agents" lists; one with no secret is a notice.
       # A reviewer that would be the author is red, and no agent runs.
-      - name: Which pull request?
+      # After a push (or the daily run): main's commits since the last review
+      # (its tracking issue says where it ended), who wrote them (authors and
+      # Co-authored-by trailers), and the day's budget; the reviewer is never
+      # their provider while another is available.
+      - name: Which pull request or push?
         id: which
         if: steps.configured.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           ASSOCIATION: ${{ github.event.comment.author_association }}
           COMMENTER: ${{ github.event.comment.user.login }}
@@ -167,13 +203,19 @@ jobs:
           HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
         run: |
           node scripts/keel/cross-review.mjs config
-          gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
-          node scripts/keel/cross-review.mjs which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
+          if [ "$EVENT" = push ] || [ "$EVENT" = schedule ]; then
+            gh issue list --repo "$REPO" --label keel:review-after --state all --limit 60 --json number,title,body,createdAt,author > "$RUNNER_TEMP/after.json"
+            node scripts/keel/cross-review.mjs which-push --event "$EVENT" --before "$BEFORE" --issues "$RUNNER_TEMP/after.json" --json > "$RUNNER_TEMP/which.json"
+            cp "$RUNNER_TEMP/which.json" "$RUNNER_TEMP/push.json"
+          else
+            gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
+            node scripts/keel/cross-review.mjs which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
+          fi
           node -e '
             const fs = require("fs");
             const [file, out] = process.argv.slice(1);
             const w = JSON.parse(fs.readFileSync(file, "utf8"));
-            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\nreason=${w.reason ?? ""}\n`);
+            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\nreason=${w.reason ?? ""}\nmode=${w.mode ?? "pr"}\nbase=${w.base ?? ""}\nstart=${w.at ?? ""}\n`);
             // Its own provider reviews only when no other is available: said, never silent.
             console.log(w.review ? `${w.self ? "::notice::" : ""}review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
           ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
@@ -189,12 +231,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AGENT: ${{ steps.which.outputs.agent }}
+          MODE: ${{ steps.which.outputs.mode }}
+          BASE: ${{ steps.which.outputs.base }}
+          SHA: ${{ steps.which.outputs.sha }}
         run: |
-          if ! gh pr diff "$PR" --repo "$REPO" > "$RUNNER_TEMP/pr.diff"; then
-            echo "::warning::The pull request's diff could not be read; its findings cannot be posted inline."
-            : > "$RUNNER_TEMP/pr.diff"
+          if [ "$MODE" = push ]; then
+            # The push's combined diff (pr.diff, as a PR's is named), and the head commit's own (where a commit comment may sit). No diff driver runs.
+            git diff --no-color --no-ext-diff --no-textconv "$BASE" "$SHA" -- > "$RUNNER_TEMP/pr.diff"
+            git diff --no-color --no-ext-diff --no-textconv "$SHA^" "$SHA" -- > "$RUNNER_TEMP/head.diff"
+            # The diff the agent reads, alone in a folder of its own: Claude is granted that folder (--add-dir), nothing else of the runner's temp.
+            mkdir -p "$RUNNER_TEMP/keel-diff"
+            cp "$RUNNER_TEMP/pr.diff" "$RUNNER_TEMP/keel-diff/push.diff"
+            node scripts/keel/cross-review.mjs brief --push "$RUNNER_TEMP/push.json" --agent "$AGENT" --diff "$RUNNER_TEMP/keel-diff/push.diff" --out "$RUNNER_TEMP/prompt.md"
+          else
+            mkdir -p "$RUNNER_TEMP/keel-diff"
+            if ! gh pr diff "$PR" --repo "$REPO" > "$RUNNER_TEMP/pr.diff"; then
+              echo "::warning::The pull request's diff could not be read; its findings cannot be posted inline."
+              : > "$RUNNER_TEMP/pr.diff"
+            fi
+            node scripts/keel/cross-review.mjs brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
           fi
-          node scripts/keel/cross-review.mjs brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
           mkdir -p "$RUNNER_TEMP/keel/scripts/keel"
           cp scripts/keel/cross-review.mjs scripts/keel/lib.mjs "$RUNNER_TEMP/keel/scripts/keel/"
           eof="KEEL_EOF_$(date +%s%N)"
@@ -240,8 +296,11 @@ jobs:
           # own, the fallback); the action allows no bot unless named. The
           # adapters' logins only (lib.mjs AGENTS login), never "*".
           allowed_bots: claude[bot]
+          # The push's diff is in a folder of its own under the runner's temp
+          # (keel#65): Claude may read that folder, and only it, beyond the checkout.
           claude_args: |
             --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --add-dir ${{ runner.temp }}/keel-diff
       - name: Review
         id: review_codex
         if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'
@@ -290,11 +349,16 @@ jobs:
         env:
           AGENT: ${{ steps.which.outputs.agent }}
           EXECUTION: ${{ steps.review.outputs.execution_file }}
+          MODE: ${{ steps.which.outputs.mode }}
         run: |
           out="$RUNNER_TEMP/handoff"
           rm -rf "$out"
           mkdir -p "$out"
-          cp "$RUNNER_TEMP/pr.json" "$RUNNER_TEMP/pr.diff" "$out/"
+          if [ "$MODE" = push ]; then
+            cp "$RUNNER_TEMP/push.json" "$RUNNER_TEMP/pr.diff" "$RUNNER_TEMP/head.diff" "$out/"
+          else
+            cp "$RUNNER_TEMP/pr.json" "$RUNNER_TEMP/pr.diff" "$out/"
+          fi
           if [ "$AGENT" = codex ]; then
             if [ -f "$RUNNER_TEMP/codex-final-message.md" ]; then cp "$RUNNER_TEMP/codex-final-message.md" "$out/codex-final-message.md"; fi
           else
@@ -314,24 +378,112 @@ jobs:
   # The only job that can write: no agent, and nothing of the PR's branch
   # runs here. It runs only when the agent ran (a red "Did the agent run?"
   # fails the review job, so this one is skipped), from a checkout of the
-  # default branch, on the review job's artifact.
+  # default branch, on the review job's artifact. After a push it runs only
+  # keel's own publisher, checked byte for byte, or (a start) no repository
+  # code at all.
   publish:
     needs: review
-    if: needs.review.outputs.ran == 'true'
+    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode == 'start'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # issues: write, for the tracking issue of a review after a push.
     permissions:
       contents: read
       pull-requests: write
+      issues: write
     steps:
+      # After a push, the publisher: cross-review.mjs and its lib.mjs, the bytes
+      # keel rendered this workflow with, and nothing else (keel#65). Every
+      # commit on main was pushed code once, a reviewed one too, so no commit
+      # is trusted for what it is: the scripts are fetched alone (no checkout),
+      # and run only when their sha256 is the one keel wrote here
+      # (KEEL_PUBLISHER, filled by keel render). A push that changes them is
+      # refused; one that changes this file too changes what runs, and shows
+      # in its diff. Inline: nothing of the repository runs before the check.
+      - name: Is the publisher keel's?
+        id: publisher
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          KEEL_PUBLISHER: unrendered
+        run: |
+          out="$RUNNER_TEMP/publisher/scripts/keel"
+          rm -rf "$RUNNER_TEMP/publisher"
+          mkdir -p "$out"
+          gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/scripts/keel/cross-review.mjs?ref=$SHA" > "$out/cross-review.mjs"
+          gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/scripts/keel/lib.mjs?ref=$SHA" > "$out/lib.mjs"
+          node -e '
+            const fs = require("fs"), { createHash } = require("crypto");
+            const [cross, lib] = process.argv.slice(1).map(f => createHash("sha256").update(fs.readFileSync(f)).digest("hex"));
+            const want = String(process.env.KEEL_PUBLISHER ?? "").trim().split(/\s+/);
+            if (want.length !== 2 || want.some(w => !/^[0-9a-f]{64}$/.test(w)) || cross !== want[0] || lib !== want[1]) {
+              console.log(`::error::scripts/keel/cross-review.mjs and lib.mjs at the run commit are not the ones keel rendered this workflow with (keel render writes their sha256 into KEEL_PUBLISHER), so this job runs neither. Nothing is posted. Run keel render (or keel update), or put back the files keel wrote.`);
+              process.exit(1);
+            }
+          ' "$out/cross-review.mjs" "$out/lib.mjs"
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+
+      # A pull request: the default branch. After a push, no checkout: the
+      # publisher above is all that runs. A start runs no repository code.
+      # Which of these runs is the event's (keel#65), never the review job's
+      # word: on a push the review job ran the pushed code, and the default
+      # branch is the pushed code.
       - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - uses: actions/download-artifact@v8
+        if: needs.review.outputs.mode != 'start'
         with:
           name: keel-cross-review
           path: ${{ runner.temp }}/review
+
+      # No record a review can start from (none yet, one a force push dropped,
+      # one from before an upgrade): the record starts here, before any review
+      # is spent, so a review that fails later is retried from it (keel#65). At
+      # the push's before when the review job names it and GitHub puts it
+      # below the run's commit (that push is reviewed next), else at the run's
+      # own commit. A closed tracking issue, from the event alone: no
+      # repository code runs, nothing is spent.
+      - name: Start the record
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'start'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          STARTAT: ${{ needs.review.outputs.start }}
+        run: |
+          # A start is only for a repo with no record yet, and that is GitHub's
+          # word, never the review job's (keel#65): the pushed script said
+          # "start", and a script that lies would skip the publisher's check
+          # and set the record past its own push.
+          had=$(gh api "repos/$REPO/issues?labels=keel:review-after&state=all&per_page=1" --jq 'length')
+          if [ "$had" != 0 ]; then
+            echo "::error::The review job asked to start the record, but $REPO already has a keel:review-after issue: nothing is started. A start is only for the first run; check the latest record."
+            exit 1
+          fi
+          at="$SHA"
+          if [ "$EVENT" = push ] && [ -n "$STARTAT" ] && [ "$STARTAT" = "$BEFORE" ] && [ "$STARTAT" != "$SHA" ]; then
+            gh api "repos/$REPO/compare/$STARTAT...$SHA" > "$RUNNER_TEMP/start-below.json"
+            if node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).status === "ahead" ? 0 : 1)' "$RUNNER_TEMP/start-below.json"; then at="$STARTAT"; fi
+          fi
+          AT="$at" node -e '
+            const h = process.env.AT;
+            if (!/^[0-9a-f]{40}$/.test(h)) { console.log("::error::No commit to start the record at."); process.exit(1); }
+            const record = { from: null, to: h, alone: false, start: true, agent: null, findings: [] };
+            const body = [`<!-- keel:review-after ${JSON.stringify(record)} -->`, `**Review after the push starts here**, at \`${h.slice(0, 7)}\` (keel practice \`cross-review\`). The commits up to it are not reviewed; the next run reviews everything after it.`, ""].join("\n");
+            process.stdout.write(JSON.stringify({ title: `keel review after ${h.slice(0, 7)}`, body, labels: ["keel:review-after"] }));
+          ' > "$RUNNER_TEMP/start.json"
+          gh api --method POST "repos/$REPO/labels" -f name=keel:review-after -f color=5319e7 > /dev/null 2>&1 || true
+          gh api --method POST "repos/$REPO/issues" --input "$RUNNER_TEMP/start.json" > "$RUNNER_TEMP/started.json"
+          number=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).number)' "$RUNNER_TEMP/started.json")
+          gh api --method PATCH "repos/$REPO/issues/$number" -f state=closed -f state_reason=completed > /dev/null
+          echo "the review after the push starts at ${at:0:7}: #$number"
 
       # The review: the agent's final message as its summary (opened by a
       # hidden marker, so it owes no answer) and its valid findings as inline
@@ -339,6 +491,7 @@ jobs:
       # the agent's). Should GitHub refuse the inline comments, the same
       # review goes with the findings listed in its summary.
       - name: Post the summary
+        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -356,3 +509,26 @@ jobs:
             echo "::warning::GitHub refused the review with its inline comments; posting it with the findings in its summary."
             gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-plain.json" --jq '"posted review \(.id) (\(.state))"'
           fi
+
+      # After a push: the findings, checked against the push's diff as a PR's
+      # are, each a commit comment on the head where its own diff holds the
+      # line, and all of them in one tracking issue (keel review after <sha>),
+      # the record the next run starts from; closed as it opens when there are
+      # none. The posting is the publisher's (push-post, checked above), with
+      # this job's token.
+      - name: Post after the push
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PUBLISHER: ${{ steps.publisher.outputs.dir }}
+          AGENT: ${{ needs.review.outputs.agent }}
+          AUTHOR: ${{ needs.review.outputs.author }}
+          REASON: ${{ needs.review.outputs.reason }}
+          MINUTES: ${{ needs.review.outputs.minutes }}
+        run: |
+          in="$RUNNER_TEMP/review"
+          file="$in/claude-execution-output.json"
+          if [ "$AGENT" = codex ]; then file="$in/codex-final-message.md"; fi
+          node "$PUBLISHER/cross-review.mjs" push-review --agent "${AGENT:-claude}" --author "$AUTHOR" --reason "$REASON" --file "$file" --push "$in/push.json" --diff "$in/pr.diff" --head-diff "$in/head.diff" --minutes "$MINUTES" --repo "$REPO" --out "$RUNNER_TEMP/push-review.json"
+          node "$PUBLISHER/cross-review.mjs" push-post --review "$RUNNER_TEMP/push-review.json" --repo "$REPO"

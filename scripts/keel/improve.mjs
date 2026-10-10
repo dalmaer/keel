@@ -718,6 +718,8 @@ export const CROSS_REVIEW_VALID = Object.freeze({
   async run(ctx) {
     const prefixes = ctx.config.crossReview?.for;
     if (ctx.config.crossReview === undefined) return { na: 'cross-review is off: .keel/keel.json has no "crossReview"' };
+    // Phase 60: a project that ships to main may review only its pushes; their findings live in issues, not PRs.
+    if (prefixes === undefined && ctx.config.crossReview?.after === 'push') return { na: 'cross-review reviews pushes only ("after": "push", no "for"): its findings are in keel:review-after issues, which this measure does not read' };
     if (!Array.isArray(prefixes) || !prefixes.length || prefixes.some(p => typeof p !== 'string' || !p)) throw new Error('"crossReview".for must list one branch prefix or more');
     const ready = await ghReady(ctx);
     if (ready.na) return { na: ready.na };

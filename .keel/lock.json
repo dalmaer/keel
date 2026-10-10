@@ -35,7 +35,7 @@
     },
     ".agents/cross-review/REVIEW.md": {
       "practice": "cross-review",
-      "sha256": "3aeffb8fc0cf4cb06b10c168f9b9a14865590f045426ed0e4ab204bdff6d00f0"
+      "sha256": "0afbba8cb77bf181b12ddab26b4de3d46c9d2ff04fce4e236f985ed4f70a0ab4"
     },
     ".agents/robot/PROTOCOL.md": {
       "practice": "climb",
@@ -71,7 +71,7 @@
     },
     ".github/workflows/keel-cross-review.yml": {
       "practice": "cross-review",
-      "sha256": "647df67abc1a4a277462a8c13e1253892ef8c3936fb76b28d50eec07c465989c"
+      "sha256": "889d5370d5ee9363d409754bb5f93a115f7206cae3cbcf33ec9a505c45ba86d8"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -151,7 +151,7 @@
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
-      "sha256": "950681e432e42bcfeb343d34f8fb108dde1ea7a7ebb74803f2feffeece3636be"
+      "sha256": "99304c847eafe7f6786f963206fa7cca3c098365365403ae5cab7df04a4683a3"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -167,11 +167,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "99f0f2c3933b58c7d7c555c2aeb9fb639d4d88c91cde0047800f6012d1d77001"
+      "sha256": "c67eea1d8a1e7ee5e3c8da824f8e26f63b0498268c8e1a6d1a6bb37507fecb7d"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "902791a70b78caa238ccaa173d2d9acb51931f6301854cedb04998c00c57df37"
+      "sha256": "30555855f23788e4841ebc0121fcce2a4a13f33665daa09617532b85b6c4ba36"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
