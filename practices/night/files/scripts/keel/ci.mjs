@@ -192,11 +192,11 @@ const TESTS_NAMED = /\btest(?:s|ing)?\b/i;
 const executed = x => x?.conclusion === 'success' || x?.conclusion === 'failure';
 
 /**
- * Evidence that the reused attempt ran tests (keel#93): an executed job named
- * for tests whose every step ran; else the test ledger's artifact uploaded by
- * this run once its jobs started. A run whose test jobs were all
- * skipped (only lint or setup ran) has none, and null sends the night to its
- * local gate: a green run of nothing is not a gate that passed.
+ * Evidence that the reused attempt ran tests (keel#93, #95): an executed job
+ * named for tests whose every step ran. Not a step's name, and not the test
+ * ledger's artifact until its contents are read (#96). A run with none (its
+ * test jobs skipped, only lint or setup run) gives null, and the night runs
+ * its local gate: a green run of nothing is not a gate that passed.
  */
 async function testEvidence(client, repo, run, jobs, sha) {
   const ran = jobs.filter(j => executed(j) && Number.isFinite(Date.parse(j.started_at)));
@@ -206,15 +206,11 @@ async function testEvidence(client, repo, run, jobs, sha) {
     // `Run tests` step a condition skipped ran no tests. With no step detail, its name is what there is.
     if (TESTS_NAMED.test(j.name ?? '') && steps.every(s => executed(s))) return { kind: 'job', job: j.name };
     // No step's name is evidence (#95): a step named for tests can be the one keeping the ledger's artifact
-    // ("Keep the test ledger"), which succeeds with nothing to keep. The artifact itself, checked below, is.
+    // ("Keep the test ledger"), which succeeds with nothing to keep.
   }
-  if (!ran.length) return null;
-  const began = Math.min(...ran.map(j => Date.parse(j.started_at)));
-  // Paged as a run's jobs are: one run's artifacts, filtered to the ledger's name.
-  const kept = await client.pages(`repos/${repo}/actions/runs/${run.id}/artifacts?name=${LEDGER_ARTIFACT}`, 'artifacts', 'jobPages');
-  if (!client.coverage.complete) return null;
-  const artifact = kept.find(a => a.name === LEDGER_ARTIFACT && a.workflow_run?.id === run.id && a.workflow_run?.head_sha === sha && Number.isSafeInteger(a.size_in_bytes) && a.size_in_bytes > 0 && Date.parse(a.created_at) >= began);
-  return artifact ? { kind: 'test-ledger', artifact: artifact.id } : null;
+  // Nor the ledger's artifact, until its contents are read (#95, #96): the gate's own timing record (kind
+  // "gate", no tests) is written and uploaded even when no tests ran. Without evidence, the local gate runs.
+  return null;
 }
 
 /** Exact clean revision CI reuse. Explicit workflow selection is done by the caller. */

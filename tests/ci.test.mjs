@@ -130,12 +130,13 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   assert.equal(skippedInTestJob.reused, false, 'a test job whose test step was skipped is not evidence');
   const wholeTestJob = await invoke(gateApi(run(1), [job(102, 1, { name: 'test', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'npm run check', conclusion: 'success' }] })]));
   assert.deepEqual([wholeTestJob.reused, wholeTestJob.testEvidence], [true, { kind: 'job', job: 'test' }], 'a test job whose every step ran');
-  // The test ledger's artifact, uploaded by this run once its jobs started (keel's own check: job "check", step "Run the configured gate").
+  // #95, #96: the ledger's artifact is not evidence until its contents are read: the gate's own timing record is
+  // uploaded even when no tests ran (keel's own check: job "check", step "Run the configured gate").
   const check = job(101, 1, { name: 'check', steps: [{ name: 'Run the configured gate', conclusion: 'success' }] });
   const kept = (extra = {}) => { const api = gateApi(run(1), [check]); api[`repos/${repo}/actions/runs/1/artifacts`] = page('artifacts', [{ id: 9, name: 'keel-test-runs', size_in_bytes: 4096, created_at: stamp(2.5), workflow_run: { id: 1, head_sha: sha }, ...extra }]); return api; };
   const ledger = await invoke(kept());
-  assert.deepEqual([ledger.reused, ledger.testEvidence], [true, { kind: 'test-ledger', artifact: 9 }], 'the test ledger ran');
-  for (const extra of [{ created_at: stamp(10) }, { workflow_run: { id: 2, head_sha: sha } }, { workflow_run: { id: 1, head_sha: 'b'.repeat(40) } }, { size_in_bytes: 0 }, { name: 'coverage' }]) assert.equal((await invoke(kept(extra))).reused, false, JSON.stringify(extra));
+  assert.equal(ledger.reused, false, 'a fresh ledger artifact alone is not evidence that tests ran');
+  assert.match(ledger.reason, /no test job or test-ledger run executed/);
   assert.equal((await invoke(gateApi(run(1), [check]))).reused, false, 'no artifact, no test-named job: not reused');
   // The night runs its own gate instead.
   const root = await scratch(t);
