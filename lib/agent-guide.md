@@ -1291,8 +1291,9 @@ the night's `escapes` measure notes the `fix:` commits without one.
   removed), and the test runs there.
 - **With the fix**: in the second, the test runs as the tree is.
 - **The base**: `--base <ref>`; else HEAD's parent when the fix's files are
-  committed and clean, else HEAD. Some committed and some not: exit 2, name
-  the commit before the whole fix with `--base`.
+  committed and clean, else HEAD. Some committed and some not (judged file
+  by file, a directory by the files under it): exit 2, name the commit
+  before the whole fix with `--base`.
 - **The runner**, read from each side's own tree (a fix to `package.json`
   or `.keel/keel.json` is reverted with the rest): `node --test
   --test-reporter=tap` with the preloads (`--import`, `--require`) of the

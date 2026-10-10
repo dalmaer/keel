@@ -208,9 +208,19 @@ test('a fix part committed and part not needs its base named: HEAD would leave t
   await writeFile(join(dir, 'tests', 'two.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { two } from '../lib/two.mjs';\nimport { add } from '../lib/add.mjs';\ntest('one and one', () => { assert.equal(add(1, 1), two); });\n");
   const r = keel(['prove', 'tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--json'], dir);
   assert.equal(r.code, 2, r.out);
-  assert.match(r.json().error, /^some --fix paths are committed \(lib\/two\.mjs\) and some are not \(lib\/add\.mjs\): name the commit before the whole fix with --base <ref>$/);
+  assert.match(r.json().error, /^some --fix paths are committed \(lib\/two\.mjs\) and some are not \(lib\/add\.mjs\): name the commit before the whole fix with --base <ref>/);
   // Named, the whole fix is reverted: the test does not load without it.
   assert.equal((await prove(dir, ['tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--base', 'HEAD~1'], 1)).verdict, 'INCONCLUSIVE');
+  // One directory holding both parts is judged file by file, not as one dirty argument (Codex on #55).
+  const whole = keel(['prove', 'tests/two.test.mjs', '--fix', 'lib', '--json'], dir);
+  assert.equal(whole.code, 2, whole.out);
+  assert.match(whole.json().error, /^some --fix paths are committed \(lib\/two\.mjs\) and some are not \(lib\/add\.mjs\)/);
+  assert.equal((await prove(dir, ['tests/two.test.mjs', '--fix', 'lib', '--base', 'HEAD~1'], 1)).verdict, 'INCONCLUSIVE');
+  // Only dirty files under it: HEAD, as before.
+  await writeFile(join(dir, 'lib', 'add.mjs'), BUGGY);
+  commitAll(dir, 'acme: the bug back');
+  await writeFile(join(dir, 'lib', 'add.mjs'), 'export const add = (a, b) => a + b;\n');
+  assert.equal((await prove(dir, ['tests/two.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
 });
 
 test('tests that share a name are never matched by place: a shift between runs is INCONCLUSIVE', async t => {
