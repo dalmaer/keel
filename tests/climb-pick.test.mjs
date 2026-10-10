@@ -239,17 +239,21 @@ test('agent ran: an agent that errored before its budget ends the run red, sayin
   t.after(() => rm(file, { force: true }));
   await writeFile(file, execution(early));
   const now = Math.floor(Date.now() / 1000);
-  const s = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 5) });
+  // The step runs the copy of keel's scripts the workflow kept before the agent ran (PR #59), in $RUNNER_TEMP/keel.
+  const kept = await mkdtemp(join(tmpdir(), 'keel-kept-'));
+  t.after(() => rm(kept, { recursive: true, force: true }));
+  await cp(join(dir, 'scripts/keel'), join(kept, 'keel/scripts/keel'), { recursive: true });
+  const s = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 5), RUNNER_TEMP: kept });
   assert.equal(s.status, 1, s.out);
   assert.match(s.out, /^::error::Claude did not start: is_error after 1 turn in 2 s/m);
   assert.doesNotMatch(s.out, /acme private session text/, 'never the session\'s messages');
   // The budget ran out: not red.
-  const timeout = await step(t, dir, 'Did the agent run?', { OUTCOME: 'failure', EXECUTION: join(dir, 'none.json'), MINUTES: '45', STARTED: String(now - 45 * 60) });
+  const timeout = await step(t, dir, 'Did the agent run?', { OUTCOME: 'failure', EXECUTION: join(dir, 'none.json'), MINUTES: '45', STARTED: String(now - 45 * 60), RUNNER_TEMP: kept });
   assert.equal(timeout.status, 0, timeout.out);
   assert.match(timeout.out, /ran out its budget/);
   // A good run: not red.
   await writeFile(file, execution({ is_error: false, num_turns: 30, duration_ms: 600_000, result: 'done' }));
-  const fine = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 600) });
+  const fine = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 600), RUNNER_TEMP: kept });
   assert.equal(fine.status, 0, fine.out);
   assert.doesNotMatch(fine.out, /done/, 'the result text is printed only on failure');
 });

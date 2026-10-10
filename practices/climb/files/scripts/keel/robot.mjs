@@ -294,7 +294,8 @@ export const approveMark = hash => `<!-- keel:robot approve ${hash} -->`;
 export function approvalOf(a, { writer = NOBODY } = {}) {
   const label = (a?.labels ?? []).filter(l => l?.actor && !l.bot && Number.isFinite(at(l.at)) && writer(l.actor)).sort((x, y) => at(x.at) - at(y.at)).at(-1);
   if (!label) return { ok: false, why: `no ${LABEL} label put on it by a person with write access was found` };
-  if (!a.lastEditedAt || at(a.lastEditedAt) <= at(label.at)) return { ok: true, why: `${label.actor} put ${LABEL} on it after its last edit` };
+  // Strictly after (PR #59): an edit GitHub dates the same second as the label may have come after it.
+  if (!a.lastEditedAt || at(a.lastEditedAt) < at(label.at)) return { ok: true, why: `${label.actor} put ${LABEL} on it after its last edit` };
   if (writer(a.editor)) return { ok: true, why: `last edited by ${a.editor}, who has write access` };
   return { ok: false, why: `its body was last edited ${a.lastEditedAt}${a.editor ? ` by ${a.editor}` : ''}, after ${label.actor} put ${LABEL} on it (${label.at}), and that editor has no write access` };
 }

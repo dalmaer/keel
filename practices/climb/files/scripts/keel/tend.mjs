@@ -187,7 +187,7 @@ export const tendSurface = path => (/^docs\/.+\.md$/.test(path) && !path.startsW
  * no fsmonitor it named ever runs from a command of keel's. climb.mjs and
  * robot.mjs run git with these too.
  */
-export const SAFE_GIT = Object.freeze(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false']);
+export const SAFE_GIT = Object.freeze(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.useReplaceRefs=false']);
 function git(cwd, args, { allowFail = false } = {}) {
   const r = spawnSync('git', [...SAFE_GIT, ...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new TendError(`git ${args[0]}: ${r.error.message}`);
@@ -478,18 +478,20 @@ export function trackedPrint(root, head) {
  * The git dir's files that make git run a command (PR #59), read from disk,
  * never through git: its config (core.hooksPath, fsmonitor, a filter's
  * clean command, an alias), its hooks, and info/attributes (which names the
- * filters). A hash of each path and its bytes.
+ * filters), and its replace refs (refs/replace/, which change what a commit
+ * is to every git command that does not set core.useReplaceRefs=false, and
+ * packed-refs, which can hold them). A hash of each path and its bytes.
  */
 export function gitDirPrint(gitDir) {
   const h = createHash('sha256');
   const add = rel => { const p = join(gitDir, rel); try { const st = lstatSync(p); if (st.isDirectory()) { for (const n of readdirSync(p).sort()) add(join(rel, n)); return; } h.update(`${rel}\0${st.isSymbolicLink() ? `link:${readlinkSync(p)}` : readFileSync(p).toString('base64')}\0`); } catch (e) { if (e.code !== 'ENOENT') throw e; } };
-  for (const rel of ['config', 'config.worktree', 'hooks', 'info/attributes']) add(rel);
+  for (const rel of ['config', 'config.worktree', 'hooks', 'info/attributes', 'refs/replace', 'packed-refs']) add(rel);
   return h.digest('hex');
 }
 /** What moved since `before` (treeState): [problem]. `what` names the code that ran. */
 export function heldProblems(root, before, what) {
   // The git dir first, from disk: a hook or a config it planted must never run, so no git is asked until it is clean.
-  if (gitDirPrint(before.gitDir) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes (${before.gitDir}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
+  if (gitDirPrint(before.gitDir) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes, or its replace refs (${before.gitDir}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
   const now = treeState(root), out = [];
   if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
   if (now.status !== before.status) out.push(`${what} changed the tracked tree or the index after the guard's checks (git status: ${now.status.split('\n').filter(Boolean).slice(0, 3).join('; ') || 'clean'}): nothing is taken`);
@@ -522,6 +524,17 @@ export function scriptsChanged(root, base, head) {
   return out;
 }
 
+/**
+ * The items of `after` that `before` does not have, by occurrence (PR #59):
+ * each item of `before` covers one item of `after` with the same key, so an
+ * identical line ticked elsewhere never covers a box newly ticked.
+ */
+export function added(before, after, key) {
+  const left = new Map();
+  for (const x of before) left.set(key(x), (left.get(key(x)) ?? 0) + 1);
+  return after.filter(x => { const n = left.get(key(x)) ?? 0; if (n) { left.set(key(x), n - 1); return false; } return true; });
+}
+
 /** The records a deletion of is refused (PR #59), beside docs/evidence/. */
 export const RECORD_DIRS = Object.freeze(['docs/phases/', 'docs/projects/', 'docs/decisions/']);
 export function recordRules(root, base, head, who = 'the agent') {
@@ -537,20 +550,17 @@ export function recordRules(root, base, head, who = 'the agent') {
     // PR #59: the projects shape keeps each phase's status in a **Status:** line, its boxes anywhere: any change
     // to a status line, and any box newly ticked, is refused (conservatively: the rules never parse that shape's words).
     if (/^docs\/projects\/.+\/phases\.md$/.test(path)) {
-      const lines = t => String(plain(t) ?? '').split('\n');
-      const was = new Set(lines(before).map(l => l.trim()));
-      lines(after).forEach((l, i) => {
-        const s = l.trim();
-        if (was.has(s)) return;
+      // By occurrence, under the heading it sits in (PR #59): a line another phase already has never covers a new one.
+      const lines = t => { let h = ''; return String(plain(t) ?? '').split('\n').map((l, i) => { const s = l.trim(); if (/^#{1,6}\s/.test(s)) h = s; return { s, i, key: `${h}\0${s}` }; }); };
+      for (const { s, i } of added(lines(before), lines(after), x => x.key)) {
         // Either bold form (PR #59): `**Status:** CLOSED` and the parser's own `**Status: CLOSED.**`.
         if (/^(?:[-*]\s+)?\*\*Status\b/i.test(s)) refused.push(`${path}:${i + 1}: changes a phase's status line ("${s.slice(0, 80)}"); ${who} never marks a phase`);
         else if (/^[-*]\s+\[[xX]\]\s+/.test(s)) refused.push(`${path}:${i + 1}: ticks a box ("${s.replace(/^[-*]\s+\[[xX]\]\s+/, '').slice(0, 80)}"); ${who} never accepts a phase`);
-      });
+      }
     }
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; ${who} never marks a phase built, lived-in or accepted`);
-    const was = new Set(ticked(before).map(x => x.text));
-    for (const x of ticked(after)) if (!was.has(x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); ${who} never accepts a phase`);
+    for (const x of added(ticked(before), ticked(after), x => x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); ${who} never accepts a phase`);
   }
   return refused;
 }
@@ -573,8 +583,7 @@ export function tendCheck(root, base, head, { findings = null } = {}) {
     const before = showAt(root, base, path), after = showAt(root, head, path);
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; tend never marks a phase built, lived-in or accepted (it may only propose a step back to partial)`);
-    const was = new Set(ticked(before).map(x => x.text));
-    for (const x of ticked(after)) if (!was.has(x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); tend never accepts a phase`);
+    for (const x of added(ticked(before), ticked(after), x => x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); tend never accepts a phase`);
   }
   const known = findings ? new Set(findings.map(f => f.id)) : null;
   for (const c of git(root, ['log', '--format=%H%x00%B%x01', `${base}..${head}`]).split('\x01').map(s => s.trim()).filter(Boolean)) {

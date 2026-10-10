@@ -71,7 +71,7 @@
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
-      "sha256": "fe7d73550d06318d88095c30bc8c9e596b60b9c3ecb3c5bc9e3785ac42e2e443"
+      "sha256": "36ddc2c11f5da40a5a42c016d674410d9a94025cb9c5e1c5e69faaa80768a377"
     },
     ".github/workflows/keel-cross-review.yml": {
       "practice": "cross-review",
@@ -87,11 +87,11 @@
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
-      "sha256": "4bce10da9582c3d2d01e76e9ce2eede532dea3527064fecda64d0ebcd6391c97"
+      "sha256": "1333ec938d4e59216132ace975f122afcb008547e4e7e0f3db6d224388cae923"
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
-      "sha256": "76d8cf0b91cadd1df16c435f82bf9dcbf38878fd07a56d884222c708b1df5059"
+      "sha256": "b0853e70c0b73a7c0c06e43f837b58aeede515471bf4920d3e2bda3bc1f13006"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -151,7 +151,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "59a5ecb38b1a6923be2f697f3f4dc7004ff8f813b2c904a4701b8c66497c611e"
+      "sha256": "abdcad3532562301a7518dc08c6695af7d8e242fc0385e42ab5698896f71292f"
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
@@ -187,7 +187,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "44c6900402d5f94903b4fa8d156d2f874d84b6a676d13d79687b835994e7e426"
+      "sha256": "c51cf17782d555d44c27ab77aa537789889401602a29bf96afa3ad4a77a852b9"
     },
     "scripts/keel/rubric.mjs": {
       "practice": "climb",
@@ -199,7 +199,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "e47ee1f22be8623b42eb433688633c22d7cd37975e7ecc2d0070954b35399970"
+      "sha256": "31219be113bc18913e86a1160505e12ce0f00db700ac0d2e499c631ad78e2ece"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",

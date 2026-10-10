@@ -608,6 +608,35 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   assert.deepEqual(tend.heldProblems(dir, held, 'the gate'), ['the gate changed a tracked file after the guard\'s checks (read from disk, though git status says nothing changed): nothing is taken']);
   git(dir, ['update-index', '--no-assume-unchanged', 'src/lid.mjs']);
   git(dir, ['reset', '-q', '--hard', checked]);
+  // A git dir the gate planted is refused before the base's gate runs in a worktree that shares it.
+  const runs = join(dirname(mark), 'gate-runs');
+  const planted = await robot.robotGuard({ root: dir, config: { ...config, check: `echo ran >> "${runs}" && ${LEDGER_TEST} && git config acme.planted yes` }, base });
+  assert.equal(planted.ok, false);
+  assert.match(planted.problems.join('\n'), /changed the git dir's config, hooks or attributes, or its replace refs/);
+  assert.equal((await readFile(runs, 'utf8')).trim().split('\n').length, 1, 'the base\'s gate never ran on a git dir the candidate\'s gate planted');
+  run('git', ['config', '--unset', 'acme.planted'], { cwd: dir });
+  // A replace ref the gate made, grafting the run's commit onto the branch (so base..head is empty): refused,
+  // and keel's git reads no replace ref, so the report still sees the commit.
+  const graft = await robot.robotGuard({ root: dir, config: { ...config, check: `${LEDGER_TEST} && git replace --graft ${base} ${checked}` }, base });
+  assert.equal(graft.ok, false);
+  assert.match(graft.problems.join('\n'), /changed the git dir's config, hooks or attributes, or its replace refs/);
+  assert.equal(git(dir, ['rev-list', '--count', `${base}..${checked}`]), '0', 'git itself now reads the graft');
+  assert.equal((await robot.report({ root: dir, config, base, head: checked, issue: 12, title: 'Acme', agent: 'claude' })).commits, 1, 'keel\'s git reads no replace ref');
+  git(dir, ['replace', '-d', base]);
+  // Boxes and status lines by occurrence, under their heading: a line another phase already has never covers a new one.
+  const TWO = '# Lid phases\n\n## 1. The lid opens\n**Status:** CLOSED\n\n- [x] it opens\n\n## 2. The lid shuts\n**Status:** PART-DONE\n\n- [ ] it opens\n';
+  git(dir, ['switch', '-q', '-C', 'acme-two', checked]);
+  const two = await commit(dir, { 'docs/projects/lid/phases.md': TWO, 'docs/phases/06-lid.md': LID_PHASE.replace('- [ ] the lid opens', '- [x] the lid opens\n- [ ] the lid opens') }, 'acme: two phases');
+  const both = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('**Status:** PART-DONE\n\n- [ ] it opens', '**Status:** CLOSED\n\n- [x] it opens'), 'docs/phases/06-lid.md': LID_PHASE.replace('- [ ] the lid opens', '- [x] the lid opens\n- [x] the lid opens') }, 'acme: tick the second');
+  const said = tend.recordRules(dir, two, both, 'the robot').join('\n');
+  assert.match(said, /^docs\/projects\/lid\/phases\.md:9: changes a phase's status line \("\*\*Status:\*\* CLOSED"\)/m);
+  assert.match(said, /^docs\/projects\/lid\/phases\.md:11: ticks a box \("it opens"\)/m);
+  assert.match(said, /^docs\/phases\/06-lid\.md:\d+: ticks an acceptance box \("the lid opens"\)/m);
+  // Two phases trading statuses keep the same lines in all: by heading, phase 2's CLOSED is still new.
+  const swapped = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('**Status:** CLOSED', '**Status:** PART-DONE').replace(/(## 2\. The lid shuts\n)\*\*Status:\*\* PART-DONE/, '$1**Status:** CLOSED') }, 'acme: trade statuses');
+  assert.match(tend.recordRules(dir, two, swapped, 'the robot').join('\n'), /^docs\/projects\/lid\/phases\.md:9: changes a phase's status line \("\*\*Status:\*\* CLOSED"\)/m);
+  assert.deepEqual(tend.added([{ k: 'a' }, { k: 'a' }], [{ k: 'a' }, { k: 'b' }, { k: 'a' }, { k: 'a' }], x => x.k).map(x => x.k), ['b', 'a']);
+  git(dir, ['switch', '-q', '-C', 'keel/robot-12', checked]);
   // And the publish job's own check (git alone) refuses evidence on the branch, whatever the judge said.
   await commit(dir, { 'docs/evidence/12-sneak.md': '# Acme: proven\n' }, 'sneak');
   const records = run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'sandbox', '--base', base, '--head', 'HEAD', '--records', '--json'], { cwd: dir });
@@ -689,6 +718,7 @@ test('an issue whose body was edited after it was labelled, by someone the robot
   // Pure: the rule.
   assert.equal(R.approvalOf({ ...outsider, lastEditedAt: null }).ok, true, 'an outsider\'s body, unedited since a writer labelled it');
   assert.equal(R.approvalOf({ ...outsider, lastEditedAt: '2026-10-01T09:00:00Z' }).ok, true, 'edited before the label: the labeller read that body');
+  assert.equal(R.approvalOf({ ...outsider, lastEditedAt: labelled.at }).ok, false, 'edited the same second it was labelled: the edit may have come after the label');
   assert.equal(R.approvalOf(outsider).ok, false, 'edited after the label by its outsider author');
   assert.match(R.approvalOf(outsider).why, /its body was last edited 2026-10-03T09:00:00Z by mallory, after acme-owner put keel:agent on it/);
   assert.equal(R.approvalOf({ ...outsider, editor: 'acme-owner' }).ok, true, 'edited after the label by the writer who labelled it');

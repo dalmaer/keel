@@ -256,6 +256,10 @@ jobs:
           AGENT: ${{ steps.on.outputs.agent }}
           BRANCH: ${{ steps.pick.outputs.branch }}
         run: |
+          # keel's scripts as the run's commit has them, kept outside the workspace
+          # before the agent runs (PR #59): the steps after it run these, never a
+          # file the agent edited and did not commit.
+          mkdir -p "$RUNNER_TEMP/keel" && git archive "$GITHUB_SHA" scripts/keel .keel/keel.json | tar -x -C "$RUNNER_TEMP/keel"
           node scripts/keel/robot.mjs brief --out "$RUNNER_TEMP/prompt.md"
           if [ "$AGENT" = codex ]; then
             {
@@ -320,9 +324,9 @@ jobs:
           STARTED: ${{ steps.brief.outputs.started }}
         run: |
           if [ "$AGENT" = codex ]; then
-            node scripts/keel/climb.mjs agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
+            node "$RUNNER_TEMP/keel/scripts/keel/climb.mjs" agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
           else
-            node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+            node "$RUNNER_TEMP/keel/scripts/keel/climb.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
           fi
 
       # Never trust the git dir Codex could write (phase 47): its config,
@@ -408,9 +412,9 @@ jobs:
             git bundle create "$out/run.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
           fi
           if [ "$AGENT" = codex ]; then
-            node scripts/keel/robot.mjs message --agent codex --file "$RUNNER_TEMP/codex-final-message.md" --out "$out/message.md"
+            node "$RUNNER_TEMP/keel/scripts/keel/robot.mjs" message --agent codex --file "$RUNNER_TEMP/codex-final-message.md" --out "$out/message.md"
           else
-            node scripts/keel/robot.mjs message --agent claude --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --out "$out/message.md"
+            node "$RUNNER_TEMP/keel/scripts/keel/robot.mjs" message --agent claude --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --out "$out/message.md"
           fi
       - name: Keep the agent's commits
         if: always() && steps.pick.outputs.action == 'work'
@@ -657,7 +661,7 @@ jobs:
           # The branch is the issue's alone; the next run on it replaces its
           # own commits (its brief carried their diff), so force is safe here and nowhere else.
           git push --force origin "$head:refs/heads/keel/robot-$ISSUE"
-          num=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number')
+          num=$(gh pr list --state open --head "$BRANCH" --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository == false)][0].number // empty')
           if [ -z "$num" ]; then
             code=0
             out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel robot: $TITLE" --body-file "$RUNNER_TEMP/run/body.md" 2>&1) || code=$?
@@ -679,7 +683,7 @@ jobs:
               exit 1
             fi
           fi
-          url=$(gh pr list --state open --head "$BRANCH" --json url --jq '.[0].url' || true)
+          url=$(gh pr list --state open --head "$BRANCH" --json url,isCrossRepository --jq '[.[] | select(.isCrossRepository == false)][0].url // empty' || true)
           echo "url=$url" >> "$GITHUB_OUTPUT"
           # No PR is not published (PR #59): the issue is not marked worked, and a run after the setting
           # changes (or the owner's comment) opens it.

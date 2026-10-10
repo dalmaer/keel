@@ -219,6 +219,10 @@ jobs:
           AGENT: ${{ steps.on.outputs.agent }}
           BRANCH: ${{ steps.pick.outputs.branch }}
         run: |
+          # keel's scripts as the run's commit has them, kept outside the workspace
+          # before the agent runs (PR #59): the steps after it run these, never a
+          # file the agent edited and did not commit.
+          mkdir -p "$RUNNER_TEMP/keel" && git archive "$GITHUB_SHA" scripts/keel .keel/keel.json | tar -x -C "$RUNNER_TEMP/keel"
           {
             cat .agents/climb/TEND.md
             echo
@@ -289,9 +293,9 @@ jobs:
           STARTED: ${{ steps.brief.outputs.started }}
         run: |
           if [ "$AGENT" = codex ]; then
-            node scripts/keel/climb.mjs agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
+            node "$RUNNER_TEMP/keel/scripts/keel/climb.mjs" agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
           else
-            node scripts/keel/climb.mjs agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+            node "$RUNNER_TEMP/keel/scripts/keel/climb.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
           fi
 
 

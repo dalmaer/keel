@@ -1267,9 +1267,14 @@ async function gateRun(cwd, gate, { env, config }) {
  * { ok, problems, count?, missing? }.
  */
 export async function ledgerCheck({ root, config, env = process.env, gate, base: b, head }) {
+  const held = treeState(root);
   const r = await gateRun(root, gate, { env, config });
   if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  // PR #59: before the base's gate runs in a worktree that shares this git dir, nothing the candidate's gate
+  // planted there (a hook, an fsmonitor, a replace ref) or moved in the tree may stand.
+  const moved = heldProblems(root, held, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, refused: moved, problems: moved };
   const cand = ranOn(r.runs, head);
   // The base's names, from the base's own gate, run now in a worktree beside
   // the tree (its siblings resolve as the checkout's): never a record read

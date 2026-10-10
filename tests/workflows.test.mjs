@@ -727,11 +727,16 @@ export function agentRanProblems(text, { step, id }) {
   const codexStep = steps.find(s => new RegExp(`\\n {8}id: ${id}_codex\\n`).test(s));
   if (codexStep) {
     if (!body.includes(`steps.${id}_codex.outcome`)) out.push(`"Did the agent run?" does not read steps.${id}_codex.outcome`);
-    if (!/node scripts\/keel\/climb\.mjs agent-ran --agent codex --outcome "\$OUTCOME" --file "\$RUNNER_TEMP\/codex-final-message\.md" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not judge Codex by its final message (agent-ran --agent codex)');
+    if (!/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/climb\.mjs" agent-ran --agent codex --outcome "\$OUTCOME" --file "\$RUNNER_TEMP\/codex-final-message\.md" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not judge Codex by its final message (agent-ran --agent codex)');
     if (steps.indexOf(codexStep) > check) out.push('"Did the agent run?" runs before Codex\'s step');
   }
   if (!new RegExp(`EXECUTION: \\$\\{\\{ steps\\.${id}\\.outputs\\.execution_file \\}\\}`).test(body)) out.push('"Did the agent run?" does not read the action\'s execution file');
-  if (!/node scripts\/keel\/climb\.mjs agent-ran --outcome "\$OUTCOME" --file "[^"]+" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not run climb.mjs agent-ran with the outcome, the file, the budget and the start');
+  if (!/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/climb\.mjs" agent-ran --outcome "\$OUTCOME" --file "[^"]+" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not run climb.mjs agent-ran (the copy kept before the agent ran) with the outcome, the file, the budget and the start');
+  // PR #59: the steps after the agent run keel's scripts as the run's commit has them, copied out of the
+  // workspace before the agent ran, never a file it edited and did not commit.
+  const keep = steps.findIndex(s => s.includes('git archive "$GITHUB_SHA" scripts/keel .keel/keel.json | tar -x -C "$RUNNER_TEMP/keel"'));
+  if (keep < 0 || keep > agent) out.push('keel\'s scripts are not kept (git archive "$GITHUB_SHA" … into $RUNNER_TEMP/keel) before the agent runs');
+  for (const s of steps.slice(agent + 1)) if (/node scripts\/keel\/(?:climb|robot)\.mjs (?:agent-ran|message)\b/.test(s)) out.push(`a step after the agent runs keel's script from the workspace: ${s.split('\n')[0].trim()}`);
   if (/\|\| true|; *exit 0/.test(body)) out.push('"Did the agent run?" swallows its exit');
   for (const later of ['guard', 'git push']) {
     const i = steps.findIndex(s => s.includes(later === 'guard' ? 'node scripts/keel/climb.mjs guard' : 'git push'));
@@ -754,6 +759,8 @@ test('lesson 29: keel-climb.yml and keel-tend.yml end red when the agent failed 
       ['no execution file', t.replace(`EXECUTION: \${{ steps.${opts.id}.outputs.execution_file }}`, 'EXECUTION: none')],
       ['its exit ignored', t.replace(/--started "\$STARTED"\n/, '--started "$STARTED" || true\n')],
       ['the agent step has no id', t.replace(`\n        id: ${opts.id}\n`, '\n')],
+      ['agent-ran from the workspace', t.replace(/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/climb\.mjs" agent-ran --outcome/, 'node scripts/keel/climb.mjs agent-ran --outcome')],
+      ['no kept copy', t.replace(/ +mkdir -p "\$RUNNER_TEMP\/keel" && git archive[^\n]*\n/, '')],
     ]) {
       assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
       assert.ok(agentRanProblems(text, opts).length, `${name} ${why}: expected a problem`);
@@ -2092,6 +2099,10 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
   assert.deepEqual(codexEditProblems(t, opts), []);
   assert.deepEqual(agentRanProblems(t, opts), []);
   assert.deepEqual(permissionPath(t), []);
+  // PR #59: a PR is reused only when its head is this repository's branch, never a fork's PR of the same branch name.
+  const lists = t.split('\n').filter(l => /gh pr list/.test(l));
+  assert.ok(lists.length >= 2, 'the publish job looks the PR up');
+  for (const l of lists) assert.match(l, /--json [a-z,]*isCrossRepository --jq '\[\.\[\] \| select\(\.isCrossRepository == false\)\]\[0\]/, l.trim());
   assert.deepEqual(problems('keel-robot.yml', t, w.declared), []);
   const rendered = await readFile(join(KEEL, w.path), 'utf8');
   for (const check of [agentSandboxProblems, x => codexEditProblems(x, opts), x => agentRanProblems(x, opts)]) assert.deepEqual(check(rendered), [], "keel's rendered keel-robot.yml");
