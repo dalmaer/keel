@@ -425,6 +425,12 @@ test('a PR past 100 reviews is read page by page (each reply is a review): the h
   const read = keel(dir, bodies, ['acme/app#3', '--json']);
   assert.equal(read.code, 1, read.out + read.err);
   assert.ok(read.json().comments.some(x => x.id === 'PRR_late' && !x.answered), 'the body on the second page is read, and unanswered');
+  // Exactly 2000 reviews (20 full pages): the 21st page is read, empty, and the read is whole; 2001 is not.
+  const exactly = Array.from({ length: 2000 }, (_, i) => (i === 1999 ? ON_HEAD : { user: 'acme-owner', commit_id: OLD }));
+  assert.equal(keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: exactly }), ['acme/app#3', '--gate']).code, 0, '2000 reviews, the head reviewed on the last');
+  const over = keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: [...exactly, { user: 'acme-owner', commit_id: OLD }] }), ['acme/app#3', '--json']);
+  assert.equal(over.code, 2, over.out);
+  assert.match(over.json().error, /more than 2000 reviews; the read is incomplete/);
   // Pages without end: past MAX_REVIEW_PAGES the read is incomplete (exit 2), never a count.
   const endless = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] });
   const r = keel(dir, endless, ['acme/app#3', '--json']);
