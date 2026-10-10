@@ -41,7 +41,7 @@ Unique bounded `keel-time-proposal` fence inside generated-region delimiters:
 `{version:1,instanceId,subjectKey,measure,createdAt,identity,candidate,baseline,threshold,coverage,lifecycle}`.
 
 `candidate:{title,rubric,remeasureCommand}` uses54 rubric; commands remain display data.
-`baseline:{windowStart,windowEnd,value,unit,runIds,revisionShas}` and `threshold:{contractVersion,rule,parameters}` freeze at creation.
+`baseline:{windowStart,windowEnd,value,unit,runIds,revisionShas}` and `threshold:{contractVersion,rule,parameters}` freeze at creation. Critical-file baselines additionally retain bounded `observations:[{id,date,commit,suite}]` from every contributing run, including complete inventory and settings facts, never raw test output. Oversized or incomplete snapshots make that candidate unavailable.
 `coverage:{retained,eligible,omitted,dates,sampled,gaps}` never implies complete execution history.
 `lifecycle:{state,decidedAt,reason,issue,transition,remeasurement}`; states proposed/accepting/accepted/declined; absent values null. Issue is verified `{repo,number,url}`. Remeasurement reports inside/outside/unavailable, observedAt/value/coverage/delivery/reasons; never merge-caused improvement.
 
@@ -68,9 +68,9 @@ Proposal helper:
 - `selectableTimeProposal({candidate,history,at}) -> {allowed,reason}`
 - `mergeHealthPage({previous,generated}) -> {text,problems}`
 - `withTimeProposal({root,path,expectedInstance},callback)` supplies `{proposal,saveLifecycle}` under shared lock.
-- `writeHealthReport({root,path,generated})` uses same lock, reread/merge/atomic replacement; preserves ALL human bytes and ALL accepted instances, lifecycle/history and frozen baselines, including across later report dates. A new proposal never replaces an accepted instance. Unmarked legacy content is preserved conservatively.
+- `writeHealthReport({root,path,generated})` uses same lock, reread/merge/atomic replacement; preserves ALL human bytes and ALL accepted instances, lifecycle/history and frozen baselines, including across later report dates. A new proposal never replaces an accepted instance. Unmarked legacy content is preserved conservatively. Same-day refreshes keep one current generated report region rather than appending repeated current reports. A stored content hash permits replacement only when those managed bytes are unchanged; owner edits inside that region are preserved and reported as drift, not overwritten. Proposal lifecycle and frozen baselines remain protected independently of refreshed measurements.
 
-Evaluator: `evaluateTimeEvidence({measure,runs,stallsReceipts,localWorkarounds,at,comparison}) -> {state,value,identity,baseline,threshold,coverage,reasons,timeCandidates}`. Comparison carries frozen identity/baseline/threshold, verified merge time/SHA and reviewed transition. Per-target candidates have makeTimeProposal inputs; filter suppression BEFORE ranking, including alternative targets within one measure. Still one proposal.
+Evaluator: `evaluateTimeEvidence({measure,runs,stallsReceipts,localWorkarounds,at,comparison}) -> {state,value,identity,baseline,threshold,coverage,reasons,timeCandidates}`. Comparison carries `{identity,baseline,threshold,mergeTime,mergeSha,transition,instanceId,eligibleRevisionShas}`. The action layer supplies ancestry-verified revision SHAs; an absent list never means all revisions are eligible. Per-target candidates have makeTimeProposal inputs; filter suppression BEFORE ranking, including alternative targets within one measure. Still one proposal.
 
 Action layer: `decideTimeProposal({root,path,expectedInstance,decision,reason,transition,at,github})`; `remeasureTimeProposal({root,proposal,at,github,evaluate})` verifies delivery/ancestry before evaluation.
 
