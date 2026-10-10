@@ -59,7 +59,7 @@
     },
     ".github/workflows/check.yml": {
       "practice": "ci",
-      "sha256": "3e5ce03577fb5929a38bc3c27ea2cc2aa394b31c450ebe6caf77db87c59274eb"
+      "sha256": "604784a06610817287b1b1d09b8452a4d10ab942b93edf346a8e7a8a04ffb127"
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",
@@ -195,7 +195,7 @@
     },
     "scripts/keel/robot-policy.mjs": {
       "practice": "climb",
-      "sha256": "205c267883e4ca71e53edd849ed838a599e4c65f467d7818d6175f9dc80b4018"
+      "sha256": "f1a485a5cc99e6cb6e549ff5e9cac253c2b78a6996feed9791d5a494bf8ba4be"
     },
     "scripts/keel/robot-rubric.mjs": {
       "practice": "climb",
@@ -235,7 +235,7 @@
     },
     "scripts/keel/time-receipts.mjs": {
       "practice": "night",
-      "sha256": "a33d8dd393d3df734aa3fbb03b298130d53005f16106673d9751eba56dd96efc"
+      "sha256": "5e962f19374737f90d93799ff308ef3c8047ae176879e728c56a13e3c9c984b0"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

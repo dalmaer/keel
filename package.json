@@ -4,8 +4,12 @@
   "private": true,
   "description": "The mothership for projects run the isocan/ledger way: phases that own their status, lessons as shapes, a conductor, and a night shift.",
   "type": "module",
-  "engines": { "node": ">=24.21.0" },
-  "bin": { "keel": "bin/keel.mjs" },
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "bin": {
+    "keel": "bin/keel.mjs"
+  },
   "files": [
     "bin/",
     "lib/",
@@ -26,6 +30,11 @@
     "render": "node scripts/render.mjs --self",
     "render:check": "node scripts/render.mjs --self --check",
     "inbox:check": "node bin/keel.mjs learn render --check",
-    "check": "node scripts/keel/test-ledger.mjs --run \"npm test && npm run roadmap:check && npm run render:check && npm run inbox:check\""
+    "check": "node scripts/keel/test-ledger.mjs --run \"npm test && npm run roadmap:check && npm run render:check && npm run inbox:check\"",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
   }
 }
