@@ -165,3 +165,7 @@ The night already writes one proposal. Phase 57 gives time a voice in it:
 55 first, because it fixes keel's own tests and is small. 56 builds on the
 ledger. 54 can start in parallel: it reuses climb's jobs. 57 needs 56, and
 needs 54 for its last step.
+
+### Robot continuation publication settlement (2026-10-10)
+
+Keep the initial PR description editable by its owner. Continuations append canonical trusted bot delivery/permission comments instead of replacing that description. Every consumer binds current metadata to the exact PR, repository, instance and head; absent or conflicting metadata is unavailable. Keep publication intent before pushing and recover an exact already-posted continuation idempotently. Agent-authored text must neutralize GitHub closing directives; only the trusted task reference can close an issue.

@@ -62,6 +62,8 @@ By hand: three issues worked on a real project, read by the owner.
 
 ## Deliberately open
 
+- **Settled 2026-10-10: continuation descriptions belong to people.** A continuation never replaces the PR description. Initial body metadata preserves provenance; a canonical trusted bot comment carries current exact-head delivery and authorization. Consumers validate that comment and fail closed on missing or conflicting identity. Publication intent and comment identity support retry without repeated writes; a read immediately before PATCH is not atomic protection.
+
 - **Settled 2026-10-10: approval binds content and can be revoked.** Public routing compares the writer event's issue-body snapshot with a fresh issue read before recording a trusted bot authorization receipt containing that body hash and writer/action identity. The worker requires the exact current body hash and revalidates the writer's permission. Labels alone never authorize a subsequently edited body. Missing/mismatched receipts require a fresh writer action; scheduled scans continue past rejected issues. Admission, publication and independent review each fetch the current default-branch policy and fail closed when disabled/unavailable. Immutable checkout policy cannot override a newer OFF setting. Receipts stay in the existing issue conversation, never a second acceptance system.
 
 - **Settled 2026-10-10: acceptance records stay with the owner.** Robot changes to phase, decision, evidence, research, design and project records are blocked by the trusted sandbox. Ordinary implementation and guide changes use the shared PR-body format with a checked no-record-impact declaration. A task needing record reconciliation is returned for owner handling; a robot PR never establishes acceptance.
