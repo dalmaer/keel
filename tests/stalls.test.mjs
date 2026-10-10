@@ -148,11 +148,13 @@ test('paused time is not counted against the timeout; running time is', async t 
   const dir = await scratch(t);
   await writeFile(join(dir, 'quick.test.mjs'), "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n");
   await writeFile(join(dir, 'slow.test.mjs'), "import { test } from 'node:test';\ntest('an anvil takes its time', () => new Promise(r => setTimeout(r, 5000)));\n");
-  // One 2.5 s stall at the start, against a 2 s limit: the wall passes it, the running time does not.
-  const once = { firstMs: [0, 0], gapMs: [60_000, 60_000], stallMs: [2500, 2500] };
-  const paused = await runFiles({ files: ['quick.test.mjs'], cwd: dir, seed: 1, shape: once, timeoutMs: 2000 });
-  assert.equal(paused.timedOut, false);
-  assert.ok(paused.wall > 2000 && paused.paused >= 2500, JSON.stringify({ wall: paused.wall, paused: paused.paused }));
+  // One 6 s stall at the start, against a 4 s limit: the wall passes it, the running time does not. Headroom
+  // both ways (#77): the quick test's running time stays far under the limit on a loaded runner, and the
+  // pause is measured to the millisecond, so it is held to the stall less a little, never to the exact stall.
+  const once = { firstMs: [0, 0], gapMs: [60_000, 60_000], stallMs: [6000, 6000] };
+  const paused = await runFiles({ files: ['quick.test.mjs'], cwd: dir, seed: 1, shape: once, timeoutMs: 4000 });
+  assert.equal(paused.timedOut, false, JSON.stringify({ wall: paused.wall, paused: paused.paused }));
+  assert.ok(paused.wall > 4000 && paused.paused >= 5900, JSON.stringify({ wall: paused.wall, paused: paused.paused }));
   assert.deepEqual(paused.tests.map(x => x.outcome), ['pass']);
   const slow = await runFiles({ files: ['slow.test.mjs'], cwd: dir, timeoutMs: 800 });
   assert.equal(slow.timedOut, true, 'running time past the limit stops the run');
