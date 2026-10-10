@@ -36,3 +36,13 @@ test('robot workflow object-only handoff executes without loading agent git hook
  git(root,'fetch','-q',join(temp,'handoff/robot.bundle'),'refs/heads/keel/robot-1');
  assert.equal(git(root,'show','FETCH_HEAD:acme.txt'),'fixed');assert.equal(await readFile(join(temp,'handoff/message.txt'),'utf8'),'Acme corrected.');
 });
+
+
+test('robot recovery explicitly schedules review after successful publication despite skipped judge',async()=>{
+ const text=await readFile(workflow,'utf8');
+ const review=text.split('\n  review-agent:\n')[1].split(/\n  [a-z-]+:\n/)[0];
+ // A recovered publication can succeed with judge skipped. Without an explicit
+ // status function, Actions inserts success() and suppresses its downstream review.
+ assert.match(review,/^    if: always\(\) && needs\.publish\.result == 'success' && needs\.publish\.outputs\.pr != ''$/m);
+ assert.match(review,/^    needs: publish$/m);
+});

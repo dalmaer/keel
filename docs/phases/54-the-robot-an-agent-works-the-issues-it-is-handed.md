@@ -83,3 +83,5 @@ The owner chooses one project and a weekly allowance covering build plus other-p
 - **2026-10-10** — First publication needs recovery between branch push and PR creation. A trusted judged-head intent now precedes publication; retries reuse only that exact head or associated PR and refuse human-moved heads. [Evidence](../evidence/2026-10-10-robot.md).
 - **2026-10-10** — Agent prose is not continuation state. Reserved metadata is escaped and state requires a trusted envelope; standalone cross-review is excluded from robot branches to preserve author identity and the shared allowance. [Evidence](../evidence/2026-10-10-robot.md).
 - **2026-10-10** — Prepared issue writes can resume after a proven-dead writer; attempted writes remain recovery-only. A missing response is never proof that no issue was created. [Evidence](../evidence/2026-10-10-robot.md).
+
+- **2026-10-10** — Independent review caught two recovery boundaries: ordinary null issue bodies must not block lookup, and recovered publication must explicitly schedule independent review across a skipped judge. Both now have baseline-failing regressions; enabled operational verification remains owed.

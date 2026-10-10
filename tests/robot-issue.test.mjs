@@ -335,3 +335,30 @@ test('robot issue preserves existing ignore files and blocks writes when they ex
     if (ignore.includes('!')) assert.deepEqual(await readdir(owned), ['.gitignore']);
   }
 });
+
+test('robot issue nullable bodies allow unrelated issues but never replace exact marker read-back', async t => {
+  const stateDir = await temp(t), api = remote();
+  api.rows.push(api.row(1, null), api.row(2, null, { state: 'closed' }));
+  const created = await ensureRobotIssue({ ...work, stateDir, github: api.github, yes: true });
+  assert.equal(created.state, 'created', 'unrelated null bodies must not block creation');
+  assert.equal(created.issue.number, 3);
+  const recovered = await recoverRobotIssue({ ...work, stateDir, github: api.github });
+  assert.equal(recovered.state, 'recovered'); assert.deepEqual(recovered.issue, created.issue);
+  assert.equal((await ensureRobotIssue({ ...work, stateDir, github: api.github, yes: true })).state, 'recovered');
+  assert.equal(api.posts().length, 1);
+  // A list match cannot stand in for exact identity on the issue GET.
+  for (const body of [null, '', undefined, 42, {}]) {
+    const github = async req => {
+      const response = await api.github(req);
+      return req.path.endsWith('/issues/3') ? { ...response, data: { ...response.data, body } } : response;
+    };
+    const unverified = await recoverRobotIssue({ ...work, stateDir, github });
+    assert.equal(unverified.state, 'ambiguous'); assert.equal(unverified.issue, null);
+  }
+  // Only null extends the API shape; malformed unrelated rows still fail closed.
+  for (const body of [undefined, 42, {}]) {
+    const malformed = remote(); malformed.rows.push(malformed.row(1, body));
+    const refused = await ensureRobotIssue({ ...work, stateDir: await temp(t), github: malformed.github, yes: true });
+    assert.equal(refused.state, 'blocked'); assert.equal(malformed.posts().length, 0);
+  }
+});

@@ -351,7 +351,7 @@ jobs:
         run: node scripts/keel/robot.mjs publish --json
   review-agent:
     needs: publish
-    if: needs.publish.outputs.pr != ''
+    if: always() && needs.publish.result == 'success' && needs.publish.outputs.pr != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
