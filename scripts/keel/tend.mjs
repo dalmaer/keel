@@ -118,11 +118,24 @@ export function sandboxProblems(root, base, head) {
   // rev-list's own lines (PR #59): its -z applies only to --objects and kin, so commits are one a line.
   const changes = changesOf(root, b, h), whole = new Set(changes.map(x => x.path));
   for (const c of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
-    // A merge answers only for what it introduced (#83): against its first parent it would show everything the
-    // default branch brought in, a trusted workflow or keel script change too.
+    // A merge (#85): against its first parent it shows everything the default branch brought in, a trusted
+    // workflow or keel script change too. What it may bring is the trusted base's: a protected path that differs
+    // from its first parent must be as the base has it, and a package.json's install keys as the base has them.
+    // Never the combined diff, which lists only paths differing from every parent: two merges could take an
+    // older version of a protected file from one and put it back from another, and neither would show it.
     const merge = git(root, ['rev-list', '--parents', '-n', '1', c]).split(' ').length > 2;
-    const steps = merge ? pathsOf(root, ['diff-tree', '--cc', '--name-only', '-r', '--no-commit-id', c]).map(path => ({ path })) : changesOf(root, `${c}^`, c);
-    for (const { path } of steps) {
+    if (merge) {
+      for (const { path } of changesOf(root, `${c}^`, c)) {
+        if (basename(path) === 'package.json') {
+          const why = packageProblem(showAt(root, b, path), showAt(root, c, path));
+          if (why) out.push(`${path}: ${why} in the merge ${c.slice(0, 7)}, against the base; a merge brings only what the base has, so the branch is refused whole (ledger#92)`);
+        } else if ((offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) && showAt(root, c, path) !== showAt(root, b, path)) {
+          out.push(`${path}: the merge ${c.slice(0, 7)} on the agent's branch leaves it unlike both its first parent and the base; a merge brings only what the base has (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
+        }
+      }
+      continue;
+    }
+    for (const { path } of changesOf(root, `${c}^`, c)) {
       // A package.json's install keys, commit by commit (#82): a dependency or an install script added and taken out later.
       if (basename(path) === 'package.json') {
         // The whole branch's own check names it when the change stands at its head; this is for one taken back.

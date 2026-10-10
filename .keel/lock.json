@@ -211,7 +211,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "7da9a0797735333d8be01d2f47e57af969f0fb22f7ab6cf695681f99bb82ad60"
+      "sha256": "51536513e8aa91eb8612e3d0c60eab75164f22d1cb27d8a2e05190ca890fdb29"
     },
     "scripts/keel/test-history.mjs": {
       "practice": "night",

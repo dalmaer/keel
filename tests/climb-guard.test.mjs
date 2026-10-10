@@ -696,3 +696,39 @@ test('sandbox: a merge of a default branch that changed a workflow passes; a mer
   assert.match(json(evil).problems.join('\n'), /^\.github\/workflows\/acme\.yml: changed on the agent's branch/m);
   assert.ok(start);
 });
+
+// #85: two merges can take an older version of a protected file from one parent and put the base's back from
+// another; neither shows in a combined diff. A merge is judged against the trusted base instead.
+test('sandbox: two merges that restore an older workflow and then the base\'s are refused; a merge bringing the base\'s dependencies beside the agent\'s script change passes', async t => {
+  const dir = await acme(t, { files: { 'acme.mjs': 'export const anvil = 1;\n', '.github/workflows/acme.yml': 'name: acme v1\n' } });
+  const start = git(dir, ['rev-parse', 'HEAD']);
+  const base = await commit(dir, { '.github/workflows/acme.yml': 'name: acme v2\n' }, 'acme: a release updates the workflow');
+  git(dir, ['checkout', '-q', '-b', 'agent']);
+  const x = await commit(dir, { 'acme.mjs': 'export const anvil = 2;\n' }, 'acme: the agent\'s change');
+  // M1: X's tree with the older workflow, parents X and the older start; M2: X's tree, parents M1 and the base.
+  await write(dir, { '.github/workflows/acme.yml': 'name: acme v1\n' });
+  git(dir, ['add', '-A']);
+  const older = git(dir, ['write-tree']);
+  git(dir, ['reset', '-q', '--hard', x]);
+  const m1 = git(dir, ['commit-tree', older, '-p', x, '-p', start, '-m', 'acme: merge the older start']);
+  const m2 = git(dir, ['commit-tree', `${x}^{tree}`, '-p', m1, '-p', base, '-m', 'acme: merge the base']);
+  assert.equal(git(dir, ['diff', '--name-only', base, m2]), 'acme.mjs', 'the whole diff shows only the agent\'s change');
+  assert.equal(git(dir, ['diff-tree', '--cc', '--name-only', '-r', '--no-commit-id', m1]), '', 'the combined diff shows nothing for M1');
+  const sb = climb(dir, ['sandbox', '--base', base, '--head', m2, '--json']);
+  assert.equal(sb.status, 1, sb.stdout);
+  assert.match(json(sb).problems.join('\n'), new RegExp(`^\\.github/workflows/acme\\.yml: the merge ${m1.slice(0, 7)} on the agent's branch leaves it unlike both its first parent and the base`, 'm'));
+
+  // The default branch updated a dependency; the agent's branch changed a test script; the merge brings both.
+  const pkg = (deps, test) => `${JSON.stringify({ name: 'acme', private: true, scripts: { test }, dependencies: deps }, null, 2)}\n`;
+  git(dir, ['checkout', '-q', '-f', 'main']);
+  const s0 = await commit(dir, { 'package.json': pkg({ 'acme-anvil': '1.0.0' }, 'node --test') }, 'acme: a package');
+  const b1 = await commit(dir, { 'package.json': pkg({ 'acme-anvil': '1.1.0' }, 'node --test') }, 'acme: a dependency update');
+  git(dir, ['checkout', '-q', '-b', 'agent-pkg', s0]);
+  await commit(dir, { 'package.json': pkg({ 'acme-anvil': '1.0.0' }, 'node --test --test-concurrency=4') }, 'acme: a faster test script');
+  git(dir, ['merge', '-q', '--no-commit', b1], { allowFail: true });
+  await write(dir, { 'package.json': pkg({ 'acme-anvil': '1.1.0' }, 'node --test --test-concurrency=4') });
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'acme: merge the dependency update']);
+  const merged = climb(dir, ['sandbox', '--base', b1, '--head', 'HEAD', '--json']);
+  assert.equal(merged.status, 0, merged.stdout + merged.stderr);
+});
