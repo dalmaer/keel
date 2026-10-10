@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { load } from '../lib/practices.mjs';
-import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors, agentGitArgs, gateEnv, AGENT_GIT_DIR } from '../practices/night/files/scripts/keel/lib.mjs';
+import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors, agentGitArgs, gateEnv, AGENT_GIT_DIR, coAuthorsOf, commitAuthorOf, pushAuthorsOf, pushReviewerOf } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
@@ -245,7 +245,12 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
           # A provider's bot may open the PR (claude[bot]: Claude reviewing its
           # own, the fallback); the action allows no bot unless named. The
           # adapters' logins only (lib.mjs AGENTS login), never "*".
-          allowed_bots: claude[bot]\n`);
+          allowed_bots: claude[bot]\n`)
+    // keel#65: the push's diff is in a folder of its own under the runner's temp, which Claude may read, and nothing else there.
+    .replace('          claude_args: |\n', `          # The push's diff is in a folder of its own under the runner's temp
+          # (keel#65): Claude may read that folder, and only it, beyond the checkout.
+          claude_args: |\n`)
+    .replace(/(--allowedTools "[^"]*")$/, '$1\n            --add-dir ${{ runner.temp }}/keel-diff');
   assert.equal(review, expected);
   // Phase 47: climb and tend have one step per provider; Codex's gets OPENAI_API_KEY alone (the adapters test).
   for (const key of ['climb', 'tend']) assert.equal(agentSteps(w[key].text, 'codex').length, 1);
@@ -445,6 +450,72 @@ test('a third provider: the first listed that is not the author reviews; a pass\
   assert.equal(reviewerOf({ config: { ...config, crossReview: { ...config.crossReview, agent: 'claude' } }, head: 'acmebot/x', agents }).reviewer, 'codex');
   assert.deepEqual(crossReviewerProblems(config, { agents }), []);
   assert.deepEqual(crossReviewerProblems({ agents: { acmebot: {} }, crossReview: { for: ['acmebot/'] } }, { agents }), [], 'alone, it reviews its own');
+});
+
+// ---- phase 60: a push to main is reviewed by a provider other than its commits' ------
+
+test('phase 60: who wrote a push is its commits\' authors and Co-authored-by trailers; the reviewer is never their provider while another is available; a person\'s push goes to the first listed', async () => {
+  const person = { name: 'Acme Owner', email: 'owner@acme.test', message: 'acme: anvils' };
+  const claudeTrailer = { ...person, message: 'acme: lid\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>' };
+  const claudeApp = { name: 'claude[bot]', email: '209825114+claude[bot]@users.noreply.github.com', message: 'acme: hinge' };
+  const codex = { name: 'Codex', email: 'noreply@openai.com', message: 'acme: handle' };
+  const codexConnector = { ...person, message: 'acme: x\n\nCo-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>' };
+  assert.deepEqual(coAuthorsOf(claudeTrailer.message), [{ name: 'Claude Opus 5.5', email: 'noreply@anthropic.com' }]);
+  assert.deepEqual([person, claudeTrailer, claudeApp, codex, codexConnector].map(c => commitAuthorOf(c)), [[], ['claude'], ['claude'], ['codex'], ['codex']]);
+  // A person named Claude, at their own address, is a person: a name is never evidence, only an email the provider's commits carry (keel#65).
+  assert.deepEqual(commitAuthorOf({ name: 'Claude Dupont', email: 'claude@acme.test', message: 'acme: fix' }), []);
+  assert.deepEqual(commitAuthorOf({ name: 'Claude', email: 'claude@acme.test', message: 'acme: fix' }), []);
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nCo-authored-by: Claude <claude@acme.test>' }), [], 'a trailer naming a person called Claude');
+  assert.deepEqual(commitAuthorOf({ name: 'Codex', email: 'codex@acme.test', message: 'acme: fix' }), []);
+  // Only the trailer block counts, as git reads one: a Co-authored-by line quoted in the body is prose (keel#65).
+  const quoted = { ...person, message: 'acme: document the trailer\n\nClaude Code adds a line like this:\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nwhich keel reads as Claude\'s.\n\nSigned-off-by: Acme Owner <owner@acme.test>' };
+  assert.deepEqual([coAuthorsOf(quoted.message), commitAuthorOf(quoted)], [[], []]);
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nnot a trailer line' }), [], 'a last paragraph that is not all trailers is no trailer block');
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nReviewed-by: Acme Owner <owner@acme.test>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>' }), ['claude']);
+  // git's own parse wins when given (gitOf passes %(trailers)): the message is not read again.
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix', coAuthors: ['Claude Opus 5.5 <noreply@anthropic.com>'] }), ['claude']);
+  assert.deepEqual(commitAuthorOf({ ...claudeTrailer, coAuthors: [] }), []);
+  assert.deepEqual(pushAuthorsOf([person, claudeTrailer, person]), ['claude']);
+  const both = { agents: { claude: {}, codex: {} }, crossReview: { after: 'push' } };
+  const codexFirst = { agents: { codex: {}, claude: {} }, crossReview: { after: 'push' } };
+  // Claude's push goes to Codex, Codex's to Claude, in either listed order, with every secret set.
+  for (const config of [both, codexFirst]) {
+    assert.equal(pushReviewerOf({ config, commits: [person, claudeTrailer] }).reviewer, 'codex');
+    assert.equal(pushReviewerOf({ config, commits: [codex] }).reviewer, 'claude');
+  }
+  assert.deepEqual(pushReviewerOf({ config: both, commits: [claudeApp] }), { authors: ['claude'], author: 'claude', reviewer: 'codex', self: false, why: 'written by claude (its commits\' authors and trailers): reviewed by codex, the first other provider "agents" lists' });
+  // A person's push: the first listed (with its secret).
+  assert.equal(pushReviewerOf({ config: both, commits: [person] }).reviewer, 'claude');
+  assert.equal(pushReviewerOf({ config: codexFirst, commits: [person] }).reviewer, 'codex');
+  assert.equal(pushReviewerOf({ config: both, commits: [person], has: { claude: false, codex: true } }).reviewer, 'codex');
+  assert.equal(pushReviewerOf({ config: both, commits: [person] }).author, null);
+  // Its own provider only when no other is available: unlisted, no secret, or the other wrote some of it too.
+  const self = pushReviewerOf({ config: both, commits: [claudeTrailer], has: { claude: true, codex: false } });
+  assert.deepEqual([self.reviewer, self.self, self.reason], ['claude', true, 'codex is listed but its secret OPENAI_API_KEY is not set']);
+  assert.deepEqual([pushReviewerOf({ config: { crossReview: { after: 'push' } }, commits: [claudeTrailer] }).self, pushReviewerOf({ config: { crossReview: { after: 'push' } }, commits: [claudeTrailer] }).reason], [true, 'no other provider is listed']);
+  const mixed = pushReviewerOf({ config: both, commits: [claudeTrailer, codex] });
+  assert.deepEqual([mixed.reviewer, mixed.self, mixed.reason], ['claude', true, 'every other provider listed wrote some of it too (codex)']);
+
+  // The script, end to end on the decision: for every listed order, the reviewer is not the author.
+  const { cross } = await scripts();
+  const git = { isCommit: () => true, isAncestor: () => true, parentOf: () => 'c'.repeat(40), fileAt: () => `export const PUSH_PROTOCOL = ${cross.PUSH_PROTOCOL};\n` };
+  const decide = (config, commits, extra = {}) => cross.shouldReviewPush({ config, event: 'push', head: 'b'.repeat(40), before: 'a'.repeat(40), history: { last: 'c'.repeat(40), today: 0, day: '2026-10-09' }, git: { ...git, commits: () => commits }, ...extra });
+  for (const config of [both, codexFirst]) for (const commits of [[claudeTrailer], [codex], [claudeApp, person]]) {
+    const r = decide(config, commits, { has: { claude: true, codex: true } });
+    assert.equal(r.review, true);
+    assert.ok(!r.authors.includes(r.agent), `${JSON.stringify(commits.map(c => c.name))}: reviewed by its own provider while another was available`);
+    assert.equal(r.self, false);
+  }
+  assert.deepEqual([decide(both, [claudeTrailer]).agent, decide(both, [claudeTrailer]).author], ['codex', 'claude']);
+  // The last guard: a choice that puts the author on its own push while another is available is red, and no agent runs.
+  const own = ({ commits }) => ({ ...pushReviewerOf({ config: both, commits }), reviewer: 'claude', self: true });
+  assert.throws(() => decide(both, [claudeTrailer], { has: { claude: true, codex: true }, choose: own }),
+    e => e.exitCode === 2 && /claude would review a push its own provider wrote while codex is available; no agent runs/.test(e.message));
+  assert.equal(decide(both, [claudeTrailer], { has: { claude: true, codex: false }, choose: own }).self, true, 'with codex unavailable it is the fallback, not red');
+  // No secret for the reviewer: a notice, no review.
+  const none = decide(both, [claudeTrailer], { has: { claude: true, codex: false }, choose: () => ({ authors: ['claude'], author: 'claude', reviewer: 'codex', self: false, why: 'acme' }) });
+  assert.deepEqual([none.review, none.notice], [false, true]);
+  assert.match(none.why, /add the OPENAI_API_KEY secret for it to run/);
 });
 
 test('config: an "agent" that writes a prefix in "for" is an error only while another provider is listed; a prefix that matches a provider\'s branches and others is refused (duo#84)', async () => {

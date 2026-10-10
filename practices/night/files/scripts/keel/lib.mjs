@@ -73,7 +73,9 @@
 //                            and "agent" on crossReview, climb and tend):
 //                            each provider an adapter, keel's rules its own
 //                            (phase 45); authorOf(head), reviewerOf(…): a PR
-//                            is reviewed by a provider other than its author
+//                            is reviewed by a provider other than its author;
+//                            commitAuthorOf, pushAuthorsOf, pushReviewerOf: so
+//                            is a push to main (phase 60), by its commits
 //   main(meta, fn)           run a script: --json or text, and its exit code
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -1804,6 +1806,10 @@ export const AGENTS = Object.freeze({
     final: 'the execution file (the step\'s execution_file output): its last "result" message\'s text',
     error: 'that result message: is_error, its turns and its result text',
     login: 'claude[bot]',
+    // Phase 60: a commit is Claude's when its author's or a Co-authored-by trailer's email is one of these
+    // (claude-code-action's commits; Claude Code's "Co-Authored-By: Claude … <noreply@anthropic.com>").
+    // An email, never a name: a person may be named Claude (keel#65).
+    commits: Object.freeze({ emails: /^(?:noreply@anthropic\.com|(?:\d+\+)?claude\[bot\]@users\.noreply\.github\.com)$/i }),
     passes: Object.freeze(['crossReview', 'climb', 'tend']),
     refused: Object.freeze({}),
   }),
@@ -1821,6 +1827,8 @@ export const AGENTS = Object.freeze({
     error: 'none is written: the step\'s outcome, and an empty or missing final message',
     // codex-action posts nothing; keel's step posts what it says.
     login: null,
+    // Phase 60: a commit is Codex's when its author or a Co-authored-by trailer is one of these (Codex cloud's connector, the Codex CLI).
+    commits: Object.freeze({ emails: /^(?:noreply@openai\.com|codex@openai\.com|(?:\d+\+)?(?:chatgpt-codex-connector|codex)\[bot\]@users\.noreply\.github\.com)$/i }),
     passes: Object.freeze(['crossReview', 'climb', 'tend']),
     refused: Object.freeze({}),
   }),
@@ -1891,6 +1899,107 @@ export function reviewerOf({ config, head, has, agents = AGENTS }) {
   const reviewer = others[0] ?? (listed.includes(author) ? author : null);
   return { author, reviewer, self: reviewer === author, why: reviewer ? `${wrote}: reviewed by ${reviewer}, but no provider listed has its secret set` : `${wrote}, and "agents" lists no provider to review it` };
 }
+
+// ---- who wrote a push (phase 60) -------------------------------------------------
+//
+// A project that ships to main opens no PR, so no branch says who wrote the
+// code. Its commits do: each one's author, and its Co-authored-by trailers.
+
+/** The Co-authored-by trailers of a commit message: [{ name, email }]. Pure. */
+export function coAuthorsOf(message) {
+  return trailerValues(trailerBlock(message), 'co-authored-by').map(personOf).filter(Boolean);
+}
+
+/**
+ * A commit message's trailer block, as git reads one (git interpret-trailers):
+ * its last paragraph, when every line of it is a `Key: value` trailer or a
+ * continuation of one. A `Co-authored-by:` line quoted in the body is not a
+ * trailer (keel#65). Pure.
+ */
+export function trailerBlock(message) {
+  const paras = String(message ?? '').replace(/\r\n/g, '\n').trim().split(/\n[ \t]*\n/);
+  if (paras.length < 2) return [];
+  const lines = paras.at(-1).split('\n');
+  return lines.every((l, i) => /^[A-Za-z0-9-]+:[ \t]*\S/.test(l) || (i > 0 && /^[ \t]+\S/.test(l))) ? lines : [];
+}
+/** The values of one trailer key (any case) in a trailer block. */
+const trailerValues = (lines, key) => lines.filter(l => l.toLowerCase().startsWith(`${key}:`)).map(l => l.slice(key.length + 1).trim());
+/** `Name <email>` → { name, email }, or null. */
+const personOf = v => { const m = /^(.*?)[ \t]*<([^>\n]*)>$/.exec(String(v ?? '').trim()); return m ? { name: m[1].trim(), email: m[2].trim() } : null; };
+
+/**
+ * Who wrote a commit: the providers whose identity its author's email, or a
+ * Co-authored-by trailer's, is (an adapter's `commits.emails`; a name alone
+ * is never evidence: a person may be named Claude), in the adapters' order;
+ * [] for a person's. `commit`: { name, email, coAuthors?, message }:
+ * `coAuthors` is git's own parse of the trailers (`%(trailers:key=Co-authored-by)`,
+ * gitOf's), else the message's trailer block is read here. Pure.
+ */
+export function commitAuthorOf(commit, agents = AGENTS) {
+  const trailers = Array.isArray(commit?.coAuthors) ? commit.coAuthors.map(personOf).filter(Boolean) : coAuthorsOf(commit?.message);
+  const emails = [commit?.email ?? '', ...trailers.map(p => p.email)];
+  return Object.keys(agents).filter(n => agents[n].commits && emails.some(e => agents[n].commits.emails.test(e)));
+}
+
+/** Every provider that wrote one of a push's commits, in the adapters' order; [] when people wrote them all. Pure. */
+export function pushAuthorsOf(commits, agents = AGENTS) {
+  const wrote = new Set((commits ?? []).flatMap(c => commitAuthorOf(c, agents)));
+  return Object.keys(agents).filter(n => wrote.has(n));
+}
+
+/**
+ * Who reviews a push to main (phase 60), by the owner's rule for a PR: a
+ * provider other than the ones that wrote its commits, whenever one is
+ * available. The reviewer is the first provider "agents" lists that wrote
+ * none of them, can review, and has its secret (`has`, as for reviewerOf).
+ * A person's push (no provider in its authors or trailers) is reviewed by
+ * the first listed. Only when no provider that wrote none of it is
+ * available does one review its own (`self`, with the reason). { authors,
+ * author, reviewer, self, reason?, why }: `author` is the one provider that
+ * wrote it (the reviewer itself when it reviews its own), else null. Pure.
+ */
+export function pushReviewerOf({ config, commits, has, agents = AGENTS }) {
+  const authors = pushAuthorsOf(commits, agents);
+  const listed = listedAgents(config).filter(n => agents[n]?.passes.includes('crossReview'));
+  const available = n => !has || has[n] !== false;
+  const author = authors.length === 1 ? authors[0] : null;
+  const wrote = authors.length ? `written by ${authors.join(' and ')} (its commits' authors and trailers)` : 'written by a person (no provider in its commits\' authors or trailers)';
+  const others = listed.filter(n => !authors.includes(n));
+  const other = others.find(available);
+  if (other) {
+    const skipped = others.slice(0, others.indexOf(other));
+    return { authors, author, reviewer: other, self: false, why: `${wrote}: reviewed by ${other}, the first ${authors.length ? 'other ' : ''}provider "agents" lists${skipped.length ? ` with its secret set (${skipped.join(', ')} has none)` : ''}` };
+  }
+  const own = listed.find(n => authors.includes(n) && available(n));
+  if (own) {
+    const alsoWrote = listed.filter(n => n !== own && authors.includes(n));
+    const reason = alsoWrote.length ? `every other provider listed wrote some of it too (${alsoWrote.join(', ')})` : selfReason({ author: own, listed, has, agents });
+    return { authors, author: own, reviewer: own, self: true, reason, why: `${wrote}: reviewed by ${own}, its own provider: ${reason}` };
+  }
+  const reviewer = others[0] ?? listed.find(n => authors.includes(n)) ?? null;
+  return { authors, author, reviewer, self: reviewer !== null && authors.includes(reviewer), why: reviewer ? `${wrote}: reviewed by ${reviewer}, but no provider listed has its secret set` : `${wrote}, and "agents" lists no provider to review it` };
+}
+
+/** The label on every push's tracking issue (cross-review.mjs opens them; keel review reads them). */
+export const PUSH_LABEL = 'keel:review-after';
+/** A push's tracking issue's title. */
+export const pushTitle = sha => `keel review after ${String(sha ?? '').slice(0, 7)}`;
+/**
+ * The record a push review leaves as its tracking issue's first line, a
+ * hidden comment: { from, to, alone, agent, findings: [{ id, severity, path,
+ * line, text, url? }] }. `<` and `>` are escaped, so nothing in it ends the
+ * comment. recordOf reads it back (null when absent or not a record). Pure.
+ */
+export const recordText = record => `<!-- ${PUSH_LABEL} ${JSON.stringify(record).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')} -->`;
+export function recordOf(body) {
+  // The body's first line alone (keel#65): the rest holds the agent's summary and findings, which could
+  // spell a marker of their own; a pending issue starts with its own marker, so it is never a record.
+  const m = new RegExp(`^<!-- ${PUSH_LABEL} (\\{[^\\n]*\\}) -->(?:\\r?\\n|$)`).exec(String(body ?? ''));
+  if (!m) return null;
+  try { const r = JSON.parse(m[1]); return r && typeof r === 'object' && /^[0-9a-f]{40}$/.test(r.to ?? '') ? r : null; } catch { return null; }
+}
+/** An issue the cross-review workflow opened (its token's bot), never a person's: only those are the record. */
+export const byWorkflow = issue => /^(?:app\/)?github-actions(?:\[bot\])?$/.test(String(issue?.author?.login ?? ''));
 
 /** A provider's secret, as a person sets it: CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY). */
 export const secretText = (name, agents = AGENTS) => {

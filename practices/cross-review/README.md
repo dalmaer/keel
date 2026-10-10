@@ -126,6 +126,70 @@ the run ends green with a notice. The review and its inline comments are
 posted by the workflow's publish job (`github-actions[bot]`), whichever
 agent wrote them.
 
+**After the push** (keel phase 60). A project that ships to main opens no
+PR, so its agents' code never meets a second provider. With
+`"crossReview": { "after": "push" }` each push to main is reviewed after
+it lands, and nothing waits on it:
+
+- **The trigger.** `keel render` adds `push: branches: [main]` and a daily
+  run to the workflow only for such a project; without `"after"` the
+  workflow has no push trigger at all. `"for"` becomes optional (a project
+  may review its PRs too). All pushes and the daily run share one
+  concurrency group, so pushes that land during a review coalesce into the
+  one pending run.
+- **What it reviews.** Everything on main since the last review, as one
+  batch: the combined diff. The last review's tracking issue records where
+  it ended. A review only ever starts from such a record, so a review that
+  fails is retried from it, with every push since. With no record that can
+  serve (none yet; one a force push dropped; one from before an upgrade),
+  nothing is reviewed and the record starts first, before anything is
+  spent: at the push's `before` when its script can post (the next run
+  reviews that push), else at the head (a first push, `before` all zeros;
+  a force push; the push that installs or upgrades the publisher; a daily
+  run before any review). A start is a closed tracking issue, said in a
+  notice.
+- **Who reviews it.** A provider other than the one that wrote the
+  commits: each commit's author, and its `Co-authored-by` trailers (the
+  trailer block git parses, never a line quoted in the body), name the
+  provider by email: Claude Code's `<noreply@anthropic.com>`,
+  `claude[bot]`'s, Codex's. A name alone is never evidence: a person may
+  be named Claude. A person's push goes to the first provider listed. Its
+  own provider reviews only when no other is available, said as for a PR.
+- **Where findings go.** Checked against the push's diff exactly as a PR's
+  are. Each one whose line the head commit's own diff holds becomes a
+  commit comment on the head; all of them go into one tracking issue per
+  push, `keel review after <sha>` (label `keel:review-after`), each with an
+  id (F1, F2, …). The issue opens pending; the one edit that finishes it
+  writes its hidden record (the next run's starting point, each finding's
+  whole text as far as the issue holds it) and, with no findings, closes
+  it. Until that edit lands nothing is recorded, so a failed post is
+  reviewed again. Answer each with `keel review <repo>@<sha> --close <id>
+  --fixed …`; the issue closes when every finding is answered (a tracked
+  one too: its work goes on where it is tracked). A read shows every other
+  comment on the issue, whole, before it counts it read. A finding
+  answered tracked is drafted as a `keel:agent` issue (`--json` `work`),
+  for phase 54's robot to file.
+- **The sandbox.** The same two jobs. The review job reads main's whole
+  history (no credential kept) and the tracking issues (`issues: read`).
+  After a push the publish job (`issues: write` too) checks out nothing.
+  Every commit on main was pushed code once, a reviewed one too, so no
+  commit is run for what it is. It fetches the publisher alone
+  (`scripts/keel/cross-review.mjs` and `lib.mjs`, at the run's commit)
+  and runs it only when their sha256 is the one `keel render` wrote into
+  the workflow (`KEEL_PUBLISHER`); otherwise it is red and runs nothing.
+  A push that changes the publisher is refused; one that also changes the
+  workflow file changes what runs anyway (GitHub runs the pushed workflow),
+  and shows in its diff. A start is at the push's `before` only when
+  GitHub puts it below the run's commit, else at the run's commit, and
+  runs no repository code at all. Claude reads the push's diff from a
+  folder of its own under the runner's temp (`--add-dir`), granted alone.
+- **Spend.** One review per run, within `budget.minutes`, and at most
+  `budget.pushes` reviews a UTC day (1 to 48, default 8): each finished
+  review counts, and each whose post failed (its issue left pending), so
+  retries that keep failing stop at the budget too. Past it a push waits,
+  with a notice, and the next run (the daily one, if no push comes)
+  reviews the waiting pushes together.
+
 **Optional: opt in.** `keel init` and `keel adopt` leave it off unless asked
 (`--with cross-review`), or unless `.keel/keel.json` already lists it.
 
