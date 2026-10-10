@@ -775,3 +775,18 @@ test('week strip shows gate timing and missing coverage without substituting tes
   assert.doesNotMatch(html, /99999 ms/);
   assert.match(html, /missing weeks are unavailable/);
 });
+
+test('round3: board gate timing discloses successful and unsuccessful counts', () => {
+  const data = { ...structuredClone(synthetic), timing: { weeks: [
+    { week: '2026-10-05', lanes: [
+      { kind: 'gate', machine: 'acme-mixed', gateMs: 2000, successful: 2, unsuccessful: 3 },
+      { kind: 'gate', machine: 'acme-failed', gateMs: null, successful: 0, unsuccessful: 4 },
+      { kind: 'gate', machine: 'acme-unknown', gateMs: null },
+    ] },
+  ], coverage: { note: 'Acme retained gates.' } } };
+  const html = pageHtml(data, 'acme-token');
+  assert.match(html, /acme-mixed: 2000 ms \(2 successful, 3 unsuccessful\)/);
+  assert.match(html, /acme-failed: Unavailable \(0 successful, 4 unsuccessful\)/);
+  assert.match(html, /acme-unknown: Unavailable \(Unavailable successful, Unavailable unsuccessful\)/);
+  assert.match(html, /Medians use successful gates only/);
+});

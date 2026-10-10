@@ -752,16 +752,15 @@ export const MEASURES = [
     id: 'flaky_tests', what: 'tests that both passed and failed on one clean tree, in the newest window of recorded runs (the test ledger)', unit: 'tests', bound: 0, better: 'lower', ratchet: false,
     async run(ctx) {
       const { opts, runs, skipped } = await ledgerHistory(ctx);
-      if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}${busyNote(runs)}` };
-      const recent = runs.slice(-opts.window);
+      const recent = runs.filter(r => busyState(r) !== 'busy').slice(-opts.window);
       const found = flaky(recent);
-      if (!found.length && recent.filter(r => busyState(r) !== 'busy').length < opts.window) return { na: `too few recent runs after busy filtering${busyNote(recent)}` };
+      if (!found.length && recent.length < opts.window) return { na: `${tooFew(recent.length, opts.window)} after busy filtering${nightNote(runs)}${busyNote(runs)}` };
       const trees = new Set(recent.filter(r => r.dirty === false && r.tree).map(r => r.tree)).size;
       return {
         value: found.length,
-        detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${opts.window} of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}${nightNote(runs)}${busyNote(recent)}`,
+        detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${recent.length} eligible of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}${nightNote(runs)}${busyNote(runs)}`,
         // A bun or vitest finding carries its runner, so the run-alone command is that runner's (phase 59).
-        facts: { coverage: busyCoverage(recent), flaky: found.map(({ file, name, describe, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, ...(describe ? { describe } : {}), tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
+        facts: { coverage: busyCoverage(runs), flaky: found.map(({ file, name, describe, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, ...(describe ? { describe } : {}), tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
       };
     },
   },

@@ -53,3 +53,16 @@ Conductor grouped proofs verified all seven newly reported regressions: every na
 - Proven-by: tests/time.test.mjs (^review:) — VERIFIED — "Expected values to be strictly equal: 0 !== 3 (review: Vitest outside targets are omissions and local targets retain identities after flags)"
 - Proven-by: tests/test-ledger.test.mjs (ANSI-colored|timed gates execute) — VERIFIED — "Expected values to be strictly equal: + actual - expected + 'acme-fake-credential' - '[redacted]' (ANSI-colored credentials are redacted before Node and JUni..."
 - Proven-by: tests/improve-ledger.test.mjs (preserves confirmed quiet findings) — VERIFIED — "Expected values to be strictly equal: 'n/a' !== 'outside' (flaky_tests preserves confirmed quiet findings when a recent busy run is omitted)"
+
+## Measurement boundaries from the additional review
+
+Usual times now use full retained eligible history through report time, independent of the selected weekly trend. Gate medians use successful runs only, with unsuccessful counts retained and displayed. The real CLI reports three successful and two unsuccessful root gates separately. The flake window selects eligible observations before slicing, so busy records cannot crowd out quiet evidence. Equals-form Authorization is redacted, and real concurrent Node events verify failure detail is attached only through explicit parent IDs; legacy missing links remain a disclosed gap.
+
+Vitest related and benchmark selection are outside the bounded invocation grammar and now explicitly count as coverage omissions, rather than disappearing silently. [Vitest’s CLI reference](https://vitest.dev/guide/cli#vitest-related) confirms they execute tests; source-file selectors are not reported as test identities.
+
+The timing/board builder passed 48 focused tests, the ledger/measure builder six; conductor isolated-copy proofs below verify all seven regressions.
+
+- Proven-by: tests/time.test.mjs (^round3:) — VERIFIED — "Expected values to be strictly equal: 0 !== 6 (round3: Vitest related and bench runs disclose omissions without naming sources as tests)"
+- Proven-by: tests/board.test.mjs (^round3: board gate timing) — VERIFIED — "The input did not match the regular expression /acme-mixed: 2000 ms \(2 successful, 3 unsuccessful\)/. Input: '<!doctype html>\n' + '<html lang='en'><head><m..."
+- Proven-by: tests/test-ledger.test.mjs (equals-form Authorization|concurrent Node parents) — VERIFIED — "The input was expected to not match the regular expression /acme-fake-credential/. Input: 'Authorization=Bearer acme-fake-credential' (equals-form Authorizat..."
+- Proven-by: tests/improve-ledger.test.mjs (backfills its eligible window) — VERIFIED — "Expected values to be strictly equal: null !== 1 (flaky_tests backfills its eligible window and leaves all-busy history unavailable)"

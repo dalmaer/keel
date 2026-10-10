@@ -1241,3 +1241,57 @@ test('timed gates execute and preserve exit status when telemetry storage fails'
     if (preparationFails) assert.match(r.stderr, /usual timing unavailable/);
   }
 });
+
+test('equals-form Authorization is redacted by both failure collectors', () => {
+  for (const value of ['Authorization=Bearer acme-fake-credential', 'Authorization = Basic acme-fake-credential']) {
+    assert.doesNotMatch(ledger.failureText(value, {}), /acme-fake-credential/);
+    const top = ledger.topLevel({ errors: true });
+    top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error(value) } } });
+    const xml = ledger.readXml(`<testsuites><testsuite name="acme.test.ts"><testcase name="Acme"><failure><![CDATA[${value}]]></failure></testcase></testsuite></testsuites>`);
+    for (const error of [top.tests[0].error, ledger.junitTests(xml, 'vitest').tests[0].error]) {
+      assert.match(error, /\[redacted\]/);
+      assert.doesNotMatch(error, /acme-fake-credential/);
+    }
+  }
+});
+
+test('concurrent Node parents retain only explicitly correlated child failure detail', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'acme.test.mjs'), `
+    import { test } from 'node:test';
+    test('Acme wrapper', { concurrency: true }, async t => {
+      let release; const ready = new Promise(r => release = r);
+      await Promise.all([
+        t.test('Acme A', async t => { await ready; await t.test('child A', () => { throw new Error('Acme A detail'); }); }),
+        t.test('Acme B', async t => { release(); await t.test('child B', () => { throw new Error('Acme B detail'); }); })
+      ]);
+    });
+  `);
+  await writeFile(join(dir, 'reporter.mjs'), `export default async function*(events) {
+    for await (const e of events) if (e.type === 'test:fail' && e.data.nesting > 0) {
+      e.data.nesting--;
+      yield JSON.stringify(e, (k, v) => v instanceof Error ? { message: v.message, ...v } : v) + '\\n';
+    }
+  }`);
+  const r = run(process.execPath, ['--test', '--test-reporter=./reporter.mjs', 'acme.test.mjs'], { cwd: dir });
+  assert.equal(r.status, 1, r.stderr);
+  const events = r.stdout.trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(events.length, 4, 'both concurrent parents and both children failed');
+  // Also replay the real events with both children arriving before the opposite
+  // parent, exposing any file-keyed association regardless of Node buffering.
+  const children = events.filter(e => e.data.nesting === 1);
+  const parents = events.filter(e => e.data.nesting === 0);
+  const interleaved = [...children, ...parents.filter(p => p.data.testId !== children[0].data.parentId), ...parents.filter(p => p.data.testId === children[0].data.parentId)];
+  for (const order of [events, interleaved]) {
+    const top = ledger.topLevel({ errors: true });
+    for (const event of order) top.push(event);
+    for (const parent of top.tests) assert.equal(parent.error, `${parent.name} detail`);
+  }
+  const legacy = ledger.topLevel({ errors: true });
+  for (const event of interleaved) { const { testId, parentId, ...data } = event.data; legacy.push({ ...event, data }); }
+  for (const parent of legacy.tests) {
+    assert.match(parent.error, /subtest failed/);
+    assert.match(parent.error, /Child failure detail unavailable/);
+    assert.doesNotMatch(parent.error, /Acme [AB] detail/);
+  }
+});

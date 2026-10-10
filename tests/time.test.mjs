@@ -13,8 +13,8 @@ async function scratch(t) { const p = await mkdtemp(join(tmpdir(), 'keel-time-')
 
 test('weeks separate full gates, subsets, machines and configs; no duration is fabricated', () => {
   const runs = [at('2026-09-28T12:00:00Z', { wallMs: 9999 }), at('2026-10-05T12:00:00Z'),
-    at('2026-10-06T12:00:00Z', { kind: 'gate', runner: 'gate', ms: 100, tests: [] }),
-    at('2026-10-07T12:00:00Z', { kind: 'gate', runner: 'gate', ms: 300, tests: [] }),
+    at('2026-10-06T12:00:00Z', { kind: 'gate', runner: 'gate', status: 0, ms: 100, tests: [] }),
+    at('2026-10-07T12:00:00Z', { kind: 'gate', runner: 'gate', status: 0, ms: 300, tests: [] }),
     at('2026-10-07T12:00:00Z', { config: 'other', tests: [{ file: 'a.test.mjs', name: 'Acme ships', outcome: 'pass', ms: 1000 }] }),
     at('2026-10-08T12:00:00Z', { machine: { ...machine, cpus: 8 }, busy: undefined })];
   const data = timeSummary(runs, { weeks: 3, now: Date.parse('2026-10-09T00:00:00Z') });
@@ -261,7 +261,7 @@ test('CLI reports absent gate timing as unavailable and excludes negative durati
   const root = await scratch(t), date = new Date().toISOString();
   await mkdir(join(root, '.keel', 'test-runs'), { recursive: true });
   await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
-  const gate = { kind: 'gate', dir: '.', tests: [], date, machine, config: 'acme' };
+  const gate = { kind: 'gate', status: 0, dir: '.', tests: [], date, machine, config: 'acme' };
   await writeFile(join(root, '.keel', 'test-runs', 'missing.json'), JSON.stringify(gate));
   await writeFile(join(root, '.keel', 'test-runs', 'negative.json'), JSON.stringify({ ...gate, ms: -100 }));
   const cli = resolve('bin/keel.mjs');
@@ -413,4 +413,63 @@ test('review: human timing shows bounded named medians usual times failures and 
   assert.match(bounded.text, /Acme case 11: unavailable/);
   assert.match(bounded.text, /characters omitted/);
   assert.equal((bounded.text.match(/2 entries omitted/g) ?? []).length, 4);
+});
+
+test('round3: Vitest related and bench runs disclose omissions without naming sources as tests', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const commands = ['vitest related --run src/acme.ts', 'npx vitest --silent related --run src/acme.ts',
+    'vitest --reporter json related src/acme.ts', 'vitest bench --run',
+    'npx vitest --silent bench tests/acme.bench.ts', 'vitest --reporter json bench --run'];
+  await writeFile(join(dir, 'acme.jsonl'), commands.map((command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root,
+    message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000, run_in_background: true } }] } })).join('\n'));
+  const got = await workedAround({ root, home, env: {}, now: Date.parse('2026-10-10') });
+  assert.equal(got.coverage.commandOmissions, commands.length);
+  assert.equal(got.coverage.state, 'partial');
+  assert.equal(got.coverage.recognizedTestInvocations, 0);
+  assert.deepEqual(got.identities, []);
+  assert.doesNotMatch(JSON.stringify(got), /src\/acme/);
+});
+
+test('round3: usual times include older retained passes outside the weekly window and exclude future history', async t => {
+  const root = await scratch(t), dir = join(root, '.keel', 'test-runs');
+  await mkdir(dir, { recursive: true });
+  const sample = (date, ms, name = 'Acme ships', extra = {}) => at(date, { tests: [{ file: 'acme.test.mjs', name, outcome: 'pass', ms }], ...extra });
+  const runs = [sample('2026-09-01T00:00:00Z', 20), sample('2026-09-10T00:00:00Z', 40),
+    sample('2026-10-08T00:00:00Z', 900), sample('2026-09-10T00:00:00Z', 55, 'Acme older only'),
+    sample('2026-10-10T00:00:00Z', 9999), sample('2026-09-10T00:00:00Z', 9999, 'Acme ships', { kind: 'gate', status: 0 })];
+  for (const [i, r] of runs.entries()) await writeFile(join(dir, `${i}.json`), JSON.stringify(r));
+  const { data, text } = await keelTime({ root, weeks: 1, now: Date.parse('2026-10-09'), env: { CI: 'true' } });
+  const usual = data.usual.find(t => t.name === 'Acme ships');
+  assert.equal(usual.median, 40);
+  assert.equal(usual.passes, 3);
+  assert.equal(data.usual.find(t => t.name === 'Acme older only').median, 55);
+  assert.equal(data.weeks[0].lanes[0].tests[0].median, 900);
+  assert.equal(data.coverage.runs, 1);
+  assert.match(text, /last ten retained passes through report time/);
+  // Reverse input order and exceed ten passes: the oldest retained pass must drop.
+  const many = Array.from({ length: 11 }, (_, i) => sample(`2026-09-${String(i + 1).padStart(2, '0')}T00:00:00Z`, i === 0 ? 9999 : i * 10));
+  const lastTen = timeSummary(many.reverse(), { weeks: 1, now: Date.parse('2026-10-09') }).usual[0];
+  assert.equal(lastTen.passes, 10);
+  assert.equal(lastTen.median, 55);
+});
+
+test('round3: gate median excludes fast failures and reports outcome counts with unavailable all-failed lanes', async t => {
+  const root = await scratch(t), dir = join(root, '.keel', 'test-runs');
+  await mkdir(dir, { recursive: true });
+  const gate = (status, ms, config = 'acme') => at('2026-10-08T00:00:00Z', { kind: 'gate', runner: 'gate', tests: [], status, ms, config });
+  const runs = [gate(0, 1000), gate(0, 3000), gate(1, 1), gate(1, 2), gate(1, 3),
+    gate(1, 4, 'acme-failed'), gate(undefined, 5, 'acme-unknown'), gate(0, null, 'acme-untimed')];
+  for (const [i, r] of runs.entries()) await writeFile(join(dir, `${i}.json`), JSON.stringify(r));
+  const { data, text } = await keelTime({ root, weeks: 1, now: Date.parse('2026-10-09'), env: { CI: 'true' } });
+  const lanes = data.weeks[0].lanes, mixed = lanes.find(l => l.lane === '.\0acme\0gate');
+  assert.equal(mixed.gateMs, 2000);
+  assert.equal(mixed.successful, 2);
+  assert.equal(mixed.unsuccessful, 3);
+  assert.equal(mixed.runs, 5);
+  for (const l of lanes.filter(l => l !== mixed)) assert.equal(l.gateMs, null);
+  assert.match(text, /gate 2000 ms \(2 successful, 3 unsuccessful\)/);
+  assert.match(text, /config=acme-failed[^\n]+gate unavailable \(0 successful, 1 unsuccessful\)/);
+  assert.match(text, /config=acme-untimed[^\n]+gate unavailable \(1 successful, 0 unsuccessful\)/);
 });

@@ -229,7 +229,7 @@ export function failureText(value, env = process.env) {
   }
   text = text.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g, '[redacted]')
     .replace(/((?:[\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, '$1[redacted]')
-    .replace(/(authorization["']?\s*:\s*)(?:"[^"\n]*"|'[^'\n]*'|(?:bearer|basic)\s+[^\s,;}]+)/gi, '$1[redacted]')
+    .replace(/(authorization["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|(?:bearer|basic)\s+[^\s,;}]+)/gi, '$1[redacted]')
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[redacted]@')
     .split('\n').slice(0, 8).join('\n').slice(0, 1024);
   while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);
@@ -731,18 +731,25 @@ export function topLevel({ root = null, errors = false } = {}) {
         else pending.set(d.file, what);
         return;
       }
-      if (errors && e.type === 'test:fail' && d?.nesting > 0 && d.file && !failures.has(d.file)) {
-        const err = d.details?.error; failures.set(d.file, failureText(err?.cause?.message ?? err?.message ?? err ?? ''));
+      // Node IDs are scoped to an entry file. Propagate detail only over an
+      // explicit parent link; older events without IDs must never guess by file.
+      const id = d?.file && d.testId != null ? JSON.stringify([d.file, d.testId]) : null;
+      if (errors && e.type === 'test:fail' && d?.nesting > 0 && d.file && d.parentId != null) {
+        const parent = JSON.stringify([d.file, d.parentId]);
+        const err = d.details?.error;
+        if (!failures.has(parent)) failures.set(parent, failures.get(id) ?? failureText(err?.cause?.message ?? err?.message ?? err ?? ''));
+        failures.delete(id);
       }
       if ((e.type !== 'test:pass' && e.type !== 'test:fail') || d?.nesting !== 0) return;
       const t = { file: d.file ? fileOf(d.file) : null, name: String(d.name), outcome: outcomeOf(e), ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10 };
       if (errors && t.outcome === 'fail') {
         const err = d.details?.error;
-        t.error = failures.get(d.file) ?? failureText(err?.cause?.message ?? err?.message ?? err ?? '');
+        t.error = failures.get(id) ?? failureText(err?.cause?.message ?? err?.message ?? err ?? '');
+        if (!failures.has(id) && err?.failureType === 'subtestsFailed') t.error = failureText(t.error + '\nChild failure detail unavailable: no correlated parent link.');
       }
       if (d.file && pending.has(d.file)) { mark(t, pending.get(d.file)); pending.delete(d.file); }
       if (d.file) last.set(d.file, { test: t, line: d.line });
-      failures.delete(d.file);
+      failures.delete(id);
       tests.push(t);
     },
   };
