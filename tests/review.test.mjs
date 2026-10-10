@@ -685,6 +685,15 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   assert.equal(none.code, 2);
   assert.match(none.err, /no review after the push ends at 1234567 on acme\/app/);
   assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 7)}`, '--wait']).code, 2, 'nothing waits on a push');
+  // keel#65: a start records where reviews begin and reviews nothing: never a review with no findings, exit 0.
+  const startBody = `<!-- keel:review-after ${JSON.stringify({ from: null, to: PUSHED, alone: false, start: true, agent: null, findings: [] })} -->\n**Review after the push starts here**`;
+  const started = await pushGh(t, { issues: [pushIssue([], { number: 14, body: startBody })] });
+  const notReviewed = keel(dir, started, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']);
+  assert.equal(notReviewed.code, 1, notReviewed.out);
+  assert.match(notReviewed.err + notReviewed.out, /acme\/app@bbbbbbb was not reviewed: the review after the push started its record there \(#14\)/);
+  // A start and a later real review of the same sha (none expected, but never ambiguous): the review is read.
+  const both = await pushGh(t, { issues: [pushIssue([F2]), pushIssue([], { number: 14, body: startBody })], comments: [] });
+  assert.deepEqual(keel(dir, both, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']).json().comments.map(c => c.id), ['F2']);
 });
 
 test('phase 60: a finding keeps its whole text, from the record to keel review\'s JSON and a tracked finding\'s keel:agent draft (keel#65)', async t => {

@@ -224,14 +224,17 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
  * What the tracking issues say (gh issue list --label keel:review-after
  * --json number,body,createdAt,author): { last, issue, today, day }. `last`
  * is where the newest review (or start) ended (its record's `to`), `today`
- * how many reviews were opened on this UTC day (a start, which spends
- * nothing, is not one). Issues a person opened are not the record. Pure.
+ * how many reviews were spent on this UTC day: each finished one, and each
+ * left pending (its post failed after the agent ran, keel#65: retries that
+ * keep failing still spend), never a start, which spends nothing. Issues a
+ * person opened are not the record. Pure.
  */
 export function pushHistory(issues, { now = Date.now() } = {}) {
   const day = new Date(now).toISOString().slice(0, 10);
-  const mine = (Array.isArray(issues) ? issues : []).filter(i => byWorkflow(i) && recordOf(i?.body))
-    .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
-  return { last: mine.length ? recordOf(mine[0].body).to : null, issue: mine[0]?.number ?? null, today: mine.filter(i => String(i.createdAt ?? '').slice(0, 10) === day && !recordOf(i.body).start).length, day };
+  const ours = (Array.isArray(issues) ? issues : []).filter(i => byWorkflow(i));
+  const mine = ours.filter(i => recordOf(i?.body)).sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+  const spent = i => (recordOf(i?.body) ? !recordOf(i.body).start : String(i?.body ?? '').includes(PENDING_MARKER));
+  return { last: mine.length ? recordOf(mine[0].body).to : null, issue: mine[0]?.number ?? null, today: ours.filter(i => String(i.createdAt ?? '').slice(0, 10) === day && spent(i)).length, day };
 }
 
 /** git in `root`, read-only: what pushRange and the authorship need. A failed call is null, never a throw. */
@@ -241,8 +244,6 @@ export function gitOf(root, run = args => execFileSync('git', args, { cwd: root,
     head: () => ok(['rev-parse', 'HEAD'])?.trim() || null,
     isCommit: sha => SHA.test(sha ?? '') && ok(['cat-file', '-e', `${sha}^{commit}`]) !== null,
     isAncestor: (a, b) => ok(['merge-base', '--is-ancestor', a, b]) !== null,
-    // A file as a commit holds it, or null (no such file there).
-    fileAt: (sha, path) => ok(['show', `${sha}:${path}`]),
     // Each commit's sha, author, subject and Co-authored-by trailers as git parses them (its trailer block only), newest first.
     commits: (base, head) => (ok(['log', '--format=%H%x1f%an%x1f%ae%x1f%s%x1f%(trailers:key=Co-authored-by,valueonly,separator=%x1d)%x1e', `${base}..${head}`]) ?? '').split('\x1e').map(r => r.replace(/^\n/, '')).filter(r => r.includes('\x1f'))
       .map(r => { const [sha, name, email, subject, trailers = ''] = r.split('\x1f'); return { sha, name, email, message: subject, coAuthors: trailers.split('\x1d').map(t => t.trim()).filter(Boolean) }; }),
@@ -250,66 +251,44 @@ export function gitOf(root, run = args => execFileSync('git', args, { cwd: root,
 }
 
 /**
- * The push publisher's protocol: what the publish job asks of the
- * cross-review.mjs it runs (push-review and push-post, their flags, the
- * record). The publish job runs the script of the commit before the reviewed
- * ones, so that commit must speak this protocol; raise it whenever the
- * publish step asks for something an older script cannot do.
- */
-export const PUSH_PROTOCOL = 1;
-/** Where a project keeps the script the publish job runs. */
-export const SCRIPT = 'scripts/keel/cross-review.mjs';
-/** The push protocol a commit's cross-review.mjs speaks: its PUSH_PROTOCOL, or null (no script there, or one from before phase 60). */
-export function protocolAt(git, sha) {
-  const m = /^export const PUSH_PROTOCOL = (\d+);$/m.exec(git.fileAt(sha, SCRIPT) ?? '');
-  return m ? Number(m[1]) : null;
-}
-
-/**
  * Which commits to review: { base, why }, { none } (nothing new since the
  * last review) or { start, at } (nothing is reviewed now; the record starts
  * at `at`). A review only ever starts from a record: where the last review
- * ended, a fact the pushed code cannot set and the publish job checks again
- * on its own (keel#65), when main's history holds it below the head and its
- * cross-review.mjs speaks PUSH_PROTOCOL (the publish job runs that script).
- * With no record that can serve (none yet, one a force push dropped, one
- * from before an upgrade), the run starts one and reviews nothing, so the
- * record exists before any review is spent and a review that fails is
- * retried from it, the commits of every push since included (keel#65: a
- * first review that failed before its issue let the next push begin at its
- * own before, dropping the failed one's commits). The start is at the
- * push's `before` when main's history holds it below the head and its script
- * can post (the push's own commits are reviewed by the next run), else at
- * the head (a first push, a force push, the install, a daily run with no
- * record: nothing up to it is reviewed). `git`: gitOf's isCommit,
- * isAncestor, fileAt.
+ * ended, when main's history holds it below the head. With no record that
+ * can serve (none yet, one a force push dropped), the run starts one and
+ * reviews nothing, so the record exists before any review is spent and a
+ * review that fails is retried from it, the commits of every push since
+ * included (keel#65: a first review that failed before its issue let the
+ * next push begin at its own before, dropping the failed one's commits).
+ * The start is at the push's `before` when main's history holds it below
+ * the head (the push's own commits are reviewed by the next run), else at
+ * the head (a first push, a force push, a daily run with no record: nothing
+ * up to it is reviewed). The base is only where the diff begins: the
+ * publish job runs no commit's code for being a base, only the publisher
+ * keel rendered (keel#65). `git`: gitOf's isCommit, isAncestor.
  */
 export function pushRange({ head, before = null, last = null, git }) {
   const notes = [];
   const below = sha => SHA.test(sha ?? '') && sha !== head && git.isCommit(sha) && git.isAncestor(sha, head);
-  const speaks = sha => protocolAt(git, sha) === PUSH_PROTOCOL;
-  const cannot = (what, sha) => `${what}, ${short(sha)}, holds a cross-review.mjs that cannot post a review after the push (push protocol ${PUSH_PROTOCOL}: an install or an upgrade)`;
   if (last) {
     if (last === head) return { none: `${short(head)} was reviewed already: the last review ended there` };
-    if (below(last) && speaks(last)) return { base: last, why: `everything since the last review (${short(last)}..${short(head)})` };
-    notes.push(below(last) ? cannot('the last review\'s end', last) : `the last review ended at ${short(last)}, which main's history no longer holds below ${short(head)} (a force push)`);
+    if (below(last)) return { base: last, why: `everything since the last review (${short(last)}..${short(head)})` };
+    notes.push(`the last review ended at ${short(last)}, which main's history no longer holds below ${short(head)} (a force push)`);
   } else notes.push('no review has been recorded here yet');
-  if (before && !ZERO.test(before) && below(before) && speaks(before)) {
+  if (before && !ZERO.test(before) && below(before)) {
     return { start: `${notes.join('; ')}: the record starts at the push's before, ${short(before)}, before any review is spent, and the next run reviews ${short(before)}..${short(head)} from it`, at: before };
   }
-  if (before && !ZERO.test(before)) notes.push(below(before) ? cannot('the push\'s before', before) : `the push's before, ${short(before)}, is not in main's history below ${short(head)} (a force push)`);
+  if (before && !ZERO.test(before)) notes.push(`the push's before, ${short(before)}, is not in main's history below ${short(head)} (a force push)`);
   else if (before !== null) notes.push('the push has no before (a first push)');
-  return { start: `${notes.join('; ')}: no commit before ${short(head)} is known to hold main's own code that can post a review, so nothing up to it is reviewed, and the record starts there (the next push is reviewed from it)`, at: head };
+  return { start: `${notes.join('; ')}: nothing before ${short(head)} is known to be where reviews began, so nothing up to it is reviewed, and the record starts there (the next push is reviewed from it)`, at: head };
 }
 
 /**
  * Whether to review after a push (phase 60): { review, mode, why }. With a
- * review (mode push): sha (main's head), base, trusted (the commit the
- * publish job runs from: the base, the last review's end or the push's
- * before, never one of the reviewed commits), range, commits, agent,
- * author, authors, minutes. With nothing reviewable (mode start: pushRange's
- * start) the publish job records the head as where the next review begins,
- * and spends nothing. Only with "after": "push"; `event` is push or
+ * review (mode push): sha (main's head), base (the last review's end, where
+ * the diff begins), range, commits, agent, author, authors, minutes. With
+ * nothing reviewable (mode start: pushRange's start, `at`) the publish job
+ * records where the next review begins, and spends nothing. Only with "after": "push"; `event` is push or
  * schedule. Past the day's budget ("budget".pushes reviews a UTC day) it is
  * a notice: the commits wait for the next run. The reviewer is never a
  * provider that wrote the push while another is available (`choose` is
@@ -341,7 +320,7 @@ export function shouldReviewPush({ config, event, head, before = null, history, 
   return {
     review: true, mode: 'push', self, ...(self ? { reason: who.reason ?? 'no other is available' } : {}),
     why: `${range.why}, ${plural(commits.length, 'commit')}; ${who.why}`,
-    sha: head, base: range.base, alone: false, trusted: range.base, range: range.why,
+    sha: head, base: range.base, alone: false, range: range.why,
     minutes: c.minutes, agent: who.reviewer, author: who.author ?? null, authors, today: h.today, pushes: c.pushes,
     count: commits.length, commits: commits.slice(0, MAX_COMMITS).map(x => ({ sha: x.sha, subject: x.message.split('\n')[0].slice(0, 200), by: commitAuthorOf(x) })),
   };
@@ -693,6 +672,8 @@ export function pushReview({ result, message, agent = 'claude', author = null, r
 }
 
 /** A tracking issue still being posted: no record yet, so a failed post leaves nothing the next run starts from. */
+/** A pending issue's hidden first line: how a run counts a review whose post failed against the day's budget. */
+export const PENDING_MARKER = '<!-- keel:review-after-pending -->';
 export const PENDING = 'Posting this review. If this line stays, posting failed before it finished: this issue records nothing, and the next run reviews these commits again.';
 
 /**
@@ -710,7 +691,7 @@ export function pushIssueBody(review, links = {}, { final = true } = {}) {
     `- **${f.id}** · **${f.severity}** · [\`${f.path}:${f.line}\`](${blob(f)})${links[f.id] ? ` · [on the commit](${links[f.id]})` : ''}`,
     ...capped(f.body, chars).split('\n').map(l => (l.trim() ? `  ${l}` : '')),
   ].join('\n'));
-  return [final ? recordText(record) : `_${PENDING}_\n`, ...review.lead, ...(items.length ? ['', '## Findings', '', ...items] : []), ''].join('\n');
+  return [final ? recordText(record) : `${PENDING_MARKER}\n_${PENDING}_\n`, ...review.lead, ...(items.length ? ['', '## Findings', '', ...items] : []), ''].join('\n');
 }
 
 /** gh, as the publish job's step runs it (KEEL_GH stands in for it): the JSON it prints. A failure throws its last error line. */

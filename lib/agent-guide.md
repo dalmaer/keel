@@ -1268,24 +1268,26 @@ coalesce. `cross-review.mjs which-push` reviews main's commits since the
 last review (its tracking issue's record) as one diff; a review only ever
 starts from a record. With none that can serve, nothing is reviewed and the
 record starts first (`mode: start`, a closed issue, nothing spent): at the
-push's before when its script can post, else at the head (a first or force
-push, the install or an upgrade, a daily run before any review). The author
+push's before when main's history holds it, else at the head (a first or
+force push, a daily run before any review). The author
 is the provider whose email its commits' authors, or their `Co-authored-by`
 trailers (the trailer block, as git parses it), carry (`pushReviewerOf`; a
 name alone is never evidence); the reviewer never is while another is
 available; a person's push goes to the first listed. Past the day's budget:
-a notice, and the next run reviews the waiting pushes together. Claude reads
+a notice, and the next run reviews the waiting pushes together (a review
+whose post failed, its issue left pending, counts). Claude reads
 the diff from `$RUNNER_TEMP/keel-diff/` (`--add-dir`, that folder alone).
-The publish job runs from the range's base only after checking it itself
-(keel#65): the review job's `trusted` must be the last record's end (read
-with the publish job's token), below the run's commit (GitHub's compare),
+After a push the publish job checks out nothing (keel#65): it fetches
+`cross-review.mjs` and `lib.mjs` alone and runs them only when their
+sha256 is what `keel render` wrote into the workflow (`KEEL_PUBLISHER`),
 else it is red and runs nothing; a start, at the push's before only when
 GitHub puts it below the run's commit, runs no repository code. `push-review`
 checks findings against the diff, `push-post` comments on the head commit
 where its own diff holds the line and opens one issue, `keel review after
 <sha>`, pending until one edit writes its record (and closes it when there
 are no findings): a failed post records nothing and is reviewed again. Read
-and answer it with `keel review <repo>@<sha>`.
+and answer it with `keel review <repo>@<sha>` (a sha covered only by a
+start was not reviewed: exit 1, saying so).
 
 <!-- topic: board | whose turn it is: the owner's board, and the verbs that settle its items -->
 

@@ -171,23 +171,23 @@ it lands, and nothing waits on it:
   for phase 54's robot to file.
 - **The sandbox.** The same two jobs. The review job reads main's whole
   history (no credential kept) and the tracking issues (`issues: read`).
-  The publish job (`issues: write` too) checks out the commit before the
-  reviewed ones, the range's base, so nothing it runs came in with the
-  push; it posts with `cross-review.mjs push-post`. The review job ran the
-  pushed code, so the publish job decides that commit itself, from a fact
-  the push cannot set: it must be the last record's end (read with the
-  publish job's own token), and GitHub's compare must put it below the
-  run's commit. Anything else is red and runs nothing. A start is at the
-  push's `before` only when GitHub puts it below the run's commit, else
-  at the run's commit. Claude reads the push's diff from a folder of its
-  own under the runner's temp (`--add-dir`), granted alone. The base's script must also speak the push protocol
-  (`PUSH_PROTOCOL`); one that does not (from before an install or an
-  upgrade) is never a base. That is checked before any agent runs, so
-  nothing is spent on a review that cannot be posted. Starting the record
-  runs no repository code at all.
+  After a push the publish job (`issues: write` too) checks out nothing.
+  Every commit on main was pushed code once, a reviewed one too, so no
+  commit is run for what it is. It fetches the publisher alone
+  (`scripts/keel/cross-review.mjs` and `lib.mjs`, at the run's commit)
+  and runs it only when their sha256 is the one `keel render` wrote into
+  the workflow (`KEEL_PUBLISHER`); otherwise it is red and runs nothing.
+  A push that changes the publisher is refused; one that also changes the
+  workflow file changes what runs anyway (GitHub runs the pushed workflow),
+  and shows in its diff. A start is at the push's `before` only when
+  GitHub puts it below the run's commit, else at the run's commit, and
+  runs no repository code at all. Claude reads the push's diff from a
+  folder of its own under the runner's temp (`--add-dir`), granted alone.
 - **Spend.** One review per run, within `budget.minutes`, and at most
-  `budget.pushes` reviews a UTC day (1 to 48, default 8). Past it a push
-  waits, with a notice, and the next run (the daily one, if no push comes)
+  `budget.pushes` reviews a UTC day (1 to 48, default 8): each finished
+  review counts, and each whose post failed (its issue left pending), so
+  retries that keep failing stop at the budget too. Past it a push waits,
+  with a notice, and the next run (the daily one, if no push comes)
   reviews the waiting pushes together.
 
 **Optional: opt in.** `keel init` and `keel adopt` leave it off unless asked
