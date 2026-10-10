@@ -73,7 +73,9 @@ improve` is its reference. By family:
 - **Is rigour paying?** `escapes`: defects found after a phase was built,
   since the last release, attributed to the phase their text names. Its
   bound is no rise release over release. If ceremony rises and escapes do
-  not fall, the ceremony is the thing to cut.
+  not fall, the ceremony is the thing to cut. Its detail also notes the
+  `fix:` commits that carry no `Proven-by:` trailer (`keel prove`): a note,
+  not counted.
 - **Optional rows** appear when their source exists: `build_time` with a
   climb `build` command, `dependency_age` with a lockfile,
   `record_contradictions` with reconciliation on.

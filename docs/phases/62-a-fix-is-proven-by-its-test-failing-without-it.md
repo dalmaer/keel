@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G0
 spec: 2
 depends: []
-note: "Every bug fix ships with a test, but nothing records that the test fails without the fix. A fix is proven when its named test is seen failing with the fix reverted, the failure text recorded, and the verdict reported as VERIFIED, NOT WORKING or INCONCLUSIVE. keel did this informally on 2026-10-09 (each fix mutated to confirm its test caught it). Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
-evidence: []
+note: "Built: keel prove runs the named test in a scratch copy of the repository with the fix's files put back at the base, then in a second scratch copy with the fix, and prints VERIFIED, NOT WORKING or INCONCLUSIVE with the failure's first line; --trailer and --evidence record it; the conduct skill and AGENTS block ask a Proven-by: trailer of every fix: commit; the night's escapes notes the fix: commits without one. Owes the walk: two weeks of keel's own fixes carry it, and the owner reads three."
+evidence: ["evidence/2026-10-09-prove.md"]
 issue: 49
 ---
 
@@ -28,10 +29,10 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] `keel prove` reports VERIFIED for a test that fails without the fix and passes with it, NOT WORKING for one that passes either way, and INCONCLUSIVE when the test cannot run without it; the working tree is restored in every case. `tests/prove.test.mjs`
-- [ ] `--trailer` prints a `Proven-by:` line with the verdict and the failure's first line; `--evidence` appends it to the phase's evidence. `tests/prove.test.mjs`
-- [ ] The conduct skill names the rule. `tests/skill.test.mjs`
-- [ ] The night notes `fix:` commits since the last release that carry no `Proven-by:`. `tests/improve-measures.test.mjs`
+- [x] `keel prove` reports VERIFIED for a test that fails without the fix and passes with it, NOT WORKING for one that passes either way, and INCONCLUSIVE when the test cannot run without it; the working tree is restored in every case. `tests/prove.test.mjs`
+- [x] `--trailer` prints a `Proven-by:` line with the verdict and the failure's first line; `--evidence` appends it to the phase's evidence. `tests/prove.test.mjs`
+- [x] The conduct skill names the rule. `tests/skill.test.mjs`
+- [x] The night notes `fix:` commits since the last release that carry no `Proven-by:`. `tests/improve-measures.test.mjs`
 - [ ] ⚑ by hand: two weeks of keel's own fixes carry it; the owner reads three.
 
 ## Your part
@@ -59,4 +60,18 @@ Over time: two weeks of keel's fixes.
 
 ## Next action
 
-Brief a builder on `keel prove`.
+The walk: for two weeks, every `fix:` commit in keel carries a `Proven-by:` trailer from `keel prove --trailer`; then the owner reads three (`git log --grep Proven-by`) and says whether they convince.
+
+## Trajectory
+
+- **2026-10-09** — The fix is never stashed or reverted in the working tree, as the Scope first said. It is put back in a scratch `git worktree add --detach` of the current tree (HEAD with the tree's changes laid over it, `node_modules` linked), and the test runs there (lesson 54). A test asserts the tree is byte-identical after every verdict.
+- **2026-10-09** — The runner is `node --test` with the preloads of the project's `package.json` test script (keel's own needs `--import ./tests/helpers/hermetic.mjs`). Another runner is named in `.keel/keel.json` `"prove": {"command": "<command> {file}"}` and read by its exit code alone. A load error is a file-level failure with an exit code and no failing test.
+- **2026-10-09** — INCONCLUSIVE also covers a fix whose files are the same at the base (nothing to revert: a committed fix given the wrong base) and a `--name` that matched no test, so a misused command never reads as NOT WORKING.
+- **2026-10-09** — The cold start was at 3182 of 3200 characters. Six verb lines were trimmed to fit `keel prove` (3175 now); the next verb needs a trim first.
+- **2026-10-09** — Codex on #55: the with-fix run in the real tree could give a false VERIFIED (an ignored file present there, absent in scratch) and let the test write into the user's tree. Both sides now run in fresh scratch worktrees built the same way, which cannot make one side red for a reason the other lacks; copying ignored files was rejected (it can never be sure it copied what the test reads). A skip or todo no longer counts as run, a test changed by the fix is not run in its old form, file modes count, `--name` needs `{name}` in a custom runner, submodules are laid over, and the night reads `Proven-by:` from git's own trailer block.
+- **2026-10-09** — Codex's second round on #55: a runner read by exit code alone can never prove a fix (it cannot tell a failing test from one that never loaded), so it gives INCONCLUSIVE, and a command that prints TAP says `"tap": true`. Tests are matched across the two runs by their suites' names and their place, never by name alone. Each side reads its runner from its own tree. A scratch tree's `node_modules` is its own directory of links. Tracked, as they cannot make VERIFIED wrong: a fix that bumps a submodule (it reads as nothing to revert), and writes inside an installed package (they go through its link).
+- **2026-10-09** — Codex's third round on #55: each scratch tree is now a `git clone --shared` (its own config, refs and stash), with the ignored files copied in too (up to 256 MB, else INCONCLUSIVE), so the test is judged in the environment it has here, not one that only the scratch tree has. `PWD` is the scratch tree's. A fix part committed and part not needs `--base`. Tests that share a name are never matched by place: INCONCLUSIVE.
+- **2026-10-09** — Codex's fourth round on #55: committed or not is judged file by file, so one `--fix lib` holding a committed part and a dirty part needs `--base` too; it was read as one dirty path, based at HEAD, and could prove what it never reverted.
+- **2026-10-09** — keel's own final review of #55: a test's identity is its suites' names and its own as a list, not text joined with ` > ` (a test named `a > b` matched test `b` in suite `a`), and a workspace package linked from `node_modules` into the repository is linked to the scratch copy's own, so the test neither loads nor writes the user's source; a link the copy cannot hold is INCONCLUSIVE.
+- **2026-10-09** — Codex's fifth round on #55: only TAP records of type `test` count as run (an empty suite in the failing test's place ran nothing), a test script that sets environment inline is refused rather than run without it, and a sparse checkout is refused rather than copied whole. Each is INCONCLUSIVE.
+- **2026-10-09** — Codex on #55, the one finding of round six that writes the user's files: a link copied into the scratch copy (or tracked) whose target is in the checkout let a test write through it. A scratch copy holding such a link is now never run: INCONCLUSIVE before any run. The other five were tracked (dalmaer/keel#61) under the owner's merge rule: only a security hole, an overwrite of the user's files, or a skipped approval must be fixed before merge.

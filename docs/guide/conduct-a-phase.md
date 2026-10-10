@@ -65,6 +65,28 @@ npm run check        # the gate, once, on the final tree with the record in it
 keel retro --since <the commit before the phase>   # the retro worksheet, after the commit
 ```
 
+**A fix is proven by its test failing without it.** Every `fix:` commit
+carries a `Proven-by:` trailer, and `keel prove` writes it. It runs the
+named test twice, each time in a fresh scratch copy of your repository:
+once with the fix's files put back as they were before the fix, once with
+the fix. Both sides see the same tree, and your working tree is never
+touched, not even by what the test writes. List only the fixed code in
+`--fix`, not the test: a test changed by the fix would run in its old form.
+
+```bash
+keel prove tests/anvil.test.mjs --fix lib/anvil.mjs --trailer
+# VERIFIED: tests/anvil.test.mjs — red without the fix, green with it
+# Proven-by: tests/anvil.test.mjs — VERIFIED — "Expected values to be strictly equal: -1 !== 3 (drops one anvil)"
+```
+
+The verdict is VERIFIED (red without the fix, green with it), NOT WORKING
+(green without it, so the test does not catch the bug; or red with it) or
+INCONCLUSIVE (the test cannot run without the fix, say it does not load).
+Paste the trailer into the commit message, or record it in the phase's
+evidence with `--evidence <phase>`. The base is the commit before the fix
+(HEAD's parent once the fix is committed, HEAD before); `--base <ref>` names
+another, and `--name <pattern>` picks one test in the file.
+
 The skill itself lives once, at `.agents/skills/conduct/SKILL.md`, and Claude
 Code reaches it through the `.claude/skills/conduct` symlink. It is a managed
 file: if your project needs it to say something different, change it in
