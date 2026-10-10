@@ -10,7 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { answerOf, parseTarget, summarizedHead } from '../lib/review.mjs';
-import { graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { reviewFragment, windowFragment, graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -899,4 +899,58 @@ test('merged review grammar rejects agent issue creation for commit targets befo
   const r = keel(dir, gh, [...args, '--yes']);
   assert.equal(r.code, 2); assert.match(r.err + r.out, /requires a PR target/);
   assert.equal((await gh.calls()).length, 0);
+});
+
+
+test('agent issue canonical rubric identity survives reordered keys in manual and review CLI recovery', async t => {
+  for (const mode of ['manual', 'review']) {
+    const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, loseReply: mode === 'review' });
+    const reviewArgs = await agentArgs(dir);
+    const args = mode === 'review' ? ['review', ...reviewArgs, '--yes']
+      : ['issue', 'new', '--agent', '--title', 'Fix Acme equality', '--rubric', join(dir, 'rubric.json'), '--yes', '--json'];
+    const invoke = () => run(process.execPath, [BIN, ...args], { cwd: dir, env: { ...cleanEnv(), KEEL_GH: gh.path, KEEL_CACHE: join(dir, '.keel-cache') } });
+    if (mode === 'review') keel(dir, gh, ['acme/app#3', '--json']);
+    const first = invoke(); assert.equal(first.status, mode === 'review' ? 2 : 0, first.stdout + first.stderr);
+    const reordered = Object.fromEntries(Object.entries(AGENT_RUBRIC).reverse().map(([key, value]) => [key, typeof value === 'string' ? `  ${value}  ` : value]));
+    await writeFile(join(dir, 'rubric.json'), JSON.stringify(reordered, null, 2));
+    const retry = invoke(); assert.equal(retry.status, 0, `${mode}: ${retry.stdout}${retry.stderr}`);
+    if (mode === 'manual') assert.equal(JSON.parse(retry.stdout).state, 'recovered');
+    const state = await gh.state(); assert.equal(state.agentIssues.length, 1);
+    const posts = (await gh.calls()).filter(c => c.includes('POST') && c.some(a => /\/issues$/.test(a)));
+    assert.equal(posts.length, 1, 'canonical retry never creates a second issue');
+    if (mode === 'review') assert.equal(state.threads[0].comments.length, 2, 'lost reply is recovered once');
+  }
+});
+
+
+test('verified robot top-level reviews remain actionable across heads and prose', () => {
+  const head='a'.repeat(40), old='b'.repeat(40), bot={__typename:'Bot',login:'github-actions'};
+  const conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
+  for (const author of ['claude','codex']) {
+    const reviewer=author==='claude'?'codex':'claude';
+    const mark={version:1,repo:'acme/app',issueNumber:7,instanceId:'issue-7',author,headSha:head,cursor:0};
+    const review={id:'PRR_acme',databaseId:12,author:bot,commit:{oid:old},submittedAt:'2026-10-01T00:00:00Z',url:'https://github.com/acme/app/pull/8#pullrequestreview-12',body:`<!-- keel:robot-review ${old} ${reviewer} -->\nReviewed by ${reviewer}; built by ${author}.\n\n[P1] acme.js:9 loses a correction.`};
+    const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:'keel/robot-7',headRefOid:head,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(mark)} -->`,reviewThreads:conn([]),comments:conn([]),reviews:conn([review])};
+    const entries=reviewComments(pr);
+    assert.equal(entries.length,1,'verified robot review must not be dropped as the PR author own review');
+    assert.equal(reviewComments({...pr,headRefOid:'c'.repeat(40)})[0].answered,false);
+    assert.equal(entries[0].answered,false);assert.equal(entries[0].status,false);assert.match(entries[0].text,/loses a correction/);
+    const duplicate={...review,body:review.body+`\n<!-- keel:robot-review ${head} ${reviewer} -->`};
+    assert.deepEqual(reviewComments({...pr,reviews:conn([duplicate])}),[]);
+    for (const value of [null, false, 7, 'Acme', [], {}]) {
+      assert.deepEqual(reviewComments({...pr,body:`<!-- keel:robot-delivery ${JSON.stringify(value)} -->`}),[]);
+    }
+    const clean={...review,body:review.body.replace('[P1] acme.js:9 loses a correction.','No findings.')};
+    assert.equal(reviewComments({...pr,reviews:conn([clean])})[0].answered,false);
+    for (const bad of [{...review,author:{__typename:'User',login:'github-actions'}},{...review,commit:{oid:head}},{...review,body:review.body.replace(`Reviewed by ${reviewer}`,`Reviewed by ${author}`)}]) assert.deepEqual(reviewComments({...pr,reviews:conn([bad])}),[]);
+    for (const patch of [{body:''},{headRefName:'human-branch'},{headRepository:{nameWithOwner:'acme/foreign'}},{body:pr.body+'\n'+pr.body}])assert.deepEqual(reviewComments({...pr,...patch}),[]);
+    const reply={id:'IC_reply',author:{login:'acme-owner'},createdAt:'2026-10-02T00:00:00Z',body:'Tracked PRR_acme in Acme issue #9.'};
+    assert.equal(reviewComments({...pr,comments:conn([reply])})[0].answered,true);
+    const window={...pr,keelWindow:'PullRequest',comments:{nodes:[],pageInfo:{hasPreviousPage:true}},reviews:{nodes:[review],pageInfo:{hasPreviousPage:false}}};
+    assert.equal(fromWindow(window).whole,false);
+  }
+  for (const fragment of [reviewFragment(),windowFragment()]) {
+    assert.match(fragment,/headRefOid body repository/);
+    assert.match(fragment,/author \{ __typename login \} commit \{ oid \}/);
+  }
 });

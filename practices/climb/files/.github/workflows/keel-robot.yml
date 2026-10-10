@@ -355,6 +355,8 @@ jobs:
           ROBOT_JUDGED_HEAD: ${{ needs.judge.outputs.head }}
         run: node scripts/keel/robot.mjs publish --json
   review-agent:
+    outputs:
+      complete: ${{ steps.review.outputs.complete }}
     needs: publish
     if: always() && needs.publish.result == 'success' && needs.publish.outputs.pr != ''
     runs-on: ubuntu-latest
@@ -418,12 +420,14 @@ jobs:
           sandbox: read-only
           safety-strategy: drop-sudo
       - name: Capture reviewer final message
+        if: steps.review.outputs.complete != 'true'
         env:
           ROBOT_PROVIDER: ${{ steps.review.outputs.reviewer }}
           ROBOT_OUTCOME: ${{ steps.review.outputs.reviewer == 'codex' && steps.review_codex.outcome || steps.review_claude.outcome }}
           ROBOT_MESSAGE_FILE: ${{ steps.review.outputs.reviewer == 'codex' && format('{0}/codex-review-message.md', runner.temp) || steps.review_claude.outputs.execution_file }}
         run: node scripts/keel/robot.mjs message --json
       - uses: actions/upload-artifact@v7
+        if: steps.review.outputs.complete != 'true'
         with:
           name: robot-review-message
           path: ${{ runner.temp }}/message.txt
@@ -452,7 +456,7 @@ jobs:
           name: robot-review-plan
           path: ${{ runner.temp }}/review
       - uses: actions/download-artifact@v8
-        if: needs.review-agent.result == 'success'
+        if: needs.review-agent.result == 'success' && needs.review-agent.outputs.complete != 'true'
         with:
           name: robot-review-message
           path: ${{ runner.temp }}/review

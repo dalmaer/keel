@@ -24,7 +24,7 @@ const prKey = value => {
 };
 function prosePRs(text, repo) {
   // A PR link's destination owns its label; do not infer a local PR from it.
-  const references = text.replace(/\[(?:\\.|[^\]\\\n])*\]\(\s*(https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*)\s*\)/g, '$1');
+  const references = text.replace(/\[(?:\\.|[^\]\\\n])*\]\(\s*(https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*)(?:\s+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^)\\])*\)))?\s*\)/g, '$1');
   const keys = new Set();
   for (const match of references.matchAll(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*|\b[\w.-]+\/[\w.-]+#[1-9]\d*/g)) keys.add(prKey(match[0]));
   if (repo) for (const match of references.matchAll(/(?<![\w./-])PR\s*#?([1-9]\d*)\b/gi)) keys.add(`${repo}#${match[1]}`);

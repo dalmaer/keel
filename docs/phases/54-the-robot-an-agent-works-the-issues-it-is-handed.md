@@ -87,3 +87,5 @@ The owner chooses one project and a weekly allowance covering build plus other-p
 - **2026-10-10** — Independent review caught two recovery boundaries: ordinary null issue bodies must not block lookup, and recovered publication must explicitly schedule independent review across a skipped judge. Both now have baseline-failing regressions; enabled operational verification remains owed.
 
 - **2026-10-10** — Review separated public event intake from the allowance-accounted worker, required active label provenance for scheduled work, and protected repository instruction files. Private read-only fetches use scoped credentials; recovered failures retain verified PR identity. Main’s phase 60 was integrated before the final gate.
+
+- **2026-10-10** — Publication and review completion are separate durable facts. Recovery resumes a missing exact-head review without rebuilding, and triage preserves the delivered head. Verified robot reviews remain actionable despite the shared Actions identity; a new head does not erase historical unanswered findings.

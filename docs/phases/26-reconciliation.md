@@ -64,3 +64,5 @@ own reviewed records; this phase did not edit Ledger.
 - **2026-10-04** — Reconciliation ships as an optional standalone practice shared by existing doctor and night checks. Typed metadata augments both phase shapes; no forced migration, status duplication or automatic record application.
 
 - **2026-10-10** — Escape: a qualified Markdown PR link was also interpreted from its label as a local PR, creating an invented reference and failing default-branch reconciliation. The destination now owns its label for extraction and advisory association; unavailable genuine references remain unknown. [Correction proof](../evidence/2026-10-04-reconciliation.md).
+
+- **2026-10-10** — Escape: optional Markdown titles bypassed qualified-link masking and recreated phantom local PRs. The destination now owns titled labels too; baseline-failing coverage retains standalone and unavailable references.

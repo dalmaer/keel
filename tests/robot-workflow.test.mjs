@@ -125,3 +125,14 @@ globalThis.fetch=async (url,options)=>{const u=new URL(url),path=u.pathname+u.se
   assert.equal(out.posts.length,0,JSON.stringify(input));
  }
 });
+
+test('robot completed review skips message artifacts while retaining exact-head post verification',async()=>{
+ const text=await readFile(workflow,'utf8');
+ const review=text.split('\n  review-agent:\n')[1].split('\n  review-post:\n')[0];
+ const post=text.split('\n  review-post:\n')[1];
+ assert.match(review,/outputs:\n      complete: \$\{\{ steps.review.outputs.complete \}\}/);
+ assert.match(review,/name: Capture reviewer final message\n        if: steps.review.outputs.complete != 'true'/);
+ assert.match(review,/uses: actions\/upload-artifact@v7\n        if: steps.review.outputs.complete != 'true'\n        with:\n          name: robot-review-message/);
+ assert.match(post,/if: needs.review-agent.result == 'success' && needs.review-agent.outputs.complete != 'true'\n        with:\n          name: robot-review-message/);
+ assert.match(post,/ROBOT_HEAD: \$\{\{ needs.publish.outputs.head \}\}/);
+});

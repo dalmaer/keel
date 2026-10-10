@@ -361,3 +361,14 @@ test('generic open PR product specification is not unresolved work; explicit ope
   const explicit = await reconcile({ root, github: true, prFacts: facts });
   assert.equal(explicit.notes.filter(n => n.rule === 'pr-state-contradiction').length, 1);
 });
+
+
+test('qualified PR links with optional Markdown titles never invent a local PR', async t => {
+  const root = await fixture(t, {'.keel/keel.json': JSON.stringify({repo:'acme/app'})});
+  for (const title of ['"Acme PR #999"', "'Acme title'", '(Acme title)']) {
+    await put(root, phasePath, `# Acme\n## Next action\nReview draft PR [Acme PR #105](https://github.com/acme/external/pull/105 ${title}).\nReview PR #106.`);
+    const out = await reconcile({root,github:true,prFacts:{'acme/app#106':merged}});
+    assert.deepEqual(out.unknown.map(n=>[n.rule,n.path]), [['github-unavailable','acme/external#105']]);
+    assert.deepEqual(Object.keys(out.snapshot.prs).sort(), ['acme/app#106']);
+  }
+});
