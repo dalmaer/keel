@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFile, readdir, mkdir, lstat, realpath, open, rename, rm } from 'node:fs/promises';
 import { resolve, relative, dirname, join, isAbsolute, sep } from 'node:path';
 import { hostname } from 'node:os';
+import { healthDirOf } from './lib.mjs';
 
 export const TIME_BEGIN = '<!-- keel:time-proposal:begin -->';
 export const TIME_END = '<!-- keel:time-proposal:end -->';
@@ -109,12 +110,30 @@ export function mergeHealthPage({previous='',generated}) {
 async function safePath(root,path,{create=false}={}) {
   const abs=resolve(root,path),rel=relative(resolve(root),abs);
   if(!rel||rel==='..'||rel.startsWith('..'+sep)||isAbsolute(rel))throw new Error('health path must be inside project');
-  let current=await realpath(root);const pieces=rel.split(sep);
-  for(let n=0;n<pieces.length;n++) {
-    current=join(current,pieces[n]);let st;
-    try{st=await lstat(current);}catch(e){if(e.code!=='ENOENT')throw e;if(n<pieces.length-1&&create){await mkdir(current);st=await lstat(current);}else if(n<pieces.length-1)throw e;else return current;}
-    if(st.isSymbolicLink()||(n<pieces.length-1?!st.isDirectory():!st.isFile()))throw new Error('unsafe health path');
-  }return current;
+  const base=await realpath(root);
+  const config=await readFile(join(root,'.keel/keel.json'),'utf8').then(JSON.parse,e=>{if(e.code==='ENOENT')return {};throw e;});
+  const configured=resolve(root,healthDirOf(config));
+  // Only the configured directory may be an alias. Resolve its deepest existing
+  // ancestor before creating anything, and use one canonical directory/lock.
+  let ancestor=configured,directory;const missing=[];
+  for(;;){
+    try{directory=join(await realpath(ancestor),...missing);break;}
+    catch(e){
+      if(e.code!=='ENOENT')throw e;
+      const st=await lstat(ancestor).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
+      if(st)throw new Error('unsafe health path: unresolved configured directory');
+      missing.unshift(relative(dirname(ancestor),ancestor));ancestor=dirname(ancestor);
+    }
+  }
+  const within=relative(base,directory);
+  if(within==='..'||within.startsWith('..'+sep)||isAbsolute(within))throw new Error('unsafe health path: configured directory resolves outside project');
+  if(dirname(abs)!==configured&&dirname(resolve(base,rel))!==directory)throw new Error('unsafe health path: outside configured health directory');
+  if(create)await mkdir(directory,{recursive:true});
+  if(!(await lstat(directory)).isDirectory())throw new Error('unsafe health path');
+  const file=join(directory,relative(dirname(abs),abs));
+  const st=await lstat(file).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
+  if(st&&!st.isFile())throw new Error('unsafe health path');
+  return file;
 }
 async function atomic(file,value) {
   const temp=file+'.'+randomUUID()+'.tmp';let handle;
@@ -159,7 +178,8 @@ export async function withTimeProposal({root,path,expectedInstance},callback) {
       // Guard also against editors which do not participate in the shared lock.
       if(await readFile(file,'utf8')!==source)throw new Error('health page changed outside the proposal lock');
       const loc=location(source);source=source.slice(0,loc.start)+formatTimeProposal(next)+source.slice(loc.end);
-      await safePath(root,path);await atomic(file,source);proposal=next;return clone(next);
+      if(await safePath(root,path)!==file)throw new Error('health directory changed during proposal write');
+      await atomic(file,source);proposal=next;return clone(next);
     };
     return callback({proposal:clone(proposal),saveLifecycle});
   });
@@ -168,7 +188,8 @@ export async function writeHealthReport({root,path,generated}) {
   return locked(root,path,async file=>{
     const previous=await readFile(file,'utf8').catch(e=>{if(e.code==='ENOENT')return '';throw e;});
     const result=mergeHealthPage({previous,generated});if(result.problems.length)throw new Error(result.problems.join('; '));
-    await safePath(root,path);await atomic(file,result.text);return result;
+    if(await safePath(root,path)!==file)throw new Error('health directory changed during report write');
+    await atomic(file,result.text);return result;
   });
 }
 export async function readTimeProposals({root,healthDir='docs/health'}) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -154,6 +154,25 @@ process.stdout.write('HTTP/2.0 200 OK\\r\\nContent-Type: application/json\\r\\n\
  const text=await readFile(join(f.root,health),'utf8');saved=parseTimeProposal(text).proposal;
  assert.equal(saved.lifecycle.remeasurement.state,'unavailable');assert.deepEqual(saved.baseline,proposal.baseline);assert.deepEqual(saved.lifecycle.transition,transition);assert.match(text,/Acme owner notes stay/);
  const reads=(await readFile(requests,'utf8')).trim().split('\n').map(JSON.parse);assert.ok(reads.length>=4);assert.ok(reads.every(r=>r.method==='GET'));
+});
+
+test('installed improve preserves configured inside health alias and refuses outside or page symlinks',async t=>{
+ const f=await fixture(t),config={name:'Acme',tagline:'Acme health alias',repo,practices:['base','agents-md','night'],health:'.keel/health',check:'node --test acme-smoke.test.mjs'};
+ await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify(config));
+ await writeFile(join(f.root,'acme-smoke.test.mjs'),"import {test} from 'node:test';test('Acme smoke',()=>{});\n");
+ assert.equal((await render(f.root)).ok,true);
+ await mkdir(join(f.root,'acme-pages'));await symlink('../acme-pages',join(f.root,'.keel/health'));
+ const invoke=()=>run(process.execPath,['scripts/keel/improve.mjs','--report','--json'],{cwd:f.root,env:{...process.env,CI:'true',KEEL_GH:join(f.root,'unavailable-gh'),KEEL_NPM:join(f.root,'unavailable-npm')},timeout:30000});
+ const first=invoke();assert.equal(first.status,0,first.stderr+first.stdout);
+ const page=JSON.parse(first.stdout).report,canonical=join(f.root,'acme-pages',page.split('/').at(-1));
+ assert.equal(await readFile(join(f.root,page),'utf8'),await readFile(canonical,'utf8'));
+ await writeFile(canonical,(await readFile(canonical,'utf8'))+'\nAcme owner note.\n');
+ const refreshed=invoke();assert.equal(refreshed.status,0,refreshed.stderr+refreshed.stdout);assert.match(await readFile(canonical,'utf8'),/Acme owner note/);
+ const target=join(f.root,'acme-owner.md');await writeFile(target,'Acme untouched');await rm(canonical);await symlink(target,canonical);
+ const pageLink=invoke();assert.notEqual(pageLink.status,0);assert.match(pageLink.stdout,/unsafe health path/);assert.equal(await readFile(target,'utf8'),'Acme untouched');
+ const outside=await mkdtemp(join(tmpdir(),'acme-outside-health-'));t.after(()=>rm(outside,{recursive:true,force:true}));
+ await rm(join(f.root,'.keel/health'));await symlink(outside,join(f.root,'.keel/health'));
+ const escaped=invoke();assert.equal(escaped.status,2,escaped.stdout);assert.match(escaped.stdout,/resolves outside the repo/);
 });
 
 

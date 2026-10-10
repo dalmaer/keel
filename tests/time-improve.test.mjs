@@ -73,3 +73,21 @@ test('shipped CI records the configured outer gate with night and preserves CI-o
   if(night){assert.equal(gates[0].gateSource,'configured-check');assert.equal(gates[0].provenance.source,'outer-launcher');assert.equal(gates[0].status,7);}
  }
 });
+
+test('cross-date remeasurement reports only actually changed historical health paths in JSON and PR input',async t=>{
+ const root=await project(t),selected=measures.filter(m=>m.id==='time_creep');
+ for(const r of timeEvidence(Date.now()).runs)await writeFile(join(root,'.keel/test-runs',r.id+'.json'),JSON.stringify(r));
+ const first=await improve({root,report:true,date:'2026-10-09'},{env:{CI:'true'},measures:selected});
+ const path=first.data.report,initial=parseTimeProposal(await readFile(join(root,path),'utf8')).proposal;
+ await withTimeProposal({root,path,expectedInstance:initial.instanceId},({proposal,saveLifecycle})=>saveLifecycle({...proposal.lifecycle,state:'accepted',decidedAt:'2026-10-09T12:00:00Z',issue:{repo:'acme/anvils',number:7,url:'https://github.com/acme/anvils/issues/7'}}));
+ await writeFile(join(root,path),(await readFile(join(root,path),'utf8'))+'\nAcme owner notes stay.\n');
+ await writeFile(join(root,'docs/health/owner.md'),'Acme private working notes\n');
+ const before=await readFile(join(root,path),'utf8'),prInput=join(root,'pr.json');
+ const reading={state:'unavailable',observedAt:'2026-10-10T12:00:00Z',value:null,coverage:null,delivery:null,reasons:['Acme awaits observations']};
+ const opts={env:{CI:'true'},measures:selected,remeasure:async()=>reading};
+ const readonly=await improve({root,date:'2026-10-10',prInput},opts);assert.deepEqual(readonly.data.changedHistoricalHealthPaths,[]);assert.equal(await readFile(join(root,path),'utf8'),before);
+ const changed=await improve({root,report:true,date:'2026-10-10',prInput},opts);
+ assert.deepEqual(changed.data.changedHistoricalHealthPaths,[path]);assert.deepEqual(JSON.parse(await readFile(prInput,'utf8')).changedHistoricalHealthPaths,[path]);assert.notEqual(changed.data.report,path);
+ const after=await readFile(join(root,path),'utf8');assert.notEqual(after,before);assert.match(after,/Acme owner notes stay/);assert.deepEqual(parseTimeProposal(after).proposal.baseline,initial.baseline);
+ const unchanged=await improve({root,report:true,date:'2026-10-10',prInput},opts);assert.deepEqual(unchanged.data.changedHistoricalHealthPaths,[]);assert.deepEqual(JSON.parse(await readFile(prInput,'utf8')).changedHistoricalHealthPaths,[]);assert.equal(await readFile(join(root,path),'utf8'),after);assert.equal(await readFile(join(root,'docs/health/owner.md'),'utf8'),'Acme private working notes\n');
+});

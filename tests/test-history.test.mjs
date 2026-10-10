@@ -9,6 +9,9 @@ import { stallsEvidence } from '../practices/night/files/scripts/keel/time-recei
 import { readRuns, readStalls } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
+import { improve, MEASURES } from '../practices/night/files/scripts/keel/improve.mjs';
+import { parseTimeProposal, withTimeProposal } from '../practices/night/files/scripts/keel/time-proposals.mjs';
+import { timeEvidence } from './fixtures/improve/time-evidence.mjs';
 const source = resolve('practices/night/files/scripts/keel/test-history.mjs');
 const workflow = resolve('practices/night/files/.github/workflows/keel-night.yml');
 const at = '2026-10-10T12:00:00Z', repo = 'acme/app', branch = 'main', head = 'a'.repeat(40);
@@ -217,4 +220,84 @@ test('night extracted Gather shell recovers real system ZIP via synthetic gh end
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(JSON.parse(result.stdout).imported, 1);
   assert.equal(JSON.parse(await readFile(join(root, '.keel/test-runs/acme.json'))).acme, 'real zip');
+});
+
+async function stagingFixture(t, production = false) {
+  const root = await project(t), remote = await project(t), health = 'docs/Acme-health', day = '2026-10-10';
+  const git = (...args) => { const r = run('git', args, { cwd: root }); assert.equal(r.status, 0, r.stdout + r.stderr); return r.stdout.trim(); };
+  assert.equal(run('git', ['init', '--bare', '-q', remote]).status, 0);
+  git('init', '-q', '-b', 'main'); git('remote', 'add', 'origin', remote);
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ health, name: 'Acme', repo: 'acme/app' }));
+  await mkdir(join(root, health), { recursive: true }); await mkdir(join(root, 'scripts/keel'), { recursive: true });
+  await writeFile(join(root, 'scripts/keel/lib.mjs'), await readFile(resolve('practices/night/files/scripts/keel/lib.mjs')));
+  await writeFile(join(root, 'scripts/keel/pr-body.mjs'), 'console.log("Acme synthetic PR body");\n');
+  const earlier = `${health}/2026-10-08.md`, unrelated = `${health}/2026-10-07.md`, today = `${health}/${day}.md`;
+  await writeFile(join(root, earlier), 'Acme accepted proposal; awaiting remeasurement.\n');
+  await writeFile(join(root, unrelated), 'Acme owner notes.\n');
+  const measures = MEASURES.filter(m => m.id === 'time_creep');
+  if (production) {
+    await mkdir(join(root, '.keel/test-runs'), { recursive: true });
+    await writeFile(join(root, '.gitignore'), '.keel/test-runs/\n');
+    for (const r of timeEvidence(Date.now()).runs) await writeFile(join(root, '.keel/test-runs', r.id + '.json'), JSON.stringify(r));
+    await improve({ root, report: true, date: '2026-10-08' }, { env: { CI: 'true' }, measures });
+    const initial = parseTimeProposal(await readFile(join(root, earlier), 'utf8')).proposal;
+    assert.ok(initial);
+    await withTimeProposal({ root, path: earlier, expectedInstance: initial.instanceId }, ({ proposal, saveLifecycle }) => saveLifecycle({ ...proposal.lifecycle, state: 'accepted', decidedAt: '2026-10-08T12:00:00Z', issue: { repo: 'acme/app', number: 7, url: 'https://github.com/acme/app/issues/7' } }));
+  }
+  git('add', '.'); git('commit', '-qm', 'Acme initial'); const before = git('rev-parse', 'HEAD');
+  let produced;
+  if (production) produced = await improve({ root, report: true, date: day }, { env: { CI: 'true' }, measures, remeasure: async () => ({ state: 'unavailable', observedAt: '2026-10-10T12:00:00Z', value: null, coverage: null, delivery: null, reasons: ['Acme awaits observations'] }) });
+  else {
+    await writeFile(join(root, earlier), 'Acme accepted proposal; remeasured inside.\n');
+    await writeFile(join(root, today), 'Acme current report.\n');
+  }
+  await writeFile(join(root, unrelated), 'Acme unrelated owner edit.\n');
+  git('add', '--', unrelated); // Existing index content must not sneak into the night commit.
+  await writeFile(join(root, health, 'human-draft.md'), 'Acme untracked human draft.\n');
+  const temp = await project(t), commands = join(temp, 'commands'); await mkdir(commands);
+  await writeFile(join(commands, 'gh'), '#!/bin/sh\nprintf "3\\n"\n'); await chmod(join(commands, 'gh'), 0o755);
+  const report = produced?.data ?? { date: day, report: today, changedHistoricalHealthPaths: [earlier] };
+  await writeFile(join(temp, 'improve.json'), JSON.stringify(report)); await writeFile(join(temp, 'pr.json'), '{}');
+  const script = runBlocks(await readFile(workflow, 'utf8')).find(b => b.step === "Open the night's pull request").script;
+  const execute = () => run('bash', ['-e', '-o', 'pipefail', '-c', script], { cwd: root, env: { ...process.env, DAY: day, BASE: 'main', HEALTH: health, RUNNER_TEMP: temp, PATH: `${commands}:${process.env.PATH}` } });
+  return { root, temp, report, git, before, earlier, unrelated, today, execute };
+}
+test('night historical health staging commits the earlier remeasurement and today only, preserving unrelated staged and untracked files', async t => {
+  assert.equal(await readFile(resolve('.github/workflows/keel-night.yml'), 'utf8'), await readFile(workflow, 'utf8'), 'managed night matches source');
+  const f = await stagingFixture(t, true);
+  assert.deepEqual(f.report.changedHistoricalHealthPaths, [f.earlier]);
+  assert.equal(f.report.report, f.today);
+  const result = f.execute();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.deepEqual(f.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').split('\n').sort(), [f.earlier, f.today].sort());
+  assert.equal(parseTimeProposal(f.git('show', `HEAD:${f.earlier}`)).proposal.lifecycle.remeasurement.state, 'unavailable');
+  assert.equal(f.git('show', `HEAD:${f.unrelated}`), 'Acme owner notes.');
+  assert.equal(f.git('diff', '--cached', '--name-only'), f.unrelated);
+  assert.match(f.git('status', '--porcelain'), /human-draft\.md/);
+  assert.equal(f.git('rev-parse', 'refs/remotes/origin/keel-night/2026-10-10'), f.git('rev-parse', 'HEAD'));
+});
+test('night historical health staging rejects unvalidated metadata and paths before any staging or commit', async t => {
+  const cases = ['missing', 'object', 'outside', 'absolute', 'traversal', 'glob', 'newline', 'duplicate', 'today', 'directory', 'symlink', 'ignored', 'wrong-date', 'wrong-report', 'too-many', 'missing-file'];
+  for (const kind of cases) await t.test(kind, async t => {
+    const f = await stagingFixture(t);
+    if (kind === 'missing') delete f.report.changedHistoricalHealthPaths;
+    if (kind === 'object') f.report.changedHistoricalHealthPaths = [{ path: f.earlier }];
+    if (kind === 'outside') f.report.changedHistoricalHealthPaths = ['README.md'];
+    if (kind === 'absolute') f.report.changedHistoricalHealthPaths = [join(f.root, f.earlier)];
+    if (kind === 'traversal') f.report.changedHistoricalHealthPaths = ['docs/Acme-health/../2026-10-08.md'];
+    if (kind === 'glob') f.report.changedHistoricalHealthPaths = ['docs/Acme-health/*.md'];
+    if (kind === 'newline') f.report.changedHistoricalHealthPaths = [f.earlier + '\nREADME.md'];
+    if (kind === 'duplicate') f.report.changedHistoricalHealthPaths.push(f.earlier);
+    if (kind === 'today') f.report.changedHistoricalHealthPaths = [f.today];
+    if (kind === 'directory') { await rm(join(f.root, f.earlier)); await mkdir(join(f.root, f.earlier)); }
+    if (kind === 'symlink') { await rm(join(f.root, f.earlier)); await symlink(join(f.root, f.unrelated), join(f.root, f.earlier)); }
+    if (kind === 'ignored') { await writeFile(join(f.root, '.gitignore'), '/docs/Acme-health/2026-10-09.md\n'); await writeFile(join(f.root, 'docs/Acme-health/2026-10-09.md'), 'Acme ignored'); f.report.changedHistoricalHealthPaths = ['docs/Acme-health/2026-10-09.md']; }
+    if (kind === 'wrong-date') f.report.date = '2026-10-09';
+    if (kind === 'wrong-report') f.report.report = f.earlier;
+    if (kind === 'too-many') f.report.changedHistoricalHealthPaths = Array(513).fill(f.earlier);
+    if (kind === 'missing-file') f.report.changedHistoricalHealthPaths = ['docs/Acme-health/2026-10-06.md'];
+    await writeFile(join(f.temp, 'improve.json'), JSON.stringify(f.report));
+    const result = f.execute(); assert.notEqual(result.status, 0, `${kind}: ${result.stdout}${result.stderr}`);
+    assert.equal(f.git('rev-parse', 'HEAD'), f.before); assert.equal(f.git('diff', '--cached', '--name-only'), f.unrelated);
+  });
 });

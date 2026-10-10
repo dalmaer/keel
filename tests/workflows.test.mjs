@@ -469,6 +469,7 @@ async function nightCommit(t, night, { health, ignore = '', tracked = {}, before
   await after(dir);
   // improve's --pr-input, as improve writes it (nightPr), for a night with a measure outside.
   const { nightPr } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  await writeFile(join(temp, 'improve.json'), JSON.stringify({ date: '2026-10-05', report: `${page}/2026-10-05.md`, changedHistoricalHealthPaths: [] }));
   await writeFile(join(temp, 'pr.json'), JSON.stringify(nightPr({ date: '2026-10-05', report: `${page}/2026-10-05.md`, proposal: { id: 'prs_stale', state: 'outside', text: 'Close or merge the Acme PRs.' },
     results: [{ id: 'gate', state: 'ok', detail: 'npm test passed, 12 tests', bound: 0, better: 'lower', value: 0 }, { id: 'prs_stale', state: 'outside', detail: '2 stale', bound: 0, better: 'lower', value: 2 }] })));
   const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', BASE: 'main', HEALTH: page ?? '' } });
@@ -511,7 +512,7 @@ test('the night commits its page from the configured health dir (read at run tim
   assert.match(lost.out, /docs\/health is git-ignored.*set \\?"health\\?" in \.keel\/keel\.json/);
   assert.equal(lost.files, null);
   // Mutation: the commit step hard-codes docs/health instead of the configured dir.
-  const hard = night.replace('PAGE="$HEALTH/$DAY.md"', 'PAGE="docs/health/$DAY.md"');
+  const hard = night.replace('const paths = [report.report, ...historical];', 'const paths = [`docs/health/${day}.md`, ...historical];');
   assert.notEqual(hard, night);
   const m = await nightCommit(t, hard, { health: '.keel/health', ignore: '/docs/health/\n' });
   assert.ok(!(m.files ?? []).includes('.keel/health/2026-10-05.md'), `a hard-coded docs/health loses the page: ${JSON.stringify(m.files)}`);
@@ -548,6 +549,9 @@ test('the night stages only tonight\'s page and its own data (deletions kept), p
   // A symlink inside the repo is still the repo's.
   const inside = await nightCommit(t, night, { health: '.keel/health', before: async dir => { await mkdir(join(dir, 'acme-pages'), { recursive: true }); await symlink('../acme-pages', join(dir, '.keel/health')); } });
   assert.equal(inside.where, 0, inside.out);
+  assert.notEqual(inside.status, 0, 'local reporting can use an inside alias, but Git cannot stage beyond it');
+  assert.match(inside.out, /health alias cannot be staged/);
+  assert.equal(inside.files, null);
   // #80: pathspec magic in "health" is refused.
   for (const health of [':(top)docs/health', ':!docs']) {
     const magic = await nightCommit(t, night, { health });
@@ -555,11 +559,15 @@ test('the night stages only tonight\'s page and its own data (deletions kept), p
     assert.match(magic.out, /pathspec magic/, health);
   }
   // Mutations: each of the old shapes fails one of the checks above.
-  const whole = await nightCommit(t, night.replace('for p in "$PAGE" docs/inbox', 'for p in "$HEALTH" docs/inbox'), { health: 'scripts', tracked: { 'scripts/deploy.mjs': 'v1\n' }, after: dir => writeFile(join(dir, 'scripts/deploy.mjs'), 'v2, half-done\n') });
+  const wholeMutation = night.replace('PATHS=("${HEALTH_PATHS[@]}")', 'PATHS=("$HEALTH")');
+  assert.notEqual(wholeMutation, night);
+  const whole = await nightCommit(t, wholeMutation, { health: 'scripts', tracked: { 'scripts/deploy.mjs': 'v1\n' }, after: dir => writeFile(join(dir, 'scripts/deploy.mjs'), 'v2, half-done\n') });
   assert.ok(whole.files.includes('scripts/deploy.mjs'), `staging the whole dir carries the project's file: ${JSON.stringify(whole.files)}`);
   const exists = await nightCommit(t, night.replace('if [ -e "$p" ] || [ -n "$(git ls-files -- "$p")" ]; then', 'if [ -e "$p" ]; then'), { tracked: { 'docs/INBOX.md': '# Inbox\n' }, after: dir => rm(join(dir, 'docs/INBOX.md')) });
   assert.ok(!exists.changes.includes('D\tdocs/INBOX.md'), `-e alone drops the deletion: ${JSON.stringify(exists.changes)}`);
-  const probe = await nightCommit(t, night.replace('PAGE="$HEALTH/$DAY.md"\n', 'PAGE="$HEALTH/$DAY.md"\n          PROBE="$HEALTH/x.md"\n').replace('git check-ignore -q -- "$PAGE"', 'git check-ignore -q -- "$PROBE"'), { ignore: 'docs/health/20*.md\n' });
+  const probeMutation = night.replace('git check-ignore -q -- "$p"', 'git check-ignore -q -- "$HEALTH/x.md"');
+  assert.notEqual(probeMutation, night);
+  const probe = await nightCommit(t, probeMutation, { ignore: 'docs/health/20*.md\n' });
   assert.doesNotMatch(probe.out, /is git-ignored \(/, 'an x.md probe misses a rule for dated pages');
   const lexical = await nightCommit(t, night.replace('import { healthDirIn } from', 'import { healthDirOf as healthDirIn } from'), { health: '.keel/health', before: async (dir, base) => { await mkdir(join(base, 'elsewhere'), { recursive: true }); await symlink(join(base, 'elsewhere'), join(dir, '.keel/health')); } });
   assert.equal(lexical.where, 0, 'a lexical check alone lets the symlink through');

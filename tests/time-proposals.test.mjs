@@ -80,3 +80,22 @@ test('health refresh migrates verified embedded non-time proposals and does not 
  const offered=mergeHealthPage({previous:empty.text,generated});assert.deepEqual(offered.problems,[]);
  assert.equal((offered.text.match(/^## Proposal$/gm)??[]).length,1);assert.match(offered.text,/Different candidate/);
 });
+
+test('configured health alias and canonical path share proposal lock while other paths remain refused',async t=>{
+ const r=await root(t),p=proposal(),alias='.keel/health/2026-10-01.md',canonical='acme-pages/2026-10-01.md';
+ await mkdir(join(r,'.keel'));await mkdir(join(r,'acme-pages'));
+ await writeFile(join(r,'.keel/keel.json'),JSON.stringify({health:'.keel/health'}));
+ await symlink('../acme-pages',join(r,'.keel/health'));
+ await writeHealthReport({root:r,path:alias,generated:page(p)});
+ let entered,release;const arrived=new Promise(done=>entered=done),hold=new Promise(done=>release=done);
+ const decision=withTimeProposal({root:r,path:alias,expectedInstance:p.instanceId},async({proposal,saveLifecycle})=>{entered();await hold;await saveLifecycle({...proposal.lifecycle,state:'accepting',decidedAt:inputs.at});});
+ await arrived;
+ const update=writeHealthReport({root:r,path:canonical,generated:page(p)+'Fresh Acme values.\n'});
+ release();await Promise.all([decision,update]);
+ const text=await readFile(join(r,canonical),'utf8');assert.equal(parseTimeProposal(text).proposal.lifecycle.state,'accepting');assert.match(text,/Fresh Acme values/);
+ const history=await readTimeProposals({root:r,healthDir:'.keel/health'});assert.deepEqual(history.gaps,[]);assert.equal(history.proposals.length,1);
+ await mkdir(join(r,'unrelated'));await symlink('acme-pages',join(r,'other-alias'));
+ for(const path of ['unrelated/2026-10-01.md','other-alias/2026-10-01.md'])await assert.rejects(writeHealthReport({root:r,path,generated:page(p)}),/unsafe health path/);
+ await symlink(join(r,canonical),join(r,'acme-pages/2026-10-02.md'));
+ await assert.rejects(writeHealthReport({root:r,path:'.keel/health/2026-10-02.md',generated:page(p)}),/unsafe health path/);
+});

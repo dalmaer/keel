@@ -1585,13 +1585,15 @@ export async function improve({ root, report = false, transcripts, prInput, date
   let history;
   try { history = await readTimeProposals({root,healthDir:healthDirOf(config)}); }
   catch(e) { history={proposals:[],gaps:[String(e.message)]}; }
-  const remeasurements = [];
+  const remeasurements = [], changedHistoricalHealthPaths = [];
   for(const p of history.proposals.filter(p=>p.lifecycle.state==='accepted')) {
     const reading=await remeasure({root,proposal:p,at:new Date().toISOString()});
     remeasurements.push({instanceId:p.instanceId,path:p.path,...reading});
     if(report) await withTimeProposal({root,path:p.path,expectedInstance:p.instanceId}, async ({proposal:current,saveLifecycle}) => {
       if(current.lifecycle.state!=='accepted' || digest(current.lifecycle.transition)!==digest(p.lifecycle.transition) || digest(current.lifecycle.issue)!==digest(p.lifecycle.issue)) return;
+      if(digest(current.lifecycle.remeasurement)===digest(reading)) return;
       await saveLifecycle({...current.lifecycle,remeasurement:reading});
+      if(p.path!==healthPage(dir,date)) changedHistoricalHealthPaths.push(p.path);
     });
   }
   const proposal = history.gaps.length ? propose(results.filter(r=>!r.timeCandidates),config) : propose(results, config,{history,at:Date.now()});
@@ -1608,11 +1610,12 @@ export async function improve({ root, report = false, transcripts, prInput, date
     await mkdir(join(root, dir), { recursive: true });
     await writeHealthReport({root,path:written,generated:page({ config, date, results, proposal, tightened, by, climb, retire, tend, budget, remeasurements })});
   }
+  changedHistoricalHealthPaths.sort();
   const code = exitCode(results);
-  if (prInput) await writeFile(prInput, `${JSON.stringify(nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), null, 2)}\n`);
+  if (prInput) await writeFile(prInput, `${JSON.stringify({...nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), changedHistoricalHealthPaths}, null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, proposalCoverage: {gaps:history.gaps}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
+    data: { root, date, changedHistoricalHealthPaths, proposalCoverage: {gaps:history.gaps}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : 'No proposal: every measure is within its bound.',

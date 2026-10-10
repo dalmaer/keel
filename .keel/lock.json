@@ -79,7 +79,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "726ba126ff2041b16ae66ab1c9bc2a212c68e386f7df9cf53f06a3d39577c46b"
+      "sha256": "14c99fa38b670a72b6e8a43bf8aede4399a42384d180b44e343bd44c847ece71"
     },
     ".github/workflows/keel-robot-route.yml": {
       "practice": "climb",
@@ -171,7 +171,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "913b752763458e6b0c1b7b0a1a9b5a4ba9a3cd37869f6c03c98b94682e06f0c0"
+      "sha256": "63279adb39492a3b69b83bdc7d89326bc60a2388e6d51bc2a5eb3bbf289774a1"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -231,7 +231,7 @@
     },
     "scripts/keel/time-proposals.mjs": {
       "practice": "night",
-      "sha256": "846109b5b06102cba8b6a7f6aadb0010d6015ed29dcae7d10d200e766dd63d4d"
+      "sha256": "0baf3b0c2fe72ad31042a300e343d8114e50227fc7418290b9e28705ea4b8277"
     },
     "scripts/keel/time-receipts.mjs": {
       "practice": "night",
