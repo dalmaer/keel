@@ -79,13 +79,17 @@ if (argv[0] === 'api' && argv.includes('--include')) {
     const t = s.threads.find(x => x.id === field('id'));
     t.isResolved = true; save();
     console.log(JSON.stringify({ data: { resolveReviewThread: { thread: { id: t.id, isResolved: true } } } }));
+  } else if (q.includes('$after')) {
+    // The review bodies after the cursor: s.laterBodies, one page, then no more (s.endless: always more).
+    const n = node;
+    console.log(JSON.stringify({ data: { repository: { pullRequest: { reviews: { pageInfo: { hasNextPage: !!s.endless, endCursor: s.endless ? 'C' + field('after') : null }, nodes: (s.laterBodies ?? []).map(r => ({ id: r.id, databaseId: r.databaseId, author: { login: r.author }, body: r.body, state: 'COMMENTED', submittedAt: r.createdAt, url: 'https://github.com/acme/app/pull/3#pullrequestreview-' + r.databaseId })) } } } } }));
   } else if (s.noPr) console.log(JSON.stringify({ data: { repository: { pullRequest: null } } }));
   else console.log(JSON.stringify({ data: { ...(s.rate ? { rateLimit: s.rate } : {}), repository: { pullRequest: {
     number: 3, title: 'Acme rocket skates', url: 'https://github.com/acme/app/pull/3', state: 'OPEN', mergedAt: null, headRefOid: s.head,
     author: { login: 'acme-owner' },
     reviewThreads: { pageInfo: { hasNextPage: !!s.moreThreads }, nodes: s.threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: t.path ?? null, line: t.line ?? null, comments: { pageInfo: { hasNextPage: !!t.more }, nodes: t.comments.map(node) } })) },
     comments: { pageInfo: { hasNextPage: !!s.moreComments }, nodes: s.comments.map(c => ({ id: c.id, ...node(c) })) },
-    reviews: { pageInfo: { hasNextPage: !!s.moreReviews }, nodes: (s.bodies ?? []).map(r => ({ id: r.id, databaseId: r.databaseId, author: { login: r.author }, body: r.body, state: 'COMMENTED', submittedAt: r.createdAt, url: 'https://github.com/acme/app/pull/3#pullrequestreview-' + r.databaseId })) },
+    reviews: { pageInfo: { hasNextPage: !!s.moreReviews, endCursor: s.cursor ?? null }, nodes: (s.bodies ?? []).map(r => ({ id: r.id, databaseId: r.databaseId, author: { login: r.author }, body: r.body, state: 'COMMENTED', submittedAt: r.createdAt, url: 'https://github.com/acme/app/pull/3#pullrequestreview-' + r.databaseId })) },
   } } } }));
 } else if (argv[0] === 'api' && argv[1] === '-X' && argv[2] === 'POST') {
   if (!s.writes) deny();
@@ -97,7 +101,9 @@ if (argv[0] === 'api' && argv.includes('--include')) {
   console.log('{}');
 } else if (argv[0] === 'api' && /\\/pulls\\/\\d+\\/reviews/.test(argv[1])) {
   s.reviewReads++; save();
-  console.log(JSON.stringify(s.reviews.filter(r => (r.after ?? 0) <= s.reviewReads).map(r => ({ user: { login: r.user }, state: r.state ?? 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-06T10:00:00Z' }))));
+  // GitHub's pages: 100 a page, page=N (1 when none is named).
+  const pg = Number((/[?&]page=(\\d+)/.exec(argv[1]) ?? [])[1] ?? 1);
+  console.log(JSON.stringify(s.reviews.filter(r => (r.after ?? 0) <= s.reviewReads).slice((pg - 1) * 100, pg * 100).map(r => ({ user: { login: r.user }, state: r.state ?? 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-06T10:00:00Z' }))));
 } else if (argv[0] === 'api' && argv[1].endsWith('/contents/.keel/keel.json')) {
   if (!s.contents) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }
   console.log(JSON.stringify({ content: Buffer.from(JSON.stringify(s.contents)).toString('base64') }));
@@ -404,6 +410,35 @@ test('a thread with more comments than one page is an incomplete read: keel revi
     assert.equal(r.code, 2, JSON.stringify(state) + r.out);
     assert.match(r.json().error, /GitHub could not be read: #3 has more .* than one page; the read is incomplete/);
   }
+});
+
+test('a PR past 100 reviews is read page by page (each reply is a review): the head\'s review on page 2 counts, and a review body past the first page is read, never refused', async t => {
+  const dir = await project(t);
+  // 130 reviews; the reviewer's on the head is the 120th (the REST read's second page).
+  const many = [...Array.from({ length: 119 }, () => ({ user: 'acme-owner', commit_id: OLD })), ON_HEAD, ...Array.from({ length: 10 }, () => ({ user: 'acme-owner', commit_id: HEAD }))];
+  const paged = await stubGh(t, { threads: [ANSWERED], reviews: many });
+  assert.equal(keel(dir, paged, ['acme/app#3', '--gate']).code, 0, 'the head was reviewed, on page 2');
+  assert.ok((await paged.calls()).some(a => a.includes('repos/acme/app/pulls/3/reviews?per_page=100&page=2')), 'page 2 was read');
+  // The bodies (GraphQL): the first page says there is more; the next page, by its cursor, holds an unanswered body.
+  const later = { id: 'PRR_late', databaseId: 801, author: 'acme-reviewer[bot]', body: 'P1: the fuse is still short.', createdAt: '2026-10-06T11:00:00Z' };
+  const bodies = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', laterBodies: [later] });
+  const read = keel(dir, bodies, ['acme/app#3', '--json']);
+  assert.equal(read.code, 1, read.out + read.err);
+  assert.ok(read.json().comments.some(x => x.id === 'PRR_late' && !x.answered), 'the body on the second page is read, and unanswered');
+  // Exactly 2000 reviews (20 full pages): the 21st page is read, empty, and the read is whole; 2001 is not.
+  const exactly = Array.from({ length: 2000 }, (_, i) => (i === 1999 ? ON_HEAD : { user: 'acme-owner', commit_id: OLD }));
+  assert.equal(keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: exactly }), ['acme/app#3', '--gate']).code, 0, '2000 reviews, the head reviewed on the last');
+  const over = keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: [...exactly, { user: 'acme-owner', commit_id: OLD }] }), ['acme/app#3', '--json']);
+  assert.equal(over.code, 2, over.out);
+  assert.match(over.json().error, /more than 2000 reviews; the read is incomplete/);
+  // The bodies' first read is page 1: MAX_REVIEW_PAGES in all, so 20 pages that end there are whole, 21 are not.
+  const pagesOf = async n => { const g = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] }); keel(dir, g, ['acme/app#3', '--json']); return (await g.calls()).filter(a => a.some(x => String(x).includes('$after'))).length; };
+  assert.equal(await pagesOf(), 19, 'the first read and 19 more: 20 pages in all');
+  // Pages without end: past MAX_REVIEW_PAGES the read is incomplete (exit 2), never a count.
+  const endless = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] });
+  const r = keel(dir, endless, ['acme/app#3', '--json']);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.json().error, /the read is incomplete/);
 });
 
 test('--close on a review body posts a comment that quotes and links it, so the read sees it answered', async t => {

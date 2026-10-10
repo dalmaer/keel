@@ -1409,7 +1409,7 @@ export const reviewFragment = ({ threads = 100, replies = 100, comments = 100, r
   reviewThreads(first: ${threads}) { pageInfo { hasNextPage } nodes { id isResolved path line
     comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
   comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } body createdAt url } }
-  reviews(first: ${reviews}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
+  reviews(first: ${reviews}) { pageInfo { hasNextPage endCursor } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
 }`;
 
 // ---- what a read costs (GitHub's GraphQL allowance) -----------------------------
@@ -1598,6 +1598,17 @@ export const repoReviewArgs = (repo, { open, merged, openAfter, mergedAfter }) =
 export const prReviewQuery = (sizes = {}) => `query($owner: String!, $name: String!, $number: Int!) { ${RATE_LIMIT}
   repository(owner: $owner, name: $name) { pullRequest(number: $number) { ...KeelReview } } }
 ${reviewFragment(sizes)}`;
+/**
+ * gh's arguments for the PR's review bodies after `after` (a page's
+ * endCursor): a PR answered thread by thread passes 100 reviews, since each
+ * reply is one, and keel review reads every page rather than refuse.
+ */
+export const moreReviewsArgs = (repo, number, after) => {
+  const [owner, name] = String(repo).split('/');
+  const query = `query($owner: String!, $name: String!, $number: Int!, $after: String!) { ${RATE_LIMIT}
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } } } } }`;
+  return ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`, '-f', `after=${after}`];
+};
 /** gh's arguments for one PR's full read. */
 export const prReviewArgs = (repo, number, sizes) => {
   const [owner, name] = String(repo).split('/');

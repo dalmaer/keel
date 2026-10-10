@@ -1152,7 +1152,8 @@ of it (`> `), links it or names its id (`--close` does). A body opening with
 a hidden `<!-- marker -->` (a bot's status board) is listed as `status` and
 owes no answer. Exit 0 every comment answered, 1 any unanswered (each named,
 with its first line and id), 2 GitHub unreadable or usage: never 0 on a
-failed or incomplete read (any list longer than its page). The GraphQL read
+failed or incomplete read (any list longer than its page; the PR's reviews
+are read page by page up to 2000, and past that are incomplete). The GraphQL read
 asks a window first (50 threads, 20 comments each) and the full one only when
 a list overflows it; `--json` carries `github` (`{cost, queries, remaining,
 resetAt}`: what it spent of the owner's allowance) and `warning`, set when it
