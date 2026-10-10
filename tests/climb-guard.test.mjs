@@ -602,3 +602,17 @@ test('guard in a linked worktree: a config the gate writes to the common git dir
   git(wt, ['config', 'filter.acme.clean', 'cat']);
   assert.match(tend.heldProblems(wt, held, 'the gate').join('\n'), /^the gate changed the git dir's config, hooks or attributes, or its replace refs/);
 });
+
+// #82: a test run twice in one gate, passing then failing behind `|| true`, is a failure: every record is read
+// before a test's runs are merged into one.
+test('guard: a test that passes in one run of the gate and fails in another, behind || true, is refused', async t => {
+  const pkg = check => `${JSON.stringify({ name: 'acme', private: true, scripts: { check } }, null, 2)}\n`;
+  const flaky = `import { test } from 'node:test';\nimport { existsSync, writeFileSync } from 'node:fs';\ntest('acme adds', () => { if (existsSync('.ran-once')) throw new Error('second run fails'); writeFileSync('.ran-once', ''); });\n`;
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: 'npm run check' }, config: { check: 'npm run check' }, files: { 'package.json': pkg(`rm -f .ran-once && ${LEDGER_TEST}`), 'acme.test.mjs': suite('acme adds') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-b', 'twice']);
+  await commit(dir, { 'package.json': pkg(`rm -f .ran-once && ${LEDGER_TEST} && (${LEDGER_TEST} || true)`), 'acme.test.mjs': flaky, '.gitignore': '.ran-once\n' }, 'acme: run it twice');
+  const g = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(g.status, 1, g.stdout + g.stderr);
+  assert.match(json(g).problems.join('\n'), /^failed: acme\.test\.mjs "acme adds" failed on [0-9a-f]{7}, though the gate `npm run check` exited 0$/m);
+});
