@@ -139,9 +139,13 @@ it lands, and nothing waits on it:
   one pending run.
 - **What it reviews.** Everything on main since the last review, as one
   batch: the combined diff. The last review's tracking issue records where
-  it ended. With no record, the push's own range (`before..after`). A first
-  push (`before` all zeros) or a force push (`before`, or the record, no
-  longer in main's history) reviews the head commit alone, and says so.
+  it ended. With no record, the push's own range (`before..after`). With
+  neither (a first push, `before` all zeros; a force push, `before` and the
+  record no longer in main's history; the push that installs or upgrades
+  the publisher; a daily run before any review), nothing is reviewed: no
+  commit before the head is known to hold main's own code that can post a
+  review. The record starts at the head instead (a closed tracking issue,
+  said in a notice), and the next run reviews from it.
 - **Who reviews it.** A provider other than the one that wrote the
   commits: each commit's author and its `Co-authored-by` trailers name the
   provider (Claude Code's `Co-Authored-By: Claude … <noreply@anthropic.com>`,
@@ -162,12 +166,16 @@ it lands, and nothing waits on it:
   history (no credential kept) and the tracking issues (`issues: read`).
   The publish job (`issues: write` too) checks out the commit before the
   reviewed ones, the range's base, so nothing it runs came in with the
-  push; it posts with `cross-review.mjs push-post`. That base's script must
-  speak the push protocol (`PUSH_PROTOCOL`): when it does not (the push that
-  installs or upgrades it), the review starts at the first commit whose
-  script does, and the commits before it are named as not reviewed. This
-  is checked before any agent runs, so nothing is spent on a review that
-  cannot be posted.
+  push; it posts with `cross-review.mjs push-post`. The review job ran the
+  pushed code, so the publish job decides that commit itself, from facts
+  the push cannot set: it must be the push's `before` or the last
+  record's end (read with the publish job's own token), and GitHub's
+  compare must put it below the run's commit. Anything else is red and
+  runs nothing. The base's script must also speak the push protocol
+  (`PUSH_PROTOCOL`); one that does not (from before an install or an
+  upgrade) is never a base. That is checked before any agent runs, so
+  nothing is spent on a review that cannot be posted. Starting the record
+  runs no repository code at all.
 - **Spend.** One review per run, within `budget.minutes`, and at most
   `budget.pushes` reviews a UTC day (1 to 48, default 8). Past it a push
   waits, with a notice, and the next run (the daily one, if no push comes)

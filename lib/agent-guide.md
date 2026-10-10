@@ -1263,12 +1263,18 @@ branches: [main]` and a daily schedule to the workflow (without `after` it
 has neither). One concurrency group for every push: pushes during a review
 coalesce. `cross-review.mjs which-push` reviews main's commits since the
 last review (its tracking issue's record) as one diff, else the push's
-`before..after`, else the head alone (a first or force push, said). The
+`before..after`; with neither one whose script can post (a first or force
+push, the push that installs or upgrades it, a daily run before any review)
+nothing is reviewed and the record starts at the head (`mode: start`, a
+closed issue). The
 author is the provider its commits' authors and `Co-authored-by` trailers
 name (`pushReviewerOf`); the reviewer never is while another is available;
 a person's push goes to the first listed. Past the day's budget: a notice,
 and the next run reviews the waiting pushes together. The publish job runs
-from the range's base (`trusted`), never the pushed code: `push-review`
+from the range's base only after checking it itself (keel#65): the review
+job's `trusted` must be the push's before or the last record's end (read
+with the publish job's token), below the run's commit (GitHub's compare),
+else it is red and runs nothing; a start runs no repository code. `push-review`
 checks findings against the diff, `push-post` comments on the head commit
 where its own diff holds the line and opens one issue, `keel review after
 <sha>`, closed at once when there are no findings. Read and answer it with

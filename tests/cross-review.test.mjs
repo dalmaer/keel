@@ -702,7 +702,7 @@ test('phase 46: the publish job posts exactly what summary builds from the artif
   assert.equal(red.outputs.ran, undefined, 'no ran=true: the publish job does not run');
   const text = await readFile(WORKFLOW, 'utf8');
   const publish = text.split('\n  publish:\n')[1];
-  assert.match(publish, /^ {4}needs: review\n {4}if: needs\.review\.outputs\.ran == 'true'\n/);
+  assert.match(publish, /^ {4}needs: review\n {4}if: needs\.review\.outputs\.ran == 'true' \|\| needs\.review\.outputs\.mode == 'start'\n/);
   assert.doesNotMatch(publish, /claude-code-action|codex-action|steps\.which\.outputs\.sha/, 'no agent, no PR head');
 });
 
@@ -755,7 +755,7 @@ const trackingIssue = (number, to, createdAt, { author = BOT, from = null, findi
  * commit comment is refused (403) with `refuseComments`, the issue with
  * `refuseIssue`.
  */
-async function pushGh(t, { issues = [], refuseComments = false, refuseIssue = false } = {}) {
+async function pushGh(t, { issues = [], refuseComments = false, refuseIssue = false, repo = null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-cross-review-push-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const log = join(dir, 'gh.log');
@@ -774,6 +774,12 @@ if (a[0] === 'api' && /\\/labels$/.test(path)) no('Validation Failed (HTTP 422):
 if (a[0] === 'api' && /\\/issues$/.test(path)) { if (${refuseIssue}) no('Resource not accessible by integration (HTTP 403)'); out({ number: 12, html_url: 'https://github.com/acme/anvils/issues/12' }); }
 if (a[0] === 'api' && /\\/commits\\/[0-9a-f]{40}\\/comments$/.test(path)) { if (${refuseComments}) no('Resource not accessible by integration (HTTP 403)'); out({ id: 700 + n, html_url: 'https://github.com/acme/anvils/commit/x#commitcomment-' + (700 + n) }); }
 if (a[0] === 'api' && /\\/issues\\/\\d+$/.test(path)) out({});
+// GitHub's compare A...B, from the Acme repo's own history: ahead when A is below B.
+const cmp = /\\/compare\\/([0-9a-f]+)\\.\\.\\.([0-9a-f]+)$/.exec(path);
+if (a[0] === 'api' && cmp && ${JSON.stringify(repo)}) {
+  const below = (x, y) => { try { require('child_process').execFileSync('git', ['merge-base', '--is-ancestor', x, y], { cwd: ${JSON.stringify(repo)}, stdio: 'ignore' }); return true; } catch { return false; } };
+  out({ status: cmp[1] === cmp[2] ? 'identical' : below(cmp[1], cmp[2]) ? 'ahead' : below(cmp[2], cmp[1]) ? 'behind' : 'diverged' });
+}
 no('unexpected ' + a.join(' '));
 `, { mode: 0o755 });
   return { path: dir, calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) };
@@ -808,7 +814,7 @@ test('phase 60 config: "after": "push" reviews pushes ("for" optional, "budget".
   assert.match(cli(dir, ['config']).stdout, /^cross-review: after each push to main \(at most 8 a day\), 15 min a review$/m);
 });
 
-test('phase 60 which-push: a push to main is reviewed only with "after": "push", as one batch since the last review; a first or force push reviews the head alone and says so', async t => {
+test('phase 60 which-push: a push to main is reviewed only with "after": "push", as one batch since the last review; a first or force push, or a daily run before any review, starts the record at the head', async t => {
   // No "after": a push is never reviewed, whatever the workflow's triggers.
   const prsOnly = await shipsToMain(t, { for: ['codex/'] });
   const c1 = await commitOn(prsOnly, 'src/lid.js', 'export const lid = 1;\n', { author: CLAUDE });
@@ -846,19 +852,23 @@ test('phase 60 which-push: a push to main is reviewed only with "after": "push",
   assert.equal(done.outputs.review, 'false');
   assert.match(done.out, /was reviewed already/);
 
-  // A first push (before is all zeros): the head alone, against its parent, said.
+  // keel#65: no commit before a first push (before is all zeros) is known to be main's own, so nothing is reviewed
+  // (its parent is pushed code too) and the record starts at the head: a start, no agent, no base, nothing to trust.
   const first = await whichPush(t, dir, { before: '0'.repeat(40) });
-  assert.deepEqual([first.outputs.review, first.outputs.base, first.outputs.trusted], ['true', b, b]);
-  assert.equal(first.which.alone, true);
-  assert.match(first.which.range, /alone, since the push has no before \(a first push\)/);
-  // A force push: before is not in main's history, and neither is the last review. The head alone.
+  assert.deepEqual([first.outputs.review, first.outputs.mode, first.outputs.base, first.outputs.trusted], ['false', 'start', '', '']);
+  assert.match(first.out, /^::notice::Not reviewed, the record starts here: the push has no before \(a first push\): no commit before [0-9a-f]{7} is known to hold main's own code that can post a review/m);
+  // A force push: before is not in main's history, and neither is the last review. A start.
   const forced = await whichPush(t, dir, { before: 'f'.repeat(40), issues: [trackingIssue(12, 'e'.repeat(40), '2026-10-09T08:00:00Z')] });
-  assert.deepEqual([forced.outputs.review, forced.outputs.base], ['true', b]);
-  assert.match(forced.which.range, /alone, since the last review ended at eeeeeee, which main's history no longer holds \(a force push\); the push's before, fffffff, is not in main's history \(a force push\)/);
-  // The daily run with no review yet: nothing to pick up.
+  assert.deepEqual([forced.outputs.review, forced.outputs.mode], ['false', 'start']);
+  assert.match(forced.which.why, /the last review ended at eeeeeee, which main's history no longer holds below [0-9a-f]{7} \(a force push\); the push's before, fffffff, is not in main's history below [0-9a-f]{7} \(a force push\)/);
+  // keel#65: the daily run before any review starts the record too, so the documented retry works without a new push.
   const daily = await whichPush(t, dir, { event: 'schedule' });
-  assert.equal(daily.outputs.review, 'false');
-  assert.match(daily.out, /no push has been reviewed here yet/);
+  assert.deepEqual([daily.outputs.review, daily.outputs.mode], ['false', 'start']);
+  assert.match(daily.out, /no push has been reviewed here yet: no commit before/);
+  // And the next daily run reviews from that start: the record's end.
+  const after = await whichPush(t, dir, { event: 'schedule', issues: [trackingIssue(13, b, '2026-10-09T04:41:00Z')] });
+  assert.deepEqual([after.outputs.review, after.outputs.base, after.outputs.trusted], ['true', b, b]);
+  assert.deepEqual(after.which.commits.map(x => x.sha), [c]);
 
   // Pure: the decision never reviews without "after", for any event.
   const m = await load(t);
@@ -869,7 +879,7 @@ test('phase 60 which-push: a push to main is reviewed only with "after": "push",
   }
 });
 
-test('phase 60 install: the push that brings the publisher is never reviewed from before it; the review starts at the first commit whose script can post it, checked before any agent runs (keel#65)', async t => {
+test('phase 60 install: the push that brings the publisher is never reviewed, from before it or from itself; it starts the record, running no repository code, and the next push is reviewed from there (keel#65)', async t => {
   const dir = await acme(t, { crossReview: AFTER });
   const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...config, agents: BOTH }, null, 2));
@@ -895,42 +905,102 @@ test('phase 60 install: the push that brings the publisher is never reviewed fro
   const git = m.gitOf(dir);
   assert.deepEqual([m.protocolAt(git, old), m.protocolAt(git, installed)], [null, m.PUSH_PROTOCOL]);
 
-  // One push carried both: reviewed from the install, never from before it; the install itself is named as not reviewed.
+  // keel#65: one push carried the install and Claude's work. Its before cannot post, and every commit after it is pushed
+  // code, so nothing is reviewed: the record starts at the head (a notice), and no agent runs, so nothing is spent.
   const w = await whichPush(t, dir, { before: old });
   assert.equal(w.status, 0, w.out);
-  assert.deepEqual([w.outputs.review, w.outputs.base, w.outputs.trusted], ['true', installed, installed]);
-  assert.deepEqual(w.which.commits.map(x => x.sha), [work]);
-  assert.deepEqual(w.which.unreviewed, { from: old, to: installed, count: 1 });
-  assert.match(w.which.range, /from [0-9a-f]{7}: the 1 commit before it \([0-9a-f]{7}\.\.[0-9a-f]{7}\) brought the script that posts this review and are not reviewed/);
-  // The publish job, run from a checkout of `trusted` as the workflow makes it: its script posts.
-  const brief = await step(t, dir, 'Brief', { ...w.env, AGENT: 'codex', MODE: 'push', BASE: w.outputs.base, SHA: w.outputs.sha });
+  assert.deepEqual([w.outputs.review, w.outputs.mode, w.outputs.base, w.outputs.trusted], ['false', 'start', '', '']);
+  assert.match(w.out, /^::notice::Not reviewed, the record starts here: the push's before, [0-9a-f]{7}, holds a cross-review\.mjs that cannot post a review after the push \(push protocol 1: an install or an upgrade\)/m);
+  // The publish job starts the record from the event alone (github.sha), running no repository code: here, in an empty folder.
+  const empty = await mkdtemp(join(tmpdir(), 'keel-cross-review-empty-'));
+  t.after(() => rm(empty, { recursive: true, force: true }));
+  const gh = await pushGh(t);
+  const started = await step(t, empty, 'Start the record', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: w.temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', SHA: work });
+  assert.equal(started.status, 0, started.out);
+  assert.match(started.out, /the review after the push starts at [0-9a-f]{7}: #12/);
+  const startCalls = (await gh.calls()).filter(x => x.args[0] === 'api');
+  assert.deepEqual(startCalls.map(x => `${x.args[2]} ${x.args[3]}`), ['POST repos/acme/anvils/labels', 'POST repos/acme/anvils/issues', 'PATCH repos/acme/anvils/issues/12']);
+  assert.deepEqual(startCalls.slice(1).map(x => x.token), ['acme-write', 'acme-write']);
+  const opened = JSON.parse(await readFile(join(w.temp, 'start.json'), 'utf8'));
+  assert.deepEqual([m.recordOf(opened.body).to, m.recordOf(opened.body).start, m.recordOf(opened.body).findings], [work, true, []]);
+  assert.deepEqual(opened.labels, ['keel:review-after']);
+  assert.ok(startCalls[2].args.includes('state=closed'), 'closed as it opens');
+  // A start spends nothing: it is not one of the day's reviews.
+  assert.equal(m.pushHistory([{ ...trackingIssue(12, work, '2026-10-09T10:00:00Z'), body: opened.body }], { now: Date.parse('2026-10-09T12:00:00Z') }).today, 0);
+
+  // The next push is reviewed from the start, and the publish job, run from a checkout of that commit, posts.
+  const more = await commitOn(dir, 'src/hinge.js', 'export const hinge = 2;\n', { trailer: TRAILER });
+  const n = await whichPush(t, dir, { before: work, issues: [{ ...trackingIssue(12, work, '2026-10-09T10:00:00Z'), body: opened.body }] });
+  assert.deepEqual([n.outputs.review, n.outputs.base, n.outputs.trusted], ['true', work, work], n.out);
+  const brief = await step(t, dir, 'Brief', { ...n.env, AGENT: 'codex', MODE: 'push', BASE: n.outputs.base, SHA: n.outputs.sha });
   assert.equal(brief.status, 0, brief.out);
-  await writeFile(join(w.temp, 'codex-final-message.md'), final('Read the push.', [{ path: 'src/lid.js', line: 1, severity: 'P2', body: 'The lid is a constant.' }]));
-  assert.equal((await step(t, dir, 'Hand the review on', { RUNNER_TEMP: w.temp, AGENT: 'codex', EXECUTION: '', MODE: 'push' })).status, 0);
-  await cp(join(w.temp, 'handoff'), join(w.temp, 'review'), { recursive: true });
+  await writeFile(join(n.temp, 'codex-final-message.md'), final('Read the push.', [{ path: 'src/hinge.js', line: 1, severity: 'P2', body: 'The hinge is a constant.' }]));
+  assert.equal((await step(t, dir, 'Hand the review on', { RUNNER_TEMP: n.temp, AGENT: 'codex', EXECUTION: '', MODE: 'push' })).status, 0);
+  await rm(join(n.temp, 'review'), { recursive: true, force: true });
+  await cp(join(n.temp, 'handoff'), join(n.temp, 'review'), { recursive: true });
   const pub = await mkdtemp(join(tmpdir(), 'keel-cross-review-publish-'));
   t.after(() => rm(pub, { recursive: true, force: true }));
   gitIn(pub, ['clone', '-q', dir, '.']);
-  gitIn(pub, ['checkout', '-q', w.outputs.trusted]);
-  const gh = await pushGh(t);
-  const posted = await step(t, pub, 'Post after the push', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: w.temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', AGENT: 'codex', AUTHOR: 'claude', REASON: '', MINUTES: '15' });
+  gitIn(pub, ['checkout', '-q', n.outputs.trusted]);
+  const post = { RUNNER_TEMP: n.temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', AGENT: 'codex', AUTHOR: 'claude', REASON: '', MINUTES: '15' };
+  const gh2 = await pushGh(t);
+  const posted = await step(t, pub, 'Post after the push', { ...post, PATH: `${gh2.path}:${process.env.PATH}` });
   assert.equal(posted.status, 0, posted.out);
-  assert.equal(m.recordOf((await gh.calls()).find(x => x.args[3] === 'repos/acme/anvils/issues').input.body).to, work, 'the record ends at the head');
-  // From the old base, as the review job first named it, the same step fails: that is the failure this guards.
+  assert.equal(m.recordOf((await gh2.calls()).find(x => x.args[3] === 'repos/acme/anvils/issues').input.body).to, more, 'the record ends at the head');
+  // From the commit before the install, the same step fails: the failure keel#65 found, never reached now.
   gitIn(pub, ['checkout', '-q', old]);
-  const fromOld = await step(t, pub, 'Post after the push', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: w.temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', AGENT: 'codex', AUTHOR: 'claude', REASON: '', MINUTES: '15' });
-  assert.notEqual(fromOld.status, 0);
+  assert.notEqual((await step(t, pub, 'Post after the push', { ...post, PATH: `${gh2.path}:${process.env.PATH}` })).status, 0);
 
-  // The install alone at the head: a notice and no review (no agent, no spend); the next push is reviewed from it.
+  // A record left before an upgrade gives way to the push's before when that one can post; the commits between are named.
   const history = { last: null, today: 0, day: '2026-10-09' };
-  const alone = m.shouldReviewPush({ config: { ...config, agents: BOTH }, event: 'push', head: installed, before: old, history, git });
-  assert.deepEqual([alone.review, alone.notice], [false, true]);
-  assert.match(alone.why, /^Not reviewed: [0-9a-f]{7}'s cross-review\.mjs cannot post a review after the push .* brings the one that can, so nothing after it is left to review here: the next push is reviewed from it/);
-  const next = m.shouldReviewPush({ config: { ...config, agents: BOTH }, event: 'push', head: work, before: installed, history, git });
-  assert.deepEqual([next.review, next.base, next.unreviewed], [true, installed, undefined]);
-  // A record left before an upgrade (its script an older protocol) moves on the same way: never stuck re-reviewing it.
-  const since = m.shouldReviewPush({ config: { ...config, agents: BOTH }, event: 'schedule', head: work, history: { ...history, last: old }, git });
-  assert.deepEqual([since.review, since.base], [true, installed]);
+  const config2 = { ...config, agents: BOTH };
+  const upgraded = m.shouldReviewPush({ config: config2, event: 'push', head: more, before: installed, history: { ...history, last: old }, git });
+  assert.deepEqual([upgraded.review, upgraded.base, upgraded.trusted, upgraded.unreviewed], [true, installed, installed, { from: old, to: installed, count: 1 }]);
+  // The daily run on such a record starts a new one: never stuck behind it.
+  const stuck = m.shouldReviewPush({ config: config2, event: 'schedule', head: more, history: { ...history, last: old }, git });
+  assert.deepEqual([stuck.review, stuck.mode], [false, 'start']);
+});
+
+test('phase 60 publish trust: the publish job runs only from the push\'s before or the last review\'s end, checked with its own token and GitHub\'s compare; the review job naming the head, or any pushed commit, is red and runs nothing (keel#65)', async t => {
+  const dir = await shipsToMain(t);
+  const root = gitIn(dir, ['rev-parse', 'HEAD']);
+  const a = await commitOn(dir, 'src/lid.js', 'export const lid = 1;\n', { trailer: TRAILER });
+  const b = await commitOn(dir, 'src/hinge.js', 'export const hinge = 2;\n', { trailer: TRAILER });
+  const temp = await mkdtemp(join(tmpdir(), 'keel-cross-review-trust-'));
+  t.after(() => rm(temp, { recursive: true, force: true }));
+  // Run "Which commit posts?" as the publish job does: the event's facts, the tracking issues, the review job's suggestion.
+  const posts = async ({ event = 'push', before = '', sha = b, suggested, issues = [] }) => {
+    const gh = await pushGh(t, { issues, repo: dir });
+    const r = await step(t, temp, 'Which commit posts?', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', EVENT: event, BEFORE: before, SHA: sha, SUGGESTED: suggested });
+    return { ...r, calls: (await gh.calls()).map(c => c.args.join(' ')) };
+  };
+  // The push's before: posts from it.
+  const ok = await posts({ before: root, suggested: root });
+  assert.equal(ok.status, 0, ok.out);
+  assert.equal(ok.outputs.sha, root);
+  assert.ok(ok.calls.includes(`api repos/acme/anvils/compare/${root}...${b}`), 'GitHub says it is below the run\'s commit');
+  // The review job ran the pushed code: naming the head, or a commit inside the push, is red, and no commit is handed on.
+  for (const suggested of [b, a, 'f'.repeat(40), '', 'HEAD']) {
+    const r = await posts({ before: root, suggested });
+    assert.equal(r.status, 1, `${suggested}: ${r.out}`);
+    assert.equal(r.outputs.sha, undefined, `${suggested}: nothing to check out`);
+    assert.match(r.out, /^::error::The review job named .* to post from; this job posts only from the before of the push or the end of the last review/m);
+  }
+  // The last review's end (the workflow's record, read here), below the push's before: posts from it.
+  const record = trackingIssue(9, root, '2026-10-09T08:00:00Z');
+  const fromRecord = await posts({ before: a, suggested: root, issues: [record] });
+  assert.equal(fromRecord.status, 0, fromRecord.out);
+  assert.ok(fromRecord.calls.includes(`api repos/acme/anvils/compare/${root}...${a}`), 'and no newer than the push\'s before');
+  // A person's issue naming the head is not a record; the daily run posts only from the record.
+  assert.equal((await posts({ before: root, suggested: b, issues: [trackingIssue(10, b, '2026-10-09T09:00:00Z', { author: { login: 'acme-owner' } })] })).status, 1);
+  assert.equal((await posts({ event: 'schedule', suggested: root, issues: [record] })).status, 0);
+  assert.equal((await posts({ event: 'schedule', suggested: root })).status, 1, 'a daily run has no before: only a record');
+  assert.equal((await posts({ event: 'schedule', suggested: a, issues: [record] })).status, 1);
+  // A fact that is not below the run's commit (the record of a history a force push dropped) is red too.
+  const lost = trackingIssue(11, 'e'.repeat(40), '2026-10-09T10:00:00Z');
+  const gone = await posts({ event: 'schedule', suggested: 'e'.repeat(40), issues: [lost] });
+  assert.equal(gone.status, 1, gone.out);
+  assert.match(gone.out, /is not below the pushed commits/);
 });
 
 test('phase 60 budget: past the day\'s push reviews, a push waits (a notice, green); the next day\'s run reviews the waiting pushes together', async t => {
@@ -1065,6 +1135,6 @@ test('phase 60 publish: the findings, checked against the push\'s diff, go on th
   assert.equal(red.status, 1, red.out);
   // The PR step does not run for a push, nor the push step for a PR.
   const text = await readFile(WORKFLOW, 'utf8');
-  assert.match(text, /- name: Post the summary\n {8}if: needs\.review\.outputs\.mode != 'push'\n/);
+  assert.match(text, /- name: Post the summary\n {8}if: needs\.review\.outputs\.mode == 'pr'\n/);
   assert.match(text, /- name: Post after the push\n {8}if: needs\.review\.outputs\.mode == 'push'\n/);
 });

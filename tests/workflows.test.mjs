@@ -1311,7 +1311,14 @@ export function crossReviewProblems(text) {
   if (/:\s*write-all|contents: write|actions: write/.test(text)) out.push('the token may write contents or actions');
   for (const { line, n } of code(text)) {
     if (/\bgit push\b|\bgh pr (merge|review|close|edit)\b|\bAPPROVE\b|REQUEST_CHANGES|--approve|--request-changes/.test(line)) out.push(`line ${n}: pushes, merges, approves or requests changes: ${line.trim()}`);
-    if (/\bgh api\b/.test(line) && !/^\s*(?:if ! )?gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review(?:-plain)?\.json" --jq '[^']*'(?:; then)?$/.test(line)) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
+    // Phase 60 (keel#65): the publish job's own reads of GitHub's compare, and a start's label, issue and close; each exactly.
+    const PUSH_API = [
+      /^\s*gh api "repos\/\$REPO\/compare\/\$SUGGESTED\.\.\.\$(?:SHA|BEFORE)" > "\$RUNNER_TEMP\/to-(?:head|before)\.json"$/,
+      /^\s*gh api --method POST "repos\/\$REPO\/labels" -f name=keel:review-after -f color=5319e7 > \/dev\/null 2>&1 \|\| true$/,
+      /^\s*gh api --method POST "repos\/\$REPO\/issues" --input "\$RUNNER_TEMP\/start\.json" > "\$RUNNER_TEMP\/started\.json"$/,
+      /^\s*gh api --method PATCH "repos\/\$REPO\/issues\/\$number" -f state=closed -f state_reason=completed > \/dev\/null$/,
+    ];
+    if (/\bgh api\b/.test(line) && !/^\s*(?:if ! )?gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review(?:-plain)?\.json" --jq '[^']*'(?:; then)?$/.test(line) && !PUSH_API.some(re => re.test(line))) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
   }
   if (!/node scripts\/keel\/cross-review\.mjs summary [^\n]*--out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
   const reviewStep = /\n {6}- name: Review\n[\s\S]*?(?=\n {6}(?:#|- )|$)/.exec(text)?.[0] ?? '';
@@ -1576,21 +1583,44 @@ export function crossReviewSandboxProblems(text) {
   for (const w of writers) {
     if (w === agent) continue;
     if (!new RegExp(`\\n {4}needs: (?:${agent.id}|\\[[^\\]]*\\b${agent.id}\\b[^\\]]*\\])\\n`).test(w.text)) out.push(`the writing job ${w.id} does not wait for the ${agent.id} job`);
-    if (!new RegExp(`\\n {4}if: needs\\.${agent.id}\\.outputs\\.ran == 'true'\\n`).test(w.text)) out.push(`the writing job ${w.id} runs whether or not the agent ran (if: needs.${agent.id}.outputs.ran == 'true')`);
-    if (/\balways\(\)|\bfailure\(\)|\bcancelled\(\)/.test(/\n {4}if: (.*)\n/.exec(w.text)?.[1] ?? '')) out.push(`the writing job ${w.id} runs after a failed agent`);
-    for (const c of stepsIn(w).filter(st => /uses: actions\/checkout@/.test(st))) {
-      // A PR: the default branch. After a push (phase 60), the default branch holds the pushed code, so the
-      // commit before the reviewed ones (the review job's `trusted`); the default branch only when there is none (a PR).
-      if (!new RegExp(`\\n {10}ref: \\$\\{\\{ needs\\.${agent.id}\\.outputs\\.trusted \\|\\| github\\.event\\.repository\\.default_branch \\}\\}(?:\\n|$)`).test(c)) out.push(`the writing job ${w.id} checks out something other than the default branch for a PR, or the commit before the reviewed ones after a push: the reviewed code would run where the token writes`);
+    // It runs when the agent ran, or (phase 60) to start the record after a push, which runs no repository code (below).
+    const jobIfText = /\n {4}if: (.*)\n/.exec(w.text)?.[1] ?? '';
+    if (![`needs.${agent.id}.outputs.ran == 'true'`, `needs.${agent.id}.outputs.ran == 'true' || needs.${agent.id}.outputs.mode == 'start'`].includes(jobIfText)) out.push(`the writing job ${w.id} runs whether or not the agent ran (if: needs.${agent.id}.outputs.ran == 'true')`);
+    if (/\balways\(\)|\bfailure\(\)|\bcancelled\(\)/.test(jobIfText)) out.push(`the writing job ${w.id} runs after a failed agent`);
+    const steps = stepsIn(w);
+    const at = re => steps.findIndex(st => re.test(st));
+    // keel#65: after a push the default branch IS the pushed code, and the review job ran it, so the commit this job runs
+    // from is decided here, from facts the pushed code cannot set; the review job's `trusted` is only checked against them.
+    const trust = steps[at(/\n {8}id: trusted\n/)] ?? '';
+    if (!trust) out.push(`the writing job ${w.id} does not decide for itself which commit it runs from after a push (a step with id: trusted)`);
+    else {
+      const env = stepMap(trust, 'env');
+      if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode == 'push'\n/.test(trust)) out.push('the trusted step does not run for a push');
+      if (env.BEFORE !== '${{ github.event.before }}' || env.SHA !== '${{ github.sha }}' || env.SUGGESTED !== `\${{ needs.${agent.id}.outputs.trusted }}`) out.push('the trusted step does not take the push\'s facts from the event and the suggestion from the review job');
+      if (!/gh issue list --repo "\$REPO" --label keel:review-after/.test(trust) || !/\bbot\(i\.author\?\.login\)/.test(trust)) out.push('the trusted step does not read the last review\'s record itself, the workflow\'s own issues only');
+      if (!/if \(!sha\(s\) \|\| s === h \|\| !facts\.includes\(s\)\)/.test(trust)) out.push('the trusted step does not refuse a suggestion that is not one of the facts, or is the run\'s own commit');
+      if (!/gh api "repos\/\$REPO\/compare\/\$SUGGESTED\.\.\.\$SHA"/.test(trust) || !/head !== "ahead"/.test(trust)) out.push('the trusted step does not ask GitHub that the commit is below the run\'s');
+      if (!/\n {10}echo "sha=\$SUGGESTED" >> "\$GITHUB_OUTPUT"(?:\n\s*(?:#.*)?)*$/.test(trust)) out.push('the trusted step hands on a commit before its checks pass');
+    }
+    for (const [i, c] of steps.entries()) if (/uses: actions\/checkout@/.test(c)) {
+      // A PR: the default branch. After a push: only the commit the trusted step checked.
+      if (!/\n {10}ref: \$\{\{ steps\.trusted\.outputs\.sha \|\| github\.event\.repository\.default_branch \}\}(?:\n|$)/.test(c)) out.push(`the writing job ${w.id} checks out something other than the default branch for a PR, or the commit it checked itself after a push: the reviewed code would run where the token writes`);
+      if (trust && i < steps.indexOf(trust)) out.push(`the writing job ${w.id} checks out before it decides which commit`);
       if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push(`a checkout in the writing job ${w.id} keeps the token in git`);
     }
     if (/steps\.which\.outputs\.sha|pull_request\.head\.(?:sha|ref)|headRefOid/.test(w.text)) out.push(`the writing job ${w.id} reaches for the PR's head`);
-    if (/github\.sha\b|github\.event\.(?:after|before|head_commit)\b|github\.ref\b/.test(w.text)) out.push(`the writing job ${w.id} reaches for the pushed commits`);
+    // The pushed commits and the review job's suggestion appear only as the facts the trusted step checks, and the start's commit.
+    for (const { line } of code(w.text)) {
+      if (/github\.sha\b|github\.event\.(?:after|before|head_commit)\b|github\.ref\b/.test(line) && !/^ {10}(?:BEFORE: \$\{\{ github\.event\.before \}\}|SHA: \$\{\{ github\.sha \}\})$/.test(line)) out.push(`the writing job ${w.id} reaches for the pushed commits: ${line.trim()}`);
+      if (/needs\.[\w-]+\.outputs\.trusted/.test(line) && !/^ {10}SUGGESTED: \$\{\{ needs\.[\w-]+\.outputs\.trusted \}\}$/.test(line)) out.push(`the writing job ${w.id} takes the review job's commit unchecked: ${line.trim()}`);
+    }
+    // A start runs no checkout and no script of the repository's.
+    const start = steps.find(st => /if: needs\.[\w-]+\.outputs\.mode == 'start'\n/.test(st));
+    if (start && /scripts\/keel|cross-review\.mjs/.test(start)) out.push('the start step runs the repository\'s code');
+    if (start) for (const c of steps.filter(st => /uses: actions\/(?:checkout|download-artifact)@/.test(st))) if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode != 'start'\n/.test(c)) out.push(`the writing job ${w.id} checks out or downloads for a start, which has nothing to run`);
     if (!/\n {6}- uses: actions\/download-artifact@/.test(w.text)) out.push(`the writing job ${w.id} does not take the review job's artifact`);
     if (code(w.text).some(({ line }) => /cross-review\.mjs" (?:summary|push-review|push-post)|\$RUNNER_TEMP\/keel\//.test(line))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
   }
-  // `trusted` is the review's base, as which-push says it (never the head), handed on from the which step alone.
-  if (writers.some(w => w !== agent) && !/\n {6}trusted: \$\{\{ steps\.which\.outputs\.trusted \}\}\n/.test(agent.text)) out.push(`the ${agent.id} job does not hand on the commit the publish job runs from (outputs.trusted from the which step)`);
   return out;
 }
 
@@ -1602,17 +1632,20 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
   assert.ok(t.includes(`${reviewPerms}      issues: read\n`), 'the review job reads the tracking issues of reviews after a push, and writes nothing');
   const publish = jobsOf(t).find(j => j.id === 'publish').text;
   assert.match(publish, /\n {4}permissions:\n {6}contents: read\n {6}pull-requests: write\n {6}issues: write\n/);
-  const trustedRef = 'ref: ${{ needs.review.outputs.trusted || github.event.repository.default_branch }}';
+  const trustedRef = 'ref: ${{ steps.trusted.outputs.sha || github.event.repository.default_branch }}';
   assert.ok(publish.includes(trustedRef));
-  // A PR: no trusted, so the default branch. After a push: the base the which step named.
+  // A PR: no trusted step runs, so the default branch. After a push: only the commit the publish job checked itself.
   const ref = /ref: \$\{\{ (.*) \}\}/.exec(trustedRef)[1];
-  assert.equal(evalExpression(ref, { needs: { review: { outputs: { trusted: '' } } }, github: { event: { repository: { default_branch: 'main' } } } }, { value: true }), 'main');
-  assert.equal(evalExpression(ref, { needs: { review: { outputs: { trusted: 'b'.repeat(40) } } }, github: { event: { repository: { default_branch: 'main' } } } }, { value: true }), 'b'.repeat(40));
-  // The publish job runs only when the agent ran: GitHub's if:, with the review job's outputs as they come.
+  assert.equal(evalExpression(ref, { steps: { trusted: { outputs: {} } }, github: { event: { repository: { default_branch: 'main' } } } }, { value: true }), 'main');
+  assert.equal(evalExpression(ref, { steps: { trusted: { outputs: { sha: 'b'.repeat(40) } } }, github: { event: { repository: { default_branch: 'main' } } } }, { value: true }), 'b'.repeat(40));
+  // The publish job runs when the agent ran, or to start the record after a push (no repository code runs then).
   const pubIf = /\n {4}if: (.*)\n/.exec(publish)[1];
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: 'true' } } } }), true);
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: '' } } } }), false, 'a red "Did the agent run?" never sets ran');
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: {} } } }), false, 'no review: nothing set');
+  assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: '', mode: 'start' } } } }), true, 'a start');
+  const trustStep = stepsOf(t).find(st => /\n {8}id: trusted\n/.test(st));
+  const startStep = stepsOf(t).find(st => st.includes('- name: Start the record'));
   const claudeStep = stepsOf(t).find(st => /uses: anthropics\/claude-code-action@/.test(st));
   const codexStep = stepsOf(t).find(st => /uses: openai\/codex-action@/.test(st));
   const postStep = /\n {6}# The review: the agent's final message[\s\S]*?(?=\n$|$)/.exec(publish)[0];
@@ -1635,17 +1668,25 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['Codex in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${codexStep}\n`)],
     ['the publish job checks out the PR', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.event.pull_request.head.sha }}'))],
     ['the publish job checks out the run\'s commit', t.replace(publish, publish.replace(`          ${trustedRef}\n`, ''))],
-    // Phase 60: after a push the default branch is the pushed code, so the publish job runs from the commit before the reviewed ones.
+    // Phase 60, keel#65: after a push the default branch is the pushed code, and the review job ran it.
     ['the publish job checks out the default branch after a push', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.event.repository.default_branch }}'))],
     ['the publish job checks out the pushed head', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.sha }}'))],
     ['the publish job checks out the push\'s after', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.event.after || github.event.repository.default_branch }}'))],
+    ['the publish job runs from the review job\'s commit unchecked', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ needs.review.outputs.trusted || github.event.repository.default_branch }}'))],
     ['the publish job reads the pushed head', t.replace(publish, publish.replace('          REPO: ${{ github.repository }}\n          AGENT:', '          REPO: ${{ github.repository }}\n          HEAD: ${{ github.event.head_commit.id }}\n          AGENT:'))],
-    ['trusted not handed on', t.replace('      trusted: ${{ steps.which.outputs.trusted }}\n', '')],
-    ['trusted is the reviewed head', t.replace('      trusted: ${{ steps.which.outputs.trusted }}\n', '      trusted: ${{ steps.which.outputs.sha }}\n')],
-    ['the push post in the review job', t.replace(/(\n {6}- name: Hand the review on\n)/, '\n      - run: node scripts/keel/cross-review.mjs push-post --review "$RUNNER_TEMP/push-review.json" --repo "$REPO"$1')],
-    ['the publish job posts a push with a copy', t.replace(publish, publish.replace('node scripts/keel/cross-review.mjs push-post', 'node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" push-post'))],
-    ['the publish job runs whatever happened', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true'\n", '    if: always()\n'))],
-    ['the publish job with no if', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true'\n", ''))],
+    ['no trusted step', t.replace(trustStep, '      - run: true')],
+    ['the trusted step trusts the review job', t.replace(trustStep, trustStep.replace('if (!sha(s) || s === h || !facts.includes(s)) {', 'if (!sha(s)) {'))],
+    ['the trusted step lets the head through', t.replace(trustStep, trustStep.replace('if (!sha(s) || s === h || !facts.includes(s)) {', 'if (!sha(s) || !facts.includes(s)) {'))],
+    ['the trusted step takes its facts from the review job', t.replace(trustStep, trustStep.replace('          BEFORE: ${{ github.event.before }}\n', '          BEFORE: ${{ needs.review.outputs.trusted }}\n'))],
+    ['the trusted step takes its record from anyone', t.replace(trustStep, trustStep.replace('.filter(i => bot(i.author?.login) && ', '.filter(i => '))],
+    ['the trusted step asks GitHub nothing', t.replace(trustStep, trustStep.replace('          gh api "repos/$REPO/compare/$SUGGESTED...$SHA" > "$RUNNER_TEMP/to-head.json"\n', '          echo \'{"status":"ahead"}\' > "$RUNNER_TEMP/to-head.json"\n'))],
+    ['the trusted step hands on first', t.replace(trustStep, trustStep.replace('        run: |\n          gh issue list', '        run: |\n          echo "sha=$SUGGESTED" >> "$GITHUB_OUTPUT"\n          gh issue list').replace(/\n {10}echo "sha=\$SUGGESTED" >> "\$GITHUB_OUTPUT"$/, ''))],
+    ['the checkout before the trusted step', t.replace(publish, publish.replace(trustStep, '').replace('      - uses: actions/download-artifact@v8', `${trustStep}\n      - uses: actions/download-artifact@v8`))],
+    ['a start runs the repository\'s script', t.replace(startStep, startStep.replace('        run: |\n', '        run: |\n          node scripts/keel/cross-review.mjs config\n'))],
+    ['a start checks out the pushed code', t.replace(publish, publish.replace("      - uses: actions/checkout@v7\n        if: needs.review.outputs.mode != 'start'\n", '      - uses: actions/checkout@v7\n'))],
+    ['the publish job runs whatever happened', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode == 'start'\n", '    if: always()\n'))],
+    ['the publish job with no if', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode == 'start'\n", ''))],
+    ['the publish job for any mode', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode == 'start'\n", "    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode != ''\n"))],
     ['the publish job not waiting', t.replace(publish, publish.replace('    needs: review\n', ''))],
     ['the publish job without the artifact', t.replace(publish, publish.replace(/\n {6}- uses: actions\/download-artifact@[\s\S]*?\/review\n/, '\n'))],
     ['the publish job runs a copy', t.replace(publish, publish.replace('node scripts/keel/cross-review.mjs summary', 'node "$RUNNER_TEMP/keel/scripts/keel/cross-review.mjs" summary'))],

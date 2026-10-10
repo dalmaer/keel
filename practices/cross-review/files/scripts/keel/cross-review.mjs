@@ -30,7 +30,9 @@
 // A project that ships to main opens no PR. With "after": "push", each push
 // to main is reviewed after it lands, as one batch: everything since the last
 // review (its tracking issue records where it ended), else the push's own
-// range, else the head commit alone (a first push, a force push), by a
+// range; with neither (a first or force push, the push that installs the
+// publisher, a daily run before any review) nothing is reviewed and the
+// record starts at the head. It is reviewed by a
 // provider other than the one its commits' authors and Co-authored-by
 // trailers name (lib.mjs pushReviewerOf; a person's push, the first listed).
 // Findings are checked against that diff as a PR's are; each one is a
@@ -220,41 +222,15 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /**
  * What the tracking issues say (gh issue list --label keel:review-after
  * --json number,body,createdAt,author): { last, issue, today, day }. `last`
- * is where the newest review ended (its record's `to`), `today` how many
- * reviews were opened on this UTC day. Issues a person opened are not the
- * record. Pure.
+ * is where the newest review (or start) ended (its record's `to`), `today`
+ * how many reviews were opened on this UTC day (a start, which spends
+ * nothing, is not one). Issues a person opened are not the record. Pure.
  */
 export function pushHistory(issues, { now = Date.now() } = {}) {
   const day = new Date(now).toISOString().slice(0, 10);
   const mine = (Array.isArray(issues) ? issues : []).filter(i => byWorkflow(i) && recordOf(i?.body))
     .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
-  return { last: mine.length ? recordOf(mine[0].body).to : null, issue: mine[0]?.number ?? null, today: mine.filter(i => String(i.createdAt ?? '').slice(0, 10) === day).length, day };
-}
-
-/**
- * Which commits to review: { base, alone, why } or { none } (nothing to
- * review). Everything since the last review when main's history still holds
- * it; else the push's own range (`before`); else the head commit alone,
- * against its parent, saying why (a first push: `before` all zeros; a force
- * push: `before` or the last review unreachable). `base` is always a commit
- * before the range: the publish job runs its code. A repository's first
- * commit has none, so it is not reviewed. `git`: gitOf's isCommit,
- * isAncestor, parentOf.
- */
-export function pushRange({ head, before = null, last = null, git }) {
-  const notes = [];
-  if (last) {
-    if (last === head) return { none: `${short(head)} was reviewed already: the last review ended there` };
-    if (git.isCommit(last) && git.isAncestor(last, head)) return { base: last, alone: false, why: `everything since the last review (${short(last)}..${short(head)})` };
-    notes.push(`the last review ended at ${short(last)}, which main's history no longer holds (a force push)`);
-  }
-  if (before && !ZERO.test(before)) {
-    if (SHA.test(before) && before !== head && git.isCommit(before) && git.isAncestor(before, head)) return { base: before, alone: false, why: `the push (${short(before)}..${short(head)})${notes.length ? `, since ${notes.join('; ')}` : ''}` };
-    notes.push(`the push's before, ${short(before)}, is not in main's history (a force push)`);
-  } else if (before !== null) notes.push('the push has no before (a first push)');
-  const parent = git.parentOf(head);
-  if (!parent) return { none: `${short(head)} is the repository's first commit: no commit before it holds the code that posts its review` };
-  return { base: parent, alone: true, why: `${short(head)} alone, since ${notes.join('; ') || 'nothing says where the push began'}` };
+  return { last: mine.length ? recordOf(mine[0].body).to : null, issue: mine[0]?.number ?? null, today: mine.filter(i => String(i.createdAt ?? '').slice(0, 10) === day && !recordOf(i.body).start).length, day };
 }
 
 /** git in `root`, read-only: what pushRange and the authorship need. A failed call is null, never a throw. */
@@ -264,7 +240,6 @@ export function gitOf(root, run = args => execFileSync('git', args, { cwd: root,
     head: () => ok(['rev-parse', 'HEAD'])?.trim() || null,
     isCommit: sha => SHA.test(sha ?? '') && ok(['cat-file', '-e', `${sha}^{commit}`]) !== null,
     isAncestor: (a, b) => ok(['merge-base', '--is-ancestor', a, b]) !== null,
-    parentOf: sha => ok(['rev-parse', '--verify', '--quiet', `${sha}^`])?.trim() || null,
     // A file as a commit holds it, or null (no such file there).
     fileAt: (sha, path) => ok(['show', `${sha}:${path}`]),
     // Each commit's sha, author and message (its trailers), newest first.
@@ -290,30 +265,53 @@ export function protocolAt(git, sha) {
 }
 
 /**
- * The commit the publish job can run from: `base` when its cross-review.mjs
- * speaks PUSH_PROTOCOL; else the oldest commit after it, up to `head`, that
- * does (the commits from `base` up to it brought the publisher, and are not
- * reviewed: nothing before them can post their review). { base, unreviewed? }
- * or { none } when only the head brings it. Checked before the agent runs,
- * so a review is never spent where it cannot be posted.
+ * Which commits to review: { base, why, unreviewed? }, { none } (nothing new
+ * since the last review) or { start } (nothing here can be reviewed: the
+ * record starts at the head). The base is only ever one of two facts the
+ * pushed code cannot set, and that the publish job checks again on its own
+ * (keel#65): where the last review ended (its tracking issue's record), else
+ * the push's `before`; each only when main's history holds it below the
+ * head and its cross-review.mjs speaks PUSH_PROTOCOL, since the publish job
+ * runs that script. A last review whose script cannot post (from before an
+ * upgrade) gives way to the push's before, and the commits between are
+ * named as not reviewed. With neither (a first push, a force push, the push
+ * that installs or upgrades the publisher, a daily run before any review),
+ * no commit before the push is known to be main's own code that can post,
+ * so nothing is reviewed and the record starts at the head: the next push
+ * is reviewed from it. `git`: gitOf's isCommit, isAncestor, fileAt.
  */
-export function publisherBase({ base, head, git }) {
-  if (protocolAt(git, base) === PUSH_PROTOCOL) return { base };
-  const after = git.commits(base, head).reverse();
-  const at = after.findIndex(x => protocolAt(git, x.sha) === PUSH_PROTOCOL);
-  const why = `${short(base)}'s cross-review.mjs cannot post a review after the push (push protocol ${PUSH_PROTOCOL}), and the publish job runs nothing newer than the reviewed commits' base`;
-  if (at < 0) return { none: `${why}; no commit up to ${short(head)} holds one that can` };
-  if (after[at].sha === head) return { none: `${why}; ${short(head)} brings the one that can, so nothing after it is left to review here: the next push is reviewed from it, and the commits up to it are not reviewed` };
-  return { base: after[at].sha, unreviewed: { from: base, to: after[at].sha, count: at + 1 } };
+export function pushRange({ head, before = null, last = null, git }) {
+  const notes = [];
+  const below = sha => SHA.test(sha ?? '') && sha !== head && git.isCommit(sha) && git.isAncestor(sha, head);
+  const speaks = sha => protocolAt(git, sha) === PUSH_PROTOCOL;
+  const cannot = (what, sha) => `${what}, ${short(sha)}, holds a cross-review.mjs that cannot post a review after the push (push protocol ${PUSH_PROTOCOL}: an install or an upgrade)`;
+  let stale = null;
+  if (last) {
+    if (last === head) return { none: `${short(head)} was reviewed already: the last review ended there` };
+    if (below(last) && speaks(last)) return { base: last, why: `everything since the last review (${short(last)}..${short(head)})` };
+    if (below(last)) { stale = last; notes.push(cannot('the last review\'s end', last)); }
+    else notes.push(`the last review ended at ${short(last)}, which main's history no longer holds below ${short(head)} (a force push)`);
+  }
+  if (before && !ZERO.test(before)) {
+    if (below(before) && speaks(before)) {
+      const unreviewed = stale && git.isAncestor(stale, before) && stale !== before ? { from: stale, to: before, count: git.commits(stale, before).length } : null;
+      return { base: before, why: `the push (${short(before)}..${short(head)})${unreviewed ? `, and not the ${plural(unreviewed.count, 'commit')} before it since the last review (${short(stale)}..${short(before)}): ${notes.join('; ')}` : notes.length ? `, since ${notes.join('; ')}` : ''}`, ...(unreviewed ? { unreviewed } : {}) };
+    }
+    notes.push(below(before) ? cannot('the push\'s before', before) : `the push's before, ${short(before)}, is not in main's history below ${short(head)} (a force push)`);
+  } else if (before !== null) notes.push('the push has no before (a first push)');
+  else if (!last) notes.push('no push has been reviewed here yet');
+  return { start: `${notes.join('; ')}: no commit before ${short(head)} is known to hold main's own code that can post a review, so nothing up to it is reviewed, and the review after the push starts there (the next push is reviewed from it)` };
 }
 
 /**
- * Whether to review after a push (phase 60): { review, mode: 'push', why },
- * and with a review: sha (main's head), base, alone, trusted (the commit the
- * publish job runs from: base, never one of the reviewed commits), range,
- * commits, agent, author, authors, minutes. Only with "after": "push";
- * `event` is push or schedule (a schedule only once a push has been
- * reviewed). Past the day's budget ("budget".pushes reviews a UTC day) it is
+ * Whether to review after a push (phase 60): { review, mode, why }. With a
+ * review (mode push): sha (main's head), base, trusted (the commit the
+ * publish job runs from: the base, the last review's end or the push's
+ * before, never one of the reviewed commits), range, commits, agent,
+ * author, authors, minutes. With nothing reviewable (mode start: pushRange's
+ * start) the publish job records the head as where the next review begins,
+ * and spends nothing. Only with "after": "push"; `event` is push or
+ * schedule. Past the day's budget ("budget".pushes reviews a UTC day) it is
  * a notice: the commits wait for the next run. The reviewer is never a
  * provider that wrote the push while another is available (`choose` is
  * pushReviewerOf; a test swaps it to prove the guard): that throws (exit 2,
@@ -327,15 +325,9 @@ export function shouldReviewPush({ config, event, head, before = null, history, 
   if (!PUSH_EVENTS.includes(event)) return no(`${event || 'no event'} never starts a review after the push`);
   if (!SHA.test(head ?? '')) return no('main\'s head commit could not be read');
   const h = history ?? { last: null, today: 0, day: new Date().toISOString().slice(0, 10) };
-  if (event === 'schedule' && !h.last) return no('no push has been reviewed here yet: the first push to main starts the record');
-  const pushed = pushRange({ head, before: event === 'push' ? (before ?? '') : null, last: h.last, git });
-  if (pushed.none) return no(pushed.none);
-  // The publish job runs the base's script: a base from before the publisher (the push that installs or upgrades it) moves past it, said.
-  const pub = publisherBase({ base: pushed.base, head, git });
-  if (pub.none) return { review: false, mode: 'push', notice: true, why: `Not reviewed: ${pub.none}.` };
-  const range = pub.unreviewed
-    ? { base: pub.base, alone: false, unreviewed: pub.unreviewed, why: `${pushed.why}, from ${short(pub.base)}: the ${plural(pub.unreviewed.count, 'commit')} before it (${short(pub.unreviewed.from)}..${short(pub.base)}) brought the script that posts this review and are not reviewed` }
-    : pushed;
+  const range = pushRange({ head, before: event === 'push' ? (before ?? '') : null, last: h.last, git });
+  if (range.none) return no(range.none);
+  if (range.start) return { review: false, mode: 'start', start: true, notice: true, sha: head, why: `Not reviewed, the record starts here: ${range.start}.` };
   if (h.today >= c.pushes) return { review: false, mode: 'push', notice: true, why: `Waiting: today's budget of ${plural(c.pushes, 'push review')} is spent (${h.day}, UTC); ${range.why} waits, and the first run after midnight UTC reviews it with whatever lands meanwhile.` };
   const commits = git.commits(range.base, head);
   if (!commits.length) return no(`no commits between ${short(range.base)} and ${short(head)}`);
@@ -350,7 +342,7 @@ export function shouldReviewPush({ config, event, head, before = null, history, 
   return {
     review: true, mode: 'push', self, ...(self ? { reason: who.reason ?? 'no other is available' } : {}),
     why: `${range.why}, ${plural(commits.length, 'commit')}; ${who.why}`,
-    sha: head, base: range.base, alone: Boolean(range.alone), trusted: range.base, range: range.why, ...(range.unreviewed ? { unreviewed: range.unreviewed } : {}),
+    sha: head, base: range.base, alone: false, trusted: range.base, range: range.why, ...(range.unreviewed ? { unreviewed: range.unreviewed } : {}),
     minutes: c.minutes, agent: who.reviewer, author: who.author ?? null, authors, today: h.today, pushes: c.pushes,
     count: commits.length, commits: commits.slice(0, MAX_COMMITS).map(x => ({ sha: x.sha, subject: x.message.split('\n')[0].slice(0, 200), by: commitAuthorOf(x) })),
   };
