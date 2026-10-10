@@ -1319,6 +1319,7 @@ export function crossReviewProblems(text) {
     const PUSH_API = [
       /^\s*gh api -H "Accept: application\/vnd\.github\.raw" "repos\/\$REPO\/contents\/scripts\/keel\/(?:cross-review|lib)\.mjs\?ref=\$SHA" > "\$out\/(?:cross-review|lib)\.mjs"$/,
       /^\s*gh api "repos\/\$REPO\/compare\/\$STARTAT\.\.\.\$SHA" > "\$RUNNER_TEMP\/start-below\.json"$/,
+      /^\s*had=\$\(gh api "repos\/\$REPO\/issues\?labels=keel:review-after&state=all&per_page=1" --jq 'length'\)$/,
       /^\s*gh api --method POST "repos\/\$REPO\/labels" -f name=keel:review-after -f color=5319e7 > \/dev\/null 2>&1 \|\| true$/,
       /^\s*gh api --method POST "repos\/\$REPO\/issues" --input "\$RUNNER_TEMP\/start\.json" > "\$RUNNER_TEMP\/started\.json"$/,
       /^\s*gh api --method PATCH "repos\/\$REPO\/issues\/\$number" -f state=closed -f state_reason=completed > \/dev\/null$/,

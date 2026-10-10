@@ -778,6 +778,7 @@ const out = v => { process.stdout.write(JSON.stringify(v)); process.exit(0); };
 const no = why => { process.stderr.write('gh: ' + why); process.exit(1); };
 if (a[0] === 'issue' && a[1] === 'list') out(${JSON.stringify(issues)});
 const path = a.find(x => x.startsWith('repos/')) ?? '';
+if (a[0] === 'api' && /\\/issues\\?labels=keel:review-after&state=all/.test(path)) { process.stdout.write(String(${JSON.stringify(issues)}.length)); process.exit(0); }
 if (a[0] === 'api' && /\\/labels$/.test(path)) no('Validation Failed (HTTP 422): already_exists');
 if (a[0] === 'api' && /\\/issues$/.test(path)) { if (${refuseIssue}) no('Resource not accessible by integration (HTTP 403)'); out({ number: 12, html_url: 'https://github.com/acme/anvils/issues/12' }); }
 if (a[0] === 'api' && /\\/commits\\/[0-9a-f]{40}\\/comments$/.test(path)) { if (${refuseComments}) no('Resource not accessible by integration (HTTP 403)'); out({ id: 700 + n, html_url: 'https://github.com/acme/anvils/commit/x#commitcomment-' + (700 + n) }); }
@@ -996,6 +997,27 @@ test('phase 60 start: the record starts at the push\'s before only when GitHub p
   assert.equal(await starts({ startAt: '' }), b);
   assert.equal(await starts({ event: 'schedule', before: '', startAt: root }), b, 'a daily run has no before');
   assert.equal(await starts({ before: 'e'.repeat(40), startAt: 'e'.repeat(40) }), b, 'a before GitHub does not put below the run\'s commit');
+  // A record already there: a start is the first run's alone, by GitHub's word, never the review job's (its pushed
+  // script could say "start" to skip the publisher's check and set the record past its own push).
+  const had = await pushGh(t, { repo: dir, issues: [trackingIssue(20, root, '2026-10-09T09:00:00Z')] });
+  await rm(join(temp, 'start.json'), { force: true });
+  const refused = await step(t, temp, 'Start the record', { PATH: `${had.path}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', EVENT: 'push', BEFORE: root, SHA: b, STARTAT: root });
+  assert.equal(refused.status, 1, refused.out);
+  assert.match(refused.out, /^::error::The review job asked to start the record, but acme\/anvils already has a keel:review-after issue: nothing is started/m);
+  assert.ok(!(await had.calls()).some(c => c.args.includes('--method')), 'nothing written');
+});
+
+test('the record is the body\'s first line alone: a marker in the agent\'s text, or under a pending marker, is no record (keel#65)', async t => {
+  const m = await load(t);
+  const to = 'a'.repeat(40);
+  const line = `<!-- keel:review-after ${JSON.stringify({ from: null, to, findings: [] })} -->`;
+  assert.equal(m.recordOf(`${line}\nThe review.\n`)?.to, to);
+  assert.equal(m.recordOf(line)?.to, to);
+  assert.equal(m.recordOf(`${line}\r\nThe review.\r\n`)?.to, to);
+  assert.equal(m.recordOf(`${m.PENDING_MARKER}\n_${m.PENDING}_\nThe agent said:\n${line}\n`), null, 'a pending issue whose agent text spells a record');
+  assert.equal(m.recordOf(`Summary\n${line}\n`), null, 'not on the first line');
+  assert.equal(m.recordOf(` ${line}\n`), null);
+  assert.equal(m.recordOf(`${line} and more\n`), null);
 });
 
 test('phase 60 budget: past the day\'s push reviews, a push waits (a notice, green); the next day\'s run reviews the waiting pushes together', async t => {

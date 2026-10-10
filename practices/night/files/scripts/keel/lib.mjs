@@ -1992,7 +1992,9 @@ export const pushTitle = sha => `keel review after ${String(sha ?? '').slice(0, 
  */
 export const recordText = record => `<!-- ${PUSH_LABEL} ${JSON.stringify(record).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')} -->`;
 export function recordOf(body) {
-  const m = new RegExp(`<!-- ${PUSH_LABEL} (\\{[^\\n]*\\}) -->`).exec(String(body ?? ''));
+  // The body's first line alone (keel#65): the rest holds the agent's summary and findings, which could
+  // spell a marker of their own; a pending issue starts with its own marker, so it is never a record.
+  const m = new RegExp(`^<!-- ${PUSH_LABEL} (\\{[^\\n]*\\}) -->(?:\\r?\\n|$)`).exec(String(body ?? ''));
   if (!m) return null;
   try { const r = JSON.parse(m[1]); return r && typeof r === 'object' && /^[0-9a-f]{40}$/.test(r.to ?? '') ? r : null; } catch { return null; }
 }

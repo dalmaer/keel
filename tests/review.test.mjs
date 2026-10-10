@@ -683,6 +683,9 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   assert.deepEqual(shown.followUps.map(f => [f.id, f.body]), [['601', '**F9** `src/lid.js:1`: **Fixed** in abc1234. Validated against the code first.']]);
   assert.deepEqual(shown.comments.map(c => c.answered), [false, false], 'it answered no finding');
   assert.match(keel(own, stray, [at]).out, /^1 other comment on #12, read before closing:\n {2}601 {2}acme-reviewer {2}\S+\n {4}\*\*F9\*\*/m);
+  // keel#65: another workflow's comment (github-actions too, no keel marker) is news; only the workflow's own, marked, is not.
+  const actions = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true, comments: [ic(611, 'github-actions[bot]', 'Deploy preview: the lid renders upside down.'), ic(612, 'github-actions[bot]', '<!-- keel:review-after-note -->\nkeel\'s own note.')] });
+  assert.deepEqual(keel(own, actions, [at, '--json']).json().followUps.map(f => [f.id, f.author]), [['611', 'github-actions[bot]']]);
   // Arrived after the read: news, so the close refuses until it is read.
   const later = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true });
   keel(own, later, [at]);

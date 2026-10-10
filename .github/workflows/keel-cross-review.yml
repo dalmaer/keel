@@ -458,6 +458,15 @@ jobs:
           SHA: ${{ github.sha }}
           STARTAT: ${{ needs.review.outputs.start }}
         run: |
+          # A start is only for a repo with no record yet, and that is GitHub's
+          # word, never the review job's (keel#65): the pushed script said
+          # "start", and a script that lies would skip the publisher's check
+          # and set the record past its own push.
+          had=$(gh api "repos/$REPO/issues?labels=keel:review-after&state=all&per_page=1" --jq 'length')
+          if [ "$had" != 0 ]; then
+            echo "::error::The review job asked to start the record, but $REPO already has a keel:review-after issue: nothing is started. A start is only for the first run; check the latest record."
+            exit 1
+          fi
           at="$SHA"
           if [ "$EVENT" = push ] && [ -n "$STARTAT" ] && [ "$STARTAT" = "$BEFORE" ] && [ "$STARTAT" != "$SHA" ]; then
             gh api "repos/$REPO/compare/$STARTAT...$SHA" > "$RUNNER_TEMP/start-below.json"
