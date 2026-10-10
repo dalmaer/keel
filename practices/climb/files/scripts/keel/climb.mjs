@@ -85,7 +85,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems, agentGitArgs, codexVerdict } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, scriptsChanged, treeState, heldProblems, changesOf, pathsOf, SAFE_GIT, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -259,8 +259,9 @@ const on = config => climbConfigOf(config) ?? (() => { throw new ClimbError('cli
 
 // Under Codex (phase 47) the checkout's git dir is .keel/agent-git (KEEL_AGENT_GIT):
 // agentGitArgs points the checkout's own commands at it; a worktree's never.
+// SAFE_GIT (tend.mjs, PR #59): no hook or fsmonitor the agent's code planted runs from keel's git.
 function git(cwd, args, { allowFail = false } = {}) {
-  const r = spawnSync('git', [...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...SAFE_GIT, ...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new ClimbError(`git ${args[0]}: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new ClimbError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
   return allowFail ? r : r.stdout.trim();
@@ -1080,9 +1081,10 @@ async function loopModule(root) {
 export async function findingsAt(root, ref = null) {
   const loop = await loopModule(root);
   if (!ref) return loop.loadFindings(join(root, FINDINGS_DIR));
-  const names = git(root, ['ls-tree', '--name-only', `${ref}:${FINDINGS_DIR}`], { allowFail: true });
+  // NUL-delimited (PR #59): a quoted name would never be found by the git show below.
+  const names = git(root, ['ls-tree', '-z', '--name-only', `${ref}:${FINDINGS_DIR}`], { allowFail: true });
   if (names.status !== 0) return [];
-  return names.stdout.split('\n').filter(n => n.endsWith('.md') && n !== 'README.md').sort()
+  return names.stdout.split('\0').filter(n => n.endsWith('.md') && n !== 'README.md').sort()
     .map(n => loop.parseFinding(git(root, ['show', `${ref}:${FINDINGS_DIR}/${n}`]), n.replace(/\.md$/, '')));
 }
 
@@ -1139,7 +1141,8 @@ export async function loopPull({ root, config, env = process.env, now = new Date
 // ---- the proposals guard ---------------------------------------------------------
 
 /** Changed paths between two commits: [{ status, path }] (no renames: a move is a delete and an add). */
-const changedPaths = (root, base, head) => git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [status, ...p] = l.split('\t'); return { status: status[0], path: p.join('\t') }; });
+// NUL-delimited (tend.mjs changesOf, PR #59): a quoted path would slip past the proposals' rules.
+const changedPaths = (root, base, head) => changesOf(root, base, head).map(({ status, path }) => ({ status: status[0], path }));
 const under = (path, dir) => path === dir || path.startsWith(`${dir}/`);
 
 /** The rows of the lessons table that differ between two commits: [n]. */
@@ -1188,13 +1191,15 @@ export async function proposalsProblems({ root, config, job, base, head }) {
   return out;
 }
 
-async function proposalsGuard({ root, config, env, night, base, head, job }) {
+async function proposalsGuard({ root, config, env, night, base, head, job, before = treeState(root) }) {
   const problems = await proposalsProblems({ root, config, job, base, head });
   if (problems.length) return { ok: false, job, problems };
   const gate = config.check ?? CHECK;
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, job, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const moved = heldProblems(root, before, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, job, gate, refused: moved, problems: moved };
   const n = changedPaths(root, base, head).length;
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; proposals only (${n} file${n === 1 ? '' : 's'} under ${job === 'lessons' ? `${LESSONS_DIR}/` : loopPaths(config).join(', ')}), no code changed, nothing decided`;
   if (night) { night.gate = line; await writeNight(root, night); }
@@ -1245,6 +1250,56 @@ async function gateRun(cwd, gate, { env, config }) {
   return { ...r, runs: (await readRuns(cwd)).runs.filter(x => !before.has(x.id)) };
 }
 
+/**
+ * The gate, judged by what it ran, not by its exit alone (climb's guard since
+ * ledger#94; held against the gate's own writes since PR #59): the gate runs on the
+ * candidate, then the base's own gate (the same command, read from the
+ * base's tree: its package.json scripts, in a worktree of the base), and the
+ * test ledger's records of each are compared. Refused: a candidate gate that
+ * failed; one that recorded no ledger run where the base's did (a gate script
+ * rewritten to `true`); a test the base ran that the candidate dropped or
+ * skipped; a test that failed though the gate exited 0 (`|| true`). Only this
+ * gate run's records count: a record written before it (the agent testing a
+ * file at the same commit, a CI run, a record the agent's job handed back)
+ * could hold a suite the candidate's gate no longer runs. A base gate that
+ * fails or records nothing throws (exit 2): there is nothing to compare.
+ * { ok, problems, count?, missing? }.
+ */
+export async function ledgerCheck({ root, config, env = process.env, gate, base: b, head }) {
+  const held = treeState(root);
+  const r = await gateRun(root, gate, { env, config });
+  if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
+  if (r.status !== 0) return { ok: false, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  // PR #59: before the base's gate runs in a worktree that shares this git dir, nothing the candidate's gate
+  // planted there (a hook, an fsmonitor, a replace ref) or moved in the tree may stand.
+  const moved = heldProblems(root, held, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, refused: moved, problems: moved };
+  const cand = ranOn(r.runs, head);
+  // The base's names, from the base's own gate, run now in a worktree beside
+  // the tree (its siblings resolve as the checkout's): never a record read
+  // from the ledger, which the agent's job hands back.
+  let baseRun = null, dir = null;
+  try {
+    dir = await siblingWorktree(root, b, 'guard');
+    const t = await gateRun(dir, gate, { env, config });
+    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
+    baseRun = ranOn(t.runs, b);
+  } finally {
+    await dropWorktree(root, dir);
+  }
+  if (!baseRun) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for the base ${b.slice(0, 7)}${cand ? '' : ` or ${head.slice(0, 7)}`}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
+  const ranBase = (baseRun.tests ?? []).filter(ran).length;
+  if (!cand) return { ok: false, problems: [`the gate \`${gate}\` exited 0 on ${head.slice(0, 7)} but recorded no test ledger run, where the base ${b.slice(0, 7)}'s ran ${ranBase} tests: the candidate's gate does not run what the base's does (its gate script changed?)`] };
+  // PR #59: each suite's reporter writes one record; a record more than the base's gate wrote is one the
+  // reporter did not (the branch's code wrote it into the ledger), and it cannot be told from a real one.
+  if (cand.runs > baseRun.runs) return { ok: false, problems: [`the gate \`${gate}\` left ${cand.runs} test ledger records for ${head.slice(0, 7)} where the base ${b.slice(0, 7)}'s gate wrote ${baseRun.runs}: a record its own reporter did not write is in .keel/test-runs (the branch's code wrote it?), so what ran cannot be told`] };
+  const missing = missingTests(baseRun, cand);
+  if (missing.length) return { ok: false, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
+  const failed = (cand.tests ?? []).filter(t => t.outcome === 'fail');
+  if (failed.length) return { ok: false, problems: failed.map(t => `failed: ${t.file ?? '(no file)'} "${t.name}" failed on ${head.slice(0, 7)}, though the gate \`${gate}\` exited 0`) };
+  return { ok: true, problems: [], count: (cand.tests ?? []).filter(ran).length };
+}
+
 export async function guard({ root, config, env = process.env, base, job }) {
   on(config);
   const night = await readNight(root);
@@ -1259,7 +1314,10 @@ export async function guard({ root, config, env = process.env, base, job }) {
   // Before anything runs: the workflows, keel's scripts and the config stay as the base has them.
   const off = sandboxProblems(root, b, head);
   if (off.length) return { ok: false, job, refused: off, problems: off };
-  if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job });
+  // PR #59: what is checked below is this HEAD and this tree; the build, the perf check and the gate are
+  // the agent's code, so before passing, the guard confirms neither moved.
+  const before = treeState(root);
+  if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job, before });
   const extra = {};
   if (job === 'hygiene') {
     // Lesson 40: a longer wait or a retry around the flaky test is not a fix.
@@ -1288,32 +1346,16 @@ export async function guard({ root, config, env = process.env, base, job }) {
     if (night) night.perfCheck = extra.perfCheck;
   }
   const gate = config.check ?? CHECK;
-  // Only this gate run's records count (ledger#94): a record written before
-  // it (the agent testing a file at the same commit, a CI run, a record the
-  // agent's job handed back) could hold a suite the candidate's gate no
-  // longer runs. The ledger's files before the run are set aside by name.
-  const r = await gateRun(root, gate, { env, config });
-  if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
-  if (r.status !== 0) return { ok: false, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
-  const cand = ranOn(r.runs, head);
-  if (!cand) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for ${head.slice(0, 7)}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
-  // The base's names, from the base's own gate, run now in a worktree beside
-  // the tree (its siblings resolve as the checkout's): never a record read
-  // from the ledger, which the agent's job hands back.
-  let baseRun = null, dir = null;
-  try {
-    dir = await siblingWorktree(root, b, 'guard');
-    const t = await gateRun(dir, gate, { env, config });
-    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
-    baseRun = ranOn(t.runs, b);
-  } finally {
-    await dropWorktree(root, dir);
-  }
-  if (!baseRun) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate recorded no test ledger run: guard cannot tell a dropped test without one`);
-  const missing = missingTests(baseRun, cand);
-  const count = (cand.tests ?? []).filter(ran).length;
-  if (missing.length) return { ok: false, gate, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
-  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}`;
+  const ledger = await ledgerCheck({ root, config, env, gate, base: b, head });
+  if (!ledger.ok) return { ok: false, gate, ...(ledger.missing ? { missing: ledger.missing } : {}), problems: ledger.problems };
+  const count = ledger.count;
+  const moved = heldProblems(root, before, `the agent's code the guard ran (the gate \`${gate}\`${extra.perfCheck ? ', the perf check' : ''}${extra.build ? ', the build' : ''})`);
+  if (moved.length) return { ok: false, job, gate, refused: moved, problems: moved };
+  // PR #59: a climb night may change the scripts that run the gate (the test command is often the change that
+  // pays), but then those scripts wrote the records the comparison read; the PR says so, for the person.
+  const scripts = scriptsChanged(root, b, head);
+  const caution = scripts.length ? `; the branch changed the gate's scripts (${scripts.map(s => `${s.path}: ${s.keys.map(k => `"${k}"`).join(', ')}`).join('; ')}), so its own scripts wrote the records compared: a person checks the gate still runs the base's tests` : '';
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}${caution}`;
   if (night) { night.gate = line; await writeNight(root, night); }
   return { ok: true, gate, line, problems: [], ...(job ? { job } : {}), ...extra };
 }
@@ -1521,7 +1563,8 @@ export async function report({ root, config, input, body, state = false, issue, 
   const trusted = recordBase(root, base, night.base, input ?? NIGHT);
   if (trusted.problem) throw new ClimbError(trusted.problem);
   night.base = trusted.base;
-  const files = git(root, ['diff', '--name-only', night.base, 'HEAD']).split('\n').filter(Boolean);
+  // NUL-delimited (tend.mjs pathsOf, PR #59): a quoted path would be named wrong in the PR's surfaces.
+  const files = pathsOf(root, ['diff', '--name-only', night.base, 'HEAD']);
   const pkg = await readJson(join(root, 'package.json')).catch(() => null);
   const proposals = JOBS[night.job]?.kind === 'proposals' ? await proposalsOf(root, night, config) : null;
   if (night.job === 'loop' && proposals) {
