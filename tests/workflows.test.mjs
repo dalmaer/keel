@@ -1977,7 +1977,14 @@ export function robotWorkflowProblems(text) {
   if (!/\n\s+id: take\n/.test(take) || !/echo "head=\$head" >> "\$GITHUB_OUTPUT"\n\s+git switch -q -c "\$BRANCH" "\$head"/.test(take)) out.push('the judge does not name the commit it takes before the agent\'s code runs');
   if (!/\n {6}validated: \$\{\{ steps\.take\.outputs\.head \}\}\n/.test(judgeJob)) out.push('the judge job does not hand on the commit it took');
   if (!/robot\.mjs report --base "\$GITHUB_SHA" --head "\$VALIDATED"/.test(judgeJob)) out.push('the report reads HEAD, not the commit the judge took');
-  if (!/git update-ref "refs\/heads\/\$BRANCH" "\$VALIDATED"\n\s+git bundle create "\$out\/run\.bundle" "\$GITHUB_SHA\.\.refs\/heads\/\$BRANCH"/.test(judgeJob)) out.push('the judge hands on its HEAD, not the commit it took');
+  // PR #59: the gate can write the git dir (a hook, core.hooksPath, an fsmonitor): the bundle is made by the take step,
+  // before it, and every git the judge runs after the guard has hooks and fsmonitor off.
+  if (!/git switch -q -c "\$BRANCH" "\$head"\n\s+mkdir -p "\$RUNNER_TEMP\/judged"\n\s+if \[ "\$head" != "\$GITHUB_SHA" \]; then\n\s+git bundle create "\$RUNNER_TEMP\/judged\/run\.bundle" "\$GITHUB_SHA\.\.refs\/heads\/\$BRANCH"/.test(take)) out.push('the judged commit is not bundled by the take step, before the gate');
+  const judgeLines = code(judgeJob).map(l => l.line);
+  const guardAt = judgeLines.findIndex(l => /node scripts\/keel\/climb\.mjs guard --job robot/.test(l));
+  for (const l of judgeLines.slice(guardAt + 1)) if (/(^|[\s;(|&$])git\s/.test(l) && !/git -c core\.hooksPath=\/dev\/null -c core\.fsmonitor=false /.test(l)) out.push(`a git command after the gate runs the git dir's hooks or fsmonitor: ${l.trim()}`);
+  // PR #59: a PR reused is set onto the branch judged, and checked to be on it.
+  if (!/gh pr edit "\$num" --base "\$BASE" --body-file/.test(publish) || !/based=\$\(gh pr view "\$num" --json baseRefName --jq \.baseRefName\)\n\s+if \[ "\$based" != "\$BASE" \]; then\n[^\n]*\n\s+exit 1/.test(publish)) out.push('a reused PR keeps whatever base it has (retargeted, or the default branch changed)');
   if (!/VALIDATED: \$\{\{ needs\.judge\.outputs\.validated \}\}/.test(publish) || !/if \[ "\$head" != "\$VALIDATED" \]; then\n[^\n]*\n\s+exit 1/.test(publish)) out.push('publish pushes a head that is not the commit the judge took');
   if (!/node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head" --records\n/.test(publish)) out.push('publish does not hold the record rules itself (sandbox --records)');
   if (!/if \[ -z "\$url" \]; then\n[^\n]*\n\s+exit 1/.test(publish)) out.push('no PR open still counts as published, so the issue is marked worked');
@@ -2046,7 +2053,7 @@ test('keel-robot.yml runs only for the keel:agent label, a reopen, a writer\'s c
     ['the branch unchecked', t.replace(/\n {10}if \[ "\$BRANCH" != "keel\/robot-\$ISSUE" \]; then\n[\s\S]*?\n {10}fi\n/, '\n')],
     ['the message never posted', t.replace(/\n {6}# The issue is the conversation[\s\S]*$/, '\n')],
     ['the triage from the agent\'s artifact', t.replace('--issues "$TRIAGE" --post', '--issues "$(cat "$RUNNER_TEMP/run/triage")" --post')],
-    ['a merge', t.replace('            gh pr edit "$num" --body-file "$RUNNER_TEMP/run/body.md"\n', '            gh pr merge "$num" --squash\n')],
+    ['a merge', t.replace('            gh pr edit "$num" --base "$BASE" --body-file "$RUNNER_TEMP/run/body.md"\n', '            gh pr merge "$num" --squash\n')],
     ['the robot off said late', t.replace('      - name: Is the robot on?\n', '      - name: Acme first\n        run: true\n      - name: Is the robot on?\n')],
     ['daily', t.replace('cron: "19 10 * * 1"', 'cron: "19 10 * * *"')],
   ]) {
@@ -2114,7 +2121,12 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
     // PR #59: publish holds the record rules itself, on exactly the commit the judge took.
     ['publish without the record rules', t.replace('--head "$head" --records\n', '--head "$head"\n'), robotWorkflowProblems],
     ['publish takes any head', t.replace(/\n {10}if \[ "\$head" != "\$VALIDATED" \]; then\n[\s\S]*?\n {10}fi\n/, '\n'), robotWorkflowProblems],
-    ['the judge hands on its HEAD', t.replace('            git update-ref "refs/heads/$BRANCH" "$VALIDATED"\n', ''), robotWorkflowProblems],
+    ['the bundle made after the gate', t.replace(/\n {10}mkdir -p "\$RUNNER_TEMP\/judged"\n {10}if \[ "\$head" != "\$GITHUB_SHA" \]; then\n[^\n]*\n {10}fi\n/, '\n'), robotWorkflowProblems],
+    ['a git after the gate with hooks on', t.replace('git -c core.hooksPath=/dev/null -c core.fsmonitor=false status --porcelain', 'git status --porcelain'), robotWorkflowProblems],
+    ['a ref moved after the gate', t.replace('          # The judged commit\'s bundle was made by the take step, before the gate; no git runs here (PR #59).\n', '          git update-ref "refs/heads/$BRANCH" "$VALIDATED"\n'), robotWorkflowProblems],
+    // PR #59: retargeted since, or the default branch changed: the reused PR is set onto the judged base, and checked.
+    ['a reused PR keeps its base', t.replace('gh pr edit "$num" --base "$BASE" --body-file', 'gh pr edit "$num" --body-file'), robotWorkflowProblems],
+    ['a reused PR not checked', t.replace(/\n {12}based=\$\(gh pr view[^\n]*\n {12}if \[ "\$based" != "\$BASE" \]; then\n[^\n]*\n[^\n]*\n {12}fi\n/, '\n'), robotWorkflowProblems],
     ['the report reads HEAD', t.replace(' --head "$VALIDATED" --issue', ' --issue'), robotWorkflowProblems],
     ['the commit named after the gate', t.replace('          echo "head=$head" >> "$GITHUB_OUTPUT"\n', ''), robotWorkflowProblems],
     ['no PR, still published', t.replace(/\n {10}if \[ -z "\$url" \]; then\n[\s\S]*?\n {10}fi\n/, '\n'), robotWorkflowProblems],

@@ -496,7 +496,9 @@ jobs:
           path: ${{ runner.temp }}/handoff
       # The commit to judge, named here before any code of the agent's runs
       # (PR #59): the report, the hand-on and publish take this commit, never a
-      # later HEAD the gate (the agent's code) could have moved to.
+      # later HEAD the gate (the agent's code) could have moved to. Its bundle
+      # is made here too: the gate can write the git dir (a hook, a config), so
+      # after it no git runs here but keel's own, hooks and fsmonitor off.
       - name: Take the run's commits
         id: take
         env:
@@ -511,6 +513,10 @@ jobs:
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
           echo "head=$head" >> "$GITHUB_OUTPUT"
           git switch -q -c "$BRANCH" "$head"
+          mkdir -p "$RUNNER_TEMP/judged"
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            git bundle create "$RUNNER_TEMP/judged/run.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
 
       # Judged by the script, not the agent: anything uncommitted goes; the
       # robot's guard (the sandbox, the record rules, the gate: red if any
@@ -536,7 +542,7 @@ jobs:
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
-          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+          if [ -n "$(git -c core.hooksPath=/dev/null -c core.fsmonitor=false status --porcelain --untracked-files=no)" ]; then
             echo "::error::The tree changed after the guard; nothing is handed on."
             exit 1
           fi
@@ -556,17 +562,10 @@ jobs:
       # the agent's last message, whatever the verdict.
       - name: Hand the judged run on
         if: always()
-        env:
-          BRANCH: ${{ needs.agent.outputs.branch }}
-          VALIDATED: ${{ steps.take.outputs.head }}
         run: |
           out="$RUNNER_TEMP/judged"
           mkdir -p "$out"
-          # The judged commit, by the name the take step gave it (PR #59), never this tree's HEAD.
-          if [ -n "$VALIDATED" ] && [ "$VALIDATED" != "$GITHUB_SHA" ]; then
-            git update-ref "refs/heads/$BRANCH" "$VALIDATED"
-            git bundle create "$out/run.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
-          fi
+          # The judged commit's bundle was made by the take step, before the gate; no git runs here (PR #59).
           if [ -f "$RUNNER_TEMP/body.md" ]; then cp "$RUNNER_TEMP/body.md" "$out/"; fi
           if [ -f "$RUNNER_TEMP/handoff/message.md" ]; then cp "$RUNNER_TEMP/handoff/message.md" "$out/"; fi
       - name: Keep the judged run
@@ -671,7 +670,14 @@ jobs:
               fi
             fi
           else
-            gh pr edit "$num" --body-file "$RUNNER_TEMP/run/body.md"
+            # A PR reused is based on the branch that was judged (PR #59): retargeted since, or the default
+            # branch changed, it would carry commits from outside $GITHUB_SHA..head.
+            gh pr edit "$num" --base "$BASE" --body-file "$RUNNER_TEMP/run/body.md"
+            based=$(gh pr view "$num" --json baseRefName --jq .baseRefName)
+            if [ "$based" != "$BASE" ]; then
+              echo "::error::PR #$num is based on $based, not $BASE, the branch that was judged; the issue is not marked worked."
+              exit 1
+            fi
           fi
           url=$(gh pr list --state open --head "$BRANCH" --json url --jq '.[0].url' || true)
           echo "url=$url" >> "$GITHUB_OUTPUT"

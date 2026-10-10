@@ -39,6 +39,8 @@ test('guard: fails when a test that ran in the base did not run in the candidate
   for (const [tail, said] of [
     ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
     ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs', /changed the tracked tree or the index after the guard's checks/],
+    // PR #59: a config set (here core.hooksPath) in the git dir is refused before any git of keel's reads it.
+    ['git config core.hooksPath acme-hooks', /changed the git dir's config, hooks or attributes/],
   ]) {
     await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: `${LEDGER_TEST} && ${tail}` }));
     const moved = guard();

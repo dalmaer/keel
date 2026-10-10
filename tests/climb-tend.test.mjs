@@ -115,6 +115,8 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   for (const [check, said] of [
     ['echo "# Acme: proven" > docs/evidence/2026-10-09-sneak.md && git add docs/evidence && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
     ['echo "more" >> README.md && git add README.md', /changed the tracked tree or the index after the guard's checks/],
+    // PR #59: a hook planted in the git dir is refused before any git of keel's could run it.
+    ['printf "#!/bin/sh\\n" > "$(git rev-parse --git-common-dir)/hooks/reference-transaction"', /changed the git dir's config, hooks or attributes/],
   ]) {
     git(dir, ['reset', '-q', '--hard', checked]);
     await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check }));

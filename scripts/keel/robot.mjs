@@ -46,7 +46,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { isMain, rootOf, main, passAgentProblems, agentOf, AGENTS, reviewerOf, agentGitArgs, robotAgentMark } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
-import { sandboxProblems, recordRules, treeState, heldProblems, pathsOf } from './tend.mjs';
+import { sandboxProblems, recordRules, treeState, heldProblems, pathsOf, SAFE_GIT } from './tend.mjs';
 import { LABEL, triage, missingText } from './rubric.mjs';
 
 export const KEY = 'robot';
@@ -549,8 +549,9 @@ export async function lastMessage({ agent, file }) {
 
 // ---- the judge ---------------------------------------------------------------------------
 
+// SAFE_GIT (tend.mjs, PR #59): the report runs after the gate, so no hook or fsmonitor it planted runs.
 function git(root, args, { allowFail = false } = {}) {
-  const r = spawnSync('git', [...agentGitArgs(root), ...args], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...SAFE_GIT, ...agentGitArgs(root), ...args], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new RobotError(`git ${args[0]}: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new RobotError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
   return allowFail ? r : r.stdout.replace(/\n$/, '');

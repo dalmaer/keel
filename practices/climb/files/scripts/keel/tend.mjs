@@ -19,6 +19,8 @@
 // deletes, never merges: the guard refuses the first three, naming the line;
 // the workflow's rights refuse the last.
 import { readFile, writeFile, mkdir, readdir, realpath } from 'node:fs/promises';
+import { readFileSync, readdirSync, lstatSync, readlinkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, basename } from 'node:path';
@@ -179,8 +181,15 @@ export const tendSurface = path => (/^docs\/.+\.md$/.test(path) && !path.startsW
 // ---- small tools ---------------------------------------------------------------
 
 // Under Codex (phase 47), KEEL_AGENT_GIT points the checkout's commands at .keel/agent-git, as climb.mjs's.
+/**
+ * The options every keel git command runs with (PR #59): the agent's code (a
+ * gate, a build) can write the checkout's git dir, so no hook it planted and
+ * no fsmonitor it named ever runs from a command of keel's. climb.mjs and
+ * robot.mjs run git with these too.
+ */
+export const SAFE_GIT = Object.freeze(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false']);
 function git(cwd, args, { allowFail = false } = {}) {
-  const r = spawnSync('git', [...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...SAFE_GIT, ...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new TendError(`git ${args[0]}: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new TendError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
   return allowFail ? r : r.stdout.replace(/\n$/, '');
@@ -436,10 +445,25 @@ const firstAdded = (root, base, head, path) => {
  * did not check.
  */
 export function treeState(root) {
-  return { head: sha(root, 'HEAD'), status: git(root, ['status', '--porcelain', '--untracked-files=no']) };
+  const gitDir = git(root, ['rev-parse', '--absolute-git-dir']);
+  return { head: sha(root, 'HEAD'), status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitFiles: gitDirPrint(gitDir) };
+}
+/**
+ * The git dir's files that make git run a command (PR #59), read from disk,
+ * never through git: its config (core.hooksPath, fsmonitor, a filter's
+ * clean command, an alias), its hooks, and info/attributes (which names the
+ * filters). A hash of each path and its bytes.
+ */
+export function gitDirPrint(gitDir) {
+  const h = createHash('sha256');
+  const add = rel => { const p = join(gitDir, rel); try { const st = lstatSync(p); if (st.isDirectory()) { for (const n of readdirSync(p).sort()) add(join(rel, n)); return; } h.update(`${rel}\0${st.isSymbolicLink() ? `link:${readlinkSync(p)}` : readFileSync(p).toString('base64')}\0`); } catch (e) { if (e.code !== 'ENOENT') throw e; } };
+  for (const rel of ['config', 'config.worktree', 'hooks', 'info/attributes']) add(rel);
+  return h.digest('hex');
 }
 /** What moved since `before` (treeState): [problem]. `what` names the code that ran. */
 export function heldProblems(root, before, what) {
+  // The git dir first, from disk: a hook or a config it planted must never run, so no git is asked until it is clean.
+  if (gitDirPrint(before.gitDir) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes (${before.gitDir}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
   const now = treeState(root), out = [];
   if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
   if (now.status !== before.status) out.push(`${what} changed the tracked tree or the index after the guard's checks (git status: ${now.status.split('\n').filter(Boolean).slice(0, 3).join('; ') || 'clean'}): nothing is taken`);
@@ -464,6 +488,18 @@ export function recordRules(root, base, head, who = 'the agent') {
     if (status.startsWith('D')) { if (RECORD_DIRS.some(d => path.startsWith(d))) refused.push(`${path}: deletes a record; ${who} never removes a phase, project or decision record (propose it for the owner instead)`); continue; }
     if (!path.endsWith('.md')) continue;
     const before = showAt(root, base, path), after = showAt(root, head, path);
+    // PR #59: the projects shape keeps each phase's status in a **Status:** line, its boxes anywhere: any change
+    // to a status line, and any box newly ticked, is refused (conservatively: the rules never parse that shape's words).
+    if (/^docs\/projects\/.+\/phases\.md$/.test(path)) {
+      const lines = t => String(plain(t) ?? '').split('\n');
+      const was = new Set(lines(before).map(l => l.trim()));
+      lines(after).forEach((l, i) => {
+        const s = l.trim();
+        if (was.has(s)) return;
+        if (/^\*\*Status:\*\*/i.test(s)) refused.push(`${path}:${i + 1}: changes a phase's status line ("${s.slice(0, 80)}"); ${who} never marks a phase`);
+        else if (/^[-*]\s+\[[xX]\]\s+/.test(s)) refused.push(`${path}:${i + 1}: ticks a box ("${s.replace(/^[-*]\s+\[[xX]\]\s+/, '').slice(0, 80)}"); ${who} never accepts a phase`);
+      });
+    }
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; ${who} never marks a phase built, lived-in or accepted`);
     const was = new Set(ticked(before).map(x => x.text));

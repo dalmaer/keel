@@ -964,10 +964,13 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
   lessons and loop refuse any other path, a changed table row, and a finding
   decided tonight. Exit 1 names the problem. Every guard (climb's, tend's,
   the robot's) also refuses when the agent's code it ran (the gate, a build,
-  a perf check) moved HEAD or changed the tracked tree or index after its
-  checks. `sandbox --base r --head r [--records]` checks git alone;
-  `--records` adds the record rules (no evidence, no status marked built, no
-  box ticked), as the robot's publish job runs it.
+  a perf check) moved HEAD, changed the tracked tree or index, or changed
+  the git dir's config, hooks or attributes after its checks; keel's own
+  git runs with hooks and fsmonitor off. `sandbox --base r --head r
+  [--records]` checks git alone; `--records` adds the record rules (no
+  evidence, no status marked built, no box ticked; in
+  `docs/projects/*/phases.md`, no `**Status:**` line changed), as the
+  robot's publish job runs it.
 - `distill [--json]` — a lessons night's worksheet over the project's own
   table; `distill propose --kind family|reword|standardise … --read "…"` writes
   one proposal under `.keel/climb/lessons/` and commits it. Never the table.

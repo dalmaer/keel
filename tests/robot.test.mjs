@@ -108,6 +108,8 @@ const issue = (number, { body = rubricBody(FIELDS), title = `Acme issue ${number
 const comment = (at, body, { user = OWNER, association = 'OWNER', id } = {}) => ({ ...(id === undefined ? {} : { id }), created_at: at, body, user, author_association: association, html_url: `https://github.com/${REPO}/issues/1#c-${at}` });
 
 /** An injected GitHub: issues, comments and events by number, runs (each with its jobs), an open PR. Writes are recorded. */
+/** A phase in the projects shape (docs/projects/<p>/phases.md): its status in a **Status:** line, one box open. */
+const LID_PROJECT = '# Lid phases\n\n## 1. The lid opens\n**Status:** PART-DONE\n\n- [ ] the lid opens\n';
 /** A phase on the base, in LF: partial, one box open. */
 const LID_PHASE = '---\nstatus: partial\n---\n# Lid\n\n## Acceptance\n\n- [ ] the lid opens\n';
 /** GitHub's word on a body nobody edited, labelled by the owner (the default every fake issue has). */
@@ -494,7 +496,7 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const config = { agents: { claude: {}, codex: {} }, robot: { ...ON.robot, agent: 'codex' }, crossReview: { for: ['keel/robot-'] } };
   const dir = await acmeRobot(t, config);
   // An old proof on the base: no phase cites it, and it is still never the robot's to remove (PR #59).
-  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n', 'docs/phases/06-lid.md': LID_PHASE, 'docs/decisions/0001-lid.md': '# Hinged lids\n', 'docs/projects/lid/phases.md': '# Lid phases\n' }, 'acme: an old proof');
+  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n', 'docs/phases/06-lid.md': LID_PHASE, 'docs/decisions/0001-lid.md': '# Hinged lids\n', 'docs/projects/lid/phases.md': LID_PROJECT }, 'acme: an old proof');
   const guard = () => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'guard', '--job', 'robot', '--base', base, '--json'], { cwd: dir });
   git(dir, ['switch', '-q', '-c', 'keel/robot-12']);
   // Nothing committed: nothing to guard, and nothing to open.
@@ -550,6 +552,9 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     [{ 'docs/phases/06-lid.md': null }, /^docs\/phases\/06-lid\.md: deletes a record; the robot never removes a phase, project or decision record/],
     [{ 'docs/decisions/0001-lid.md': null }, /^docs\/decisions\/0001-lid\.md: deletes a record/],
     [{ 'docs/projects/lid/phases.md': null }, /^docs\/projects\/lid\/phases\.md: deletes a record/],
+    // PR #59: the projects shape keeps a phase's status in a **Status:** line: any change to it, or a box ticked, is refused.
+    [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('**Status:** PART-DONE', '**Status:** CLOSED') }, /^docs\/projects\/lid\/phases\.md:4: changes a phase's status line \("\*\*Status:\*\* CLOSED"\); the robot never marks a phase/],
+    [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('- [ ] the lid opens', '- [x] the lid opens').replace(/\n/g, '\r\n') }, /^docs\/projects\/lid\/phases\.md:6: ticks a box \("the lid opens"\)/],
     [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
@@ -569,14 +574,23 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   // stages a change) and exits 0 is refused: only the commit checked is ever taken.
   git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
   const checked = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open";\n' }, 'lid: open on the hinge');
+  const mark = join(await mkdtemp(join(tmpdir(), 'keel-robot-hook-')), 'hook-ran');
   for (const [gate, said] of [
     ['mkdir -p docs/evidence && echo "# Acme: proven" > docs/evidence/12-sneak.md && git add -A && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
     ['echo "// more" >> src/lid.mjs && git add src/lid.mjs', /changed the tracked tree or the index after the guard's checks/],
+    // PR #59: a gate that plants a hook, or names an fsmonitor, in the git dir: refused before any git of keel's runs it.
+    [`printf '#!/bin/sh\\ntouch "${mark}"\\n' > "$(git rev-parse --git-common-dir)/hooks/reference-transaction" && chmod +x "$(git rev-parse --git-common-dir)/hooks/reference-transaction"`, /changed the git dir's config, hooks or attributes/],
+    [`printf '#!/bin/sh\\ntouch "${mark}"\\n' > "${mark}.sh" && chmod +x "${mark}.sh" && git config core.fsmonitor "${mark}.sh"`, /changed the git dir's config, hooks or attributes/],
   ]) {
     git(dir, ['reset', '-q', '--hard', checked]);
     const g = await robot.robotGuard({ root: dir, config: { ...config, check: `${LEDGER_TEST} && ${gate}` }, base });
     assert.equal(g.ok, false, gate);
     assert.ok(g.problems.some(p => said.test(p)), JSON.stringify(g.problems));
+    // keel's own git after it (the report, the guard's checks) runs no hook and no fsmonitor of the gate's.
+    await robot.report({ root: dir, config, base, head: checked, issue: 12, title: 'Acme', agent: 'claude' });
+    assert.equal(existsSync(mark), false, `${gate}: a hook or fsmonitor the gate planted ran from keel's git`);
+    await rm(join(dir, '.git/hooks/reference-transaction'), { force: true });
+    run('git', ['config', '--unset', 'core.fsmonitor'], { cwd: dir });
   }
   git(dir, ['reset', '-q', '--hard', checked]);
   // And the publish job's own check (git alone) refuses evidence on the branch, whatever the judge said.
