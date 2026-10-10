@@ -67,7 +67,7 @@
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",
-      "sha256": "36ddc2c11f5da40a5a42c016d674410d9a94025cb9c5e1c5e69faaa80768a377"
+      "sha256": "c6ce443e6576e5e435fd85f55832fb48454af26e5d23e6fb2c8a59a36de390b6"
     },
     ".github/workflows/keel-cross-review.yml": {
       "practice": "cross-review",
@@ -91,7 +91,7 @@
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
-      "sha256": "b0853e70c0b73a7c0c06e43f837b58aeede515471bf4920d3e2bda3bc1f13006"
+      "sha256": "6a80ff44df8eab66aacec5452ec15b58466c18fbb9960aebdbb63bbcd782ba95"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -151,7 +151,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "2d19e27a4156dfb383bd75778601a69c06e12889a7069f665303a82ed492dc9e"
+      "sha256": "597176465799e187e8994da5418805075a052f6d3df6da450600b5ca65e8f8cd"
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
@@ -211,7 +211,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "fd604dd8f27c149370d76d7f410c3c89a067a72b2aac908fcad289d67d6cc52c"
+      "sha256": "227a2739f6dcff3dcb6faf7565d6c015350a02459c3e058a9bd3abecfc7890e0"
     },
     "scripts/keel/test-history.mjs": {
       "practice": "night",

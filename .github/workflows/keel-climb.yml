@@ -21,9 +21,12 @@
 #     file changed, so the scripts that judge are the default branch's), then
 #     the gate and no test dropped (climb.mjs guard), from the run's commit,
 #     never the base the night's record names. Its gate runs the agent's
-#     code, with no setup token, so it holds no write either. `publish`
-#     holds the write token, runs no code of the branch's, checks the sandbox
-#     again, and opens one PR on refs/heads/keel-climb/<job>/<date>, never
+#     code, with no setup token, so it holds no write either. It names the
+#     commit it judges before any of that code runs, checks after compare
+#     and report that nothing moved, and hands on that commit alone (#68).
+#     `publish` holds the write token, runs no code of the branch's, pushes
+#     only a bundle whose head is that commit, checks the sandbox again
+#     itself, and opens one PR on refs/heads/keel-climb/<job>/<date>, never
 #     main, never merged here. A night that keeps nothing opens nothing.
 #   - A hygiene night that proved no fix files one issue on this repo instead
 #     (climb.mjs report --issue): the workflow files it, never the agent.
@@ -505,6 +508,8 @@ jobs:
     permissions:
       contents: read
     outputs:
+      # The commit the guard checked, named before any of the agent's code ran (#68).
+      validated: ${{ steps.take.outputs.validated }}
       kept: ${{ steps.judge.outputs.kept }}
       line: ${{ steps.judge.outputs.line }}
       issue: ${{ steps.judge.outputs.issue }}
@@ -561,7 +566,12 @@ jobs:
         with:
           name: keel-climb-agent
           path: ${{ runner.temp }}/handoff
+      # Drop anything no compare kept (climb.mjs settle: git only), then name
+      # the commit to judge, and the checkout's state, before any of the
+      # agent's code runs (#68): this step's outputs are fixed when it ends,
+      # so nothing the gate leaves running can rename them.
       - name: Take the night's commits
+        id: take
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
         run: |
@@ -581,22 +591,29 @@ jobs:
             if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/climb/; fi
           done
           if [ -d "$in/test-runs" ]; then cp -R "$in/test-runs/." .keel/test-runs/; fi
-
-      # Judged by the script, not the agent: drop anything no compare kept,
-      # run the gate and check no test was dropped (red if either fails), the
-      # night's base against its end, then the PR body and the night's line.
-      - name: Judge the night
-        id: judge
-        env:
-          JOB: ${{ needs.agent.outputs.job }}
-          DAY: ${{ needs.agent.outputs.day }}
-        run: |
           # The base is the run's commit, never the record's (the agent wrote
           # the record): a night naming another base is refused.
           node scripts/keel/climb.mjs settle --base "$GITHUB_SHA"
+          validated=$(git rev-parse HEAD)
+          held=$(node scripts/keel/climb.mjs held)
+          echo "validated=$validated" >> "$GITHUB_OUTPUT"
+          echo "held=$held" >> "$GITHUB_OUTPUT"
+          echo "the commit to judge: $validated"
+
+      # Judged by the script, not the agent: run the gate and check no test
+      # was dropped (red if either fails), the night's base against its end,
+      # then the PR body and the night's line. The guard, compare and report
+      # run the agent's code; held then refuses anything it moved (#68).
+      - name: Judge the night
+        id: judge
+        env:
+          VALIDATED: ${{ steps.take.outputs.validated }}
+          HELD: ${{ steps.take.outputs.held }}
+        run: |
           node scripts/keel/climb.mjs guard --base "$GITHUB_SHA"
           node scripts/keel/climb.mjs compare --final --base "$GITHUB_SHA"
-          node scripts/keel/climb.mjs report --state --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --base "$GITHUB_SHA" --json > "$RUNNER_TEMP/report.json"
+          node scripts/keel/climb.mjs report --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --base "$GITHUB_SHA" --json > "$RUNNER_TEMP/report.json"
+          node scripts/keel/climb.mjs held --since "$HELD" --head "$VALIDATED" --what "the agent's code the judge ran (the guard, compare --final, report)"
           node -e '
             const fs = require("fs");
             const [file, out, summary, title] = process.argv.slice(1);
@@ -607,26 +624,23 @@ jobs:
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
-          # The rotation's state rides on the PR, as one more commit, when there
-          # is one; a night that keeps nothing is remembered by its record (the
-          # keel-climb artifact), which the next night's pick reads.
-          kept=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).kept ?? 0)' "$RUNNER_TEMP/report.json")
-          if [ "$kept" != 0 ] && [ -n "$(git status --porcelain -- .keel/climb.json)" ]; then
-            git add .keel/climb.json
-            git commit -q -m "keel climb: $JOB $DAY, rotation state"
-          fi
 
       # The judged night goes on as the agent's did: a bundle, the PR body,
-      # the issue, the record. Kept or not, the record goes on.
+      # the issue, the record. Kept or not, the record goes on. The bundle is
+      # the commit named before any of the agent's code ran, never the
+      # branch as the guard, compare and report left it (#68).
       - name: Hand the judged night on
         if: always()
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ steps.take.outputs.validated }}
         run: |
           out="$RUNNER_TEMP/judged"
           mkdir -p "$out/record"
-          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null; then
-            git bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          if [ -n "$VALIDATED" ] && [ "$VALIDATED" != "$GITHUB_SHA" ]; then
+            g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.useReplaceRefs=false "$@"; }
+            g update-ref "refs/heads/$BRANCH" "$VALIDATED"
+            g bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
           fi
           for f in body.md issue.md issue-title.txt; do
             if [ -f "$RUNNER_TEMP/$f" ]; then cp "$RUNNER_TEMP/$f" "$out/"; fi
@@ -643,9 +657,10 @@ jobs:
           retention-days: 7
 
   # The only job that can write: no agent, and nothing of the branch's runs
-  # here. It checks the sandbox again (git only), pushes the judged commits
-  # to the night's own branch, opens one PR, files hygiene's issue, and keeps
-  # the night's record, whatever happened before it.
+  # here. It takes only the commit the judge named (#68), checks the sandbox
+  # again (git only), pushes it to the night's own branch with the rotation's
+  # state, opens one PR, files hygiene's issue, and keeps the night's record,
+  # whatever happened before it.
   publish:
     needs: [agent, judge]
     if: always() && needs.agent.outputs.job != ''
@@ -682,6 +697,7 @@ jobs:
           JOB: ${{ needs.agent.outputs.job }}
           DAY: ${{ needs.agent.outputs.day }}
           BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ needs.judge.outputs.validated }}
           BASE: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -697,7 +713,28 @@ jobs:
           # this run's commit, and the sandbox is this checkout's script.
           git fetch -q "$RUNNER_TEMP/night/night.bundle" "refs/heads/$BRANCH"
           head=$(git rev-parse FETCH_HEAD)
+          # Only the commit the judge named before any of the agent's code ran
+          # (#68): a later one (a gate's background commit) was never guarded.
+          if [ -z "$VALIDATED" ] || [ "$head" != "$VALIDATED" ]; then
+            echo "::error::The judged bundle's head ($head) is not the commit the judge named before the agent's code ran (${VALIDATED:-none}); nothing is pushed."
+            exit 1
+          fi
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          # The rotation's state rides on the PR as one more commit, made here
+          # from the night's job, day and count, never from a tree the agent's
+          # code ran in: .keel/climb.json on the judged commit, by plumbing (no
+          # checkout, no hook). A night that keeps nothing is remembered by its
+          # record (the keel-climb artifact), which the next night's pick reads.
+          case "$KEPT" in *[!0-9]*) echo "::error::The judge's count ($KEPT) is not a number; nothing is pushed."; exit 1 ;; esac
+          state=$(node -e 'console.log(JSON.stringify({ last: { job: process.argv[1], date: process.argv[2], kept: Number(process.argv[3]) } }, null, 2))' "$JOB" "$DAY" "$KEPT")
+          blob=$(printf '%s\n' "$state" | git hash-object -w --stdin)
+          if [ "$(git rev-parse -q --verify "$head:.keel/climb.json" || true)" != "$blob" ]; then
+            index="$RUNNER_TEMP/rotation.index"
+            GIT_INDEX_FILE="$index" git read-tree "$head"
+            GIT_INDEX_FILE="$index" git update-index --add --cacheinfo "100644,$blob,.keel/climb.json"
+            tree=$(GIT_INDEX_FILE="$index" git write-tree)
+            head=$(git -c user.name=keel-climb -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit-tree "$tree" -p "$head" -m "keel climb: $JOB $DAY, rotation state")
+          fi
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own night, so force is safe here and nowhere else.
           git push --force origin "$head:refs/heads/keel-climb/$JOB/$DAY"
