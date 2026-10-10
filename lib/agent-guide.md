@@ -767,7 +767,9 @@ keel test tests/acme.test.mjs --name '^a crate' --stalls --json
   Then pin the file: `.keel/keel.json` `"tests": {"stalls": ["<file>"]}`. The
   test ledger runs each pinned file again with stalls once its own run in
   a whole run is over (never two copies at once), from a fresh seed; a
-  failure, or an entry that pins nothing, fails the run, which prints `keel stalls: <file> failed with stalls (…), seed N.
+  failure, an entry that pins nothing, a pin to a file that is gone, or a
+  run no stall landed in (it reruns once, its first stall earlier) fails
+  the run, which prints `keel stalls: <file> failed with stalls (…), seed N.
   Replay: keel test <file> --stalls --seed N`.
 - A test that judges real time on purpose (playback, a frame rate) says so
   when the machine kept it from judging:

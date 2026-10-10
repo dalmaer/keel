@@ -100,7 +100,7 @@
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
 import { readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { realpathSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
@@ -582,7 +582,13 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
     const m = await import('./stalls.mjs');
     seed ??= m.freshSeed();
     // The suite's own node flags (preloads, conditions, setup), never its files, names, reporters or time limit.
-    return { m, run: await m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload: preload ?? m.runnerFlags(process.execArgv), env, seed }) };
+    const once = shape => m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload: preload ?? m.runnerFlags(process.execArgv), env, seed, ...(shape ? { shape } : {}) });
+    const run = await once();
+    if (run.stalls.length || run.exitCode !== 0 || run.timedOut) return { m, run };
+    // No stall landed (the file ran in less than the first stall's wait): a run with no stall judged nothing.
+    // Once more, with the first stall inside half of that run's running time; never a third time.
+    const within = Math.max(1, Math.floor(run.active / 2));
+    return { m, run: await once({ ...m.shapeOf(env), firstMs: [Math.floor(within / 2), within] }), again: { within, first: run.active } };
   })().catch(error => ({ error }));
   return {
     // A pinned file's stalled copy starts once its own run is over (node's per-file summary), never beside it:
@@ -601,19 +607,32 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
         lines.push(`${STALLS_LABEL}: "tests".stalls pins nothing with ${bad.map(b => JSON.stringify(b)).join(', ')}: each entry is a test file relative to the repo's root. The rest still run with stalls; this run fails until it is fixed.`);
         process.exitCode = 1;
       }
+      // A pin to a file that is gone (renamed, deleted) guards nothing, so it fails the run. One this run
+      // did not reach is only said: a run of some of the suite's files is not a broken pin.
+      const gone = [...pins].filter(rel => !existsSync(join(root, rel)));
+      if (gone.length) {
+        lines.push(`${STALLS_LABEL}: "tests".stalls pins ${gone.join(', ')}, which ${gone.length === 1 ? 'is' : 'are'} not there: a pin to a moved or deleted file guards nothing. Pin the file's new path, or drop the pin; this run fails until then.`);
+        process.exitCode = 1;
+      }
       for (const rel of reached) if (!started.has(rel)) started.set(rel, start(rel)); // its summary never came: the suite is over now
       for (const [rel, p] of started) {
-        const { m, run, error } = await p;
+        const { m, run, error, again } = await p;
         if (error) {
           lines.push(`${STALLS_LABEL}: ${rel} is pinned to stalls and could not run with them (${String(error?.message ?? error).split('\n')[0]}).`);
           process.exitCode = 1;
           continue;
         }
         const j = m.judge(tests.filter(t => t.file === rel), run.tests);
-        const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all`;
+        const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all${again ? `; run again with the first stall within ${again.within} ms, after the first run (${Math.round(again.first)} ms) got none` : ''}`;
         const failed = run.tests.filter(t => t.outcome === 'fail');
-        if (!failed.length && !run.timedOut && run.exitCode === 0 && run.ran > 0) {
+        if (!failed.length && !run.timedOut && run.exitCode === 0 && run.ran > 0 && run.stalls.length) {
           lines.push(`${STALLS_LABEL}: ${rel} passed with ${s}, seed ${run.seed}.`);
+          continue;
+        }
+        if (!failed.length && !run.timedOut && run.exitCode === 0 && run.ran > 0) {
+          // Zero stalls is not a pass: nothing paused it, so nothing was judged.
+          process.exitCode = 1;
+          lines.push(`${STALLS_LABEL}: ${rel} is inconclusive: no stall landed (${s}), seed ${run.seed}. A file that ends before a stall can land guards nothing pinned; unpin it, or give it a test long enough to pause.`);
           continue;
         }
         process.exitCode = 1;

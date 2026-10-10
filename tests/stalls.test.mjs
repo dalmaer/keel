@@ -348,6 +348,40 @@ test('PR #57 review: keel test that ran no test (only a suite, or a --name that 
   assert.doesNotMatch(text, /No test judges the wall clock here/);
 });
 
+test('PR #57 review: a pin to a file that is gone fails the run; the other pins still run', async t => {
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, { tests: { stalls: ['tests/crate.test.mjs', 'tests/gone.test.mjs'] } });
+  const r = gate(dir);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /^keel stalls: "tests"\.stalls pins tests\/gone\.test\.mjs, which is not there/m);
+  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with /m);
+  // A file that is there but this run did not reach (a run of some of the files) is not a broken pin.
+  const some = run(process.execPath, ['--test', ...WITH, 'tests/anvil.test.mjs'], { cwd: dir, env: tightEnv() });
+  assert.doesNotMatch(some.stdout, /tests\/crate\.test\.mjs/);
+});
+
+test('PR #57 review: a pinned run no stall landed in runs once more with an earlier first stall; none again is inconclusive, and fails', async t => {
+  // The first stall waits a minute: the file is over long before it.
+  const late = { ...process.env, KEEL_STALLS_SHAPE: JSON.stringify({ firstMs: [60_000, 60_000], gapMs: [60_000, 60_000], stallMs: [50, 60] }) };
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const r = gate(dir, [], late);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with 1 stall, .*; run again with the first stall within \d+ ms, after the first run \(\d+ ms\) got none, seed \d+\.$/m);
+  // Quick in the suite, 5 s in the first stalled run (no stall lands: the first waits a minute), quick again in the
+  // second, whose first stall waits 1.25 to 2.5 s: longer than a quick file takes even on a busy machine.
+  const SLOWING = `import { test } from 'node:test';
+import { readFileSync, writeFileSync } from 'node:fs';
+let n = 0;
+try { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}
+writeFileSync(process.env.ACME_COUNT, String(n + 1));
+test('an anvil is ordered', () => new Promise(done => setTimeout(done, n === 1 ? 5000 : 0)));
+`;
+  const { dir: quick } = await acme(t, { 'tests/crate.test.mjs': SLOWING, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const q = gate(quick, [], { ...late, ACME_COUNT: join(await scratch(t), 'count') });
+  assert.equal(q.status, 1, q.stdout);
+  assert.match(q.stdout, /^keel stalls: tests\/crate\.test\.mjs is inconclusive: no stall landed \(0 stalls, .*run again with the first stall within \d+ ms/m);
+  assert.doesNotMatch(q.stdout, /passed with 0 stalls/);
+});
+
 test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {
   const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, PIN);
   const path = join(dir, 'scripts/keel/test-ledger.mjs');

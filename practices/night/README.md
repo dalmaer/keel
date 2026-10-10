@@ -209,8 +209,10 @@ run reaches it, the ledger runs it again with stalls once its own run is
 over (never two copies of one file at once), from a fresh seed, and a
 failure fails the run and prints `keel stalls: <file> failed with stalls
 (…), seed N. Replay: keel test <file> --stalls --seed N`. An entry that pins
-nothing (outside the repo, absolute) fails the run too; the others still
-run. A narrowed run never does. A passing test that said
+nothing (outside the repo, absolute, or a file that is gone) fails the run
+too; the others still run. A run no stall landed in runs once more with its
+first stall inside half that run's time; none again is inconclusive, and
+fails: zero stalls judged nothing. A narrowed run never does. A passing test that said
 `t.diagnostic('keel:inconclusive <what it measured>')` judges real time on
 purpose and the machine kept it from judging: the ledger records it
 `inconclusive`, neither pass nor fail, so it is never flaky, never slower,
