@@ -12,10 +12,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 const shape = { firstMs: [200, 200], gapMs: [60_000, 60_000], stallMs: [60_000, 60_000] };
 runFiles({ files: ['wait.mjs'], cwd: here, seed: 1, shape });
 
-/** The runner: this process's child, and the state ps gives it. */
+/**
+ * The runner: this process's child, and the state ps gives it. ps is a child too (#77): the stopped child first,
+ * else the first that is not ps, so a ps listed before the runner is never taken for it.
+ */
 const runner = () => {
-  const ps = spawnSync('ps', ['-o', 'pid=,ppid=,stat=', '-ax'], { encoding: 'utf8' }).stdout ?? '';
-  const line = ps.split('\n').map(l => l.trim().split(/\s+/)).find(([, ppid]) => Number(ppid) === process.pid);
+  const ps = spawnSync('ps', ['-o', 'pid=,ppid=,stat=,comm=', '-ax'], { encoding: 'utf8' }).stdout ?? '';
+  const kids = ps.split('\n').map(l => l.trim().split(/\s+/)).filter(([, ppid]) => Number(ppid) === process.pid);
+  const line = kids.find(([, , stat]) => stat?.includes('T')) ?? kids.find(([, , , comm]) => !/(^|\/)ps$/.test(comm ?? ''));
   return line ? { pid: Number(line[0]), stat: line[2] } : null;
 };
 
