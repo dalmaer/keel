@@ -373,7 +373,9 @@ export function githubOf(env = process.env) {
       }
       let v;
       try { v = JSON.parse(r.stdout); } catch { throw new RobotError('gh api collaborators permission did not print JSON'); }
-      return String(v?.role_name || v?.permission || 'none');
+      // role_name tells maintain and triage apart, but an organization's custom role names itself (PR #59):
+      // then the base permission (admin, write, read, none) is the level it grants.
+      return ['admin', 'maintain', 'write', 'triage', 'read'].includes(v?.role_name) ? v.role_name : String(v?.permission || 'none');
     },
     // Who wrote and edited the body, and who labelled it when (PR #59): GraphQL, read whole or not at all.
     approval: (repo, n) => {

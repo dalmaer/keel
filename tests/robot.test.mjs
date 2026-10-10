@@ -80,7 +80,7 @@ const fx = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'));
 let input = ''; try { input = readFileSync(0, 'utf8'); } catch {}
 appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input }) + '\\n');
 if (args[0] === 'api' && args[1] === 'graphql') { process.stdout.write(JSON.stringify(fx.graphql ?? { data: { repository: { issue: { author: { login: 'acme-owner' }, authorAssociation: 'OWNER', lastEditedAt: null, editor: null, timelineItems: { nodes: [{ createdAt: '2026-10-01T00:00:00Z', label: { name: 'keel:agent' }, actor: { __typename: 'User', login: 'acme-owner' } }] } } } } })); process.exit(0); }
-{ const seg = args[0] === 'api' ? String(args[1] ?? '').split('/') : []; if (seg.length === 6 && seg[0] === 'repos' && seg[3] === 'collaborators' && seg[5] === 'permission') { const role = { 'acme-owner': 'admin', 'acme-dev': 'write', ...(fx.permissions ?? {}) }[decodeURIComponent(seg[4])]; if (!role) { process.stderr.write('gh: Not Found (HTTP 404)'); process.exit(1); } process.stdout.write(JSON.stringify({ permission: role === 'maintain' ? 'write' : role, role_name: role })); process.exit(0); } }
+{ const seg = args[0] === 'api' ? String(args[1] ?? '').split('/') : []; if (seg.length === 6 && seg[0] === 'repos' && seg[3] === 'collaborators' && seg[5] === 'permission') { const role = { 'acme-owner': 'admin', 'acme-dev': 'write', ...(fx.permissions ?? {}) }[decodeURIComponent(seg[4])]; if (!role) { process.stderr.write('gh: Not Found (HTTP 404)'); process.exit(1); } process.stdout.write(JSON.stringify(typeof role === 'object' ? role : { permission: role === 'maintain' ? 'write' : role, role_name: role })); process.exit(0); } }
 if (args[0] === 'api') {
   const u = new URL(args[1], 'https://acme.test/');
   const page = Number(u.searchParams.get('page') ?? 1);
@@ -632,6 +632,10 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   assert.match(said, /^docs\/projects\/lid\/phases\.md:9: changes a phase's status line \("\*\*Status:\*\* CLOSED"\)/m);
   assert.match(said, /^docs\/projects\/lid\/phases\.md:11: ticks a box \("it opens"\)/m);
   assert.match(said, /^docs\/phases\/06-lid\.md:\d+: ticks an acceptance box \("the lid opens"\)/m);
+  // A status line taken away: refused, as one changed is.
+  const gone = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('**Status:** PART-DONE\n', '') }, 'acme: drop a status');
+  assert.match(tend.recordRules(dir, two, gone, 'the robot').join('\n'), /^docs\/projects\/lid\/phases\.md: removes a phase's status line \("\*\*Status:\*\* PART-DONE", line 9 on the base\); the robot never marks a phase$/m);
+  git(dir, ['reset', '-q', '--hard', two]);
   // Two phases trading statuses keep the same lines in all: by heading, phase 2's CLOSED is still new.
   const swapped = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('**Status:** CLOSED', '**Status:** PART-DONE').replace(/(## 2\. The lid shuts\n)\*\*Status:\*\* PART-DONE/, '$1**Status:** CLOSED') }, 'acme: trade statuses');
   assert.match(tend.recordRules(dir, two, swapped, 'the robot').join('\n'), /^docs\/projects\/lid\/phases\.md:9: changes a phase's status line \("\*\*Status:\*\* CLOSED"\)/m);
@@ -769,4 +773,16 @@ test('an issue whose body was edited after it was labelled, by someone the robot
   const graphql = (await calls()).find(c => c.args[1] === 'graphql');
   assert.deepEqual(graphql.args.slice(-6), ['-f', 'owner=acme', '-f', 'name=anvils', '-F', 'number=3']);
   assert.match((await calls()).find(c => c.args[0] === 'issue' && c.args[1] === 'comment').input, /^<!-- keel:robot approve /);
+});
+
+// PR #59: an organization's custom repository role names itself in role_name; its base permission is the level.
+test('a writer in a custom repository role is a writer: the base permission decides when role_name is not one of GitHub\'s own', async t => {
+  const robot = await robotLib();
+  const { gh: stub } = await stubGh(t);
+  const at = join(dirname(stub), 'fixture.json');
+  const fx = JSON.parse(await readFile(at, 'utf8'));
+  fx.permissions = { 'acme-release': { permission: 'write', role_name: 'Release Manager' }, 'acme-auditor': { permission: 'read', role_name: 'Auditor' }, 'acme-maint': 'maintain', 'acme-triager': 'triage' };
+  await writeFile(at, JSON.stringify(fx));
+  const g = robot.githubOf({ ...process.env, KEEL_GH: stub });
+  assert.deepEqual(['acme-owner', 'acme-dev', 'acme-maint', 'acme-triager', 'acme-release', 'acme-auditor', 'acme-stranger'].map(l => g.permission(REPO, l)), ['admin', 'write', 'maintain', 'triage', 'write', 'read', 'none']);
 });
