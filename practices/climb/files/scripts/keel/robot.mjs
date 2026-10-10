@@ -324,7 +324,10 @@ export function robotFetch({root,repo,ref,env=process.env}) {
 }
 const changedPaths = (root, from, to) => git(root, ['diff', '--name-only', '--no-renames', '-z', from, to]).split('\0').filter(Boolean);
 const showAt = (root, ref, path) => { const r = git(root, ['show', `${ref}:${path}`], { allowFail: true }); return r.status === 0 ? r.stdout : null; };
-const scriptsOf = text => { if (text === null) return 'absent'; try { return JSON.stringify(JSON.parse(text)?.scripts ?? null); } catch { return 'unreadable'; } };
+// keel#83 follow-up: canonical, keys sorted, so a formatter reordering unchanged
+// scripts is no change; arrays keep their order and stay distinct from objects.
+const canonicalScripts = value => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : value;
+const scriptsOf = text => { if (text === null) return 'absent'; try { return JSON.stringify(canonicalScripts(JSON.parse(text)?.scripts ?? null)); } catch { return 'unreadable'; } };
 // The robot's own rules for the paths one change touches; `befores` are the
 // commits it is measured against (a merge has one per parent).
 function robotPathProblems(root, files, befores, after) {

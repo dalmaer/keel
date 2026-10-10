@@ -894,6 +894,22 @@ test('robot runtime package policy and gate scripts stay protected',async t=>{
  assert.deepEqual(robotSandbox(root,base,git(root,'rev-parse','HEAD')),[]);
 });
 
+test('robot compares package scripts by name and value, not key order',async t=>{
+ const root=await project(t),scripts={build:'node build.mjs',lint:'node lint.mjs',test:'node --test'};
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts},null,2));git(root,'add','.');git(root,'commit','-qm','Acme package');const base=git(root,'rev-parse','HEAD');
+ // keel#83 follow-up: a formatter that sorts or reorders unchanged scripts changes nothing.
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'node --test',build:'node build.mjs',lint:'node lint.mjs'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme reordered scripts');
+ assert.deepEqual(robotSandbox(root,base,git(root,'rev-parse','HEAD')),[]);
+ // Reordered and changed is still a change.
+ git(root,'reset','-q','--hard',base);
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'exit 0',build:'node build.mjs',lint:'node lint.mjs'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme reordered weaker gate');
+ assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join('\n'),/"scripts" are off limits to the robot/);
+ // A renamed script with the same command is a change too.
+ git(root,'reset','-q','--hard',base);
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{build:'node build.mjs',check:'node lint.mjs',test:'node --test'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme renamed script');
+ assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join('\n'),/"scripts" are off limits to the robot/);
+});
+
 test('robot judge refuses a gate script edit before either gate runs',async t=>{
  const root=await project(t),sentinel=join(root,'gate-ran');
  await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'node --test'}}));git(root,'add','.');git(root,'commit','-qm','Acme package');const base=git(root,'rev-parse','HEAD');

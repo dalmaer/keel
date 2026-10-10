@@ -121,9 +121,11 @@ selected from the trusted checkout, so the robot refuses changes to `.nvmrc`,
 Existing guards also protect workflows, keel configuration and package metadata
 such as `engines`, `volta`, `devEngines` and `packageManager`. Unlike climb, the
 robot may not change any package.json `"scripts"`: the judge runs the configured
-gate, so a changed script needs owner verification. The judge also refuses a
-candidate whose gate leaves more test-ledger records for its head than the base's
-gate wrote, since an extra record could claim a dropped test passed.
+gate, so a changed script needs owner verification. Scripts are compared by
+name and value, so a formatter that only reorders them changes nothing. The
+judge also refuses a candidate whose gate leaves more test-ledger records for
+its head than the base's gate wrote, since an extra record could claim a
+dropped test passed.
 
 The pushed bundle carries every commit, so each commit meets the same path rules
 as the whole change; a later revert does not hide an off-limits path. A merge
