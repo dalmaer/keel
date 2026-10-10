@@ -219,7 +219,7 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "4985db49ca9ba045107d1f40e8a34fa789a389782ffb1e8db91aee0014147cb7"
+      "sha256": "d4ad925f33d676a360916d0f75b8594b68b5c3964d17ce7740f2c110d00730ce"
     },
     "scripts/keel/time-measures.mjs": {
       "practice": "night",

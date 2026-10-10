@@ -68,9 +68,10 @@
 // old file is removed first, so a run that writes none is "no tests ran".
 // The record is a node run's, plus `runner` ("bun" or "vitest"; a record
 // without one is node's), and `junit`, a short hash of the file's path and
-// bytes: the same bytes at the same path again are stale (the runner wrote
-// nothing new, as bun does when no test ran) and are not recorded again;
-// two packages' identical reports at their own paths are two runs. `node` is the
+// bytes. Freshness is this invocation's (keel#93): a file last written before
+// the run began (--start's sample, else the gate's KEEL_RUN_START) is stale
+// (the runner wrote nothing new, as bun does when no test ran) and is not
+// recorded; byte-identical reports of two runs are two runs. `node` is the
 // version of node that read it; the preloads are none. Each top-level test
 // is the file's own testcase, or one top-level describe() with every
 // testcase in it (failed if any failed): bun names a testcase's describes in
@@ -1237,13 +1238,24 @@ export function junitTests(root, runner, fileOf = f => f, { configEnv = [], env 
 }
 
 /**
+ * How far a fresh report's mtime may sit before its run's start (keel#93): FAT
+ * keeps 2-second times, and Linux stamps files from a coarse clock that can
+ * trail the one a start sample reads.
+ */
+const FRESH_SLACK_MS = 2000;
+/** A start sample's time in ms, or null when it has none. */
+const sampledAt = s => { const t = Date.parse(s?.at); return Number.isFinite(t) ? t : null; };
+/** The gate's own start sample (timedCommand's KEEL_RUN_START), or null. */
+const gateStart = env => { try { return JSON.parse(env?.KEEL_RUN_START ?? 'null'); } catch { return null; } };
+
+/**
  * Read a JUnit file into the ledger, as the reporter records a node run, and
  * say the hygiene block: { lines, code }. `junit` is relative to `cwd` (the
  * folder the tests ran in), else .keel/keel.json "tests".junit, else JUNIT,
  * relative to the repo's root; `runner` is bun or vitest, else "tests".runner,
  * else what the file says; `status` is the runner's own exit code, or null.
  */
-export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start = null } = {}) {
+export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start = null, env = process.env } = {}) {
   const root = rootOf(cwd);
   const knownConfig = await projectConfig(root, { redaction: true });
   const config = knownConfig ?? {};
@@ -1259,8 +1271,8 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
     if (empty) lines.push(empty);
     return { lines, code: empty ? 1 : status || (failed ? 1 : 0) };
   };
-  let xml;
-  try { xml = await readFile(at, 'utf8'); }
+  let xml, written;
+  try { xml = await readFile(at, 'utf8'); written = (await stat(at)).mtimeMs; }
   catch (e) {
     if (e.code !== 'ENOENT') { lines.push(`${LABEL}: could not read ${shown} (${e.code ?? e.message}); nothing recorded.`); return { lines, code: status || 1 }; }
     lines.push(`${LABEL}: no JUnit file at ${shown}: the tests did not run, or wrote it elsewhere.`);
@@ -1281,13 +1293,15 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
     return { lines, code: status || 1 };
   }
   if (knownConfig === null) { lines.push(`${LABEL}: redaction configuration unavailable; nothing recorded.`); return done(parsed.ran, parsed.failed); }
-  // The file's own identity: its path and its bytes. Two packages' identical reports at their own paths are two runs;
-  // the same bytes at the same path again are one report read twice (stale).
+  // The file's own identity, recorded: its path and its bytes.
   const hash = sha12(`${shown}\u0000${xml}`);
-  let history = null;
-  try { history = await readRuns(root); } catch { /* record() below says what is wrong with the directory */ }
-  if (history?.runs.some(r => r.junit === hash)) {
-    lines.push(`${LABEL}: ${shown} is one already recorded: the tests wrote no new one (bun writes none when no test ran), so this run is not counted.`);
+  // keel#93: fresh is judged for this invocation, never by matching earlier runs' hashes (deterministic tests with
+  // constant timings rewrite a byte-identical report). A report last written before this run began (the --start
+  // sample, taken just before the runner, else the gate's own start) is one the runner did not write: stale. With
+  // neither, the wrapper's `rm -f` before the runner is what keeps an old report from being read.
+  const since = sampledAt(start) ?? sampledAt(gateStart(env));
+  if (since !== null && written + FRESH_SLACK_MS < since) {
+    lines.push(`${LABEL}: ${shown} was last written before this run began: the tests wrote no new one (bun writes none when no test ran), so this run is not counted.`);
     return done(0, 0);
   }
   if (!parsed.tests.length) return done(parsed.ran, parsed.failed); // nothing reported: nothing to remember
