@@ -589,6 +589,8 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
     await mkdir(keel, { recursive: true });
     for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
     for (const f of ['climb.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
+    // The copy the workflow keeps before the agent runs (PR #59), in $RUNNER_TEMP/keel ($RUNNER_TEMP is dir here).
+    await cp(keel, join(dir, 'keel/scripts/keel'), { recursive: true });
     const now = Math.floor(Date.now() / 1000);
     for (const key of ['climb', 'tend']) {
       const blocks = runBlocks(w[key].text);

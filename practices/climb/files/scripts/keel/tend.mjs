@@ -19,6 +19,8 @@
 // deletes, never merges: the guard refuses the first three, naming the line;
 // the workflow's rights refuse the last.
 import { readFile, writeFile, mkdir, readdir, realpath } from 'node:fs/promises';
+import { readFileSync, readdirSync, lstatSync, readlinkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, basename } from 'node:path';
@@ -90,13 +92,45 @@ const offLimit = path => OFF_LIMITS.some(p => (p.endsWith('/') ? path.startsWith
  * It runs no code from the branch, so the job that holds the write token can
  * run it (climb.mjs sandbox), and the guards run it first.
  */
+/**
+ * The paths changed from base to head, as git names them: [{ status, path }].
+ * Read NUL-delimited (-z, PR #59): without it git quotes and escapes a path
+ * with a non-ASCII byte, a quote or a control character (core.quotePath), so
+ * "docs/evidence/é.md" would come back as "\"docs/evidence/\\303\\251.md\"" and
+ * slip past every rule that reads the path. Every rule here reads paths this way.
+ */
+export function changesOf(root, base, head) {
+  const parts = git(root, ['diff', '--name-status', '-z', '--no-renames', base, head]).split('\0');
+  const out = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) if (parts[i]) out.push({ status: parts[i], path: parts[i + 1] });
+  return out;
+}
+/** Paths a git command lists with --name-only, NUL-delimited (-z): unquoted, whatever bytes they hold. */
+export const pathsOf = (root, [cmd, ...rest]) => git(root, [cmd, '-z', ...rest]).split('\0').filter(Boolean);
+
 export function sandboxProblems(root, base, head) {
   const b = sha(root, base), h = sha(root, head);
   if (git(root, ['merge-base', '--is-ancestor', b, h], { allowFail: true }).status !== 0) return [`${h.slice(0, 7)} is not on top of the base ${b.slice(0, 7)}: the agent's branch must start where the run did`];
   const out = [];
-  for (const l of git(root, ['diff', '--name-status', '--no-renames', b, h]).split('\n').filter(Boolean)) {
-    const [, ...p] = l.split('\t');
-    const path = p.join('\t');
+  // Each commit as well as the whole (PR #59): a file added in one commit and taken out in a later one is
+  // not in base..head, yet the branch's history carries it into main on any merge but a squash.
+  // rev-list's own lines (PR #59): its -z applies only to --objects and kin, so commits are one a line.
+  const changes = changesOf(root, b, h), whole = new Set(changes.map(x => x.path));
+  for (const c of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
+    for (const { path } of changesOf(root, `${c}^`, c)) {
+      // A package.json's install keys, commit by commit (#82): a dependency or an install script added and taken out later.
+      if (basename(path) === 'package.json') {
+        // The whole branch's own check names it when the change stands at its head; this is for one taken back.
+        if (whole.has(path) && packageProblem(showAt(root, b, path), showAt(root, h, path))) continue;
+        const why = packageProblem(showAt(root, `${c}^`, path), showAt(root, c, path));
+        if (why) out.push(`${path}: ${why} in ${c.slice(0, 7)} on the agent's branch; the branch's history would carry it, so the branch is refused whole (ledger#92)`);
+        continue;
+      }
+      if (whole.has(path)) continue;
+      if (offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) out.push(`${path}: changed in ${c.slice(0, 7)} on the agent's branch and changed back later; the branch's history would still carry it (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
+    }
+  }
+  for (const { path } of changes) {
     if (offLimit(path)) out.push(`${path}: changed on the agent's branch; ${OFF_LIMITS.join(', ')} are off limits to it (the workflows, keel's scripts that judge it, and the config that names the gate and the secrets)`);
     else if (INSTALL_FILES.includes(basename(path))) out.push(`${path}: changed on the agent's branch; an install's own files (${INSTALL_FILES.join(', ')}) are off limits to it: the judge installs the base's, with the setup token, before it takes the agent's commits, and no dependency is added (ledger#92)`);
     else if (basename(path) === 'package.json') {
@@ -111,7 +145,9 @@ export function sandboxProblems(root, base, head) {
  * The files an install reads besides package.json, at any depth: lockfiles
  * and the package manager's config. The agent's branch changes none of them.
  */
-export const INSTALL_FILES = Object.freeze(['package-lock.json', 'npm-shrinkwrap.json', '.npmrc', 'yarn.lock', '.yarnrc', '.yarnrc.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb']);
+export const INSTALL_FILES = Object.freeze(['package-lock.json', 'npm-shrinkwrap.json', '.npmrc', 'yarn.lock', '.yarnrc', '.yarnrc.yml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb',
+  // The runtime the setup picks (PR #59): setup-node reads it from the base's checkout, before the agent's commits are taken.
+  '.nvmrc', '.node-version', '.tool-versions']);
 /** The scripts npm runs on an install (or a pack), never on `npm run <name>` alone. */
 export const INSTALL_SCRIPTS = Object.freeze(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare', 'prepack', 'postpack', 'prepublish', 'dependencies']);
 
@@ -165,8 +201,15 @@ export const tendSurface = path => (/^docs\/.+\.md$/.test(path) && !path.startsW
 // ---- small tools ---------------------------------------------------------------
 
 // Under Codex (phase 47), KEEL_AGENT_GIT points the checkout's commands at .keel/agent-git, as climb.mjs's.
+/**
+ * The options every keel git command runs with (PR #59): the agent's code (a
+ * gate, a build) can write the checkout's git dir, so no hook it planted and
+ * no fsmonitor it named ever runs from a command of keel's, and no replace
+ * ref it planted changes what a commit is. climb.mjs runs git with these too.
+ */
+export const SAFE_GIT = Object.freeze(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.useReplaceRefs=false']);
 function git(cwd, args, { allowFail = false } = {}) {
-  const r = spawnSync('git', [...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...SAFE_GIT, ...agentGitArgs(cwd), ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw new TendError(`git ${args[0]}: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new TendError(`git ${args.join(' ')} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
   return allowFail ? r : r.stdout.replace(/\n$/, '');
@@ -382,7 +425,10 @@ export async function tendNote({ root, finding, propose, tried }) {
 
 // ---- the guard ------------------------------------------------------------------
 
-const frontStatus = text => {
+/** Text as the rules read it (PR #59): a BOM dropped, CRLF and lone CR as LF, so a file converted on the way reads the same. */
+const plain = text => (typeof text === 'string' ? text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n') : text);
+const frontStatus = raw => {
+  const text = plain(raw);
   if (typeof text !== 'string' || !text.startsWith('---\n')) return null;
   const end = text.indexOf('\n---', 4);
   if (end < 0) return null;
@@ -395,7 +441,7 @@ const frontStatus = text => {
 const ticked = text => {
   const out = [];
   let inAcceptance = false;
-  String(text ?? '').split('\n').forEach((l, i) => {
+  String(plain(text) ?? '').split('\n').forEach((l, i) => {
     const h = /^#{1,6}\s+(.*)$/.exec(l);
     if (h) { inAcceptance = /acceptance/i.test(h[1]); return; }
     const m = /^\s*[-*]\s+\[[xX]\]\s+(.*)$/.exec(l);
@@ -412,6 +458,118 @@ const firstAdded = (root, base, head, path) => {
 };
 
 /**
+ * What a guard checked, before any code of the agent's runs (PR #59): HEAD,
+ * and the tracked tree and index as git status says them. The gate, a perf
+ * check or a build is the agent's code, and could commit or stage after the
+ * checks passed; heldProblems says so, so a guard never passes a commit it
+ * did not check.
+ */
+export function treeState(root) {
+  const gitDir = git(root, ['rev-parse', '--absolute-git-dir']);
+  // A linked worktree's own git dir, and the common one its config, hooks, attributes and refs live in (#82).
+  const gitDirs = [...new Set([gitDir, git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'])])];
+  const head = sha(root, 'HEAD');
+  return { head, status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitDirs, pointer: gitPointer(root, gitDir), gitFiles: gitDirsPrint(gitDirs), flags: indexFlags(root), files: trackedPrint(root, head) };
+}
+/**
+ * Where the checkout's git dir is, as the disk says (#82): the .git entry (a
+ * linked worktree's pointer file, or that it is the git dir itself) and the
+ * git dir's commondir. Code that rewrote either would have keel's next git
+ * read another git dir, its config and filters with it.
+ */
+export function gitPointer(root, gitDir) {
+  const read = p => { try { const st = lstatSync(p); return st.isDirectory() ? 'dir' : st.isSymbolicLink() ? `link:${readlinkSync(p)}` : `file:${readFileSync(p, 'utf8')}`; } catch (e) { if (e.code === 'ENOENT') return 'missing'; throw e; } };
+  return `${read(join(root, '.git'))}\0${read(join(gitDir, 'commondir'))}`;
+}
+/** Each git dir's print (gitDirPrint), the worktree's and the common one. */
+const gitDirsPrint = dirs => dirs.map(gitDirPrint).join(',');
+/**
+ * The index entries git status is told not to look at (PR #59): an
+ * assume-unchanged (a lower-case tag in ls-files -v) or skip-worktree (S)
+ * entry hides an edit from status, so the guard reads the flags, and the
+ * files themselves (trackedPrint), apart from it.
+ */
+export function indexFlags(root) {
+  return pathsOf(root, ['ls-files', '-v']).filter(e => !e.startsWith('H ')).sort().join('\0');
+}
+/**
+ * Every file HEAD's tree names, as its bytes are on disk (PR #59), read from
+ * disk, never through git status or the index: a hash of each path and what
+ * is there (the bytes, a link's target, or that it is missing).
+ */
+export function trackedPrint(root, head) {
+  const h = createHash('sha256');
+  for (const rel of pathsOf(root, ['ls-tree', '-r', '--name-only', head])) {
+    const p = join(root, rel);
+    let v;
+    // The bytes themselves, length first (PR #59): never a string of them, which a large file cannot be.
+    let bytes = null;
+    try { const st = lstatSync(p); if (st.isSymbolicLink()) v = `link:${readlinkSync(p)}`; else if (st.isFile()) { bytes = readFileSync(p); v = `file:${bytes.length}`; } else v = `kind:${st.mode}`; }
+    catch (e) { if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e; v = 'missing'; }
+    h.update(`${rel}\0${v}\0`);
+    if (bytes) h.update(bytes);
+  }
+  return h.digest('hex');
+}
+/**
+ * The git dir's files that make git run a command (PR #59), read from disk,
+ * never through git: its config (core.hooksPath, fsmonitor, a filter's
+ * clean command, an alias), its hooks, and info/attributes (which names the
+ * filters), and its replace refs (refs/replace/, which change what a commit
+ * is to every git command that does not set core.useReplaceRefs=false, and
+ * packed-refs, which can hold them). A hash of each path and its bytes,
+ * length first, as trackedPrint's.
+ */
+export function gitDirPrint(gitDir) {
+  const h = createHash('sha256');
+  const add = rel => { const p = join(gitDir, rel); try { const st = lstatSync(p); if (st.isDirectory()) { for (const n of readdirSync(p).sort()) add(join(rel, n)); return; } if (st.isSymbolicLink()) { h.update(`${rel}\0link:${readlinkSync(p)}\0`); return; } const bytes = readFileSync(p); h.update(`${rel}\0file:${bytes.length}\0`); h.update(bytes); } catch (e) { if (e.code !== 'ENOENT') throw e; } };
+  for (const rel of ['config', 'config.worktree', 'hooks', 'info/attributes', 'refs/replace', 'packed-refs']) add(rel);
+  return h.digest('hex');
+}
+/** What moved since `before` (treeState): [problem]. `what` names the code that ran. */
+export function heldProblems(root, before, what) {
+  // The git dir first, from disk: a hook or a config it planted must never run, so no git is asked until it is clean.
+  // Where it is, before what is in it (#82): a .git or commondir pointed elsewhere is another git dir altogether.
+  if (before.pointer !== undefined && gitPointer(root, before.gitDir) !== before.pointer) return [`${what} changed where the checkout's git dir is (its .git entry or the git dir's commondir) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
+  if (gitDirsPrint(before.gitDirs ?? [before.gitDir]) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes, or its replace refs (${(before.gitDirs ?? [before.gitDir]).join(', ')}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
+  const now = treeState(root), out = [];
+  if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
+  if (now.status !== before.status) out.push(`${what} changed the tracked tree or the index after the guard's checks (git status: ${now.status.split('\n').filter(Boolean).slice(0, 3).join('; ') || 'clean'}): nothing is taken`);
+  else if (now.flags !== before.flags) out.push(`${what} set or cleared an index flag after the guard's checks (assume-unchanged or skip-worktree: ${now.flags.split('\0').filter(Boolean).slice(0, 3).join('; ') || 'none now'}); git status cannot see an edit behind one, so nothing is taken`);
+  else if (now.files !== before.files) out.push(`${what} changed a tracked file after the guard's checks (read from disk, though git status says nothing changed): nothing is taken`);
+  return out;
+}
+
+/**
+ * The package.json files whose "scripts" the branch changed (PR #59):
+ * [{ path, keys }]. The gate's test ledger records are written while those
+ * scripts run, so a branch that changed them wrote the records that judge it.
+ */
+export function scriptsChanged(root, base, head) {
+  const out = [];
+  for (const { path } of changesOf(root, base, head)) {
+    if (basename(path) !== 'package.json') continue;
+    let b, a;
+    try { b = JSON.parse(showAt(root, base, path) ?? '{}')?.scripts ?? {}; a = JSON.parse(showAt(root, head, path) ?? '{}')?.scripts ?? {}; }
+    catch { out.push({ path, keys: ['(not JSON)'] }); continue; }
+    const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(k => b[k] !== a[k]).sort();
+    if (keys.length) out.push({ path, keys });
+  }
+  return out;
+}
+
+/**
+ * The items of `after` that `before` does not have, by occurrence (PR #59):
+ * each item of `before` covers one item of `after` with the same key, so an
+ * identical line ticked elsewhere never covers a box newly ticked.
+ */
+export function added(before, after, key) {
+  const left = new Map();
+  for (const x of before) left.set(key(x), (left.get(key(x)) ?? 0) + 1);
+  return after.filter(x => { const n = left.get(key(x)) ?? 0; if (n) { left.set(key(x), n - 1); return false; } return true; });
+}
+
+/**
  * The tend guard over base..head: { refused: [string] }. Refuses, naming the
  * line: any file added or edited under docs/evidence/; a front-matter status
  * changed to built, lived-in or accepted; an acceptance box ticked; any
@@ -421,7 +579,7 @@ const firstAdded = (root, base, head, path) => {
  */
 export function tendCheck(root, base, head, { findings = null } = {}) {
   const refused = [];
-  const changes = git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [s, ...p] = l.split('\t'); return { status: s, path: p.join('\t') }; });
+  const changes = changesOf(root, base, head);
   for (const { status, path } of changes) {
     if (status.startsWith('D')) { refused.push(`${path}: deleted; tend never deletes a tracked file (a branch, a PR or data alike): propose it for the owner instead`); continue; }
     if (path.startsWith('docs/evidence/')) { refused.push(`${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; tend never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
@@ -429,8 +587,7 @@ export function tendCheck(root, base, head, { findings = null } = {}) {
     const before = showAt(root, base, path), after = showAt(root, head, path);
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; tend never marks a phase built, lived-in or accepted (it may only propose a step back to partial)`);
-    const was = new Set(ticked(before).map(x => x.text));
-    for (const x of ticked(after)) if (!was.has(x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); tend never accepts a phase`);
+    for (const x of added(ticked(before), ticked(after), x => x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); tend never accepts a phase`);
   }
   const known = findings ? new Set(findings.map(f => f.id)) : null;
   for (const c of git(root, ['log', '--format=%H%x00%B%x01', `${base}..${head}`]).split('\x01').map(s => s.trim()).filter(Boolean)) {
@@ -457,9 +614,12 @@ export async function tendGuard({ root, config, env = process.env, base, check =
   const { refused } = tendCheck(root, b, head, { findings: pass?.worksheet?.findings ?? null });
   if (refused.length) return { ok: false, job: 'tend', refused, problems: refused };
   const gate = config.check ?? check;
+  const before = treeState(root);
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new TendError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, job: 'tend', problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const moved = heldProblems(root, before, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, job: 'tend', refused: moved, problems: moved };
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the tend guard passed (no evidence written, no status marked built, lived-in or accepted, no box ticked, nothing deleted, nothing outside its surfaces, every commit cites a finding)`;
   if (pass) { pass.gate = line; await writePass(root, pass); }
   return { ok: true, job: 'tend', line, problems: [] };
@@ -486,7 +646,7 @@ export function tendCommits(root, base, head = 'HEAD') {
     const cites = [...(body ?? '').matchAll(CITE)].map(m => m[1]);
     const day = PAGE_SUBJECT.exec(subject)?.[1];
     if (day && new RegExp(`^${PAGE_TRAILER}: ${day}$`, 'm').test(body ?? '')) {
-      const files = git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', id]).split('\n').filter(Boolean);
+      const files = pathsOf(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', id]);
       if (files.length === 1 && files[0] === proposalsPageOf(day)) return { sha: id, subject, cites: [], page: true };
     }
     return { sha: id, subject, cites };
@@ -672,7 +832,7 @@ export async function tendReport({ root, config, env = process.env, body, input,
     page = proposalsPageOf(day);
     if (showAt(root, 'HEAD', page) !== proposalsPage(pass, pageProposals(pass))) throw new TendError(`${page} is not committed as the pass's notes say: climb.mjs tend-page runs before the guard`);
   }
-  const changed = () => git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
+  const changed = () => pathsOf(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']);
   const commits = tendCommits(root, pass.base);
   const proposing = Boolean(page);
   const after = commits.length || proposing ? { measures: await recordMeasures(root, config, env), reconciliation: reconciliationOf(root, config, env) } : null;

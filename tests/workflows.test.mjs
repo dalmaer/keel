@@ -769,12 +769,15 @@ export function agentRanProblems(text, { step, id }) {
   const codexStep = steps.find(s => new RegExp(`\\n {8}id: ${id}_codex\\n`).test(s));
   if (codexStep) {
     if (!body.includes(`steps.${id}_codex.outcome`)) out.push(`"Did the agent run?" does not read steps.${id}_codex.outcome`);
-    if (!/node scripts\/keel\/climb\.mjs agent-ran --agent codex --outcome "\$OUTCOME" --file "\$RUNNER_TEMP\/codex-final-message\.md" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not judge Codex by its final message (agent-ran --agent codex)');
+    if (!/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/climb\.mjs" agent-ran --agent codex --outcome "\$OUTCOME" --file "\$RUNNER_TEMP\/codex-final-message\.md" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not judge Codex by its final message (agent-ran --agent codex)');
     if (steps.indexOf(codexStep) > check) out.push('"Did the agent run?" runs before Codex\'s step');
   }
   if (!new RegExp(`EXECUTION: \\$\\{\\{ steps\\.${id}\\.outputs\\.execution_file \\}\\}`).test(body)) out.push('"Did the agent run?" does not read the action\'s execution file');
-  if (!/node scripts\/keel\/climb\.mjs agent-ran --outcome "\$OUTCOME" --file "[^"]+" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not run climb.mjs agent-ran with the outcome, the file, the budget and the start');
-  if (/\|\| true|; *exit 0/.test(body)) out.push('"Did the agent run?" swallows its exit');
+  if (!/node "\$RUNNER_TEMP\/keel\/scripts\/keel\/climb\.mjs" agent-ran --outcome "\$OUTCOME" --file "[^"]+" --minutes "\$MINUTES" --started "\$STARTED"/.test(body)) out.push('"Did the agent run?" does not run climb.mjs agent-ran (the copy kept before the agent ran) with the outcome, the file, the budget and the start');
+  // PR #59: the steps after the agent run keel's scripts as the run's commit has them, copied out of the
+  // workspace before the agent ran, never a file it edited and did not commit.
+  const keep = steps.findIndex(s => s.includes('mkdir -p "$RUNNER_TEMP/keel" && git archive "$GITHUB_SHA" scripts/keel .keel/keel.json | tar -x -C "$RUNNER_TEMP/keel"'));
+  if (keep < 0 || keep > agent) out.push('keel\'s scripts are not kept (git archive "$GITHUB_SHA" … into $RUNNER_TEMP/keel) before the agent runs');  if (/\|\| true|; *exit 0/.test(body)) out.push('"Did the agent run?" swallows its exit');
   for (const later of ['guard', 'git push']) {
     const i = steps.findIndex(s => s.includes(later === 'guard' ? 'node scripts/keel/climb.mjs guard' : 'git push'));
     if (i >= 0 && i < check) out.push(`${later} runs before "Did the agent run?"`);
@@ -799,6 +802,19 @@ test('lesson 29: keel-climb.yml and keel-tend.yml end red when the agent failed 
     ]) {
       assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
       assert.ok(agentRanProblems(text, opts).length, `${name} ${why}: expected a problem`);
+    }
+    // PR #59: the check runs keel's scripts as the run's commit has them, kept outside the workspace before
+    // the agent ran (git archive into $RUNNER_TEMP/keel), never the workspace's, which the agent can edit.
+    const keepLine = /\n +mkdir -p "\$RUNNER_TEMP\/keel" && git archive "\$GITHUB_SHA" scripts\/keel \.keel\/keel\.json \| tar -x -C "\$RUNNER_TEMP\/keel"\n/.exec(t)?.[0] ?? assert.fail(`${name}: no kept copy in the Brief`);
+    for (const [why, text, said] of [
+      ['agent-ran from the workspace', t.replace('node "$RUNNER_TEMP/keel/scripts/keel/climb.mjs" agent-ran --outcome', 'node scripts/keel/climb.mjs agent-ran --outcome'), /does not run climb\.mjs agent-ran \(the copy kept before the agent ran\)/],
+      ['Codex\'s agent-ran from the workspace', t.replace('node "$RUNNER_TEMP/keel/scripts/keel/climb.mjs" agent-ran --agent codex', 'node scripts/keel/climb.mjs agent-ran --agent codex'), /does not judge Codex by its final message/],
+      ['no kept copy', t.replace(keepLine, '\n'), /keel's scripts are not kept \(git archive "\$GITHUB_SHA" … into \$RUNNER_TEMP\/keel\) before the agent runs/],
+      ['the copy kept after the agent', t.replace(keepLine, '\n').replace(check, check.replace('        run: |\n', `        run: |${keepLine}`)), /keel's scripts are not kept .* before the agent runs/],
+    ]) {
+      assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
+      const problems = agentRanProblems(text, opts);
+      assert.ok(problems.some(p => said.test(p)), `${name} ${why}: ${JSON.stringify(problems)}`);
     }
   }
 });

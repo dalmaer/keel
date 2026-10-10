@@ -79,9 +79,21 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   const refusedLike = (refused, re, why) => assert.ok(refused.some(p => re.test(p)), `${why}: ${JSON.stringify(refused)}`);
   refusedLike(await attempt('evidence', () => writeFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), '# Acme orders\n\nOrdered one anvil; it arrived.\nAnd a second.\n')), /^docs\/evidence\/2026-10-01-acme-orders\.md:4: edits evidence; tend never writes evidence/, 'an evidence edit');
   refusedLike(await attempt('new-evidence', () => write(dir, { 'docs/evidence/2026-10-07-acme-ships.md': '# Shipped\n' })), /^docs\/evidence\/2026-10-07-acme-ships\.md:1: adds evidence/, 'a new evidence file');
+  // PR #59: a path git quotes (a non-ASCII byte), and a phase turned CRLF on its way to built, read the same.
+  refusedLike(await attempt('evidence-é', () => write(dir, { 'docs/evidence/é-ships.md': '# Shipped\n' })), /^docs\/evidence\/é-ships\.md:1: adds evidence/, 'a non-ASCII evidence path');
+  refusedLike(await attempt('built-crlf', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('status: partial', 'status: built').replace(/\n/g, '\r\n'))), /^docs\/phases\/02-acme-ships\.md:2: status partial → built/, 'partial → built, in CRLF');
   refusedLike(await attempt('built', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('status: partial', 'status: built'))), /^docs\/phases\/02-acme-ships\.md:2: status partial → built; tend never marks a phase built/, 'partial → built');
   for (const s of ['lived-in', 'accepted']) refusedLike(await attempt(s, () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('status: partial', `status: ${s}`))), new RegExp(`status partial → ${s}`), s);
   refusedLike(await attempt('tick', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), phase2.replace('- [ ] An anvil ships.', '- [x] An anvil ships.'))), /^docs\/phases\/02-acme-ships\.md:\d+: ticks an acceptance box \("An anvil ships\."\)/, 'a ticked box');
+  // PR #59: ticked boxes count by occurrence: a box ticked where an identical line is already ticked is still new.
+  const twice = phase2.replace('- [ ] An anvil ships.', '- [x] An anvil ships.\n- [ ] An anvil ships.');
+  await attempt('twice', () => writeFile(join(dir, 'docs/phases/02-acme-ships.md'), twice));
+  const one = git(dir, ['rev-parse', 'HEAD']);
+  await write(dir, { 'docs/phases/02-acme-ships.md': twice.replace('- [ ] An anvil ships.', '- [x] An anvil ships.') });
+  git(dir, ['commit', '-q', '-am', 'acme: tend\n\nTend: proofs_hold:1']);
+  const second = m.tendCheck(dir, one, git(dir, ['rev-parse', 'HEAD']), { findings }).refused;
+  assert.deepEqual(second, ['docs/phases/02-acme-ships.md:23: ticks an acceptance box ("An anvil ships."); tend never accepts a phase'], 'the second of two identical boxes');
+  assert.deepEqual(m.added([{ k: 'a' }, { k: 'a' }], [{ k: 'a' }, { k: 'b' }, { k: 'a' }, { k: 'a' }], x => x.k).map(x => x.k), ['b', 'a']);
   refusedLike(await attempt('delete', () => rm(join(dir, 'tests/acme-ships.test.mjs'))), /^tests\/acme-ships\.test\.mjs: deleted; tend never deletes/, 'a deletion');
   refusedLike(await attempt('uncited', () => write(dir, { 'README.md': 'Acme sells anvils, and ships them.\n' }), 'acme: readme'), /"acme: readme": cites no finding/, 'no citation');
   refusedLike(await attempt('unknown', () => write(dir, { 'README.md': 'Acme.\n' }), 'acme: readme\n\nTend: lint:acme'), /cites lint:acme, which is not on the worksheet/, 'an unknown finding');
@@ -106,6 +118,21 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   const gate = climb(dir, ['guard', '--job', 'tend', '--base', base]);
   assert.equal(gate.status, 1);
   assert.match(gate.stdout, /the gate `node -e "process\.exit\(3\)"` failed \(exit 3\)/);
+  // PR #59: the gate is the agent's code, run after the tend guard's checks. A gate that commits evidence,
+  // or only stages a change, and exits 0 is refused: what was checked is the only commit taken.
+  const checked = git(dir, ['rev-parse', 'HEAD']);
+  for (const [check, said] of [
+    ['echo "# Acme: proven" > docs/evidence/2026-10-09-sneak.md && git add docs/evidence && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
+    ['echo "more" >> README.md && git add README.md', /changed the tracked tree or the index after the guard's checks/],
+    // PR #59: a hook planted in the git dir is refused before any git of keel's could run it.
+    ['printf "#!/bin/sh\\n" > "$(git rev-parse --git-common-dir)/hooks/reference-transaction"', /changed the git dir's config, hooks or attributes/],
+  ]) {
+    git(dir, ['reset', '-q', '--hard', checked]);
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check }));
+    const moved = climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']);
+    assert.equal(moved.status, 1, `${check}: ${moved.stdout}`);
+    assert.ok(json(moved).problems.some(p => said.test(p)), JSON.stringify(json(moved).problems));
+  }
 });
 
 test('tend off: with no tend key nothing runs and gh is never asked; with no secret the run ends green with a notice; a bad tend is red naming the key', async t => {
@@ -213,6 +240,16 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   const g = climb(dir, ['guard', '--json']);
   assert.equal(g.status, 0, g.stdout + g.stderr);
   assert.match(json(g).line, /proposals only \(2 files under \.keel\/climb\/lessons\/\), no code changed, nothing decided/);
+  // PR #59: the gate runs after the proposals' checks and is the agent's code: a gate that commits outside
+  // the proposals (here, the table itself) and exits 0 is refused, never passed.
+  const judged = git(dir, ['rev-parse', 'HEAD']);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: 'echo "| 9 | sneak |" >> docs/lessons.md && git add docs/lessons.md && git commit -q -m sneak' }));
+  const moved = climb(dir, ['guard', '--json']);
+  assert.equal(moved.status, 1, moved.stdout + moved.stderr);
+  assert.match(json(moved).problems.join('\n'), /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/);
+  git(dir, ['reset', '-q', '--hard', judged]);
+  assert.equal(climb(dir, ['guard', '--json']).status, 0, 'back on the judged commit, the honest gate passes again');
   const rep = climb(dir, ['report']);
   assert.equal(rep.status, 0, rep.stderr);
   assert.match(rep.stdout, /^climb lessons \d{4}-\d{2}-\d{2}: 2 proposals for the owner \(1 family, 1 reword\); the table unchanged; \d+ min$/m);
