@@ -77,3 +77,7 @@ Action layer: `decideTimeProposal({root,path,expectedInstance,decision,reason,tr
 Time actions require instance binding. Accept authorizes issue API yes:true, without second confirmation. Target derives from local repo/trusted policy, never metadata. Persist accepting before POST; reuse54 journal/recovery; completed retries return verified issue. Non-time behavior stays unchanged.
 
 An enabled-but-unqueued result is not completed acceptance: retain lifecycle `accepting`, the verified issue identity, instance and reason across regeneration. Retry recovers that issue without duplication or automatic relabelling. Advance to `accepted` only on verified `created` or `recovered`; OFF-policy unlabelled creation remains successful. The board names the owner label step and never claims queued work from a mere issue URL.
+
+## Installed night boundary
+
+Remeasurement must run from an adopted repository's installed scripts without the Keel CLI source tree. The canonical read-only delivery implementation moves from the climb source bundle to night; its installed `scripts/keel/robot-delivery.mjs` path stays unchanged, and climb already depends on night. The shared `time-proposal-remeasurement.mjs` performs delivery, ancestry and evidence checks without remote writes. The CLI action layer re-exports it and the shipped night imports its sibling. No duplicate delivery parser or second tracking store is introduced. Updating an existing climb installation preserves managed-file bytes and reports owner drift rather than overwriting it.
