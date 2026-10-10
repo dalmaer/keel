@@ -928,7 +928,7 @@ test('verified robot top-level reviews remain actionable across heads and prose'
   const conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
   for (const author of ['claude','codex']) {
     const reviewer=author==='claude'?'codex':'claude';
-    const mark={version:1,repo:'acme/app',issueNumber:7,instanceId:'issue-7',author,headSha:head,cursor:0};
+    const mark={version:1,repo:'acme/app',issueNumber:7,instanceId:'issue-7',author,headSha:old,cursor:0};
     const review={id:'PRR_acme',databaseId:12,author:bot,commit:{oid:old},submittedAt:'2026-10-01T00:00:00Z',url:'https://github.com/acme/app/pull/8#pullrequestreview-12',body:`<!-- keel:robot-review ${old} ${reviewer} -->\nReviewed by ${reviewer}; built by ${author}.\n\n[P1] acme.js:9 loses a correction.`};
     const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:'keel/robot-7',headRefOid:head,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(mark)} -->`,reviewThreads:conn([]),comments:conn([]),reviews:conn([review])};
     const entries=reviewComments(pr);
@@ -953,4 +953,35 @@ test('verified robot top-level reviews remain actionable across heads and prose'
     assert.match(fragment,/headRefOid body repository/);
     assert.match(fragment,/author \{ __typename login \} commit \{ oid \}/);
   }
+});
+
+test('robot continuation reviews require complete exact-head bot metadata without hiding historical findings', () => {
+  const initial='a'.repeat(40), later='b'.repeat(40), current='c'.repeat(40);
+  const bot={__typename:'Bot',login:'github-actions'}, conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
+  for (const author of ['claude','codex']) {
+    const reviewer=author==='claude'?'codex':'claude';
+    const anchor={version:1,repo:'acme/app',issueNumber:7,instanceId:'acme-7',author,headSha:initial,cursor:2};
+    const metadata={version:1,repo:'acme/app',prNumber:8,issueNumber:7,instanceId:'acme-7',author,headSha:later,cursor:3,authorization:{receiptId:10,bodyHash:'d'.repeat(64),writer:'acme-owner',policyHash:'e'.repeat(64)}};
+    const body=v=>`<!-- keel:robot-continuation ${JSON.stringify(v)} -->\nTrusted robot continuation.\n\nAcme bounded change.`;
+    const comment={databaseId:20,author:bot,url:'https://github.com/acme/app/pull/8#issuecomment-20',body:body(metadata)};
+    const review=head=>({id:`PRR_${head[0]}`,author:bot,commit:{oid:head},submittedAt:'2026-10-01T00:00:00Z',body:`<!-- keel:robot-review ${head} ${reviewer} -->\nReviewed by ${reviewer}; built by ${author}.\n\nAcme defect remains.`});
+    const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:'keel/robot-7',headRefOid:current,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(anchor)} -->`,reviewThreads:conn([]),comments:conn([comment]),reviews:conn([review(initial),review(later)])};
+    assert.throws(()=>reviewComments({...pr,comments:conn([])}),/exact-head continuation metadata/, 'a PR body for another head cannot authorize this review');
+    assert.deepEqual(reviewComments(pr).map(r=>[r.id,r.answered]),[['PRR_a',false],['PRR_b',false]]);
+    const replay={...comment,databaseId:21,url:'https://github.com/acme/app/pull/8#issuecomment-21'};
+    assert.equal(reviewComments({...pr,comments:conn([comment,replay])}).length,2);
+    for (const patch of [{repo:'acme/foreign'},{prNumber:9},{issueNumber:8},{instanceId:'other'},{author:reviewer},{cursor:1},{cursor:-1},{version:2},{extra:true},{authorization:{...metadata.authorization,receiptId:0}},{authorization:{...metadata.authorization,extra:true}}]) {
+      assert.throws(()=>reviewComments({...pr,comments:conn([{...comment,body:body({...metadata,...patch})}])}),/metadata/,JSON.stringify(patch));
+    }
+    for (const patch of [{databaseId:0},{url:'https://github.com/acme/app/pull/9#issuecomment-20'},{body:comment.body+'\n<!-- keel:robot-continuation {} -->'},{body:'prefix\n'+comment.body},{body:body(null)}]) assert.throws(()=>reviewComments({...pr,comments:conn([{...comment,...patch}])}),/metadata/);
+    for (const fake of [{__typename:'User',login:'github-actions'},{__typename:'Bot',login:'acme'}]) assert.throws(()=>reviewComments({...pr,comments:conn([{...comment,author:fake}])}),/missing/);
+    assert.throws(()=>reviewComments({...pr,comments:conn([comment,{...replay,body:body({...metadata,cursor:4})}])}),/conflicting/);
+    assert.throws(()=>reviewComments({...pr,comments:{nodes:[comment],pageInfo:{hasNextPage:true}}}),/incomplete/);
+    const window={...pr,keelWindow:'PullRequest',comments:{nodes:[],pageInfo:{hasPreviousPage:true}},reviews:{nodes:[review(later)],pageInfo:{hasPreviousPage:false}}};
+    const converted=fromWindow(window);assert.equal(converted.whole,false);assert.throws(()=>reviewComments(converted.pr),/incomplete/);
+    const answer={id:'IC_answer',author:{login:'acme-owner'},createdAt:'2026-10-02T00:00:00Z',body:'Tracked PRR_b in Acme #9.'};
+    assert.deepEqual(reviewComments({...pr,comments:conn([comment,answer])}).map(r=>r.answered),[false,true]);
+    assert.equal(reviewComments({...pr,reviews:conn([review(initial)]),comments:conn([])}).length,1);
+  }
+  for(const fragment of [reviewFragment(),windowFragment()]) assert.match(fragment,/comments\((?:first|last): \d+\).*author \{ __typename login \} body createdAt url/);
 });

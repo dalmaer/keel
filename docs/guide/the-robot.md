@@ -115,6 +115,16 @@ Only verified human write/maintain/admin permission can start comment follow-up.
 Unknown permissions, unmet prerequisites and human-edited continuation heads
 block work. A person reads and merges; the robot does not merge itself.
 
+Continuations preserve the PR description, including owner edits. Its initial
+association anchors identity; a canonical bot comment binds each later judged
+head and its authorization. Missing, conflicting or incompletely read metadata
+blocks reuse. A saved publication intent permits recovery of that exact head
+without duplicating its comment. Reviews resolve the association for their own
+commit, so unanswered earlier reviews remain visible. Agent text has Markdown
+controls escaped and closing verbs visibly interrupted (for example, `C·loses`);
+only the trusted task reference emits an issue-closing directive. These display
+changes do not alter filenames or identity checks.
+
 The owner walk is still required: choose a project and allowance, enable the
 practice there, and read three small issues' PRs and reviews before deciding to
 keep it on, reduce the budget or turn it off. Local tests prove buildable paths,

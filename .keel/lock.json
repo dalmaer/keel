@@ -175,7 +175,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "253ca20baa125e1ea4b6aae6fdd6e153da09687a8e2666b9f8a36f72ab8e575c"
+      "sha256": "4eeb5b67a69607509f4734c48cd1e0c767447a7a302f34b0f15f32bb0cd7aa9c"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -191,7 +191,7 @@
     },
     "scripts/keel/robot-delivery.mjs": {
       "practice": "climb",
-      "sha256": "296b9f5b900f44c1a8f7ea12f85f88f8325481c56466923303fa7b2915b8bc3b"
+      "sha256": "0ccf8a3ab63f1c5325ef63c98d0aa6eccefa252623ed1a573037d9d515433ccb"
     },
     "scripts/keel/robot-policy.mjs": {
       "practice": "climb",
@@ -203,7 +203,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "5447912cb29e7be195122436e826b8330fb628b534514d162e184b07c278ea52"
+      "sha256": "4ea24895cedf95d340fef9a6be10023655d3cdb609c8a0f4ae2fa686c76b8308"
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",

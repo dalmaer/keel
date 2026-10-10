@@ -411,3 +411,23 @@ test('robot issue enabled label readback reports unqueued identity and never dup
   const intent = JSON.parse(await readFile(join(stateDir, dir, name), 'utf8'));
   assert.equal(intent.state, 'verified'); assert.deepEqual(intent.issue, first.issue);
 });
+
+
+test('robot issue mixed-case repository URLs create and recover with canonical journal keys', async t => {
+  const stateDir = await temp(t), api = remote();
+  const github = async request => {
+    const response = await api.github(request);
+    const display = row => row && ({ ...row, html_url: `https://github.com/Acme/Widget/issues/${row.number}`, url: `https://api.github.com/repos/Acme/Widget/issues/${row.number}` });
+    return { ...response, data: Array.isArray(response.data) ? response.data.map(display) : display(response.data) };
+  };
+  const args = { ...work, repo: 'Acme/Widget', stateDir, github, yes: true };
+  const created = await ensureRobotIssue(args);
+  assert.equal(created.state, 'created'); assert.equal(created.issue.repo, 'acme/widget');
+  assert.equal(created.issue.url, 'https://github.com/Acme/Widget/issues/1');
+  assert.deepEqual((await recoverRobotIssue({ ...args, repo: 'ACME/WIDGET' })).issue, created.issue);
+  assert.equal((await ensureRobotIssue({ ...args, repo: 'acme/widget' })).state, 'recovered');
+  assert.equal(api.posts().length, 1); assert.equal((await readdir(stateDir)).length, 1);
+  const [dir] = await readdir(stateDir);
+  const file = (await readdir(join(stateDir, dir))).find(f => f.endsWith('.json') && !f.startsWith('subject-'));
+  assert.equal(JSON.parse(await readFile(join(stateDir, dir, file), 'utf8')).repo, 'acme/widget');
+});

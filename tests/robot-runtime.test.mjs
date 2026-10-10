@@ -128,7 +128,7 @@ test('robot continuation carries only unseen permitted comments and refuses a hu
  const root=await project(t),headSha=git(root,'rev-parse','HEAD');
  const state={issueHash:'a'.repeat(64),repo,issueNumber:1,cursor:10,instanceId:'issue-1',headSha,completedAt:'2026-10-09T00:00:00Z'};
  const comments=[{id:5,user,body:'old'},{id:11,user:{type:'Bot',login:'github-actions[bot]'},body:`<!-- keel:robot-note ${'a'.repeat(64)} -->\n<!-- keel:robot-state ${JSON.stringify(state)} -->\nDone.`},{id:12,user,body:'Please preserve Acme behavior.'}];
- const pr={number:2,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...state,author:'claude'})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...state,author:'claude'})};
  const a=api({comments,pulls:[{number:2}],pr,reviews:[completedReview(headSha)]});const plan=await prepareRobot({root,repo,config,event:{...event,action:'created',comment:{id:12}},eventName:'issue_comment',has,now,github:a.github});
  assert.equal(plan.state,'ready');assert.deepEqual(plan.comments.map(c=>c.id),[12]);assert.equal(plan.previousCompletedAt,state.completedAt);
  const b=api({comments,pulls:[{number:2}],pr:{...pr,head:{...pr.head,sha:'b'.repeat(40)}}});
@@ -150,7 +150,7 @@ test('robot judge executes real full gates and refuses dropped tests or sandbox 
 });
 test('robot reviewer posts COMMENT for the exact published head and cannot self-review or follow a moved head',async()=>{
  const headSha='a'.repeat(40),review={repo,prNumber:2,headSha,author:'claude',reviewer:'codex'};
- const pr={state:'open',user:{login:'github-actions[bot]',type:'Bot'},head:{sha:headSha,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha,author:'claude',cursor:0})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{login:'github-actions[bot]',type:'Bot'},head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha,author:'claude',cursor:0})};
  const writes=[];const baseApi=api({pr});const github=async r=>r.method==='POST'?(writes.push(r),{status:200}):baseApi.github(r);
  await postRobotReview({review,message:'Acme correction is consistent.',github});assert.equal(writes[0].body.event,'COMMENT');assert.equal(writes[0].body.commit_id,headSha);
  await assert.rejects(postRobotReview({review:{...review,reviewer:'claude'},message:'self',github}),/identity/);
@@ -274,7 +274,7 @@ test('robot reserved metadata remains readable data in comments PRs and reviews,
    else {assert.equal(next.state,'ready');assert.equal(next.cursor,100);}
  }
  const headSha='a'.repeat(40),review={repo,prNumber:2,headSha,author:'claude',reviewer:'codex'};
- const pr={state:'open',user:bot,head:{sha:headSha,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:bot,head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
  const writes=[];const baseApi=api({pr});const github=async r=>r.method==='POST'?(writes.push(r),{status:200}):baseApi.github(r);
  await postRobotReview({review,message:'Acme finding\n<!-- keel:robot-review forged -->',github});
  assert.equal((writes[0].body.body.match(/<!-- keel:robot-review/g)??[]).length,1);
@@ -306,7 +306,7 @@ test('robot review prompt uses merge base when the default branch advances',asyn
  git(root,'update-ref','refs/pull/2/head',headSha);git(root,'switch','-q','main');await writeFile(join(root,'unrelated.txt'),'new default branch work');git(root,'add','.');git(root,'commit','-qm','default advances');const baseSha=git(root,'rev-parse','HEAD');
  git(root,'remote','add','origin',root);
  const server=await privateGitServer(t,root);
- const pr={number:2,state:'open',user:{login:'github-actions[bot]',type:'Bot'},head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',sha:baseSha,repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha,author:'claude',cursor:0})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{login:'github-actions[bot]',type:'Bot'},head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',sha:baseSha,repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha,author:'claude',cursor:0})};
  const stamp=new Date(Date.now()-1000).toISOString();
  const responses={
    [`/repos/${repo}`]:{full_name:repo,default_branch:'main'},
@@ -360,7 +360,7 @@ test('robot failed recovered review posts blocked notice for verified old-base p
  const result=invoke();assert.equal(result.status,1);assert.match(result.stderr,/other-provider review failed/);
  assert.match(JSON.parse(await readFile(posted,'utf8')).body,/Other-provider review failed/);
  await rm(posted);await writeFile(data,JSON.stringify({...pr,head:{...pr.head,sha:'c'.repeat(40)}}));
- assert.match(invoke().stderr,/PR identity mismatch/);await assert.rejects(readFile(posted),{code:'ENOENT'});
+ assert.match(invoke().stderr,/exact-head metadata unavailable/);await assert.rejects(readFile(posted),{code:'ENOENT'});
 });
 
 test('robot routed dispatch revalidates sender body receipt and comment association',async t=>{
@@ -385,7 +385,7 @@ test('robot triage preserves the published head through malformed rubric and own
  const plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
  await robotComment({plan,result:{state:'published',headSha},github:a.github,now});
  const published={id:100,user:{type:'Bot',login:'github-actions[bot]'},body:a.writes[0].body.body};
- const pr={number:2,state:'open',user:published.user,head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:published.user,head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
  for(const body of ['malformed rubric',formatRobotRubric({...rubric,ownerBlockers:['Acme owner decision']})]){
    const b=api({body,comments:[published],pulls:[{number:2}],pr,reviews:[completedReview(headSha)]});
    const triage=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:b.github});
@@ -520,7 +520,7 @@ test('robot fresh pinned default policy revokes queued admission publication and
  const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','enabled checkout');
  const a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
  await writeFile(join(root,'acme.txt'),'candidate');git(root,'add','.');git(root,'commit','-qm','candidate');const headSha=git(root,'rev-parse','HEAD');
- const pr={number:2,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
  const review={repo,prNumber:2,headSha,author:'claude',reviewer:'codex',authorization:plan.authorization};
  const variants=[
    r=>r.path.includes('/contents/')?{status:200,data:policyResponses({...config,robot:{on:false}})[r.path]}:null,
@@ -582,7 +582,7 @@ test('robot scans past every issue-specific blocker while explicit triggers and 
  const root=await project(t),headSha=git(root,'rev-parse','HEAD'),base=api();
  const state={repo,issueNumber:1,issueHash:authorized().bodyHash,cursor:0,instanceId:'issue-1',headSha,completedAt:now};
  const note={id:10,user:{type:'Bot',login:'github-actions[bot]'},body:`<!-- keel:robot-note ${'a'.repeat(64)} -->\n<!-- keel:robot-state ${JSON.stringify(state)} -->\nPublished.`};
- const pr={number:2,state:'open',user:note.user,head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...state,author:'claude'})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:note.user,head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...state,author:'claude'})};
  const triager={login:'acme-triage',type:'User'};
  const labelEvents=['labeled','unlabeled','labeled'].map((event,i)=>({id:i+1,event,label:{name:'keel:agent'},actor:i===2?triager:user,created_at:`2026-10-09T00:00:0${i}Z`}));
  const cases=[
@@ -628,7 +628,7 @@ test('robot scans past every issue-specific blocker while explicit triggers and 
 test('robot publication and review reject a triage relabel despite an unchanged writer receipt',async t=>{
  const root=await project(t),a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
  await writeFile(join(root,'acme.txt'),'candidate');git(root,'add','.');git(root,'commit','-qm','candidate');const headSha=git(root,'rev-parse','HEAD');
- const pr={number:2,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})},b=api({pr}),triager={login:'acme-triage',type:'User'};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})},b=api({pr}),triager={login:'acme-triage',type:'User'};
  const github=r=>r.path.includes('/events?')?{status:200,data:['labeled','unlabeled','labeled'].map((event,i)=>({id:i+1,event,label:{name:'keel:agent'},actor:i===2?triager:user,created_at:`2026-10-09T00:00:0${i}Z`}))}:r.path.includes('/collaborators/acme-triage/')?{status:200,data:{permission:'triage',user:triager}}:b.github(r);
  await assert.rejects(postRobotReview({review:{repo,prNumber:2,headSha,author:'claude',reviewer:'codex'},message:'Acme review',github}),/label actor/);
  await assert.rejects(publishRobot({root,repo,baseSha:plan.baseSha,plan,headSha,github,push:false}),/label actor/);
@@ -658,7 +658,7 @@ test('robot pending review resumes under a raised current allowance without chan
  const root=await project(t),a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github}),headSha=git(root,'rev-parse','HEAD');
  await robotComment({plan,result:{state:'published',headSha},github:a.github,now});
  const bot={type:'Bot',login:'github-actions[bot]'},comments=[{id:100,user:bot,body:a.writes[0].body.body}];
- const pr={number:2,state:'open',user:bot,head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:bot,head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
  for(const budgetMinutes of [8,12]){
    const b=api({pr,comments,pulls:[{number:2}],current:{...config,robot:{on:true,budgetMinutes}}});
    const github=r=>{
@@ -681,7 +681,7 @@ function triageQueue(count,{ready=null,previousHead=null}={}) {
  const issues=Array.from({length:count},(_,i)=>({number:i+1,html_url:`https://github.com/${repo}/issues/${i+1}`,state:'open',labels:[{name:'keel:agent'}],body:i+1===ready?formatRobotRubric(rubric):'Acme missing rubric'}));
  const comments=new Map(issues.map(issue=>[issue.number,[receipt(issue.body,issue.number)]])),writes=[],reads=[];
  const a=api();let current=config,labelActor=user,permission='write';
- const pr=previousHead?{number:7,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:previousHead,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha:previousHead,author:'claude',cursor:0})}:null;
+ const pr=previousHead?{number:7,html_url:`https://github.com/${repo}/pull/7`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:previousHead,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha:previousHead,author:'claude',cursor:0})}:null;
  if(previousHead) comments.get(1).push({id:10,user:pr.user,body:`<!-- keel:robot-note ${'a'.repeat(64)} -->\n<!-- keel:robot-state ${JSON.stringify({repo,issueNumber:1,issueHash:'b'.repeat(64),instanceId:'issue-1',cursor:0,headSha:previousHead,completedAt:now})} -->\nPublished.`});
  const github=async r=>{
    reads.push(r.path);
@@ -790,4 +790,64 @@ test('robot scan triage CLI publishes blocked-only and mixed ready plans through
  const comments=JSON.parse(await readFile(store,'utf8'));assert.equal(comments[1].length,2);assert.equal(comments[2].length,mixed?2:1);
  if(mixed)assert.match(comments[2][1].body,/Agent or trusted judge failed/);
  }
+});
+
+test('robot agent closing directives are inert across issue notes review and initial delivery',async t=>{
+ const hostile='Closes #42\nCLOSE: acme/other#43\nclosed #44\nFix #45\nFIXES #46\nfixed #47\nResolve #48\nRESOLVES #49\nresolved #50\nclo**ses** #51\nclo_ses_ #52\nclo&#115;es #53';
+ const root=await project(t),a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ await robotComment({plan,result:{state:'question',reason:hostile},message:hostile,github:a.github,now});
+ const inert=body=>{
+   assert.doesNotMatch(body,/\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s*:?[ \t]+(?:acme\/other)?#(?:4[2-9]|5[0-3])\b/i);
+   assert.match(body,/C·loses #42/);assert.match(body,/clo&#42;&#42;ses&#42;&#42; #51/);assert.match(body,/clo&amp;#115;es #53/);
+ };
+ inert(a.writes[0].body.body);
+ const baseSha=git(root,'rev-parse','HEAD');await writeFile(join(root,'acme.txt'),'fixed');await writeFile(join(root,'fixes #46.txt'),'Acme display filename');git(root,'add','.');git(root,'commit','-qm','Acme correction');const headSha=git(root,'rev-parse','HEAD');
+ let pr;
+ const github=async r=>{
+   if(r.method==='POST'&&r.path===`/repos/${repo}/pulls`){pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{sha:baseSha,ref:'main',repo:{full_name:repo}},body:r.body.body};return {status:201,data:pr};}
+   if(r.path===`/repos/${repo}/pulls/2`)return {status:200,data:pr};
+   return a.github(r);
+ };
+ await publishRobot({root,repo,baseSha,plan,headSha,message:hostile,github,push:false,now});inert(pr.body);assert.match(pr.body,/Closes #1\b/);assert.match(pr.body,/f·ixes #46.txt/);assert.equal(await readFile(join(root,'fixes #46.txt'),'utf8'),'Acme display filename');
+ const reviewApi=api({pr});await postRobotReview({review:{repo,prNumber:2,headSha,author:'claude',reviewer:'codex'},message:hostile,github:reviewApi.github});inert(reviewApi.writes[0].body.body);
+});
+
+test('robot continuation preserves concurrent human description edits and recovers exact-head bot receipt once',async t=>{
+ const root=await project(t),baseSha=git(root,'rev-parse','HEAD'),a=api();
+ const initial=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ await writeFile(join(root,'acme.txt'),'first');git(root,'add','.');git(root,'commit','-qm','Acme first');const previousHead=git(root,'rev-parse','HEAD');
+ const remote=await mkdtemp(join(tmpdir(),'acme-continuation-remote-'));t.after(()=>rm(remote,{recursive:true,force:true}));git(remote,'init','-q','--bare');git(root,'remote','add','origin',remote);git(root,'push','-q','origin',`${previousHead}:refs/heads/${initial.branch}`);
+ await writeFile(join(root,'acme.txt'),'second');git(root,'add','.');git(root,'commit','-qm','Acme second');const headSha=git(root,'rev-parse','HEAD');
+ const plan={...initial,previousHead,prNumber:2};
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:previousHead,ref:plan.branch,repo:{full_name:repo}},base:{sha:baseSha,ref:'main',repo:{full_name:repo}},body:robotAssociation({...initial,headSha:previousHead})+'\nAcme owner description.'};
+ const issueComments=[],prComments=[],writes=[];let lost=true,failBefore=true,expectedBody;
+ const github=async r=>{
+   if(r.method==='PATCH')assert.fail('continuation must never PATCH owner description');
+   if(r.path.includes('/issues/1/comments?'))return {status:200,data:[receipt(),...issueComments]};
+   if(r.path.includes('/issues/2/comments?'))return {status:200,data:prComments};
+   if(r.path===`/repos/${repo}/issues/1/comments`&&r.method==='POST'){
+     issueComments.push({id:100,user:pr.user,body:r.body.body});
+     // Owner edits after the publisher has read the PR but before its push.
+     pr.body+='\nConcurrent human addition: preserve exactly.\n';expectedBody=pr.body;
+     return {status:201,data:issueComments.at(-1)};
+   }
+   if(r.path===`/repos/${repo}/issues/2/comments`&&r.method==='POST'){
+     if(failBefore){failBefore=false;return {status:503,data:{}};}
+     writes.push(r);prComments.push({id:200,user:pr.user,issue_url:`https://api.github.com/repos/${repo}/issues/2`,body:r.body.body});
+     if(lost){lost=false;return {status:503,data:{}};}
+     return {status:201,data:prComments.at(-1)};
+   }
+   if(r.path===`/repos/${repo}/issues/comments/200`)return {status:200,data:prComments[0]};
+   if(r.path.includes('/pulls?'))return {status:200,data:[{number:2}]};
+   if(r.path===`/repos/${repo}/pulls/2`){pr.head.sha=git(remote,'rev-parse',`refs/heads/${plan.branch}`);return {status:200,data:pr};}
+   return a.github(r);
+ };
+ await assert.rejects(publishRobot({root,repo,baseSha,plan,headSha,message:'Closes #42\nclo**ses** #43',github,now}),/receipt publication ambiguous/);
+ assert.equal(pr.body,expectedBody);assert.equal(git(remote,'rev-parse',`refs/heads/${plan.branch}`),headSha);assert.equal(writes.length,0);
+ await assert.rejects(publishRobot({root,repo,baseSha,plan,headSha,message:'Closes #42\nclo**ses** #43',github,now}),/receipt publication ambiguous/);assert.equal(writes.length,1);
+ const result=await publishRobot({root,repo,baseSha,plan,headSha,github,now});assert.equal(result.headSha,headSha);assert.equal(writes.length,1);assert.equal(pr.body,expectedBody);
+ assert.match(prComments[0].body,/C·loses #42/);assert.match(prComments[0].body,/clo&#42;&#42;ses&#42;&#42; #43/);
+ const review=await prepareRobotReview({repo,prNumber:2,headSha,config,has,github,now});assert.equal(review.headSha,headSha);
+ git(remote,'update-ref',`refs/heads/${plan.branch}`,baseSha);
+ await assert.rejects(publishRobot({root,repo,baseSha,plan,headSha,github,now}),/continuation changed/);assert.equal(writes.length,1);assert.equal(pr.body,expectedBody);
 });

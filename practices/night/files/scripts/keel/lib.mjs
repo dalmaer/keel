@@ -1408,7 +1408,7 @@ export const reviewFragment = ({ threads = 100, replies = 100, comments = 100, r
   number title url state mergedAt updatedAt headRefName headRefOid body repository { nameWithOwner } headRepository { nameWithOwner } author { __typename login }
   reviewThreads(first: ${threads}) { pageInfo { hasNextPage } nodes { id isResolved path line
     comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
-  comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { login } body createdAt url } }
+  comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } body createdAt url } }
   reviews(first: ${reviews}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
 }`;
 
@@ -1461,15 +1461,36 @@ function robotReview(pr, review) {
   const bot = author => author?.__typename === 'Bot' && sameLogin(author.login, 'github-actions[bot]');
   if (!bot(pr.author) || !bot(review.author)) return null;
   if ((String(review.body ?? '').match(/<!-- keel:robot-review/g) ?? []).length !== 1) return null;
-  const envelope = /^<!-- keel:robot-review ([a-f0-9]{40}) (claude|codex) -->\nReviewed by (claude|codex); built by (claude|codex)\.\n\n([\s\S]+)$/.exec(review.body ?? '');
+  const envelope = /^<!-- keel:robot-review ((?:[a-f0-9]{40}|[a-f0-9]{64})) (claude|codex) -->\nReviewed by (claude|codex); built by (claude|codex)\.\n\n([\s\S]+)$/.exec(review.body ?? '');
   if (!envelope || envelope[2] !== envelope[3] || envelope[2] === envelope[4] || review.commit?.oid !== envelope[1]) return null;
   const marks = [...String(pr.body ?? '').matchAll(/^<!-- keel:robot-delivery (.+) -->$/gm)];
   if (marks.length !== 1) return null;
   let mark;
   try { mark = JSON.parse(marks[0][1]); } catch { return null; }
   const {version,repo,issueNumber,instanceId,author,headSha,cursor} = mark ?? {};
-  if (version !== 1 || !/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || !Number.isSafeInteger(issueNumber) || issueNumber < 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(instanceId ?? '') || !Number.isSafeInteger(cursor) || cursor < 0 || author !== envelope[4] || !/^[a-f0-9]{40}$/.test(headSha ?? '') || pr.headRefName !== `keel/robot-${issueNumber}` || pr.repository?.nameWithOwner !== repo || pr.headRepository?.nameWithOwner !== repo || pr.url !== `https://github.com/${repo}/pull/${pr.number}`) return null;
+  if (version !== 1 || !/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || repo.split('/').some(part => part === '.' || part === '..') || !Number.isSafeInteger(pr.number) || pr.number < 1 || !Number.isSafeInteger(issueNumber) || issueNumber < 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(instanceId ?? '') || !Number.isSafeInteger(cursor) || cursor < 0 || author !== envelope[4] || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(headSha ?? '') || pr.headRefName !== `keel/robot-${issueNumber}` || pr.repository?.nameWithOwner !== repo || pr.headRepository?.nameWithOwner !== repo || pr.url !== `https://github.com/${repo}/pull/${pr.number}`) return null;
   if (marks[0][1] !== JSON.stringify({version,repo,issueNumber,instanceId,author,headSha,cursor})) return null;
+  if (headSha !== envelope[1]) {
+    // A later review must have its own immutable bot receipt. A short window
+    // cannot prove absence, uniqueness, or that nobody answered the finding.
+    if (!Array.isArray(pr.comments?.nodes) || pr.comments.pageInfo?.hasNextPage !== false || pr.comments.pageInfo?.hasPreviousPage) throw new IncompleteRead('robot continuation comments are incomplete');
+    const matches = new Set();
+    for (const c of pr.comments.nodes) {
+      if (!bot(c.author) || !String(c.body ?? '').includes('<!-- keel:robot-continuation')) continue;
+      const fail = () => { throw new Error('robot continuation metadata is malformed or inconsistent'); };
+      if (!Number.isSafeInteger(c.databaseId) || c.databaseId < 1 || c.url !== `${pr.url}#issuecomment-${c.databaseId}` || (c.body.match(/<!-- keel:robot-continuation/g) ?? []).length !== 1) fail();
+      const m = /^<!-- keel:robot-continuation (.+) -->\nTrusted robot continuation\.\n\n/.exec(c.body);
+      if (!m) fail();
+      let v;
+      try { v = JSON.parse(m[1]); } catch { fail(); }
+      const a = v?.authorization;
+      if (!v || !a || !Number.isSafeInteger(a.receiptId) || a.receiptId < 1 || !/^[a-f0-9]{64}$/.test(a.bodyHash ?? '') || !/^[a-f0-9]{64}$/.test(a.policyHash ?? '') || !/^[A-Za-z0-9-]+$/.test(a.writer ?? '')) fail();
+      const canonical = {version:1,repo,prNumber:pr.number,issueNumber,instanceId,author,headSha:v.headSha,cursor:v.cursor,authorization:{receiptId:a.receiptId,bodyHash:a.bodyHash,writer:a.writer,policyHash:a.policyHash}};
+      if (JSON.stringify(canonical) !== m[1] || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v.headSha ?? '') || !Number.isSafeInteger(v.cursor) || v.cursor < cursor) fail();
+      if (v.headSha === envelope[1]) matches.add(m[1]);
+    }
+    if (matches.size !== 1) throw new Error('robot review exact-head continuation metadata is missing or conflicting');
+  }
   const text = envelope[5].trim();
   return { text, status: false };
 }
@@ -1555,7 +1576,7 @@ export const WINDOW_CONVO = 20;
 export const WINDOW_BODIES = 10;
 /** At most this many PRs a repo are read alone; past it the read is incomplete. */
 export const SOLO_READS = 6;
-const NODE = 'databaseId author { login } body createdAt url';
+const NODE = 'databaseId author { __typename login } body createdAt url';
 export const windowFragment = () => `fragment KeelReviewWindow on PullRequest {
   keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid body repository { nameWithOwner } headRepository { nameWithOwner } author { __typename login }
   reviewThreads(first: ${WINDOW_THREADS}) { pageInfo { hasNextPage } nodes { id isResolved path line
@@ -1607,9 +1628,9 @@ export function fromWindow(pr, reviewers = []) {
   // A missing connection stays missing, so reviewComments refuses it.
   const list = conn => conn && Array.isArray(conn.nodes) ? { pageInfo: { hasNextPage: !!conn.pageInfo?.hasPreviousPage }, nodes: conn.nodes } : conn;
   const comments = list(rest.comments), reviews = list(rest.reviews);
-  const bodies = (reviews?.nodes ?? []).some(r => String(r?.body ?? '').trim() && (robotReview(rest, r) || !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login))));
+  const bodies = (reviews?.nodes ?? []).some(r => String(r?.body ?? '').trim() && (String(r.body).startsWith('<!-- keel:robot-review ') || !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login))));
   if (reviews?.pageInfo.hasNextPage) whole = false;
-  if (comments?.pageInfo.hasNextPage && (reviewers.length || bodies)) whole = false;
+  if ((reviewers.length || bodies) && (!comments || comments.pageInfo.hasNextPage)) whole = false;
   return { pr: { ...rest, reviewThreads: { pageInfo: { hasNextPage: !!rest.reviewThreads?.pageInfo?.hasNextPage }, nodes: threads }, comments, reviews }, whole };
 }
 
