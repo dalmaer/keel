@@ -238,3 +238,57 @@ test('a conditional target turned off keeps its lock row, so an edit made while 
   assert.match(on.stderr, /refusing to overwrite what the project changed \(scripts\/keel\/contract-hook\.mjs edited\)/);
   assert.equal(await readFile(join(root, 'scripts/keel/contract-hook.mjs'), 'utf8'), edited, 'the edit is kept');
 });
+
+test('a brace alternative is a glob of its own, so src/{*.js,*.ts} matches and never crashes doctor or silences the hook (review of PR 58)', async t => {
+  const list = [{ paths: ['src/{*.js,*.ts}', 'lib/{a,{b,c}}/**'], read: 'docs/engine/src.md', why: 'the source is measured' }];
+  assert.deepEqual(contractProblems(list), []);
+  assert.equal(contractsFor(list, 'src/a.js').length, 1);
+  assert.equal(contractsFor(list, 'src/a.ts').length, 1);
+  assert.equal(contractsFor(list, 'src/a.md').length, 0);
+  assert.equal(contractsFor(list, 'src/deep/a.js').length, 0, '* inside braces stays within one directory');
+  assert.equal(contractsFor(list, 'lib/c/x/y.mjs').length, 1, 'nested braces');
+  assert.equal(contractsFor(list, 'lib/d/y.mjs').length, 0);
+
+  const root = await project(t);
+  await contractFiles(root);
+  await setConfig(root, c => { c.contracts = [{ paths: ['src/{index/*.mjs,store/*.json}'], read: 'docs/engine/indexing.md', why: 'the index format is measured' }]; });
+  assert.equal(keel(['render'], root).status, 0);
+  const { code, data, err } = doctorJson(root);
+  assert.equal(code, 0, err);
+  assert.deepEqual(data.notes.filter(n => n.rule.startsWith('contract-')), [], 'both alternatives match tracked files');
+  const hit = hook({ cwd: root, tool_name: 'Edit', tool_input: { file_path: join(root, 'src/store/schema.json') } }, { CLAUDE_PROJECT_DIR: root });
+  assert.equal(hit.status, 0);
+  assert.match(JSON.parse(hit.stdout).hookSpecificOutput.additionalContext, /^Before editing src\/store\/schema\.json, read docs\/engine\/indexing\.md/);
+});
+
+test('where adopt skipped the agents-md block, doctor names the contract rows AGENTS.md lacks, word for word, and render never writes them (review of PR 58)', async t => {
+  const root = await project(t);
+  await contractFiles(root);
+  // The project's AGENTS.md states the agents-md rule in its own words: adopt skipped the block.
+  const agents = await readFile(join(root, 'AGENTS.md'), 'utf8');
+  const own = agents.replace(/<!-- keel:begin agents-md -->[\s\S]*?<!-- keel:end agents-md -->\n?/, 'Acme asks before spending money.\n');
+  await writeFile(join(root, 'AGENTS.md'), own);
+  await setConfig(root, c => { c.blocksSkipped = ['agents-md']; c.contracts = CONTRACTS; });
+  assert.equal(keel(['render'], root).status, 0);
+  assert.equal(await readFile(join(root, 'AGENTS.md'), 'utf8'), own, 'the project\'s prose is untouched');
+  let { data } = doctorJson(root);
+  const note = data.notes.find(n => n.rule === 'contract-guide');
+  assert.ok(note, JSON.stringify(data.notes));
+  assert.equal(note.text, contractsTable(CONTRACTS).trim());
+  assert.match(note.message, /\| `src\/index\/\*\*` \| `docs\/engine\/indexing\.md` \|/);
+
+  // Once the guide names one, only the other is asked for; once it names both, nothing.
+  await writeFile(join(root, 'AGENTS.md'), `${own}\nBefore touching the index, read docs/engine/indexing.md.\n`);
+  ({ data } = doctorJson(root));
+  assert.equal(data.notes.find(n => n.rule === 'contract-guide').text, contractsTable([CONTRACTS[1]]).trim());
+  await writeFile(join(root, 'AGENTS.md'), `${own}\nRead docs/engine/indexing.md and docs/engine/store.md first.\n`);
+  ({ data } = doctorJson(root));
+  assert.equal(data.notes.find(n => n.rule === 'contract-guide'), undefined);
+
+  // With the block rendered, the table is there and no note is raised.
+  const plain = await project(t);
+  await contractFiles(plain);
+  await setConfig(plain, c => { c.contracts = CONTRACTS; });
+  assert.equal(keel(['render'], plain).status, 0);
+  assert.equal(doctorJson(plain).data.notes.find(n => n.rule === 'contract-guide'), undefined);
+});

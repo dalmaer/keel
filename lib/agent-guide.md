@@ -392,13 +392,16 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   its boxes that name no check. Never rewrite the phase for it; bring it up
   to date when it is next edited. With `contracts` set:
   `contract-doc-missing` (a contract's `read` is not a file),
-  `contract-unmatched` (a pattern no tracked file matches) and
+  `contract-unmatched` (a pattern no tracked file matches),
   `contract-hook` (the project's own `.claude/settings.json` never runs the
-  hook).
+  hook) and `contract-guide` (the `agents-md` block is skipped, ejected or
+  off, so the table is not rendered: the note's `text` is the rows AGENTS.md
+  lacks, to add in the project's own words; keel never writes them there).
 - **Contracts** (phase 65): `.keel/keel.json` `"contracts": [{ "paths":
   ["src/index/**"], "read": "docs/engine/indexing.md", "why": "<one line>"
   }]` names the document to read before editing a file a pattern matches
-  (whole paths from the root; `*`, `**`, `?`, `{a,b}`). Render appends them
+  (whole paths from the root; `*`, `**`, `?`, `{a,b}`, where each alternative
+  is a glob too). Render appends them
   to the `agents-md` block as a table (the block is unchanged without
   them), writes `scripts/keel/contract-hook.mjs`, and seeds
   `.claude/settings.json` with a `PreToolUse` hook on Edit, Write and

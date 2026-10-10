@@ -25,18 +25,44 @@ import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** A simple glob (`*`, `**`, `?`, `{a,b}`) as a whole-path RegExp. */
-export function globRegex(glob) {
+/**
+ * A glob's RegExp source. Each `{a,b}` alternative is a glob of its own
+ * (`src/{*.js,lib/**}`), braces may nest, and an unclosed `{` is literal.
+ */
+function globSource(glob) {
   let out = '';
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
     if (c === '*' && glob[i + 1] === '*') { i++; if (glob[i + 1] === '/') { i++; out += '(?:.*/)?'; } else out += '.*'; }
     else if (c === '*') out += '[^/]*';
     else if (c === '?') out += '[^/]';
-    else if (c === '{') { const end = glob.indexOf('}', i); if (end < 0) { out += '\\{'; continue; } out += `(?:${glob.slice(i + 1, end).split(',').map(x => x.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('|')})`; i = end; }
+    else if (c === '{') {
+      // The matching close, and the commas at this depth.
+      const commas = [];
+      let depth = 0, end = -1;
+      for (let k = i; k < glob.length; k++) {
+        if (glob[k] === '{') depth++;
+        else if (glob[k] === '}' && --depth === 0) { end = k; break; }
+        else if (glob[k] === ',' && depth === 1) commas.push(k);
+      }
+      if (end < 0) { out += '\\{'; continue; }
+      const alts = [];
+      let from = i + 1;
+      for (const k of [...commas, end]) { alts.push(glob.slice(from, k)); from = k + 1; }
+      out += `(?:${alts.map(globSource).join('|')})`;
+      i = end;
+    }
     else out += c.replace(/[.+^$(){}|[\]\\]/g, '\\$&');
   }
-  return new RegExp(`^${out}$`);
+  return out;
+}
+
+/** A simple glob (`*`, `**`, `?`, `{a,b}`) as a whole-path RegExp. */
+export const globRegex = glob => new RegExp(`^${globSource(glob)}$`);
+
+/** Why a glob cannot be read, or null when it compiles. */
+export function globProblem(glob) {
+  try { globRegex(glob); return null; } catch (e) { return e.message; }
 }
 
 /** What is wrong with a config's "contracts" (empty: nothing, or absent). */
@@ -49,6 +75,7 @@ export function contractProblems(list) {
     const at = `"contracts"[${i}]`;
     if (!c || typeof c !== 'object' || Array.isArray(c)) { problems.push(`${at}: ${shape}`); return; }
     if (!Array.isArray(c.paths) || !c.paths.length || c.paths.some(p => typeof p !== 'string' || !p.trim())) problems.push(`${at}: "paths" must be a non-empty list of path patterns`);
+    else for (const p of c.paths) if (globProblem(p)) problems.push(`${at}: the pattern ${p} is not a glob keel can read (${globProblem(p)})`);
     if (typeof c.read !== 'string' || !c.read.trim() || isAbsolute(c.read) || c.read.split(/[\\/]/).includes('..')) problems.push(`${at}: "read" must be a document's path inside the project`);
     if (typeof c.why !== 'string' || !c.why.trim() || /\n/.test(c.why)) problems.push(`${at}: "why" must be one line`);
   });
