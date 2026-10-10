@@ -22,11 +22,22 @@
 // is not a test; a describe() is a suite, and only a test inside it counts)
 // exits 1, "no tests ran" — a gate that ran nothing would
 // pass anything (keel's lessons 14 and 38). A project with no tests yet
-// says so in .keel/keel.json: "tests": { "allowEmpty": true }.
+// says so in .keel/keel.json: "tests": { "allowEmpty": true }. And a file
+// pinned to stalls ("tests": { "stalls": ["tests/acme.test.mjs"] }) runs
+// again, paused at random moments (./stalls.mjs, keel phase 55), once its own
+// run in the suite is over, while the rest goes on; a failure there fails the
+// run and prints the seed that replays it, and so does an entry that pins
+// nothing. A narrowed run never does this.
 //
 // A record: { commit, tree, dirty, machine: { os, arch, cpus }, node, dir,
-// config, setting: { env, preload }, filtered?, date, tests: [{ file, name,
-// outcome, ms }] } for each top-level test. `dir` is the folder `node --test`
+// config, setting: { env, preload }, flags, filtered?, date, tests: [{ file, name,
+// outcome, ms, inconclusive? }] } for each top-level test. `flags` are the
+// node flags a rerun of the suite carries (preloads, conditions, setup; not
+// in the config hash, so lanes stay as they were). An outcome is pass,
+// fail, skip, todo, or inconclusive: a passing test that said
+// t.diagnostic('keel:inconclusive <what it measured>') judges real time on
+// purpose and the machine kept it from judging; it is neither pass nor fail,
+// so it is never flaky, never slower, and never a proof. `dir` is the folder `node --test`
 // ran in, relative to the repo's root ('.' at the root); a test's `file` is
 // root-relative wherever it ran. `dirty` ignores git-ignored files and keel's machine directories
 // (.keel/test-runs, .keel/climb, .keel/tend: the night writes or gathers them).
@@ -86,12 +97,12 @@
 //           last `window` passing runs on the same machine class and lane,
 //           AND more than floorMs above it, so noise on a fast test is not news.
 // window 20, factor 2, floorMs 200; .keel/keel.json "tests" overrides each
-// (and "allowEmpty", above, and "configEnv").
+// (and "allowEmpty", above, "configEnv" and "stalls").
 //
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
 import { readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
@@ -113,9 +124,64 @@ export const MACHINE_DIRS = Object.freeze([RUNS, '.keel/climb', '.keel/tend']);
 export const RUNNERS = Object.freeze(['node', 'bun', 'vitest']);
 /** Where a JUnit file is written and read by default: in the ledger's own directory, which ignores itself. */
 export const JUNIT = `${RUNS}/junit.xml`;
-const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit'];
+const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit', 'stalls'];
 /** A "tests".junit keel accepts: a .xml file directly in the ledger's directory, a name a shell reads as it is. */
 export const JUNIT_PATH = /^\.keel\/test-runs\/[A-Za-z0-9_][A-Za-z0-9_.-]*\.xml$/;
+
+// ---- a run's node flags --------------------------------------------------------
+
+/** A shell line's words: quotes ('…', "…") and backslashes read as the shell reads them, never run. */
+export function shellWords(line) {
+  const words = [];
+  let word = null, quote = null;
+  for (let i = 0; i < String(line ?? '').length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      else if (c === '\\' && quote === '"' && i + 1 < line.length) word += line[++i];
+      else word += c;
+    } else if (c === "'" || c === '"') { quote = c; word ??= ''; }
+    else if (c === '\\' && i + 1 < line.length) word = (word ?? '') + line[++i];
+    else if (/\s/.test(c)) { if (word !== null) words.push(word); word = null; }
+    else word = (word ?? '') + c;
+  }
+  if (word !== null) words.push(word);
+  return words;
+}
+
+/** Node flags that take the next word as their value when written without `=`. */
+const VALUED = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader', '--conditions', '-C', '--env-file', '--env-file-if-exists',
+  '--input-type', '--test-global-setup', '--test-isolation', '--test-concurrency', '--test-coverage-include', '--test-coverage-exclude',
+  '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-timeout', '--test-shard', '--watch-path']);
+/**
+ * The run's own: which files, which tests, what it reports, and its time limit (paused time must not count);
+ * and what writes the project's own files (--test-update-snapshots): a rerun to judge never rewrites them.
+ */
+const DROPPED = new Set(['--test', '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-only',
+  '--test-timeout', '--test-shard', '--watch', '--watch-path', '--test-update-snapshots']);
+export const PRELOADS = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader']);
+
+/**
+ * The node flags in a list of words ({ name, words }), as written: `--import
+ * x` is two words, `--import=x` one, the form node's execArgv has. A flag
+ * not known to take a value is taken as one without (write `--flag=value`).
+ * Words that are not flags (files, folders) are left out.
+ */
+export function flagsIn(words) {
+  const out = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (w === '--') break;
+    if (!w.startsWith('-') || w === '-') continue;
+    const eq = w.indexOf('=');
+    const name = eq > 0 ? w.slice(0, eq) : w;
+    out.push({ name, words: eq < 0 && VALUED.has(name) && i + 1 < words.length ? [w, words[++i]] : [w] });
+  }
+  return out;
+}
+
+/** The node flags a run of the suite carries over to a stalled one: all but the run's own (files, names, reporters, time limit). */
+export const runnerFlags = words => flagsIn(words).filter(f => !DROPPED.has(f.name)).flatMap(f => f.words);
 
 // ---- config ------------------------------------------------------------------
 
@@ -130,6 +196,7 @@ export function testsConfigProblems(config) {
   // keel writes it into the gate's shell line as it is (adopt's proposal), so it holds no character a shell reads: never quoted, never wrong.
   // It lives in the ledger's own directory, which ignores itself: a report anywhere else would stay behind, untracked, after every gate.
   if (t.junit !== undefined && !(typeof t.junit === 'string' && JUNIT_PATH.test(t.junit))) out.push(`"tests".junit must be a .xml file in ${RUNS}/ (which ignores itself), of letters, digits, _ . and - only`);
+  if (t.stalls !== undefined && !(Array.isArray(t.stalls) && t.stalls.every(pinnable))) out.push('"tests".stalls must be a list of test files, each relative to the repo\'s root (tests/acme.test.mjs)');
   if (t.configEnv !== undefined && !(Array.isArray(t.configEnv) && t.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))) out.push('"tests".configEnv must be a list of environment variable names');
   if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2 && t.window <= MAX_WINDOW)) out.push(`"tests".window must be a whole number of runs, 2 to ${MAX_WINDOW}`);
@@ -137,6 +204,18 @@ export function testsConfigProblems(config) {
   if (t.floorMs !== undefined && !(Number.isFinite(t.floorMs) && t.floorMs >= 0)) out.push('"tests".floorMs must be a number of milliseconds, 0 or more');
   return out;
 }
+
+/** A file pinned to stalls: a path relative to the repo's root, never outside it. */
+const pinnable = f => typeof f === 'string' && f.trim() !== '' && !isAbsolute(f) && !f.split(/[\\/]/).includes('..');
+
+/** The files .keel/keel.json pins to stalls ("tests": { "stalls": [...] }) that are files relative to the repo's root; [] when none. */
+export const stallsPins = config => (Array.isArray(config?.tests?.stalls) ? config.tests.stalls.filter(pinnable).map(f => posix.normalize(f.split(sep).join('/'))) : []);
+/** The "tests".stalls entries that pin nothing (outside the repo, absolute, empty, not a string), or the whole value when it is not a list. */
+export const stallsBad = config => {
+  const s = config?.tests?.stalls;
+  if (s === undefined) return [];
+  return Array.isArray(s) ? s.filter(f => !pinnable(f)) : [s];
+};
 
 /** The ledger's settings for this project; throws on a bad "tests". */
 export function testsConfigOf(config) {
@@ -486,37 +565,182 @@ const outcomeOf = e => {
   return d.skip !== undefined && d.skip !== false ? 'skip' : d.todo !== undefined && d.todo !== false ? 'todo' : e.type === 'test:pass' ? 'pass' : 'fail';
 };
 
+/** What a test said it could not judge (`t.diagnostic('keel:inconclusive <what it measured>')`), or null. */
+export function inconclusiveOf(message) {
+  const m = /^keel:inconclusive(?:\s+([\s\S]*))?$/.exec(String(message ?? '').trim());
+  return m ? (m[1] ?? '').trim() || 'the machine kept it from judging' : null;
+}
+
+/**
+ * The top-level tests of a run, from its reporter events: push(e) each one,
+ * read `tests` at the end ([{ file, name, outcome, ms, inconclusive?, error? }]).
+ * `file` is relative to `root` (absolute without one). A passing test that
+ * said keel:inconclusive, itself or in a subtest, is `inconclusive`: neither
+ * pass nor fail. It never hides a failure: a failing test stays `fail`.
+ * node reports a test's own diagnostic right after its result, and a
+ * subtest's before its parent's.
+ */
+export function topLevel({ root = null, errors = false } = {}) {
+  const tests = [], last = new Map(), pending = new Map(), names = new Map();
+  const fileOf = f => {
+    if (!names.has(f)) names.set(f, root ? relative(root, real(f)).split(sep).join('/') : real(f));
+    return names.get(f);
+  };
+  const mark = (t, what) => { if (t.outcome === 'pass') { t.outcome = 'inconclusive'; t.inconclusive = what; } };
+  return {
+    tests,
+    push(e) {
+      const d = e.data;
+      if (e.type === 'test:diagnostic') {
+        const what = inconclusiveOf(d?.message);
+        if (what === null || !d?.file) return;
+        if (d.nesting === 0) { const at = last.get(d.file); if (at && at.line === d.line) mark(at.test, what); }
+        else pending.set(d.file, what);
+        return;
+      }
+      if ((e.type !== 'test:pass' && e.type !== 'test:fail') || d?.nesting !== 0) return;
+      const t = { file: d.file ? fileOf(d.file) : null, name: String(d.name), outcome: outcomeOf(e), ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10 };
+      if (errors && t.outcome === 'fail') {
+        const err = d.details?.error;
+        t.error = String(err?.cause?.message ?? err?.message ?? err ?? '').split('\n')[0].slice(0, 300);
+      }
+      if (d.file && pending.has(d.file)) { mark(t, pending.get(d.file)); pending.delete(d.file); }
+      if (d.file) last.set(d.file, { test: t, line: d.line });
+      tests.push(t);
+    },
+  };
+}
+
 /** Whether an event is a test that executed: a test (never a suite: an empty describe() runs nothing), passed or failed, not a file's own entry. */
 export const executed = (cwd, e) => (e.type === 'test:pass' || e.type === 'test:fail') && e.data?.details?.type === 'test'
   && ['pass', 'fail'].includes(outcomeOf(e)) && !fileOwn(cwd, e.data);
+
+export const STALLS_LABEL = 'keel stalls';
+
+/**
+ * Files pinned to stalls ("tests": { "stalls": [...] }): each one this run
+ * reaches is run again, with stalls (./stalls.mjs), once its own run is over
+ * (never two copies of one file at once), while the rest of the suite goes
+ * on, from one fresh seed per run. said(tests) waits for them and returns
+ * their lines; a pinned file that fails with stalls fails the run and prints
+ * the seed and the command that replays it, and an entry that pins nothing
+ * fails it too. Null when nothing is pinned.
+ */
+export function pinned(root, config, { env = process.env, preload, seed: given } = {}) {
+  const pins = new Set(stallsPins(config)), bad = stallsBad(config);
+  if (!pins.size && !bad.length) return null;
+  const started = new Map(), seen = new Map(), reached = new Set();
+  // A suite with a global setup holds what it set up until the whole suite is over (its teardown): a rerun
+  // that starts at one file's summary would set it up a second time beside it. Then every rerun waits.
+  const whole = process.execArgv.some(a => a === '--test-global-setup' || a.startsWith('--test-global-setup='));
+  let seed = given;
+  const relOf = f => {
+    if (!seen.has(f)) seen.set(f, relative(root, real(f)).split(sep).join('/'));
+    return seen.get(f);
+  };
+  const start = rel => (async () => {
+    const m = await import('./stalls.mjs');
+    seed ??= m.freshSeed();
+    // The suite's own node flags (preloads, conditions, setup), never its files, names, reporters or time limit.
+    const once = shape => m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload: preload ?? m.runnerFlags(process.execArgv), env, seed, ...(shape ? { shape } : {}) });
+    const run = await once();
+    if (run.stalls.length || run.exitCode !== 0 || run.timedOut) return { m, run };
+    // No stall landed (the file ran in less than the first stall's wait): a run with no stall judged nothing.
+    // Once more, with the first stall inside half of that run's running time; never a third time.
+    const within = Math.max(1, Math.floor(run.active / 2));
+    return { m, run: await once({ ...m.shapeOf(env), firstMs: [Math.floor(within / 2), within] }), again: { within, first: run.active } };
+  })().catch(error => ({ error }));
+  return {
+    // A pinned file's stalled copy starts once its own run is over (node's per-file summary), never beside it:
+    // two copies of one file share its ports, databases and fixtures, and would fail with no stall at all.
+    saw(e) {
+      const f = e.data?.file;
+      if (!f || typeof f !== 'string') return;
+      const rel = relOf(f);
+      if (!pins.has(rel) || started.has(rel)) return;
+      reached.add(rel);
+      if (e.type === 'test:summary' && !whole) started.set(rel, start(rel));
+    },
+    async said(tests) {
+      const lines = [];
+      if (bad.length) {
+        lines.push(`${STALLS_LABEL}: "tests".stalls pins nothing with ${bad.map(b => JSON.stringify(b)).join(', ')}: each entry is a test file relative to the repo's root. The rest still run with stalls; this run fails until it is fixed.`);
+        process.exitCode = 1;
+      }
+      // A pin to a file that is gone (renamed, deleted), or to a folder, guards nothing, so it fails the run.
+      // One this run did not reach is only said: a run of some of the suite's files is not a broken pin.
+      const isFile = rel => { try { return statSync(join(root, rel)).isFile(); } catch { return false; } };
+      const gone = [...pins].filter(rel => !isFile(rel));
+      if (gone.length) {
+        lines.push(`${STALLS_LABEL}: "tests".stalls pins ${gone.join(', ')}, which ${gone.length === 1 ? 'is' : 'are'} not a test file: a pin to a moved or deleted file, or to a folder, guards nothing. Pin the file's path, or drop the pin; this run fails until then.`);
+        process.exitCode = 1;
+      }
+      for (const rel of reached) if (!started.has(rel)) started.set(rel, start(rel)); // its summary never came: the suite is over now
+      for (const [rel, p] of started) {
+        const { m, run, error, again } = await p;
+        if (error) {
+          lines.push(`${STALLS_LABEL}: ${rel} is pinned to stalls and could not run with them (${String(error?.message ?? error).split('\n')[0]}).`);
+          process.exitCode = 1;
+          continue;
+        }
+        const j = m.judge(tests.filter(t => t.file === rel), run.tests);
+        const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all${again ? `; run again with the first stall within ${again.within} ms, after the first run (${Math.round(again.first)} ms) got none` : ''}`;
+        const failed = run.tests.filter(t => t.outcome === 'fail');
+        // A test that ran without stalls and never with them (registered only some of the time) was not judged.
+        const unjudged = j.missing.length > 0;
+        if (!failed.length && !unjudged && !run.timedOut && run.exitCode === 0 && run.ran > 0 && run.stalls.length) {
+          lines.push(`${STALLS_LABEL}: ${rel} passed with ${s}, seed ${run.seed}.`);
+          continue;
+        }
+        if (!failed.length && !unjudged && !run.timedOut && run.exitCode === 0 && run.ran > 0) {
+          // Zero stalls is not a pass: nothing paused it, so nothing was judged.
+          process.exitCode = 1;
+          lines.push(`${STALLS_LABEL}: ${rel} is inconclusive: no stall landed (${s}), seed ${run.seed}. A file that ends before a stall can land guards nothing pinned; unpin it, or give it a test long enough to pause.`);
+          continue;
+        }
+        process.exitCode = 1;
+        lines.push(`${STALLS_LABEL}: ${rel} failed with stalls (${s}), seed ${run.seed}. Replay: ${m.replay([rel], run.seed)}`);
+        for (const t of j.named) lines.push(`  "${t.name}" passed plainly and failed with stalls: it judges the wall clock${t.error ? `: ${t.error}` : ''}`);
+        for (const t of j.unbased) lines.push(`  "${t.name}" failed with stalls, and was ${t.plain ?? 'not run'} without them: no pass to compare with${t.error ? `: ${t.error}` : ''}`);
+        for (const t of j.missing) lines.push(`  "${t.name}" ran without stalls and never with them: it was not judged`);
+        for (const t of j.both) lines.push(`  "${t.name}" failed with stalls${tests.some(x => x.file === rel && x.name === t.name) ? ' and plainly' : ''}${t.error ? `: ${t.error}` : ''}`);
+        if (run.timedOut) lines.push('  it ran past its time limit (paused time not counted)');
+        else if (!failed.length && run.exitCode === 0 && run.ran === 0) lines.push('  no test ran with stalls: nothing was judged');
+        else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${run.stderr.split('\n').slice(-3).join(' | ') || 'no output'}`);
+      }
+      return lines;
+    },
+  };
+}
 
 /** The reporter: records each top-level test, then yields the hygiene block; a run that executed no test fails. */
 export default async function* ledger(source) {
   const cwd = process.cwd();
   const root = rootOf(cwd);
-  const tests = [];
+  const config = await projectConfig(root);
+  const top = topLevel({ root });
+  const { tests } = top;
+  const pins = narrowed() ? null : pinned(root, config);
   let ran = 0;
   for await (const e of source) {
     if (executed(cwd, e)) ran++;
-    if ((e.type !== 'test:pass' && e.type !== 'test:fail') || e.data?.nesting !== 0) continue;
-    const d = e.data;
-    const outcome = outcomeOf(e);
-    tests.push({
-      file: d.file ? relative(root, real(d.file)).split(sep).join('/') : null,
-      name: String(d.name),
-      outcome,
-      ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10,
-    });
+    top.push(e);
+    pins?.saw(e);
   }
-  const config = await projectConfig(root);
   const empty = emptyRun(ran, config);
   if (empty && !process.exitCode) process.exitCode = 1;
+  if (pins) {
+    const said = await pins.said(tests);
+    if (said.length) yield `${said.join('\n')}\n`;
+  }
   if (!tests.length) { if (empty) yield `${empty}\n`; return; } // nothing reported: nothing to remember
   try {
     const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
     const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
-    const run = { ...where(root), dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
+    // flags: the node flags a rerun of this suite carries (runnerFlags), so keel test reuses this run as a
+    // baseline only under the same ones; the config hash, and so the lanes, are as they were.
+    const run = { ...where(root), dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
     const w = config?.tests?.window;
     await record(root, run, { window: Number.isInteger(w) && w >= 2 && w <= MAX_WINDOW ? w : DEFAULTS.window });
     let opts;

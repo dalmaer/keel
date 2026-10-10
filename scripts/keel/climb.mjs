@@ -3,7 +3,8 @@
 // this script is every number it reports and every keep-or-revert it makes,
 // so the numbers are the script's, never the agent's (keel phase 35;
 // docs/research/2026-10-06-climb-nights.md). Deterministic, no model, no
-// dependency: Node built-ins, git and gh (KEEL_GH stands in for gh).
+// dependency: Node built-ins, git and gh (KEEL_GH stands in for gh, and in
+// keel's own tests KEEL_CLIMB_CLOCK for the wall clock: see measureIn).
 //
 //   node scripts/keel/climb.mjs config                      the climb config, validated
 //   node scripts/keel/climb.mjs pick [--date d] [--force] [--last-night f]   tonight's job, or why none
@@ -75,7 +76,7 @@
 // (lesson 53). Loop unreachable is a notice, never red.
 import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -432,11 +433,15 @@ export function measureIn(cwd, { config, job, runs, env = process.env }) {
   const command = JOBS[job].command(config);
   if (!command) throw new ClimbError(`${job} has no command to time (.keel/keel.json "climb")`);
   const times = [];
+  // KEEL_CLIMB_CLOCK, a test seam like KEEL_GH: a file the suite writes its own time to (ms), read
+  // in place of the wall clock, so keel's tests judge compare's decisions and never the machine (phase 55).
+  const clock = env.KEEL_CLIMB_CLOCK && JOBS[job].reads !== 'output' ? resolve(env.KEEL_CLIMB_CLOCK) : null;
   for (let i = 0; i < runs; i++) {
+    if (clock) rmSync(clock, { force: true });
     const t0 = performance.now();
     // Never a test runner's context (lesson 14); the project's own env over it.
     const r = spawnSync(command, { cwd, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
-    const ms = performance.now() - t0;
+    const ms = clock && r.status === 0 ? clockedMs(clock, command) : performance.now() - t0;
     if (r.error) throw new ClimbError(`could not run \`${command}\`: ${r.error.message}`);
     if (r.status !== 0) throw new ClimbError(`\`${command}\` failed (exit ${r.status ?? r.signal}) in ${cwd}: a failing ${JOBS[job].reads === 'output' ? 'benchmark has no number' : 'suite has no time'}. ${`${r.stdout}\n${r.stderr}`.trim().split('\n').slice(-3).join(' | ')}`);
     if (JOBS[job].reads === 'output') {
@@ -447,6 +452,15 @@ export function measureIn(cwd, { config, job, runs, env = process.env }) {
     } else times.push(Math.round(ms * 10) / 10);
   }
   return { job, command, runs, times, median: median(times), spread: Math.max(...times) - Math.min(...times), ...(JOBS[job].reads === 'output' ? { better: betterOf(job, config), unit: config?.climb?.perf?.unit ?? null } : {}) };
+}
+
+/** The time a suite wrote to KEEL_CLIMB_CLOCK; a suite that wrote none, or not a number, has no time. */
+function clockedMs(clock, command) {
+  let text = null;
+  try { text = readFileSync(clock, 'utf8').trim(); } catch { /* none written */ }
+  const n = Number(text);
+  if (text === null || text === '' || !Number.isFinite(n) || n < 0) throw new ClimbError(`\`${command}\` wrote no time to KEEL_CLIMB_CLOCK (${clock})`);
+  return n;
 }
 
 /** The one number on the last non-empty line of `stdout` ("1234", "12.5 ms", "p95: 3e2"), or null when it has none or more than one. */
