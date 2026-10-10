@@ -70,7 +70,15 @@ PR are the script's:
   as `preinstall`; a climb may change the command it times, never what is
   installed). Every guard (the tend guard too) runs it first; the
   workflows' judge and publish jobs run it before they take the commits or
-  push them.
+  push them. With `--job tend` it adds the tend pass's record rules
+  (`tendCheck`, git alone too): tend's publish job runs that.
+- `held` prints the checkout's state (HEAD, the tracked tree, the index
+  flags, the git dir) as one JSON line; `held --since <that line> --head
+  <sha>` refuses anything that moved since (#68). The judge names its
+  commit and that state in the step that takes the agent's commits, before
+  any of the agent's code runs, and checks it after the last code it runs
+  past the guard (climb's `compare --final` and `report`, tend's
+  `tend-report`).
 - The judge passes `--base "$GITHUB_SHA"` (the run's commit) to `settle`,
   `guard`, `compare --final`, `report`, `tend-page` and `tend-report`, and
   the pick's day (`--date "$DAY"`) to `tend-page` and `tend-report`: the
@@ -123,7 +131,14 @@ refused, so the scripts that judge, the config and what was installed are
 the default branch's, and nothing of the agent's runs where the setup token
 is), then the guard and the gate, with no setup token; and `publish` (contents and pull
 requests write, `issues: write` for hygiene), which runs nothing of the
-branch's, checks the sandbox again and pushes. The guards refuse the same
+branch's, checks the sandbox again and pushes. The judge names the commit it
+judges (its `validated` output) before any of the agent's code runs, and
+bundles that commit alone, never the branch as the gate, `compare --final`
+or `report` left it; publish refuses, red, a bundle whose head is any other
+commit, and rechecks it with its own checkout's script (tend's with
+`sandbox --job tend`) before it pushes (#68). A climb's rotation state
+(`.keel/climb.json`) is one more commit publish makes on the judged commit,
+by git plumbing from the night's job, day and count. The guards refuse the same
 paths. Each job uploads its handoff (`keel-climb-agent`,
 `keel-climb-judged`, kept 7 days); `keel-climb` is the record, as before.
 

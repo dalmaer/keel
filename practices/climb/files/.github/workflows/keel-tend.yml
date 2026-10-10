@@ -22,9 +22,13 @@
 #     run's commit to the head, never the base the agent's record names (no evidence written, no status marked
 #     built, lived-in or accepted, no acceptance box ticked, nothing deleted,
 #     every commit citing its finding, nothing outside its surfaces) and
-#     the gate. `publish` holds the write token, runs no code of the
-#     branch's, checks the sandbox again, and opens one PR on
-#     refs/heads/keel-tend/<date>, never main, never merged here.
+#     the gate. It names the commit it judges before any of the agent's code
+#     runs, checks after the report that nothing moved, and hands on that
+#     commit alone (#68). `publish` holds the write token, runs no code of
+#     the branch's, pushes only a bundle whose head is that commit, checks
+#     the sandbox and the pass's record rules again itself (sandbox --job
+#     tend), and opens one PR on refs/heads/keel-tend/<date>, never main,
+#     never merged here.
 #   - What the pass proposes reaches the owner: the judge (never the agent)
 #     commits it as docs/tend/<date>.md (the run's date, before the guard, so
 #     the gate sees it), so a pass that only proposed opens
@@ -406,6 +410,8 @@ jobs:
     permissions:
       contents: read
     outputs:
+      # The commit the guard checked, named before any of the agent's code ran (#68).
+      validated: ${{ steps.take.outputs.validated }}
       commits: ${{ steps.judge.outputs.commits }}
       line: ${{ steps.judge.outputs.line }}
     steps:
@@ -461,9 +467,16 @@ jobs:
         with:
           name: keel-tend-agent
           path: ${{ runner.temp }}/handoff
+      # Anything uncommitted goes, and the owner's page of proposals is the
+      # judge's one commit (before the guard, so the gate sees the tree that
+      # is pushed); then the commit to judge, and the checkout's state, are
+      # named before any of the agent's code runs (#68): this step's outputs
+      # are fixed when it ends, so nothing the gate leaves running renames them.
       - name: Take the pass's commits
+        id: take
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
+          DAY: ${{ needs.agent.outputs.day }}
         run: |
           in="$RUNNER_TEMP/handoff"
           head="$GITHUB_SHA"
@@ -481,24 +494,31 @@ jobs:
           for f in pass.json .gitignore; do
             if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .keel/tend/; fi
           done
-
-      # Judged by the script, not the agent: anything uncommitted goes; the
-      # owner's page of proposals (one commit, the judge's), before the guard
-      # so the gate sees the tree that is pushed; the tend guard and the gate
-      # (red if either fails); then the measures again on the branch, the PR
-      # body and the pass's line.
-      - name: Judge the pass
-        id: judge
-        env:
-          DAY: ${{ needs.agent.outputs.day }}
-        run: |
           git reset -q --hard HEAD
           git clean -q -fd
           # The base and the day are the run's, never the record's (the agent
           # wrote the record): a pass naming another is refused.
           node scripts/keel/climb.mjs tend-page --base "$GITHUB_SHA" --date "$DAY"
+          validated=$(git rev-parse HEAD)
+          held=$(node scripts/keel/climb.mjs held)
+          echo "validated=$validated" >> "$GITHUB_OUTPUT"
+          echo "held=$held" >> "$GITHUB_OUTPUT"
+          echo "the commit to judge: $validated"
+
+      # Judged by the script, not the agent: the tend guard and the gate (red
+      # if either fails); then the measures again on the branch, the PR body
+      # and the pass's line. The gate and the measures run the agent's code;
+      # held then refuses anything it moved (#68).
+      - name: Judge the pass
+        id: judge
+        env:
+          DAY: ${{ needs.agent.outputs.day }}
+          VALIDATED: ${{ steps.take.outputs.validated }}
+          HELD: ${{ steps.take.outputs.held }}
+        run: |
           node scripts/keel/climb.mjs guard --job tend --base "$GITHUB_SHA"
           node scripts/keel/climb.mjs tend-report --body "$RUNNER_TEMP/body.md" --base "$GITHUB_SHA" --date "$DAY" --json > "$RUNNER_TEMP/report.json"
+          node scripts/keel/climb.mjs held --since "$HELD" --head "$VALIDATED" --what "the agent's code the judge ran (the gate, tend-report's measures)"
           node -e '
             const fs = require("fs");
             const [file, out, summary] = process.argv.slice(1);
@@ -507,22 +527,23 @@ jobs:
             fs.appendFileSync(summary, `${r.line}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
-          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-            echo "::error::The tree changed after the guard; nothing is handed on."
-            exit 1
-          fi
 
       # The judged pass goes on as the agent's did: a bundle, the PR body,
-      # the record. The record goes on whatever the verdict.
+      # the record. The record goes on whatever the verdict. The bundle is
+      # the commit named before any of the agent's code ran, never the
+      # branch as the gate and the measures left it (#68).
       - name: Hand the judged pass on
         if: always()
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ steps.take.outputs.validated }}
         run: |
           out="$RUNNER_TEMP/judged"
           mkdir -p "$out/record"
-          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null; then
-            git bundle create "$out/pass.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          if [ -n "$VALIDATED" ] && [ "$VALIDATED" != "$GITHUB_SHA" ]; then
+            g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.useReplaceRefs=false "$@"; }
+            g update-ref "refs/heads/$BRANCH" "$VALIDATED"
+            g bundle create "$out/pass.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
           fi
           if [ -f "$RUNNER_TEMP/body.md" ]; then cp "$RUNNER_TEMP/body.md" "$out/"; fi
           if [ -d .keel/tend ]; then cp -R .keel/tend/. "$out/record/"; fi
@@ -537,7 +558,8 @@ jobs:
           retention-days: 7
 
   # The only job that can write: no agent, and nothing of the branch's runs
-  # here. It checks the sandbox again (git only), pushes the judged commits
+  # here. It takes only the commit the judge named (#68), checks the sandbox
+  # and the record rules again (git only), pushes the judged commits
   # to the pass's own branch, opens one PR, and keeps the pass's record,
   # whatever happened before it.
   publish:
@@ -574,6 +596,7 @@ jobs:
           LINE: ${{ needs.judge.outputs.line }}
           DAY: ${{ needs.agent.outputs.day }}
           BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ needs.judge.outputs.validated }}
           BASE: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -589,7 +612,15 @@ jobs:
           # this run's commit, and the sandbox is this checkout's script.
           git fetch -q "$RUNNER_TEMP/pass/pass.bundle" "refs/heads/$BRANCH"
           head=$(git rev-parse FETCH_HEAD)
-          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          # Only the commit the judge named before any of the agent's code ran
+          # (#68): a later one (a gate's background commit) was never guarded.
+          if [ -z "$VALIDATED" ] || [ "$head" != "$VALIDATED" ]; then
+            echo "::error::The judged bundle's head ($head) is not the commit the judge named before the agent's code ran (${VALIDATED:-none}); nothing is pushed."
+            exit 1
+          fi
+          # The sandbox and the pass's record rules again, read by this
+          # checkout's script (git only), never the judge's word for them.
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --job tend
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own pass, so force is safe here and nowhere else.
           git push --force origin "$head:refs/heads/keel-tend/$DAY"

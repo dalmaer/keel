@@ -197,7 +197,8 @@ test('the workflow files a hygiene night\'s issue on the project\'s own repo, on
   const jobs = text.split(/\n(?= {2}[a-z]+:\n)/);
   assert.deepEqual(jobs.filter(j => /\n {6}issues: write\n/.test(j)).map(j => j.split('\n')[0]), ['  publish:']);
   assert.ok(text.indexOf('- name: File the flaky test') > text.indexOf('\n  publish:\n'), 'the issue is filed by the publish job');
-  assert.match(text, /climb\.mjs report --state --body "\$RUNNER_TEMP\/body\.md" --issue "\$RUNNER_TEMP\/issue\.md"/);
+  // No --state (#68): the rotation's state is the publish job's commit, so report writes nothing in the judged tree.
+  assert.match(text, /climb\.mjs report --body "\$RUNNER_TEMP\/body\.md" --issue "\$RUNNER_TEMP\/issue\.md"/);
   assert.ok(text.indexOf('- name: Gather the test ledger') < text.indexOf('- name: Baseline'), 'the ledger is gathered before the baseline reads it');
 });
 

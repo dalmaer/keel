@@ -11,6 +11,7 @@
 //   tend-input [--record]           the worksheet: every record finding, or n/a with why
 //   tend-note --finding id --propose "…" | --tried "…"   what tend leaves to the owner
 //   guard --job tend [--base r]     the tend guard, then the gate
+//   sandbox --base r --head r --job tend   the sandbox and tendCheck, git only: the publish job's recheck (#68)
 //   tend-page [--base r] [--date d]   the owner's page (docs/tend/<date>.md), committed before the guard
 //   tend-report [--body f] [--base r] [--date d]  the measures again on the branch, the PR body,
 //                                   the line (it checks the page is committed, and writes no file of the tree)

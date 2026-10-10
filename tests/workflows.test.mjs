@@ -909,7 +909,7 @@ test('ledger#92: the climb and tend agents hold no credential that can write; a 
       ['the checkout keeps its credential', t.replace('          fetch-depth: 0\n          persist-credentials: false\n', '          fetch-depth: 0\n')],
       ['the action trades for its app token', t.replace('          github_token: ${{ github.token }}\n', '')],
       ['the push in the agent\'s job', t.replace(/(\n {6}- name: Did the agent run\?\n)/, `\n${pushStep.replace(/^\n/, '')}$1`)],
-      ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n')],
+      ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"[^\n]*\n/, '$1\n')],
       ['the judge may write', t.replace('  judge:\n', '  judge:\n').replace(/(\n  judge:\n[\s\S]*?\n {4}permissions:\n {6}contents: )read/, '$1write')],
       ['the judge takes the commits unchecked', t.replace(/(\n  judge:\n[\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n')],
       // The install moved back after the take, as it was before ledger#92's review: a preinstall runs with the token.
@@ -1038,13 +1038,121 @@ test('keel-tend.yml has the climb workflow\'s rights only: its prefix, no merge,
     ['a PR closed', t.replace(push, `${push}\n          gh pr close 3`)],
     ['tend off said late', t.replace('      - name: Is tend on?\n', '      - name: Acme first\n        run: true\n      - name: Is tend on?\n')],
     ['daily', t.replace('cron: "18 10 * * 1"', 'cron: "18 10 * * *"')],
-    ['the page after the guard', t.replace(/( {10}node scripts\/keel\/climb\.mjs tend-page [^\n]*\n)( {10}node scripts\/keel\/climb\.mjs guard --job tend [^\n]*\n)/, '$2$1')],
+    ['the page after the guard', t.replace(/( {10}node scripts\/keel\/climb\.mjs tend-page [^\n]*\n)/, '').replace(/( {10}node scripts\/keel\/climb\.mjs guard --job tend [^\n]*\n)/, `$1${/ {10}node scripts\/keel\/climb\.mjs tend-page [^\n]*\n/.exec(t)[0]}`)],
     ['the page named by the record\'s date', t.replace(/(climb\.mjs tend-page [^\n]*?) --date "\$DAY"/, '$1')],
     ['the report trusts the record\'s date', t.replace(/(climb\.mjs tend-report [^\n]*?) --date "\$DAY"/, '$1')],
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     const found = rule === 'problems' ? problems('keel-tend.yml', text, w.declared) : tendWorkflowProblems(text);
     assert.ok(found.length, `${why}: expected a problem`);
+  }
+});
+
+/** Each workflow's judged hand-off (#68): its bundle, the judge's own last commit, the steps that run the agent's code, and publish's recheck. */
+export const JUDGED = Object.freeze({
+  'keel-climb.yml': Object.freeze({ bundle: 'night.bundle', last: 'node scripts/keel/climb.mjs settle', agentCode: ['climb.mjs guard', 'climb.mjs compare', 'climb.mjs report'], recheck: 'node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"' }),
+  'keel-tend.yml': Object.freeze({ bundle: 'pass.bundle', last: 'node scripts/keel/climb.mjs tend-page', agentCode: ['climb.mjs guard', 'climb.mjs tend-report'], recheck: 'node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --job tend' }),
+});
+
+/**
+ * Climb and tend publish exactly the commit their guard passed (#68), on
+ * keel-climb.yml or keel-tend.yml: [string]. The judge names that commit (its
+ * `validated` output) and the checkout's state (`held`) in a step that runs
+ * none of the agent's code, before every step that does, and after its own
+ * last commit (climb's settle, tend's page); it checks with held --since,
+ * after the last of the agent's code, that nothing moved; it bundles that
+ * commit, never the branch as that code left it. The publish job refuses,
+ * red, a bundle whose head is not that commit, then rechecks it with its own
+ * checkout's script, before the push.
+ */
+export function judgedHeadProblems(text, { bundle, last, agentCode, recheck }) {
+  const out = [];
+  const jobs = jobsOf(text);
+  const judge = jobs.find(j => j.id === 'judge'), publish = jobs.find(j => j.id === 'publish');
+  if (!judge || !publish) return ['no judge job or no publish job'];
+  const live = s => code(s).map(l => l.line).join('\n');
+  const id = /\n {6}validated: \$\{\{ steps\.([\w-]+)\.outputs\.validated \}\}\n/.exec(judge.text)?.[1];
+  if (!id) return ['the judge job has no validated output (steps.<id>.outputs.validated): publish cannot know which commit the guard passed'];
+  const steps = stepsOf(judge.text).map(live);
+  const runsAgent = s => agentCode.some(v => s.includes(`node scripts/keel/${v}`));
+  const take = steps.findIndex(s => new RegExp(`\\n {8}id: ${id}(?:\\n|$)`).test(s));
+  if (take < 0) return [`no judge step has the id ${id} its validated output names`];
+  const t = steps[take];
+  const firstAgent = steps.findIndex(runsAgent);
+  if (runsAgent(t) || (firstAgent >= 0 && firstAgent < take)) out.push(`the judge names its commit (steps.${id}) after the agent's code has run: a commit that code made would be the one named`);
+  const named = t.indexOf('validated=$(git rev-parse HEAD)');
+  if (named < 0 || !t.includes('echo "validated=$validated" >> "$GITHUB_OUTPUT"')) out.push(`steps.${id} does not name HEAD as its validated output`);
+  else if (t.indexOf(last) < 0 || t.lastIndexOf(last) > named) out.push(`steps.${id} names its commit before the judge's own last commit (${last.replace('node scripts/keel/', '')}): the bundle would not end on it`);
+  if (!t.includes('held=$(node scripts/keel/climb.mjs held)') || !t.includes('echo "held=$held" >> "$GITHUB_OUTPUT"')) out.push(`steps.${id} does not keep the checkout's state (climb.mjs held) as its held output`);
+  // The held check: after the last of the agent's code, reading the state and the commit the take step named.
+  const agentSteps = steps.map((s, i) => (runsAgent(s) ? i : -1)).filter(i => i >= 0);
+  const check = steps.findIndex(s => s.includes('node scripts/keel/climb.mjs held --since "$HELD" --head "$VALIDATED"'));
+  if (check < 0) out.push('the judge never checks (climb.mjs held --since) that the agent\'s code it ran past the guard moved nothing');
+  else {
+    const s = steps[check], env = stepMap(s, 'env');
+    if (env.HELD !== `\${{ steps.${id}.outputs.held }}` || env.VALIDATED !== `\${{ steps.${id}.outputs.validated }}`) out.push(`the held check does not read steps.${id}'s held and validated outputs`);
+    const lastAgent = agentSteps.at(-1) ?? -1;
+    const lastVerb = Math.max(...agentCode.map(v => s.lastIndexOf(`node scripts/keel/${v}`)));
+    if (check < lastAgent || (check === lastAgent && lastVerb > s.indexOf('climb.mjs held --since'))) out.push('the held check runs before the last of the agent\'s code the judge runs');
+  }
+  // The bundle: the commit named, never the branch as the agent's code left it.
+  const hand = steps.findIndex(s => s.includes(`bundle create "$out/${bundle}"`));
+  if (hand < 0) out.push(`the judge hands on no ${bundle}`);
+  else {
+    const h = steps[hand];
+    const pin = h.indexOf('update-ref "refs/heads/$BRANCH" "$VALIDATED"'), make = h.indexOf(`bundle create "$out/${bundle}" "$GITHUB_SHA..refs/heads/$BRANCH"`);
+    if (stepMap(h, 'env').VALIDATED !== `\${{ steps.${id}.outputs.validated }}` || pin < 0 || make < 0 || pin > make) out.push(`the judge's ${bundle} is the branch as the agent's code left it, not the commit steps.${id} named: a later commit would be handed on`);
+  }
+  // Publish: the bundle's head is that commit, red otherwise, then its own recheck, then the push.
+  const push = stepsOf(publish.text).map(live).find(s => /\bgit push\b/.test(s));
+  if (!push) return [...out, 'the publish job never pushes'];
+  if (stepMap(push, 'env').VALIDATED !== '${{ needs.judge.outputs.validated }}') out.push('the publish step does not read the judge\'s validated commit (needs.judge.outputs.validated)');
+  const lines = push.split('\n').map(l => l.trim());
+  const fetched = lines.indexOf('head=$(git rev-parse FETCH_HEAD)');
+  const cmp = lines.findIndex(l => /^if \[ -z "\$VALIDATED" \] \|\| \[ "\$head" != "\$VALIDATED" \]; then$/.test(l));
+  const pushed = lines.findIndex(l => /\bgit push\b/.test(l));
+  const body = cmp < 0 ? [] : lines.slice(cmp + 1, lines.indexOf('fi', cmp));
+  if (fetched < 0 || cmp < fetched || cmp > pushed || !body.some(l => l.startsWith('echo "::error::')) || !body.includes('exit 1')) out.push('publish pushes a bundle whose head it never requires to be the judge\'s validated commit (::error:: and exit 1 otherwise)');
+  const rc = lines.indexOf(recheck);
+  if (rc < 0 || rc < cmp || rc > pushed) out.push(`publish does not recheck the judged commit itself (${recheck.replace('node scripts/keel/', '')}) after the head check and before the push`);
+  return out;
+}
+
+test('#68: climb and tend name the judged commit before any of the agent\'s code runs, hand on that commit alone, and publish refuses any other, rechecking it itself', async () => {
+  const all = await shipped();
+  for (const [name, opts] of Object.entries(JUDGED)) {
+    const t = all.find(w => w.name === name).template;
+    assert.deepEqual(judgedHeadProblems(t, opts), [], name);
+    assert.deepEqual(judgedHeadProblems(await readFile(join(KEEL, '.github/workflows', name), 'utf8'), opts), [], `keel's ${name}`);
+    const namedLine = '          validated=$(git rev-parse HEAD)\n';
+    const heldLine = /\n {10}node scripts\/keel\/climb\.mjs held --since [^\n]*\n/.exec(t)[0];
+    const guardLine = /\n {10}node scripts\/keel\/climb\.mjs guard [^\n]*\n/.exec(t)[0];
+    const headCheck = /\n {10}if \[ -z "\$VALIDATED" \] \|\| \[ "\$head" != "\$VALIDATED" \]; then\n[\s\S]*?\n {10}fi\n/.exec(t)[0];
+    const recheck = `\n          ${opts.recheck}\n`;
+    // Climb's judge runs the same sandbox line when it takes the commits: publish's own is the one mutated.
+    const at = t.indexOf('\n  publish:\n');
+    const inPublish = f => `${t.slice(0, at)}${f(t.slice(at))}`;
+    for (const [why, text, said] of [
+      // The brief's three: a later commit published, no head check, no recheck.
+      ['the branch bundled as the agent\'s code left it (a later commit)', t.replace(/\n {12}g update-ref "refs\/heads\/\$BRANCH" "\$VALIDATED"\n/, '\n'), /is the branch as the agent's code left it/],
+      ['no head check in publish', t.replace(headCheck, '\n'), /never requires to be the judge's validated commit/],
+      ['a head check that only warns', t.replace(headCheck, headCheck.replace('            exit 1\n', '')), /never requires to be the judge's validated commit/],
+      ['no recheck in publish', inPublish(p => p.replace(recheck, '\n')), /does not recheck the judged commit itself/],
+      ['a recheck that cannot fail', inPublish(p => p.replace(recheck, recheck.replace(/\n$/, ' || true\n'))), /does not recheck the judged commit itself/],
+      ['the recheck before the head check', inPublish(p => p.replace(recheck, '\n').replace(headCheck, `${recheck}${headCheck.replace(/^\n/, '')}`)), /does not recheck the judged commit itself/],
+      ['the commit named after the guard', t.replace(namedLine, '').replace(guardLine, `${guardLine}${namedLine}`), /does not name HEAD|after the agent's code has run/],
+      ['the commit named by the judge step', t.replace('validated: ${{ steps.take.outputs.validated }}\n      ', 'validated: ${{ steps.judge.outputs.validated }}\n      '), /after the agent's code has run/],
+      ['the commit named before the judge\'s own commit', t.replace(namedLine, '').replace(/(\n {10}node scripts\/keel\/climb\.mjs (?:settle|tend-page) [^\n]*\n)/, `\n${namedLine}$1`), /before the judge's own last commit/],
+      ['no validated output', t.replace(/\n {6}validated: \$\{\{ steps\.take\.outputs\.validated \}\}/, ''), /no validated output/],
+      ['publish not told the commit', t.replace('VALIDATED: ${{ needs.judge.outputs.validated }}', 'VALIDATED: ""'), /does not read the judge's validated commit/],
+      ['no held check', t.replace(heldLine, '\n'), /never checks \(climb\.mjs held --since\)/],
+      ['the held check before the report', t.replace(heldLine, '\n').replace(guardLine, `${guardLine}${heldLine.replace(/^\n/, '')}`), /runs before the last of the agent's code/],
+      ['no state kept before the agent\'s code', t.replace('          held=$(node scripts/keel/climb.mjs held)\n', ''), /does not keep the checkout's state/],
+    ]) {
+      assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
+      const problems = judgedHeadProblems(text, opts);
+      assert.ok(problems.some(p => said.test(p)), `${name} ${why}: ${JSON.stringify(problems)}`);
+    }
   }
 });
 

@@ -17,7 +17,13 @@
 //   node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" [--runs n] [--decide]
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
-//   node scripts/keel/climb.mjs sandbox --base r --head r     the agent's commits change no workflow, keel script, config or install file (git only)
+//   node scripts/keel/climb.mjs sandbox --base r --head r [--job tend]   the agent's commits change no workflow, keel script, config or install file
+//                                   (git only); --job tend adds a tend pass's record rules (tend.mjs tendCheck, git only too)
+//   node scripts/keel/climb.mjs held [--since s --head sha]   the checkout's state (HEAD, the tracked tree, the index flags, the
+//                                   git dir) as one JSON line; with --since (that line), what moved since it was named
+//   (#68: a judge names the commit it checks, and the state, before any of the agent's code runs; checks with held --since after
+//   the code it runs past the guard, compare --final and report, that nothing moved; and hands on that commit alone. The
+//   publish job requires the bundle's head to be that commit, and runs sandbox itself, never trusting the judge's word.)
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f] [--base r]
 //   (a judge passes --base, the run's commit, to settle, guard, compare --final and report: a
 //   night's record naming any other base is refused, since the agent wrote it)
@@ -85,7 +91,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems, agentGitArgs, codexVerdict } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, scriptsChanged, treeState, heldProblems, changesOf, pathsOf, SAFE_GIT, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, tendCheck, scriptsChanged, treeState, heldProblems, changesOf, pathsOf, SAFE_GIT, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -1670,8 +1676,8 @@ export async function agentRan({ outcome, file, minutes, started, agent, now = D
 
 // ---- the command line ------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-page|tend-report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--agent': 'agent', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight',
+const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|held|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-page|tend-report [--json]';
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--agent': 'agent', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight', '--since': 'since',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
 const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
@@ -1792,8 +1798,30 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     case 'sandbox': {
       // The agent's commits, checked with git alone (no code of theirs runs): the publish job's check before it pushes.
       if (!o.base || !o.head) throw new ClimbError(`sandbox needs --base <ref> --head <ref>; ${USAGE}`);
+      if (o.job !== undefined && o.job !== 'tend') throw new ClimbError(`sandbox --job takes tend only: its record rules are read with git alone; ${USAGE}`);
       const problems = sandboxProblems(root, o.base, o.head);
-      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}, and no install file (${INSTALL_FILES.join(', ')}, or package.json but its scripts)`, exitCode: problems.length ? 1 : 0 };
+      // #68: a tend pass's publish job rechecks the pass's record rules itself, with this checkout's script. The
+      // worksheet is the agent job's record, so only what git says: each commit cites a finding, not which one.
+      if (o.job === 'tend' && !problems.length) problems.push(...tendCheck(root, o.base, o.head).refused);
+      const rules = o.job === 'tend' ? '; and the tend pass\'s record rules hold (no evidence written, no status marked built, lived-in or accepted, no box ticked, nothing deleted, nothing outside its surfaces, every commit cites a finding)' : '';
+      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, ...(o.job ? { job: o.job } : {}), problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}, and no install file (${INSTALL_FILES.join(', ')}, or package.json but its scripts)${rules}`, exitCode: problems.length ? 1 : 0 };
+    }
+    case 'held': {
+      // #68: the checkout's state before any of the agent's code runs (one JSON line, for a step output the agent's
+      // code can never rewrite), or, with --since that line, what moved since: the code a judge runs past its guard.
+      if (o.since === undefined) {
+        if (o.head !== undefined) throw new ClimbError(`held --head needs --since <the line held printed>; ${USAGE}`);
+        const state = treeState(root);
+        return { data: state, text: JSON.stringify(state) };
+      }
+      let before = null;
+      try { before = JSON.parse(o.since); } catch {}
+      if (!before || typeof before !== 'object' || typeof before.head !== 'string' || typeof before.gitDir !== 'string') throw new ClimbError('held --since takes the JSON line held printed');
+      if (!o.head) throw new ClimbError(`held --since needs --head <the commit the judge named>; ${USAGE}`);
+      const problems = before.head === o.head
+        ? heldProblems(root, before, o.what ?? 'the agent\'s code run after the guard')
+        : [`the state given (--since) is of ${before.head.slice(0, 7)}, not of the commit the judge named (--head ${String(o.head).slice(0, 7)}): nothing is taken`];
+      return { data: { ok: !problems.length, head: o.head, problems }, text: problems.length ? problems.map(p => `::error::${p}`).join('\n') : `held: nothing moved since ${o.head.slice(0, 7)} was named (HEAD, the tracked tree, the index flags and the git dir are as they were)`, exitCode: problems.length ? 1 : 0 };
     }
     case 'report': {
       const r = await report({ ...ctx, input: o.input, body: o.body, state: o.state, issue: o.issue, base: o.base });
