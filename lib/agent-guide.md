@@ -316,10 +316,13 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   alone or through npx, bunx, pnpm [exec] or yarn). Operators inside quotes
   or after a backslash are words. `||`, a pipe, `&`, a newline, a control
   clause (`if`, `!`), an inline variable, `time` or `env` before the runner,
-  an unclosed quote, `$(` or a backtick, a group, or a redirection: no
-  proposal, and `data.tests.declined` says why. A script whose name holds
+  an unclosed quote, `$(` or a backtick, a group, a redirection, or a
+  reporter or output-file flag of the step's own (`--reporter`,
+  `--reporter-outfile`, `--outputFile`; the last one wins, so keel's would
+  fight it): no proposal, and `data.tests.declined` says why. A script whose name holds
   `vitest` (`npm run vitest:unit`) is followed to its body. `junit` is written into the line as it is, so it must be
-  relative, inside the repo, and only letters, digits, `_ . / -`.
+  relative, inside the repo, only letters, digits, `_ . / -`, and a `.xml`
+  file, never a directory.
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 

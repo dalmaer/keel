@@ -875,6 +875,23 @@ test('stale is per path: two packages\' byte-identical reports are two runs; one
   await assertStalePerPath(dir, ledger);
 });
 
+/** A test named exactly like its file is a test when it ran: only vitest's failed entry for a file that would not load is the file's (review on #56). */
+function assertNamedLikeItsFile(mod) {
+  const one = (runner, outcome) => mod.junitTests(mod.readXml(`<testsuites><testsuite name="a.test.ts"><testcase name="a.test.ts" classname="${runner === 'vitest' ? 'a.test.ts' : ''}" time="0.001"${outcome === 'fail' ? '><failure message="no"/></testcase>' : '/>'}</testsuite></testsuites>`), runner);
+  for (const runner of ['bun', 'vitest']) assert.deepEqual([one(runner, 'pass').ran, one(runner, 'pass').failed], [1, 0], `${runner}: a passing test named for its file ran`);
+  assert.deepEqual([one('bun', 'fail').ran, one('bun', 'fail').failed], [1, 1], 'bun writes no load entry: a failed one is a test');
+  assert.deepEqual([one('vitest', 'fail').ran, one('vitest', 'fail').failed], [0, 1], 'vitest\'s failed entry named for the file is the file\'s, not a test');
+}
+
+test('a test named exactly like its file counts as a test; only vitest\'s failed entry for the file is the file\'s', () => {
+  assertNamedLikeItsFile(ledger);
+});
+
+test('mutation: any testcase named for its file taken as the file\'s turns a green run into "no tests ran", and fails the named-like-its-file test', async t => {
+  const m = await mutant(t, "const own = runner === 'vitest' && Boolean(raw) && child.attrs.name === raw && caseOutcome(child) === 'fail';", 'const own = Boolean(raw) && child.attrs.name === raw;');
+  assert.throws(() => assertNamedLikeItsFile(m), assert.AssertionError);
+});
+
 test('mutation: a stale check on the bytes alone takes the second package\'s run for the first\'s, and fails the per-path test', async t => {
   const { dir } = await acmeRepo(t);
   const m = await mutant(t, 'const hash = sha12(`${shown}\\u0000${xml}`);', 'const hash = sha12(xml);');

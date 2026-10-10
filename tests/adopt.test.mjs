@@ -561,7 +561,7 @@ test('adopt detects bun test or vitest in the gate, records the runner, and prop
   const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
   doc = JSON.parse(keel(['doctor', '--json'], dir).out);
-  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a path inside the repo, relative to its root, of letters, digits, _ . / and - only']);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a .xml file inside the repo, relative to its root, of letters, digits, _ . / and - only']);
 
   // vitest as one step of the gate itself: the step goes in braces, so the steps around it run as they did.
   const v = await scratch(t);
@@ -679,7 +679,8 @@ function assertProposals(make = ledgerCommand) {
     assert.equal(make(command, 'bun'), null, command);
   }
   // A JUnit path is written into the line as it is, so one a shell would read differently gets no proposal.
-  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml']) {
+  // Nor one that names a directory, not a file (review on #56): `rm -f` and the reporter would both fail on it.
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml', '.', '.keel/test-runs', 'reports/', 'reports/junit']) {
     assert.equal(make('bun test', 'bun', junit), null, junit);
   }
   assert.equal(make('bun test', 'bun', 'reports/junit-1.xml'), stepOf('bun', 'bun test --reporter=junit --reporter-outfile=reports/junit-1.xml', { junit: 'reports/junit-1.xml' }));
@@ -696,7 +697,14 @@ test('a proposal parses in sh: a quoted operator or runner is a word, and a comm
   const unit = testsPlan({}, 'npm run vitest:unit', { 'vitest:unit': 'vitest run' });
   assert.deepEqual([unit.runner, unit.from, unit.proposal?.where], ['vitest', 'package.json scripts.vitest:unit', 'package.json scripts.vitest:unit']);
   assert.equal(unit.proposal.to, stepOf('vitest', `vitest run --reporter=default --reporter=junit --outputFile.junit=${J}`));
-  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml', '.', '.keel/test-runs', 'reports/']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  // A step that already picks a reporter or its output file: keel's flags would fight it (the last one wins), so none (review on #56).
+  for (const [command, runner] of [['bun test --reporter=junit --reporter-outfile=reports/current.xml', 'bun'], ['bun test --reporter-outfile reports/current.xml', 'bun'],
+    ['vitest run --outputFile.junit=reports/current.xml', 'vitest'], ['npx vitest run --reporter=verbose', 'vitest'], ['vitest run --reporter dot', 'vitest']]) {
+    assert.equal(ledgerCommand(command, runner), null, command);
+  }
+  assert.match(testsPlan({}, 'bun test --reporter-outfile=reports/current.xml', {}).declined, /or reporter flags of its own/);
+  assert.ok(ledgerCommand('bun test --timeout=10000', 'bun').includes('--reporter-outfile=.keel/test-runs/junit.xml --timeout=10000'), 'any other option stays');
   assert.deepEqual(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }), []);
 });
 

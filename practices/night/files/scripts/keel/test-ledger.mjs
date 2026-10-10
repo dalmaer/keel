@@ -126,7 +126,7 @@ export function testsConfigProblems(config) {
   for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k) && !OTHER_KEYS.includes(k)) out.push(`"tests" has an unknown key ${k} (window, factor, floorMs, ${OTHER_KEYS.join(', ')})`);
   if (t.runner !== undefined && !RUNNERS.includes(t.runner)) out.push(`"tests".runner must be one of ${RUNNERS.join(', ')}`);
   // keel writes it into the gate's shell line as it is (adopt's proposal), so it holds no character a shell reads: never quoted, never wrong.
-  if (t.junit !== undefined && !(typeof t.junit === 'string' && /^[A-Za-z0-9_.][A-Za-z0-9_./-]*$/.test(t.junit) && !t.junit.split('/').includes('..'))) out.push('"tests".junit must be a path inside the repo, relative to its root, of letters, digits, _ . / and - only');
+  if (t.junit !== undefined && !(typeof t.junit === 'string' && /^[A-Za-z0-9_.][A-Za-z0-9_./-]*\.xml$/.test(t.junit) && !t.junit.split('/').includes('..'))) out.push('"tests".junit must be a .xml file inside the repo, relative to its root, of letters, digits, _ . / and - only');
   if (t.configEnv !== undefined && !(Array.isArray(t.configEnv) && t.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))) out.push('"tests".configEnv must be a list of environment variable names');
   if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2 && t.window <= MAX_WINDOW)) out.push(`"tests".window must be a whole number of runs, 2 to ${MAX_WINDOW}`);
@@ -664,7 +664,9 @@ export function junitTests(root, runner, fileOf = f => f) {
       const raw = child.attrs.file ?? suite.attrs.file ?? suite.attrs.name ?? '';
       const file = raw ? fileOf(raw) : null;
       if (child.name === 'testcase') {
-        const own = Boolean(raw) && child.attrs.name === raw;
+        // vitest's entry for a file that would not load: named for the file, and failed. A test that merely shares
+        // its file's name and passes is a test (bun writes no such entry at all).
+        const own = runner === 'vitest' && Boolean(raw) && child.attrs.name === raw && caseOutcome(child) === 'fail';
         const top = own ? { name: file, describe: false } : topOf(child, runner);
         const g = add(`${file}\u0000${top.describe ? 'd' : 't'}\u0000${top.name}`, file, top.name);
         g.outcomes.push(count(child, own));
