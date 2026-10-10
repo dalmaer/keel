@@ -1292,7 +1292,9 @@ export async function ledgerCheck({ root, config, env = process.env, gate, base:
   if (!cand) return { ok: false, problems: [`the gate \`${gate}\` exited 0 on ${head.slice(0, 7)} but recorded no test ledger run, where the base ${b.slice(0, 7)}'s ran ${ranBase} tests: the candidate's gate does not run what the base's does (its gate script changed?)`] };
   // PR #59: each suite's reporter writes one record; a record more than the base's gate wrote is one the
   // reporter did not (the branch's code wrote it into the ledger), and it cannot be told from a real one.
-  if (cand.runs > baseRun.runs) return { ok: false, problems: [`the gate \`${gate}\` left ${cand.runs} test ledger records for ${head.slice(0, 7)} where the base ${b.slice(0, 7)}'s gate wrote ${baseRun.runs}: a record its own reporter did not write is in .keel/test-runs (the branch's code wrote it?), so what ran cannot be told`] };
+  // Only where the branch left the gate's scripts as the base has them (#82): a branch that changed them may run
+  // its suites in more invocations, each a real record, and the gate line says the scripts changed for the person.
+  if (cand.runs > baseRun.runs && !scriptsChanged(root, b, head).length) return { ok: false, problems: [`the gate \`${gate}\` left ${cand.runs} test ledger records for ${head.slice(0, 7)} where the base ${b.slice(0, 7)}'s gate wrote ${baseRun.runs}: a record its own reporter did not write is in .keel/test-runs (the branch's code wrote it?), so what ran cannot be told`] };
   const missing = missingTests(baseRun, cand);
   if (missing.length) return { ok: false, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
   const failed = (cand.tests ?? []).filter(t => t.outcome === 'fail');
