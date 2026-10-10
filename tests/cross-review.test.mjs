@@ -869,6 +869,70 @@ test('phase 60 which-push: a push to main is reviewed only with "after": "push",
   }
 });
 
+test('phase 60 install: the push that brings the publisher is never reviewed from before it; the review starts at the first commit whose script can post it, checked before any agent runs (keel#65)', async t => {
+  const dir = await acme(t, { crossReview: AFTER });
+  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...config, agents: BOTH }, null, 2));
+  const script = join(dir, 'scripts/keel/cross-review.mjs');
+  const current = await readFile(script, 'utf8');
+  // Main before the update: a cross-review.mjs from before phase 60, which knows no push-review or push-post.
+  await writeFile(script, [
+    '// keel cross-review (pull requests only, before keel phase 60): its subcommands, as that script had them.',
+    'const verb = process.argv[2];',
+    'if (![\'config\', \'which\', \'brief\', \'agent-ran\', \'summary\'].includes(verb)) { console.error(`cross-review: unknown subcommand ${verb}`); process.exit(2); }',
+    '',
+  ].join('\n'));
+  gitIn(dir, ['init', '-q', '-b', 'main']);
+  gitIn(dir, ['add', '-A']);
+  gitIn(dir, ['commit', '-q', '-m', 'acme: cross-review for PRs']);
+  const old = gitIn(dir, ['rev-parse', 'HEAD']);
+  // The update that installs review after the push, then Claude's work.
+  await writeFile(script, current);
+  gitIn(dir, ['commit', '-q', '-am', 'keel update: review after the push']);
+  const installed = gitIn(dir, ['rev-parse', 'HEAD']);
+  const work = await commitOn(dir, 'src/lid.js', 'export const lid = 1;\n', { trailer: TRAILER });
+  const m = await load(t);
+  const git = m.gitOf(dir);
+  assert.deepEqual([m.protocolAt(git, old), m.protocolAt(git, installed)], [null, m.PUSH_PROTOCOL]);
+
+  // One push carried both: reviewed from the install, never from before it; the install itself is named as not reviewed.
+  const w = await whichPush(t, dir, { before: old });
+  assert.equal(w.status, 0, w.out);
+  assert.deepEqual([w.outputs.review, w.outputs.base, w.outputs.trusted], ['true', installed, installed]);
+  assert.deepEqual(w.which.commits.map(x => x.sha), [work]);
+  assert.deepEqual(w.which.unreviewed, { from: old, to: installed, count: 1 });
+  assert.match(w.which.range, /from [0-9a-f]{7}: the 1 commit before it \([0-9a-f]{7}\.\.[0-9a-f]{7}\) brought the script that posts this review and are not reviewed/);
+  // The publish job, run from a checkout of `trusted` as the workflow makes it: its script posts.
+  const brief = await step(t, dir, 'Brief', { ...w.env, AGENT: 'codex', MODE: 'push', BASE: w.outputs.base, SHA: w.outputs.sha });
+  assert.equal(brief.status, 0, brief.out);
+  await writeFile(join(w.temp, 'codex-final-message.md'), final('Read the push.', [{ path: 'src/lid.js', line: 1, severity: 'P2', body: 'The lid is a constant.' }]));
+  assert.equal((await step(t, dir, 'Hand the review on', { RUNNER_TEMP: w.temp, AGENT: 'codex', EXECUTION: '', MODE: 'push' })).status, 0);
+  await cp(join(w.temp, 'handoff'), join(w.temp, 'review'), { recursive: true });
+  const pub = await mkdtemp(join(tmpdir(), 'keel-cross-review-publish-'));
+  t.after(() => rm(pub, { recursive: true, force: true }));
+  gitIn(pub, ['clone', '-q', dir, '.']);
+  gitIn(pub, ['checkout', '-q', w.outputs.trusted]);
+  const gh = await pushGh(t);
+  const posted = await step(t, pub, 'Post after the push', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: w.temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', AGENT: 'codex', AUTHOR: 'claude', REASON: '', MINUTES: '15' });
+  assert.equal(posted.status, 0, posted.out);
+  assert.equal(m.recordOf((await gh.calls()).find(x => x.args[3] === 'repos/acme/anvils/issues').input.body).to, work, 'the record ends at the head');
+  // From the old base, as the review job first named it, the same step fails: that is the failure this guards.
+  gitIn(pub, ['checkout', '-q', old]);
+  const fromOld = await step(t, pub, 'Post after the push', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: w.temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', AGENT: 'codex', AUTHOR: 'claude', REASON: '', MINUTES: '15' });
+  assert.notEqual(fromOld.status, 0);
+
+  // The install alone at the head: a notice and no review (no agent, no spend); the next push is reviewed from it.
+  const history = { last: null, today: 0, day: '2026-10-09' };
+  const alone = m.shouldReviewPush({ config: { ...config, agents: BOTH }, event: 'push', head: installed, before: old, history, git });
+  assert.deepEqual([alone.review, alone.notice], [false, true]);
+  assert.match(alone.why, /^Not reviewed: [0-9a-f]{7}'s cross-review\.mjs cannot post a review after the push .* brings the one that can, so nothing after it is left to review here: the next push is reviewed from it/);
+  const next = m.shouldReviewPush({ config: { ...config, agents: BOTH }, event: 'push', head: work, before: installed, history, git });
+  assert.deepEqual([next.review, next.base, next.unreviewed], [true, installed, undefined]);
+  // A record left before an upgrade (its script an older protocol) moves on the same way: never stuck re-reviewing it.
+  const since = m.shouldReviewPush({ config: { ...config, agents: BOTH }, event: 'schedule', head: work, history: { ...history, last: old }, git });
+  assert.deepEqual([since.review, since.base], [true, installed]);
+});
+
 test('phase 60 budget: past the day\'s push reviews, a push waits (a notice, green); the next day\'s run reviews the waiting pushes together', async t => {
   const dir = await shipsToMain(t);
   const root = gitIn(dir, ['rev-parse', 'HEAD']);

@@ -162,7 +162,12 @@ it lands, and nothing waits on it:
   history (no credential kept) and the tracking issues (`issues: read`).
   The publish job (`issues: write` too) checks out the commit before the
   reviewed ones, the range's base, so nothing it runs came in with the
-  push; it posts with `cross-review.mjs push-post`.
+  push; it posts with `cross-review.mjs push-post`. That base's script must
+  speak the push protocol (`PUSH_PROTOCOL`): when it does not (the push that
+  installs or upgrades it), the review starts at the first commit whose
+  script does, and the commits before it are named as not reviewed. This
+  is checked before any agent runs, so nothing is spent on a review that
+  cannot be posted.
 - **Spend.** One review per run, within `budget.minutes`, and at most
   `budget.pushes` reviews a UTC day (1 to 48, default 8). Past it a push
   waits, with a notice, and the next run (the daily one, if no push comes)

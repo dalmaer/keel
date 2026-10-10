@@ -265,10 +265,46 @@ export function gitOf(root, run = args => execFileSync('git', args, { cwd: root,
     isCommit: sha => SHA.test(sha ?? '') && ok(['cat-file', '-e', `${sha}^{commit}`]) !== null,
     isAncestor: (a, b) => ok(['merge-base', '--is-ancestor', a, b]) !== null,
     parentOf: sha => ok(['rev-parse', '--verify', '--quiet', `${sha}^`])?.trim() || null,
+    // A file as a commit holds it, or null (no such file there).
+    fileAt: (sha, path) => ok(['show', `${sha}:${path}`]),
     // Each commit's sha, author and message (its trailers), newest first.
     commits: (base, head) => (ok(['log', '--format=%H%x1f%an%x1f%ae%x1f%B%x1e', `${base}..${head}`]) ?? '').split('\x1e').map(r => r.replace(/^\n/, '')).filter(r => r.includes('\x1f'))
       .map(r => { const [sha, name, email, ...rest] = r.split('\x1f'); return { sha, name, email, message: rest.join('\x1f').trim() }; }),
   };
+}
+
+/**
+ * The push publisher's protocol: what the publish job asks of the
+ * cross-review.mjs it runs (push-review and push-post, their flags, the
+ * record). The publish job runs the script of the commit before the reviewed
+ * ones, so that commit must speak this protocol; raise it whenever the
+ * publish step asks for something an older script cannot do.
+ */
+export const PUSH_PROTOCOL = 1;
+/** Where a project keeps the script the publish job runs. */
+export const SCRIPT = 'scripts/keel/cross-review.mjs';
+/** The push protocol a commit's cross-review.mjs speaks: its PUSH_PROTOCOL, or null (no script there, or one from before phase 60). */
+export function protocolAt(git, sha) {
+  const m = /^export const PUSH_PROTOCOL = (\d+);$/m.exec(git.fileAt(sha, SCRIPT) ?? '');
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * The commit the publish job can run from: `base` when its cross-review.mjs
+ * speaks PUSH_PROTOCOL; else the oldest commit after it, up to `head`, that
+ * does (the commits from `base` up to it brought the publisher, and are not
+ * reviewed: nothing before them can post their review). { base, unreviewed? }
+ * or { none } when only the head brings it. Checked before the agent runs,
+ * so a review is never spent where it cannot be posted.
+ */
+export function publisherBase({ base, head, git }) {
+  if (protocolAt(git, base) === PUSH_PROTOCOL) return { base };
+  const after = git.commits(base, head).reverse();
+  const at = after.findIndex(x => protocolAt(git, x.sha) === PUSH_PROTOCOL);
+  const why = `${short(base)}'s cross-review.mjs cannot post a review after the push (push protocol ${PUSH_PROTOCOL}), and the publish job runs nothing newer than the reviewed commits' base`;
+  if (at < 0) return { none: `${why}; no commit up to ${short(head)} holds one that can` };
+  if (after[at].sha === head) return { none: `${why}; ${short(head)} brings the one that can, so nothing after it is left to review here: the next push is reviewed from it, and the commits up to it are not reviewed` };
+  return { base: after[at].sha, unreviewed: { from: base, to: after[at].sha, count: at + 1 } };
 }
 
 /**
@@ -292,8 +328,14 @@ export function shouldReviewPush({ config, event, head, before = null, history, 
   if (!SHA.test(head ?? '')) return no('main\'s head commit could not be read');
   const h = history ?? { last: null, today: 0, day: new Date().toISOString().slice(0, 10) };
   if (event === 'schedule' && !h.last) return no('no push has been reviewed here yet: the first push to main starts the record');
-  const range = pushRange({ head, before: event === 'push' ? (before ?? '') : null, last: h.last, git });
-  if (range.none) return no(range.none);
+  const pushed = pushRange({ head, before: event === 'push' ? (before ?? '') : null, last: h.last, git });
+  if (pushed.none) return no(pushed.none);
+  // The publish job runs the base's script: a base from before the publisher (the push that installs or upgrades it) moves past it, said.
+  const pub = publisherBase({ base: pushed.base, head, git });
+  if (pub.none) return { review: false, mode: 'push', notice: true, why: `Not reviewed: ${pub.none}.` };
+  const range = pub.unreviewed
+    ? { base: pub.base, alone: false, unreviewed: pub.unreviewed, why: `${pushed.why}, from ${short(pub.base)}: the ${plural(pub.unreviewed.count, 'commit')} before it (${short(pub.unreviewed.from)}..${short(pub.base)}) brought the script that posts this review and are not reviewed` }
+    : pushed;
   if (h.today >= c.pushes) return { review: false, mode: 'push', notice: true, why: `Waiting: today's budget of ${plural(c.pushes, 'push review')} is spent (${h.day}, UTC); ${range.why} waits, and the first run after midnight UTC reviews it with whatever lands meanwhile.` };
   const commits = git.commits(range.base, head);
   if (!commits.length) return no(`no commits between ${short(range.base)} and ${short(head)}`);
@@ -308,7 +350,7 @@ export function shouldReviewPush({ config, event, head, before = null, history, 
   return {
     review: true, mode: 'push', self, ...(self ? { reason: who.reason ?? 'no other is available' } : {}),
     why: `${range.why}, ${plural(commits.length, 'commit')}; ${who.why}`,
-    sha: head, base: range.base, alone: Boolean(range.alone), trusted: range.base, range: range.why,
+    sha: head, base: range.base, alone: Boolean(range.alone), trusted: range.base, range: range.why, ...(range.unreviewed ? { unreviewed: range.unreviewed } : {}),
     minutes: c.minutes, agent: who.reviewer, author: who.author ?? null, authors, today: h.today, pushes: c.pushes,
     count: commits.length, commits: commits.slice(0, MAX_COMMITS).map(x => ({ sha: x.sha, subject: x.message.split('\n')[0].slice(0, 200), by: commitAuthorOf(x) })),
   };

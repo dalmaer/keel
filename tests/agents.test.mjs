@@ -482,7 +482,7 @@ test('phase 60: who wrote a push is its commits\' authors and Co-authored-by tra
 
   // The script, end to end on the decision: for every listed order, the reviewer is not the author.
   const { cross } = await scripts();
-  const git = { isCommit: () => true, isAncestor: () => true, parentOf: () => 'c'.repeat(40) };
+  const git = { isCommit: () => true, isAncestor: () => true, parentOf: () => 'c'.repeat(40), fileAt: () => `export const PUSH_PROTOCOL = ${cross.PUSH_PROTOCOL};\n` };
   const decide = (config, commits, extra = {}) => cross.shouldReviewPush({ config, event: 'push', head: 'b'.repeat(40), before: 'a'.repeat(40), history: { last: null, today: 0, day: '2026-10-09' }, git: { ...git, commits: () => commits }, ...extra });
   for (const config of [both, codexFirst]) for (const commits of [[claudeTrailer], [codex], [claudeApp, person]]) {
     const r = decide(config, commits, { has: { claude: true, codex: true } });

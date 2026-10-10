@@ -623,7 +623,12 @@ const s = JSON.parse(fs.readFileSync(${JSON.stringify(statePath)}, 'utf8'));
 const save = () => fs.writeFileSync(${JSON.stringify(statePath)}, JSON.stringify(s));
 const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length + 1);
 const deny = () => { console.error('stub gh: a write the test did not expect: ' + argv.join(' ')); process.exit(1); };
-if (argv[0] === 'issue' && argv[1] === 'list') { console.log(JSON.stringify(s.issues)); process.exit(0); }
+const page = /^repos\\/acme\\/app\\/issues\\?labels=keel%3Areview-after&state=all&per_page=100&page=(\\d+)$/.exec(argv[0] === 'api' ? argv[1] : '');
+if (page) {
+  const n = Number(page[1]);
+  console.log(JSON.stringify(s.issues.slice((n - 1) * 100, n * 100).map(i => ({ number: i.number, title: i.title, body: i.body, state: i.state.toLowerCase(), html_url: i.url, created_at: i.createdAt, user: { login: i.author.login === 'app/github-actions' ? 'github-actions[bot]' : i.author.login } }))));
+  process.exit(0);
+}
 if (argv[0] === 'api' && argv[1] === 'repos/acme/app/issues/12/comments?per_page=100') { console.log(JSON.stringify(s.comments)); process.exit(0); }
 if (argv[0] === 'api' && argv[1] === '-X' && argv[2] === 'POST' && argv[3] === 'repos/acme/app/issues/12/comments') {
   if (!s.writes) deny();
@@ -677,6 +682,26 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   assert.equal(none.code, 2);
   assert.match(none.err, /no review after the push ends at 1234567 on acme\/app/);
   assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 7)}`, '--wait']).code, 2, 'nothing waits on a push');
+});
+
+test('phase 60: an older push\'s review is found however many newer ones there are: every page until it is, and an incomplete read is never "no review" (keel#65)', async t => {
+  const dir = await project(t);
+  const newer = Array.from({ length: 249 }, (_, i) => pushIssue([F2], { number: 1000 - i, body: pushRecord([F2], (i + 1).toString(16).padStart(40, 'd')) }));
+  const gh = await pushGh(t, { issues: [...newer, pushIssue([F1])] });
+  const r = keel(dir, gh, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']);
+  assert.equal(r.code, 1, r.err);
+  assert.deepEqual(r.json().comments.map(c => c.id), ['F1'], 'the 250th issue, on the third page');
+  const pages = (await gh.calls()).filter(c => c[0] === 'api' && c[1].includes('labels=')).map(c => /page=(\d+)$/.exec(c[1])[1]);
+  assert.deepEqual(pages, ['1', '2', '3']);
+  // Found on the first page: no more is read.
+  const first = await pushGh(t, { issues: [pushIssue([F1]), ...newer] });
+  assert.equal(keel(dir, first, [`acme/app@${PUSHED.slice(0, 7)}`]).code, 1);
+  assert.equal((await first.calls()).filter(c => c[0] === 'api' && c[1].includes('labels=')).length, 1);
+  // The list ends without it: no review recorded, exit 2.
+  const absent = await pushGh(t, { issues: newer });
+  const none = keel(dir, absent, [`acme/app@${PUSHED.slice(0, 7)}`]);
+  assert.equal(none.code, 2);
+  assert.match(none.err, /no review after the push ends at bbbbbbb/);
 });
 
 test('phase 60: keel review <repo>@<sha> --close answers each finding it read with a comment on the issue, and closes the issue once every finding is answered; tracked drafts a keel:agent issue', async t => {

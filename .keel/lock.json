@@ -143,7 +143,7 @@
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
-      "sha256": "38fb03d7cf4051d52bcd21b9d039f629b0197dca3a16a458da588663b2efb6f8"
+      "sha256": "d5dd826aa36810882efd4542fa68132193ec12b4c59e8e2fc07925637d0c6197"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
