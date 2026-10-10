@@ -57,6 +57,7 @@
 // Apache-2.0): time each Bash call from tool_use to tool_result, by kind. The
 // ratchet follows isocan's scripts/ratchet.mjs (Apache-2.0): bounds that only
 // report the wrong way.
+import { readCiUsage, readCiGate, ciOptions } from './ci.mjs';
 import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -279,13 +280,22 @@ async function notes(ctx, dir) {
 /** The project's gate, run once: { command, status, tests, ms }. */
 const gateRun = ctx => once(ctx, 'gate', async () => {
   const command = ctx.config.check ?? CHECK;
+  const named = gateWorkflowOf(ctx.config);
+  if (named?.problem) throw new Error(named.problem);
+  let reuse = { reused: false, reason: 'no explicitly configured CI workflow' };
+  if (named && ctx.config.repo) {
+    let sha = '', clean = false;
+    try { sha = gitOut(ctx, ['rev-parse', 'HEAD']).trim(); clean = !gitOut(ctx, ['status', '--porcelain', '--untracked-files=all']).trim(); } catch { /* local gate remains available */ }
+    reuse = await readCiGate({ repo: ctx.config.repo, workflow: named.name, sha, clean, env: ctx.env, now: ctx.now });
+    if (reuse.reused) return { command, ...reuse };
+  }
   // Never a test runner's context (lesson 14); the project's .keel/keel.json `env` over it.
-  const r = await timedCommand(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config) });
+  const r = await timedCommand(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config), preparedEnv: true });
   if (r.error) throw new Error(`could not run \`${command}\`: ${r.error.message}`);
   if (r.status === null) throw new Error(`\`${command}\` was killed (${r.signal}) before it finished`);
   const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
   const counts = [...out.matchAll(/^(?:ℹ|#) tests (\d+)$/gm)].map(m => Number(m[1]));
-  return { command, status: r.status, tests: counts.length ? counts.reduce((a, b) => a + b, 0) : null, ms: r.ms };
+  return { command, source: 'local-command', reused: false, reuseUnavailable: reuse.reason, status: r.status, tests: counts.length ? counts.reduce((a, b) => a + b, 0) : null, ms: r.ms };
 });
 
 /** gh, ready to read the project's repo, or a reason it is not. */
@@ -722,6 +732,20 @@ export const CROSS_REVIEW_VALID = Object.freeze({
 
 export const MEASURES = [
   {
+    id: 'ci_minutes', what: 'last seven days of job-rounded weighted Actions minutes (estimate, not invoice)', unit: 'weighted minutes', bound: null, better: 'lower', ratchet: false,
+    async run(ctx) {
+      const options = ciOptions(ctx.config);
+      if (!ctx.config.repo) return { na: 'no repo for Actions usage', facts: { coverage: { complete: false, gaps: ['no repo'] } } };
+      const lock = await readLock(ctx.root);
+      const ownedWorkflows = Object.entries(lock?.files ?? {}).filter(([path, entry]) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) && typeof entry?.practice === 'string').map(([path]) => path);
+      const facts = await readCiUsage({ repo: ctx.config.repo, config: ctx.config, env: ctx.env, now: ctx.now, ownedWorkflows });
+      const observed = facts.observedWeightedMinutes;
+      const detail = `${facts.workflows.map(w => `${w.keel ? 'keel-owned: ' : w.keelNamed ? 'keel-named: ' : ''}${w.path} ${w.weightedMinutes ?? 'unknown'} (${w.observedWeightedMinutes} observed)`).join('; ') || 'no jobs observed'}; ${facts.visibility} billing context; weights ${JSON.stringify(options.weights)} dated ${options.weightsDate}, not an invoice; ${facts.coverage.complete ? 'complete bounded read' : 'incomplete: ' + facts.coverage.gaps.join('; ')}`;
+      if (facts.weightedMinutes === null && !(options.weeklyMinutes !== null && observed > options.weeklyMinutes)) return { na: detail, facts };
+      return { value: facts.weightedMinutes ?? observed, bound: options.weeklyMinutes, detail, facts };
+    },
+  },
+  {
     id: 'record_contradictions', what: 'working records contradict references or delivery facts', unit: 'findings', bound: 0, better: 'lower', ratchet: false,
     async run(ctx) {
       if (!(ctx.config.practices ?? []).includes('reconciliation')) return { na: 'the reconciliation practice is not on' };
@@ -742,7 +766,7 @@ export const MEASURES = [
       const empty = g.status === 0 && g.tests === 0;
       return {
         value: g.status !== 0 || empty ? 1 : 0,
-        detail: `\`${g.command}\` exit ${g.status}; ${g.tests === null ? 'no node test summary' : plural(g.tests, 'test')}${empty ? ' — passed while running nothing (lesson 14)' : ''}`,
+        detail: g.reused ? `reused CI ${g.workflow} on ${g.sha}: ${g.conclusion}, completed ${g.completedAt}, age ${Math.round(g.ageMs / 60000)} minutes; not run locally` : `\`${g.command}\` exit ${g.status}; ${g.tests === null ? 'no node test summary' : plural(g.tests, 'test')}${empty ? ' — passed while running nothing (lesson 14)' : ''}`,
         facts: { ...g, empty },
       };
     },
@@ -1236,15 +1260,15 @@ const beats = (m, value, bound) => m.better === 'higher' ? value > bound : value
 const margin = r => (r.better === 'higher' ? r.bound - r.value : r.value - r.bound) / Math.max(Math.abs(r.bound), 1);
 
 /** Run every measure; never throws for a measure, which becomes `broken`. */
-export async function measure({ root, config, env = process.env, transcripts, date = today(), bounds = {}, measures = MEASURES, keel }) {
-  const ctx = { root, config, env, transcripts, date, keel, cache: new Map() };
+export async function measure({ root, config, env = process.env, transcripts, date = today(), bounds = {}, measures = MEASURES, keel, now = Date.now() }) {
+  const ctx = { root, config, env, transcripts, date, keel, now, cache: new Map() };
   const results = [];
   for (const m of measures) {
     const bound = Number.isFinite(bounds[m.id]) ? bounds[m.id] : m.bound;
     const base = { id: m.id, what: m.what, unit: m.unit, better: m.better, bound };
     try {
       const r = await m.run(ctx);
-      if (r?.na) { results.push({ ...base, state: 'n/a', value: null, detail: r.na }); continue; }
+      if (r?.na) { results.push({ ...base, state: 'n/a', value: null, detail: r.na, ...(r.facts ? { facts: r.facts } : {}) }); continue; }
       if (!Number.isFinite(r?.value)) throw new Error(`the instrument returned no number (${JSON.stringify(r?.value)})`);
       // A rule measure (ratchet: false) may name the bound its value is judged by (machine_prs: per queue).
       // A release measure (escapes) is judged by its own reading only: none when there is no release before.
@@ -1264,7 +1288,8 @@ export function proposalText(r, config = {}) {
   if (r.state === 'broken') return `Fix the ${r.id} instrument: ${r.detail}. A measure that cannot run is not a zero (lesson 6).`;
   switch (r.id) {
     case 'record_contradictions': return 'Review the reconciliation findings and manual proposals below. Refresh source observations before editing; never infer acceptance or production verification from a merge.';
-    case 'gate': return f.empty
+    case 'ci_minutes': return 'Review the workflows and runner coverage; reduce redundant CI work against the configured weekly weighted-minute bound. Estimates are not invoices.';
+    case 'gate': return f.reused ? `Fix ${f.workflow} on ${f.sha}: reused CI ${f.conclusion}, not a local check.` : f.empty
       ? `Make \`${f.command}\` run the project's tests: it passed while running none (lesson 14).`
       : `Make the gate pass: \`${f.command}\` exits ${f.status}. Start from its first failure.`;
     case 'roadmap_stale': return `Regenerate the roadmap (\`npm run roadmap\`) and commit it; the check says: ${f.message}`;

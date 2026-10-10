@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 67 phases built; 19 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 67 phases built; 20 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Verify interruption/restart recovery and preservation of human edits on the approved canvas; establish a deployed conditional-edit contract for a stable live pulse. Package/installation proof and the GitHub night credential/recovery walk remain. The approved weekly local automation is active; its first scheduled run and seven-night sustained-use proof are not yet observed. Do not ask for canvas destination or writer approval again. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -185,7 +185,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-1/6 built; 2 owe a walk.
+1/6 built; 3 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -194,7 +194,7 @@ Keel can show, with numbers across the fleet, whether projects it manages ship m
 | [34. Keel counts its escapes, and every rigour change is judged by them](phases/34-keel-counts-its-escapes-and-every-rigour-change.md) | partial, walk owed | 2026-10-06 | [11](phases/11-keel-improve.md), [13](phases/13-does-keel-help.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md), [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Built: escapes on the night (fix: commits, the project's own lessons and — Escape: Trajectory lines since the last release, attributed only when one phase is named; bound: the previous release's count), with ceremony beside it. Baseline: 10 before v0.7.0, matching the analysis. Waits on the owner judging phases 32 and 33's levers after a release with them. · [#12](https://github.com/dalmaer/keel/issues/12) |
 | [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md) | partial | 2026-10-09 | [2](phases/02-the-keel-cli.md), [10](phases/10-the-night-shift.md), [26](phases/26-reconciliation.md), [40](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Approved private canvas and immutable dashboards are live; conditional live pulse, recovery/human-edit walk and deployed night proof remain. |
 | [56. keel knows where time goes](phases/56-keel-knows-where-time-goes.md) | partial, walk owed (time) | 2026-10-09 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Timing context, usual times, failure memory, root-gate trends and bounded local transcript reporting are implemented. Linux CI capture is verified; the owner's two-week usefulness read remains open. · [#43](https://github.com/dalmaer/keel/issues/43) |
-| [61. CI cost is a measure, and adoption says what keel adds](phases/61-ci-cost-is-a-measure-and-adoption-says-what.md) | planned | 2026-10-09 | [43](phases/43-each-budgeted-pass-shows-what-it-used.md) | A metered project audits its Actions bill, and keel adds workflows without saying what they cost: the night reruns a 12-15 minute gate the project's own CI already ran. CI cost becomes a measure (weighted minutes, OS multipliers, per-job round-up), the night reuses the project's CI result on main, and adopt states what keel adds. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#48](https://github.com/dalmaer/keel/issues/48) |
+| [61. CI cost is a measure, and adoption says what keel adds](phases/61-ci-cost-is-a-measure-and-adoption-says-what.md) | partial, walk owed | 2026-10-09 | [43](phases/43-each-budgeted-pass-shows-what-it-used.md) | Implemented: bounded CI usage estimates, exact clean default-branch CI reuse and adoption cost previews. Real API accounting and estimates verified; clean committed reuse and the owner’s month on a metered project remain owed. · [#48](https://github.com/dalmaer/keel/issues/48) |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
 - **13 done when:** A dated research page compares the fleet before and after adoption on measures fixed in advance (red-streak length, time from lesson to guard, phases moved per week, conduct cost per phase) and says plainly what it found.

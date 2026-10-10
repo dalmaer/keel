@@ -1499,3 +1499,50 @@ test('legacy JUnit imports do not inherit an outer gate start sample', async t =
   assert.equal(runs[0].busy.start, null);
   assert.match(runs[0].busy.unavailable, /start was not captured/);
 });
+
+test('unknown redaction configuration records nothing in both actual collectors and preserves runner failure', async t => {
+  for (const invalid of ['{broken', 'null', '[]', '{"tests":null}', '{"tests":{"configEnv":"ACME_AUTH"}}', '{"tests":{"configEnv":["ACME_AUTH",4]}}', '{"tests":{"configEnv":["bad-name"]}}', 'directory']) {
+    const { dir } = await acmeRepo(t);
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    const at = join(dir, '.keel/keel.json');
+    if (invalid === 'directory') await mkdir(at); // unreadable as a file even with privileged host permissions
+    else await writeFile(at, invalid);
+    const env = { ...process.env, ACME_AUTH: 'acme-sensitive-config-only-value' };
+    await writeFile(join(dir, 'tests/acme.test.mjs'), "import {test} from 'node:test'; test('Acme failure', () => { throw Error(process.env.ACME_AUTH); });");
+    const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+    assert.equal(node.status, 1);
+    assert.match(node.stdout + node.stderr, /redaction configuration unavailable/);
+    assert.ok(!(node.stdout + node.stderr).includes(env.ACME_AUTH));
+    await writeFile(join(dir, 'acme.xml'), `<testsuites name="vitest tests"><testsuite name="acme.test.ts"><testcase name="Acme failure"><failure>${env.ACME_AUTH}</failure></testcase></testsuite></testsuites>`);
+    const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest', '--status', '7'], { cwd: dir, env });
+    assert.equal(junit.status, 7);
+    assert.match(junit.stdout + junit.stderr, /redaction configuration unavailable/);
+    assert.ok(!(junit.stdout + junit.stderr).includes(env.ACME_AUTH));
+    assert.equal((await readRuns(dir)).runs.length, 0, 'unknown configured secrets cannot enter an uploaded ledger');
+    await writeFile(join(dir, 'tests/acme.test.mjs'), "import {test} from 'node:test'; test('Acme pass', () => {});");
+    assert.equal(run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env }).status, 0, 'telemetry failure does not fail a passing runner');
+  }
+});
+
+test('unknown redaction configuration still fails zero-test runs and preserves actual runner failures', async t => {
+  for (const invalid of ['{broken', '{"tests":{"allowEmpty":true,"configEnv":"ACME_AUTH"}}', 'directory']) {
+    const { dir } = await acmeRepo(t);
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    const at = join(dir, '.keel/keel.json');
+    if (invalid === 'directory') await mkdir(at);
+    else await writeFile(at, invalid);
+    const invoke = () => run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env: { ...process.env } });
+    for (const source of ['// Acme has no tests yet.\n', "import {test} from 'node:test'; test.skip('Acme later', () => {});"]) {
+      await writeFile(join(dir, 'tests/acme.test.mjs'), source);
+      const result = invoke();
+      assert.equal(result.status, 1, 'unknown configuration cannot authorize an empty run');
+      assert.match(result.stdout, /no tests ran/);
+      assert.match(result.stdout, /redaction configuration unavailable/);
+    }
+    await writeFile(join(dir, 'tests/acme.test.mjs'), "import {test} from 'node:test'; test('Acme failure', () => { throw Error('Acme intentional failure'); });");
+    const failed = invoke();
+    assert.equal(failed.status, 1, 'omitting telemetry preserves the actual runner failure');
+    assert.doesNotMatch(failed.stdout, /no tests ran/);
+    assert.equal((await readRuns(dir)).runs.length, 0);
+  }
+});

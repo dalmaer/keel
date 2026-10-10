@@ -314,8 +314,10 @@ export async function writeUsual(root, runs) {
   return path;
 }
 
-/** Run a whole gate, preserving its exit code, and give runners a usual-times file. */
-export async function timedCommand(command, { cwd = process.cwd(), env = process.env, stdio = 'pipe' } = {}) {
+/** Run a whole gate, preserving its exit code, and give runners a usual-times file.
+ * preparedEnv is only for gateEnv's result: inherited runner context has already
+ * been removed before explicit project environment overrides were applied. */
+export async function timedCommand(command, { cwd = process.cwd(), env = process.env, stdio = 'pipe', preparedEnv = false } = {}) {
   // A nested project's gate belongs to that project, never the enclosing Git repository.
   const root = real(cwd), config = await projectConfig(root);
   const options = { cwd, shell: true, stdio, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 };
@@ -334,7 +336,7 @@ export async function timedCommand(command, { cwd = process.cwd(), env = process
   } catch (error) { unavailable('usual timing', error); }
   const identity = where(root);
   const start = await busySample(), started = Date.now();
-  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_') && k !== 'KEEL_USUAL'));
+  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => (preparedEnv || !k.startsWith('NODE_TEST_')) && k !== 'KEEL_USUAL'));
   const result = spawnSync(command, { ...options, env: { ...childEnv, KEEL_GATE_ACTIVE: root, ...(usual ? { KEEL_USUAL: usual } : {}), KEEL_RUN_START: JSON.stringify(start) } });
   const ms = Date.now() - started, busy = busyBetween(start, await busySample());
   try {
@@ -685,12 +687,14 @@ export async function record(root, run, { window = DEFAULTS.window, keep = Math.
   return name;
 }
 
-async function projectConfig(root, { strict = false } = {}) {
+async function projectConfig(root, { strict = false, redaction = false } = {}) {
   try {
     const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
+    if (redaction && (!config || typeof config !== 'object' || Array.isArray(config) || (config.tests !== undefined && (!config.tests || typeof config.tests !== 'object' || Array.isArray(config.tests))) || (config.tests?.configEnv !== undefined && !(Array.isArray(config.tests.configEnv) && config.tests.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))))) return null;
     if (strict && (!config || typeof config !== 'object' || Array.isArray(config) || (config.check !== undefined && (typeof config.check !== 'string' || !config.check.trim())))) throw new Error('invalid gate configuration');
     return config;
   } catch (error) {
+    if (redaction && error.code !== 'ENOENT') return null;
     if (!strict || error.code === 'ENOENT') return {};
     throw new Error(`cannot determine gate from .keel/keel.json (${error.code ?? 'invalid configuration'})`);
   }
@@ -922,12 +926,13 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
 export default async function* ledger(source) {
   const cwd = process.cwd();
   const root = rootOf(cwd);
-  const config = await projectConfig(root);
-  const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
+  const knownConfig = await projectConfig(root, { redaction: true });
+  const config = knownConfig ?? {};
+  const configEnv = config.tests?.configEnv ?? [];
   const started = Date.now(), start = await busySample();
-  const top = topLevel({ root, errors: true, configEnv });
+  const top = topLevel({ root, errors: knownConfig !== null, configEnv });
   const { tests } = top;
-  const pins = narrowed() ? null : pinned(root, config);
+  const pins = narrowed() || knownConfig === null ? null : pinned(root, config);
   let ran = 0;
   for await (const e of source) {
     if (executed(cwd, e)) ran++;
@@ -936,6 +941,11 @@ export default async function* ledger(source) {
   }
   const empty = emptyRun(ran, config);
   if (empty && !process.exitCode) process.exitCode = 1;
+  if (knownConfig === null) {
+    if (empty) yield `${empty}\n`;
+    yield `${LABEL}: redaction configuration unavailable; nothing recorded.\n`;
+    return;
+  }
   if (pins) {
     const said = await pins.said(tests);
     if (said.length) yield `${said.join('\n')}\n`;
@@ -1140,8 +1150,9 @@ export function junitTests(root, runner, fileOf = f => f, { configEnv = [], env 
  */
 export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start = null } = {}) {
   const root = rootOf(cwd);
-  const config = await projectConfig(root);
-  const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
+  const knownConfig = await projectConfig(root, { redaction: true });
+  const config = knownConfig ?? {};
+  const configEnv = config.tests?.configEnv ?? [];
   const lines = [];
   const at = junit !== undefined ? resolve(cwd, junit) : resolve(root, typeof config?.tests?.junit === 'string' ? config.tests.junit : JUNIT);
   const inside = relative(root, at).split(sep).join('/');
@@ -1174,6 +1185,7 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
     lines.push(`${LABEL}: ${shown} is not JUnit the ledger can read (${e.message}); nothing recorded.`);
     return { lines, code: status || 1 };
   }
+  if (knownConfig === null) { lines.push(`${LABEL}: redaction configuration unavailable; nothing recorded.`); return done(parsed.ran, parsed.failed); }
   // The file's own identity: its path and its bytes. Two packages' identical reports at their own paths are two runs;
   // the same bytes at the same path again are one report read twice (stale).
   const hash = sha12(`${shown}\u0000${xml}`);

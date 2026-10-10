@@ -4,6 +4,7 @@
   "requires": ["base", "agents-md"],
   "files": [
     { "path": ".github/workflows/keel-night.yml", "from": ".github/workflows/keel-night.yml", "kind": "managed" },
+    { "path": "scripts/keel/ci.mjs", "from": "scripts/keel/ci.mjs", "kind": "managed" },
     { "path": "scripts/keel/improve.mjs", "from": "scripts/keel/improve.mjs", "kind": "managed" },
     { "path": "scripts/keel/drain.mjs", "from": "scripts/keel/drain.mjs", "kind": "managed" },
     { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" },

@@ -239,3 +239,69 @@ Gate reports and the board show only root-project gates (`dir: "."`).
 Historical subproject gates stay on disk and appear as explicit exclusions.
 Transcript counts are null when no valid records were observed in the window;
 partial coverage retains observed counts and names omissions.
+
+### Actions usage and reusing CI
+
+`ci_minutes` reads Actions run pages and every retained attempt's job pages.
+It rounds each completed job's started-to-completed runtime up to a minute,
+excluding queue time, then applies `ci.weights` (defaults Linux 1, Windows 2,
+macOS 10, dated 2026-10-09). These are configurable usage weights, **not an
+invoice or a universal tariff**. `ci.runnerWeights` can supply explicit weights
+for custom runner labels. Reports separate public standard-hosted free usage,
+self-hosted usage, private plan-dependent billing, larger/custom runners and
+unknown runner coverage. Free billing does not erase compute usage. Workflow
+ownership comes from `.keel/lock.json` paths, including managed `check.yml` and
+`claude.yml`; an unowned `keel-*` name is labeled keel-named, not keel-owned.
+Direct `readCiUsage` callers can pass `ownedWorkflows` paths explicitly.
+
+Set `"ci": { "weeklyMinutes": 1000 }` to choose a weekly bound; without one
+usage is reported without a budget verdict. The seven-day window attributes
+jobs by completion time and includes their full runtime, including failed and
+canceled jobs. Future or unfinished timing is unknown. API errors, missing
+attempts and unknown labels are gaps, never free zero usage. Observed usage
+already above a bound remains a finding even when the total is incomplete.
+
+The read is bounded to 5 run pages, 5 job pages per attempt, 100 items per page,
+10 attempts per run and 200 requests. Run history is not cut off by creation
+age: an old run can have a new rerun. A long-lived repository or workflow can
+exhaust that lifetime-history bound even when recent runs are visible. Its
+weekly total and adoption estimate remain unknown; the report retains observed
+usage and names the limits. The production reader is exported as `readCiUsage`
+from `scripts/keel/ci.mjs` for read-only API walks.
+
+`ci.gateWorkflow` names the existing workflow to reuse. The top-level
+`gateWorkflow` alias still works; conflicting values are an error. Discovery
+heuristics do not authorize reuse. The gate measure reuses only same-repo,
+default-branch **push** CI on the exact clean SHA. PR and fork runs are excluded.
+The newest candidate by update/attempt freshness must be completed success or
+failure, with validated matching jobs completed within 24 hours. A completed
+failure remains a failure; pending, skipped, canceled, stale or unavailable
+results fall back to the configured local command. Reused reports name the
+source, SHA, conclusion and completion age. They do not claim local execution
+or create local gate wall-time records. Keel's own real reuse walk must follow
+merge and default-branch CI, not just a green PR check.
+
+Both adoption paths preview only workflows they would create, with triggers,
+history source/window and monthly weighted-minute estimates. They query the
+same production reader for each workflow's history in `dalmaer/keel` (override
+with `ci.historyRepo`). Daily/weekly scheduled runs use the proposed schedule
+and observed mean cost including retries; other events use the source's
+observed event rate scaled to 30 days, **not a nightly frequency**. Target
+activity may differ. Estimates reuse source per-run runtime: target setup, gate
+and runtime may differ too. This is not a benchmark of the new project.
+Requested history and observed exposure are separate:
+`window.observedSince` is the later of requested start and repository
+creation time (the API’s created_at field), with fractional `observedDays` as the event-rate denominator.
+Quiet days count; the first returned run does not set exposure. Missing or
+invalid repository age makes event projections unknown, while a schedule-only
+mean × cadence estimate remains possible. Cached exposure must match these
+dates and arithmetic. Unsupported schedules or incomplete/missing history yield
+unknown estimates and an unknown total. Preview installs no schedules.
+
+For offline preview, `.keel/ci-history.json` may hold
+`{ "version": 1, "repo": "owner/repo", "workflows": { ".github/workflows/check.yml": REPORT } }`,
+where each `REPORT` is an unmodified `readCiUsage({repo, workflow: 'check.yml', days: 28})`
+result. Cache windows must match their day count, end within the past 30 days,
+and use the current weight maps; malformed or stale caches are discarded.
+`KEEL_CI_OFFLINE=1` prevents remote history reads. No estimate is a claim about
+actual monthly billing; the metered-project month comparison remains required.

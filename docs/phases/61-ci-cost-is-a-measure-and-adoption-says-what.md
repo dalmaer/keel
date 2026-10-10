@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: owner
 since: 2026-10-09
 goal: G5
 spec: 2
 depends: [43]
-note: "A metered project audits its Actions bill, and keel adds workflows without saying what they cost: the night reruns a 12-15 minute gate the project's own CI already ran. CI cost becomes a measure (weighted minutes, OS multipliers, per-job round-up), the night reuses the project's CI result on main, and adopt states what keel adds. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
-evidence: []
+note: "Implemented: bounded CI usage estimates, exact clean default-branch CI reuse and adoption cost previews. Real API accounting and estimates verified; clean committed reuse and the owner’s month on a metered project remain owed."
+evidence: ["evidence/2026-10-09-ci-usage.md"]
 issue: 48
 ---
 
@@ -25,9 +27,9 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] `ci_minutes` rounds each job up, applies each runner's multiplier, groups by workflow, separates keel's own, and is outside its bound when over it; n/a without the API, never zero. `tests/ci.test.mjs`, `tests/improve-measures.test.mjs`
-- [ ] With `gateWorkflow` set, the night's gate measure reads that workflow's conclusion on the commit and runs no check; without a run, it runs the check as today. `tests/ci.test.mjs`, `tests/night.test.mjs`
-- [ ] `keel adopt --dry-run` lists keel's added workflows with a monthly minutes estimate and a total. `tests/adopt.test.mjs`
+- [x] `ci_minutes` rounds each job up, applies each runner's multiplier, groups by workflow, separates keel's own, and is outside its bound when over it; n/a without the API, never zero. `tests/ci.test.mjs`, `tests/improve-measures.test.mjs`
+- [x] With `gateWorkflow` set, the night's gate measure reads that workflow's conclusion on the commit and runs no check; without a run, it runs the check as today. `tests/ci.test.mjs`, `tests/night.test.mjs`
+- [x] `keel adopt --dry-run` lists keel's added workflows with a monthly minutes estimate and a total. `tests/adopt.test.mjs`
 - [ ] ⚑ by hand: a month on one metered project; the owner compares keel's minutes with the estimate.
 
 ## Your part
@@ -64,4 +66,9 @@ Over time: a month's minutes against the estimate.
 
 ## Next action
 
-Brief a builder on `ci_minutes` and the reused gate.
+After merge and successful default-branch CI, verify reuse from a clean checkout and record its exact source. The owner then chooses a metered project, captures its adoption estimate, and compares one month of actual usage with it. No new project schedule is enabled by this phase.
+
+## Trajectory
+
+- **2026-10-09** — Actions history is bounded, not presumed complete. Old runs can be retried this week; partial reads keep observed usage as a lower bound and cannot claim an inside-bound total. Ownership comes from managed paths, not a filename prefix. Evidence: [CI usage](../evidence/2026-10-09-ci-usage.md).
+- **2026-10-09** — Monthly event estimates use actual repository exposure, not days before it existed. Cached weights, windows and source identity are validated; scheduled means and event rates remain distinct. Real Keel history exercised the positive path, while month-long predictive accuracy remains an owner walk.

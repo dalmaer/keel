@@ -58,5 +58,8 @@
     "budget": {
       "minutes": 30
     }
+  },
+  "ci": {
+    "gateWorkflow": "check.yml"
   }
 }

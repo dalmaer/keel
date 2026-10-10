@@ -20,9 +20,14 @@
     "window": 3
   },
   "climb": {
-    "jobs": ["build-time"],
+    "jobs": [
+      "build-time"
+    ],
     "build": "node -e \"\"",
     "buildOutput": "dist",
     "buildBudgetMs": 1
+  },
+  "ci": {
+    "weeklyMinutes": 0
   }
 }

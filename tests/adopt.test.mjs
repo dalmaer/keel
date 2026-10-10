@@ -782,3 +782,60 @@ test('adopted JUnit shell samples after lint immediately before the runner and t
     }
   }
 });
+
+// Phase 61 uses the production reader through KEEL_GH, never a fabricated
+// estimate service. Both adoption entry paths must preview only new workflows.
+test('adoption and adding practices estimate only newly created workflows from paginated Actions history', async t => {
+  const { ghStub } = await import('./helpers/improve.mjs');
+  const { readCiUsage } = await import('../practices/night/files/scripts/keel/ci.mjs');
+  const now = Date.parse('2026-10-10T12:00:00Z'), repo = 'acme/practice';
+  for (const adding of [false, true]) {
+    let dir;
+    if (adding) {
+      dir = join(await scratch(t), 'acme');
+      const initialized = keel(['init', dir, '--description', 'Acme anvils']);
+      assert.equal(initialized.code, 0, initialized.err);
+      await writeFile(join(dir, '.stitch.json'), '{"workspace":"acme-0000-workspace"}');
+    } else dir = await stated(t, '# Acme\n');
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8').catch(() => '{}'));
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, ci: { historyRepo: repo } }));
+    const opts = { dir, dryRun: true, ...(adding ? { with: ['loop'] } : {}) };
+    const preview = await adopt(opts, { version: VERSION, now });
+    const flows = preview.data.ciCost.workflows;
+    assert.ok(flows.length);
+    if (adding) assert.deepEqual(flows.map(f => f.path), ['.github/workflows/keel-loop.yml']);
+    assert.equal(preview.data.ciCost.monthlyWeightedMinutes, null, 'unknown history never invents cost');
+    const api = { [`repos/${repo}`]: { private: false, default_branch: 'main', created_at: '2020-01-01T00:00:00Z' } };
+    for (const [i, flow] of flows.entries()) {
+      const runId = i + 1, workflow = flow.path.split('/').at(-1);
+      const event = flow.triggers.includes('schedule') ? 'schedule' : flow.triggers[0];
+      api[`repos/${repo}/actions/workflows/${workflow}/runs`] = { total_count: 1, workflow_runs: [{ id: runId, run_attempt: 1, path: flow.path, event, status: 'completed', updated_at: '2026-10-10T11:59:00Z', head_sha: 'acmesha' }] };
+      api[`repos/${repo}/actions/runs/${runId}/attempts/1/jobs`] = { total_count: 1, jobs: [{ id: 100 + i, run_id: runId, run_attempt: 1, head_sha: 'acmesha', status: 'completed', conclusion: 'success', labels: ['ubuntu-latest'], started_at: '2026-10-10T11:56:00Z', completed_at: '2026-10-10T11:57:01Z' }] };
+    }
+    const ciEnv = { ...ENV, KEEL_CI_OFFLINE: '0', KEEL_GH: await ghStub(t, { api }) };
+    const before = await tree(dir);
+    const result = await adopt(opts, { version: VERSION, now, ciEnv });
+    assert.deepEqual(await tree(dir), before, 'read-only preview installs no workflows or schedules');
+    for (const flow of result.data.ciCost.workflows) {
+      assert.equal(flow.monthlyWeightedMinutes, flow.triggers.includes('schedule') ? 60 : 2.14);
+      assert.equal(flow.source.repo, repo);
+      assert.equal(flow.source.window.days, 28);
+      assert.equal(flow.coverage.complete, true);
+    }
+    assert.equal(result.data.ciCost.monthlyWeightedMinutes, result.data.ciCost.workflows.reduce((n, f) => n + f.monthlyWeightedMinutes, 0));
+    assert.match(result.text, /weighted minutes\/month/);
+    assert.match(result.text, /not invoices/);
+    const workflows = {};
+    for (const flow of flows) workflows[flow.path] = await readCiUsage({ repo, workflow: flow.path.split('/').at(-1), env: ciEnv, now, days: 28 });
+    await writeFile(join(dir, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows }));
+    const offline = await adopt(opts, { version: VERSION, now, ciEnv: { ...ENV, KEEL_CI_OFFLINE: '1', KEEL_GH: '/nonexistent/gh' } });
+    assert.equal(offline.data.ciCost.monthlyWeightedMinutes, result.data.ciCost.monthlyWeightedMinutes);
+    assert.ok(offline.data.ciCost.workflows.every(f => f.source.kind.startsWith('local')));
+    // A bounded/incomplete cache remains unknown, even with observed jobs.
+    for (const report of Object.values(workflows)) report.coverage.complete = false;
+    await writeFile(join(dir, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows }));
+    const partial = await adopt(opts, { version: VERSION, now });
+    assert.equal(partial.data.ciCost.monthlyWeightedMinutes, null);
+  }
+});
