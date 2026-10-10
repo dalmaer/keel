@@ -519,3 +519,27 @@ test('round4: gate summaries retain distinct config command and available source
     ['.\0acme-full', 'acme-full-hash', ['configured-gate']], ['.\0acme-subset', 'acme-subset-hash', ['explicit-command']],
   ]);
 });
+
+test('round5: package scripts omit outside forwarded targets and unknown grammar while preserving local runs', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const rejected = ['npm test -- /other/acme.test.mjs', 'npm test -- ../other/acme.test.mjs',
+    'npm run test -- tests/acme.test.mjs /other/acme.test.mjs', 'pnpm test ../other/acme.test.mjs',
+    'yarn test -- /other/acme.test.mjs', 'bun run test -- tests/../../other/acme.test.mjs',
+    'npm test -- --unknown tests/acme.test.mjs', 'npm test -- tests/', 'npm test -- "tests/*.test.mjs"', 'npm test -- --reporter',
+    'npm test -- -- --reporter /other/acme.test.mjs', 'npm test -- -- --test-name-pattern ../other/acme.test.mjs',
+    'npm test -- -- tests/acme.test.mjs'];
+  const accepted = ['npm test', 'npm run check', 'npm test -- tests/acme.test.mjs',
+    'pnpm test --silent tests/acme.test.mjs', 'yarn test --testNamePattern "Acme ../filter" tests/acme.test.mjs',
+    'bun run test -- --test-reporter=spec --test-name-pattern Acme ./tests/acme.test.mjs'];
+  await writeFile(join(dir, 'acme.jsonl'), [...rejected, ...accepted].map((command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root,
+    message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } })).join('\n'));
+  const got = await workedAround({ root, home, env: {}, now: Date.parse('2026-10-10') });
+  assert.equal(got.coverage.commandOmissions, rejected.length);
+  assert.equal(got.coverage.state, 'partial');
+  assert.equal(got.counts.workedAround, accepted.length);
+  assert.deepEqual(got.identities.map(i => [i.kind, i.id, i.counts.workedAround]), [
+    ['script', 'test', 5], ['script', 'check', 1],
+  ]);
+});

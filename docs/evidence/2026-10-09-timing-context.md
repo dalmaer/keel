@@ -90,3 +90,7 @@ The builder passed 23 focused ledger/adoption checks, 11 timing/board checks and
 - Proven-by: tests/board.test.mjs (^round4: board distinguishes) — VERIFIED — "The input did not match the regular expression /linux-x64-4cpu: 2000 ms[^;]+config=acme-full command=acme-full-hash source=configured-gate/. Input: '<!doctyp..."
 - Proven-by: tests/test-ledger.test.mjs (^(Windows load sampling|internal gate rejects|legacy JUnit imports)) — VERIFIED — "unsupported load must not be sampled (Windows load sampling is unavailable rather than quiet zero)"
 - Proven-by: tests/adopt.test.mjs (^adopted JUnit shell samples) — VERIFIED — "Expected values to be strictly equal: + actual - expected + 'lint\nrunner\n' - 'lint\nsample\nrunner\n' ^ (adopted JUnit shell samples after lint immediately..."
+
+The exact-head review found package-manager scripts bypassing the direct runners' external-target check. Forwarded absolute, parent-traversing and unsupported targets now produce explicit command omissions. Accepted invocations retain script identity because arguments alone cannot establish test identity. The focused shell-transcript test passed; conductor proof against `56158e9` is VERIFIED.
+
+- Proven-by: tests/time.test.mjs (^round5: package scripts) — VERIFIED — "Expected values to be strictly equal: 0 !== 13 (round5: package scripts omit outside forwarded targets and unknown grammar while preserving local runs)"
