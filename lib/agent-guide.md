@@ -720,8 +720,9 @@ adopt` proposes it; `|| keel_status=$?` survives `set -e`; after a `cd` the
 paths start from `$keel_root`, git's top level). The record is a node run's
 plus `runner` and `junit` (a short hash of the file's path and bytes), with
 each top-level test or describe. A report is fresh when it was last written
-after this run began (`--start <ms>`, else the gate's `KEEL_RUN_START`; 2 s
-allowed for coarse file times), so a deterministic suite's byte-identical
+after this run began (`--start '<json>'`, the line `test-ledger.mjs --sample`
+prints just before the runner, passed verbatim; else the gate's
+`KEEL_RUN_START`; 2 s allowed for coarse file times), so a deterministic suite's byte-identical
 report counts each time; one written before is stale, and not counted.
 The exit code: 1 when no tests ran (no file, none in it, or stale; unless
 `allowEmpty`), else `--status`, else 1 when a testcase failed; a file that is

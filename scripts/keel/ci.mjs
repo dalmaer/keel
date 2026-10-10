@@ -204,7 +204,11 @@ async function testEvidence(client, repo, run, jobs, sha) {
     const steps = Array.isArray(j.steps) ? j.steps : [];
     // A job named for tests counts when none of its steps was skipped (#95): a successful `test` job whose
     // `Run tests` step a condition skipped ran no tests. With no step detail, its name is what there is.
-    if (TESTS_NAMED.test(j.name ?? '') && steps.every(s => executed(s))) return { kind: 'job', job: j.name };
+    // A run that failed (#98): GitHub skips the steps after a failed one, so those skips are the failure's, and
+    // the reused gate is that failure either way. A run that succeeded keeps every step's having run: a test job
+    // allowed to fail (continue-on-error, a matrix lane) with its tests skipped is no evidence of a pass.
+    const failedAt = run.conclusion === 'failure' ? steps.findIndex(s => s?.conclusion === 'failure') : -1;
+    if (TESTS_NAMED.test(j.name ?? '') && (failedAt < 0 ? steps : steps.slice(0, failedAt + 1)).every(s => executed(s))) return { kind: 'job', job: j.name };
     // No step's name is evidence (#95): a step named for tests can be the one keeping the ledger's artifact
     // ("Keep the test ledger"), which succeeds with nothing to keep.
   }

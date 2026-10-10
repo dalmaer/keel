@@ -128,6 +128,18 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   // #95: a successful job named `test` whose `Run tests` step a condition skipped ran no tests.
   const skippedInTestJob = await invoke(gateApi(run(1), [job(102, 1, { name: 'test', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'Install', conclusion: 'success' }, { name: 'Run tests', conclusion: 'skipped' }] })]));
   assert.equal(skippedInTestJob.reused, false, 'a test job whose test step was skipped is not evidence');
+  // A test job whose test step failed: GitHub skips the steps after it, and the failure is kept, never rerun locally.
+  const failedTests = await invoke(gateApi(run(1, { conclusion: 'failure' }), [job(102, 1, { name: 'test', conclusion: 'failure', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'Run tests', conclusion: 'failure' }, { name: 'Upload', conclusion: 'skipped' }] })]));
+  assert.deepEqual([failedTests.reused, failedTests.testEvidence], [true, { kind: 'job', job: 'test' }], 'a failed test job ran its tests: its failure is kept');
+  assert.equal(failedTests.status, 1, 'and the reused gate failed');
+  // #98: in a run that succeeded, a test job allowed to fail (its tests failed or never ran, the rest skipped) is no evidence.
+  for (const steps of [[{ name: 'Run tests', conclusion: 'failure' }, { name: 'Upload', conclusion: 'skipped' }], [{ name: 'Install', conclusion: 'failure' }, { name: 'Run tests', conclusion: 'skipped' }]]) {
+    const allowed = await invoke(gateApi(run(1, { conclusion: 'success' }), [job(102, 1, { name: 'test', conclusion: 'failure', steps })]));
+    assert.equal(allowed.reused, false, `a successful run with an allowed-to-fail test job: ${JSON.stringify(steps)}`);
+  }
+  // A skip before any failure still means tests may not have run.
+  const skipThenFail = await invoke(gateApi(run(1, { conclusion: 'failure' }), [job(102, 1, { name: 'test', conclusion: 'failure', steps: [{ name: 'Run tests', conclusion: 'skipped' }, { name: 'Lint', conclusion: 'failure' }] })]));
+  assert.equal(skipThenFail.reused, false, 'tests skipped before the failing step');
   const wholeTestJob = await invoke(gateApi(run(1), [job(102, 1, { name: 'test', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'npm run check', conclusion: 'success' }] })]));
   assert.deepEqual([wholeTestJob.reused, wholeTestJob.testEvidence], [true, { kind: 'job', job: 'test' }], 'a test job whose every step ran');
   // #95, #96: the ledger's artifact is not evidence until its contents are read: the gate's own timing record is
