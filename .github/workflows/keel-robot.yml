@@ -3,13 +3,17 @@
 # Review follows explicitly on this same serialized workflow, never by bot-PR triggers.
 name: keel-robot
 on:
-  issues:
-    types: [labeled, reopened]
-  issue_comment:
-    types: [created]
   schedule:
     - cron: "37 11 * * 1"
-  workflow_dispatch: {}
+  # Public events are checked by keel-robot-route.yml before entering this
+  # serialized, budget-accounted history. Runtime revalidates the routed data.
+  workflow_dispatch:
+    inputs:
+      robot_trigger:
+        description: "Verified event routing data; empty scans the authorized queue"
+        type: string
+        required: false
+        default: ""
 concurrency:
   group: keel-robot
   cancel-in-progress: false
@@ -96,6 +100,7 @@ jobs:
       - name: Prepare isolated git objects for either provider
         if: steps.prepare.outputs.ready == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ steps.prepare.outputs.issue }}
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
@@ -108,7 +113,7 @@ jobs:
           BRANCH="keel/robot-$ISSUE"
           previous=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).previousHead || "")' "$RUNNER_TEMP/robot-plan.json")
           if [ -n "$previous" ]; then
-            git fetch --no-tags origin "refs/heads/$BRANCH"
+            ROBOT_FETCH_REF="refs/heads/$BRANCH" node "$RUNNER_TEMP/trusted/robot.mjs" fetch --json
             [ "$(git rev-parse FETCH_HEAD)" = "$previous" ]
             git switch -c "$BRANCH" "$previous"
             git merge --no-edit "$GITHUB_SHA"

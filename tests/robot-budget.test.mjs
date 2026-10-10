@@ -49,3 +49,33 @@ test('robot attempt endpoint accepts absent attempt only and preflight exempts o
  const incompleteBuild=async r=>{const response=await withBuild(r);if(response.data.jobs)response.data.jobs[1].steps=[];return response;};
  assert.equal((await readRobotBudget({repo,policy,now,github:incompleteBuild,preflight})).state,'unknown');
 });
+
+test('robot budget excludes router history but counts legacy worker events and old runs rerun this week', async () => {
+ const worker = api({attempts:2,run:{event:'issue_comment',created_at:'2026-01-01T00:00:00Z'}});
+ const github = async request => {
+  assert.doesNotMatch(request.path,/created=|event=|status=|keel-robot-route/);
+  // Public flood belongs to another workflow, never to the worker's ledger.
+  if (request.path.includes('/workflows/8/runs?')) return {status:200,data:{total_count:600,workflow_runs:[]}};
+  return worker.github(request);
+ };
+ const b = await readRobotBudget({repo,policy,now,github});
+ assert.equal(b.state,'available');assert.equal(b.usedSeconds,104);
+ assert.ok(worker.calls.some(p=>p.includes('/attempts/1/jobs')));
+ assert.ok(worker.calls.some(p=>p.includes('/attempts/2/jobs')));
+ assert.ok(worker.calls.every(p=>!p.includes('/actions/runs?')));
+});
+
+test('robot budget never treats more than 500 actual worker runs as complete or free', async () => {
+ const calls=[];
+ const github=async ({path})=>{
+  calls.push(path);
+  if(path.endsWith('/workflows/keel-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/keel-robot.yml'}};
+  assert.match(path,/\/workflows\/7\/runs\?/);
+  const page=Number(new URL(`https://api.github.com${path}`).searchParams.get('page'));
+  return {status:200,data:{total_count:501,workflow_runs:Array.from({length:100},(_,i)=>({id:(page-1)*100+i+1,workflow_id:7,repository:{full_name:repo},head_sha:sha,run_attempt:1,updated_at:now,status:'completed'}))}};
+ };
+ const b=await readRobotBudget({repo,policy,now,github});
+ assert.equal(calls.length,6);assert.equal(b.state,'unknown');assert.equal(b.complete,false);
+ assert.equal(b.usedSeconds,null);assert.equal(b.remainingSeconds,null);
+ assert.match(b.reasons.join(' '),/bounded coverage/);
+});

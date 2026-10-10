@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 67 phases built; 21 owe a walk.** Built means implemented and checked; planned is not available.
+**38 of 67 phases built; 22 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Verify interruption/restart recovery and preservation of human edits on the approved canvas; establish a deployed conditional-edit contract for a stable live pulse. Package/installation proof and the GitHub night credential/recovery walk remain. The approved weekly local automation is active; its first scheduled run and seven-night sustained-use proof are not yet observed. Do not ask for canvas destination or writer approval again. (Dated: phase 13 is on or after 2026-11-01.)
 

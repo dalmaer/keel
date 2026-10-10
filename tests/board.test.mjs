@@ -819,3 +819,43 @@ test('board exposes robot OFF exhausted invalid and unavailable usage without en
     } else assert.match(boardText(got), /300s left for build and review/);
   }
 });
+
+test('board robot budget caches attempt reads and accounts REST refreshes separately', async t => {
+  const root = await acme(); t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, '.keel/keel.json');
+  const config = JSON.parse(await readFile(path, 'utf8'));
+  config.robot = { on: true, budgetMinutes: 10 };
+  await writeFile(path, JSON.stringify(config));
+  const now = new Date('2026-10-08T12:00:00Z'), sha = 'a'.repeat(40);
+  let calls = 0, remaining = 4000;
+  const github = async ({ method, path }) => {
+    assert.equal(method, 'GET'); calls++;
+    const data = path.endsWith('/keel-robot.yml') ? { id: 1, path: '.github/workflows/keel-robot.yml' }
+      : path.includes('/runs?') ? { total_count: 1, workflow_runs: [{ id: 2, workflow_id: 1, repository: { full_name: 'acme/app' }, head_sha: sha, run_attempt: 2, updated_at: now.toISOString(), status: 'completed' }] }
+      : { total_count: 1, jobs: [{ id: 3, run_id: 2, run_attempt: path.includes('/attempts/1/') ? 1 : 2, head_sha: sha, status: 'completed', conclusion: 'skipped' }] };
+    return { status: 200, data, headers: { 'x-ratelimit-remaining': String(remaining), 'x-ratelimit-reset': String(now.getTime() / 1000 + 3600) } };
+  };
+  const live = { ...deps(root), now, github, env: { ...process.env, KEEL_CACHE: join(root, '.cache'), KEEL_QUOTA_FLOOR: '1000' } };
+  const first = await board({ root }, live);
+  assert.equal(first.robot.budget.state, 'available');
+  assert.equal(calls, 4, 'workflow, runs, and both attempts');
+  assert.equal(first.github.rest.requests, 4); assert.equal(first.github.rest.remaining, 4000);
+  assert.equal(first.github.cost, 0, 'REST is not GraphQL points');
+  assert.equal(first.github.readAt, now.toISOString());
+  assert.match(boardText(first), /REST: 4 requests/); assert.match(pageHtml(first, 'acme'), /REST: 4 requests/);
+  const again = await board({ root }, { ...live, now: new Date(+now + 60_000) });
+  assert.equal(calls, 4); assert.equal(again.github.rest.requests, 0);
+  assert.equal(again.github.readAt, first.github.readAt);
+  await board({ root }, { ...live, fresh: true }); assert.equal(calls, 8);
+  await board({ root }, { ...live, now: new Date(+now + 11 * 60_000) }); assert.equal(calls, 12);
+  config.robot.budgetMinutes = 20; await writeFile(path, JSON.stringify(config));
+  const changed = await board({ root }, live); assert.equal(calls, 16); assert.equal(changed.robot.budget.remainingSeconds, 1200);
+  remaining = 500;
+  const low = await board({ root }, { ...live, fresh: true });
+  assert.equal(calls, 17, 'stop after headers establish the REST floor');
+  assert.equal(low.robot.budget.state, 'unknown'); assert.match(low.robot.budget.reasons.join(' '), /REST quota/);
+  assert.equal(low.github.rest.requests, 1);
+  await board({ root }, live); assert.equal(calls, 17, 'automatic refresh retains unavailable coverage too');
+  config.robot.on = false; await writeFile(path, JSON.stringify(config));
+  const off = await board({ root }, { ...live, fresh: true }); assert.equal(off.robot.budget.state, 'off'); assert.equal(calls, 17);
+});

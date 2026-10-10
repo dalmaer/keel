@@ -60,14 +60,7 @@ these issues one at a time, as a pass beside climb and tend.
   `keel issue new --agent` writes an issue in that shape. An issue the
   owner labels that misses part of it gets one comment naming what's
   missing, and is not worked.
-- **The trigger is GitHub's own.** `keel-robot.yml` runs on `issues:
-  labeled|reopened` and on `issue_comment: created`, but only for a
-  comment from someone with write access to the repo, and never from a bot.
-  Settled 2026-10-09: confirm current repository permission through the API;
-  author association is only an early filter, and unavailable permission
-  means no agent run.
-  A concurrency group means one issue at a time per project, and a weekly
-  schedule picks up anything missed. No server listens anywhere.
+- **The trigger is GitHub's own.** Settled 2026-10-10: `keel-robot-route.yml` checks public label, reopen and issue-comment events against current repository write/maintain/admin permission and fresh issue identity. It has no model credentials and dispatches the worker only when enabled. `keel-robot.yml` revalidates routing data, active label provenance and allowance; a weekly schedule picks up missed work. Public router runs never occupy its serialized worker queue or budget history. Unavailable permission means no agent run. No server listens anywhere.
 - **The sandbox is climb's.** The same three jobs (agent read-only, judge,
   publish), the same provider adapters (Claude or Codex), and the same
   guards. The result is a PR, never a push to main. The PR is reviewed by

@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
 import { runBlocks,shellProblems } from './helpers/workflows.mjs';
 const workflow=resolve('practices/climb/files/.github/workflows/keel-robot.yml');
+const router=resolve('practices/climb/files/.github/workflows/keel-robot-route.yml');
 const git=(dir,...args)=>execFileSync('git',['-C',dir,...args],{encoding:'utf8'}).trim();
 test('robot workflow keeps build agent judge publisher boundaries and explicitly reviews within the same queue',async()=>{
  const text=await readFile(workflow,'utf8');assert.deepEqual(await shellProblems('robot',text),[]);
@@ -45,4 +46,82 @@ test('robot recovery explicitly schedules review after successful publication de
  // status function, Actions inserts success() and suppresses its downstream review.
  assert.match(review,/^    if: always\(\) && needs\.publish\.result == 'success' && needs\.publish\.outputs\.pr != ''$/m);
  assert.match(review,/^    needs: publish$/m);
+});
+
+test('robot public events cannot enter serialized worker history before trusted routing', async () => {
+ const worker = await readFile(workflow, 'utf8');
+ const triggers = worker.split('\non:\n')[1].split('\nconcurrency:')[0];
+ assert.doesNotMatch(triggers, /^  (?:issues|issue_comment|pull_request|workflow_run|repository_dispatch):/m);
+ assert.match(triggers, /^  schedule:/m);
+ assert.match(triggers, /^  workflow_dispatch:/m);
+ assert.match(triggers, /^      robot_trigger:/m);
+ const text = await readFile(router, 'utf8');
+ assert.deepEqual(await shellProblems('robot-router', text), []);
+ assert.match(text,/^concurrency:\n  group: keel-robot-route-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}\n  cancel-in-progress: false$/m);
+ assert.match(text, /issue_comment:\n    types: \[created\]/);
+ assert.doesNotMatch(text, /uses: (?:anthropics|openai|actions\/checkout)|secrets\.|contents: write|issues: write/);
+ assert.match(text, /actions: write/);
+ assert.match(text, /github\.event\.issue\.pull_request == null/);
+});
+
+test('robot router dispatches only fresh writer-authorized issue events, preserving the trigger for runtime revalidation', async t => {
+ const dir = await mkdtemp(join(tmpdir(), 'acme-robot-router-'));
+ t.after(() => rm(dir, { recursive: true, force: true }));
+ const script = runBlocks(await readFile(router, 'utf8')).find(b => b.step === 'Verify current writer and route one issue event').script;
+ const stub = join(dir, 'fetch.mjs'), fixtures = join(dir, 'responses.json'), log = join(dir, 'calls.jsonl'), eventFile = join(dir, 'event.json');
+ await writeFile(stub, `import {readFileSync,appendFileSync} from 'node:fs';
+globalThis.fetch=async (url,options)=>{const u=new URL(url),path=u.pathname+u.search;const calls={path,method:options.method,body:options.body?JSON.parse(options.body):null};appendFileSync(process.env.ACME_CALLS,JSON.stringify(calls)+'\\n');const responses=JSON.parse(readFileSync(process.env.ACME_RESPONSES,'utf8'));const r=responses[path];if(!r)throw Error('unexpected API path '+path);return {status:r.status,json:async()=>r.data};};`);
+ const repo = 'acme/anvils', user = { login: 'acme-owner', type: 'User' };
+ const issue = { number: 7, html_url: `https://github.com/${repo}/issues/7`, state: 'open', labels: [{name:'keel:agent'}] };
+ const comment = { id: 23, user, issue_url: `https://api.github.com/repos/${repo}/issues/7` };
+ const event = { repository:{full_name:repo}, action:'created', issue, sender:user, comment };
+ const permissionPath = `/repos/${repo}/collaborators/${user.login}/permission`, issuePath = `/repos/${repo}/issues/7`, commentPath = `/repos/${repo}/issues/comments/23`;
+ const dispatchPath = `/repos/${repo}/actions/workflows/keel-robot.yml/dispatches`;
+ const configPath = `/repos/${repo}/contents/.keel/keel.json?ref=release%2Facme`;
+ const policyFile = config => ({status:200,data:{type:'file',path:'.keel/keel.json',encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}});
+ const responses = {
+  [permissionPath]:{status:200,data:{user,permission:'write'}},
+  [issuePath]:{status:200,data:issue}, [commentPath]:{status:200,data:comment},
+  [`/repos/${repo}`]:{status:200,data:{full_name:repo,default_branch:'release/acme'}},
+  [configPath]:policyFile({robot:{on:true,budgetMinutes:10}}),
+  [dispatchPath]:{status:204},
+ };
+ const invoke = async ({ payload=event, eventName='issue_comment', overrides={} }={}) => {
+  await writeFile(eventFile, JSON.stringify(payload)); await writeFile(fixtures, JSON.stringify({...responses,...overrides})); await writeFile(log,'');
+  const result=run('bash',['-e','-o','pipefail','-c',script],{cwd:dir,env:{...process.env,GITHUB_EVENT_PATH:eventFile,GITHUB_REPOSITORY:repo,GITHUB_EVENT_NAME:eventName,GITHUB_API_URL:'https://api.github.com',NODE_OPTIONS:`--import=${stub}`,ACME_CALLS:log,ACME_RESPONSES:fixtures,GH_TOKEN:'acme-synthetic-token'}});
+  const calls=(await readFile(log,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
+  return {...result,calls,posts:calls.filter(c=>c.method==='POST')};
+ };
+ for (const permission of ['write','maintain','admin']) {
+  const out=await invoke({overrides:{[permissionPath]:{status:200,data:{user,permission}}}});
+  assert.equal(out.status,0,out.stderr); assert.equal(out.posts.length,1);
+  assert.equal(out.calls[0].path,permissionPath);
+  assert.ok(out.calls.findIndex(c=>c.path===configPath)<out.calls.findIndex(c=>c.path===dispatchPath));
+  assert.deepEqual(out.posts[0],{path:dispatchPath,method:'POST',body:{ref:'release/acme',inputs:{robot_trigger:JSON.stringify({version:1,repo,eventName:'issue_comment',action:'created',issueNumber:7,commentId:23,sender:user.login})}}});
+ }
+ for (const action of ['labeled','reopened']) {
+  const out=await invoke({eventName:'issues',payload:{...event,action,label:{name:'keel:agent'}}});
+  assert.equal(out.status,0,out.stderr);assert.equal(out.posts.length,1);
+  const trigger=JSON.parse(out.posts[0].body.inputs.robot_trigger);
+  assert.equal(trigger.action,action);assert.equal(trigger.commentId,null);assert.equal(trigger.eventName,'issues');
+ }
+ const rejected = [
+  {payload:{...event,sender:{...user,type:'Bot'}}},
+  {payload:{...event,issue:{...issue,pull_request:{url:'acme'}}}},
+  {payload:{...event,comment:{...comment,user:{...user,login:'acme-other'}}}},
+  {eventName:'issues',payload:{...event,action:'labeled',label:{name:'other'}}},
+  ...['read','triage',null].map(permission=>({overrides:{[permissionPath]:{status:200,data:{user,permission}}}})),
+  {overrides:{[permissionPath]:{status:403,data:{}}}},
+  {overrides:{[permissionPath]:{status:200,data:{user:{login:'acme-other'},permission:'admin'}}}},
+  ...[{...issue,labels:[]},{...issue,state:'closed'},{...issue,pull_request:{}},{...issue,number:8}].map(data=>({overrides:{[issuePath]:{status:200,data}}})),
+  ...[{...comment,issue_url:`https://api.github.com/repos/${repo}/issues/8`},{...comment,user:{...user,type:'Bot'}},{...comment,user:{...user,login:'acme-other'}},{...comment,id:24}].map(data=>({overrides:{[commentPath]:{status:200,data}}})),
+  {overrides:{[commentPath]:{status:404,data:{}}}},
+  {overrides:{[`/repos/${repo}`]:{status:200,data:{full_name:'acme/other',default_branch:'main'}}}},
+  ...[{}, {robot:{on:false}}, {robot:{on:'true'}}, null].map(config=>({overrides:{[configPath]:policyFile(config)}})),
+  {overrides:{[configPath]:{status:404,data:{}}}},
+ ];
+ for (const input of rejected) {
+  const out=await invoke(input);
+  assert.equal(out.posts.length,0,JSON.stringify(input));
+ }
 });

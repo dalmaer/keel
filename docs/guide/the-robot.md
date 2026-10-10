@@ -62,7 +62,13 @@ the writer has stopped before manually removing only the stale lock. Do not
 discard intent records to force another POST. Phase proposal callers supply stable subjects and instances
 to `ensureRobotIssue`; this journal is recovery state, not an acceptance record.
 
-The workflow uses trusted default-branch policy and sandbox guards. Agents and
+Public issue and comment events first enter a trusted router, which checks the
+current default-branch policy and sender permission before dispatching the worker.
+The worker runs only on its schedule or dispatch; it revalidates routed identity,
+current label authorization and comment association. Unrelated public events do
+not enter its serialized, budget-counted run history.
+
+The worker uses trusted default-branch policy and sandbox guards. Agents and
 judges cannot publish. A trusted publisher opens a `keel/robot-<issue>` PR,
 invokes review by the other provider and reports the actual PR on the issue.
 Standalone cross-review refuses `keel/robot-` branches, even with a matching

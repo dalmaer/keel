@@ -28,7 +28,9 @@ export async function readRobotBudget({ repo, policy, now = new Date(), github =
     if (!robotRepo(repo) || !(policy.weeklyMinutes > 0 && Number.isFinite(policy.weeklyMinutes))) throw new Error('invalid budget identity or allowance');
     const workflow = await robotRead(github, `/repos/${repo}/actions/workflows/keel-robot.yml`);
     if (!robotId(workflow.id) || workflow.path !== '.github/workflows/keel-robot.yml') throw new Error('budget workflow identity unavailable');
-    // Per-workflow, including old logical runs rerun this week. Never truncate at created_at.
+    // Only the model worker: public-event router runs have their own history.
+    // Include legacy worker events and old logical runs rerun this week. Never
+    // filter by event/created_at or treat the 500-worker-run coverage cap as zero.
     const runs = await pages(github, `/repos/${repo}/actions/workflows/${workflow.id}/runs`, 'workflow_runs');
     let used = 0, sawPreflight = false, countedCurrentBuild = false; const ids = new Set(), jobIds = new Set();
     const start = Date.parse(window.windowStart), end = Date.parse(window.observedAt);

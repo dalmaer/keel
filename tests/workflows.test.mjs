@@ -25,6 +25,7 @@ export const PREFIX = {
   'keel-loop.yml': 'keel-loop/',
   'keel-climb.yml': 'keel-climb/',
   'keel-robot.yml': 'keel/robot-',
+  'keel-robot-route.yml': null,
   'keel-tend.yml': 'keel-tend/',
   'claude.yml': 'claude/',
   'keel-cross-review.yml': null,
@@ -100,7 +101,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-robot.yml', 'keel-tend.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);

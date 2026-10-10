@@ -1,3 +1,5 @@
+import { Worker } from 'node:worker_threads';
+import { once } from 'node:events';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp,writeFile,mkdir,rm,readFile,cp,readdir,chmod } from 'node:fs/promises';
@@ -14,13 +16,30 @@ after(() => rm(runtime, {recursive:true, force:true}));
 for (const dir of ['practices/night/files/scripts/keel', 'practices/climb/files/scripts/keel']) {
   for (const name of await readdir(dir)) if (name.endsWith('.mjs')) await cp(join(dir,name),join(runtime,name));
 }
-const { prepareRobot,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,robotSandbox } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
+const { prepareRobot,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,robotSandbox,robotFetch } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
 const repo='acme/anvils',now='2026-10-10T12:00:00Z',has={claude:true,codex:true};
 const config={robot:{on:true,budgetMinutes:60},agents:{claude:{},codex:{}}};
 const rubric={version:1,problem:'Acme sum is wrong',reproduction:'node --test',acceptance:'sum is two',change:'fix addition',prerequisites:[],ownerBlockers:[]};
 const user={login:'acme',type:'User'};
 const git=(dir,...args)=>execFileSync('git',['-C',dir,...args],{encoding:'utf8'}).trim();
 async function project(t){const dir=await mkdtemp(join(tmpdir(),'acme-robot-'));t.after(()=>rm(dir,{recursive:true,force:true}));git(dir,'init','-q','-b','main');await writeFile(join(dir,'acme.txt'),'base');git(dir,'add','.');git(dir,'commit','-qm','base');return dir;}
+async function privateGitServer(t,root) {
+ git(root,'update-server-info');
+ const worker=new Worker(`
+   const {parentPort,workerData}=require('node:worker_threads');
+   const {createServer}=require('node:http');const {readFile}=require('node:fs/promises');const {join}=require('node:path');
+   createServer(async(req,res)=>{
+     const authorized=req.headers.authorization==='basic '+Buffer.from('x-access-token:acme-synthetic-token').toString('base64');
+     parentPort.postMessage({authorized});
+     if(!authorized){res.writeHead(401);res.end();return;}
+     const path=new URL(req.url,'http://localhost').pathname.replace('/acme/anvils.git/','');
+     try{const data=await readFile(join(workerData,'.git',path));res.writeHead(200);res.end(data);}catch{res.writeHead(404);res.end();}
+   }).listen(0,'127.0.0.1',function(){parentPort.postMessage({url:'http://127.0.0.1:'+this.address().port});});
+ `,{eval:true,workerData:root});
+ t.after(()=>worker.terminate());const [ready]=await once(worker,'message');
+ const requests=[];worker.on('message',m=>requests.push(m));
+ return {...ready,requests};
+}
 function api({body=formatRobotRubric(rubric),comments=[],permission='write',pulls=[],pr}={}){
  const writes=[];
  const issue={number:1,html_url:`https://github.com/${repo}/issues/1`,state:'open',labels:[{name:'keel:agent'}],body};
@@ -29,6 +48,7 @@ function api({body=formatRobotRubric(rubric),comments=[],permission='write',pull
  if(method!=='GET'){writes.push(request);return {status:201,data:{id:99}};}
  if(path.includes('/collaborators/'))return {status:200,data:{permission,user}};
  if(path.endsWith('/issues/1'))return {status:200,data:issue};
+ if(path.includes('/events?'))return {status:200,data:[{id:1,event:'labeled',label:{name:'keel:agent'},actor:user,created_at:'2026-10-09T00:00:00Z'}]};
  if(path.includes('/comments?'))return {status:200,data:comments};
  if(path.includes('/pulls?'))return {status:200,data:pulls};
  if(path.endsWith('/pulls/2'))return {status:200,data:pr};
@@ -218,4 +238,114 @@ test('robot record-changing candidates require owner reconciliation instead of f
  await mkdir(join(root,'docs/phases'),{recursive:true});await writeFile(join(root,'docs/phases/01-acme.md'),'Acme acceptance is not decided by the robot.');
  git(root,'add','.');git(root,'commit','-qm','record change');
  assert.match(robotSandbox(root,baseSha,git(root,'rev-parse','HEAD')).join(' '),/record changes require owner reconciliation/);
+});
+
+
+test('robot scheduled admission requires the active label actor current write permission',async t=>{
+ const root=await project(t),a=api();
+ const label=(id,actor,event='labeled')=>({id,event,actor,label:{name:'keel:agent'},created_at:`2026-10-09T00:00:0${id}Z`});
+ const triager={login:'acme-triage',type:'User'};
+ for(const eventName of ['schedule','workflow_dispatch'])for(const [events,permission,expected] of [
+   [[label(1,triager)],'triage','blocked'],
+   [[label(1,user)],'read','blocked'],
+   [[label(1,user),label(2,user,'unlabeled'),label(3,triager)],'write','blocked'],
+   [[label(1,triager),label(2,user,'unlabeled'),label(3,user)],'write','ready'],
+   [[], 'write','blocked'],
+   [[label(1,user,'unlabeled')],'write','blocked'],
+ ]) {
+   const github=async r=>{
+     if(r.path.includes('/issues?'))return {status:200,data:[a.issue]};
+     if(r.path.includes('/events?'))return {status:200,data:events};
+     if(r.path.includes('/collaborators/'))return {status:200,data:r.path.includes('acme-triage')?{permission:'triage',user:triager}:{permission,user}};
+     return a.github(r);
+   };
+   const result=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName,has,now,github});
+   assert.equal(result.state,expected,JSON.stringify({eventName,events,permission,result}));
+ }
+});
+
+test('robot sandbox rejects root and nested repository instruction files',async t=>{
+ const root=await project(t),base=git(root,'rev-parse','HEAD');
+ for(const path of ['AGENTS.md','CLAUDE.md','src/AGENTS.md','src/nested/CLAUDE.md']){
+   git(root,'reset','--hard',base);await mkdir(join(root,'src/nested'),{recursive:true});
+   await writeFile(join(root,path),'Acme untrusted policy');git(root,'add','.');git(root,'commit','-qm','instruction edit');
+   assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join(' '),/agent protocols and settings are off limits/,path);
+ }
+});
+
+test('robot review prompt uses merge base when the default branch advances',async t=>{
+ const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-review-base-'));t.after(()=>rm(temp,{recursive:true,force:true}));
+ await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
+ git(root,'switch','-qc','keel/robot-1');await writeFile(join(root,'acme.txt'),'candidate correction');git(root,'add','.');git(root,'commit','-qm','candidate');const headSha=git(root,'rev-parse','HEAD');
+ git(root,'update-ref','refs/pull/2/head',headSha);git(root,'switch','-q','main');await writeFile(join(root,'unrelated.txt'),'new default branch work');git(root,'add','.');git(root,'commit','-qm','default advances');const baseSha=git(root,'rev-parse','HEAD');
+ git(root,'remote','add','origin',root);
+ const server=await privateGitServer(t,root);
+ const pr={number:2,state:'open',user:{login:'github-actions[bot]',type:'Bot'},head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{sha:baseSha,repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha,author:'claude',cursor:0})};
+ const stamp=new Date(Date.now()-1000).toISOString();
+ const responses={
+   [`/repos/${repo}/pulls/2`]:pr,
+   [`/repos/${repo}/actions/workflows/keel-robot.yml`]:{id:7,path:'.github/workflows/keel-robot.yml'},
+   [`/repos/${repo}/actions/workflows/7/runs`]:{total_count:1,workflow_runs:[{id:11,workflow_id:7,repository:{full_name:repo},head_sha:baseSha,run_attempt:1,updated_at:stamp,status:'in_progress'}]},
+   [`/repos/${repo}/actions/runs/11/attempts/1/jobs`]:{total_count:2,jobs:[{id:31,run_id:11,head_sha:baseSha,name:'agent',status:'completed',steps:['Robot build Claude','Robot build Codex'].map(name=>({name,status:'completed',conclusion:'skipped'}))},{id:32,run_id:11,head_sha:baseSha,name:'review-agent',status:'in_progress',steps:[]}]},
+ };
+ const gh=join(temp,'gh');await writeFile(gh,`#!${process.execPath}\nconst responses=${JSON.stringify(responses)};const path=process.argv[process.argv.indexOf('--method')+2].split('?')[0];const data=responses[path];process.stdout.write('HTTP/2.0 '+(data?200:404)+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data??{}));`);await chmod(gh,0o755);
+ const {run}=await import('./helpers/run.mjs');
+ const r=run(process.execPath,[join(runtime,'robot.mjs'),'review-prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_RUN_ID:'11',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'review-agent',GITHUB_OUTPUT:join(temp,'outputs'),RUNNER_TEMP:temp,GH_TOKEN:'acme-synthetic-token',GITHUB_SERVER_URL:server.url,ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh}});
+ assert.equal(r.status,0,r.stdout+r.stderr);
+ const prompt=await readFile(join(temp,'robot-review-prompt.md'),'utf8');assert.match(prompt,/candidate correction/);assert.doesNotMatch(prompt,/unrelated.txt|new default branch work/);
+});
+
+
+test('robot trusted fetch authenticates real private HTTP git without retaining credentials',async t=>{
+ const workflow=await readFile('practices/climb/files/.github/workflows/keel-robot.yml','utf8');
+ const prepare=workflow.split('      - name: Prepare isolated git objects for either provider')[1].split(/\n      - /)[0];
+ assert.match(prepare,/GH_TOKEN: \$\{\{ github.token \}\}/);
+ assert.match(prepare,/ROBOT_FETCH_REF="refs\/heads\/\$BRANCH" node "\$RUNNER_TEMP\/trusted\/robot.mjs" fetch --json/);
+ assert.doesNotMatch(prepare,/git fetch --no-tags origin/);
+ const remote=await project(t),root=await project(t),server=await privateGitServer(t,remote);
+ const before=await readFile(join(root,'.git/config'),'utf8');
+ const env={...process.env,GH_TOKEN:'acme-synthetic-token',GITHUB_SERVER_URL:server.url};
+ // Exercise the shipped CLI, so the same command serves continuation shell and reviewer.
+ await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),'{}');
+ const temp=await mkdtemp(join(tmpdir(),'acme-fetch-'));t.after(()=>rm(temp,{recursive:true,force:true}));
+ const {run}=await import('./helpers/run.mjs');
+ const result=run(process.execPath,[join(runtime,'robot.mjs'),'fetch','--json'],{cwd:root,env:{...env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,ROBOT_FETCH_REF:'refs/heads/main'}});
+ assert.equal(result.status,0,'authenticated CLI fetch should succeed');
+ assert.equal(JSON.parse(result.stdout).headSha,git(remote,'rev-parse','HEAD'));
+ assert.equal(await readFile(join(root,'.git/config'),'utf8'),before);
+ assert.doesNotMatch(result.stdout+result.stderr,/acme-synthetic-token|AUTHORIZATION|eC1hY2Nlc3M/);
+ const unauth=run('git',['-c','credential.helper=','fetch',`${server.url}/${repo}.git`,'refs/heads/main'],{cwd:root,env:{...process.env,GIT_TERMINAL_PROMPT:'0'}});
+ assert.notEqual(unauth.status,0,'subsequent git must not inherit the scoped authentication');
+});
+
+test('robot failed recovered review posts blocked notice for verified old-base publication',async t=>{
+ const root=await project(t),a=api(),baseSha=git(root,'rev-parse','HEAD');
+ const plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','default advances');
+ const headSha='b'.repeat(40),recovered={...plan,state:'recover',baseSha,recoveryHead:headSha};
+ const temp=await mkdtemp(join(tmpdir(),'acme-recovered-review-'));t.after(()=>rm(temp,{recursive:true,force:true}));await mkdir(join(temp,'plan'));await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify(recovered));
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
+ const data=join(temp,'pr.json'),posted=join(temp,'posted.json'),gh=join(temp,'gh');await writeFile(data,JSON.stringify(pr));
+ await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs');const method=process.argv[process.argv.indexOf('--method')+1];const path=process.argv[process.argv.indexOf('--method')+2];let status=200,data=path.includes('/comments?')?[]:JSON.parse(fs.readFileSync(${JSON.stringify(data)},'utf8'));if(method==='POST'){fs.writeFileSync(${JSON.stringify(posted)},fs.readFileSync(0,'utf8'));status=201;data={id:100};}process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));`);await chmod(gh,0o755);
+ const {run}=await import('./helpers/run.mjs');
+ const invoke=()=>run(process.execPath,[join(runtime,'robot.mjs'),'review-post','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_REVIEW_OK:'false',KEEL_GH:gh}});
+ const result=invoke();assert.equal(result.status,1);assert.match(result.stderr,/other-provider review failed/);
+ assert.match(JSON.parse(await readFile(posted,'utf8')).body,/Other-provider review failed/);
+ await rm(posted);await writeFile(data,JSON.stringify({...pr,head:{...pr.head,sha:'c'.repeat(40)}}));
+ assert.match(invoke().stderr,/PR identity mismatch/);await assert.rejects(readFile(posted),{code:'ENOENT'});
+});
+
+test('robot routed dispatch revalidates sender label provenance and comment association',async t=>{
+ const root=await project(t),comment={id:12,user,body:'Acme owner correction',issue_url:`https://api.github.com/repos/${repo}/issues/1`};
+ const trigger={version:1,repo,eventName:'issue_comment',action:'created',issueNumber:1,commentId:12,sender:user.login};
+ const a=api({comments:[comment]});
+ const invoke=async(value,override)=>{
+   const github=async r=>override?.(r)??(r.path.endsWith('/issues/comments/12')?{status:200,data:comment}:a.github(r));
+   return prepareRobot({root,repo,config,event:{repository:{full_name:repo},inputs:{robot_trigger:typeof value==='string'?value:JSON.stringify(value)},sender:{type:'Bot',login:'github-actions[bot]'}},eventName:'workflow_dispatch',has,now,github});
+ };
+ const ready=await invoke(trigger);assert.equal(ready.state,'ready');assert.deepEqual(ready.comments.map(c=>c.id),[12]);
+ for(const value of ['malformed',{...trigger,repo:'acme/foreign'},{...trigger,extra:true},{...trigger,sender:null},{...trigger,commentId:null},{...trigger,eventName:'issues',action:'created'}])assert.equal((await invoke(value)).state,'blocked');
+ assert.equal((await invoke(trigger,r=>r.path.includes('/collaborators/')?{status:200,data:{permission:'triage',user}}:null)).state,'blocked');
+ assert.equal((await invoke(trigger,r=>r.path.includes('/events?')?{status:200,data:[]}:null)).state,'blocked');
+ assert.equal((await invoke(trigger,r=>r.path.endsWith('/issues/comments/12')?{status:200,data:{...comment,issue_url:`https://api.github.com/repos/${repo}/issues/2`}}:null)).state,'blocked');
 });

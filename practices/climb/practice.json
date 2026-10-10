@@ -30,6 +30,7 @@
     { "path": ".agents/climb/jobs/lessons.md", "from": ".agents/climb/jobs/lessons.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/loop.md", "from": ".agents/climb/jobs/loop.md", "kind": "managed" },
     {"path": ".github/workflows/keel-robot.yml", "from": ".github/workflows/keel-robot.yml", "kind": "managed"},
+    {"path": ".github/workflows/keel-robot-route.yml", "from": ".github/workflows/keel-robot-route.yml", "kind": "managed"},
     {"path": ".agents/robot/PROTOCOL.md", "from": ".agents/robot/PROTOCOL.md", "kind": "managed"},
     {"path": "scripts/keel/robot.mjs", "from": "scripts/keel/robot.mjs", "kind": "managed"},
     {"path": "scripts/keel/robot-policy.mjs", "from": "scripts/keel/robot-policy.mjs", "kind": "managed"},
