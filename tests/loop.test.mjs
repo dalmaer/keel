@@ -5,6 +5,7 @@
 // own file, run as a project would run it. Fixtures are synthetic (Acme).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile, realpath, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,7 +48,7 @@ async function project(t, state = BASE_STATE) {
   await chmod(STUB, 0o755);
   const dir = join(await realpath(await mkdtemp(join(tmpdir(), 'keel-loop-'))), 'acme');
   t.after(() => rm(dirname(dir), { recursive: true, force: true }));
-  await cp(join(FIXTURES, 'acme'), dir, { recursive: true });
+  await copyProject(join(FIXTURES, 'acme'), dir);
   await mkdir(join(dir, 'scripts'), { recursive: true });
   await mkdir(join(dir, 'tests'), { recursive: true });
   await cp(join(PRACTICE, 'scripts', 'loop.mjs'), join(dir, 'scripts', 'loop.mjs'));

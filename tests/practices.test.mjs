@@ -254,5 +254,11 @@ test('render probe copies exclude runtime ledgers at every depth and preserve pr
   }
   for (const dir of ['.git', 'node_modules']) await assert.rejects(lstat(join(destination, dir)), { code: 'ENOENT' });
   for (const dir of ['test-runs', '.keel/test-runs-source']) assert.equal(await readFile(join(destination, dir, 'acme.json'), 'utf8'), '{}');
+  // A selected-root clone copies .keel independently, not necessarily its parent.
+  const metadata = join(destination, 'metadata');
+  await copyProject(join(source, '.keel'), metadata);
+  await assert.rejects(lstat(join(metadata, 'test-runs')), { code: 'ENOENT' });
+  assert.deepEqual(JSON.parse(await readFile(join(metadata, 'keel.json'), 'utf8')), { name: 'Acme' });
+  assert.equal(await readFile(join(metadata, 'test-runs-source/acme.json'), 'utf8'), '{}');
   await assert.rejects(copyProject(join(source, 'missing'), join(destination, 'missing')), { code: 'ENOENT' }, 'ordinary missing inputs are not swallowed');
 });

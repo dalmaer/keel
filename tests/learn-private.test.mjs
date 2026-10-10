@@ -10,8 +10,9 @@
 // synthetic (Acme).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
-import { mkdtemp, readFile, readdir, rm, writeFile, realpath, chmod, cp } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +39,7 @@ async function scratch(t, prefix) {
 /** A synthetic keel home (repo acme/keel) whose config names an inbox. */
 async function home(t, inbox = INBOX) {
   const dir = join(await scratch(t, 'keel-inbox-'), 'home');
-  await cp(join(FIXTURES, 'home'), dir, { recursive: true });
+  await copyProject(join(FIXTURES, 'home'), dir);
   const path = join(dir, '.keel/keel.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, JSON.stringify({ ...cfg, ...(inbox ? { inbox } : {}) }, null, 2));

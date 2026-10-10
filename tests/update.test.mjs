@@ -4,10 +4,11 @@
 // and acme-groove (milestones, a check:all gate) for migration 0001.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { execFileSync } from 'node:child_process';
 import { run as runCmd, testsRan, cleanEnv } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, realpath, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -95,7 +96,7 @@ async function oldProject(t) {
 /** acme-groove, adopted on practice 0.0.0 and committed: phases local, milestones in place. */
 async function groove(t, edit, version = OLD) {
   const dir = join(await scratch(t), 'acme-groove');
-  await cp(GROOVE, dir, { recursive: true });
+  await copyProject(GROOVE, dir);
   await adopt({ dir }, { version });
   if (edit) await edit(dir);
   git(dir, 'init', '-q', '-b', 'main');
@@ -509,7 +510,7 @@ test('after a keel-only release, a project on the practice is current: update ch
   const root = await scratch(t);
   const cliRoot = join(root, 'keel');
   for (const p of ['bin', 'lib', 'practices', 'migrations', 'scripts', '.keel', 'package.json', 'WHATSNEW.md']) {
-    await cp(join(KEEL, p), join(cliRoot, p), { recursive: true, verbatimSymlinks: true });
+    await copyProject(join(KEEL, p), join(cliRoot, p));
   }
   const cfgPath = join(cliRoot, '.keel', 'keel.json');
   await writeFile(cfgPath, (await readFile(cfgPath, 'utf8')).replace(/("practices"\s*:)/, '"check": "node -e 0",\n  $1'));
@@ -598,7 +599,7 @@ test('a recorded migration is not pending again, even if applies() would say yes
 
 test('0001 replaces a milestone-shaped phase template, and leaves the project\'s own evidence template and evidence local', async t => {
   const dir = join(await scratch(t), 'acme-groove');
-  await cp(GROOVE, dir, { recursive: true });
+  await copyProject(GROOVE, dir);
   await mkdir(join(dir, 'docs/templates'), { recursive: true });
   await writeFile(join(dir, 'docs/templates/phase.md'), '---\nstatus: planned\nmilestone: M1\n---\n\n# Acme outcome\n');
   await writeFile(join(dir, 'docs/templates/evidence.md'), '# Acme evidence\n\n- Date:\n');

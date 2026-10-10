@@ -5,6 +5,7 @@
 // with a TypeScript roadmap and its own workflows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { run, testsRan } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
 import { cp, mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, realpath } from 'node:fs/promises';
@@ -38,7 +39,7 @@ async function scratch(t) {
 }
 async function copyFixture(t, name) {
   const dir = join(await scratch(t), name);
-  await cp(join(FIXTURES, name), dir, { recursive: true });
+  await copyProject(join(FIXTURES, name), dir);
   return dir;
 }
 
@@ -810,6 +811,7 @@ test('adoption and adding practices estimate only newly created workflows from p
     for (const [i, flow] of flows.entries()) {
       const runId = i + 1, workflow = flow.path.split('/').at(-1);
       const event = flow.triggers.includes('schedule') ? 'schedule' : flow.triggers[0];
+      api[`repos/${repo}/actions/workflows/${workflow}`] = { id: runId, path: flow.path, created_at: '2020-01-01T00:00:00Z' };
       api[`repos/${repo}/actions/workflows/${workflow}/runs`] = { total_count: 1, workflow_runs: [{ id: runId, run_attempt: 1, path: flow.path, event, status: 'completed', updated_at: '2026-10-10T11:59:00Z', head_sha: 'acmesha' }] };
       api[`repos/${repo}/actions/runs/${runId}/attempts/1/jobs`] = { total_count: 1, jobs: [{ id: 100 + i, run_id: runId, run_attempt: 1, head_sha: 'acmesha', status: 'completed', conclusion: 'success', labels: ['ubuntu-latest'], started_at: '2026-10-10T11:56:00Z', completed_at: '2026-10-10T11:57:01Z' }] };
     }

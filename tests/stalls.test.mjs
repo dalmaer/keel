@@ -365,26 +365,46 @@ test('PR #57 review: a pin to a file that is gone fails the run; the other pins 
 });
 
 test('PR #57 review: a pinned run no stall landed in runs once more with an earlier first stall; none again is inconclusive, and fails', async t => {
-  // The first stall waits a minute: the file is over long before it.
-  const late = { ...process.env, KEEL_STALLS_SHAPE: JSON.stringify({ firstMs: [60_000, 60_000], gapMs: [60_000, 60_000], stallMs: [50, 60] }) };
-  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, PIN);
-  const r = gate(dir, [], late);
-  assert.equal(r.status, 0, r.stdout);
-  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with 1 stall, .*; run again with the first stall within \d+ ms, after the first run \(\d+ ms\) got none, seed \d+\.$/m);
-  // Quick in the suite, 5 s in the first stalled run (no stall lands: the first waits a minute), quick again in the
-  // second, whose first stall waits 1.25 to 2.5 s: longer than a quick file takes even on a busy machine.
-  const SLOWING = `import { test } from 'node:test';
-import { readFileSync, writeFileSync } from 'node:fs';
-let n = 0;
-try { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}
-writeFileSync(process.env.ACME_COUNT, String(n + 1));
-test('an anvil is ordered', () => new Promise(done => setTimeout(done, n === 1 ? 5000 : 0)));
+  // Exercise the retry policy with recorded durations, not an assumption that a
+  // second child is as slow as the first. Other tests exercise real process stalls.
+  const shape = { firstMs: [60_000, 60_000], gapMs: [60_000, 60_000], stallMs: [50, 60] };
+  for (const lands of [true, false]) {
+    const fixture = `export * from './real-stalls.mjs';
+import { writeFileSync } from 'node:fs';
+const calls = [];
+export async function runFiles(options) {
+  calls.push({ seed: options.seed, shape: options.shape ?? null, files: options.files });
+  writeFileSync(new URL('./calls.json', import.meta.url), JSON.stringify(calls));
+  if (calls.length > 2) throw new Error('unexpected third stalled run');
+  const stalls = calls.length === 2 && ${lands} ? [{ at: 90, ms: 50 }] : [];
+  const active = calls.length === 1 ? 349 : 100;
+  return { seed: options.seed, exitCode: 0, timedOut: false, ran: 1,
+    active, paused: stalls.length * 50, wall: active + stalls.length * 50, stalls,
+    tests: [{ file: 'tests/crate.test.mjs', name: ${JSON.stringify(MOCKED)}, outcome: 'pass', ms: 1 }] };
+}
 `;
-  const { dir: quick } = await acme(t, { 'tests/crate.test.mjs': SLOWING, 'tests/anvil.test.mjs': ANVIL }, PIN);
-  const q = gate(quick, [], { ...late, ACME_COUNT: join(await scratch(t), 'count') });
-  assert.equal(q.status, 1, q.stdout);
-  assert.match(q.stdout, /^keel stalls: tests\/crate\.test\.mjs is inconclusive: no stall landed \(0 stalls, .*run again with the first stall within \d+ ms/m);
-  assert.doesNotMatch(q.stdout, /passed with 0 stalls/);
+    const { dir } = await acme(t, {
+      'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL,
+      'scripts/keel/real-stalls.mjs': await readFile(join(NIGHT, 'stalls.mjs'), 'utf8'),
+      'scripts/keel/stalls.mjs': fixture,
+    }, PIN);
+    const r = gate(dir, [], { ...process.env, KEEL_STALLS_SHAPE: JSON.stringify(shape) });
+    assert.equal(r.status, lands ? 0 : 1, r.stdout + r.stderr);
+    const calls = JSON.parse(await readFile(join(dir, 'scripts/keel/calls.json'), 'utf8'));
+    assert.equal(calls.length, 2, 'retry exactly once');
+    assert.ok(Number.isInteger(calls[0].seed));
+    assert.deepEqual(calls, [
+      { seed: calls[0].seed, shape: null, files: [join(dir, 'tests/crate.test.mjs')] },
+      { seed: calls[0].seed, shape: { ...shape, firstMs: [87, 174] }, files: [join(dir, 'tests/crate.test.mjs')] },
+    ], 'reuse the seed and halve the observed active duration, preserving the other shape bounds');
+    assert.match(r.stdout, /run again with the first stall within 174 ms, after the first run \(349 ms\) got none/);
+    if (lands) {
+      assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with 1 stall, /m);
+    } else {
+      assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs is inconclusive: no stall landed \(0 stalls, /m);
+      assert.doesNotMatch(r.stdout, /passed with 0 stalls/);
+    }
+  }
 });
 
 test('PR #57 review: with a global setup, a pinned file reruns after the whole suite, never beside the setup it holds', async t => {
