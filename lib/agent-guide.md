@@ -1274,23 +1274,25 @@ runs the named test twice and says whether it proves the fix. Every `fix:`
 commit carries the `Proven-by:` line it prints (the conduct skill's rule);
 the night's `escapes` measure notes the `fix:` commits without one.
 
-- **Two scratch trees, built the same way**: each run gets a fresh `git
-  worktree add --detach` of the current tree (HEAD with your staged,
-  unstaged and untracked changes and your submodules' files laid over it,
-  and a `node_modules` of its own that links each installed entry, so a
-  new `.cache` stays in the scratch tree). Both sides run in one, so an
-  ignored file the test needs (a `.env`, a generated fixture) is missing
-  from both sides, never from one: it can make the verdict NOT WORKING,
-  never a false VERIFIED. Each scratch tree is removed in every case. Your
-  working tree is never changed by keel or by what the test writes: no
-  stash, no checkout, no revert (lesson 54). A test that writes inside an
-  installed package still writes through its link.
+- **Two scratch copies, built the same way**: each run gets a fresh `git
+  clone --shared` of the repository at HEAD (its own config, refs and
+  stash, so a test's `git config` or `git tag` never reaches yours), with
+  your staged, unstaged and untracked changes, your submodules' files and
+  your ignored files (a `.env`, a generated fixture) laid over it, and a
+  `node_modules` of its own that links each installed entry, so a new
+  `.cache` stays in the copy. The test runs there with `PWD` set to it.
+  Both sides see the files the test sees here. Ignored files over 256 MB
+  are not copied: the verdict is then INCONCLUSIVE. Each copy is removed
+  in every case. Your working tree is never changed by keel or by what the
+  test writes: no stash, no checkout, no revert (lesson 54). A test that
+  writes inside an installed package still writes through its link.
 - **Without the fix**: in the first, each `--fix` path is put back as it
   was at the base (bytes and executable bit; a file the fix added is
   removed), and the test runs there.
 - **With the fix**: in the second, the test runs as the tree is.
 - **The base**: `--base <ref>`; else HEAD's parent when the fix's files are
-  committed and clean, else HEAD.
+  committed and clean, else HEAD. Some committed and some not: exit 2, name
+  the commit before the whole fix with `--base`.
 - **The runner**, read from each side's own tree (a fix to `package.json`
   or `.keel/keel.json` is reverted with the rest): `node --test
   --test-reporter=tap` with the preloads (`--import`, `--require`) of the
@@ -1303,14 +1305,15 @@ the night's `escapes` measure notes the `fix:` commits without one.
   so red-then-green is INCONCLUSIVE there, never VERIFIED.
 - **Verdicts**: `VERIFIED` (red without the fix, and every test that failed
   then passed with it, matched by its suites' names and its own, never by
-  name alone), `NOT WORKING` (green without it: the test does not catch the
+  name alone; tests that share a name are never matched by place), `NOT WORKING` (green without it: the test does not catch the
   bug; or red with it), `INCONCLUSIVE` (the test cannot run without the
   fix: it does not load, or its file is part of the fix, even changed
   rather than added: name only the fixed code; the fix's files are the
   same at the base; no test ran with the fix: none matched `--name`, or all
   were skipped or todo; what failed without the fix was skipped, todo or
-  not run with it; or the runner is read by exit code alone), each with its
-  reason. A skipped or todo test never counts as run.
+  not run with it; it shares its name with another test; the runner is
+  read by exit code alone; or the ignored files are too many to copy), each
+  with its reason. A skipped or todo test never counts as run.
 - `--trailer` prints `Proven-by: <test>[ (<name>)] — <VERDICT> — "<the
   failure's first line>"` (for any verdict but VERIFIED, the reason).
   `--evidence <phase>` appends it, dated, to the first file the phase's

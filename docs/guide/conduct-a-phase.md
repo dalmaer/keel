@@ -67,7 +67,7 @@ keel retro --since <the commit before the phase>   # the retro worksheet, after 
 
 **A fix is proven by its test failing without it.** Every `fix:` commit
 carries a `Proven-by:` trailer, and `keel prove` writes it. It runs the
-named test twice, each time in a fresh scratch git worktree of your tree:
+named test twice, each time in a fresh scratch copy of your repository:
 once with the fix's files put back as they were before the fix, once with
 the fix. Both sides see the same tree, and your working tree is never
 touched, not even by what the test writes. List only the fixed code in

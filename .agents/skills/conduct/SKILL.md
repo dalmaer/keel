@@ -278,7 +278,7 @@ tree the gate just checked in §3; if anything changes after it, run it again.
   written before the gate runs.
 - **A fix is proven by its test failing without it.** A `fix:` commit
   carries a `Proven-by:` trailer, from `keel prove <test> --fix <the fix's
-  files> --trailer`: it runs the test in a scratch worktree with the fix
+  files> --trailer`: it runs the test in a scratch copy with the fix
   reverted, then in another with it, and never touches the tree. Only
   VERIFIED proves the fix. NOT WORKING means the test does not catch the bug:
   make it catch it. INCONCLUSIVE says why it could not tell. Never write the

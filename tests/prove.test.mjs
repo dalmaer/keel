@@ -81,7 +81,7 @@ test('NOT WORKING: green without the fix (the test does not catch the bug), or r
   await writeFile(join(dir, 'tests', 'wrong.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib/add.mjs';\ntest('four anvils', () => { assert.equal(add(1, 2), 4); });\n");
   const red = await prove(dir, ['tests/wrong.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(red.verdict, 'NOT WORKING');
-  assert.match(red.reason, /^red with the fix: Expected values to be strictly equal: 3 !== 4 \(four anvils\) \(run in a scratch worktree of the tree: ignored files other than node_modules are not there\)$/);
+  assert.match(red.reason, /^red with the fix: Expected values to be strictly equal: 3 !== 4 \(four anvils\) \(run in a scratch copy of the tree\)$/);
 });
 
 test('INCONCLUSIVE: the test cannot load without the fix, its file is the fix, or no test matched --name', async t => {
@@ -171,16 +171,88 @@ test('a project on another runner names it in .keel/keel.json prove.command; an 
 
 const commitAll = (dir, subject) => { git(dir, ['add', '-A']); git(dir, ['commit', '-q', '-m', subject]); };
 
-test('an ignored file the test needs never makes a false VERIFIED: both sides run in the same kind of scratch tree', async t => {
+test('an ignored file the test reads is in both scratch trees: the test is judged in the environment it has here', async t => {
   const dir = await repo(t);
-  await writeFile(join(dir, '.gitignore'), 'fixture.txt\n');
-  commitAll(dir, 'acme: ignore the fixture');
-  await writeFile(join(dir, 'fixture.txt'), 'anvil\n');
-  // The test needs only the ignored fixture: lib/add.mjs (the "fix") has nothing to do with it.
-  await writeFile(join(dir, 'tests', 'fixture.test.mjs'), "import { test } from 'node:test';\nimport { readFileSync } from 'node:fs';\ntest('the fixture is there', () => { readFileSync('fixture.txt'); });\n");
+  await writeFile(join(dir, '.gitignore'), 'fixture.txt\ngenerated/\n');
+  commitAll(dir, 'acme: ignore the fixtures');
+  await writeFile(join(dir, 'fixture.txt'), '3\n');
+  await mkdir(join(dir, 'generated'));
+  await writeFile(join(dir, 'generated', 'sum.txt'), '3\n');
+  // Here the fixture exists, so the test takes the right branch and never reaches add(): it is green
+  // without the fix. Without the ignored fixture it would reach the buggy add(), and read as a proof (Codex on #55).
+  await writeFile(join(dir, 'tests', 'fixture.test.mjs'), [
+    "import { test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { existsSync, readFileSync } from 'node:fs';",
+    "import { add } from '../lib/add.mjs';",
+    "test('three anvils', () => { const sum = existsSync('fixture.txt') ? Number(readFileSync('generated/sum.txt', 'utf8')) : add(1, 2); assert.equal(sum, 3); });", ''].join('\n'));
   const j = await prove(dir, ['tests/fixture.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(j.verdict, 'NOT WORKING', `the verdict was ${j.verdict}: ${j.reason}`);
-  assert.match(j.reason, /^red with the fix: .*ENOENT.*\(run in a scratch worktree of the tree: ignored files other than node_modules are not there\)$/);
+  assert.equal(j.reason, 'green without the fix: the test does not catch the bug');
+  // More ignored files than keel copies: the environment is not reproduced, so nothing is judged.
+  const r = run(process.execPath, [BIN, 'prove', 'tests/fixture.test.mjs', '--fix', 'lib/add.mjs', '--json'], { cwd: dir, env: { ...ENV, TMPDIR: scratchOf.get(dir), KEEL_PROVE_IGNORED_BYTES: '3' } });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stdout).verdict, 'INCONCLUSIVE');
+  assert.match(JSON.parse(r.stdout).reason, /^the ignored files are more than 3 bytes, so keel cannot give the test the environment it has here$/);
+});
+
+// ---- Codex's third round on #55 --------------------------------------------
+
+test('a fix part committed and part not needs its base named: HEAD would leave the committed part in', async t => {
+  const dir = await repo(t);
+  // The committed part: a module the test imports. The dirty part: the fix in add().
+  await writeFile(join(dir, 'lib', 'add.mjs'), BUGGY);
+  await writeFile(join(dir, 'lib', 'two.mjs'), 'export const two = 2;\n');
+  commitAll(dir, 'fix: add two (part one)');
+  await writeFile(join(dir, 'lib', 'add.mjs'), 'export const add = (a, b) => a + b;\n');
+  await writeFile(join(dir, 'tests', 'two.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { two } from '../lib/two.mjs';\nimport { add } from '../lib/add.mjs';\ntest('one and one', () => { assert.equal(add(1, 1), two); });\n");
+  const r = keel(['prove', 'tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--json'], dir);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.json().error, /^some --fix paths are committed \(lib\/two\.mjs\) and some are not \(lib\/add\.mjs\): name the commit before the whole fix with --base <ref>$/);
+  // Named, the whole fix is reverted: the test does not load without it.
+  assert.equal((await prove(dir, ['tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--base', 'HEAD~1'], 1)).verdict, 'INCONCLUSIVE');
+});
+
+test('tests that share a name are never matched by place: a shift between runs is INCONCLUSIVE', async t => {
+  const dir = await repo(t);
+  // With the fix the first `works` is no longer registered, so the second shifts into its place.
+  await writeFile(join(dir, 'tests', 'shift.test.mjs'), [
+    "import { test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { add } from '../lib/add.mjs';",
+    "if (add(1, 2) !== 3) test('works', () => { assert.equal(add(1, 2), 3); });",
+    "test('works', () => { assert.equal(add(0, 0), 0); });", ''].join('\n'));
+  const j = await prove(dir, ['tests/shift.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.equal(j.reason, 'more than one test is named works, or the count changed with the fix: keel cannot tell them apart across runs; give each its own name');
+});
+
+test('the test runs with PWD set to the scratch tree, and its git commands change only the scratch clone', async t => {
+  const dir = await repo(t);
+  await writeFile(join(dir, 'tests', 'pwd.test.mjs'), [
+    "import { test } from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { writeFileSync } from 'node:fs';",
+    "import { execFileSync } from 'node:child_process';",
+    "import { add } from '../lib/add.mjs';",
+    "test('writes where it stands', () => {",
+    "  writeFileSync(`${process.env.PWD}/pwd.txt`, 'x');",
+    "  execFileSync('git', ['config', 'acme.touched', 'yes']);",
+    "  execFileSync('git', ['tag', 'acme-touched']);",
+    "  assert.equal(add(1, 2), 3);",
+    "});", ''].join('\n'));
+  // The user's shell says where they stand: PWD is the repo, as it would be.
+  const before = await treeState(dir);
+  const config = () => run('git', ['config', '--local', '--list'], { cwd: dir, env: ENV }).stdout;
+  const tags = () => run('git', ['tag', '--list'], { cwd: dir, env: ENV }).stdout;
+  const [c0, t0] = [config(), tags()];
+  const r = run(process.execPath, [BIN, 'prove', 'tests/pwd.test.mjs', '--fix', 'lib/add.mjs', '--json'], { cwd: dir, env: { ...ENV, PWD: dir, TMPDIR: scratchOf.get(dir) } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(JSON.parse(r.stdout).verdict, 'VERIFIED');
+  assert.deepEqual(await treeState(dir), before, 'no pwd.txt in the user\'s tree');
+  assert.equal(config(), c0, 'the repository\'s config is unchanged');
+  assert.equal(tags(), t0, 'and its tags');
+  assert.deepEqual(await readdir(scratchOf.get(dir)), []);
 });
 
 test('a test that writes into its tree writes into the scratch tree, never the user\'s', async t => {
