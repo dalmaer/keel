@@ -327,7 +327,7 @@ test('robot review prompt uses merge base when the default branch advances',asyn
 
 test('robot trusted fetch authenticates real private HTTP git without retaining credentials',async t=>{
  const workflow=await readFile('practices/climb/files/.github/workflows/keel-robot.yml','utf8');
- const prepare=workflow.split('      - name: Prepare isolated git objects for either provider')[1].split(/\n      - /)[0];
+ const prepare=workflow.split("      - name: Fetch the robot branch's recorded head")[1].split(/\n      - /)[0];
  assert.match(prepare,/GH_TOKEN: \$\{\{ github.token \}\}/);
  assert.match(prepare,/ROBOT_FETCH_REF="refs\/heads\/\$BRANCH" node "\$RUNNER_TEMP\/trusted\/robot.mjs" fetch --json/);
  assert.doesNotMatch(prepare,/git fetch --no-tags origin/);
@@ -894,6 +894,22 @@ test('robot runtime package policy and gate scripts stay protected',async t=>{
  assert.deepEqual(robotSandbox(root,base,git(root,'rev-parse','HEAD')),[]);
 });
 
+test('robot compares package scripts by name and value, not key order',async t=>{
+ const root=await project(t),scripts={build:'node build.mjs',lint:'node lint.mjs',test:'node --test'};
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts},null,2));git(root,'add','.');git(root,'commit','-qm','Acme package');const base=git(root,'rev-parse','HEAD');
+ // keel#83 follow-up: a formatter that sorts or reorders unchanged scripts changes nothing.
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'node --test',build:'node build.mjs',lint:'node lint.mjs'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme reordered scripts');
+ assert.deepEqual(robotSandbox(root,base,git(root,'rev-parse','HEAD')),[]);
+ // Reordered and changed is still a change.
+ git(root,'reset','-q','--hard',base);
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'exit 0',build:'node build.mjs',lint:'node lint.mjs'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme reordered weaker gate');
+ assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join('\n'),/"scripts" are off limits to the robot/);
+ // A renamed script with the same command is a change too.
+ git(root,'reset','-q','--hard',base);
+ await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{build:'node build.mjs',check:'node lint.mjs',test:'node --test'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme renamed script');
+ assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join('\n'),/"scripts" are off limits to the robot/);
+});
+
 test('robot judge refuses a gate script edit before either gate runs',async t=>{
  const root=await project(t),sentinel=join(root,'gate-ran');
  await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'node --test'}}));git(root,'add','.');git(root,'commit','-qm','Acme package');const base=git(root,'rev-parse','HEAD');
@@ -987,7 +1003,9 @@ test('robot follow-up without a new commit records the reply and leaves the issu
  assert.deepEqual(await publishRobot({root,repo,baseSha,plan:recovered,headSha,github:stuck.github}),result);assert.equal(stuck.writes.length,0);
 });
 
-test('robot infrastructure failure before model or judge time posts no state so the next scan retries',async t=>{
+// One scheduled-scan issue driven through the shipped CLI's prepare and publish,
+// with a stub gh holding the issue's comments in a file.
+async function scanHarness(t) {
  const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-infra-'));t.after(()=>rm(temp,{recursive:true,force:true}));
  await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
  await mkdir(join(root,'.agents/robot'),{recursive:true});await writeFile(join(root,'.agents/robot/PROTOCOL.md'),'Acme synthetic protocol.');
@@ -1004,13 +1022,18 @@ test('robot infrastructure failure before model or judge time posts no state so 
  };
  const gh=join(temp,'gh');
  await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs'),map=${JSON.stringify(responses)},file=${JSON.stringify(store)};const method=process.argv[process.argv.indexOf('--method')+1],path=process.argv[process.argv.indexOf('--method')+2];let status=200,data=map[path];if(path.includes('/pulls?'))data=[];if(path.includes('/issues/1/comments?'))data=JSON.parse(fs.readFileSync(file))[1];if(method==='POST'&&path==='/repos/acme/anvils/issues/1/comments'){const rows=JSON.parse(fs.readFileSync(file));data={id:100+rows[1].length,user:{type:'Bot',login:'github-actions[bot]'},body:JSON.parse(fs.readFileSync(0,'utf8')).body};rows[1].push(data);fs.writeFileSync(file,JSON.stringify(rows));status=201;}if(data===undefined){status=404;data={};}process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));`);await chmod(gh,0o755);
- const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'false',ROBOT_JUDGE_RAN:'false',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh};
+ const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'false',ROBOT_JUDGE_RAN:'false',ROBOT_PREPARED:'skipped',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh};
  const {run}=await import('./helpers/run.mjs'),invoke=(command,extra={})=>run(process.execPath,[join(runtime,'robot.mjs'),command,'--json'],{cwd:root,env:{...env,...extra}});
  const ready=async()=>{await rm(out,{force:true});const r=invoke('prepare');assert.equal(r.status,0,r.stderr);await cp(join(temp,'robot-plan.json'),join(temp,'plan/robot-plan.json'));return /^ready=true$/m.test(await readFile(out,'utf8'));};
  const notes=async()=>JSON.parse(await readFile(store,'utf8'))[1].slice(1);
+ return {store,invoke,ready,notes};
+}
+
+test('robot infrastructure failure before model or judge time posts no state so the next scan retries',async t=>{
+ const {store,invoke,ready,notes}=await scanHarness(t);
  await writeFile(store,JSON.stringify({1:[receipt()]}));
  assert.equal(await ready(),true);
- // Install failed: the judge job failed and no model step ran.
+ // Install failed: the judge job failed, and neither the preparation nor a model step ran.
  const failed=invoke('publish');assert.equal(failed.status,0,failed.stderr);assert.equal(JSON.parse(failed.stdout).state,'blocked');
  assert.equal((await notes()).length,1);assert.doesNotMatch((await notes())[0].body,/keel:robot-state/);assert.match((await notes())[0].body,/infrastructure failed before the agent or judge ran/);
  assert.equal(await ready(),true,'the next scan retries the issue');
@@ -1021,6 +1044,24 @@ test('robot infrastructure failure before model or judge time posts no state so 
    const recorded=invoke('publish',spent);assert.equal(recorded.status,0,recorded.stderr);assert.equal(JSON.parse(recorded.stdout).state,'failed');
    assert.match((await notes())[0].body,/keel:robot-state/);assert.equal(await ready(),false);
  }
+});
+
+test('robot preparation that fails deterministically is recorded until a writer comments',async t=>{
+ const {store,invoke,ready,notes}=await scanHarness(t);
+ await writeFile(store,JSON.stringify({1:[receipt()]}));
+ assert.equal(await ready(),true);
+ // keel#83 follow-up: the merge of the default branch conflicted. Every retry
+ // would conflict again and keep this oldest issue ahead of later ones.
+ const recorded=invoke('publish',{ROBOT_PREPARED:'failure'});assert.equal(recorded.status,0,recorded.stderr);assert.equal(JSON.parse(recorded.stdout).state,'failed');
+ assert.equal((await notes()).length,1);
+ const [note]=await notes();
+ assert.match(note.body,/keel:robot-state/);
+ assert.match(note.body,/could not be prepared/);assert.match(note.body,/merge conflict with the default branch/);assert.match(note.body,/comment to retry/);
+ assert.doesNotMatch(note.body,/Agent failed or produced no final message/,'no agent ran, so no agent message is relayed');
+ assert.equal(await ready(),false,'the next scan does not pick the issue again');
+ // A writer acts: the issue is ready again, carrying the comment.
+ const rows=JSON.parse(await readFile(store,'utf8'));rows[1].push({id:500,user,issue_url:`https://api.github.com/repos/${repo}/issues/1`,body:'Acme: the default branch is settled; retry.'});await writeFile(store,JSON.stringify(rows));
+ assert.equal(await ready(),true,'a new writer comment makes it ready again');
 });
 
 test('robot sandbox checks every commit the bundle carries and a merge only for what it introduced',async t=>{

@@ -324,7 +324,10 @@ export function robotFetch({root,repo,ref,env=process.env}) {
 }
 const changedPaths = (root, from, to) => git(root, ['diff', '--name-only', '--no-renames', '-z', from, to]).split('\0').filter(Boolean);
 const showAt = (root, ref, path) => { const r = git(root, ['show', `${ref}:${path}`], { allowFail: true }); return r.status === 0 ? r.stdout : null; };
-const scriptsOf = text => { if (text === null) return 'absent'; try { return JSON.stringify(JSON.parse(text)?.scripts ?? null); } catch { return 'unreadable'; } };
+// keel#83 follow-up: canonical, keys sorted, so a formatter reordering unchanged
+// scripts is no change; arrays keep their order and stay distinct from objects.
+const canonicalScripts = value => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : value;
+const scriptsOf = text => { if (text === null) return 'absent'; try { return JSON.stringify(canonicalScripts(JSON.parse(text)?.scripts ?? null)); } catch { return 'unreadable'; } };
 // The robot's own rules for the paths one change touches; `befores` are the
 // commits it is measured against (a merge has one per parent).
 function robotPathProblems(root, files, befores, after) {
@@ -687,6 +690,11 @@ export async function robotCli(args, env = process.env) {
       // keel#74 follow-up: only spent model or judge time marks the issue worked.
       // An infrastructure failure before either posts no state, so the next scan retries.
       if (env.ROBOT_MODEL_RAN === 'true' || env.ROBOT_JUDGE_RAN === 'true') { await robotComment({plan,result:{state:'failed',reason:'Agent or trusted judge failed; no PR published.'},message}); return finish({state:'failed'}); }
+      // keel#83 follow-up: preparing the branch is local and deterministic, so a
+      // failure there (a merge conflict with the default branch, say) repeats on
+      // every scan and would starve later issues. It is recorded like a spent
+      // failure: the issue waits for a writer's comment, not the next scan.
+      if (env.ROBOT_PREPARED === 'failure') { await robotComment({plan,result:{state:'failed',reason:`The branch ${plan.branch} could not be prepared: the step "Prepare isolated git objects for either provider" failed before the agent ran (a merge conflict with the default branch, or a sandbox refusal of its recorded head?). No PR change was published. The robot does not pick this issue again until a writer acts: see the run's log, deal with the cause, then comment to retry.`}}); return finish({state:'failed',prepared:false}); }
       await robotComment({plan,result:{state:'blocked',reason:'Robot infrastructure failed before the agent or judge ran; no PR published. The next scan retries this issue.'}});
       return finish({state:'blocked',retry:true});
     }

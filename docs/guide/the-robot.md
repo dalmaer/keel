@@ -121,9 +121,11 @@ selected from the trusted checkout, so the robot refuses changes to `.nvmrc`,
 Existing guards also protect workflows, keel configuration and package metadata
 such as `engines`, `volta`, `devEngines` and `packageManager`. Unlike climb, the
 robot may not change any package.json `"scripts"`: the judge runs the configured
-gate, so a changed script needs owner verification. The judge also refuses a
-candidate whose gate leaves more test-ledger records for its head than the base's
-gate wrote, since an extra record could claim a dropped test passed.
+gate, so a changed script needs owner verification. Scripts are compared by
+name and value, so a formatter that only reorders them changes nothing. The
+judge also refuses a candidate whose gate leaves more test-ledger records for
+its head than the base's gate wrote, since an extra record could claim a
+dropped test passed.
 
 The pushed bundle carries every commit, so each commit meets the same path rules
 as the whole change; a later revert does not hide an off-limits path. A merge
@@ -147,6 +149,11 @@ on the issue.
 A failure before any model or judge time (an install, say) posts a notice
 without recorded state, so the next scan retries the issue; once the agent or
 judge has run, a failure is recorded and waits for a fresh writer action.
+Preparing a follow-up's branch is the exception: merging the default branch
+and the sandbox check are local and fail the same way on every retry, so a
+merge conflict there is recorded too. The issue is not picked again, and later
+issues are not starved behind it, until a writer comments to retry. The network
+fetch before it stays retryable.
 
 The owner walk is still required: choose a project and allowance, enable the
 practice there, and read three small issues' PRs and reviews before deciding to

@@ -35,6 +35,9 @@ jobs:
       # Whether model time was spent: an earlier failure (Install, say) skips it,
       # and the publisher then leaves the issue for the next scan (keel#74 follow-up).
       model_ran: ${{ (steps.build_claude.outcome != '' && steps.build_claude.outcome != 'skipped') || (steps.build_codex.outcome != '' && steps.build_codex.outcome != 'skipped') }}
+      # The deterministic preparation step's outcome: 'failure' (a merge conflict
+      # with the default branch, say) repeats on every retry, so it is recorded.
+      prepared: ${{ steps.isolate.outcome }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -101,7 +104,8 @@ jobs:
             npm ci
           fi
 
-      - name: Prepare isolated git objects for either provider
+      # The network half: its failure is transient, so the next scan retries.
+      - name: Fetch the robot branch's recorded head
         if: steps.prepare.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -119,6 +123,20 @@ jobs:
           if [ -n "$previous" ]; then
             ROBOT_FETCH_REF="refs/heads/$BRANCH" node "$RUNNER_TEMP/trusted/robot.mjs" fetch --json
             [ "$(git rev-parse FETCH_HEAD)" = "$previous" ]
+          fi
+      # Local and deterministic: a merge conflict with the default branch or a
+      # sandbox refusal fails the same way on every retry. Its outcome is the
+      # job's `prepared`, and the publisher records a failure (keel#83 follow-up).
+      - name: Prepare isolated git objects for either provider
+        id: isolate
+        if: steps.prepare.outputs.ready == 'true'
+        env:
+          ISSUE: ${{ steps.prepare.outputs.issue }}
+        run: |
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          BRANCH="keel/robot-$ISSUE"
+          previous=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).previousHead || "")' "$RUNNER_TEMP/robot-plan.json")
+          if [ -n "$previous" ]; then
             git switch -c "$BRANCH" "$previous"
             git merge --no-edit "$GITHUB_SHA"
             node "$RUNNER_TEMP/trusted/robot.mjs" sandbox --json
@@ -383,6 +401,7 @@ jobs:
           ROBOT_JUDGED_HEAD: ${{ needs.judge.outputs.head }}
           ROBOT_MODEL_RAN: ${{ needs.agent.outputs.model_ran }}
           ROBOT_JUDGE_RAN: ${{ needs.judge.outputs.judge_ran }}
+          ROBOT_PREPARED: ${{ needs.agent.outputs.prepared }}
         run: node scripts/keel/robot.mjs publish --json
   review-agent:
     outputs:
