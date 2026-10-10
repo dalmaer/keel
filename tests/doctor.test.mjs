@@ -767,6 +767,10 @@ test('platform guard: a skip clears only the command it guards, and only in the 
   assert.deepEqual(calls(`if (process.platform === 'darwin' && (ready || force)) { ${run} }`), {}, 'the || is inside the && part');
   assert.deepEqual(calls(`if (process.platform === 'darwin' && ready || process.platform === 'darwin' && force) { ${run} }`), {}, 'every branch tests the platform');
   assert.deepEqual(calls(`describe.runIf(process.platform === 'darwin' && ready || force)('mac', () => { ${run} });`), { darwin: ['hdiutil'] });
+  // Review of PR 58, round 6: a one-line if with its own else holds both branches; the line is no guard.
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then :; else hdiutil attach x; fi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then hdiutil attach x; fi\n', 'tests/mount.sh'), {});
+  assert.deepEqual(calls('if [ -f x.dmg ]; then hdiutil attach x.dmg; fi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] }, 'after then is a command\'s position');
   // Review of PR 58, round 3: a shell if's else branch runs off the platform.
   assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then\n  hdiutil attach a.dmg\nelse\n  hdiutil attach b.dmg\nfi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
   assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then\n  hdiutil attach a.dmg\nelse\n  echo skipped\nfi\n', 'tests/mount.sh'), {});

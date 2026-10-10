@@ -202,6 +202,8 @@ test('doctor counts the hook only when settings run it as a PreToolUse hook on E
   assert.equal(hookGap(hook('Edit|Write|MultiEdit')), null);
   assert.equal(hookGap(hook(undefined)), null, 'no matcher: every tool');
   assert.equal(hookGap(hook('Edit|MultiEdit|Write|NotebookEdit')), null);
+  assert.equal(hookGap(hook('Edit|Write|MultiEdit', 'cd "$CLAUDE_PROJECT_DIR" && NODE_NO_WARNINGS=1 node --no-deprecation scripts/keel/contract-hook.mjs')), null);
+  assert.equal(hookGap(hook('Edit|Write|MultiEdit', 'node ./scripts/keel/contract-hook.mjs # contracts')), null);
   for (const [why, text] of [
     ['named only in a permission', JSON.stringify({ permissions: { allow: ['Bash(node scripts/keel/contract-hook.mjs)'] } })],
     ['on another event', JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Edit|Write|MultiEdit', hooks: [{ type: 'command', command: 'node scripts/keel/contract-hook.mjs' }] }] } })],
@@ -210,6 +212,10 @@ test('doctor counts the hook only when settings run it as a PreToolUse hook on E
     ['another script', hook('Edit|Write|MultiEdit', 'node scripts/keel/contract-hook.mjs.bak')],
     ['every hook off', hook('Edit|Write|MultiEdit', undefined, { disableAllHooks: true })],
     ['not JSON', '{ hooks'],
+    // Review of PR 58, round 6: a command that only mentions the path does not run it.
+    ['an echo of the path', hook('Edit|Write|MultiEdit', 'echo scripts/keel/contract-hook.mjs')],
+    ['the path in a comment', hook('Edit|Write|MultiEdit', 'true # node scripts/keel/contract-hook.mjs')],
+    ['node running another script that names it', hook('Edit|Write|MultiEdit', 'node scripts/other.mjs scripts/keel/contract-hook.mjs')],
   ]) assert.ok(hookGap(text), why);
 });
 
@@ -291,4 +297,19 @@ test('where adopt skipped the agents-md block, doctor names the contract rows AG
   await setConfig(plain, c => { c.contracts = CONTRACTS; });
   assert.equal(keel(['render'], plain).status, 0);
   assert.equal(doctorJson(plain).data.notes.find(n => n.rule === 'contract-guide'), undefined);
+});
+
+test('a project\'s own scripts/keel/contract-hook.mjs survives the first contract: render refuses it as edited, doctor names it (review of PR 58)', async t => {
+  const root = await project(t);
+  await contractFiles(root);
+  const own = '// Acme\'s own pre-edit hook.\nconsole.log("acme");\n';
+  await mkdir(join(root, 'scripts', 'keel'), { recursive: true });
+  await writeFile(join(root, 'scripts/keel/contract-hook.mjs'), own);
+  await setConfig(root, c => { c.contracts = CONTRACTS; });
+  const r = keel(['render'], root);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /refusing to overwrite what the project changed \(scripts\/keel\/contract-hook\.mjs edited\)/);
+  assert.equal(await readFile(join(root, 'scripts/keel/contract-hook.mjs'), 'utf8'), own, 'byte-identical');
+  const { data } = doctorJson(root);
+  assert.deepEqual(data.drift.filter(d => d.path === 'scripts/keel/contract-hook.mjs').map(d => d.state), ['edited']);
 });

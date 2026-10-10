@@ -833,7 +833,7 @@ export function toolMatcher(tool, platform = 'darwin') {
   const exe = platform === 'win32' && !/\.exe$/i.test(words[0]) ? '(?:\\.exe)?' : '';
   const end = '(?=$|[\\s;&|)\'"`])';
   const word = w => w === '%' ? '[\'"]?%' : `${escapeRe(w)}${end}`;
-  const head = new RegExp(`(?:^|[;&|(\\n]|\\$\\(|\\b(?:sudo|xcrun|env|exec|command|time|nohup)\\s)\\s*(?:[A-Za-z_]\\w*=(?:'[^']*'|"[^"]*"|[^\\s;&|]*)\\s+)*((?:[\\w.~-]*/)*)${escapeRe(words[0])}${exe}${end}`, `gd${flags}`);
+  const head = new RegExp(`(?:^|[;&|(\\n]|\\$\\(|\\b(?:sudo|xcrun|env|exec|command|time|nohup|if|then|else|elif|do|while|until)\\s|!\\s)\\s*(?:[A-Za-z_]\\w*=(?:'[^']*'|"[^"]*"|[^\\s;&|]*)\\s+)*((?:[\\w.~-]*/)*)${escapeRe(words[0])}${exe}${end}`, `gd${flags}`);
   const whole = new RegExp(`(?:[\\w.~-]*/)*${escapeRe(words[0])}${exe}${words.slice(1).map(w => `\\s+${word(w)}`).join('')}${words.length === 1 ? end : ''}`, `y${flags}`);
   const first = new RegExp(`^(?:[\\w.~-]*/)*${escapeRe(words[0])}${exe}$`, flags);
   return {
@@ -1010,6 +1010,8 @@ export function shellGuardRanges(lines, platform) {
     if (!/^\s*if\b/.test(line)) return;
     const fi = fiOf(i);
     // Only the then branch: an else (or elif) at this if's depth runs off the platform.
+    // A one-line if with its own else (or elif) holds both branches on one line: no range.
+    if (isEq && /\b(?:else|elif)\b/.test(line.slice(line.search(/\bthen\b/) + 1))) return;
     if (isEq) ranges.push([i, elseOf(i, fi)]);
     else if (isNeq && (/\bthen\s+exit\b/.test(line) || lines.slice(i + 1, fi).every(l => /^\s*(?:exit|return)\b/.test(l) || !l.trim()))) ranges.push([fi, lines.length - 1]);
   });
