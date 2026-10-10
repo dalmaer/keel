@@ -8,6 +8,7 @@ import { readFile, mkdir, lstat, realpath, open, rename, unlink } from 'node:fs/
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isStallsReceipt } from './time-receipts.mjs';
+import { gateWorkflowIn } from './lib.mjs';
 
 const exec = promisify(execFile);
 const MAX = Object.freeze({ discovery: 500, bytes: 256 * 1024 * 1024, records: 4000 });
@@ -114,14 +115,24 @@ export async function recoverTestHistory({ root, repo, branch, at = new Date(), 
     const repository = await github(base);
     if (!id(repository.id) || repository.full_name?.toLowerCase() !== repo.toLowerCase() || repository.default_branch !== branch) throw new Error('repository/default branch identity mismatch');
     const config = JSON.parse(await readFile(join(root, '.keel/keel.json'), 'utf8'));
-    const top = config.gateWorkflow, nested = config.ci?.gateWorkflow;
-    if (top && nested && top !== nested) throw new Error('conflicting CI workflow configuration');
-    const ci = nested ?? top ?? 'check.yml';
-    if (typeof ci !== 'string' || !ci || ci.length > 200) throw new Error('invalid CI workflow configuration');
+    // The project's gate workflow, as improve finds it: the one .keel/keel.json names, else check.yml,
+    // else the one that runs the check (a project that gates in pages.yml has no check.yml).
+    const gate = await gateWorkflowIn(root, config);
+    if (gate?.problem) throw new Error(gate.problem);
+    if (gate && gate.name.length > 200) throw new Error('invalid CI workflow configuration');
+    // A file is read by its file name; a name as GitHub shows it (gateWorkflow: "Check") must name exactly one workflow.
+    const workflowOf = async name => {
+      if (/\.ya?ml$/.test(name)) return github(`${base}/actions/workflows/${encodeURIComponent(name)}`);
+      const list = await github(`${base}/actions/workflows?per_page=100`);
+      const named = (Array.isArray(list?.workflows) ? list.workflows : []).filter(w => w?.name === name);
+      if (named.length !== 1) throw new Error(`no single workflow is named ${JSON.stringify(name)}`);
+      return named[0];
+    };
     const workflows = new Map();
-    for (const [kind, name] of [['night', 'keel-night.yml'], ['ci', ci]]) {
+    if (!gate) gap('workflow-unavailable', 'ci: no workflow in .github/workflows runs the gate, and .keel/keel.json names no gateWorkflow');
+    for (const [kind, name] of [['night', 'keel-night.yml'], ...(gate ? [['ci', gate.name]] : [])]) {
       try {
-        const w = await github(`${base}/actions/workflows/${encodeURIComponent(name)}`);
+        const w = await workflowOf(name);
         if (!id(w.id) || !/^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(w.path ?? '') || (kind === 'night' && w.path !== NIGHT) || workflows.has(w.id)) throw new Error('workflow identity unavailable or ambiguous');
         workflows.set(w.id, { kind, path: w.path });
       } catch (e) { gap('workflow-unavailable', `${kind}: ${e.message}`); }

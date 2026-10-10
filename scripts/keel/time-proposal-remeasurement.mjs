@@ -57,7 +57,9 @@ export async function remeasureTimeProposal({root,proposal,at,github=robotGithub
     }
     const {runs}=await ledger.readRuns(root,undefined,{gates:true});
     const revisions=new Map();
-    const eligibleRevision=sha=>{if(!revisions.has(sha))revisions.set(sha,ancestry(root,delivery.pr.mergeSha,sha));return revisions.get(sha);};
+    // A run measured code that has the merge (descends from it) and that this checkout has (an ancestor of
+    // HEAD): a branch that forked after the merge descends from it too, but its code is not what merged here.
+    const eligibleRevision=sha=>{if(!revisions.has(sha))revisions.set(sha,ancestry(root,delivery.pr.mergeSha,sha)&&ancestry(root,sha,'HEAD'));return revisions.get(sha);};
     const eligible=runs.filter(r=>eligibleRevision(r.commit));
     const receipts=ledger.readStalls?await ledger.readStalls(root):{receipts:[]};
     const stallsReceipts=receipts.receipts??[];

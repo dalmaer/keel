@@ -703,7 +703,10 @@ fix it or file it, never rerun until green. `keel init` wires it into a
 node `npm test`; migration 0004 adds it to an adopted project's `node --test`
 script (any other runner is left alone). check.yml keeps each run's ledger
 as a `keel-test-runs` artifact; the night reads the newest of them on the
-default branch before improve, and keeps its own after.
+default branch before improve, and keeps its own after. It reads them from
+the project's gate workflow, found as improve finds it: `gateWorkflow` in
+`.keel/keel.json`, else check.yml, else the workflow that runs the check
+(a project gating in its own `pages.yml`).
 
 On `bun test` or vitest the ledger is a command after the run, reading the
 runner's JUnit XML (phase 59): `node scripts/keel/test-ledger.mjs --junit

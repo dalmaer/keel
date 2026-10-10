@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {MEASURES,measure,propose,improve} from '../practices/night/files/scripts/keel/improve.mjs';
+import {MEASURES,measure,propose,improve,page} from '../practices/night/files/scripts/keel/improve.mjs';
 import {makeTimeProposal,formatTimeProposal,parseTimeProposal,withTimeProposal} from '../practices/night/files/scripts/keel/time-proposals.mjs';
 import {render} from '../lib/practices.mjs';
 import {run} from './helpers/run.mjs';
@@ -90,4 +90,24 @@ test('cross-date remeasurement reports only actually changed historical health p
  assert.deepEqual(changed.data.changedHistoricalHealthPaths,[path]);assert.deepEqual(JSON.parse(await readFile(prInput,'utf8')).changedHistoricalHealthPaths,[path]);assert.notEqual(changed.data.report,path);
  const after=await readFile(join(root,path),'utf8');assert.notEqual(after,before);assert.match(after,/Acme owner notes stay/);assert.deepEqual(parseTimeProposal(after).proposal.baseline,initial.baseline);
  const unchanged=await improve({root,report:true,date:'2026-10-10',prInput},opts);assert.deepEqual(unchanged.data.changedHistoricalHealthPaths,[]);assert.deepEqual(JSON.parse(await readFile(prInput,'utf8')).changedHistoricalHealthPaths,[]);assert.equal(await readFile(join(root,path),'utf8'),after);assert.equal(await readFile(join(root,'docs/health/owner.md'),'utf8'),'Acme private working notes\n');
+});
+
+test('issue #91: a time measure outside with every candidate suppressed is never reported as all within bound',async t=>{
+ const root=await project(t),prInput=join(root,'pr-input.json');
+ // Outside, and selection returns no proposal: no candidate is left to select (decided already, or its evidence unavailable).
+ const coverage={eligible:3,retained:3,omitted:0,dates:['2026-10-10'],gaps:[]};
+ const creep={...MEASURES.find(m=>m.id==='time_creep'),run:async()=>({timeResult:{state:'outside',value:3,reasons:['Acme suite slower'],coverage,timeCandidates:[]}})};
+ const r=await improve({root,report:true,date:'2026-10-10',prInput},{env:{CI:'true'},measures:[creep]});
+ assert.equal(r.data.proposal,null);assert.equal(r.exitCode,1);assert.equal(r.data.measures[0].state,'outside');
+ // The page's generated proposal section (an empty offer is not merged into the written page).
+ const generated=page({config:{name:'Acme'},date:'2026-10-10',results:r.data.measures,proposal:null,tightened:[]}),notes=JSON.parse(await readFile(prInput,'utf8')).notes.join('\n');
+ assert.doesNotMatch(await readFile(join(root,r.data.report),'utf8'),/every measure is within its bound/);
+ for(const [where,text] of [['improve().text',r.text],['the health page',generated],['nightPr()',notes]]){
+  assert.doesNotMatch(text,/every measure is within its bound/,where);
+  assert.match(text,/No new proposal: time_creep is outside/,where);
+ }
+ // With nothing outside, all green is still said.
+ const ok={...creep,run:async()=>({timeResult:{state:'inside',value:1,reasons:[],coverage,timeCandidates:[]}})};
+ const green=await improve({root,date:'2026-10-10',prInput},{env:{CI:'true'},measures:[ok]});
+ assert.equal(green.exitCode,0);assert.match(green.text,/every measure is within its bound/);assert.match(JSON.parse(await readFile(prInput,'utf8')).notes.join('\n'),/every measure is within its bound/);
 });

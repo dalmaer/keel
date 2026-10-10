@@ -442,6 +442,25 @@ test('PR #57 review: a pinned test that ran plainly and never with stalls fails 
   assert.match(f.stdout, /^keel stalls: "tests"\.stalls pins tests, which is not a test file/m);
 });
 
+test('issue #91: a stalled run that aborts before any test shows its stderr redacted, as a failure\'s text is', async t => {
+  // The stalled run's node --test aborts before any test (a preload, a module), its stderr carrying two
+  // credentials from the run's environment: one by its name's shape, one named in "tests".configEnv.
+  // stalls.mjs is the real one but for runFiles, which answers as such a run does; the ledger is the real one.
+  const ABORTED = `export * from './stalls-real.mjs';
+export async function runFiles({ seed, env }) {
+  return { seed, exitCode: 3, signal: null, timedOut: false, wall: 40, paused: 0, active: 40, stalls: [], tests: [], ran: 0,
+    stderr: \`node:internal/modules/run_main\\nError: acme preload aborted\\nacme preload: \${env.ACME_API_TOKEN} dsn \${env.ACME_DSN}\` };
+}
+`;
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL, 'scripts/keel/stalls.mjs': ABORTED, 'scripts/keel/stalls-real.mjs': await readFile(join(NIGHT, 'stalls.mjs'), 'utf8') }, { tests: { stalls: ['tests/crate.test.mjs'], configEnv: ['ACME_DSN'] } });
+  const env = { ...tightEnv(), ACME_API_TOKEN: 'acme-fake-token-91', ACME_DSN: 'acme-fake-dsn-91' };
+  const r = gate(dir, [], env);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^ {2}node --test exited 3: node:internal\/modules\/run_main \| Error: acme preload aborted \| acme preload: \[redacted\] dsn \[redacted\]$/m, `the stalled run's stderr tail is shown redacted:\n${r.stdout}`);
+  assert.ok(!r.stdout.includes('acme-fake-token-91'), 'a credential by its name never reaches the output');
+  assert.ok(!r.stdout.includes('acme-fake-dsn-91'), 'a configured credential never reaches the output');
+});
+
 test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {
   const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, PIN);
   const path = join(dir, 'scripts/keel/test-ledger.mjs');

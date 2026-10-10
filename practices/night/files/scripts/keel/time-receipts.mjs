@@ -13,7 +13,7 @@ import { createHash, randomUUID } from 'node:crypto';
  * @typedef { {file: string | null, durationMs: unknown, success: unknown, counts: Record<string, unknown> | undefined} } Summary
  * @typedef {Summary & {durationMs: number, success: boolean} } MeasuredSummary
  * @typedef {'pass' | 'fail' | 'inconclusive' | 'skip' | 'todo'} Outcome
- * @typedef { {file: string, testId: unknown, parentId: unknown, name: string, nesting: unknown, type: unknown, durationMs: unknown, outcome: Outcome} } TestNode
+ * @typedef { {file: string, testId: unknown, parentId: unknown, name: string, nesting: unknown, parent: TestNode | null, type: unknown, durationMs: unknown, outcome: Outcome} } TestNode
  * @typedef { {file: string, hierarchy: string[], occurrence: number, type: unknown, outcome: Outcome, durationMs: unknown} } InventoryEntry
  * @typedef { {version: 1, invocationId: string | null, revision: string | null, expectedFiles: string[], executionSettings: ExecutionSettings | null, settingsHash: string | null, commandHash: string | null, observedSummaries: Summary[], selectionComplete: boolean, observedInventory: InventoryEntry[], inventoryComplete: boolean, inventoryProblems: string[], gaps: string[]} } SuiteFields
  * @typedef {SuiteFields & ({complete: true, aggregate: MeasuredSummary} | {complete: false, aggregate: Summary | null})} SuiteReceipt
@@ -78,14 +78,21 @@ export async function nodePlan({ root, cwd = root, script, words, flags, revisio
     commandHash: digest(script), settingsHash: digest(executionSettings) };
 }
 
-/** Node testId/parentId establish lineage; duplicate full names remain ambiguous.
- * @param { {root: string, plan: ReceiptPlan | null, flagsHash: string, sanitize?: (value: string) => string} } options
+/** Lineage comes from what every Node 24 reporter emits: `file`, `nesting` and
+ * the declaration order of test:pass/test:fail, in which a test's subtests come
+ * just before it (post-order, per file). Node only added `testId` (24.16) and
+ * `parentId` (24.19); where both are present they must agree with that order.
+ * Duplicate full names remain ambiguous.
+ * @param { {root: string, cwd?: string, plan: ReceiptPlan | null, flagsHash: string, sanitize?: (value: string) => string} } options
  */
-export function suiteCollector({ root, plan, flagsHash, sanitize = value => value }) {
+export function suiteCollector({ root, cwd = process.cwd(), plan, flagsHash, sanitize = value => value }) {
   /** @type {Summary[]} */
   const summaries = [];
-  /** @type {Map<string, TestNode>} */
-  const nodes = new Map();
+  /** @type {TestNode[]} */
+  const nodes = [];
+  /** Per file, per nesting level: the finished tests still waiting for their parent's result.
+   * @type {Map<string, TestNode[][]>} */
+  const waiting = new Map();
   /** @type {string[]} */
   const problems = [];
   /** @type {Summary | null} */
@@ -93,6 +100,8 @@ export function suiteCollector({ root, plan, flagsHash, sanitize = value => valu
   let aggregates = 0, truncated = false;
   /** @param {unknown} f */
   const fileOf = f => typeof f === 'string' ? posix(relative(root, resolve(f))) : null;
+  /** A file's own entry (process isolation), named by its path from where node --test ran. @param {unknown} name @param {unknown} file */
+  const fileOwn = (name, file) => resolve(root, String(name)) === file || resolve(cwd, String(name)) === file;
   return {
     /** @param {unknown} e */
     push(e) {
@@ -104,34 +113,42 @@ export function suiteCollector({ root, plan, flagsHash, sanitize = value => valu
         if (file) { if (summaries.length < RECEIPT_LIMITS.files) summaries.push(summary); else truncated = true; }
         else { aggregate = summary; aggregates++; }
       }
-      if ((e.type !== 'test:pass' && e.type !== 'test:fail') || !file || !details.type || resolve(root, String(d.name)) === d.file) return;
-      if (nodes.size >= RECEIPT_LIMITS.tests || typeof d.name !== 'string' || d.name.length > RECEIPT_LIMITS.identityChars) { truncated = true; return; }
+      if ((e.type !== 'test:pass' && e.type !== 'test:fail') || !file || !details.type || fileOwn(d.name, d.file)) return;
+      if (nodes.length >= RECEIPT_LIMITS.tests || typeof d.name !== 'string' || d.name.length > RECEIPT_LIMITS.identityChars) { truncated = true; return; }
       const safeName = sanitize(d.name);
       if (safeName !== d.name) problems.push('logical identity redacted; mapping unavailable');
-      const id = `${file}:${d.testId}`;
-      if (!Number.isInteger(d.nesting) || typeof d.nesting !== 'number' || d.nesting < 0) problems.push('logical nesting unavailable');
-      if (!Number.isInteger(d.testId) || (typeof d.nesting === 'number' && d.nesting > 0 && !Number.isInteger(d.parentId)) || nodes.has(id)) problems.push('logical identity linkage unavailable');
-      nodes.set(id, { file, testId: d.testId, parentId: d.parentId, name: safeName, nesting: d.nesting, type: details.type, durationMs: details.duration_ms,
-        outcome: d.skip ? 'skip' : d.todo ? 'todo' : e.type === 'test:pass' ? 'pass' : 'fail' });
+      /** @type {TestNode} */
+      const node = { file, testId: d.testId, parentId: d.parentId, name: safeName, nesting: d.nesting, parent: null, type: details.type, durationMs: details.duration_ms,
+        outcome: d.skip ? 'skip' : d.todo ? 'todo' : e.type === 'test:pass' ? 'pass' : 'fail' };
+      nodes.push(node);
+      const nesting = d.nesting;
+      if (typeof nesting !== 'number' || !Number.isInteger(nesting) || nesting < 0) { problems.push('logical nesting unavailable'); return; }
+      // One test file's process reports its tests in order; a test defined in a module it imports names that
+      // module as its `file`, and (Node 24.20+) the test file as its `entryFile`.
+      const stream = fileOf(d.entryFile) ?? file;
+      const levels = waiting.get(stream) ?? [];
+      waiting.set(stream, levels);
+      // Anything waiting deeper than a child of this test lost its parent's result.
+      if (levels.slice(nesting + 2).some(l => l?.length)) problems.push('missing parent identity');
+      for (const child of levels[nesting + 1] ?? []) {
+        child.parent = node;
+        // Explicit lineage, where Node gives it, must name the parent the order does.
+        if (Number.isInteger(child.parentId) && Number.isInteger(node.testId) && child.parentId !== node.testId) problems.push('logical identity linkage unavailable');
+      }
+      levels.length = nesting + 1;
+      (levels[nesting] ??= []).push(node);
     },
     /** @returns {SuiteReceipt} */
     finish() {
+      for (const levels of waiting.values()) if (levels.slice(1).some(l => l?.length)) problems.push('missing parent identity');
       /** @type {InventoryEntry[]} */
       const observedInventory = [];
-      for (const node of nodes.values()) {
-        const hierarchy = [node.name], visited = new Set([node.testId]);
-        let current = node;
-        while (typeof current.nesting === 'number' && current.nesting > 0 && Number.isInteger(current.parentId)) {
-          if (visited.has(current.parentId)) { problems.push('cyclic test linkage'); break; }
-          visited.add(current.parentId);
-          const parent = nodes.get(`${node.file}:${current.parentId}`);
-          if (!parent) { problems.push('missing parent identity'); break; }
-          current = parent;
-          hierarchy.unshift(current.name);
-        }
+      for (const node of nodes) {
+        const hierarchy = [node.name];
+        for (let current = node.parent; current; current = current.parent) hierarchy.unshift(current.name);
         observedInventory.push({ file: node.file, hierarchy, occurrence: 1, type: node.type, outcome: node.outcome, durationMs: node.durationMs });
       }
-      if (aggregate && nodes.size !== (typeof aggregate.counts?.tests === 'number' ? aggregate.counts.tests : -1) + (typeof aggregate.counts?.suites === 'number' ? aggregate.counts.suites : -1)) problems.push('logical inventory count differs from aggregate');
+      if (aggregate && nodes.length !== (typeof aggregate.counts?.tests === 'number' ? aggregate.counts.tests : -1) + (typeof aggregate.counts?.suites === 'number' ? aggregate.counts.suites : -1)) problems.push('logical inventory count differs from aggregate');
       const keys = observedInventory.map(t => digest({file:t.file,hierarchy:t.hierarchy,occurrence:t.occurrence,type:t.type}));
       if (new Set(keys).size !== keys.length) problems.push('duplicate logical names are ambiguous');
       if (truncated) problems.push('inventory or summary limit exceeded');

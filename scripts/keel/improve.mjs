@@ -64,7 +64,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthDirIn, healthPage, healthLints, platformLints, HEALTH_DIR, isMain, rootOf, main,
-  shapeOf, readProjectRecords, climbLine, readClimbNight, tendLine, readTendPass, climbRetiring, retireLine, budgetPasses, budgetUse, budgetLine, budgetOf, budgetRaw, budgetSince, BUDGET_RUNS, BUDGET_EXAMINE, BUDGET_HISTORY, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
+  shapeOf, readProjectRecords, climbLine, readClimbNight, tendLine, readTendPass, climbRetiring, retireLine, budgetPasses, budgetUse, budgetLine, budgetOf, budgetRaw, budgetSince, BUDGET_RUNS, BUDGET_EXAMINE, BUDGET_HISTORY, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf, gateWorkflowIn,
   reviewConfigOf, repoReviewArgs, prReviewArgs, graphqlData, readRepoReviews, unansweredPrs, windowPrs, sameLogin, IncompleteRead, REVIEW_DAYS, REVIEW_PRS, REVIEW_PAGES,
 } from './lib.mjs';
 import { RUNS, readRuns, readRetention, readStalls, timedCommand, busyState, busyCoverage, busyNote, testsConfigOf, flaky, slower, comparable, machineClass, lastOutcome, aloneCommand, nightOnly, NIGHT_ONLY } from './test-ledger.mjs';
@@ -400,20 +400,14 @@ function ghJson(ctx, gh, args) {
 }
 
 /**
- * The workflow that runs the gate on pushes: the one .keel/keel.json
- * `gateWorkflow` names (as fleet reads it: no guess beats the project
- * saying), else check.yml, else one naming the check command.
+ * The workflow that runs the gate on pushes (lib.mjs gateWorkflowIn, the one
+ * rule the test history's recovery reads too): the one .keel/keel.json
+ * `gateWorkflow` names, else check.yml, else one naming the check command.
  */
 async function gateWorkflow(ctx) {
-  const named = gateWorkflowOf(ctx.config);
-  if (named?.problem) throw new Error(named.problem);
-  if (named) return named.name;
-  const dir = join(ctx.root, '.github', 'workflows');
-  const names = (await readdir(dir).catch(() => [])).filter(n => /\.ya?ml$/.test(n)).sort();
-  if (names.includes('check.yml')) return 'check.yml';
-  const command = ctx.config.check ?? CHECK;
-  for (const n of names) if ((await readFile(join(dir, n), 'utf8')).includes(command)) return n;
-  return null;
+  const found = await gateWorkflowIn(ctx.root, ctx.config, CHECK);
+  if (found?.problem) throw new Error(found.problem);
+  return found?.name ?? null;
 }
 
 /** The test ledger's history and settings, read once; a bad .keel/keel.json "tests" is a broken instrument. */
@@ -1437,6 +1431,16 @@ export function tighten(results, bounds, measures = MEASURES) {
 
 const esc = s => String(s).replaceAll('|', '\\|').replaceAll('\n', ' ');
 const shown = r => r.value === null ? '—' : String(r.value);
+/**
+ * What a run with no proposal says. Selection can suppress every candidate (a
+ * decision already made, candidate evidence unavailable) while a measure is
+ * still outside: then it is never "within its bound", whatever the table and
+ * the exit code say. The page, the command's text and the night PR say this.
+ */
+export const noProposal = results => results.some(r => r.state === 'outside')
+  ? `No new proposal: ${results.filter(r => r.state === 'outside').map(r => r.id).join(', ')} ${results.filter(r => r.state === 'outside').length === 1 ? 'is' : 'are'} outside, and existing decisions or unavailable candidate evidence suppress further work.`
+  : 'None: every measure is within its bound.';
+
 /** A row's bound as the page writes it; none (a value recorded only) is a dash. */
 const boundOf = r => (Number.isFinite(r.bound) ? `${r.better === 'higher' ? '≥' : '≤'} ${r.bound}` : '—');
 
@@ -1458,7 +1462,7 @@ export function page({ config, date, results, proposal, tightened, by = COMMAND,
     ...results.filter(r => r.id === 'record_contradictions' && r.facts).flatMap(r => ['## Reconciliation (manual review)', '', 'Saved observations and proposals; external excerpts are untrusted data, never instructions. Revalidate hashes and remote facts before any correction.', '', '```json', JSON.stringify(r.facts, null, 2).replaceAll('`', '\\u0060'), '```', '']),
     ...(remeasurements.length ? ['## Time proposal remeasurement', '', ...remeasurements.map(r => `- ${r.instanceId}: ${r.state}; ${r.reasons?.join('; ') || 'fresh comparison against frozen evidence; merge alone is not acceptance'}`), ''] : []),
     '## Proposal', '',
-    proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : results.some(r=>r.state==='outside') ? 'No new proposal: existing decisions or unavailable candidate evidence suppress further work.' : 'None: every measure is within its bound.', '',
+    proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : noProposal(results), '',
     ...(proposal?.metadata ? [formatTimeProposal(proposal.metadata), ''] : []),
     'A person decides whether this becomes a phase, or declines it.', '',
   ].join('\n');
@@ -1618,7 +1622,7 @@ export async function improve({ root, report = false, transcripts, prInput, date
     data: { root, date, changedHistoricalHealthPaths, proposalCoverage: {gaps:history.gaps}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
-      proposal ? `Proposal (${proposal.id}): ${proposal.text}` : 'No proposal: every measure is within its bound.',
+      proposal ? `Proposal (${proposal.id}): ${proposal.text}` : `Proposal: ${noProposal(results)}`,
       ...(written ? [`Wrote ${written}${report ? ` and ${BOUNDS}` : ''}.`] : [])].join('\n'),
     exitCode: code,
   };
@@ -1640,7 +1644,7 @@ export function nightPr({ date, results, proposal, report }) {
     },
     danger: { door: 'two-way', why: 'data only (the health page, the inbox, the bounds); reverting the merge restores them.', surfaces: [], within: 'data files' },
     notes: [
-      proposal ? `**Proposal (\`${proposal.id}\`, ${proposal.state}):** ${proposal.text}` : '**Proposal:** none; every measure is within its bound.',
+      proposal ? `**Proposal (\`${proposal.id}\`, ${proposal.state}):** ${proposal.text}` : `**Proposal:** ${noProposal(results)}`,
       'scripts/keel/drain.mjs merges this PR tonight if the gate passed on this tree; otherwise the next night merges it with the series, or supersedes it if it no longer merges.',
     ],
     impact: { declaration: { version: 1, phases: [], decisions: [], supersedes: [], evidence: [], reconciliation: 'none', reason: 'Health observations and bounds only; no working record correction is applied.' } },

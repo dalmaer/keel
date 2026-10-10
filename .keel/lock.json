@@ -171,11 +171,11 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "63279adb39492a3b69b83bdc7d89326bc60a2388e6d51bc2a5eb3bbf289774a1"
+      "sha256": "d78d67e22cc3addf0e9d627402f57c3b9a09f80dbf31cea75e652ecd65e24aa1"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "032db75a09670959af8b391a6350fad9275de70ce113635e9817cb8830182c0b"
+      "sha256": "e87a2e1c431618a59d8cc7f46e78d326018dbf332b8d72a7e16f5fc03fcacc6b"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -215,19 +215,19 @@
     },
     "scripts/keel/test-history.mjs": {
       "practice": "night",
-      "sha256": "26553866d6cad7c489082133ae83d93212649c4aee5230a080fed13f4d39f5ec"
+      "sha256": "2e2a873736f6c6235c8eb7356657b967ca2ca26e20d574208652c1d2c885615e"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "14e5579bcf3d6a03709ea10e6a0f2123a0107ff4ea666be2ed215e56bb81e455"
+      "sha256": "4985db49ca9ba045107d1f40e8a34fa789a389782ffb1e8db91aee0014147cb7"
     },
     "scripts/keel/time-measures.mjs": {
       "practice": "night",
-      "sha256": "854d7138390401b9b76d040af8cc1611862a2ffc25023b5c5ae957af38daad1d"
+      "sha256": "1f0e895dd23a3e4be2abda15c23af7c6ea5337fd8ae553ec0a9528b6a1cddc4f"
     },
     "scripts/keel/time-proposal-remeasurement.mjs": {
       "practice": "night",
-      "sha256": "b7dc513a3e745370ff9575fb61d5982f91d90bd5b3559f4343d74c69633e5688"
+      "sha256": "fb2c5da1552e14915e03732ced69112898807abf059f0fb9a12d990fcce2d37b"
     },
     "scripts/keel/time-proposals.mjs": {
       "practice": "night",
@@ -235,7 +235,7 @@
     },
     "scripts/keel/time-receipts.mjs": {
       "practice": "night",
-      "sha256": "5e962f19374737f90d93799ff308ef3c8047ae176879e728c56a13e3c9c984b0"
+      "sha256": "705ad4b32f3df2c23f41ca5a7849421d1bb0a779445387909732aa0778310972"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

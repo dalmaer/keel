@@ -21,6 +21,21 @@ test('time measures require explicit quiet context and separated bounded timing 
  }
  assert.equal(evaluate('time_creep',rs.map(r=>({...r,tests:r.tests.map(t=>({...t,ms:200}))}))).state,'inside');
 });
+test('issue #91: a dirty or unknown tree is never timing evidence; its commit did not name the code it measured',()=>{
+ const gate=(days,i=0)=>({...record(days,i),kind:'gate',runner:'gate',gateSource:'configured-check',commandHash:'acmegate',ms:2000,status:0,invocationId:`acme-${days}-${i}`,provenance:{source:'outer-launcher',invocationId:`acme-${days}-${i}`,outerCommandHash:'acmegate'}});
+ const creep=[30,31,32,33,34].map((d,i)=>record(d,i,100));creep.push(...[1,2,3,4,5].map((d,i)=>record(d,i,500)));
+ const share=Array.from({length:10},(_,i)=>record(1+i%3,i));share.forEach((r,i)=>r.tests[0].outcome=i<5?'inconclusive':'fail');
+ const cases=[['time_creep',creep,{}],['gate_time',[gate(1),gate(1,1),gate(2)],{gateBoundMs:1000}],['critical_file',[1,2,3].map(d=>record(d)),{}],['inconclusive_share',share,{}]];
+ for(const [measure,rs,more] of cases){
+  const r=evaluate(measure,rs,more);assert.equal(r.state,'outside',measure);
+  for(const dirty of [true,null,undefined]){
+   // The recent runs, the ones a proposal and its baseline would cite, are on a dirty tree.
+   const changed=structuredClone(rs);changed.filter(r=>Date.parse(r.date)>T-7*DAY).forEach(r=>{r.dirty=dirty;});
+   const got=evaluate(measure,changed,more);
+   assert.equal(got.state,'unavailable',`${measure} with dirty ${dirty}`);assert.deepEqual(got.timeCandidates??[],[],`${measure}: no proposal from dirty runs`);
+  }
+ }
+});
 test('gate time needs actual outer configured provenance and full baseline bins or explicit bound',()=>{
  const gate=(days,i=0)=>({...record(days,i),kind:'gate',runner:'gate',gateSource:'configured-check',commandHash:'acmegate',ms:2000,status:0,invocationId:`acme-${days}-${i}`,provenance:{source:'outer-launcher',invocationId:`acme-${days}-${i}`,outerCommandHash:'acmegate'}});
  const recent=[gate(1),gate(1,1),gate(2)];assert.equal(evaluate('gate_time',recent).state,'unavailable');
@@ -185,13 +200,15 @@ test('postmerge gate comparison uses newest three verified outer gates and their
  assert.equal(evaluate('gate_time',[1,1.01,1.02,3].map(d=>gate(d,1000)),{comparison}).state,'unavailable');
 });
 
-test('postmerge comparison requires explicit clean revision while discovery stays observational',()=>{
+test('postmerge comparison and discovery both require an explicitly clean revision',()=>{
  const gates=[1,2,3].map(d=>({...record(d),kind:'gate',runner:'gate',gateSource:'configured-check',commandHash:'acmegate',ms:2000,status:0,invocationId:`acme-${d}`,provenance:{source:'outer-launcher',invocationId:`acme-${d}`,outerCommandHash:'acmegate'}}));
  const found=evaluate('gate_time',gates,{gateBoundMs:1250}),comparison={...found,mergeTime:new Date(T-5*DAY).toISOString(),mergeSha:sha,eligibleRevisionShas:[sha]};
  for(const dirty of [true,null,undefined]){
   const rs=gates.map(r=>({...r,dirty,ms:1000}));assert.equal(evaluate('gate_time',rs,{comparison}).state,'unavailable');
-  assert.equal(evaluate('gate_time',rs,{gateBoundMs:500}).state,'outside','discovery is observational, not postmerge verification');
+  // Issue #91: discovery's baseline and proposal name the run's commit, which a dirty tree's code was not.
+  assert.equal(evaluate('gate_time',rs,{gateBoundMs:500}).state,'unavailable','discovery never cites a commit for code that differed from it');
  }
+ assert.equal(evaluate('gate_time',gates.map(r=>({...r,ms:1000})),{gateBoundMs:500}).state,'outside','a clean tree is still observed');
  assert.equal(evaluate('gate_time',gates.map(r=>({...r,ms:1000})),{comparison}).state,'inside');
 });
 
