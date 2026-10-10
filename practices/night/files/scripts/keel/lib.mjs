@@ -586,7 +586,12 @@ export async function gateWorkflowIn(root, config, check = 'npm run check') {
   const names = (await readdir(dir).catch(() => [])).filter(n => /\.ya?ml$/.test(n)).sort();
   if (names.includes('check.yml')) return { name: 'check.yml' };
   const command = config?.check ?? check;
-  for (const n of names) if ((await readFile(join(dir, n), 'utf8')).includes(command)) return { name: n };
+  // The command as a whole word on a line that is not a comment (#92): `npm run check` is not `npm run check:deploy`.
+  const runs = new RegExp(`(^|[^\\w:.-])${command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w:.-])`);
+  for (const n of names) {
+    const lines = (await readFile(join(dir, n), 'utf8')).split('\n').filter(l => !l.trim().startsWith('#'));
+    if (lines.some(l => runs.test(l))) return { name: n };
+  }
   return null;
 }
 

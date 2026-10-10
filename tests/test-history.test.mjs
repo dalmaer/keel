@@ -334,3 +334,20 @@ test('night historical health staging rejects unvalidated metadata and paths bef
     assert.equal(f.git('rev-parse', 'HEAD'), f.before); assert.equal(f.git('diff', '--cached', '--name-only'), f.unrelated);
   });
 });
+
+// #92: the gate workflow is the one running the check command as a whole word, never a longer command it begins
+// (deploy.yml's `npm run check:deploy` sorts first and is not `npm run check`), and never a comment naming it.
+test('issue #91 review: gateWorkflowIn finds the workflow running the check itself, not one running check:deploy or naming it in a comment', async t => {
+  const { gateWorkflowIn } = await import(new URL('../practices/night/files/scripts/keel/lib.mjs', import.meta.url).href);
+  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'keel-gate-wf-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, '.github/workflows'), { recursive: true });
+  await writeFile(join(root, '.github/workflows/a-notes.yml'), 'jobs:\n  x:\n    steps:\n      # runs npm run check elsewhere\n      - run: echo hi\n');
+  await writeFile(join(root, '.github/workflows/deploy.yml'), 'jobs:\n  x:\n    steps:\n      - run: npm run check:deploy\n');
+  await writeFile(join(root, '.github/workflows/pages.yml'), 'jobs:\n  x:\n    steps:\n      - run: npm ci && npm run check\n');
+  assert.deepEqual(await gateWorkflowIn(root, { check: 'npm run check' }), { name: 'pages.yml' });
+  assert.equal(await gateWorkflowIn(root, { check: 'npm run check:all' }), null, 'no workflow runs check:all');
+});
