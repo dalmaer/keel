@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join,resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { robotAssociation as deliveryAssociation,robotGithub } from '../practices/climb/files/scripts/keel/robot-delivery.mjs';
+import { robotAssociation as deliveryAssociation,robotGithub } from '../practices/night/files/scripts/keel/robot-delivery.mjs';
 import { checkImpact } from '../practices/reconciliation/files/scripts/keel/reconcile.mjs';
 import { formatRobotRubric } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
 // Load exactly the shipped sibling layout, as adopted projects do.
@@ -137,6 +137,7 @@ test('robot continuation carries only unseen permitted comments and refuses a hu
 test('robot judge executes real full gates and refuses dropped tests or sandbox edits',async t=>{
  const root=await project(t);await mkdir(join(root,'scripts/keel'),{recursive:true});await mkdir(join(root,'.keel'));
  await cp(resolve('practices/night/files/scripts/keel/test-ledger.mjs'),join(root,'scripts/keel/test-ledger.mjs'));
+ await cp(resolve('practices/night/files/scripts/keel/time-receipts.mjs'),join(root,'scripts/keel/time-receipts.mjs'));
  const check='node --test --test-reporter=./scripts/keel/test-ledger.mjs acme.test.mjs';
  await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check}));
  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme adds',()=>{});test('Acme subtracts',()=>{});\n");

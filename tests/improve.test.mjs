@@ -150,7 +150,7 @@ test('--report writes that day\'s page and the bounds, nothing else; the one pro
   assert.deepEqual(changed, ['.keel/bounds.json', d1.report].sort());
   assert.equal(after['docs/health/2020-01-01.md'], 'an older page\n');
   const pageText = after[d1.report];
-  assert.match(pageText, /^# Health — \d{4}-\d{2}-\d{2}/);
+  assert.match(pageText, /^<!-- keel:health-report:begin [a-f0-9]{64} -->\n# Health — \d{4}-\d{2}-\d{2}/);
   assert.match(pageText, /\| `machine_prs` — .* \| 3 \| ≤ 1 \| outside \| keel\/ 0, keel-night\/ 3, keel-loop\/ 0, renovate\/ 2 \|/);
   assert.match(pageText, /## Proposal\n\n\*\*`machine_prs`\*\* \(outside\) — Drain the keel-night\/ queue/);
   assert.equal(pageText.match(/^## Proposal$/gm).length, 1);

@@ -29,7 +29,7 @@ const scripts = () => loaded ??= (async () => {
   process.on('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
   const keel = join(dir, 'scripts/keel');
   await mkdir(keel, { recursive: true });
-  for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
   await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
   for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
   const at = f => import(pathToFileURL(join(keel, f)).href);
@@ -587,7 +587,7 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
     await mkdir(join(dir, '.keel'), { recursive: true });
     const keel = join(dir, 'scripts/keel');
     await mkdir(keel, { recursive: true });
-    for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
+    for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
     for (const f of ['climb.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
     const now = Math.floor(Date.now() / 1000);
     for (const key of ['climb', 'tend']) {

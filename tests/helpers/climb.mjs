@@ -47,7 +47,7 @@ export async function acme(t, { climb = { jobs: ['test-time'] }, config = {}, fi
   const dir = await mkdtemp(join(tmpdir(), 'keel-climb-acme-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, 'scripts/keel'), { recursive: true });
-  for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
   await cp(CLIMB, join(dir, 'scripts/keel/climb.mjs'));
   await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/keel/tend.mjs'));
   await write(dir, { '.keel/keel.json': `${JSON.stringify({ name: 'Acme', ...(climb ? { climb } : {}), ...config }, null, 2)}\n`, ...files });

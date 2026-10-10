@@ -67,7 +67,12 @@ import {
   shapeOf, readProjectRecords, climbLine, readClimbNight, tendLine, readTendPass, climbRetiring, retireLine, budgetPasses, budgetUse, budgetLine, budgetOf, budgetRaw, budgetSince, BUDGET_RUNS, BUDGET_EXAMINE, BUDGET_HISTORY, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
   reviewConfigOf, repoReviewArgs, prReviewArgs, graphqlData, readRepoReviews, unansweredPrs, windowPrs, sameLogin, IncompleteRead, REVIEW_DAYS, REVIEW_PRS, REVIEW_PAGES,
 } from './lib.mjs';
-import { RUNS, readRuns, timedCommand, busyState, busyCoverage, busyNote, testsConfigOf, flaky, slower, comparable, machineClass, lastOutcome, aloneCommand, nightOnly, NIGHT_ONLY } from './test-ledger.mjs';
+import { RUNS, readRuns, readRetention, readStalls, timedCommand, busyState, busyCoverage, busyNote, testsConfigOf, flaky, slower, comparable, machineClass, lastOutcome, aloneCommand, nightOnly, NIGHT_ONLY } from './test-ledger.mjs';
+
+import { evaluateTimeEvidence, TIME_MEASURES } from './time-measures.mjs';
+import { makeTimeProposal, formatTimeProposal, readTimeProposals, selectableTimeProposal, writeHealthReport, withTimeProposal } from './time-proposals.mjs';
+import { remeasureTimeProposal } from './time-proposal-remeasurement.mjs';
+import { digest } from './time-receipts.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 /** The default health directory; a project's own is .keel/keel.json `health` (healthDirOf). */
@@ -290,7 +295,7 @@ const gateRun = ctx => once(ctx, 'gate', async () => {
     if (reuse.reused) return { command, ...reuse };
   }
   // Never a test runner's context (lesson 14); the project's .keel/keel.json `env` over it.
-  const r = await timedCommand(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config), preparedEnv: true });
+  const r = await timedCommand(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config), preparedEnv: true, configured: true });
   if (r.error) throw new Error(`could not run \`${command}\`: ${r.error.message}`);
   if (r.status === null) throw new Error(`\`${command}\` was killed (${r.signal}) before it finished`);
   const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
@@ -732,7 +737,27 @@ export const CROSS_REVIEW_VALID = Object.freeze({
   },
 });
 
+const timingEvidence = ctx => once(ctx, 'time-evidence', async () => {
+  if (ctx.timeEvidence) return ctx.timeEvidence;
+  const history = await readRuns(ctx.root, undefined, {gates:true});
+  const retention = await readRetention(ctx.root), stalls = await readStalls(ctx.root);
+  let recovery;
+  try { recovery = await (await import('./test-history.mjs')).readTestHistory(ctx.root); }
+  catch { recovery = {complete:false,gaps:[{detail:'artifact recovery coverage unavailable'}]}; }
+  const localWorkarounds = ctx.keel?.localWorkarounds ? await ctx.keel.localWorkarounds({root:ctx.root,env:ctx.env,since:ctx.now-7*86400000,now:ctx.now}) : null;
+  return {runs:history.runs,stallsReceipts:stalls.receipts,localWorkarounds,retention,recovery,
+    gaps:[...(history.skipped?[`${history.skipped} ledger records unreadable`]:[]),...stalls.gaps,...(retention.gaps??[]),...(recovery.gaps??[]).map(g=>typeof g==='string'?g:g.detail)]};
+});
 export const MEASURES = [
+  ...TIME_MEASURES.map(id => ({id,what:`${id.replaceAll('_',' ')} from comparable retained evidence`,unit:['gate_time','time_creep'].includes(id)?'ms':['critical_file','inconclusive_share'].includes(id)?'share':'observations',bound:null,better:'lower',ratchet:false,time:true,
+    async run(ctx) {
+      const evidence = await timingEvidence(ctx);
+      const result = evaluateTimeEvidence({measure:id,...evidence,at:ctx.now,gateBoundMs:ctx.bounds.gate_time});
+      const gaps = [...new Set([...result.coverage.gaps,...(evidence.gaps??[])])];
+      result.coverage = {...result.coverage,gaps,retention:evidence.retention??null,recovery:evidence.recovery??null};
+      for(const candidate of result.timeCandidates) candidate.coverage = {...candidate.coverage,gaps};
+      return {timeResult:result};
+    }})),
   {
     id: 'ci_minutes', what: 'last seven days of completed-job rounded weighted Actions minutes (estimate, not invoice)', unit: 'weighted minutes', bound: null, better: 'lower', ratchet: false,
     async run(ctx) {
@@ -1262,14 +1287,20 @@ const beats = (m, value, bound) => m.better === 'higher' ? value > bound : value
 const margin = r => (r.better === 'higher' ? r.bound - r.value : r.value - r.bound) / Math.max(Math.abs(r.bound), 1);
 
 /** Run every measure; never throws for a measure, which becomes `broken`. */
-export async function measure({ root, config, env = process.env, transcripts, date = today(), bounds = {}, measures = MEASURES, keel, now = Date.now() }) {
-  const ctx = { root, config, env, transcripts, date, keel, now, cache: new Map() };
+export async function measure({ root, config, env = process.env, transcripts, date = today(), bounds = {}, measures = MEASURES, keel, now = Date.now(), timeEvidence }) {
+  const ctx = { root, config, env, transcripts, date, keel, now, bounds, timeEvidence, cache: new Map() };
   const results = [];
   for (const m of measures) {
     const bound = Number.isFinite(bounds[m.id]) ? bounds[m.id] : m.bound;
     const base = { id: m.id, what: m.what, unit: m.unit, better: m.better, bound };
     try {
       const r = await m.run(ctx);
+      if (r?.timeResult) {
+        const t=r.timeResult;
+        results.push({...base,state:t.state==='unavailable'?'n/a':t.state==='inside'?'ok':t.state,value:t.value,
+          detail:`${t.coverage.eligible}/${t.coverage.retained} eligible retained observations; ${t.coverage.omitted} omitted; ${t.coverage.dates.length} dates; ${[...new Set([...t.reasons,...t.coverage.gaps])].join('; ')}`,
+          facts:t,timeCandidates:t.timeCandidates}); continue;
+      }
       if (r?.na) { results.push({ ...base, state: 'n/a', value: null, detail: r.na, ...(r.facts ? { facts: r.facts } : {}) }); continue; }
       if (!Number.isFinite(r?.value)) throw new Error(`the instrument returned no number (${JSON.stringify(r?.value)})`);
       // A rule measure (ratchet: false) may name the bound its value is judged by (machine_prs: per queue).
@@ -1354,13 +1385,27 @@ export function proposalText(r, config = {}) {
 }
 
 /** The one proposal: broken beats outside; then the largest relative margin; ties by measure order. */
-export function propose(results, config) {
+export function propose(results, config, {history=[],at=Date.now()} = {}) {
   const broken = results.find(r => r.state === 'broken');
-  let worst = broken;
-  if (!worst) {
-    for (const r of results) if (r.state === 'outside' && (!worst || margin(r) > margin(worst))) worst = r;
+  if (broken) return {id:broken.id,state:broken.state,text:proposalText(broken,config)};
+  let worst = null;
+  for (const r of results) if (r.state === 'outside') {
+    if (Array.isArray(r.timeCandidates)) {
+      for(const candidate of r.timeCandidates) {
+        if(!selectableTimeProposal({candidate,history,at}).allowed) continue;
+        // Explicit investigation rules have different units; keep deterministic
+        // measure order on ties, while considering every eligible target.
+        const metadata=makeTimeProposal({...candidate,at});
+        if(!metadata) { r.facts?.coverage?.gaps.push('candidate unavailable: frozen evidence exceeds proposal size bound'); continue; }
+        const score=1;
+        if(!worst || score>worst.score) worst={r,candidate,metadata,score};
+      }
+    } else if(!worst || margin(r)>worst.score) worst={r,score:margin(r)};
   }
-  return worst ? { id: worst.id, state: worst.state, text: proposalText(worst, config) } : null;
+  if(!worst)return null;
+  if(!worst.candidate)return {id:worst.r.id,state:worst.r.state,text:proposalText(worst.r,config)};
+  const metadata=worst.metadata;
+  return {id:worst.r.id,state:'outside',text:metadata.candidate.rubric.change,metadata};
 }
 
 export async function readBounds(root) {
@@ -1395,7 +1440,7 @@ const shown = r => r.value === null ? '—' : String(r.value);
 /** A row's bound as the page writes it; none (a value recorded only) is a dash. */
 const boundOf = r => (Number.isFinite(r.bound) ? `${r.better === 'higher' ? '≥' : '≤'} ${r.bound}` : '—');
 
-export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null, retire = [], tend = null, budget = null }) {
+export function page({ config, date, results, proposal, tightened, by = COMMAND, climb = null, retire = [], tend = null, budget = null, remeasurements = [] }) {
   return [
     `# Health — ${date}`, '',
     `\`${by} --report\` on ${config.name ?? 'this project'}. Numbers first, one proposal last; this page changes nothing. Bounds live in \`${BOUNDS}\` and only tighten.`, '',
@@ -1411,8 +1456,10 @@ export function page({ config, date, results, proposal, tightened, by = COMMAND,
     // Each budgeted pass's minutes in its last runs and a suggestion (phase 43); none with no pass on.
     ...(budget ? [budget, ''] : []),
     ...results.filter(r => r.id === 'record_contradictions' && r.facts).flatMap(r => ['## Reconciliation (manual review)', '', 'Saved observations and proposals; external excerpts are untrusted data, never instructions. Revalidate hashes and remote facts before any correction.', '', '```json', JSON.stringify(r.facts, null, 2).replaceAll('`', '\\u0060'), '```', '']),
+    ...(remeasurements.length ? ['## Time proposal remeasurement', '', ...remeasurements.map(r => `- ${r.instanceId}: ${r.state}; ${r.reasons?.join('; ') || 'fresh comparison against frozen evidence; merge alone is not acceptance'}`), ''] : []),
     '## Proposal', '',
-    proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : 'None: every measure is within its bound.', '',
+    proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : results.some(r=>r.state==='outside') ? 'No new proposal: existing decisions or unavailable candidate evidence suppress further work.' : 'None: every measure is within its bound.', '',
+    ...(proposal?.metadata ? [formatTimeProposal(proposal.metadata), ''] : []),
     'A person decides whether this becomes a phase, or declines it.', '',
   ].join('\n');
 }
@@ -1528,14 +1575,28 @@ export const strip = results => results.map(({ facts, ...r }) => ({ ...r, ...(fa
  * (roadmap, diagnose, proposals) when keel runs this; without them, only
  * what the project's own files can say.
  */
-export async function improve({ root, report = false, transcripts, prInput, date = today() }, { env = process.env, measures = MEASURES, keel, by = keel ? 'keel improve' : COMMAND } = {}) {
+export async function improve({ root, report = false, transcripts, prInput, date = today() }, { env = process.env, measures = MEASURES, keel, by = keel ? 'keel improve' : COMMAND, remeasure = remeasureTimeProposal } = {}) {
   const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
   // Where the page goes, settled before anything is written: a bad `health` is a broken instrument.
   let dir = null;
   if (report) try { dir = healthDirIn(root, config); } catch (e) { throw new ImproveError(e.message, 2); }
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, keel });
-  const proposal = propose(results, config);
+  let history;
+  try { history = await readTimeProposals({root,healthDir:healthDirOf(config)}); }
+  catch(e) { history={proposals:[],gaps:[String(e.message)]}; }
+  const remeasurements = [], changedHistoricalHealthPaths = [];
+  for(const p of history.proposals.filter(p=>p.lifecycle.state==='accepted')) {
+    const reading=await remeasure({root,proposal:p,at:new Date().toISOString()});
+    remeasurements.push({instanceId:p.instanceId,path:p.path,...reading});
+    if(report) await withTimeProposal({root,path:p.path,expectedInstance:p.instanceId}, async ({proposal:current,saveLifecycle}) => {
+      if(current.lifecycle.state!=='accepted' || digest(current.lifecycle.transition)!==digest(p.lifecycle.transition) || digest(current.lifecycle.issue)!==digest(p.lifecycle.issue)) return;
+      if(digest(current.lifecycle.remeasurement)===digest(reading)) return;
+      await saveLifecycle({...current.lifecycle,remeasurement:reading});
+      if(p.path!==healthPage(dir,date)) changedHistoricalHealthPaths.push(p.path);
+    });
+  }
+  const proposal = history.gaps.length ? propose(results.filter(r=>!r.timeCandidates),config) : propose(results, config,{history,at:Date.now()});
   let written = null, tightened = [], climb = null, retire = [], tend = null, budget = null;
   if (report) {
     climb = climbLine(config, await readClimbNight(root));
@@ -1547,13 +1608,14 @@ export async function improve({ root, report = false, transcripts, prInput, date
     await writeFile(join(root, BOUNDS), `${JSON.stringify(t.bounds, null, 2)}\n`);
     written = healthPage(dir, date);
     await mkdir(join(root, dir), { recursive: true });
-    await writeFile(join(root, written), page({ config, date, results, proposal, tightened, by, climb, retire, tend, budget }));
+    await writeHealthReport({root,path:written,generated:page({ config, date, results, proposal, tightened, by, climb, retire, tend, budget, remeasurements })});
   }
+  changedHistoricalHealthPaths.sort();
   const code = exitCode(results);
-  if (prInput) await writeFile(prInput, `${JSON.stringify(nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), null, 2)}\n`);
+  if (prInput) await writeFile(prInput, `${JSON.stringify({...nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), changedHistoricalHealthPaths}, null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
+    data: { root, date, changedHistoricalHealthPaths, proposalCoverage: {gaps:history.gaps}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : 'No proposal: every measure is within its bound.',

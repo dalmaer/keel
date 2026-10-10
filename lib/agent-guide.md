@@ -1358,6 +1358,26 @@ an accepted one becomes a phase by `keel phase new`. Lessons are decided with
 `keel learn decide`. Both leave a working-tree diff; committing is the
 conductor's, after the gate.
 
+Time proposals additionally require `--instance <id>` from their generated metadata
+or board action. `--accept` explicitly authorizes issue creation; no second `--yes`
+is needed. The target is the local repository. Acceptance persists before POST
+and retries recover the same issue. OFF creates an unlabelled issue. Enabled but
+unqueued remains `accepting` with its verified link and owner label step; retry
+neither duplicates it nor restores labels. Missing evidence stays unavailable.
+
+`keel walk decide --proposal <page> --instance <id> --map <file.json>` is exclusive
+of accept/decline and is supported only for `critical_file` proposals. It records
+an owner-reviewed full test-identity mapping and
+before/after execution settings bound to that instance and the verified PR head
+(and merge when known). The map's `testMapping` rows are `{from, to:[...]}`;
+each identity includes `file`, `hierarchy`, `occurrence` and any producer type.
+Every old and successor test must be covered; a file-only mapping is insufficient.
+Identity kind, project scope, runner and machine class must remain unchanged.
+The baseline never changes. Night remeasurement verifies fresh delivery, local
+merge ancestry, explicit clean state and matching observed test selection before
+reporting inside, outside or unavailable, never improvement
+inferred from merge. Commands in proposals are display data, not executed.
+
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->
 
 `keel retro [--worksheet] [--since <commit>] [--session <id>]` is the last

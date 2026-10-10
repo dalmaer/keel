@@ -30,7 +30,15 @@ jobs:
       # Zero dependencies, so no install step. The roadmap is a VIEW of the
       # phases; a view that can go stale is how status came to be written in
       # two places that disagreed.
-      - run: {{check}}
+      # When night supplies the ledger, record the configured outer gate.
+      # CI-only adopters still run their check without that optional module.
+      - name: Run the configured gate
+        run: |
+          if [ -f scripts/keel/test-ledger.mjs ]; then
+            node scripts/keel/test-ledger.mjs --gate
+          else
+            {{check}}
+          fi
       # The test ledger's record of this run (scripts/keel/test-ledger.mjs, the
       # night practice), kept as an artifact even when the check failed: the
       # night reads the newest ones on the default branch to say which test is

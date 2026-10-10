@@ -285,7 +285,9 @@ test('check.yml runs the config\'s check; keel\'s own stays byte-identical', asy
   const f = practices.get('ci').files.find(f => f.path === '.github/workflows/check.yml');
   const keelConfig = JSON.parse(await readFile(join(KEEL, '.keel/keel.json'), 'utf8'));
   assert.equal(fill(f.template, keelConfig, f.path), await readFile(join(KEEL, '.github/workflows/check.yml'), 'utf8'));
-  assert.match(fill(f.template, { check: 'npm run check:all' }, f.path), /^ {6}- run: npm run check:all$/m);
+  const custom = fill(f.template, { check: 'npm run check:all' }, f.path);
+  assert.match(custom, /if \[ -f scripts\/keel\/test-ledger\.mjs \]; then\n +node scripts\/keel\/test-ledger\.mjs --gate\n +else\n +npm run check:all\n +fi/);
+  assert.doesNotMatch(custom, /\{\{check\}\}/);
 });
 
 test('the conduct block and skill name the project\'s gate, never a bare npm run check', async t => {
@@ -597,6 +599,7 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   const outer = await scratch(t), dir = join(outer, 'acme-bun');
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
   const git = (...args) => run('git', ['-C', dir, ...args], { env: ENV });
   git('init', '-q', '-b', 'main');
   git('add', '-A');
@@ -751,6 +754,7 @@ test('no proposal where the night practice is not on and the ledger is not there
   // The ledger already in place: the line runs, so it is proposed.
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
   assert.equal((await adopt({ dir, dryRun: true }, { version: VERSION })).data.tests.proposal.to, BUN_STEP);
 });
 
@@ -758,6 +762,7 @@ test('adopted JUnit shell samples after lint immediately before the runner and t
   const dir = await scratch(t), bin = join(dir, 'bin');
   await mkdir(bin);
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
   const source = await readFile(join(KEEL, 'practices/night/files/scripts/keel/test-ledger.mjs'), 'utf8');
   // Instrument only the sample entrypoint to observe shell ordering, without
   // inventing load or depending on clocks or machine quietness.

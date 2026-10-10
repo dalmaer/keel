@@ -47,7 +47,7 @@ const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
 async function load(t, { climb = false } = {}) {
   const dir = await acme(t);
   if (climb) {
-    for (const f of ['test-ledger.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
+    for (const f of ['test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
     for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(dirname(CLIMB), f), join(dir, 'scripts/keel', f));
   }
   const at = f => import(pathToFileURL(join(dir, 'scripts/keel', f)).href);

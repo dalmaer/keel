@@ -65,6 +65,7 @@ async function acme(t, files, config = {}) {
   const dir = await scratch(t);
   const all = {
     '.keel/keel.json': `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`,
+    'scripts/keel/time-receipts.mjs': await readFile(join(NIGHT, 'time-receipts.mjs'), 'utf8'),
     'scripts/keel/test-ledger.mjs': await readFile(join(NIGHT, 'test-ledger.mjs'), 'utf8'),
     'scripts/keel/stalls.mjs': await readFile(join(NIGHT, 'stalls.mjs'), 'utf8'),
     ...files,

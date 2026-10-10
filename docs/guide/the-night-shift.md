@@ -323,3 +323,74 @@ result. Cache windows must match their day count, end within the past 30 days,
 and use the current weight maps; malformed or stale caches are discarded.
 `KEEL_CI_OFFLINE=1` prevents remote history reads. No estimate is a claim about
 actual monthly billing; the metered-project month comparison remains required.
+
+## Timing proposals and fresh comparisons
+
+The night evaluates six timing measures: `gate_time`, `time_creep`,
+`critical_file`, `inconclusive_share`, `wall_clock_tests`, and local-only
+`worked_around`. The exact windows, sample counts and investigation thresholds
+are in [the timing proposal contract](../specs/time-proposals.md). Timing
+comparisons require successful, unfiltered, explicitly quiet observations in
+one project/runner/config/flags/machine/command lane. Missing load context,
+incomplete runs and future timestamps do not supply quiet samples. Reused CI
+supplies no local wall time. These thresholds suggest investigations, not causes. An explicit positive
+`gate_time` value in `.keel/bounds.json` overrides the historical gate bound.
+
+A configured gate is measured by the outer `test-ledger.mjs --gate` launcher
+(or improve's existing configured-gate caller). It times the whole configured
+command and links nested wrappers to that invocation. An inner `--run` history
+entry remains explicit-command history; older entries are never relabelled.
+`gate_time` remains unavailable until enough new eligible observations exist.
+
+Before launch, the launcher resolves recognized literal Node test scripts with
+explicit files/globs. The reporter compares that independent selection with
+successful per-file and aggregate Node summaries. It does not sum child test
+durations or use the reporter's wall clock, which includes pinned work.
+Dynamic discovery, missing summaries, non-isolated runs and unverified JUnit
+file topology cannot support `critical_file`. Logical inventories describe
+observed executions, not every dynamically possible test. Ambiguous duplicate
+names, missing parent links or redacted identities cannot verify a transition.
+
+An outside reading can supply one concrete proposal with a frozen baseline,
+bound, safe target identity, reproduction command and remeasurement instruction.
+Declines suppress that subject for 28 days; another eligible target can still
+be proposed. Accepting and accepted instances survive page regeneration.
+The report's hash-verified generated region can refresh; human bytes and the
+proposal lifecycle are preserved. Drift within that region stops replacement.
+See [the robot guide](the-robot.md) for explicit decisions and issue recovery.
+
+The standalone installed night shares the CLI's read-only delivery and ancestry
+verification. It remeasures accepted proposals after a verified merge against
+the frozen baseline, retaining `inside`, `outside`, and `unavailable` separately.
+A merge alone establishes none of those measurement verdicts. Postmerge samples
+must contain the verified merge and meet the measure's count/date minima.
+A split or rename needs an owner-reviewed exhaustive logical-test mapping and
+settings transition bound to the instance and verified PR head/merge. Missing,
+skipped, colliding or unexplained successor tests make verification unavailable.
+File dominance disappearing does not establish a speed-up; suite-wall change is
+reported separately. Mapping review follows building the PR and does not block
+an otherwise reviewable issue from starting.
+
+The ledger keeps a recent reserve (normally 50 per lane, larger for a configured
+hygiene window) plus eight UTC weeks of stable-ID samples: 20 quiet and five
+other observations per week. It retains at most 16 recently active lanes,
+4,000 records and 256 MiB; pressure evicts oldest records and reports losses.
+These are retained samples, never full-history medians. Stalls comparisons are
+strict typed `kind: "stalls"` root ledger records; ordinary readers exclude them.
+They carry matched outcomes, revision/settings, completion, seed and verified
+injected pauses, never raw runner output. A pinned pass/pass comparison can
+verify a wall-clock fix; skips, todo and inconclusive outcomes cannot stand in
+for a pass. Inconclusive classifications remain ordinary test observations.
+
+Night recovery selects one verified cumulative night artifact and at most two
+CI artifacts per week (16 total), with 500-artifact discovery and 256 MiB
+uncompressed limits. Recovery gaps remain visible in measure coverage; restored
+files do not by themselves establish eligible timing. Local workaround input
+is streamed only outside CI, retains safe test identities and hashed invocation
+IDs in memory, and never uploads transcript content or records to artifacts.
+
+The managed CI check uses the ledger's `--gate` outer launcher when night is
+installed, so configured-gate observations accumulate even when night reuses
+CI evidence. CI-only projects run their configured check directly. Existing
+project-owned workflows are not rewritten; legacy inner `--run` observations
+remain explicit-command history and are never relabeled as configured gates.

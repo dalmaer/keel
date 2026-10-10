@@ -1,0 +1,11 @@
+// Synthetic Acme evidence for the grader's selftest. Production evaluator is unchanged.
+export function timeEvidence(at) {
+  const day=86400000,sha='a'.repeat(40),quiet={start:{load:[0],cores:4},end:{load:[0],cores:4}};
+  const suite={version:1,complete:true,inventoryComplete:true,expectedFiles:['tests/acme.test.mjs','tests/other.test.mjs'],executionSettings:{isolation:'process',concurrency:'2',filtered:false},commandHash:'acme-tests',aggregate:{success:true,durationMs:10000},observedSummaries:[{file:'tests/acme.test.mjs',success:true,durationMs:9000},{file:'tests/other.test.mjs',success:true,durationMs:1000}],observedInventory:[{file:'tests/acme.test.mjs',hierarchy:['Acme'],occurrence:1,type:'test',outcome:'pass'},{file:'tests/other.test.mjs',hierarchy:['Acme other'],occurrence:1,type:'test',outcome:'pass'}]};
+  const run=(d,i=0)=>({id:`acme-${d}-${i}`,date:new Date(at-d*day-i).toISOString(),completed:true,commit:sha,dirty:false,runner:'node',config:'acme-settings',dir:'.',flags:[],machine:{os:'linux',arch:'x64',cpus:4},busy:quiet,suite,tests:[{file:'tests/acme.test.mjs',name:'Acme slow',outcome:'pass',ms:d>28?100:1000},{file:'tests/acme.test.mjs',name:'Acme clock',outcome:'inconclusive',ms:100}]});
+  const runs=[30,31,32,33,34,...Array.from({length:10},(_,i)=>1+i%3)].map((d,i)=>run(d,i));
+  for(const d of [1,2,3,8,9,10,15,16,17,22,23,24,29,30,31])runs.push({...run(d),id:`gate-${d}`,kind:'gate',runner:'gate',gateSource:'configured-check',commandHash:'acme-gate',ms:d<7?2000:1000,status:0,invocationId:`gate-${d}`,provenance:{source:'outer-launcher',invocationId:`gate-${d}`,outerCommandHash:'acme-gate'}});
+  const stallsReceipts=[{id:'acme-stalls',version:1,identity:{kind:'stalls',scope:'.',runner:'node',configHash:'acme-settings',flagsHash:'acme-flags',target:{file:'tests/acme.test.mjs',name:'Acme clock'}},revision:sha,clean:true,complete:true,completedAt:new Date(at-day).toISOString(),verifiedInjected:true,pauses:1,seed:42,pinned:false,plain:'pass',stalled:'fail'}];
+  const localWorkarounds={available:true,scope:'.',coverage:{state:'observed'},observations:[1,2].map(d=>({id:`acme-invocation-${d}`,date:new Date(at-d*day).toISOString(),validated:true,identity:{kind:'file',id:'tests/acme.test.mjs'}}))};
+  return {runs,stallsReceipts,localWorkarounds,gaps:[]};
+}
