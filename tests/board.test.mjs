@@ -12,6 +12,8 @@ import { board, boardText, reviewItems, walkDone, walkDecide, serve, pageHtml, b
 import vm from 'node:vm';
 import { timeSummary } from '../lib/time.mjs';
 import { formatProposal } from '../lib/learn.mjs';
+import { makeTimeProposal, formatTimeProposal, writeHealthReport, parseTimeProposal } from '../practices/night/files/scripts/keel/time-proposals.mjs';
+import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
 import { run as roadmap } from '../practices/phases/files/scripts/roadmap.mjs';
 import { run } from './helpers/run.mjs';
 
@@ -313,6 +315,29 @@ test('keel walk decide records the decision in the proposal; the board stops lis
 });
 
 // ---- the server ----------------------------------------------------------------
+test('non-time accept and decline survive same-day managed health refresh without duplicate proposals', async t => {
+  for (const decision of ['accept','decline']) await t.test(decision, async () => {
+    const root=await acme(),path='docs/health/2026-10-08.md';
+    try {
+      await writeHealthReport({root,path,generated:'# Acme health\n\nOld measured value.\n\n## Proposal\n\n**`escapes`** (outside) — Acme original proposal.\n'+(decision==='decline'?'\n## Notes\n\nAcme generated notes.\n':'')});
+      await walkDecide({root,proposal:path,[decision]:'Acme owner decision.',today:TODAY});
+      await writeFile(join(root,path),(await readFile(join(root,path),'utf8'))+'\nAcme human suffix.\n');
+      const measures=[{id:'escapes',what:'Acme escapes',unit:'escapes',bound:0,better:'lower',run:()=>({value:3,detail:'Fresh Acme measurement.'})}];
+      for(let i=0;i<2;i++)await improve({root,report:true,date:TODAY},{env:{CI:'true'},measures});
+      const text=await readFile(join(root,path),'utf8');
+      assert.equal((text.match(/^## Proposal$/gm)??[]).length,1);
+      assert.equal((text.match(/\*\*Decided /g)??[]).length,1);
+      assert.match(text,new RegExp(`Decided ${TODAY}: ${decision==='accept'?'accepted':'declined'}`));
+      assert.match(text,/Acme original proposal/);assert.match(text,/Acme human suffix/);
+      assert.match(text,/Fresh Acme measurement/);assert.doesNotMatch(text,/Old measured value/);
+      assert.ok(!(await board({root},deps(root))).items.some(i=>i.kind==='proposal'));
+      const edited=text.replace('Fresh Acme measurement.','Acme human-edited measurement.');
+      await writeFile(join(root,path),edited);
+      await assert.rejects(improve({root,report:true,date:TODAY},{env:{CI:'true'},measures}),/managed-region drift/);
+      assert.equal(await readFile(join(root,path),'utf8'),edited);
+    } finally {await rm(root,{recursive:true,force:true});}
+  });
+});
 
 const http = (port, { method = 'GET', path = '/', headers = {}, body } = {}) => new Promise((done, fail) => {
   const req = request({ host: '127.0.0.1', port, method, path, headers: { host: `127.0.0.1:${port}`, ...headers } }, res => {
@@ -858,4 +883,27 @@ test('board robot budget caches attempt reads and accounts REST refreshes separa
   await board({ root }, live); assert.equal(calls, 17, 'automatic refresh retains unavailable coverage too');
   config.robot.on = false; await writeFile(path, JSON.stringify(config));
   const off = await board({ root }, { ...live, fresh: true }); assert.equal(off.robot.budget.state, 'off'); assert.equal(calls, 17);
+});
+
+
+test('board time proposal actions bind instance and explicit acceptance files an OFF issue without second yes',async()=>{
+ const root=await acme();
+ try{
+  const p=makeTimeProposal({measure:'gate_time',identity:{kind:'timing',scope:'.',runner:'node',configHash:'acme-config',flagsHash:'acme-flags',machineClass:'acme-machine',commandHash:'acme-command',target:'gate'},candidate:{title:'Acme gate work',rubric:{version:1,problem:'Acme gate takes too long',reproduction:'npm test',acceptance:'gate inside frozen bound',change:'remove redundant Acme check',prerequisites:[],ownerBlockers:[]},remeasureCommand:'keel improve --json'},baseline:{windowStart:'2026-09-01T00:00:00Z',windowEnd:'2026-09-29T00:00:00Z',value:1000,unit:'ms',runIds:['acme-run'],revisionShas:['a'.repeat(40)]},threshold:{contractVersion:1,rule:'gate_time',parameters:{maxMs:1250}},coverage:{retained:12,eligible:12,omitted:0,dates:['2026-09-01'],sampled:true,gaps:[]},at:'2026-10-08T00:00:00Z'});
+  const proposal='docs/health/2026-10-08.md';await writeHealthReport({root,path:proposal,generated:'# Acme health\n\n## Proposal\n\n'+formatTimeProposal(p)});
+  let issue,posts=0;
+  const github=async r=>{
+    assert.ok(r.path.startsWith('/repos/acme/app/'));
+    if(r.method==='POST'){posts++;assert.deepEqual(r.body.labels,[]);issue={number:42,state:'open',body:r.body.body,html_url:'https://github.com/acme/app/issues/42',url:'https://api.github.com/repos/acme/app/issues/42',labels:[]};return {status:201,data:issue};}
+    return {status:200,data:r.path.includes('/issues?')?(issue?[issue]:[]):issue};
+  };
+  let data=await board({root},deps(root));const item=data.items.find(i=>i.instanceId===p.instanceId);assert.ok(item);assert.deepEqual(item.actions[0].args,['--proposal',proposal,'--instance',p.instanceId,'--accept']);
+  await assert.rejects(walkDecide({root,proposal,accept:'',github}),/instance/);assert.equal(posts,0);
+  const result=await walkDecide({root,proposal,instance:p.instanceId,accept:'Acme owner accepts',github});assert.equal(result.data.decision,'accepted');assert.equal(posts,1);assert.equal(result.data.issue.url,issue.html_url);
+  assert.equal(parseTimeProposal(await readFile(join(root,proposal),'utf8')).proposal.lifecycle.state,'accepted');
+  data=await board({root},deps(root));assert.equal(data.items.find(i=>i.instanceId===p.instanceId).waits,'external');
+  for(const args of [ ['--instance'],['--map'],['--instance',p.instanceId,'--accept','--decline','reason'],['--instance',p.instanceId,'--instance',p.instanceId,'--accept'] ]){
+    const out=run(process.execPath,[join(KEEL,'bin/keel.mjs'),'walk','decide','--proposal',proposal,...args,'--json'],{cwd:root});assert.notEqual(out.status,0);
+  }
+ }finally{await rm(root,{recursive:true,force:true});}
 });

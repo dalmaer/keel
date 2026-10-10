@@ -34,8 +34,6 @@
     {"path": ".agents/robot/PROTOCOL.md", "from": ".agents/robot/PROTOCOL.md", "kind": "managed"},
     {"path": "scripts/keel/robot.mjs", "from": "scripts/keel/robot.mjs", "kind": "managed"},
     {"path": "scripts/keel/robot-policy.mjs", "from": "scripts/keel/robot-policy.mjs", "kind": "managed"},
-    {"path": "scripts/keel/robot-budget.mjs", "from": "scripts/keel/robot-budget.mjs", "kind": "managed"},
-    {"path": "scripts/keel/robot-delivery.mjs", "from": "scripts/keel/robot-delivery.mjs", "kind": "managed"},
     {"path": "scripts/keel/robot-rubric.mjs", "from": "scripts/keel/robot-rubric.mjs", "kind": "managed"}
   ]
 }

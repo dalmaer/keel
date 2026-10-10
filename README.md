@@ -193,7 +193,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel issue new --agent` | Preview a rubric issue; `--yes` creates it, unlabelled while robot is OFF |
 | `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read. Not a gate |
 | `keel board` | Whose turn it is: every open item as yours, broken, the agent's or waiting on time, gathered from the roadmap, loose ends, reviews, the health page, the inbox and the fleet. A page on 127.0.0.1, or `--json` |
-| `keel walk done\|decide` | Settle the owner's turn: `done` checks a phase's ⚑ walk and writes the read into its evidence (built when nothing is left open); `decide` accepts or declines a health proposal. Leaves a diff to commit |
+| `keel walk done\|decide` | Settle the owner's turn: `done` checks a phase's ⚑ walk and writes the read into its evidence (built when nothing is left open); `decide` accepts or declines a health proposal; time proposals require `--instance`, create/recover their issue on acceptance, and support reviewed `--map` transitions. Leaves a diff to commit |
 
 ## Where a person decides
 

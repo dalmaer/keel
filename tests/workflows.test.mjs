@@ -599,7 +599,7 @@ export function ledgerProblems(name, text) {
     if (!/\n\s+if: always\(\)\n/.test(keep.body)) out.push(`${name}: the ledger is kept only when the run passed (a failing run is the one that names a flaky test)`);
     if (!/uses: actions\/upload-artifact@v\d+/.test(keep.body)) out.push(`${name}: the ledger is not uploaded as an artifact`);
     if (!/\n\s+name: keel-test-runs\n/.test(keep.body)) out.push(`${name}: the artifact is not named keel-test-runs (the night reads it by name)`);
-    if (!/\n\s+path: \.keel\/test-runs\/\n/.test(keep.body)) out.push(`${name}: the artifact is not .keel/test-runs/`);
+    if (!(name === 'keel-night.yml' ? JSON.stringify(/\n          path: \|\n((?:            [^\n]+\n)+)/.exec(keep.body)?.[1].trim().split('\n').map(x=>x.trim())) === JSON.stringify(['.keel/test-runs/*.json','.keel/test-runs/retention','.keel/test-runs/recovery/status.json']) : /\n\s+path: \.keel\/test-runs\/\n/.test(keep.body))) out.push(`${name}: the artifact is not .keel/test-runs/`);
     if (!/include-hidden-files: true/.test(keep.body)) out.push(`${name}: .keel is hidden; upload-artifact skips it unless told`);
     if (!/if-no-files-found: ignore/.test(keep.body)) out.push(`${name}: a project without the reporter must not go red over a missing ledger`);
   }
@@ -608,10 +608,9 @@ export function ledgerProblems(name, text) {
     if (!gather) out.push('keel-night.yml: no "Gather the test ledger" step');
     else {
       if (gather.at > measure) out.push('keel-night.yml: the ledger is gathered after improve measured');
-      if (!/gh api "repos\/\$REPO\/actions\/artifacts\?name=keel-test-runs/.test(gather.body)) out.push('keel-night.yml: the artifacts are not read by name');
-      if (!/head_branch == \\"\$BASE\\"/.test(gather.body)) out.push('keel-night.yml: artifacts from other branches are read');
+      if (!gather.body.includes('node scripts/keel/test-history.mjs --repo "$REPO" --branch "$BASE" --json')) out.push('keel-night.yml: bounded recovery does not bind the repository and default branch');
       if (/gh api[^\n]*(-X|--method|-f |-F |--field|--input)/.test(gather.body)) out.push('keel-night.yml: the ledger read writes to GitHub');
-      if (!/unzip -o -q [^\n]* -d \.keel\/test-runs/.test(gather.body)) out.push('keel-night.yml: the artifacts are not unpacked into .keel/test-runs');
+      if (/unzip\b/.test(gather.body)) out.push('keel-night.yml: extraction bypasses bounded recovery');
     }
     if (keep && keep.at < measure) out.push('keel-night.yml: the ledger is kept before the gate ran');
   }
@@ -631,8 +630,11 @@ test('check.yml keeps each run\'s test ledger as an artifact, red or green; the 
   fails('check.yml', check.replace(/(- name: Keep the test ledger\n)\s+if: always\(\)\n/, '$1'), /only when the run passed/, 'kept only on green');
   fails('check.yml', check.replace('include-hidden-files: true', 'include-hidden-files: false'), /hidden/, 'hidden files skipped');
   fails('check.yml', check.replace('if-no-files-found: ignore', 'if-no-files-found: error'), /must not go red/, 'red without a reporter');
-  fails('keel-night.yml', night.replace(' | select(.workflow_run.head_branch == \\"$BASE\\")', ''), /other branches/, 'any branch\'s artifacts');
-  fails('keel-night.yml', night.replace('gh api "repos/$REPO/actions/artifacts/$id/zip"', 'gh api -X DELETE "repos/$REPO/actions/artifacts/$id/zip"'), /writes to GitHub/, 'a write in the read');
+  fails('keel-night.yml', night.replace('--branch "$BASE"', ''), /default branch/, 'unbound artifact branch');
+  fails('keel-night.yml', night.replace('node scripts/keel/test-history.mjs', 'gh api -X DELETE repos/$REPO/actions/artifacts; node scripts/keel/test-history.mjs'), /writes to GitHub/, 'a write in the read');
+  fails('keel-night.yml', night.replace('.keel/test-runs/recovery/status.json', '.keel/missing.json'), /artifact is not/, 'recovery coverage omitted from the artifact');
+  fails('keel-night.yml', night.replace('.keel/test-runs/recovery/status.json', '.keel/test-runs/recovery/status.json\n            .claude/'), /artifact is not/, 'extra private upload path');
+  fails('keel-night.yml', night.replace('node scripts/keel/test-history.mjs', 'unzip archive.zip; node scripts/keel/test-history.mjs'), /bypasses bounded/, 'unbounded extraction');
   const late = night.replace(/(\n      - name: Gather the test ledger\n[\s\S]*?)(\n      # Before the drain)/, '$2').replace('\n      # Porcelain, never', `${/\n      - name: Gather the test ledger\n[\s\S]*?(?=\n      # Before the drain)/.exec(night)[0]}\n      # Porcelain, never`);
   fails('keel-night.yml', late, /gathered after improve/, 'gathered after the measure');
 });
@@ -1795,7 +1797,7 @@ test('the Budget line\'s step map equals each shipped workflow\'s budgeted claud
   for (const w of all) {
     const names = budgetedAgentSteps(w.template);
     if (w.name === 'keel-robot.yml') {
-      const { ROBOT_MODEL_STEPS } = await import('../practices/climb/files/scripts/keel/robot-budget.mjs');
+      const { ROBOT_MODEL_STEPS } = await import('../practices/night/files/scripts/keel/robot-budget.mjs');
       assert.deepEqual(names.map(n => n.agent).sort(), [...ROBOT_MODEL_STEPS].sort(), 'robot accounts for both build and review providers');
       const rendered = await readFile(join(KEEL, w.path), 'utf8');
       assert.deepEqual(budgetedAgentSteps(rendered), names);

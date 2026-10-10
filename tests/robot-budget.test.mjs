@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readRobotBudget,robotAdmission,robotWeek } from '../practices/climb/files/scripts/keel/robot-budget.mjs';
+import { readRobotBudget,robotAdmission,robotWeek } from '../practices/night/files/scripts/keel/robot-budget.mjs';
 import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
 const repo='acme/anvils',now='2026-10-10T12:00:00Z',sha='a'.repeat(40),policy=robotPolicy({robot:{on:true,budgetMinutes:10}});
 const step=(name,seconds=52)=>({name,status:'completed',conclusion:seconds?'success':'skipped',started_at:'2026-10-10T10:00:00Z',completed_at:new Date(Date.parse('2026-10-10T10:00:00Z')+seconds*1000).toISOString()});

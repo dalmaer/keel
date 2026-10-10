@@ -6,7 +6,7 @@ since: 2026-10-10
 goal: G4
 spec: 2
 depends: [45, 47]
-note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof and read-only APIs verified; owner project/budget and three real reviewed/merged issues remain owed."
+note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner project/budget and three real reviewed/merged issues remain owed."
 evidence: ["evidence/2026-10-10-robot.md"]
 issue: 41
 ---

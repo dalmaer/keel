@@ -101,20 +101,22 @@
 //
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
-import { readFile, readdir, writeFile, mkdir, rm, rename } from 'node:fs/promises';
+import { readFile, readdir, writeFile, mkdir, rm, rename, stat } from 'node:fs/promises';
 import { realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
 import { platform, arch, availableParallelism, loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { digest, nodePlan, suiteCollector, readReceiptPlan, stallsEvidence, isStallsReceipt } from './time-receipts.mjs';
 import { stripVTControlCharacters } from 'node:util';
 
 export const RUNS = '.keel/test-runs';
 /** Runs kept on disk per lane (a suite's folder and config), at least; older ones are pruned. */
 export const KEEP = 50;
 /** Runs kept on disk in all, whatever the lanes: a safety bound. */
-export const TOTAL = 400;
+export const TOTAL = 4000;
+export const RETENTION = Object.freeze({ weeks: 8, quietPerWeek: 20, otherPerWeek: 5, lanes: 16, records: 4000, bytes: 256 * 1024 * 1024 });
 /** The largest window: the total grows with lanes × (window + 10), so it is bounded. */
 export const MAX_WINDOW = 200;
 export const DEFAULTS = Object.freeze({ window: 20, factor: 2, floorMs: 200 });
@@ -317,11 +319,20 @@ export async function writeUsual(root, runs) {
 /** Run a whole gate, preserving its exit code, and give runners a usual-times file.
  * preparedEnv is only for gateEnv's result: inherited runner context has already
  * been removed before explicit project environment overrides were applied. */
-export async function timedCommand(command, { cwd = process.cwd(), env = process.env, stdio = 'pipe', preparedEnv = false } = {}) {
+export async function timedCommand(command, { cwd = process.cwd(), env = process.env, stdio = 'pipe', preparedEnv = false, configured = false } = {}) {
   // A nested project's gate belongs to that project, never the enclosing Git repository.
-  const root = real(cwd), config = await projectConfig(root);
+  const root = real(cwd), config = await projectConfig(root, { strict: true });
   const options = { cwd, shell: true, stdio, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 };
-  if (env.KEEL_GATE_ACTIVE === root) {
+  let parent = null;
+  if (/^[a-f0-9-]{36}$/.test(env.KEEL_GATE_INVOCATION ?? '')) {
+    try {
+      const p = JSON.parse(await readFile(join(root, RUNS, `active-${env.KEEL_GATE_INVOCATION}`), 'utf8'));
+      process.kill(p.pid, 0);
+      if (p.root === root && p.id === env.KEEL_GATE_INVOCATION && p.completed === false) parent = p;
+    } catch { /* inherited labels without a live outer receipt confer no provenance */ }
+  }
+  if (parent) {
+    try { await writeFile(join(root, RUNS, `payload-${parent.id}`), sha12(command)); } catch {}
     const started = Date.now();
     const result = spawnSync(command, { ...options, env });
     return { ...result, ms: Date.now() - started };
@@ -334,15 +345,25 @@ export async function timedCommand(command, { cwd = process.cwd(), env = process
     usual = await writeUsual(root, history.runs);
     telemetry.usual = true;
   } catch (error) { unavailable('usual timing', error); }
-  const identity = where(root);
-  const start = await busySample(), started = Date.now();
-  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => (preparedEnv || !k.startsWith('NODE_TEST_')) && k !== 'KEEL_USUAL'));
-  const result = spawnSync(command, { ...options, env: { ...childEnv, KEEL_GATE_ACTIVE: root, ...(usual ? { KEEL_USUAL: usual } : {}), KEEL_RUN_START: JSON.stringify(start) } });
-  const ms = Date.now() - started, busy = busyBetween(start, await busySample());
+  const identity = where(root), invocationId = randomUUID();
+  let plan = null, active = null;
   try {
-    await record(root, { ...identity, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
+    const script = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).scripts?.test;
+    plan = await nodePlan({ root, script, words: shellWords, flags: flagsIn, revision: identity.commit, invocationId: randomUUID() });
+  } catch { /* missing declared plan leaves file coverage unavailable */ }
+  try { active = join(await ignoreRuns(root), `active-${invocationId}`); await writeFile(active, JSON.stringify({ id: invocationId, root, pid: process.pid, commandHash: sha12(command), completed: false })); } catch { active = null; }
+  const start = await busySample(), started = Date.now();
+  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => (preparedEnv || !k.startsWith('NODE_TEST_')) && !['KEEL_USUAL', 'KEEL_GATE_ACTIVE', 'KEEL_GATE_INVOCATION', 'KEEL_SUITE_PLAN', 'KEEL_RUN_START'].includes(k)));
+  const result = spawnSync(command, { ...options, env: { ...childEnv, KEEL_GATE_ACTIVE: root, ...(active ? { KEEL_GATE_INVOCATION: invocationId } : {}), ...(plan ? {KEEL_SUITE_PLAN: JSON.stringify(plan)} : {}), ...(usual ? { KEEL_USUAL: usual } : {}), KEEL_RUN_START: JSON.stringify(start) } });
+  const ms = Date.now() - started, busy = busyBetween(start, await busySample());
+  let innerPayloadHash = null;
+  try { innerPayloadHash = await readFile(join(root, RUNS, `payload-${invocationId}`), 'utf8'); } catch {}
+  if (active) await rm(active, {force:true}).catch(() => {});
+  await rm(join(root, RUNS, `payload-${invocationId}`), {force:true}).catch(() => {});
+  try {
+    await record(root, { ...identity, invocationId, completed: true, startedAt: new Date(started).toISOString(), provenance: { version: 1, source: 'outer-launcher', invocationId, outerCommandHash: sha12(command), innerPayloadHash, scope: '.' }, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
     config: configHash({ env, preload: [], configEnv: config.tests?.configEnv ?? [], runner: 'gate' }),
-    gateSource: command === (config.check ?? 'npm run check') ? 'configured-check' : 'explicit-command', commandHash: sha12(command), date: new Date().toISOString(), tests: [], ms, busy,
+    gateSource: configured && command === (config.check ?? 'npm run check') ? 'configured-check' : 'explicit-command', commandHash: sha12(command), date: new Date().toISOString(), tests: [], ms, busy,
     status: result.status, signal: result.signal });
     telemetry.recorded = true;
   } catch (error) { unavailable('gate timing record', error); }
@@ -395,16 +416,19 @@ export function testsConfigOf(config) {
 const isRun = r => r && typeof r === 'object' && typeof r.date === 'string' && Array.isArray(r.tests);
 
 /** Test runs under root, oldest first: { runs, skipped }. gates:true includes full-gate records. No directory: no runs. */
-export async function readRuns(root, dir = RUNS, { gates = false } = {}) {
+export async function readRuns(root, dir = RUNS, { gates = false, stalls = false } = {}) {
   let names;
   try { names = (await readdir(join(root, dir))).filter(n => n.endsWith('.json')); }
   catch (e) { if (['ENOENT', 'ENOTDIR'].includes(e.code)) return { runs: [], skipped: 0 }; throw e; }
   const runs = [];
-  let skipped = 0;
-  for (const name of names) {
+  let skipped = 0, bytes = 0;
+  for (const name of names.sort().reverse()) {
     try {
+      const size=(await stat(join(root,dir,name))).size;
+      if(size>RETENTION.bytes-bytes || runs.length>=RETENTION.records) { skipped++; continue; }
+      bytes+=size;
       const r = JSON.parse(await readFile(join(root, dir, name), 'utf8'));
-      if (isRun(r)) { if (gates || r.kind !== 'gate') runs.push({ ...r, id: name.slice(0, -5) }); } else skipped++;
+      if (isRun(r)) { if ((gates || r.kind !== 'gate') && (stalls || r.kind !== 'stalls')) runs.push({ ...r, id: name.slice(0, -5) }); } else skipped++;
     } catch { skipped++; }
   }
   runs.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
@@ -661,30 +685,80 @@ export async function ignoreRuns(root) {
   return dir;
 }
 
-export async function record(root, run, { window = DEFAULTS.window, keep = Math.max(KEEP, window + 10), total } = {}) {
+/** Recent reserve plus outcome-independent stable weekly samples. Legacy explicit
+ * keep opts remain available for bounded callers; production uses weekly retention. */
+export function retainedRecords(rows, { window = DEFAULTS.window, keep = Math.max(KEEP, window + 10), total, sampled = true, now = Date.now(), limits = RETENTION } = {}) {
+  const sorted = [...rows].sort((a,b) => a.run.date.localeCompare(b.run.date) || a.name.localeCompare(b.name));
+  const lanes = new Map();
+  for (const row of sorted) { const lane = JSON.stringify([row.run.kind??'tests',laneOf(row.run),row.run.flags??null,machineClass(row.run.machine),row.run.commandHash??row.run.suite?.commandHash??null]); lanes.set(lane, [...(lanes.get(lane) ?? []), row]); }
+  const active = [...lanes.values()].sort((a,b) => b.at(-1).run.date.localeCompare(a.at(-1).run.date)).slice(0, limits.lanes);
+  const reserved = new Set(), weekly = new Set();
+  const monday = ms => { const d = new Date(ms); d.setUTCHours(0,0,0,0); d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7); return +d; };
+  const first = monday(now) - (limits.weeks - 1) * 7 * 86400000;
+  for (const lane of active) {
+    for (const r of lane.slice(-keep)) reserved.add(r.name);
+    if (!sampled) continue;
+    const bins = new Map();
+    for (const r of lane) {
+      const date = Date.parse(r.run.date); if (date < first || date > now) continue;
+      const key = `${monday(date)}:${busyState(r.run) === 'quiet' ? 'quiet' : 'other'}`;
+      bins.set(key, [...(bins.get(key) ?? []), r]);
+    }
+    for (const [key, bin] of bins) for (const r of bin.sort((a,b) => digest(a.name).localeCompare(digest(b.name))).slice(0, key.endsWith(':quiet') ? limits.quietPerWeek : limits.otherPerWeek)) weekly.add(r.name);
+  }
+  let kept = sorted.filter(r => reserved.has(r.name) || weekly.has(r.name));
+  // A caller's soft total cannot undercut reserves; the hard global caps can.
+  const soft = total ?? limits.records;
+  const spare = kept.filter(r => !reserved.has(r.name));
+  const drop = new Set(spare.slice(0, Math.max(0, kept.length - soft)).map(r => r.name));
+  kept = kept.filter(r => !drop.has(r.name));
+  let bytes = kept.reduce((n,r) => n + r.bytes, 0), pressure = 0;
+  while (kept.length > limits.records || bytes > limits.bytes) { bytes -= kept.shift().bytes; pressure++; }
+  return { names: kept.map(r => r.name), coverage: { version: 1, sampled, policy: limits, retained: kept.length, considered: rows.length, omitted: rows.length - kept.length, pressureLosses: pressure, laneLosses: Math.max(0, lanes.size - active.length), bytes, at: new Date(now).toISOString() } };
+}
+export async function record(root, run, options = {}) {
   const dir = await ignoreRuns(root);
-  const name = `${run.date.replaceAll(':', '-').replace('.', '-')}-${process.pid}.json`;
-  await writeFile(join(dir, name), `${JSON.stringify(run)}\n`);
-  const names = (await readdir(dir)).filter(n => n.endsWith('.json')).sort();
-  const lanes = new Map(), drop = new Set();
-  for (const n of names) {
-    let lane;
-    try { lane = laneOf(JSON.parse(await readFile(join(dir, n), 'utf8'))); } catch { continue; } // unreadable: only the total prunes it
-    lanes.set(lane, [...(lanes.get(lane) ?? []), n]);
+  const name = `${run.date.replaceAll(':', '-').replace('.', '-')}-${process.pid}-${randomUUID()}.json`;
+  const temporary = join(dir, `${name}.tmp`);
+  await writeFile(temporary, `${JSON.stringify(run)}\n`); await rename(temporary, join(dir, name));
+  const rows = [], invalid = [];
+  for (const n of (await readdir(dir)).filter(n => n.endsWith('.json'))) {
+    try { const bytes=(await stat(join(dir,n))).size; if(bytes>RETENTION.bytes)throw new Error('oversized'); const r = JSON.parse(await readFile(join(dir,n),'utf8')); if (!isRun(r)) throw new Error('invalid'); const {date,kind,dir:scope,config,flags,machine,commandHash,busy}=r; rows.push({name:n,run:{date,kind,dir:scope,config,flags,machine,commandHash,busy,suite:{commandHash:r.suite?.commandHash}},bytes}); }
+    catch { invalid.push(n); }
   }
-  // Each lane's newest max(KEEP, window + 10) are reserved first: no other lane's runs, however many, evict them.
-  const reserve = Math.min(keep, Math.max(KEEP, window + 10)), reserved = new Set();
-  for (const ns of lanes.values()) {
-    for (const n of ns.slice(0, Math.max(0, ns.length - keep))) drop.add(n);
-    for (const n of ns.slice(Math.max(0, ns.length - reserve))) reserved.add(n);
-  }
-  // The total prunes only the rest (oldest first): it grows with the lanes, and never reaches a reserved run.
-  const cap = total ?? Math.max(TOTAL, lanes.size * (window + 10));
-  const kept = names.filter(n => !drop.has(n));
-  const spare = kept.filter(n => !reserved.has(n));
-  for (const n of spare.slice(0, Math.max(0, Math.min(spare.length, kept.length - cap)))) drop.add(n);
-  for (const old of drop) await rm(join(dir, old), { force: true });
+  const selection = retainedRecords(rows, { ...options, sampled: options.keep === undefined, now: Math.max(Date.now(), Date.parse(run.date)) });
+  const names = new Set(selection.names);
+  for (const old of [...rows.filter(r => !names.has(r.name)).map(r => r.name), ...invalid]) await rm(join(dir,old), {force:true});
+  const status = join(dir,'retention');
+  let previous; try { previous = JSON.parse(await readFile(status,'utf8')); } catch { previous = {}; }
+  selection.coverage.invalidOrOversized=invalid.length;
+  selection.coverage.omitted+=invalid.length;
+  selection.coverage.cumulativeOmitted = (previous.cumulativeOmitted ?? 0) + selection.coverage.omitted;
+  selection.coverage.cumulativePressureLosses = (previous.cumulativePressureLosses ?? 0) + selection.coverage.pressureLosses;
+  const tmp = `${status}-${randomUUID()}`;
+  await writeFile(tmp, JSON.stringify(selection.coverage)+'\n'); await rename(tmp,status);
   return name;
+}
+
+export async function readRetention(root) {
+  try { return JSON.parse(await readFile(join(root, RUNS, 'retention'), 'utf8')); }
+  catch { return { sampled: true, gaps: ['retention coverage unavailable'] }; }
+}
+export async function recordStalls(root, receipts) {
+  if (!receipts.length) return;
+  if (receipts.length>2000 || !receipts.every(isStallsReceipt) || Buffer.byteLength(JSON.stringify(receipts))>1024*1024) throw new Error('stalls receipts invalid or oversized');
+  const identity=receipts[0].identity;
+  return record(root,{kind:'stalls',version:1,date:receipts.at(-1).completedAt,completed:true,tests:[],stallsReceipts:receipts,
+    dir:identity.scope,config:identity.configHash,flagsHash:identity.flagsHash,commit:receipts[0].revision});
+}
+export async function readStalls(root) {
+  const {runs,skipped}=await readRuns(root,undefined,{gates:true,stalls:true});
+  const receipts=[],gaps=skipped?[`${skipped} ledger records unreadable`]:[];
+  for(const r of runs.filter(r=>r.kind==='stalls')) {
+    if(r.version!==1 || !Array.isArray(r.stallsReceipts) || r.stallsReceipts.length>2000 || !r.stallsReceipts.every(isStallsReceipt)) {gaps.push('invalid typed stalls record');continue;}
+    receipts.push(...r.stallsReceipts);
+  }
+  return {receipts,gaps,sampled:true};
 }
 
 async function projectConfig(root, { strict = false, redaction = false } = {}) {
@@ -836,7 +910,7 @@ export const STALLS_LABEL = 'keel stalls';
  * fails it too. Null when nothing is pinned.
  */
 export function pinned(root, config, { env = process.env, preload, seed: given } = {}) {
-  const pins = new Set(stallsPins(config)), bad = stallsBad(config);
+  const pins = new Set(stallsPins(config)), bad = stallsBad(config), receiptIdentity = where(root), receiptStartedAt = new Date().toISOString();
   if (!pins.size && !bad.length) return null;
   const started = new Map(), seen = new Map(), reached = new Set();
   // A suite with a global setup holds what it set up until the whole suite is over (its teardown): a rerun
@@ -892,7 +966,9 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
           process.exitCode = 1;
           continue;
         }
-        const j = m.judge(tests.filter(t => t.file === rel), run.tests);
+        const plainTests = tests.filter(t => t.file === rel);
+        try { await recordStalls(root, stallsEvidence({ sanitize: value => failureText(value,env,{configEnv:config.tests?.configEnv??[]}), identity: {...receiptIdentity, dirty: receiptIdentity.dirty || where(root).dirty !== false || where(root).commit !== receiptIdentity.commit}, plain: {tests:plainTests,exitCode:plainTests.some(t => t.outcome === 'fail') ? 1 : 0}, stalled: run, pinned: true, startedAt: receiptStartedAt, completedAt: new Date().toISOString(), configHash: configHash({env, preload: preloads(), configEnv:config.tests?.configEnv ?? []}), flagsHash:digest(preload ?? m.runnerFlags(process.execArgv)), scope: relative(root,process.cwd()).split(sep).join('/') || '.' })); } catch { lines.push(`${STALLS_LABEL}: receipt storage unavailable.`); }
+        const j = m.judge(plainTests, run.tests);
         const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all${again ? `; run again with the first stall within ${again.within} ms, after the first run (${Math.round(again.first)} ms) got none` : ''}`;
         const failed = run.tests.filter(t => t.outcome === 'fail');
         // A test that ran without stalls and never with them (registered only some of the time) was not judged.
@@ -931,12 +1007,16 @@ export default async function* ledger(source) {
   const configEnv = config.tests?.configEnv ?? [];
   const started = Date.now(), start = await busySample();
   const top = topLevel({ root, errors: knownConfig !== null, configEnv });
+  const plan = await readReceiptPlan();
+  const suite = suiteCollector({root, plan, sanitize: value => failureText(value,process.env,{configEnv}), flagsHash: digest(flagsIn(process.execArgv).flatMap(f => f.words))});
+  const initialIdentity = where(root);
   const { tests } = top;
   const pins = narrowed() || knownConfig === null ? null : pinned(root, config);
   let ran = 0;
   for await (const e of source) {
     if (executed(cwd, e)) ran++;
     top.push(e);
+    suite.push(e);
     pins?.saw(e);
   }
   const empty = emptyRun(ran, config);
@@ -956,7 +1036,7 @@ export default async function* ledger(source) {
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
     // flags: the node flags a rerun of this suite carries (runnerFlags), so keel test reuses this run as a
     // baseline only under the same ones; the config hash, and so the lanes, are as they were.
-    const run = { ...where(root), busy: busyBetween(start, await busySample()), wallMs: Date.now() - started, dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
+    const run = { ...initialIdentity, suite: suite.finish(), commandHash: plan?.available ? plan.commandHash : digest({argv:process.argv.slice(1),execArgv:process.execArgv}), invocationId: plan?.invocationId ?? randomUUID(), parentInvocationId: process.env.KEEL_GATE_INVOCATION ?? null, completed: true, busy: busyBetween(start, await busySample()), wallMs: Date.now() - started, dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
     const w = config?.tests?.window;
     await record(root, run, { window: Number.isInteger(w) && w >= 2 && w <= MAX_WINDOW ? w : DEFAULTS.window });
     let opts;
@@ -1252,7 +1332,7 @@ if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(imp
   if (process.argv[2] === '--gate' && process.argv.length === 3) {
     try {
       const config = await projectConfig(real(process.cwd()), { strict: true });
-      const r = await timedCommand(config.check ?? 'npm run check', { stdio: 'inherit' });
+      const r = await timedCommand(config.check ?? 'npm run check', { stdio: 'inherit', configured: true });
       process.exitCode = r.status ?? 1;
     } catch (error) { process.stderr.write(`${LABEL}: ${error.message}\n`); process.exitCode = 2; }
   } else if (process.argv[2] === '--sample' && process.argv.length === 3) {

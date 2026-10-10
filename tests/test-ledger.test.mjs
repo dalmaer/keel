@@ -32,6 +32,7 @@ async function mutant(t, from, to) {
   const dir = await scratch(t, 'keel-ledger-mutant-');
   const file = join(dir, 'test-ledger.mjs');
   await writeFile(file, text.replace(from, to));
+  await writeFile(join(dir,'time-receipts.mjs'), await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
   return import(pathToFileURL(file).href);
 }
 
@@ -59,6 +60,7 @@ async function acmeRepo(t, source = null) {
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await writeFile(join(dir, 'tests', 'acme.test.mjs'), ACME_TESTS);
   await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), (source ?? await readFile(SOURCE, 'utf8')).replace('load = loadavg', 'load = () => [0, 0, 0]').replace("process.env.KEEL_RUN_START ?? 'null'", "'null'"));
+  await writeFile(join(dir,'scripts/keel/time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
   await writeFile(join(dir, '.gitignore'), 'out*.txt\n');
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main');
@@ -210,6 +212,7 @@ test('dirty: an untracked file in keel\'s machine directories, or an ignored one
   assert.ok(text.includes(target));
   // The mutant lives outside the repo, so it does not dirty the tree itself.
   const outside = join(await scratch(t, 'keel-ledger-mutant-'), 'test-ledger.mjs');
+  await writeFile(join(dirname(outside),'time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
   await writeFile(outside, text.replace(target, 'export const MACHINE_DIRS = Object.freeze([RUNS]);'));
   nodeTest(dir, ['--test-reporter=spec', '--test-reporter-destination=stdout', `--test-reporter=${outside}`, '--test-reporter-destination=stdout']);
   assert.equal((await readRuns(dir)).runs.at(-1).dirty, true, 'the mutant calls .keel/tend dirty: the assertion above catches it');
@@ -493,7 +496,7 @@ test('each lane\'s newest max(50, window + 10) are reserved: many runs of one la
 });
 
 test('mutation: a total that prunes reserved runs fails the reserve test', async t => {
-  await assert.rejects(assertReserved(t, await mutant(t, 'const spare = kept.filter(n => !reserved.has(n));', 'const spare = kept;')), assert.AssertionError);
+  await assert.rejects(assertReserved(t, await mutant(t, 'const spare = kept.filter(r => !reserved.has(r.name));', 'const spare = kept;')), assert.AssertionError);
 });
 
 test('record keeps the newest runs and prunes the rest', async t => {

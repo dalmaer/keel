@@ -139,6 +139,7 @@ test('0005, run for real: npm test in web/ records in the root\'s .keel/test-run
   });
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
   for (const [path, content] of Object.entries(await edits(dir, m0005))) await writeFile(join(dir, path), content);
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-qm', 'acme');

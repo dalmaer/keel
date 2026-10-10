@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp,writeFile,chmod,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { robotGithub,robotAssociation,robotContinuation,robotContinuationOf,robotDeliveryMetadata,readRobotDelivery } from '../practices/climb/files/scripts/keel/robot-delivery.mjs';
+import { robotGithub,robotAssociation,robotContinuation,robotContinuationOf,robotDeliveryMetadata,readRobotDelivery } from '../practices/night/files/scripts/keel/robot-delivery.mjs';
 const repo='acme/anvils',headSha='a'.repeat(40),baseSha='b'.repeat(40);
 const mark={repo,issueNumber:1,instanceId:'acme-1',author:'claude',headSha,cursor:0};
 const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,body:robotAssociation(mark),user:{type:'Bot',login:'github-actions[bot]'},state:'open',head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{sha:baseSha,repo:{full_name:repo}}};
