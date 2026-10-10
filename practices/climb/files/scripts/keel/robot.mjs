@@ -424,7 +424,7 @@ export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNu
   // claim a dropped test passed, so the candidate may not leave more.
   if (results[1].runs > results[0].runs) return { ok: false, problems: [`candidate gate left ${results[1].runs} test-ledger records for ${headSha}, more than the base gate's ${results[0].runs}; an extra record could forge a passing test`] };
   const missing = missingTests(...results);
-  return { ok: !missing.length, problems: missing.map(t => `${t.how}: ${t.file} ${t.name}`), baseSha, headSha };
+  return { ok: !missing.length, problems: missing.map(t => `${t.how}: ${t.file} ${t.describe ? 'describe ' : ''}${t.name}`), baseSha, headSha };
 }
 
 export function validateRobotPlan(plan, { repo, baseSha }) {
