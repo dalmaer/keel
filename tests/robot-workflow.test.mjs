@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { readFile,mkdtemp,writeFile,mkdir,rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join,resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -260,4 +261,35 @@ test('robot publisher learns whether model or judge time was spent',async()=>{
  for(const [claude,codex] of [['success','skipped'],['failure','skipped'],['cancelled','skipped'],['skipped','failure']])assert.equal(model(claude,codex),true);
  for(const outcome of ['skipped',''])assert.equal(evaluate(expression('judge','judge_ran'),{judge:{outcome}}),false);
  assert.equal(evaluate(expression('judge','judge_ran'),{judge:{outcome:'failure'}}),true);
+});
+
+test('robot preparation failure is the agent job output the publisher records',async t=>{
+ const text=await readFile(workflow,'utf8');
+ const section=name=>text.split(`\n  ${name}:\n`)[1].split(/\n  [a-z-]+:\n/)[0];
+ const step=name=>section('agent').split(`      - name: ${name}\n`)[1].split(/\n      - /)[0];
+ // keel#83 follow-up: the deterministic half (merge and sandbox) is its own step,
+ // apart from the network fetch, so only its failure is recorded and a
+ // transient fetch or install failure still leaves the issue for the next scan.
+ assert.match(section('agent'),/^      prepared: \$\{\{ steps\.isolate\.outcome \}\}$/m);
+ assert.match(section('publish'),/^          ROBOT_PREPARED: \$\{\{ needs\.agent\.outputs\.prepared \}\}$/m);
+ const fetch=step("Fetch the robot branch's recorded head"),isolate=step('Prepare isolated git objects for either provider');
+ assert.match(isolate,/^        id: isolate$/m);
+ assert.match(isolate,/git merge --no-edit "\$GITHUB_SHA"/);assert.match(isolate,/robot\.mjs" sandbox --json/);
+ assert.doesNotMatch(isolate,/GH_TOKEN|robot\.mjs" fetch/);
+ assert.match(fetch,/robot\.mjs" fetch --json/);assert.doesNotMatch(fetch,/git merge|git switch/);
+ assert.ok(section('agent').indexOf("name: Fetch the robot branch's recorded head")<section('agent').indexOf('name: Prepare isolated git objects for either provider'));
+ // A merge conflict with the default branch fails that step, before any agent git dir exists.
+ const root=await mkdtemp(join(tmpdir(),'acme-robot-prepare-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const temp=join(root,'temp');await mkdir(temp);
+ git(root,'init','-q','-b','main');git(root,'config','user.name','Acme');git(root,'config','user.email','acme@example.test');
+ await writeFile(join(root,'acme.txt'),'base\n');git(root,'add','acme.txt');git(root,'commit','-qm','base');
+ git(root,'switch','-qc','acme-previous');await writeFile(join(root,'acme.txt'),'robot change\n');git(root,'commit','-qam','robot');const previous=git(root,'rev-parse','HEAD');
+ git(root,'switch','-q','main');await writeFile(join(root,'acme.txt'),'owner change\n');git(root,'commit','-qam','owner');const sha=git(root,'rev-parse','HEAD');
+ git(root,'branch','-q','-D','acme-previous');git(root,'switch','-q','--detach',sha);
+ await writeFile(join(temp,'robot-plan.json'),JSON.stringify({previousHead:previous}));
+ const script=runBlocks(text).find(b=>b.step==='Prepare isolated git objects for either provider').script;
+ const r=run('bash',['--noprofile','--norc','-e','-o','pipefail','-c',script],{cwd:root,env:{...process.env,RUNNER_TEMP:temp,GITHUB_SHA:sha,ISSUE:'1'}});
+ assert.notEqual(r.status,0,'a conflicting merge fails the preparation step');
+ assert.match(r.stdout+r.stderr,/CONFLICT/);
+ assert.equal(existsSync(join(root,'.keel/agent-git')),false);
 });

@@ -687,6 +687,11 @@ export async function robotCli(args, env = process.env) {
       // keel#74 follow-up: only spent model or judge time marks the issue worked.
       // An infrastructure failure before either posts no state, so the next scan retries.
       if (env.ROBOT_MODEL_RAN === 'true' || env.ROBOT_JUDGE_RAN === 'true') { await robotComment({plan,result:{state:'failed',reason:'Agent or trusted judge failed; no PR published.'},message}); return finish({state:'failed'}); }
+      // keel#83 follow-up: preparing the branch is local and deterministic, so a
+      // failure there (a merge conflict with the default branch, say) repeats on
+      // every scan and would starve later issues. It is recorded like a spent
+      // failure: the issue waits for a writer's comment, not the next scan.
+      if (env.ROBOT_PREPARED === 'failure') { await robotComment({plan,result:{state:'failed',reason:`The branch ${plan.branch} could not be prepared: the step "Prepare isolated git objects for either provider" failed before the agent ran (a merge conflict with the default branch, or a sandbox refusal of its recorded head?). No PR change was published. The robot does not pick this issue again until a writer acts: see the run's log, deal with the cause, then comment to retry.`}}); return finish({state:'failed',prepared:false}); }
       await robotComment({plan,result:{state:'blocked',reason:'Robot infrastructure failed before the agent or judge ran; no PR published. The next scan retries this issue.'}});
       return finish({state:'blocked',retry:true});
     }

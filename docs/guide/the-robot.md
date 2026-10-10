@@ -147,6 +147,11 @@ on the issue.
 A failure before any model or judge time (an install, say) posts a notice
 without recorded state, so the next scan retries the issue; once the agent or
 judge has run, a failure is recorded and waits for a fresh writer action.
+Preparing a follow-up's branch is the exception: merging the default branch
+and the sandbox check are local and fail the same way on every retry, so a
+merge conflict there is recorded too. The issue is not picked again, and later
+issues are not starved behind it, until a writer comments to retry. The network
+fetch before it stays retryable.
 
 The owner walk is still required: choose a project and allowance, enable the
 practice there, and read three small issues' PRs and reviews before deciding to
