@@ -179,7 +179,7 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "d3a47f6fc756b466f119b46d976e7bbfc8486e3df0781fdf1b4edfa0c7fe200d"
+      "sha256": "fafd6f1ab0945723f9166cb48e43de47bfd9a7f02976c26fd176637be68bb3c6"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

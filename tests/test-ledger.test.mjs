@@ -1346,3 +1346,116 @@ test('configured environment secrets are redacted end to end by Node and JUnit b
     assert.ok(!stored.includes('acme-fake') && !stored.includes('-sensitive-value') && !stored.includes('acme-heuristic-value'), 'persisted record contains no credential or overlap suffix');
   }
 });
+
+function quotedCredentialCases() {
+  const tokens = [
+    String.raw`"acme\" sensitive\\tail"`,
+    String.raw`'acme\' sensitive\\tail'`,
+    String.raw`"acme sensitive tail\\"`,
+    String.raw`'acme sensitive tail\\'`,
+    '"acme\nsensitive tail"',
+    "'acme\nsensitive tail'",
+  ];
+  const cases = [];
+  for (const key of ['password', 'Authorization']) for (const separator of [':', '=']) {
+    for (const token of tokens) cases.push({ text: `"${key}" ${separator}\n  ${token}, Acme visible`, complete: true });
+    for (const quote of ['"', "'"]) cases.push({ text: `${key}${separator}${quote}acme\\${quote} sensitive\ntail`, complete: false });
+  }
+  cases.push({ text: JSON.stringify({ password: 'acme" sensitive tail', visible: 'Acme visible' }, null, 2), complete: true });
+  return cases;
+}
+
+function assertQuotedRedacted(text, complete) {
+  assert.ok(text.includes('[redacted]'), 'credential token was redacted');
+  assert.ok(!/acme|sensitive|tail|configured/.test(text), 'no credential fragment survived');
+  if (complete) assert.ok(text.includes('Acme visible'), 'following non-secret text survives a closed token');
+}
+
+test('quoted credential tokens consume escapes multiline and unterminated values completely', () => {
+  for (const { text, complete } of quotedCredentialCases()) assertQuotedRedacted(ledger.failureText(text, {}), complete);
+  const secret = 'acme" configured\\tail\nend';
+  for (const text of [secret, JSON.stringify({ observation: secret })]) {
+    assertQuotedRedacted(ledger.failureText(text, { ACME_AUTH: secret }, { configEnv: ['ACME_AUTH'] }), false);
+  }
+});
+
+test('escaped quoted credentials and JSON configured values stay redacted in both actual collectors', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_AUTH'] } }));
+  const secret = 'acme" configured\\tail\nend';
+  const env = { ...process.env, ACME_AUTH: secret };
+  const cases = [...quotedCredentialCases(), { text: secret, complete: false }, { text: JSON.stringify({ observation: secret }), complete: false }];
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), "import { test } from 'node:test';\n" + cases.map(({ text }, i) => `test('Acme ${i}', () => { throw new Error(${JSON.stringify(text)}); });`).join('\n'));
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+  assert.equal(node.status, 1, 'intentional Node failures executed');
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.ts">' + cases.map(({ text }, i) => `<testcase name="Acme ${i}"><failure><![CDATA[${text}]]></failure></testcase>`).join('') + '</testsuite></testsuites>');
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir, env });
+  assert.equal(junit.status, 1, 'intentional JUnit failures executed');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2, 'both actual collectors stored records');
+  for (const record of runs) {
+    assert.equal(record.tests.length, cases.length);
+    for (const result of record.tests) assertQuotedRedacted(result.error, cases[Number(result.name.slice(5))].complete);
+  }
+});
+
+test('unquoted Authorization schemes redact the entire line in both actual collectors', async t => {
+  const { dir } = await acmeRepo(t);
+  const cases = [
+    'Authorization: Digest username="acme", response="acme-sensitive-response", nonce="acme-sensitive-nonce"',
+    'Authorization = AcmeOpaque acme-sensitive-credential additional sensitive material',
+    'Authorization: acme-sensitive-opaque-value',
+  ].map(text => text + '\nAcme visible');
+  for (const text of cases) {
+    const redacted = ledger.failureText(text, {});
+    assert.ok(redacted.endsWith('[redacted]\nAcme visible'), 'the complete Authorization line is redacted, preserving the next line');
+    assert.ok(!redacted.includes('sensitive'), 'no scheme-specific credential fragment survives');
+  }
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), "import { test } from 'node:test';\n" + cases.map((text, i) => `test('Acme ${i}', () => { throw new Error(${JSON.stringify(text)}); });`).join('\n'));
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir });
+  assert.equal(node.status, 1, 'intentional Node failures executed');
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.ts">' + cases.map((text, i) => `<testcase name="Acme ${i}"><failure><![CDATA[${text}]]></failure></testcase>`).join('') + '</testsuite></testsuites>');
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir });
+  assert.equal(junit.status, 1, 'intentional JUnit failures executed');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2);
+  for (const record of runs) {
+    assert.equal(record.tests.length, cases.length);
+    for (const result of record.tests) {
+      assert.ok(result.error.endsWith('[redacted]\nAcme visible'), 'collector persists only the redacted Authorization line');
+      assert.ok(!result.error.includes('sensitive'), 'persisted failure contains no credential fragment');
+    }
+  }
+});
+
+test('overlapping configured and structural redactions compose on original text in both actual collectors', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  const configured = { ACME_AUTH: 'password', ACME_VALUE: 'prefix password=token', ACME_LEFT: 'acme-overlap', ACME_RIGHT: 'overlap-tail', ACME_PEM: 'PRIVATE KEY', ACME_URL: 'Acme https://user' };
+  const configEnv = Object.keys(configured);
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv } }));
+  const cases = [
+    ['{"password":"acme-dynamic-credential"}', '{"[redacted]":[redacted]}'],
+    ['prefix password=token', '[redacted]'],
+    ['Acme prefix password=token remains', 'Acme [redacted] remains'],
+    ['acme-overlap-tail', '[redacted]'],
+    ['-----BEGIN PRIVATE KEY-----\nacme-key-material\n-----END PRIVATE KEY-----\nAcme visible', '[redacted]\nAcme visible'],
+    ['Acme https://user:acme-url-credential@example.test/path', '[redacted]@example.test/path'],
+    ['https://other:acme-url-credential@example.test/path', 'https://[redacted]@example.test/path'],
+  ];
+  for (const [message, expected] of cases) assert.ok(ledger.failureText(message, configured, { configEnv }) === expected, 'the union preserves every matched secret span');
+  const env = { ...process.env, ...configured };
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), "import { test } from 'node:test';\n" + cases.map(([message], i) => `test('Acme ${i}', () => { throw new Error(${JSON.stringify(message)}); });`).join('\n'));
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+  assert.equal(node.status, 1, 'intentional Node failures executed');
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.ts">' + cases.map(([message], i) => `<testcase name="Acme ${i}"><failure><![CDATA[${message}]]></failure></testcase>`).join('') + '</testsuite></testsuites>');
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir, env });
+  assert.equal(junit.status, 1, 'intentional JUnit failures executed');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2);
+  for (const record of runs) {
+    assert.equal(record.tests.length, cases.length);
+    for (const result of record.tests) assert.ok(result.error === cases[Number(result.name.slice(5))][1], 'persisted failure has every known and structural span redacted');
+  }
+});

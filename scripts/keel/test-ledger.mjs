@@ -221,20 +221,69 @@ export function busyCoverage(runs) {
 }
 export const busyNote = runs => { const c = busyCoverage(runs); return `; ${c.omitted} busy runs omitted; ${c.unknown} runs with unavailable load context (not known quiet)`; };
 
+/** Redact complete assignment values, consuming escaped quotes/backslashes as
+ * part of a quoted token. An unfinished quote consumes the remainder, including
+ * newlines: a malformed diagnostic must not expose the rest of a credential. */
+function assignmentSpans(text) {
+  const keys = /([\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*|authorization)["']?\s*[:=]\s*/gi;
+  const spans = [];
+  let match;
+  while ((match = keys.exec(text))) {
+    const start = keys.lastIndex, quote = text[start];
+    let end = start;
+    if (quote === '"' || quote === "'") {
+      end++;
+      while (end < text.length) {
+        if (text[end] === '\\') { end = Math.min(end + 2, text.length); continue; }
+        if (text[end++] === quote) break;
+      }
+    } else {
+      const token = (match[1].toLowerCase() === 'authorization'
+        ? /^[^\r\n]+/ : /^[^\s,;]+/).exec(text.slice(start));
+      if (!token) continue;
+      end += token[0].length;
+    }
+    spans.push([start, end]);
+    keys.lastIndex = end;
+  }
+  return spans;
+}
+
 /** First eight lines, at most 1 KiB, redacted before truncation (including configured secrets). */
 export function failureText(value, env = process.env, { configEnv = [] } = {}) {
   let text = stripVTControlCharacters(String(value ?? ''));
   const configured = new Set(configEnv);
   const secrets = [...new Set(Object.entries(env)
     .filter(([name, secret]) => secret && (configured.has(name) || /token|secret|password|credential|api.?key/i.test(name)))
-    .map(([, secret]) => stripVTControlCharacters(String(secret))).filter(Boolean))]
+    .flatMap(([, secret]) => {
+      const raw = String(secret), normalized = stripVTControlCharacters(raw);
+      return normalized ? [normalized, JSON.stringify(normalized).slice(1, -1), JSON.stringify(raw).slice(1, -1)] : [];
+    }).filter(Boolean))]
     .sort((a, b) => b.length - a.length);
-  for (const secret of secrets) text = text.split(secret).join('[redacted]');
-  text = text.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g, '[redacted]')
-    .replace(/((?:[\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, '$1[redacted]')
-    .replace(/(authorization["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|(?:bearer|basic)\s+[^\s,;}]+)/gi, '$1[redacted]')
-    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[redacted]@')
-    .split('\n').slice(0, 8).join('\n').slice(0, 1024);
+  // All recognizers see the original normalized text. Replacing a known value
+  // first could erase a key; replacing a field first could split a known value.
+  const spans = assignmentSpans(text);
+  for (const secret of secrets) {
+    let at = text.indexOf(secret);
+    while (at !== -1) {
+      spans.push([at, at + secret.length]);
+      at = text.indexOf(secret, at + 1);
+    }
+  }
+  for (const match of text.matchAll(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g)) spans.push([match.index, match.index + match[0].length]);
+  for (const match of text.matchAll(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi)) spans.push([match.index + match[1].length, match.index + match[0].length - 1]);
+  const merged = [];
+  for (const span of spans.sort((a, b) => a[0] - b[0] || b[1] - a[1])) {
+    const last = merged.at(-1);
+    if (last && span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+    else merged.push([...span]);
+  }
+  let redacted = '', copied = 0;
+  for (const [start, end] of merged) {
+    redacted += text.slice(copied, start) + '[redacted]';
+    copied = end;
+  }
+  text = (redacted + text.slice(copied)).split('\n').slice(0, 8).join('\n').slice(0, 1024);
   while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);
   return text;
 }
