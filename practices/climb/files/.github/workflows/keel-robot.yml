@@ -58,7 +58,7 @@ on:
 # skip. The condition is the agent job's `if:`, word for word. A queued run
 # that is replaced loses nothing: pick reads the issues, not the event.
 concurrency:
-  group: keel-robot-${{ ((github.event_name == 'issues' && ((github.event.action == 'labeled' && github.event.label.name == 'keel:agent') || (github.event.action == 'reopened' && contains(github.event.issue.labels.*.name, 'keel:agent')))) || (github.event_name == 'issue_comment' && !github.event.issue.pull_request && contains(github.event.issue.labels.*.name, 'keel:agent') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]')) || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'queue' || format('run-{0}', github.run_id) }}
+  group: keel-robot-${{ ((github.event_name == 'issues' && ((github.event.action == 'labeled' && github.event.label.name == 'keel:agent') || (github.event.action == 'reopened' && contains(github.event.issue.labels.*.name, 'keel:agent')))) || (github.event_name == 'issue_comment' && !github.event.issue.pull_request && contains(github.event.issue.labels.*.name, 'keel:agent') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]')) || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))) && 'queue' || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 # Each job asks for its own; nothing is granted by default.
@@ -71,7 +71,10 @@ jobs:
   agent:
     # The trigger, before a runner starts: the label, a reopen of a labelled
     # issue, a writer's comment on one (never a bot's, never on a PR), the
-    # schedule, or a person's dispatch.
+    # schedule, or a person's dispatch from the default branch only: the
+    # run's commit is the base every check trusts, and the PR goes to the
+    # default branch, so a base on another branch would carry its commits in
+    # unchecked (PR #59).
     if: |
       (github.event_name == 'issues' &&
         ((github.event.action == 'labeled' && github.event.label.name == 'keel:agent') ||
@@ -83,7 +86,7 @@ jobs:
         github.event.comment.user.type != 'Bot' &&
         !endsWith(github.event.comment.user.login, '[bot]')) ||
       github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch'
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     # The agent's own step is bounded by this run's minutes (5 to 180); this
     # bounds the whole job, the reads included.
@@ -99,6 +102,7 @@ jobs:
       branch: ${{ steps.pick.outputs.branch }}
       title: ${{ steps.pick.outputs.title }}
       triage: ${{ steps.pick.outputs.triage }}
+      read: ${{ steps.pick.outputs.read }}
       agent: ${{ steps.on.outputs.agent }}
     steps:
       - uses: actions/checkout@v7
@@ -203,7 +207,7 @@ jobs:
             const [pick, out] = process.argv.slice(1);
             const p = JSON.parse(fs.readFileSync(pick, "utf8"));
             const eof = `KEEL_EOF_${Date.now()}`;
-            const lines = [`action=${p.action}`, `issue=${p.issue ?? ""}`, `branch=${p.branch ?? ""}`, `minutes=${p.minutes ?? ""}`, `triage=${(p.triage ?? []).join(" ")}`, `title<<${eof}`, p.title ?? "", eof];
+            const lines = [`action=${p.action}`, `issue=${p.issue ?? ""}`, `branch=${p.branch ?? ""}`, `minutes=${p.minutes ?? ""}`, `read=${p.read ?? ""}`, `triage=${(p.triage ?? []).join(" ")}`, `title<<${eof}`, p.title ?? "", eof];
             fs.appendFileSync(out, `${lines.join("\n")}\n`);
             console.log(p.action === "wait" ? `::notice::${p.reason}` : `${p.action}: ${p.reason}`);
           ' "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
@@ -434,6 +438,7 @@ jobs:
     outputs:
       commits: ${{ steps.judge.outputs.commits }}
       line: ${{ steps.judge.outputs.line }}
+      judged: ${{ steps.judged.outputs.judged }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -527,6 +532,17 @@ jobs:
             echo "::error::The tree changed after the guard; nothing is handed on."
             exit 1
           fi
+
+      # Whether the judge itself ran (PR #59): "Judge the run"'s own outcome,
+      # success (passed) or failure (refused); skipped when a step before it
+      # failed (checkout, install, the take). The job's result cannot tell
+      # these apart, so publish posts the run's mark only on these two.
+      - name: Did the judge run?
+        id: judged
+        if: always()
+        env:
+          OUTCOME: ${{ steps.judge.outcome }}
+        run: echo "judged=$OUTCOME" >> "$GITHUB_OUTPUT"
 
       # The judged run goes on as the agent's did: a bundle, the PR body, and
       # the agent's last message, whatever the verdict.
@@ -643,16 +659,19 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       # The issue is the conversation: the agent's last message, as it wrote
-      # it, then the PR (or why there is none). Only when the judge ran: an
-      # agent that never started is red above, and nothing is posted.
+      # it, then the PR (or why there is none). Only when the judge's own step
+      # ran (PR #59): an agent that never started is red above, and a judge
+      # job that failed before judging posts nothing, so the issue is not
+      # marked worked and the next run tries it again.
       - name: Post the agent's last message
-        if: always() && needs.agent.outputs.action == 'work' && (needs.judge.result == 'success' || needs.judge.result == 'failure')
+        if: always() && needs.agent.outputs.action == 'work' && (needs.judge.outputs.judged == 'success' || needs.judge.outputs.judged == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           ISSUE: ${{ needs.agent.outputs.issue }}
           PR_URL: ${{ steps.pr.outputs.url }}
-          JUDGE: ${{ needs.judge.result }}
+          JUDGE: ${{ needs.judge.outputs.judged }}
+          READ: ${{ needs.agent.outputs.read }}
           LINE: ${{ needs.judge.outputs.line }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/keel/robot.mjs post --repo "$REPO" --issue "$ISSUE" --message "$RUNNER_TEMP/run/message.md" --pr "$PR_URL" --judge "$JUDGE" --line "$LINE" --run "$RUN_URL"
+        run: node scripts/keel/robot.mjs post --repo "$REPO" --issue "$ISSUE" --message "$RUNNER_TEMP/run/message.md" --pr "$PR_URL" --judge "$JUDGE" --line "$LINE" --run "$RUN_URL" --read "$READ"

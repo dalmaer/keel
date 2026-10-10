@@ -1917,6 +1917,8 @@ test('phase 47: Codex runs climb and tend in workspace-write with sudo dropped, 
 const issueEvent = ({ action = 'labeled', label = 'keel:agent', labels = ['keel:agent'] } = {}) =>
   ghEvent('issues', { action, ...(action === 'labeled' ? { label: { name: label } } : {}), issue: { number: 12, labels: labels.map(name => ({ name })) } });
 /** A comment on an issue (pr: on a pull request) as the robot's `if:` reads it. */
+/** A dispatch from a ref (the default branch, main, unless named). */
+const dispatchEvent = (ref = 'refs/heads/main') => { const e = ghEvent('workflow_dispatch', {}); e.github.ref = ref; return e; };
 const issueComment = ({ association = 'OWNER', login = 'acme-owner', type = 'User', labels = ['keel:agent'], pr = false, number = 12, body = 'Use the lid, not the box.' } = {}) =>
   ghEvent('issue_comment', { action: 'created', issue: { number, labels: labels.map(name => ({ name })), ...(pr ? { pull_request: { url: `https://api.github.com/repos/${ACME}/pulls/${number}` } } : {}) }, comment: { body, author_association: association, user: { login, type } } });
 
@@ -1965,6 +1967,8 @@ export function robotWorkflowProblems(text) {
   if (/\bgh (pr|issue) (merge|close|delete)\b|\bgh api\b[^\n]*(-X|--method)/.test(text)) out.push('merges, closes, deletes or writes through gh api');
   if (!/\n {10}node scripts\/keel\/climb\.mjs guard --job robot --base "\$GITHUB_SHA"\n/.test(jobs.find(j => j.id === 'judge')?.text ?? '')) out.push('the judge does not run the robot\'s guard from the run\'s commit');
   if (!/robot\.mjs post --repo "\$REPO" --issue "\$ISSUE" --message "\$RUNNER_TEMP\/run\/message\.md"/.test(publish)) out.push('the agent\'s last message is not posted on the issue by robot.mjs post');
+  // PR #59: the mark carries the pick's cursor, so a comment made while the run worked starts the next one.
+  if (!/robot\.mjs post [^\n]*--read "\$READ"/.test(publish) || !/READ: \$\{\{ needs\.agent\.outputs\.read \}\}/.test(publish) || !/\n {6}read: \$\{\{ steps\.pick\.outputs\.read \}\}\n/.test(text)) out.push('the run\'s mark does not carry the pick\'s cursor (--read)');
   if (!/robot\.mjs triage --repo "\$REPO" --issues "\$TRIAGE" --post\n/.test(publish) || !/TRIAGE: \$\{\{ needs\.agent\.outputs\.triage \}\}/.test(publish)) out.push('the triage is not answered by robot.mjs in the publish job, from the pick\'s issue numbers');
   const steps = [...text.matchAll(/^ {6}- (?:name: (.+)|uses: (\S+))$/gm)].map(m => m[1] ?? m[2]);
   if (!(steps[0]?.startsWith('actions/checkout') && steps[1] === 'Is the robot on?')) out.push('"Is the robot on?" is not the first step after checkout');
@@ -1995,7 +1999,10 @@ test('keel-robot.yml runs only for the keel:agent label, a reopen, a writer\'s c
   assert.equal(runs(issueComment({ labels: [] })), false, 'a comment on an issue not handed to the robot');
   assert.equal(runs(issueComment({ pr: true })), false, 'a comment on a pull request');
   assert.equal(runs(ghEvent('schedule', {})), true);
-  assert.equal(runs(ghEvent('workflow_dispatch', {})), true);
+  // PR #59: a dispatch runs from the default branch only (its commit is the base every check trusts).
+  assert.equal(runs(dispatchEvent()), true, 'a dispatch from the default branch');
+  assert.equal(runs(dispatchEvent('refs/heads/acme-side')), false, 'a dispatch from another branch');
+  assert.equal(runs(dispatchEvent('refs/tags/v1')), false, 'a dispatch from a tag');
   for (const name of ['push', 'pull_request', 'pull_request_target']) assert.equal(runs(ghEvent(name, {})), false, name);
   assert.deepEqual(robotWorkflowProblems(t), []);
   assert.deepEqual(robotWorkflowProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's rendered keel-robot.yml");
@@ -2007,6 +2014,7 @@ test('keel-robot.yml runs only for the keel:agent label, a reopen, a writer\'s c
     ['an unlabelled issue', "contains(github.event.issue.labels.*.name, 'keel:agent') &&\n        contains(fromJSON", 'contains(fromJSON', issueComment({ labels: [] })],
     ['a pull request', '!github.event.issue.pull_request &&\n', '', issueComment({ pr: true })],
     ['any label', "github.event.action == 'labeled' && github.event.label.name == 'keel:agent'", "github.event.action == 'labeled'", issueEvent({ label: 'bug' })],
+    ['a dispatch from any branch', "(github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))", "github.event_name == 'workflow_dispatch'", dispatchEvent('refs/heads/acme-side')],
   ]) {
     const mutated = cond.replace(from, to);
     assert.notEqual(mutated, cond, `${why}: the mutation did not apply`);
@@ -2042,7 +2050,7 @@ test('keel-robot.yml: one issue at a time per project; a run that will not work 
   const group = (text, ctx, id) => crossReviewGroup(text, withRun(ctx, id));
   const events = [issueEvent(), issueEvent({ action: 'reopened' }), issueEvent({ label: 'bug' }), issueEvent({ action: 'reopened', labels: [] }),
     issueComment(), issueComment({ association: 'MEMBER' }), issueComment({ association: 'NONE', login: 'mallory' }), issueComment({ type: 'Bot', login: 'github-actions[bot]', association: 'NONE' }),
-    issueComment({ pr: true }), issueComment({ labels: [] }), ghEvent('schedule', {}), ghEvent('workflow_dispatch', {})];
+    issueComment({ pr: true }), issueComment({ labels: [] }), ghEvent('schedule', {}), dispatchEvent(), dispatchEvent('refs/heads/acme-side')];
   for (const [i, ctx] of events.entries()) {
     const runs = evalExpression(cond, ctx);
     assert.equal(group(t, ctx, 300 + i), runs ? 'keel-robot-queue' : `keel-robot-run-${300 + i}`, JSON.stringify(ctx.github.event?.comment ?? ctx.github.event?.action ?? ctx.github.event_name));
@@ -2099,5 +2107,54 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     assert.ok(check(text).length, `${why}: expected a problem`);
+  }
+});
+
+/**
+ * PR #59: the robot's run mark is posted only when the judge's own step ran
+ * (passed or refused), never when its job failed before judging (checkout,
+ * install, the take): that mark tells the next run the issue was worked.
+ * [string] for keel-robot.yml's text.
+ */
+export function robotPostProblems(text) {
+  const out = [];
+  const judge = jobsOf(text).find(j => j.id === 'judge')?.text ?? '';
+  const steps = stepsOf(judge);
+  const at = name => steps.findIndex(s => new RegExp(`^\\s*- name: ${name.replace(/[?]/g, '\\?')}\\n`).test(s));
+  const judging = at('Judge the run'), judged = at('Did the judge run?');
+  if (judged < 0) return ['the judge job does not say whether its "Judge the run" step ran'];
+  if (judged < judging) out.push('"Did the judge run?" runs before the judge');
+  if (!/\n\s+if: always\(\)\n/.test(steps[judged])) out.push('"Did the judge run?" is not always(): a refused judge would say nothing');
+  if (!/OUTCOME: \$\{\{ steps\.judge\.outcome \}\}/.test(steps[judged]) || !/echo "judged=\$OUTCOME" >> "\$GITHUB_OUTPUT"/.test(steps[judged])) out.push('"Did the judge run?" does not hand on the judge step\'s own outcome');
+  if (!/\n {6}judged: \$\{\{ steps\.judged\.outputs\.judged \}\}\n/.test(judge)) out.push('the judge job does not output judged');
+  const post = stepsOf(jobsOf(text).find(j => j.id === 'publish')?.text ?? '').find(s => /- name: Post the agent's last message\n/.test(s)) ?? '';
+  const cond = /\n\s+if: (.*)\n/.exec(post)?.[1] ?? '';
+  if (!cond.startsWith('always() && ')) return [...out, 'the post step is not always() (a refused judge still posts why)'];
+  const posts = (result, judgedAs, action = 'work') => evalExpression(cond.replace(/^always\(\) && /, ''), { needs: { agent: { outputs: { action } }, judge: { result, outputs: judgedAs === undefined ? {} : { judged: judgedAs } } } });
+  for (const [result, judgedAs, want, why] of [
+    ['success', 'success', true, 'a judge that passed'],
+    ['failure', 'failure', true, 'a judge that refused'],
+    ['failure', 'skipped', false, 'a judge job that failed before judging'],
+    ['failure', undefined, false, 'a judge job that failed before it could say'],
+    ['skipped', undefined, false, 'no judge'],
+  ]) if (posts(result, judgedAs) !== want) out.push(`the post step ${want ? 'does not post' : 'posts the run\'s mark'} for ${why}`);
+  if (posts('success', 'success', 'triage')) out.push('the post step posts on a triage run');
+  if (!/JUDGE: \$\{\{ needs\.judge\.outputs\.judged \}\}/.test(post)) out.push('the post says the job\'s result, not the judge step\'s');
+  return out;
+}
+
+test('PR #59: keel-robot.yml posts the run\'s mark only when the judge\'s own step ran; a judge job that failed before judging leaves the issue to be tried again', async () => {
+  const t = (await robotWorkflow()).template;
+  assert.deepEqual(robotPostProblems(t), []);
+  assert.deepEqual(robotPostProblems(await readFile(join(KEEL, '.github/workflows/keel-robot.yml'), 'utf8')), [], "keel's rendered keel-robot.yml");
+  const judged = /\n {6}# Whether the judge itself ran[\s\S]*?echo "judged=\$OUTCOME" >> "\$GITHUB_OUTPUT"\n/.exec(t)[0];
+  for (const [why, text] of [
+    ['posted on the job\'s result, as it was', t.replace("(needs.judge.outputs.judged == 'success' || needs.judge.outputs.judged == 'failure')", "(needs.judge.result == 'success' || needs.judge.result == 'failure')")],
+    ['no step says the judge ran', t.replace(judged, '\n')],
+    ['the step reads the job, not the judge step', t.replace('OUTCOME: ${{ steps.judge.outcome }}', 'OUTCOME: ${{ job.status }}')],
+    ['the step only when all went well', t.replace('        id: judged\n        if: always()\n', '        id: judged\n')],
+  ]) {
+    assert.notEqual(text, t, `${why}: the mutation did not apply`);
+    assert.ok(robotPostProblems(text).length, `${why}: expected a problem`);
   }
 });

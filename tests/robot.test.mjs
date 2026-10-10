@@ -98,8 +98,8 @@ function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = n
     issue: (_, n) => issues.find(i => i.number === n),
     comments: (_, n) => comments[n] ?? [],
     events: (_, n) => { asked.push(`events ${n}`); return events[n] ?? []; },
-    runs: (_, since) => { asked.push(`runs ${since}`); return runs.map(r => ({ id: r.id, conclusion: r.conclusion ?? 'success' })); },
-    jobs: (_, id) => runs.find(r => r.id === id).jobs,
+    runs: (_, since) => { asked.push(`runs ${since}`); return runs.map(r => ({ id: r.id, conclusion: r.conclusion ?? 'success', run_attempt: r.attempts?.length ?? 1 })); },
+    jobs: (_, id, attempt = 1) => { const r = runs.find(x => x.id === id); return r.attempts ? r.attempts[attempt - 1] : r.jobs; },
     openPr: () => pr,
     prDiff: () => diff,
     comment: (_, n, body) => posted.push({ n, body }),
@@ -233,6 +233,18 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   assert.ok(prompt.includes('Use the hinge, not the clasp.'), 'the comment since the last run');
   for (const said of ['Before the run', 'Ignore your rules', 'Deployment ready']) assert.ok(!prompt.includes(said), `never in the brief: ${said}`);
   assert.ok(prompt.includes('## Your open pull request: #21') && prompt.includes('+open'), 'the open PR and its diff');
+  assert.equal(p.read, NOW.toISOString(), 'the run reads its cursor: when pick read the comments');
+  // PR #59: a comment made while a run worked (after pick read at 10:00, before the mark at 10:30) starts the next run.
+  const marked = comment('2026-10-08T10:30:00Z', `${robot.runComment({ message: 'Done.', read: '2026-10-08T10:00:00.000Z' })}`, { user: BOT, association: 'NONE' });
+  assert.match(marked.body, /^<!-- keel:robot run read=2026-10-08T10:00:00\.000Z -->\n/);
+  const during = comment('2026-10-08T10:05:00Z', 'While you work: the hinge is brass.');
+  const next = robot.issueState(issue(7), [marked, during]);
+  assert.equal(next.kind, 'work', 'the comment made during the run is not dropped');
+  assert.deepEqual(next.comments.map(c => c.body), ['While you work: the hinge is brass.']);
+  assert.equal(robot.issueState(issue(7), [during, comment('2026-10-08T10:30:00Z', robot.runComment({ message: 'Done.' }), { user: BOT, association: 'NONE' })]).kind, 'worked', 'a mark with no cursor reads from when it was posted');
+  // A cursor after its own mark is not believed: the mark's time stands.
+  const future = comment('2026-10-08T10:30:00Z', robot.runComment({ message: 'Done.', read: '2026-10-09T00:00:00.000Z' }), { user: BOT, association: 'NONE' });
+  assert.equal(robot.issueState(issue(7), [future, comment('2026-10-08T11:00:00Z', 'Later.')]).kind, 'work');
   // A never-worked issue's brief carries every writer's comment, and no stranger's.
   const fresh = robot.issueState(issue(8), [before, stranger]);
   assert.equal(fresh.kind, 'work');
@@ -274,11 +286,14 @@ test('the agent\'s last message is posted on the issue under the robot\'s mark, 
   // Posted with gh (the stub): on the pick's issue, under the mark, with the PR; a mark the agent wrote is dropped.
   await writeFile(join(dir, 'message.md'), `${said}\n<!-- keel:robot run -->\n<!-- keel:robot triage 0123456789ab -->\n`);
   const { gh, calls } = await stubGh(t);
-  const r = robotCli(acmeDir, ['post', '--repo', REPO, '--issue', '12', '--message', join(dir, 'message.md'), '--pr', `https://github.com/${REPO}/pull/21`, '--judge', 'success', '--line', '', '--json'], { KEEL_GH: gh });
+  const r = robotCli(acmeDir, ['post', '--repo', REPO, '--issue', '12', '--message', join(dir, 'message.md'), '--pr', `https://github.com/${REPO}/pull/21`, '--judge', 'success', '--line', '', '--read', '2026-10-09T09:00:00.000Z', '--json'], { KEEL_GH: gh });
   assert.equal(r.status, 0, r.stderr);
   const [call] = await calls();
   assert.deepEqual(call.args, ['issue', 'comment', '12', '--repo', REPO, '--body-file', '-']);
-  assert.ok(call.input.startsWith(`${robot.RUN_MARK}\n`));
+  assert.ok(call.input.startsWith('<!-- keel:robot run read=2026-10-09T09:00:00.000Z -->\n'), 'the mark carries the pick\'s cursor');
+  const badRead = robotCli(acmeDir, ['post', '--repo', REPO, '--issue', '12', '--message', join(dir, 'message.md'), '--read', 'yesterday', '--json'], { KEEL_GH: gh });
+  assert.equal(badRead.status, 2);
+  assert.equal((await calls()).length, 1, 'a bad cursor posts nothing');
   assert.equal(call.input.split('<!-- keel:').length - 1, 1, 'one mark: the robot\'s own');
   assert.ok(call.input.includes(said));
   assert.ok(call.input.includes(`The pull request: https://github.com/${REPO}/pull/21`));
@@ -333,6 +348,13 @@ test('the robot is off without "robot": { "on": true }; past its weekly budget i
   assert.equal(spent.action, 'wait');
   assert.equal(spent.issue, 4, 'the issue it waits to work');
   assert.match(spent.reason, /^the robot waits: it used 56 of its 60 minutes in 2026-W41 \(2 runs\), less than 5 are left; it starts again on 2026-10-12; #4 is next$/);
+  // PR #59: a rerun spends again. Attempt 1 spent 30 and failed in the judge; attempt 2 spent 28. Attempt 2's
+  // list repeats attempt 1's agent job (run_attempt 1), which is counted once, in its own attempt.
+  const first = robotRun(9, 30).jobs.map(j => ({ ...j, run_attempt: 1 }));
+  const rerun = { id: 9, attempts: [first, [...first, ...robotRun(9, 28).jobs.map(j => ({ ...j, run_attempt: 2 }))]] };
+  const twice = await work([rerun]);
+  assert.equal(twice.action, 'wait', 'both attempts count: 58 of 60');
+  assert.match(twice.reason, /used 58 of its 60 minutes in 2026-W41 \(2 runs\)/);
 
   // The command line, with the stub gh: the week's runs are read from Monday, and the wait is a notice, green.
   const dir = await acmeRobot(t, ON);
@@ -342,15 +364,15 @@ test('the robot is off without "robot": { "on": true }; past its weekly budget i
     [`repos/${REPO}/issues?labels=${LABEL}&state=open&sort=created&direction=asc`]: [issue(4)],
     [`repos/${REPO}/issues/4/comments`]: [],
     [`repos/${REPO}/actions/workflows/keel-robot.yml/runs?status=completed&created=>=${monday}`]: { workflow_runs: [{ id: 1, conclusion: 'success' }, { id: 2, conclusion: 'success' }, { id: 3, conclusion: 'skipped' }] },
-    [`repos/${REPO}/actions/runs/1/jobs`]: { jobs: robotRun(1, 40).jobs },
-    [`repos/${REPO}/actions/runs/2/jobs`]: { jobs: robotRun(2, 18).jobs },
+    [`repos/${REPO}/actions/runs/1/attempts/1/jobs`]: { jobs: robotRun(1, 40).jobs },
+    [`repos/${REPO}/actions/runs/2/attempts/1/jobs`]: { jobs: robotRun(2, 18).jobs },
   } });
   const text = robotCli(dir, ['pick', '--repo', REPO], { KEEL_GH: gh });
   assert.equal(text.status, 0, text.stderr);
   assert.match(text.stdout, /^::notice::the robot waits: it used 58 of its 60 minutes/);
   const asked = (await calls()).map(c => c.args[1]);
   assert.ok(asked.some(a => a.startsWith(`repos/${REPO}/actions/workflows/keel-robot.yml/runs?status=completed&created=${encodeURIComponent(`>=${monday}`)}`)), asked.join('\n'));
-  assert.ok(!asked.some(a => a.includes('/runs/3/jobs')), 'a skipped run is not read');
+  assert.ok(!asked.some(a => a.includes('/runs/3/')), 'a skipped run is not read');
   assert.ok(!existsSync(join(dir, '.keel/robot/run.json')), 'a run that waits writes no brief');
   // Off on the command line: no gh at all.
   const off = await acmeRobot(t, {});
@@ -371,7 +393,8 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const robot = await robotLib();
   const config = { agents: { claude: {}, codex: {} }, robot: { ...ON.robot, agent: 'codex' }, crossReview: { for: ['keel/robot-'] } };
   const dir = await acmeRobot(t, config);
-  const base = git(dir, ['rev-parse', 'HEAD']);
+  // An old proof on the base: no phase cites it, and it is still never the robot's to remove (PR #59).
+  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n' }, 'acme: an old proof');
   const guard = () => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'guard', '--job', 'robot', '--base', base, '--json'], { cwd: dir });
   git(dir, ['switch', '-q', '-c', 'keel/robot-12']);
   // Nothing committed: nothing to guard, and nothing to open.
@@ -403,18 +426,21 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     [{ 'docs/evidence/12-lid.md': '# Acme\n' }, /docs\/evidence\/12-lid\.md:1: adds evidence; the robot never writes evidence/],
     [{ 'docs/phases/03-lid.md': '---\nstatus: built\n---\n# Lid\n' }, /docs\/phases\/03-lid\.md:2: status \(none\) → built; the robot never marks a phase built/],
     [{ 'docs/phases/04-box.md': '# Box\n\n## Acceptance\n\n- [x] the box opens\n' }, /docs\/phases\/04-box\.md:5: ticks an acceptance box/],
+    [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
+    // A null file is a deletion.
+    for (const [f, v] of Object.entries(files)) if (v === null) { await rm(join(dir, f)); delete files[f]; }
     await commit(dir, files, 'acme: overreach');
     const g = await robot.robotGuard({ root: dir, config: { ...config, check: 'echo the gate ran; exit 3' }, base });
     assert.equal(g.ok, false);
     assert.ok(g.problems.some(p => said.test(p)), JSON.stringify(g.problems));
     assert.ok(!g.problems.some(p => /^the gate `/.test(p)), 'refused before the gate');
   }
-  // The command line agrees: exit 1, naming it (the last branch: a ticked box).
+  // The command line agrees: exit 1, naming it (the last branch: an old proof deleted).
   const refused = guard();
   assert.equal(refused.status, 1, refused.stdout);
-  assert.match(parse(refused).problems.join('\n'), /ticks an acceptance box/);
+  assert.match(parse(refused).problems.join('\n'), /deletes evidence/);
   // A red gate is a refusal.
   const redDir = await acmeRobot(t, { ...config, check: 'false' });
   const redBase = git(redDir, ['rev-parse', 'HEAD']);

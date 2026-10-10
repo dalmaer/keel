@@ -15,7 +15,7 @@
 //   node scripts/keel/robot.mjs message --agent a --file f --out f   the agent's last message (never printed)
 //   node scripts/keel/robot.mjs report --base r --issue n --title t --agent a [--body f]   the PR body, the run's line
 //   node scripts/keel/robot.mjs triage --repo r --issues "n n" [--post]   name what each issue misses, once per body
-//   node scripts/keel/robot.mjs post --repo r --issue n --message f [--pr url] [--judge result] [--line l] [--run url]
+//   node scripts/keel/robot.mjs post --repo r --issue n --message f [--pr url] [--judge result] [--line l] [--run url] [--read iso]
 //   node scripts/keel/climb.mjs guard --job robot --base r   the sandbox, the record rules, the gate
 //
 // Every subcommand takes --json. Exit: 0 ok; 1 a guard refused; 2 usage, a
@@ -25,13 +25,14 @@
 //   - Off unless .keel/keel.json has "robot": { "on": true, "budgetMinutes": N },
 //     N the minutes a week the agent may run. Past it the run waits, green,
 //     and says so; the week is the ISO week (Monday 00:00 UTC), and its use is
-//     the agent step's minutes in this workflow's runs, read as the Budget
+//     the agent step's minutes in this workflow's runs, every attempt, read as the Budget
 //     line reads them (lib.mjs stepUse).
 //   - Which issue: the oldest open one labelled keel:agent that was never
 //     worked, or that has a comment from someone with write access (OWNER,
 //     MEMBER, COLLABORATOR; never a bot) since its last run, or was reopened
 //     or labelled again since. Its last run is the robot's own comment (its
-//     RUN_MARK, posted by the workflow's bot).
+//     RUN_MARK, posted by the workflow's bot; its cursor, read=, is when that
+//     run's pick read the comments, so one made while it worked is not lost).
 //   - An issue that misses part of the rubric gets one comment naming what
 //     is missing, and is not worked; one per body (its TRIAGE_MARK holds
 //     the body's hash), so the same state is never answered twice.
@@ -61,6 +62,15 @@ export const ASKERS = Object.freeze(['OWNER', 'MEMBER', 'COLLABORATOR']);
 /** The workflow's bot: the only author of the robot's own comments. */
 export const BOT = 'github-actions[bot]';
 export const RUN_MARK = '<!-- keel:robot run -->';
+/**
+ * The run's mark with its cursor (PR #59): when pick read the issue's
+ * comments. A comment made while the run worked comes after the cursor but
+ * before the mark is posted, so the next run reads from the cursor, never
+ * from when the mark was posted.
+ */
+export const runMark = read => (isInstant(read) ? `<!-- keel:robot run read=${new Date(read).toISOString()} -->` : RUN_MARK);
+const RUN_RE = /<!-- keel:robot run(?: read=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z))? -->/;
+const isInstant = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(v) && Number.isFinite(Date.parse(v));
 const TRIAGE_RE = /<!-- keel:robot triage ([0-9a-f]{12}) -->/;
 export const triageMark = hash => `<!-- keel:robot triage ${hash} -->`;
 /** At most this many triage comments a run. */
@@ -175,7 +185,9 @@ export const fromWriter = c => !isBot(c) && ASKERS.includes(c?.author_associatio
 export function issueState(issue, comments = []) {
   const base = { number: issue.number, title: String(issue.title ?? ''), url: issue.html_url ?? null, created: issue.created_at ?? null };
   const mine = comments.filter(fromRobot);
-  const lastRun = mine.filter(c => c.body.includes(RUN_MARK)).at(-1)?.created_at ?? null;
+  // The last run: its mark's cursor (when that run read the comments), else when the mark was posted.
+  const mark = mine.map(c => ({ c, m: RUN_RE.exec(c.body) })).filter(x => x.m).at(-1);
+  const lastRun = mark ? (mark.m[1] && at(mark.m[1]) <= at(mark.c.created_at) ? mark.m[1] : mark.c.created_at) ?? null : null;
   const missing = triage(issue.body);
   if (missing.length) {
     const hash = bodyHash(issue.body);
@@ -243,9 +255,10 @@ export function githubOf(env = process.env) {
     comments: (repo, n) => pages(`repos/${repo}/issues/${n}/comments`),
     events: (repo, n) => pages(`repos/${repo}/issues/${n}/events`),
     runs: (repo, since) => pages(`repos/${repo}/actions/workflows/${WORKFLOW}/runs?status=completed&created=${encodeURIComponent(`>=${since}`)}`, 'workflow_runs'),
-    jobs: (repo, id) => {
-      const j = api(`repos/${repo}/actions/runs/${id}/jobs?per_page=100`)?.jobs;
-      if (!Array.isArray(j)) throw new RobotError(`gh api: run ${id} came back without its jobs`);
+    // One attempt's jobs: the run's own jobs endpoint answers only its latest attempt (PR #59).
+    jobs: (repo, id, attempt = 1) => {
+      const j = api(`repos/${repo}/actions/runs/${id}/attempts/${attempt}/jobs?per_page=100`)?.jobs;
+      if (!Array.isArray(j)) throw new RobotError(`gh api: run ${id} attempt ${attempt} came back without its jobs`);
       return j;
     },
     openPr: (repo, branch) => {
@@ -305,13 +318,18 @@ export async function pick({ root, config, env = process.env, repo, record = fal
   const tail = triaged.length ? `; ${triaged.length} to answer for the rubric (${triaged.map(n => `#${n}`).join(', ')})` : '';
   if (!work) return { on: true, action: triaged.length ? 'triage' : 'none', triage: triaged, waiting: plan.waiting, reason: `no issue to work${states.length ? `: ${plan.waiting.length} wait on the owner` : `: none open is labelled ${LABEL}`}${tail}` };
   const since = weekStart(now).toISOString().slice(0, 10);
-  const runs = github.runs(repo, since).filter(r => r?.conclusion !== 'skipped').map(r => ({ id: r.id, jobs: github.jobs(repo, r.id) }));
+  // Every attempt of every run (PR #59: a rerun spends again), each job counted in its own attempt only.
+  const runs = github.runs(repo, since).filter(r => r?.conclusion !== 'skipped').flatMap(r => {
+    const attempts = Math.max(1, Number.isInteger(r.run_attempt) ? r.run_attempt : 1);
+    return Array.from({ length: attempts }, (_, i) => ({ id: r.id, attempt: i + 1, jobs: github.jobs(repo, r.id, i + 1).filter(j => j?.run_attempt === undefined || j.run_attempt === i + 1) }));
+  });
   const budget = budgetFor(c, weekUse(runs), now);
   const s = work.state;
   if (budget.wait) return { on: true, action: 'wait', triage: triaged, issue: s.number, budget, reason: `${budget.line}; #${s.number} is next${tail}` };
   const branch = `${PREFIX}${s.number}`;
   const pr = github.openPr(repo, branch);
-  const out = { on: true, action: 'work', triage: triaged, issue: s.number, title: oneLine(s.title), branch, minutes: budget.minutes, agent: c.agent, budget, pr, reason: `#${s.number} (${s.fresh ? 'never worked' : s.again ? `${s.again} since its last run` : `${s.comments.length} comment${s.comments.length === 1 ? '' : 's'} since its last run`}); ${budget.line}${tail}` };
+  // `read`: when this run read the comments (the time pick began), the cursor its mark carries (PR #59).
+  const out = { on: true, action: 'work', triage: triaged, issue: s.number, title: oneLine(s.title), branch, minutes: budget.minutes, agent: c.agent, budget, pr, read: new Date(now).toISOString(), reason: `#${s.number} (${s.fresh ? 'never worked' : s.again ? `${s.again} since its last run` : `${s.comments.length} comment${s.comments.length === 1 ? '' : 's'} since its last run`}); ${budget.line}${tail}` };
   if (record) {
     let diff = null;
     if (pr) {
@@ -466,14 +484,14 @@ export async function report({ root, config, base, issue, title, agent, body }) 
 // ---- what is posted ------------------------------------------------------------------------
 
 /** The robot's comment on the issue, pure: its mark, the agent's last message as it wrote it, then keel's line. */
-export function runComment({ message, pr, judge, line, run }) {
+export function runComment({ message, pr, judge, line, run, read }) {
   let said = String(message ?? '').replace(/<!--\s*keel:[\s\S]*?-->/g, '').trim();
   if (said.length > MESSAGE_CHARS) said = `${said.slice(0, MESSAGE_CHARS)}\n\n… (cut at ${MESSAGE_CHARS} characters)`;
   const status = pr ? `The pull request: ${pr}`
     : judge === 'failure' ? `No pull request: the judge refused the branch${run ? ` (${run})` : ''}.`
       : `No pull request${line ? `: ${line}` : ': the agent committed nothing'}.`;
   return [
-    RUN_MARK,
+    runMark(read),
     '**keel robot**: the agent\'s last message, as it wrote it.',
     '',
     said || '(The agent left no message.)',
@@ -487,12 +505,13 @@ export function runComment({ message, pr, judge, line, run }) {
   ].join('\n');
 }
 
-export async function post({ env = process.env, repo, issue, message, pr, judge, line, run, github = githubOf(env) }) {
+export async function post({ env = process.env, repo, issue, message, pr, judge, line, run, read, github = githubOf(env) }) {
   repo = repoOf(repo, env);
   if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('post needs --issue <number>');
+  if (read !== undefined && read !== '' && !isInstant(read)) throw new RobotError(`post --read must be the pick's ISO time (got ${JSON.stringify(read)})`);
   let text = '';
   if (message) try { text = await readFile(message, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new RobotError(`${message}: ${e.message}`); }
-  const body = runComment({ message: text, pr, judge, line, run });
+  const body = runComment({ message: text, pr, judge, line, run, read: read || undefined });
   github.comment(repo, Number(issue), body);
   return { issue: Number(issue), chars: body.length, pr: pr || null };
 }
@@ -522,7 +541,7 @@ export async function triagePost({ env = process.env, repo, issues, postIt = fal
 // ---- the command line ---------------------------------------------------------------------
 
 const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post [--json]';
-const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run' };
+const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run', '--read': 'read' };
 const SWITCHES = { '--record': 'record', '--post': 'post' };
 
 export function parseArgs(args) {
@@ -571,7 +590,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: t, text: t.length ? t.map(x => `#${x.issue}: ${x.posted ? 'answered: ' : o.post ? 'nothing posted: ' : ''}${x.why}`).join('\n') : 'no issue to triage' };
     }
     case 'post': {
-      const p = await post({ env, repo: o.repo, issue: o.issue, message: o.message ? resolve(o.message) : undefined, pr: o.pr, judge: o.judge, line: o.line, run: o.run });
+      const p = await post({ env, repo: o.repo, issue: o.issue, message: o.message ? resolve(o.message) : undefined, pr: o.pr, judge: o.judge, line: o.line, run: o.run, read: o.read });
       return { data: p, text: `posted the agent's last message on #${p.issue} (${p.chars} characters)` };
     }
     default: throw new RobotError(o.verb ? `unknown subcommand ${o.verb}; ${USAGE}` : USAGE);

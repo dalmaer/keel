@@ -421,8 +421,9 @@ export function recordRules(root, base, head, who = 'the agent') {
   const refused = [];
   const changes = git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [s, ...p] = l.split('\t'); return { status: s, path: p.join('\t') }; });
   for (const { status, path } of changes) {
+    // Evidence first, a deletion too (PR #59): historical proof is kept, whether or not a phase still cites it.
+    if (path.startsWith('docs/evidence/')) { refused.push(status.startsWith('D') ? `${path}: deletes evidence; ${who} never removes evidence (historical proof is kept)` : `${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; ${who} never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
     if (status.startsWith('D')) continue;
-    if (path.startsWith('docs/evidence/')) { refused.push(`${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; ${who} never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
     if (!path.endsWith('.md')) continue;
     const before = showAt(root, base, path), after = showAt(root, head, path);
     const a = frontStatus(after), b = frontStatus(before);
