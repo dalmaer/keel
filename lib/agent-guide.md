@@ -320,9 +320,11 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   reporter or output-file flag of the step's own (`--reporter`,
   `--reporter-outfile`, `--outputFile`; the last one wins, so keel's would
   fight it): no proposal, and `data.tests.declined` says why. A script whose name holds
-  `vitest` (`npm run vitest:unit`) is followed to its body. `junit` is written into the line as it is, so it must be
-  relative, inside the repo, only letters, digits, `_ . / -`, and a `.xml`
-  file, never a directory.
+  `vitest` (`npm run vitest:unit`) is followed to its body. A gate that runs
+  more than one runner (`npm test && npx vitest run`) records none and gets
+  no line. `junit` must be a `.xml` file directly in `.keel/test-runs/`
+  (which ignores itself, so the report never stays behind untracked), of
+  letters, digits, `_ . -`.
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 
@@ -358,7 +360,7 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   `gate-config` (a
   `setup` or `env` that is not a command or `NAME: "value"`), `tests-config`
   (a `tests` the test ledger cannot read: an unknown key, a `runner` other
-  than node, bun or vitest, a `junit` outside the repo or with a character other than letters, digits, `_ . / -`, a bad window, factor,
+  than node, bun or vitest, a `junit` that is not a `.xml` file in `.keel/test-runs/` of letters, digits, `_ . -`, a bad window, factor,
   floorMs, allowEmpty or configEnv), `health-config`
   (a `health` that is not a relative directory inside the repo),
   `health-ignored` (the health directory is git-ignored, so the night's page

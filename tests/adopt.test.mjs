@@ -13,7 +13,7 @@ import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, fill } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
-import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, HEADING, REPORT } from '../lib/adopt.mjs';
+import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, HEADING, REPORT } from '../lib/adopt.mjs';
 import { testsConfigProblems } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -561,7 +561,7 @@ test('adopt detects bun test or vitest in the gate, records the runner, and prop
   const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
   doc = JSON.parse(keel(['doctor', '--json'], dir).out);
-  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a .xml file inside the repo, relative to its root, of letters, digits, _ . / and - only']);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a .xml file in .keel/test-runs/ (which ignores itself), of letters, digits, _ . and - only']);
 
   // vitest as one step of the gate itself: the step goes in braces, so the steps around it run as they did.
   const v = await scratch(t);
@@ -683,14 +683,16 @@ function assertProposals(make = ledgerCommand) {
   for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml', '.', '.keel/test-runs', 'reports/', 'reports/junit']) {
     assert.equal(make('bun test', 'bun', junit), null, junit);
   }
-  assert.equal(make('bun test', 'bun', 'reports/junit-1.xml'), stepOf('bun', 'bun test --reporter=junit --reporter-outfile=reports/junit-1.xml', { junit: 'reports/junit-1.xml' }));
+  assert.equal(make('bun test', 'bun', '.keel/test-runs/bun.xml'), stepOf('bun', 'bun test --reporter=junit --reporter-outfile=.keel/test-runs/bun.xml', { junit: '.keel/test-runs/bun.xml' }));
+  // A report anywhere else would stay behind, untracked, after every gate (review on #56).
+  assert.equal(make('bun test', 'bun', 'reports/junit-1.xml'), null);
 }
 
 test('a proposal parses in sh: a quoted operator or runner is a word, and a command or JUnit path keel cannot write safely gets none', () => {
   assertProposals();
   const plan = testsPlan({ tests: { junit: 'reports/test results.xml' } }, 'bun test', {});
   assert.equal(plan.proposal, null);
-  assert.match(plan.declined, /holds characters a shell reads/);
+  assert.match(plan.declined, /is not a .xml file in \.keel\/test-runs\//);
   assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /^the gate is not the shape keel rewrites \(plain steps joined by && or ;, an optional cd, the runner as its step's own command/);
   assert.match(testsPlan({}, 'ACME_MODE=fast bun test', {}).declined, /no inline variable/);
   // A script whose name holds "vitest" is followed to its body, which is what gets the flags (review on #56).
@@ -705,7 +707,12 @@ test('a proposal parses in sh: a quoted operator or runner is a word, and a comm
   }
   assert.match(testsPlan({}, 'bun test --reporter-outfile=reports/current.xml', {}).declined, /or reporter flags of its own/);
   assert.ok(ledgerCommand('bun test --timeout=10000', 'bun').includes('--reporter-outfile=.keel/test-runs/junit.xml --timeout=10000'), 'any other option stays');
-  assert.deepEqual(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }), []);
+  assert.ok(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }).length);
+  // More than one runner in the gate (`npm test` runs bun, then vitest runs): record none, propose none (review on #56).
+  const two = testsPlan({}, 'npm test && npx vitest run', { test: 'bun test' });
+  assert.deepEqual([two.runner, two.proposal], [null, null]);
+  assert.match(two.declined, /^the gate runs more than one test runner \(vitest, bun\); keel records none and proposes no line/);
+  assert.deepEqual(testsLines(two), [`Tests: none recorded (the gate: vitest; package.json scripts.test: bun); ${two.declined}`]);
 });
 
 test('no proposal where the night practice is not on and the ledger is not there: the line would run a script nothing installs', async t => {

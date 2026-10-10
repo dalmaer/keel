@@ -433,7 +433,7 @@ test('a workspace\'s flaky test, recorded root-relative, prints a run-alone comm
 
 test('mutations: the root-relative file as recorded, or no change of folder, fails the workspace command test', async t => {
   for (const [from, to] of [
-    ["const file = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';", "const file = test.file ?? '';"],
+    ["const rel = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';", "const rel = test.file ?? '';"],
     ['return dir === here ? command :', 'return true ? command :'],
   ]) await assert.rejects(fromWorkspace(t, await mutated(from, to)), assert.AssertionError, `mutant survived: ${to}`);
 });
@@ -890,6 +890,53 @@ test('a test named exactly like its file counts as a test; only vitest\'s failed
 test('mutation: any testcase named for its file taken as the file\'s turns a green run into "no tests ran", and fails the named-like-its-file test', async t => {
   const m = await mutant(t, "const own = runner === 'vitest' && Boolean(raw) && child.attrs.name === raw && caseOutcome(child) === 'fail';", 'const own = Boolean(raw) && child.attrs.name === raw;');
   assert.throws(() => assertNamedLikeItsFile(m), assert.AssertionError);
+});
+
+/** A top-level test and a describe of one name, in one file, are two tests: never flaky together, never each other's baseline (review on #56). */
+function assertSuiteKind(mod) {
+  const run = (testOutcome, suiteOutcome, ms = 10) => ({ ...runOf({ tests: {} }), runner: 'bun',
+    tests: [{ file: 'a.test.ts', name: 'save', outcome: testOutcome, ms }, { file: 'a.test.ts', name: 'save', describe: true, outcome: suiteOutcome, ms: 900 }] });
+  assert.deepEqual(mod.flaky([run('pass', 'fail')]), [], 'a passing test and a failing describe of one name, in one run, are not a flake');
+  const opts = { window: 3, factor: 2, floorMs: 200 };
+  assert.deepEqual(mod.slower([run('pass', 'pass'), run('pass', 'pass'), run('pass', 'pass'), run('pass', 'pass', 10)], opts), [], 'the test is judged against its own times, not the describe\'s');
+  const both = mod.flaky([run('pass', 'pass'), run('fail', 'pass')]);
+  assert.deepEqual(both.map(f => [f.name, f.describe ?? false]), [['save', false]], 'the test that did flake is named, as a test');
+}
+
+test('a test and a describe of one name are two tests in flaky and slower (review on #56)', () => {
+  assertSuiteKind(ledger);
+});
+
+test('mutation: an identity without the suite kind keys the test and the describe together, and fails the two-tests test', async t => {
+  const m = await mutant(t, "const key = t => `${t.file ?? ''}\\u0000${t.describe === true ? 'd' : 't'}\\u0000${t.name}`;", "const key = t => `${t.file ?? ''}\\u0000${t.name}`;");
+  assert.throws(() => assertSuiteKind(m), assert.AssertionError);
+});
+
+/** A test file whose path a shell would split is one quoted word in its run-alone command (review on #56). */
+function assertQuotedFile(mod) {
+  for (const runner of ['node', 'bun', 'vitest']) {
+    const cmd = mod.aloneCommand({ file: 'tests/acme widget.test.ts', name: 'save', runner });
+    assert.ok(cmd.includes(` 'tests/acme widget.test.ts'`), `${runner}: ${cmd}`);
+  }
+  assert.equal(mod.aloneCommand({ file: 'tests/a.test.ts', name: 'save', runner: 'bun' }), "bun test tests/a.test.ts -t '^ ?save$'", 'a plain path stays as it is');
+}
+
+test('a run-alone command quotes a test file path a shell would split', () => {
+  assertQuotedFile(ledger);
+});
+
+test('mutation: an unquoted path fails the quoted-file test', async t => {
+  const m = await mutant(t, "const file = rel && !/^[\\w./@+-]+$/.test(rel) ? quote(rel) : rel;", 'const file = rel;');
+  assert.throws(() => assertQuotedFile(m), assert.AssertionError);
+});
+
+test('"tests".junit lives in .keel/test-runs/, which ignores itself; a report there is ignored even when nothing is recorded (review on #56)', async t => {
+  assert.deepEqual(testsConfigProblems({ tests: { junit: '.keel/test-runs/vitest.xml' } }), []);
+  for (const junit of ['reports/vitest.xml', 'junit.xml', '.keel/test-runs/sub/x.xml', '.keel/test-runs/', '.keel/test-runs/a b.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  const { dir, git } = await acmeRepo(t);
+  await junitAt(dir, ledger.JUNIT, await fixture('vitest-empty.xml'));
+  assert.equal((await ledger.junitRun({ cwd: dir })).code, 1, 'no tests ran: nothing recorded');
+  assert.equal(git('status', '--porcelain'), '', 'and still no untracked report');
 });
 
 test('mutation: a stale check on the bytes alone takes the second package\'s run for the first\'s, and fails the per-path test', async t => {

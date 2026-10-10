@@ -200,3 +200,26 @@ test('the workflow files a hygiene night\'s issue on the project\'s own repo, on
   assert.match(text, /climb\.mjs report --state --body "\$RUNNER_TEMP\/body\.md" --issue "\$RUNNER_TEMP\/issue\.md"/);
   assert.ok(text.indexOf('- name: Gather the test ledger') < text.indexOf('- name: Baseline'), 'the ledger is gathered before the baseline reads it');
 });
+
+/** The ledger above plus a bun flake on the same tree: hygiene climbs only what prove-steady can run (node --test). */
+async function assertBunNamedNotClimbed(dir) {
+  const m = json(climb(dir, ['measure', 'hygiene', '--json']));
+  assert.deepEqual(m.flaky.map(f => f.name), ['acme counts'], 'the node flake is climbed');
+  assert.deepEqual(m.notClimbed, [{ file: 'web/a.test.ts', name: 'save', runner: 'bun', why: 'ran on bun; prove-steady runs node --test only' }]);
+  assert.equal(m.median, 1);
+}
+
+test('a bun or vitest flake is named, not climbed: prove-steady runs node --test only (review on #56)', async t => {
+  const dir = await acme(t);
+  const runs = JSON.parse(await readFile(join(dir, '.keel/test-runs/2026-10-05T00-00-00-000Z-0.json'), 'utf8'));
+  for (const [i, outcome] of ['pass', 'fail'].entries()) {
+    await writeFile(join(dir, `.keel/test-runs/2026-10-05T1${i}-00-00-000Z-${i}.json`), JSON.stringify({ ...runs, runner: 'bun', config: 'acmebun', date: `2026-10-05T1${i}:00:00.000Z`, tests: [{ file: 'web/a.test.ts', name: 'save', outcome, ms: 1 }] }));
+  }
+  await assertBunNamedNotClimbed(dir);
+  // Mutation: hygiene that climbs every flake takes the bun one too, and fails the assertion above.
+  const text = await readFile(join(dir, 'scripts/keel/climb.mjs'), 'utf8');
+  const from = "const found = all.filter(f => !f.runner || f.runner === 'node').map(";
+  assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
+  await writeFile(join(dir, 'scripts/keel/climb.mjs'), text.replace(from, () => 'const found = all.map('));
+  await assert.rejects(assertBunNamedNotClimbed(dir), assert.AssertionError);
+});

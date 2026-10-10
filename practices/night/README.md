@@ -188,7 +188,9 @@ every test in it, failed when one failed. The exit code is 1 when no tests
 ran (no file, none in it, or stale; unless `allowEmpty`), else the runner's
 own (`--status`: bun leaves a file that would not load out of its JUnit),
 else 1 when a test failed. A file that is not JUnit is 1, never recorded.
-The runner is part of the config and the lane: a bun run is only ever
+A test and a describe of one name are two tests. A climb hygiene night
+names a bun or vitest flake but does not climb it (prove-steady runs `node
+--test` only). The runner is part of the config and the lane: a bun run is only ever
 compared with bun runs, and its run-alone command is `bun test <file> -t
 '^ ?<name>$'` for a test, or `'^ ?<name>( |$)'` for a describe (vitest:
 `npx vitest run <file> -t …`). A `--runner` or `"tests".runner` that

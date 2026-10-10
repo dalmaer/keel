@@ -114,6 +114,8 @@ export const RUNNERS = Object.freeze(['node', 'bun', 'vitest']);
 /** Where a JUnit file is written and read by default: in the ledger's own directory, which ignores itself. */
 export const JUNIT = `${RUNS}/junit.xml`;
 const OTHER_KEYS = ['allowEmpty', 'configEnv', 'runner', 'junit'];
+/** A "tests".junit keel accepts: a .xml file directly in the ledger's directory, a name a shell reads as it is. */
+export const JUNIT_PATH = /^\.keel\/test-runs\/[A-Za-z0-9_][A-Za-z0-9_.-]*\.xml$/;
 
 // ---- config ------------------------------------------------------------------
 
@@ -126,7 +128,8 @@ export function testsConfigProblems(config) {
   for (const k of Object.keys(t)) if (!Object.hasOwn(DEFAULTS, k) && !OTHER_KEYS.includes(k)) out.push(`"tests" has an unknown key ${k} (window, factor, floorMs, ${OTHER_KEYS.join(', ')})`);
   if (t.runner !== undefined && !RUNNERS.includes(t.runner)) out.push(`"tests".runner must be one of ${RUNNERS.join(', ')}`);
   // keel writes it into the gate's shell line as it is (adopt's proposal), so it holds no character a shell reads: never quoted, never wrong.
-  if (t.junit !== undefined && !(typeof t.junit === 'string' && /^[A-Za-z0-9_.][A-Za-z0-9_./-]*\.xml$/.test(t.junit) && !t.junit.split('/').includes('..'))) out.push('"tests".junit must be a .xml file inside the repo, relative to its root, of letters, digits, _ . / and - only');
+  // It lives in the ledger's own directory, which ignores itself: a report anywhere else would stay behind, untracked, after every gate.
+  if (t.junit !== undefined && !(typeof t.junit === 'string' && JUNIT_PATH.test(t.junit))) out.push(`"tests".junit must be a .xml file in ${RUNS}/ (which ignores itself), of letters, digits, _ . and - only`);
   if (t.configEnv !== undefined && !(Array.isArray(t.configEnv) && t.configEnv.every(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v)))) out.push('"tests".configEnv must be a list of environment variable names');
   if (t.allowEmpty !== undefined && typeof t.allowEmpty !== 'boolean') out.push('"tests".allowEmpty must be true or false');
   if (t.window !== undefined && !(Number.isInteger(t.window) && t.window >= 2 && t.window <= MAX_WINDOW)) out.push(`"tests".window must be a whole number of runs, 2 to ${MAX_WINDOW}`);
@@ -171,7 +174,8 @@ export const NIGHT_ONLY = 'nightly runs only: CI does not upload keel-test-runs'
 
 /** A machine's class: what makes two durations comparable. */
 export const machineClass = m => m ? `${m.os}-${m.arch}-${m.cpus}cpu` : 'unknown';
-const key = t => `${t.file ?? ''}\u0000${t.name}`;
+/** A test's identity: its file, whether it is a JUnit describe, and its name (a describe and a test of one name are two). */
+const key = t => `${t.file ?? ''}\u0000${t.describe === true ? 'd' : 't'}\u0000${t.name}`;
 /** A run's config identity; a record from before configs is its own (null) class. */
 const configOf = r => r?.config ?? null;
 /** The folder a run's `node --test` ran in, relative to the repo's root; a record from before folders ran at the root. */
@@ -299,7 +303,9 @@ export function aloneCommand(test, preload = [], { here = '.' } = {}) {
   // so a configEnv value never reaches a printed command and the command still runs as printed.
   const env = vars.filter(([, v]) => isSet(v)).map(([k, v]) => k === 'NODE_OPTIONS' && typeof v === 'string' ? `${k}=${quote(v)}` : `${k}="\${${k}?set ${k} as it was in the run}"`);
   const unset = vars.filter(([, v]) => !isSet(v)).map(([k]) => `-u ${k}`);
-  const file = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';
+  const rel = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';
+  // One shell word, whatever the path holds (a space, a quote).
+  const file = rel && !/^[\w./@+-]+$/.test(rel) ? quote(rel) : rel;
   const run = runner === 'bun' ? ['bun', 'test', file, '-t', quote(pattern)]
     : runner === 'vitest' ? ['npx', 'vitest', 'run', file, '-t', quote(pattern)]
     : ['node', ...(test.setting?.preload ?? preload), '--test', `--test-name-pattern=${quote(pattern)}`, file];
@@ -380,10 +386,16 @@ export function where(cwd = process.cwd(), { exclude = [] } = {}) {
  * never evict another lane's baseline. Make the directory ignore itself.
  * Returns the file name.
  */
-export async function record(root, run, { window = DEFAULTS.window, keep = Math.max(KEEP, window + 10), total } = {}) {
+/** The ledger's directory, made, and ignoring itself (a .gitignore of `*`), so what lands there never dirties a tree. */
+export async function ignoreRuns(root) {
   const dir = join(root, RUNS);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, '.gitignore'), '*\n');
+  return dir;
+}
+
+export async function record(root, run, { window = DEFAULTS.window, keep = Math.max(KEEP, window + 10), total } = {}) {
+  const dir = await ignoreRuns(root);
   const name = `${run.date.replaceAll(':', '-').replace('.', '-')}-${process.pid}.json`;
   await writeFile(join(dir, name), `${JSON.stringify(run)}\n`);
   const names = (await readdir(dir)).filter(n => n.endsWith('.json')).sort();
@@ -699,6 +711,8 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
   const at = junit !== undefined ? resolve(cwd, junit) : resolve(root, typeof config?.tests?.junit === 'string' ? config.tests.junit : JUNIT);
   const inside = relative(root, at).split(sep).join('/');
   const shown = inside && !inside.startsWith('../') && !isAbsolute(inside) ? inside : at;
+  // A report in the ledger's directory is ignored even by a run that records nothing (no tests, a stale file).
+  if (shown.startsWith(`${RUNS}/`)) await ignoreRuns(root).catch(() => {});
   const done = (ran, failed) => {
     const empty = emptyRun(ran, config);
     if (empty) lines.push(empty);
