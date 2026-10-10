@@ -118,7 +118,11 @@ export function sandboxProblems(root, base, head) {
   // rev-list's own lines (PR #59): its -z applies only to --objects and kin, so commits are one a line.
   const changes = changesOf(root, b, h), whole = new Set(changes.map(x => x.path));
   for (const c of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
-    for (const { path } of changesOf(root, `${c}^`, c)) {
+    // A merge answers only for what it introduced (#83): against its first parent it would show everything the
+    // default branch brought in, a trusted workflow or keel script change too.
+    const merge = git(root, ['rev-list', '--parents', '-n', '1', c]).split(' ').length > 2;
+    const steps = merge ? pathsOf(root, ['diff-tree', '--cc', '--name-only', '-r', '--no-commit-id', c]).map(path => ({ path })) : changesOf(root, `${c}^`, c);
+    for (const { path } of steps) {
       // A package.json's install keys, commit by commit (#82): a dependency or an install script added and taken out later.
       if (basename(path) === 'package.json') {
         // The whole branch's own check names it when the change stands at its head; this is for one taken back.

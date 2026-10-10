@@ -441,7 +441,7 @@ test('guard: an index flag the gate set, an edit behind a flag set before the gu
   await writeFile(join(dir, '.git/hooks/post-checkout'), `#!/bin/sh\ntouch "${mark}"\n`, { mode: 0o755 });
   const honest = await guardWith('');
   assert.equal(honest.status, 0, honest.stdout + honest.stderr);
-  assert.equal(await gateRuns(), 2, 'the candidate\'s gate, then the base\'s');
+  assert.equal(await gateRuns(), 2, 'the base\'s gate first (#82), then the candidate\'s');
   assert.equal(existsSync(mark), false, 'a hook in the git dir ran from keel\'s git (core.hooksPath)');
   await rm(join(dir, '.git/hooks/post-checkout'));
 
@@ -449,12 +449,13 @@ test('guard: an index flag the gate set, an edit behind a flag set before the gu
     ['assume-unchanged, then an edit', 'git update-index --assume-unchanged acme.test.mjs && echo "// more" >> acme.test.mjs', /set or cleared an index flag after the guard's checks \(assume-unchanged or skip-worktree: h acme\.test\.mjs\)/],
     ['skip-worktree, then an edit', 'git update-index --skip-worktree acme.test.mjs && echo "// more" >> acme.test.mjs', /set or cleared an index flag after the guard's checks \(assume-unchanged or skip-worktree: S acme\.test\.mjs\)/],
     ['a config planted', 'git config acme.planted yes', /changed the git dir's config, hooks or attributes, or its replace refs/],
-    ['a replace ref planted', `git replace --graft ${base} ${checked}`, /changed the git dir's config, hooks or attributes, or its replace refs/],
+    // -f: the same command is the base's gate too (#82: it runs first), which makes the ref before the candidate's does.
+    ['a replace ref planted', `git replace -f --graft ${base} ${checked}`, /changed the git dir's config, hooks or attributes, or its replace refs/],
   ]) {
     const g = await guardWith(tail);
     assert.equal(g.status, 1, `${why}: ${g.stdout}${g.stderr}`);
     assert.ok(json(g).problems.some(p => said.test(p)), `${why}: ${JSON.stringify(json(g).problems)}`);
-    assert.equal(await gateRuns(), 1, `${why}: refused before the base's gate ran in a worktree that shares the git dir`);
+    assert.equal(await gateRuns(), 2, `${why}: the base's gate ran first (#82), before any of the agent's code, then the candidate's`);
     if (why === 'a config planted') git(dir, ['config', '--unset', 'acme.planted']);
     if (why === 'a replace ref planted') git(dir, ['replace', '-d', base]);
     clean();
@@ -466,7 +467,7 @@ test('guard: an index flag the gate set, an edit behind a flag set before the gu
   const behind = await guardWith('echo "// more" >> acme.test.mjs');
   assert.equal(behind.status, 1, behind.stdout + behind.stderr);
   assert.ok(json(behind).problems.includes(`the gate \`echo ran >> "${runs}" && ${LEDGER_TEST} && echo "// more" >> acme.test.mjs\` changed a tracked file after the guard's checks (read from disk, though git status says nothing changed): nothing is taken`), JSON.stringify(json(behind).problems));
-  assert.equal(await gateRuns(), 1);
+  assert.equal(await gateRuns(), 2, 'the base\'s gate first (#82), then the candidate\'s');
   clean();
   // Bytes, not text: a byte no encoding reads (0xff to 0xfe) is a change, behind a flag set before.
   const tend = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
@@ -645,4 +646,53 @@ test('guard in a linked worktree: a .git pointer moved to another git dir is ref
   await cp(held.gitDir, other, { recursive: true });
   await writeFile(join(wt, '.git'), `gitdir: ${other}\n`);
   assert.match(tend.heldProblems(wt, held, 'the gate').join('\n'), /^the gate changed where the checkout's git dir is/);
+});
+
+// #82: the candidate's own code can overwrite the base commit's loose object with its own commit's content (git
+// reads a loose object without checking it hashes to its name). The base's gate runs first, before any of the
+// agent's code, so the base it measures is the real base, and the dropped test is seen.
+test('guard: a candidate whose test rewrites the base commit\'s object to look like itself is still compared with the real base', async t => {
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: LEDGER_TEST }, config: { check: LEDGER_TEST }, files: { 'acme.test.mjs': suite('acme adds', 'acme subtracts') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-b', 'forge']);
+  const forger = `import { test } from 'node:test';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { inflateSync, deflateSync } from 'node:zlib';
+test('acme adds', () => {});
+const loose = s => \`.git/objects/\${s.slice(0, 2)}/\${s.slice(2)}\`;
+const head = readFileSync(\`.git/\${readFileSync('.git/HEAD', 'utf8').trim().replace('ref: ', '')}\`, 'utf8').trim();
+const commit = inflateSync(readFileSync(loose(head)));
+const parent = /\\nparent ([0-9a-f]{40})/.exec(commit.toString('latin1'))[1];
+rmSync(loose(parent), { force: true });
+writeFileSync(loose(parent), deflateSync(commit));
+`;
+  await commit(dir, { 'acme.test.mjs': forger }, 'acme: a lighter suite');
+  const g = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(g.status, 1, g.stdout + g.stderr);
+  assert.deepEqual(json(g).missing, [{ file: 'acme.test.mjs', name: 'acme subtracts', how: 'dropped' }]);
+});
+
+// #83: a merge answers only for what it introduced. A branch that merges a default branch which changed a workflow
+// (a release, say) is not refused for the workflow; one whose merge itself brings an off-limits change is.
+test('sandbox: a merge of a default branch that changed a workflow passes; a merge that itself changes one is refused', async t => {
+  const dir = await acme(t, { files: { 'acme.mjs': 'export const anvil = 1;\n' } });
+  const start = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-b', 'agent']);
+  await commit(dir, { 'acme.mjs': 'export const anvil = 2;\n' }, 'acme: the agent\'s change');
+  git(dir, ['checkout', '-q', 'main']);
+  const main = await commit(dir, { '.github/workflows/acme.yml': 'name: acme\n' }, 'acme: a release changes a workflow');
+  git(dir, ['checkout', '-q', 'agent']);
+  git(dir, ['merge', '-q', '--no-edit', main]);
+  const sb = climb(dir, ['sandbox', '--base', main, '--head', 'HEAD', '--json']);
+  assert.equal(sb.status, 0, sb.stdout + sb.stderr);
+  // The merge itself changing the workflow (an evil merge): refused.
+  git(dir, ['reset', '-q', '--hard', 'HEAD^']);
+  git(dir, ['merge', '-q', '--no-commit', main]);
+  await write(dir, { '.github/workflows/acme.yml': 'name: acme, by the agent\n' });
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '--no-edit']);
+  const evil = climb(dir, ['sandbox', '--base', main, '--head', 'HEAD', '--json']);
+  assert.equal(evil.status, 1, evil.stdout);
+  assert.match(json(evil).problems.join('\n'), /^\.github\/workflows\/acme\.yml: changed on the agent's branch/m);
+  assert.ok(start);
 });
