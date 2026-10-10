@@ -4,7 +4,7 @@ since: 2026-10-09
 goal: G5
 spec: 2
 depends: [43]
-note: "A metered project audits its Actions bill, and keel adds workflows without saying what they cost: the night reruns a 12-15 minute gate the project's own CI already ran. CI cost becomes a measure (billable minutes, OS multipliers, per-job round-up), the night reuses the project's CI result on main, and adopt states what keel adds. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
+note: "A metered project audits its Actions bill, and keel adds workflows without saying what they cost: the night reruns a 12-15 minute gate the project's own CI already ran. CI cost becomes a measure (weighted minutes, OS multipliers, per-job round-up), the night reuses the project's CI result on main, and adopt states what keel adds. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
 evidence: []
 issue: 48
 ---
@@ -13,15 +13,15 @@ issue: 48
 
 ## Done when
 
-The night reports each workflow's billable minutes for the last 7 days (each job rounded up to a minute, macOS ×10 and Windows ×2) against a bound the project sets; the night's gate measure reuses the result of the project's own CI on the same commit instead of running the gate again; `keel adopt --dry-run` states the billable minutes a month keel's workflows would add; and one metered project has run a month with them.
+The night reports each workflow's weighted minutes for the last 7 days (each job rounded up to a minute, configurable defaults Linux ×1, Windows ×2 and macOS ×10) against a bound the project sets; the night's gate measure reuses the result of the project's own CI on the same commit instead of running the gate again; `keel adopt --dry-run` states the weighted minutes a month keel's workflows would add; and one metered project has run a month with them.
 
 ## Scope
 
 The design is [Adopting projects that already have a practice](../research/2026-10-09-adopting-projects-that-ship-to-main.md), change 4.
 
-- **The measure** `ci_minutes`: from the Actions API (one REST call per run for its jobs' timing), each job rounded up to a whole minute and multiplied by its runner's rate (Linux 1, Windows 2, macOS 10; overridable), by workflow, for the last 7 days; bound `.keel/keel.json` `"ci": { "weeklyMinutes": N }`. keel's own workflows are listed apart, so the owner sees what keel costs.
-- **The gate, reused**: when `.keel/keel.json` names the project's CI workflow (`"ci": { "gateWorkflow": "ci.yml" }`), the night's `gate` measure reads that workflow's conclusion on the night's exact commit instead of running the check; it runs the check only when there is no such run.
-- **Adoption states it**: `keel adopt --dry-run` lists each workflow keel would add with its trigger and an estimate in billable minutes a month (from keel's own history of that workflow), and the total.
+- **The measure** `ci_minutes`: from the Actions API (bounded, paginated runs and jobs, including run attempts), each job rounded up to a whole minute and multiplied by its runner's configured weight (Linux 1, Windows 2, macOS 10; overridable), by workflow, for the last 7 days; bound `.keel/keel.json` `"ci": { "weeklyMinutes": N }`. keel's own workflows are listed apart, so the owner sees what keel costs.
+- **The gate, reused**: when `.keel/keel.json` names the project's CI workflow (`"ci": { "gateWorkflow": "ci.yml" }`), the night's `gate` measure reads that workflow's conclusion on the night's exact commit instead of running the check; it reuses a completed success or failure on the exact clean revision within 24 hours, and runs the check when no usable result is available. Conflicting top-level and nested workflow names are a configuration error.
+- **Adoption states it**: `keel adopt --dry-run` lists each workflow keel would add with its trigger and an estimate in weighted minutes a month (from keel's own history of that workflow), and the total.
 
 ## Acceptance
 
@@ -52,7 +52,9 @@ Over time: a month's minutes against the estimate.
 
 ## Deliberately open
 
-- **Multipliers change**: GitHub's rates are configuration, not code; they are dated in the measure's detail.
+- **Settled 2026-10-09: estimates, not invoices.** The 1/2/10 defaults are dated, configurable weighting assumptions. GitHub prices depend on runner hardware and billing context; standard public hosted usage and self-hosted usage can be free. Report runner/billing coverage, provenance and unavailable data explicitly. Weighted minutes are a comparable usage estimate, not a claim of billed dollars or a universal current tariff. See [GitHub runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing).
+
+- **Multipliers change**: Weighting assumptions are dated configuration, not a universal tariff; they are dated in the measure's detail.
 - **Settled 2026-10-09: exact revision only.** A successful run on another
   commit cannot validate this tree. Reuse only a completed run on the exact
   commit, no older than a day, and never reuse it for a dirty tree. Otherwise
