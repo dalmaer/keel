@@ -258,3 +258,11 @@ that hides it.
   and [`docs/research/2026-10-06-pr-and-retro.md`](../research/2026-10-06-pr-and-retro.md):
   the designs.
 - [`docs/reconciliation.md`](../reconciliation.md): the `keel-impact` block.
+
+### Robot pull requests
+
+`keel/robot-` PRs use the robot workflow's explicit other-provider review and
+shared build/review allowance. Standalone cross-review refuses these branches,
+even with a matching prefix or an owner `/review` comment. Continue the issue
+conversation through the robot; reading and answering review findings with
+`keel review` remains available. See [the robot guide](the-robot.md).

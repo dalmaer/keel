@@ -184,6 +184,39 @@ test('off: with no crossReview key the workflow ends at its first step; with no 
   assert.ok(names.indexOf('Check out the pull request') < names.indexOf('Review'));
 });
 
+test('robot PRs refuse standalone review for both providers, explicit prefixes and owner requests', async t => {
+  const m = await load(t);
+  const events = [
+    { name: 'pull_request', action: 'opened' },
+    { name: 'pull_request', action: 'ready_for_review' },
+    { name: 'issue_comment', action: 'created', comment: { body: '/review', association: 'OWNER', login: 'acme-owner', type: 'User' } },
+  ];
+  for (const agent of ['claude', 'codex']) for (const prefix of ['keel/robot-', 'keel/']) {
+    const config = { agents: { claude: {}, codex: {} }, crossReview: { for: [prefix], agent, budget: { minutes: 15 } } };
+    for (const event of events) {
+      const refused = m.shouldReview({ config, event, pr: prJson({ headRefName: 'keel/robot-7' }), has: { claude: true, codex: true } });
+      assert.equal(refused.review, false, `${agent}: ${prefix}: ${event.name}/${event.action}`);
+      assert.match(refused.why, /reviewed only by keel-robot\.yml.*shared robot budget/);
+      for (const author of ['claude', 'codex']) {
+        const ordinary = m.shouldReview({ config: { ...config, crossReview: { for: ['claude/', 'codex/'] } }, event, pr: prJson({ headRefName: `${author}/acme-fix` }), has: { claude: true, codex: true } });
+        assert.equal(ordinary.review, true);
+        assert.equal(ordinary.author, author);
+        assert.equal(ordinary.agent, author === 'claude' ? 'codex' : 'claude');
+      }
+    }
+  }
+  // Exercise the actual workflow selector: no provider output can start a model step.
+  for (const agent of ['claude', 'codex']) {
+    const dir = await acme(t, { files: { '.keel/keel.json': JSON.stringify({ agents: { claude: {}, codex: {} }, robot: { on: true, budgetMinutes: 1 }, crossReview: { for: ['keel/robot-'], agent } }) } });
+    const gh = await stubGh(t, prJson({ headRefName: 'keel/robot-7' }));
+    const which = await step(t, dir, 'Which pull request?', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: dir, PR: '7', REPO: 'acme/anvils', EVENT: 'issue_comment', ACTION: 'created', COMMENT_BODY: '/review', ASSOCIATION: 'OWNER', COMMENTER: 'acme-owner', COMMENTER_TYPE: 'User', HAS_CLAUDE: 'true', HAS_CODEX: 'true' });
+    assert.equal(which.status, 0, which.out);
+    assert.equal(which.outputs.review, 'false');
+    assert.equal(which.outputs.agent, '');
+    assert.match(which.out, /reviewed only by keel-robot\.yml/);
+  }
+});
+
 test('which: a matching same-repo branch is reviewed on opened, ready_for_review and a person\'s /review; anything else is not, and says why', async t => {
   const m = await load(t);
   const config = { crossReview: ON };
