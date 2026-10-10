@@ -554,6 +554,8 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     [{ 'docs/projects/lid/phases.md': null }, /^docs\/projects\/lid\/phases\.md: deletes a record/],
     // PR #59: the projects shape keeps a phase's status in a **Status:** line: any change to it, or a box ticked, is refused.
     [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('**Status:** PART-DONE', '**Status:** CLOSED') }, /^docs\/projects\/lid\/phases\.md:4: changes a phase's status line \("\*\*Status:\*\* CLOSED"\); the robot never marks a phase/],
+    // The parser's own form (STATUS_LINE in lib.mjs), the bold span closing after the word: refused the same.
+    [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('**Status:** PART-DONE', '**Status: CLOSED.**') }, /^docs\/projects\/lid\/phases\.md:4: changes a phase's status line \("\*\*Status: CLOSED\.\*\*"\); the robot never marks a phase/],
     [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('- [ ] the lid opens', '- [x] the lid opens').replace(/\n/g, '\r\n') }, /^docs\/projects\/lid\/phases\.md:6: ticks a box \("the lid opens"\)/],
     [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
@@ -578,6 +580,9 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   for (const [gate, said] of [
     ['mkdir -p docs/evidence && echo "# Acme: proven" > docs/evidence/12-sneak.md && git add -A && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
     ['echo "// more" >> src/lid.mjs && git add src/lid.mjs', /changed the tracked tree or the index after the guard's checks/],
+    // An index flag hides an edit from git status: the files are read from disk, and the flags apart.
+    ['git update-index --assume-unchanged src/lid.mjs && echo "// more" >> src/lid.mjs', /set or cleared an index flag after the guard's checks \(assume-unchanged or skip-worktree: h src\/lid\.mjs\)/],
+    ['git update-index --skip-worktree src/lid.mjs && echo "// more" >> src/lid.mjs', /set or cleared an index flag after the guard's checks \(assume-unchanged or skip-worktree: S src\/lid\.mjs\)/],
     // PR #59: a gate that plants a hook, or names an fsmonitor, in the git dir: refused before any git of keel's runs it.
     [`printf '#!/bin/sh\\ntouch "${mark}"\\n' > "$(git rev-parse --git-common-dir)/hooks/reference-transaction" && chmod +x "$(git rev-parse --git-common-dir)/hooks/reference-transaction"`, /changed the git dir's config, hooks or attributes/],
     [`printf '#!/bin/sh\\ntouch "${mark}"\\n' > "${mark}.sh" && chmod +x "${mark}.sh" && git config core.fsmonitor "${mark}.sh"`, /changed the git dir's config, hooks or attributes/],
@@ -591,7 +596,17 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     assert.equal(existsSync(mark), false, `${gate}: a hook or fsmonitor the gate planted ran from keel's git`);
     await rm(join(dir, '.git/hooks/reference-transaction'), { force: true });
     run('git', ['config', '--unset', 'core.fsmonitor'], { cwd: dir });
+    run('git', ['update-index', '--no-assume-unchanged', '--no-skip-worktree', 'src/lid.mjs'], { cwd: dir });
   }
+  git(dir, ['reset', '-q', '--hard', checked]);
+  // A flag already set when the guard looked, then an edit behind it: the flags match, the files on disk do not.
+  const tend = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  git(dir, ['update-index', '--assume-unchanged', 'src/lid.mjs']);
+  const held = tend.treeState(dir);
+  await writeFile(join(dir, 'src/lid.mjs'), 'export const lid = () => "pried";\n');
+  assert.equal(git(dir, ['status', '--porcelain', '--untracked-files=no']), '', 'git status sees nothing');
+  assert.deepEqual(tend.heldProblems(dir, held, 'the gate'), ['the gate changed a tracked file after the guard\'s checks (read from disk, though git status says nothing changed): nothing is taken']);
+  git(dir, ['update-index', '--no-assume-unchanged', 'src/lid.mjs']);
   git(dir, ['reset', '-q', '--hard', checked]);
   // And the publish job's own check (git alone) refuses evidence on the branch, whatever the judge said.
   await commit(dir, { 'docs/evidence/12-sneak.md': '# Acme: proven\n' }, 'sneak');
@@ -617,36 +632,52 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   assert.equal(empty.text, null);
 });
 
-// PR #59: the gate is the project's, but its script lives in package.json, which the agent's branch may
-// change ("scripts" but the install's own). The guard judges what the gate ran against what the base's
-// own gate runs (climb.mjs ledgerCheck, the test ledger), so a rewritten gate script never passes.
-test('the judge: a gate script the branch rewrote (to `true`, to `|| true`, to fewer tests) is refused; an honest change passes', async t => {
+// PR #59: the gate is the project's, but its script lives in package.json, and the gate's test ledger
+// records are written while that script runs: a branch that changed it would write the records that judge
+// it. The robot works an issue, never the gate, so a "scripts" change is refused before the gate runs. And
+// the guard judges what the gate ran against what the base's own gate runs (climb.mjs ledgerCheck), so a
+// record the branch's own tests planted in the ledger is refused too.
+test('the judge: a gate script the branch rewrote (to `true`, to `|| true`, to fewer tests) is refused before the gate runs; a ledger record the branch planted is refused; an honest change passes', async t => {
   const robot = await robotLib();
   const pkg = check => `${JSON.stringify({ name: 'acme', private: true, scripts: { check } }, null, 2)}\n`;
   // No "check" in .keel/keel.json: the gate is `npm run check`, as package.json defines it.
   const dir = await acmeRobot(t, { check: undefined });
-  const base = await commit(dir, { 'package.json': pkg(LEDGER_TEST) }, 'acme: the gate is npm run check');
+  const base = await commit(dir, { 'package.json': pkg(`${LEDGER_TEST} && touch gate-ran`) }, 'acme: the gate is npm run check');
   const judge = async (files, message) => {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
+    await rm(join(dir, 'gate-ran'), { force: true });
     await commit(dir, files, message);
     return robot.robotGuard({ root: dir, config: JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')), base });
   };
   const honest = await judge({ 'src/lid.mjs': 'export const lid = () => "open";\n' }, 'lid: open on the hinge');
   assert.equal(honest.ok, true, JSON.stringify(honest.problems));
-  for (const [why, files, said] of [
-    ['the gate script rewritten to true', { 'package.json': pkg('true') }, /exited 0 on [0-9a-f]{7} but recorded no test ledger run, where the base [0-9a-f]{7}'s ran 2 tests/],
-    ['a failing test hidden by || true', { 'package.json': pkg(`${LEDGER_TEST} || true`), 'acme.test.mjs': suite('acme opens the lid', { text: "test('acme shuts the lid', () => { throw new Error('stuck'); });" }) }, /^failed: acme\.test\.mjs "acme shuts the lid" failed on [0-9a-f]{7}, though the gate `npm run check` exited 0$/],
-    ['the gate narrowed to a test of its own', { 'package.json': pkg(LEDGER_TEST.replace('acme.test.mjs', 'acme-easy.test.mjs')), 'acme-easy.test.mjs': suite('acme passes') }, /^dropped: acme\.test\.mjs "acme opens the lid" ran in the base [0-9a-f]{7} and not in [0-9a-f]{7}$/],
+  for (const [why, script] of [
+    ['the gate script rewritten to true', 'true'],
+    ['a failing test hidden by || true', `${LEDGER_TEST} || true`],
+    ['the gate narrowed to a test of its own', LEDGER_TEST.replace('acme.test.mjs', 'acme-easy.test.mjs')],
   ]) {
-    const g = await judge(files, `acme: ${why}`);
+    const g = await judge({ 'package.json': pkg(script) }, `acme: ${why}`);
     assert.equal(g.ok, false, `${why}: ${JSON.stringify(g)}`);
-    assert.ok(g.problems.some(p => said.test(p)), `${why}: ${JSON.stringify(g.problems)}`);
+    assert.deepEqual(g.problems, ['package.json: changes "scripts" ("check"); the robot never changes the scripts that run the gate, whose records judge its branch'], why);
+    assert.equal(existsSync(join(dir, 'gate-ran')), false, `${why}: refused before the gate ran`);
   }
+  // A test that drops the base's tests and writes a record naming them passed at this commit. (Mutation:
+  // without the count of records, the planted record supplies the dropped names and the guard passes.)
+  const planted = `import { test } from 'node:test';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+test('acme passes', () => {});
+const commit = readFileSync(\`.git/\${readFileSync('.git/HEAD', 'utf8').trim().replace('ref: ', '')}\`, 'utf8').trim();
+mkdirSync('.keel/test-runs', { recursive: true });
+writeFileSync('.keel/test-runs/0000-planted.json', JSON.stringify({ date: new Date().toISOString(), commit, tests: ['acme opens the lid', 'acme shuts the lid'].map(name => ({ file: 'acme.test.mjs', name, outcome: 'pass' })) }));
+`;
+  const g = await judge({ 'acme.test.mjs': planted }, 'acme: a lighter suite');
+  assert.equal(g.ok, false, JSON.stringify(g));
+  assert.match(g.problems.join('\n'), /^the gate `npm run check` left 2 test ledger records for [0-9a-f]{7} where the base [0-9a-f]{7}'s gate wrote 1: a record its own reporter did not write is in \.keel\/test-runs/);
   // The command line agrees: exit 1, naming it.
   await judge({ 'package.json': pkg('true') }, 'acme: true');
   const cli = run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'guard', '--job', 'robot', '--base', base, '--json'], { cwd: dir });
   assert.equal(cli.status, 1, cli.stdout + cli.stderr);
-  assert.match(parse(cli).problems.join('\n'), /recorded no test ledger run, where the base/);
+  assert.match(parse(cli).problems.join('\n'), /changes "scripts" \("check"\); the robot never changes the scripts that run the gate/);
 });
 
 // PR #59: the keel:agent label is the approval of the body as it stood. An outsider's issue can be edited

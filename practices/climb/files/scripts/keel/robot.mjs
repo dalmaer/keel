@@ -46,7 +46,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { isMain, rootOf, main, passAgentProblems, agentOf, AGENTS, reviewerOf, agentGitArgs, robotAgentMark } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
-import { sandboxProblems, recordRules, treeState, heldProblems, pathsOf, SAFE_GIT } from './tend.mjs';
+import { sandboxProblems, recordRules, scriptsChanged, treeState, heldProblems, pathsOf, SAFE_GIT } from './tend.mjs';
 import { LABEL, triage, missingText } from './rubric.mjs';
 
 export const KEY = 'robot';
@@ -572,6 +572,10 @@ export async function robotGuard({ root, config, env = process.env, base, check 
   if (off.length) return { ok: false, job: KEY, refused: off, problems: off };
   const records = recordRules(root, b, head, 'the robot');
   if (records.length) return { ok: false, job: KEY, refused: records, problems: records };
+  // PR #59: the gate's ledger records are written while the branch's scripts run, so a branch that changed
+  // them would write the records that judge it. The robot works an issue, never the gate's scripts.
+  const scripts = scriptsChanged(root, b, head).map(s => `${s.path}: changes "scripts" (${s.keys.map(k => `"${k}"`).join(', ')}); the robot never changes the scripts that run the gate, whose records judge its branch`);
+  if (scripts.length) return { ok: false, job: KEY, refused: scripts, problems: scripts };
   const gate = config.check ?? check;
   // The gate is the agent's code: what was checked is HEAD now, and it must still be HEAD after (PR #59).
   const before = treeState(root);

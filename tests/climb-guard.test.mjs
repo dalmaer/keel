@@ -353,3 +353,20 @@ test('worktrees go beside the checkout, so a sibling the setup cloned (ledger\'s
   assert.deepEqual(await leftovers(), []);
   assert.equal(git(dir, ['worktree', 'list']).split('\n').length, 1, 'no worktree registered');
 });
+
+// PR #59: a climb night may change the scripts that run the gate (the test command is often the change that
+// pays), but then those scripts wrote the ledger records the guard compared; the gate line says so.
+test('guard: a branch that changed the gate\'s scripts passes, and its gate line says the branch\'s own scripts wrote the records compared; one that did not says nothing of it', async t => {
+  const pkg = check => `${JSON.stringify({ name: 'acme', private: true, scripts: { check } }, null, 2)}\n`;
+  const dir = await acme(t, { climb: { jobs: ['test-time'], testCommand: 'npm run check' }, config: { check: 'npm run check' }, files: { 'package.json': pkg(LEDGER_TEST), 'acme.test.mjs': suite('acme adds') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const at = async (branch, files) => { git(dir, ['checkout', '-q', '-f', '-b', branch, base]); return commit(dir, files, `acme: ${branch}`); };
+  await at('plain', { 'acme.test.mjs': `${suite('acme adds')}// shared fixture\n` });
+  const plain = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(plain.status, 0, plain.stdout + plain.stderr);
+  assert.doesNotMatch(json(plain).line, /changed the gate's scripts/);
+  await at('faster', { 'package.json': pkg(LEDGER_TEST.replace('node --test', 'node --test --test-concurrency=4')) });
+  const faster = climb(dir, ['guard', '--base', base, '--json']);
+  assert.equal(faster.status, 0, faster.stdout + faster.stderr);
+  assert.match(json(faster).line, /; the branch changed the gate's scripts \(package\.json: "check"\), so its own scripts wrote the records compared: a person checks the gate still runs the base's tests$/);
+});

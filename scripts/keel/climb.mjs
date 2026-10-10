@@ -87,7 +87,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems, agentGitArgs, codexVerdict } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, treeState, heldProblems, recordRules, changesOf, SAFE_GIT, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, scriptsChanged, treeState, heldProblems, recordRules, changesOf, SAFE_GIT, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -1286,6 +1286,9 @@ export async function ledgerCheck({ root, config, env = process.env, gate, base:
   if (!baseRun) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for the base ${b.slice(0, 7)}${cand ? '' : ` or ${head.slice(0, 7)}`}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
   const ranBase = (baseRun.tests ?? []).filter(ran).length;
   if (!cand) return { ok: false, problems: [`the gate \`${gate}\` exited 0 on ${head.slice(0, 7)} but recorded no test ledger run, where the base ${b.slice(0, 7)}'s ran ${ranBase} tests: the candidate's gate does not run what the base's does (its gate script changed?)`] };
+  // PR #59: each suite's reporter writes one record; a record more than the base's gate wrote is one the
+  // reporter did not (the branch's code wrote it into the ledger), and it cannot be told from a real one.
+  if (cand.runs > baseRun.runs) return { ok: false, problems: [`the gate \`${gate}\` left ${cand.runs} test ledger records for ${head.slice(0, 7)} where the base ${b.slice(0, 7)}'s gate wrote ${baseRun.runs}: a record its own reporter did not write is in .keel/test-runs (the branch's code wrote it?), so what ran cannot be told`] };
   const missing = missingTests(baseRun, cand);
   if (missing.length) return { ok: false, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
   const failed = (cand.tests ?? []).filter(t => t.outcome === 'fail');
@@ -1344,7 +1347,11 @@ export async function guard({ root, config, env = process.env, base, job }) {
   const count = ledger.count;
   const moved = heldProblems(root, before, `the agent's code the guard ran (the gate \`${gate}\`${extra.perfCheck ? ', the perf check' : ''}${extra.build ? ', the build' : ''})`);
   if (moved.length) return { ok: false, job, gate, refused: moved, problems: moved };
-  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}`;
+  // PR #59: a climb night may change the scripts that run the gate (the test command is often the change that
+  // pays), but then those scripts wrote the records the comparison read; the PR says so, for the person.
+  const scripts = scriptsChanged(root, b, head);
+  const caution = scripts.length ? `; the branch changed the gate's scripts (${scripts.map(s => `${s.path}: ${s.keys.map(k => `"${k}"`).join(', ')}`).join('; ')}), so its own scripts wrote the records compared: a person checks the gate still runs the base's tests` : '';
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}${caution}`;
   if (night) { night.gate = line; await writeNight(root, night); }
   return { ok: true, gate, line, problems: [], ...(job ? { job } : {}), ...extra };
 }

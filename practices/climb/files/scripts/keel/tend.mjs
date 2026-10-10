@@ -446,7 +446,33 @@ const firstAdded = (root, base, head, path) => {
  */
 export function treeState(root) {
   const gitDir = git(root, ['rev-parse', '--absolute-git-dir']);
-  return { head: sha(root, 'HEAD'), status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitFiles: gitDirPrint(gitDir) };
+  const head = sha(root, 'HEAD');
+  return { head, status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitFiles: gitDirPrint(gitDir), flags: indexFlags(root), files: trackedPrint(root, head) };
+}
+/**
+ * The index entries git status is told not to look at (PR #59): an
+ * assume-unchanged (a lower-case tag in ls-files -v) or skip-worktree (S)
+ * entry hides an edit from status, so the guard reads the flags, and the
+ * files themselves (trackedPrint), apart from it.
+ */
+export function indexFlags(root) {
+  return pathsOf(root, ['ls-files', '-v']).filter(e => !e.startsWith('H ')).sort().join('\0');
+}
+/**
+ * Every file HEAD's tree names, as its bytes are on disk (PR #59), read from
+ * disk, never through git status or the index: a hash of each path and what
+ * is there (the bytes, a link's target, or that it is missing).
+ */
+export function trackedPrint(root, head) {
+  const h = createHash('sha256');
+  for (const rel of pathsOf(root, ['ls-tree', '-r', '--name-only', head])) {
+    const p = join(root, rel);
+    let v;
+    try { const st = lstatSync(p); v = st.isSymbolicLink() ? `link:${readlinkSync(p)}` : st.isFile() ? readFileSync(p).toString('base64') : `kind:${st.mode}`; }
+    catch (e) { if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e; v = 'missing'; }
+    h.update(`${rel}\0${v}\0`);
+  }
+  return h.digest('hex');
 }
 /**
  * The git dir's files that make git run a command (PR #59), read from disk,
@@ -467,6 +493,8 @@ export function heldProblems(root, before, what) {
   const now = treeState(root), out = [];
   if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
   if (now.status !== before.status) out.push(`${what} changed the tracked tree or the index after the guard's checks (git status: ${now.status.split('\n').filter(Boolean).slice(0, 3).join('; ') || 'clean'}): nothing is taken`);
+  else if (now.flags !== before.flags) out.push(`${what} set or cleared an index flag after the guard's checks (assume-unchanged or skip-worktree: ${now.flags.split('\0').filter(Boolean).slice(0, 3).join('; ') || 'none now'}); git status cannot see an edit behind one, so nothing is taken`);
+  else if (now.files !== before.files) out.push(`${what} changed a tracked file after the guard's checks (read from disk, though git status says nothing changed): nothing is taken`);
   return out;
 }
 
@@ -476,6 +504,24 @@ export function heldProblems(root, before, what) {
  * status changed to built, lived-in or accepted, no acceptance box ticked.
  * [string], each naming the line. `who` names the agent in the text.
  */
+/**
+ * The package.json files whose "scripts" the branch changed (PR #59):
+ * [{ path, keys }]. The gate's test ledger records are written while those
+ * scripts run, so a branch that changed them wrote the records that judge it.
+ */
+export function scriptsChanged(root, base, head) {
+  const out = [];
+  for (const { path } of changesOf(root, base, head)) {
+    if (basename(path) !== 'package.json') continue;
+    let b, a;
+    try { b = JSON.parse(showAt(root, base, path) ?? '{}')?.scripts ?? {}; a = JSON.parse(showAt(root, head, path) ?? '{}')?.scripts ?? {}; }
+    catch { out.push({ path, keys: ['(not JSON)'] }); continue; }
+    const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(k => b[k] !== a[k]).sort();
+    if (keys.length) out.push({ path, keys });
+  }
+  return out;
+}
+
 /** The records a deletion of is refused (PR #59), beside docs/evidence/. */
 export const RECORD_DIRS = Object.freeze(['docs/phases/', 'docs/projects/', 'docs/decisions/']);
 export function recordRules(root, base, head, who = 'the agent') {
@@ -496,7 +542,8 @@ export function recordRules(root, base, head, who = 'the agent') {
       lines(after).forEach((l, i) => {
         const s = l.trim();
         if (was.has(s)) return;
-        if (/^\*\*Status:\*\*/i.test(s)) refused.push(`${path}:${i + 1}: changes a phase's status line ("${s.slice(0, 80)}"); ${who} never marks a phase`);
+        // Either bold form (PR #59): `**Status:** CLOSED` and the parser's own `**Status: CLOSED.**`.
+        if (/^(?:[-*]\s+)?\*\*Status\b/i.test(s)) refused.push(`${path}:${i + 1}: changes a phase's status line ("${s.slice(0, 80)}"); ${who} never marks a phase`);
         else if (/^[-*]\s+\[[xX]\]\s+/.test(s)) refused.push(`${path}:${i + 1}: ticks a box ("${s.replace(/^[-*]\s+\[[xX]\]\s+/, '').slice(0, 80)}"); ${who} never accepts a phase`);
       });
     }
