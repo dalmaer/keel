@@ -39,7 +39,13 @@ export function generatedFiles(config, list = GENERATORS) {
 }
 
 /** Never copied: git's own directory, installed packages, and the test ledger's runs. */
-const SKIP = new Set(['.git', 'node_modules', '.keel/test-runs']);
+const SKIP = new Set(['.git', 'node_modules']);
+function copySource(root, src) {
+  const path = relative(root, src).split(sep).join('/');
+  // Nested fixture projects have their own rotating ledgers too. Exclude the
+  // directory before cp enumerates it, not individual files after rotation.
+  return !SKIP.has(path) && path !== '.keel/test-runs' && !path.endsWith('/.keel/test-runs');
+}
 
 const env = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('NODE_TEST_')));
 
@@ -53,7 +59,7 @@ export async function probe(root, g) {
   const tmp = await mkdtemp(join(tmpdir(), 'keel-generated-'));
   const dir = join(tmp, 'project');
   try {
-    await cp(root, dir, { recursive: true, verbatimSymlinks: true, filter: src => !SKIP.has(relative(root, src).split(sep).join('/')) });
+    await cp(root, dir, { recursive: true, verbatimSymlinks: true, filter: src => copySource(root, src) });
     const file = join(dir, g.path);
     const marker = `<!-- keel generated-file probe ${Date.now().toString(36)}${Math.random().toString(36).slice(2)}: a hand edit, which the generator must not keep -->`;
     await mkdir(dirname(file), { recursive: true });

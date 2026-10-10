@@ -6,7 +6,7 @@ since: 2026-10-07
 goal: G2
 spec: 2
 depends: [35, 38, 42]
-note: "Built: agents (\"agents\", and \"agent\" per pass, default claude), adapters for Claude and Codex in the night lib, findings as JSON that keel validates against the diff and posts (no agent holds a comment tool), Codex reviewing in a read-only, drop-sudo sandbox. Codex cannot commit under workspace-write, so climb and tend stay Claude-only. Owes the Codex run on ledger."
+note: "Built: agents (\"agents\", and \"agent\" per pass, default claude), adapters for Claude and Codex in the night lib, findings as JSON that keel validates against the diff and posts (no agent holds a comment tool), Codex reviewing in a read-only, drop-sudo sandbox. Phase 47 supersedes the original Claude-only climb/tend restriction with agent-git object transfer; phase 46 splits review from publishing. Owes the owner assessment of a Codex review on ledger."
 evidence: ["evidence/2026-10-07-agent-providers.md"]
 issue: 29
 ---
@@ -23,7 +23,7 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 
 - **Config**: `"agents": { "claude": {}, "codex": {} }` (which providers the project uses; their secrets are declared per provider), and `"agent": "<name>"` on `crossReview`, `climb` and `tend`, defaulting to `claude`. Validated: an agent a pass names must be listed; an unknown provider is an error.
 - **Adapters**: one per provider in the shipped scripts, each giving the action and its major, its secrets, its read-only and edit-the-tree settings (Claude: `--allowedTools`; Codex: `sandbox`, `safety-strategy: drop-sudo`, `read-only`), where its final message and its error are read (for "Did the agent run?" and the Budget line), and its bot login.
-- **Workflows**: keel-cross-review.yml chooses the agent's step by the pass's `agent`; keel-climb.yml and keel-tend.yml run Claude only (Codex cannot commit in its writable sandbox: see Trajectory); the three-job sandbox, guard, judge and publish are unchanged.
+- **Workflows (reconciled 2026-10-09)**: cross-review chooses the other provider from the author branch; phase 46 separates read-only review and trusted publication. Phase 47 adds Codex climb/tend using agent-git object transfer under workspace-write. The historical Claude-only constraint below is superseded; its sandbox failure remains part of the record.
 - **Findings as data**: the reviewing agent ends with a fenced JSON block (`[{ path, line, severity: "P1"|"P2"|"P3", body }]`) and a summary; `cross-review.mjs` validates it (paths in the PR's diff, lines in range, severity known) and the workflow posts the inline comments and the COMMENT review. The agent holds no comment tool.
 - **Not in scope**: an `@codex` worker beside the `claude` practice (ChatGPT's connection already answers `@codex`).
 
@@ -66,7 +66,7 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 
 ## Next action
 
-⚑ Owner: read Codex's review on the next `claude/` PR in ledger (switched on in ledger#105: Claude reviews `codex/` PRs, Codex reviews `claude/` PRs) and judge its comments; then built.
+⚑ Owner: assess the usefulness of a Codex cross-review on a Ledger change authored by Claude. Configuration was enabled in [Ledger PR #105](https://github.com/dalmaer/ledger/pull/105); that configuration change does not prove the owner assessment. Phases 46 and 47 own the later sandbox and provider changes.
 
 ## Trajectory
 
@@ -75,3 +75,5 @@ The design is [Agent providers](../research/2026-10-07-agent-providers.md).
 - **2026-10-07** — Cross-review is still one job with pull-requests: write; Codex is contained by its read-only, no-network sandbox and a blanked GH_TOKEN, Claude by read-only tools. Splitting it into agent and publish jobs, as climb and tend are, is the next hardening.
 - **2026-10-07** — The owner's rule: a PR is always reviewed by a different provider than the one that wrote it. The reviewer is derived per PR from its author (the provider whose branch, `claude/` or `codex/`, its head starts with): the first other provider `"agents"` lists. A prefix whose author has no other provider listed, or an `agent` equal to a prefix's author, is a config error; a run that would review its own author ends red with no agent run. `codex/` matches the fleet; OpenAI does not document it.
 - **2026-10-07** — Switched on for ledger (ledger#105): `OPENAI_API_KEY` set by the owner, `"agents": {"claude": {}, "codex": {}}`, and `crossReview.for: ["codex/", "claude/"]`; ledger's own reviewerOf routes codex/ to Claude and claude/ to Codex.
+
+- **2026-10-09** — Reconciled current architecture with phases 46 and 47: split review/publication and Codex agent-git transfer supersede the original one-job/Claude-only restrictions. Historical trajectory is preserved, and the owner usefulness assessment remains unchecked.

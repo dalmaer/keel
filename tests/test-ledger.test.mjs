@@ -58,7 +58,7 @@ async function acmeRepo(t, source = null) {
   await mkdir(join(dir, 'tests'), { recursive: true });
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await writeFile(join(dir, 'tests', 'acme.test.mjs'), ACME_TESTS);
-  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), source ?? await readFile(SOURCE, 'utf8'));
+  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), (source ?? await readFile(SOURCE, 'utf8')).replace('load = loadavg', 'load = () => [0, 0, 0]').replace("process.env.KEEL_RUN_START ?? 'null'", "'null'"));
   await writeFile(join(dir, '.gitignore'), 'out*.txt\n');
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main');
@@ -535,10 +535,10 @@ test('flaky: one test passing and failing on the same clean tree is named; acros
 
 test('mutations: flaky that ignores the tree, or a dirty tree, fails the flaky test', async t => {
   for (const [from, to] of [
-    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${key(t)}`;', 'const k = `${laneOf(r)}\\u0000${key(t)}`;'],
-    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${key(t)}`;'],
-    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;'],
-    ["if (r.dirty !== false || !r.tree) continue;", 'if (!r.tree) continue;'],
+    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${machineClass(r.machine)}\\u0000${key(t)}`;', 'const k = `${laneOf(r)}\\u0000${key(t)}`;'],
+    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${machineClass(r.machine)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${key(t)}`;'],
+    ['const k = `${r.tree}\\u0000${laneOf(r)}\\u0000${machineClass(r.machine)}\\u0000${key(t)}`;', 'const k = `${r.tree}\\u0000${configOf(r)}\\u0000${key(t)}`;'],
+    ["if (r.dirty !== false || !r.tree || busyState(r) === 'busy') continue;", 'if (!r.tree) continue;'],
   ]) {
     const m = await mutant(t, from, to);
     assert.throws(() => assertFlaky(m.flaky), assert.AssertionError, `mutant survived: ${to}`);
@@ -592,7 +592,7 @@ test('the hygiene block: one line when clean; each item with its history and the
   const opts = { window: 3, factor: 2, floorMs: 200 };
   const clean = hygiene(history(200, 210, opts), opts);
   assert.equal(clean.length, 1);
-  assert.match(clean[0], /^keel test ledger: no flaky or slower test \(4 runs in \.keel\/test-runs\)\.$/);
+  assert.match(clean[0], /^keel test ledger: no flaky or slower test \(4 runs in \.keel\/test-runs; 0 busy runs omitted; 4 runs with unavailable load context \(not known quiet\)\)\.$/);
   const block = hygiene(history(200, 500, opts), opts, { preload: ['--import', './tests/helpers/hermetic.mjs'] });
   assert.match(block[0], /^keel test ledger: 1 hygiene item \(4 runs/);
   assert.match(block[1], /^ {2}slower {2}tests\/anvils\.test\.mjs "drop": 500 ms against a median of 200 ms over its last 3 passing runs \(linux-x64-4cpu\), \+300 ms$/);
@@ -768,7 +768,7 @@ test('--junit: a bun and a vitest file become ledger records with the run\'s com
   await junitAt(dir, ledger.JUNIT, await fixture('bun.xml'));
   const bun = ledgerCli(dir, ['--junit', ledger.JUNIT, '--runner', 'bun', '--status', '1']);
   assert.equal(bun.status, 1, `the runner's own exit code:\n${bun.stdout}${bun.stderr}`);
-  assert.equal(bun.stdout, 'keel test ledger: no flaky or slower test (1 run in .keel/test-runs).\n', 'the hygiene block, as a node run ends with');
+  assert.equal(bun.stdout, 'keel test ledger: no flaky or slower test (1 run in .keel/test-runs; 0 busy runs omitted; 1 runs with unavailable load context (not known quiet)).\n', 'the hygiene block, as a node run ends with');
   await junitAt(dir, 'reports/vitest.xml', await fixture('vitest.xml'));
   const vitest = ledgerCli(dir, ['--junit=reports/vitest.xml']); // the runner is read from the file
   assert.equal(vitest.status, 1, 'no --status: a failed testcase fails the run');
@@ -807,7 +807,7 @@ test('--junit: a bun and a vitest file become ledger records with the run\'s com
  */
 async function assertEmptyJunit(dir, mod) {
   const at = join(dir, 'junit.xml');
-  const read = (status = 0) => mod.junitRun({ junit: at, status, cwd: dir });
+  const read = (status = 0) => mod.junitRun({ junit: at, status, cwd: dir, start: null, sample: async () => ({ load: [0, 0, 0], cores: 4 }) });
   await writeFile(at, await fixture('vitest-empty.xml'));
   let r = await read();
   assert.equal(r.code, 1, `a JUnit file with no tests: no tests ran\n${r.lines.join('\n')}`);
@@ -1129,4 +1129,373 @@ test('"tests".stalls: a list of files relative to the repo\'s root, pinned to st
   assert.deepEqual(ledger.stallsBad({ tests: { stalls: 'tests/acme.test.mjs' } }), ['tests/acme.test.mjs']);
   assert.deepEqual(ledger.stallsBad({}), []);
   assert.equal(ledger.pinned('/acme', {}), null, 'nothing pinned: nothing runs');
+});
+
+test('busy endpoints exclude flakes and slower runs, and unavailable legacy context is explicit', () => {
+  const quiet = { start: { load: [1, 1, 1], cores: 4 }, end: { load: [1, 1, 1], cores: 4 } };
+  const busy = { ...quiet, end: { load: [8, 8, 8], cores: 4 } };
+  const pass = runOf({ tests: { Acme: ['pass', 20] } });
+  const fail = { ...runOf({ tests: { Acme: ['fail', 20] } }), busy };
+  assert.deepEqual(flaky([pass, fail]), []);
+  const slow = { ...runOf({ tests: { Acme: ['pass', 1000] } }), busy };
+  assert.deepEqual(slower([pass, pass, slow], { window: 2, factor: 2, floorMs: 200 }), []);
+  assert.match(hygiene([pass, fail], { ...DEFAULTS, window: 2 }).join('\n'), /1 busy runs omitted; 1 runs with unavailable load context/);
+  assert.equal(ledger.busyState({ busy: quiet }), 'quiet');
+  assert.equal(ledger.busyState({}), 'unknown');
+  assert.equal(flaky([{ ...pass, busy: quiet }, { ...fail, busy: quiet }]).length, 1);
+  assert.equal(flaky([pass, { ...fail, busy: quiet, machine: { ...MACHINE, cpus: 8 } }]).length, 0);
+});
+
+test('last-ten-pass usual artifact isolates lanes and omits busy observations', async t => {
+  const runs = Array.from({ length: 12 }, (_, i) => runOf({ tests: { Acme: ['pass', i + 1] } }));
+  runs.push({ ...runOf({ tests: { Acme: ['pass', 999] } }), busy: { start: { load: [10], cores: 4 } } });
+  runs.push({ ...runOf({ tests: { Acme: ['pass', 300] } }), runner: 'bun' });
+  const dir = await scratch(t), path = await ledger.writeUsual(dir, runs);
+  const got = JSON.parse(await readFile(path, 'utf8'));
+  assert.deepEqual(got.tests.map(t => [t.median, t.passes]), [[7.5, 10], [300, 1]]);
+  assert.equal(got.coverage.omitted, 1);
+  assert.equal((await readRuns(dir)).skipped, 0);
+});
+
+test('failure text is bounded/redacted for node and JUnit; identical tree memory names repeats with run context', () => {
+  const text = ledger.failureText('password=fake-password\nAuthorization: Bearer fake-bearer\n' + 'x'.repeat(3000));
+  assert.ok(text.length <= 1024);
+  assert.doesNotMatch(text, /fake-password|fake-bearer/);
+  const top = ledger.topLevel({ errors: true });
+  top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error('token=fake-token') } } });
+  assert.doesNotMatch(top.tests[0].error, /fake-token/);
+  const xml = ledger.readXml('<testsuites name="vitest tests"><testsuite name="a.test.ts"><testcase name="Acme"><failure message="failed"><![CDATA[password=fake-password\nsecond line]]></failure></testcase></testsuite></testsuites>');
+  const error = ledger.junitTests(xml, 'vitest').tests[0].error;
+  assert.match(error, /second line/);
+  assert.doesNotMatch(error, /fake-password/);
+  const pass = runOf({ tests: { Acme: ['pass', 5] } });
+  const fail = runOf({ tests: { Acme: ['fail', 5] } }); fail.tests[0].error = error;
+  const again = { ...fail, date: '2026-10-10T12:00:00Z' };
+  const memory = ledger.failureMemory([pass, fail, again]);
+  assert.equal(memory[0].repeat, true);
+  const busy = { start: { load: [100], cores: 4 }, end: { load: [100], cores: 4 } };
+  assert.equal(ledger.failureMemory([pass, { ...fail, busy }, { ...again, busy }])[0].repeat, false, 'busy failures diagnose differing outcomes without establishing a flake');
+  assert.equal(memory[0].runs.length, 3);
+  assert.match(hygiene([pass, fail, again]).join('\n'), /matches an earlier failure/);
+});
+
+test('Linux pressure deltas and unavailable pressure are explicit', async () => {
+  const start = await ledger.busySample({ os: 'linux', load: () => [1, 2, 3], cores: () => 4, read: async () => 'some avg10=1 avg60=2 avg300=3 total=100\n' });
+  const end = { ...start, pressure: ledger.pressureOf('some avg10=1 avg60=2 avg300=3 total=170') };
+  assert.deepEqual(ledger.busyBetween(start, end).pressureUs, { some: 70 });
+  const missing = await ledger.busySample({ os: 'linux', read: async () => { throw new Error('unavailable'); } });
+  assert.equal(missing.pressure, null);
+  assert.match(ledger.busyBetween(null, end).unavailable, /start was not captured/);
+});
+
+test('quoted Authorization is redacted by Node and JUnit collectors without environment secrets', () => {
+  for (const value of ['{"Authorization":"Bearer acme-fake-credential"}', "{'Authorization': 'Basic acme-fake-credential'}"]) {
+    assert.doesNotMatch(ledger.failureText(value, {}), /acme-fake-credential/);
+    const top = ledger.topLevel({ errors: true });
+    top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error(value) } } });
+    assert.match(top.tests[0].error, /\[redacted\]/);
+    assert.doesNotMatch(top.tests[0].error, /acme-fake-credential/);
+    const xml = ledger.readXml(`<testsuites name="vitest tests"><testsuite name="acme.test.ts"><testcase name="Acme"><failure><![CDATA[${value}]]></failure></testcase></testsuite></testsuites>`);
+    const error = ledger.junitTests(xml, 'vitest').tests[0].error;
+    assert.match(error, /\[redacted\]/);
+    assert.doesNotMatch(error, /acme-fake-credential/);
+  }
+});
+
+test('ANSI-colored credentials are redacted before Node and JUnit collection', () => {
+  assert.equal(ledger.failureText('acme-\x1b[32mfake-credential', { ACME_SECRET: 'acme-fake-credential' }), '[redacted]');
+  for (const value of ['Authorization: \x1b[32mBearer acme-fake-credential\x1b[0m', '{"Author\x1b[32mization":"Bearer acme-fake-credential"}', 'password=acme-\x1b[32mfake-credential']) {
+    assert.doesNotMatch(ledger.failureText(value, {}), /acme-|fake-credential/);
+    const top = ledger.topLevel({ errors: true });
+    top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error(value) } } });
+    const xml = ledger.readXml(`<testsuites><testsuite name="acme.test.ts"><testcase name="Acme"><failure><![CDATA[${value}]]></failure></testcase></testsuite></testsuites>`);
+    for (const error of [top.tests[0].error, ledger.junitTests(xml, 'vitest').tests[0].error]) {
+      assert.match(error, /\[redacted\]/);
+      assert.doesNotMatch(error, /acme-|fake-credential|\x1b/);
+    }
+  }
+});
+
+test('timed gates execute and preserve exit status when telemetry storage fails', async t => {
+  for (const preparationFails of [true, false]) for (const status of [0, 7]) {
+    const dir = await scratch(t);
+    await mkdir(join(dir, '.keel'));
+    if (preparationFails) await writeFile(join(dir, '.keel', 'test-runs'), 'not a directory');
+    await writeFile(join(dir, 'gate.mjs'), `
+      import { rmSync, writeFileSync } from 'node:fs';
+      writeFileSync('observed.json', JSON.stringify({ ran: true, usual: process.env.KEEL_USUAL ?? null }));
+      ${preparationFails ? '' : "rmSync('.keel/test-runs', { recursive: true }); writeFileSync('.keel/test-runs', 'not a directory');"}
+      process.exit(${status});
+    `);
+    const source = `import { timedCommand } from ${JSON.stringify(pathToFileURL(SOURCE).href)};
+      const result = await timedCommand(${JSON.stringify(`'${process.execPath}' gate.mjs`)});
+      console.log(JSON.stringify({ status: result.status, telemetry: result.telemetry }));`;
+    const r = run(process.execPath, ['--input-type=module', '-e', source], { cwd: dir, env: { ...process.env, KEEL_USUAL: '/stale/acme', KEEL_GATE_ACTIVE: '' } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout), { status, telemetry: { usual: !preparationFails, recorded: false } });
+    const observed = JSON.parse(await readFile(join(dir, 'observed.json'), 'utf8'));
+    assert.equal(observed.ran, true);
+    if (preparationFails) assert.equal(observed.usual, null, 'no stale inherited usual file');
+    else assert.equal(observed.usual, join(dir, '.keel', 'test-runs', 'usual'));
+    assert.match(r.stderr, /gate timing record unavailable/);
+    if (preparationFails) assert.match(r.stderr, /usual timing unavailable/);
+  }
+});
+
+test('equals-form Authorization is redacted by both failure collectors', () => {
+  for (const value of ['Authorization=Bearer acme-fake-credential', 'Authorization = Basic acme-fake-credential']) {
+    assert.doesNotMatch(ledger.failureText(value, {}), /acme-fake-credential/);
+    const top = ledger.topLevel({ errors: true });
+    top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error(value) } } });
+    const xml = ledger.readXml(`<testsuites><testsuite name="acme.test.ts"><testcase name="Acme"><failure><![CDATA[${value}]]></failure></testcase></testsuite></testsuites>`);
+    for (const error of [top.tests[0].error, ledger.junitTests(xml, 'vitest').tests[0].error]) {
+      assert.match(error, /\[redacted\]/);
+      assert.doesNotMatch(error, /acme-fake-credential/);
+    }
+  }
+});
+
+test('concurrent Node parents retain only explicitly correlated child failure detail', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'acme.test.mjs'), `
+    import { test } from 'node:test';
+    test('Acme wrapper', { concurrency: true }, async t => {
+      let release; const ready = new Promise(r => release = r);
+      await Promise.all([
+        t.test('Acme A', async t => { await ready; await t.test('child A', () => { throw new Error('Acme A detail'); }); }),
+        t.test('Acme B', async t => { release(); await t.test('child B', () => { throw new Error('Acme B detail'); }); })
+      ]);
+    });
+  `);
+  await writeFile(join(dir, 'reporter.mjs'), `export default async function*(events) {
+    for await (const e of events) if (e.type === 'test:fail' && e.data.nesting > 0) {
+      e.data.nesting--;
+      yield JSON.stringify(e, (k, v) => v instanceof Error ? { message: v.message, ...v } : v) + '\\n';
+    }
+  }`);
+  const r = run(process.execPath, ['--test', '--test-reporter=./reporter.mjs', 'acme.test.mjs'], { cwd: dir });
+  assert.equal(r.status, 1, r.stderr);
+  const events = r.stdout.trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(events.length, 4, 'both concurrent parents and both children failed');
+  // Also replay the real events with both children arriving before the opposite
+  // parent, exposing any file-keyed association regardless of Node buffering.
+  const children = events.filter(e => e.data.nesting === 1);
+  const parents = events.filter(e => e.data.nesting === 0);
+  const interleaved = [...children, ...parents.filter(p => p.data.testId !== children[0].data.parentId), ...parents.filter(p => p.data.testId === children[0].data.parentId)];
+  for (const order of [events, interleaved]) {
+    const top = ledger.topLevel({ errors: true });
+    for (const event of order) top.push(event);
+    for (const parent of top.tests) assert.equal(parent.error, `${parent.name} detail`);
+  }
+  const legacy = ledger.topLevel({ errors: true });
+  for (const event of interleaved) { const { testId, parentId, ...data } = event.data; legacy.push({ ...event, data }); }
+  for (const parent of legacy.tests) {
+    assert.match(parent.error, /subtest failed/);
+    assert.match(parent.error, /Child failure detail unavailable/);
+    assert.doesNotMatch(parent.error, /Acme [AB] detail/);
+  }
+});
+
+test('hygiene retains quiet flake proof behind twenty busy observations', () => {
+  const quiet = { start: { load: [0], cores: 4 }, end: { load: [0], cores: 4 } };
+  const busy = { start: { load: [8], cores: 4 }, end: { load: [8], cores: 4 } };
+  const runs = [
+    { ...runOf({ tests: { Acme: ['pass', 1] } }), busy: quiet },
+    { ...runOf({ tests: { Acme: ['fail', 1] } }), busy: quiet },
+    ...Array.from({ length: 20 }, () => ({ ...runOf({ tests: { Acme: ['pass', 1] } }), busy })),
+  ];
+  const lines = hygiene(runs).join('\n');
+  assert.match(lines, /^keel test ledger: 1 hygiene item /);
+  assert.match(lines, /22 runs in \.keel\/test-runs; 20 busy runs omitted/);
+  assert.match(lines, /flaky +tests\/anvils\.test\.mjs "Acme": passed 1, failed 1/);
+  assert.match(lines, /in the last 2 runs/);
+  assert.doesNotMatch(hygiene(runs.slice(2)).join('\n'), /^ {2}flaky /m);
+});
+
+test('configured environment secrets are redacted end to end by Node and JUnit before truncation', async t => {
+  const { dir } = await acmeRepo(t);
+  const configEnv = ['ACME_SHORT', 'ACME_AUTH', 'ACME_EMPTY', 'ACME_CONTROL'];
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv } }));
+  const env = { ...process.env, ACME_SHORT: 'acme-fake', ACME_AUTH: 'acme-\x1b[32mfake-sensitive-value\x1b[0m', ACME_EMPTY: '', ACME_CONTROL: '\x1b[32m', ACME_SECRET: 'acme-heuristic-value' };
+  const message = 'Acme observed acme-fake-sensitive-value and acme-fake and acme-heuristic-value';
+  const bounded = 'x'.repeat(1000) + 'acme-fake-sensitive-value';
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), `import { test } from 'node:test';
+    test('Acme direct', () => { throw new Error(${JSON.stringify(message)}); });
+    test('Acme parent', async t => { await t.test('Acme child', () => { throw new Error(${JSON.stringify(message)}); }); });
+    test('Acme bounded', () => { throw new Error(${JSON.stringify(bounded)}); });
+  `);
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+  assert.equal(node.status, 1, 'the intentional Node failures ran');
+  await writeFile(join(dir, 'acme.xml'), `<testsuites name="vitest tests"><testsuite name="acme.test.ts">
+    <testcase name="Acme direct"><failure><![CDATA[${message}]]></failure></testcase>
+    <testsuite name="Acme parent"><testcase name="Acme child"><failure><![CDATA[${message}]]></failure></testcase></testsuite>
+    <testcase name="Acme bounded"><failure><![CDATA[${bounded}]]></failure></testcase>
+  </testsuite></testsuites>`);
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir, env });
+  assert.equal(junit.status, 1, 'the intentional JUnit failures ran');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2, 'both actual collectors persisted records');
+  for (const record of runs) {
+    assert.equal(record.tests.length, 3);
+    for (const result of record.tests) {
+      const expected = result.name === 'Acme bounded' ? 'x'.repeat(1000) + '[redacted]' : 'Acme observed [redacted] and [redacted] and [redacted]';
+      assert.ok(result.error === expected, 'collector redacts configured, overlapping, colored and heuristic values before bounding');
+    }
+    const stored = JSON.stringify(record);
+    assert.ok(!stored.includes('acme-fake') && !stored.includes('-sensitive-value') && !stored.includes('acme-heuristic-value'), 'persisted record contains no credential or overlap suffix');
+  }
+});
+
+function quotedCredentialCases() {
+  const tokens = [
+    String.raw`"acme\" sensitive\\tail"`,
+    String.raw`'acme\' sensitive\\tail'`,
+    String.raw`"acme sensitive tail\\"`,
+    String.raw`'acme sensitive tail\\'`,
+    '"acme\nsensitive tail"',
+    "'acme\nsensitive tail'",
+  ];
+  const cases = [];
+  for (const key of ['password', 'Authorization']) for (const separator of [':', '=']) {
+    for (const token of tokens) cases.push({ text: `"${key}" ${separator}\n  ${token}, Acme visible`, complete: true });
+    for (const quote of ['"', "'"]) cases.push({ text: `${key}${separator}${quote}acme\\${quote} sensitive\ntail`, complete: false });
+  }
+  cases.push({ text: JSON.stringify({ password: 'acme" sensitive tail', visible: 'Acme visible' }, null, 2), complete: true });
+  return cases;
+}
+
+function assertQuotedRedacted(text, complete) {
+  assert.ok(text.includes('[redacted]'), 'credential token was redacted');
+  assert.ok(!/acme|sensitive|tail|configured/.test(text), 'no credential fragment survived');
+  if (complete) assert.ok(text.includes('Acme visible'), 'following non-secret text survives a closed token');
+}
+
+test('quoted credential tokens consume escapes multiline and unterminated values completely', () => {
+  for (const { text, complete } of quotedCredentialCases()) assertQuotedRedacted(ledger.failureText(text, {}), complete);
+  const secret = 'acme" configured\\tail\nend';
+  for (const text of [secret, JSON.stringify({ observation: secret })]) {
+    assertQuotedRedacted(ledger.failureText(text, { ACME_AUTH: secret }, { configEnv: ['ACME_AUTH'] }), false);
+  }
+});
+
+test('escaped quoted credentials and JSON configured values stay redacted in both actual collectors', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_AUTH'] } }));
+  const secret = 'acme" configured\\tail\nend';
+  const env = { ...process.env, ACME_AUTH: secret };
+  const cases = [...quotedCredentialCases(), { text: secret, complete: false }, { text: JSON.stringify({ observation: secret }), complete: false }];
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), "import { test } from 'node:test';\n" + cases.map(({ text }, i) => `test('Acme ${i}', () => { throw new Error(${JSON.stringify(text)}); });`).join('\n'));
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+  assert.equal(node.status, 1, 'intentional Node failures executed');
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.ts">' + cases.map(({ text }, i) => `<testcase name="Acme ${i}"><failure><![CDATA[${text}]]></failure></testcase>`).join('') + '</testsuite></testsuites>');
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir, env });
+  assert.equal(junit.status, 1, 'intentional JUnit failures executed');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2, 'both actual collectors stored records');
+  for (const record of runs) {
+    assert.equal(record.tests.length, cases.length);
+    for (const result of record.tests) assertQuotedRedacted(result.error, cases[Number(result.name.slice(5))].complete);
+  }
+});
+
+test('unquoted Authorization schemes redact the entire line in both actual collectors', async t => {
+  const { dir } = await acmeRepo(t);
+  const cases = [
+    'Authorization: Digest username="acme", response="acme-sensitive-response", nonce="acme-sensitive-nonce"',
+    'Authorization = AcmeOpaque acme-sensitive-credential additional sensitive material',
+    'Authorization: acme-sensitive-opaque-value',
+  ].map(text => text + '\nAcme visible');
+  for (const text of cases) {
+    const redacted = ledger.failureText(text, {});
+    assert.ok(redacted.endsWith('[redacted]\nAcme visible'), 'the complete Authorization line is redacted, preserving the next line');
+    assert.ok(!redacted.includes('sensitive'), 'no scheme-specific credential fragment survives');
+  }
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), "import { test } from 'node:test';\n" + cases.map((text, i) => `test('Acme ${i}', () => { throw new Error(${JSON.stringify(text)}); });`).join('\n'));
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir });
+  assert.equal(node.status, 1, 'intentional Node failures executed');
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.ts">' + cases.map((text, i) => `<testcase name="Acme ${i}"><failure><![CDATA[${text}]]></failure></testcase>`).join('') + '</testsuite></testsuites>');
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir });
+  assert.equal(junit.status, 1, 'intentional JUnit failures executed');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2);
+  for (const record of runs) {
+    assert.equal(record.tests.length, cases.length);
+    for (const result of record.tests) {
+      assert.ok(result.error.endsWith('[redacted]\nAcme visible'), 'collector persists only the redacted Authorization line');
+      assert.ok(!result.error.includes('sensitive'), 'persisted failure contains no credential fragment');
+    }
+  }
+});
+
+test('overlapping configured and structural redactions compose on original text in both actual collectors', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  const configured = { ACME_AUTH: 'password', ACME_VALUE: 'prefix password=token', ACME_LEFT: 'acme-overlap', ACME_RIGHT: 'overlap-tail', ACME_PEM: 'PRIVATE KEY', ACME_URL: 'Acme https://user' };
+  const configEnv = Object.keys(configured);
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv } }));
+  const cases = [
+    ['{"password":"acme-dynamic-credential"}', '{"[redacted]":[redacted]}'],
+    ['prefix password=token', '[redacted]'],
+    ['Acme prefix password=token remains', 'Acme [redacted] remains'],
+    ['acme-overlap-tail', '[redacted]'],
+    ['-----BEGIN PRIVATE KEY-----\nacme-key-material\n-----END PRIVATE KEY-----\nAcme visible', '[redacted]\nAcme visible'],
+    ['Acme https://user:acme-url-credential@example.test/path', '[redacted]@example.test/path'],
+    ['https://other:acme-url-credential@example.test/path', 'https://[redacted]@example.test/path'],
+  ];
+  for (const [message, expected] of cases) assert.ok(ledger.failureText(message, configured, { configEnv }) === expected, 'the union preserves every matched secret span');
+  const env = { ...process.env, ...configured };
+  await writeFile(join(dir, 'tests', 'acme.test.mjs'), "import { test } from 'node:test';\n" + cases.map(([message], i) => `test('Acme ${i}', () => { throw new Error(${JSON.stringify(message)}); });`).join('\n'));
+  const node = run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env });
+  assert.equal(node.status, 1, 'intentional Node failures executed');
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.ts">' + cases.map(([message], i) => `<testcase name="Acme ${i}"><failure><![CDATA[${message}]]></failure></testcase>`).join('') + '</testsuite></testsuites>');
+  const junit = run(process.execPath, [SOURCE, '--junit', 'acme.xml', '--runner', 'vitest'], { cwd: dir, env });
+  assert.equal(junit.status, 1, 'intentional JUnit failures executed');
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2);
+  for (const record of runs) {
+    assert.equal(record.tests.length, cases.length);
+    for (const result of record.tests) assert.ok(result.error === cases[Number(result.name.slice(5))][1], 'persisted failure has every known and structural span redacted');
+  }
+});
+
+test('Windows load sampling is unavailable rather than quiet zero', async () => {
+  const sample = await ledger.busySample({ os: 'win32', load: () => { throw new Error('unsupported load must not be sampled'); }, cores: () => 4 });
+  assert.equal(sample.load, null);
+  assert.match(sample.loadUnavailable, /unsupported/);
+  const busy = ledger.busyBetween(sample, sample);
+  assert.equal(ledger.busyState({ busy }), 'unknown');
+  assert.deepEqual(ledger.busyCoverage([{ busy }]), { omitted: 0, unknown: 1 });
+});
+
+test('internal gate rejects unreadable or invalid config and defaults only when absent', async t => {
+  for (const config of ['{broken', 'null', '[]', '{"check":null}', '{"check":42}', '{"check":""}', 'directory', 'absent', '{}']) {
+    const dir = await scratch(t);
+    await mkdir(join(dir, '.keel'));
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { check: 'node ran.mjs' } }));
+    await writeFile(join(dir, 'ran.mjs'), "import {writeFileSync} from 'node:fs'; writeFileSync('ran', 'yes');");
+    if (config === 'directory') await mkdir(join(dir, '.keel', 'keel.json'));
+    else if (config !== 'absent') await writeFile(join(dir, '.keel', 'keel.json'), config);
+    const r = run(process.execPath, [SOURCE, '--gate'], { cwd: dir });
+    if (config === 'absent' || config === '{}') {
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(await readFile(join(dir, 'ran'), 'utf8'), 'yes');
+    } else {
+      assert.equal(r.status, 2);
+      assert.match(r.stderr, /cannot determine gate/);
+      assert.ok(!(await readdir(dir)).includes('ran'), 'no default gate executed');
+    }
+  }
+});
+
+test('legacy JUnit imports do not inherit an outer gate start sample', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme" time="0.1"/></testsuite></testsuites>');
+  const r = run(process.execPath, [SOURCE, '--junit', 'acme.xml'], { cwd: dir, env: { ...process.env, KEEL_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }) } });
+  assert.equal(r.status, 0, r.stderr);
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].busy.start, null);
+  assert.match(runs[0].busy.unavailable, /start was not captured/);
 });

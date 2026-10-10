@@ -11,16 +11,17 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
 - `keel phase new|list` — scaffold or list phases under goals
 - `keel render` — render practices; `--check` reads only, exit 1 on differences
-- `keel init [dir] --description "<paragraph>"` — new project; `--github` plans a repo (exit 3)
+- `keel init [dir] --description "<paragraph>"` — new project; `--github` exit 3
 - `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
 - `keel doctor` — drift and practice lints; `--fix <path> restore|eject` (exit 3)
 - `keel update` — migrations, re-render, check; a PR branch (exit 3), or `--local`
 - `keel lessons` — send lessons, drift, practice commits home as issues; exit 3
-- `keel learn` — keel only: lessons → proposals; `propose`, `decide`, `render`, `distill`
+- `keel learn` — lessons → proposals and decisions
 - `keel improve` — measures, bounds, one proposal; `--report` a health page
+- `keel time` — weekly gate/test medians, load and failure memory
 - `keel test <file> --stalls` — names tests that judge the wall clock
 - `keel drain <prefix>` — one open PR per machine queue; newest only `--gate-passed`; exit 3
-- `keel fleet` — keel only, read-only: each `fleet.json` project's practice, health, CI
+- `keel fleet` — fleet practice, health, CI
 - `keel fleet update` — keel only: the update PR in each project behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
 - `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
@@ -29,7 +30,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
-- `keel release <x.y.z> --notes <file>` — keel only: review gate, cut a version, tag it
+- `keel release <x.y.z> --notes <file>` — review, version, tag
 - `keel help` — the verbs
 - `keel --agent-help` — cold start; `<topic>` or `all` for details
 - `keel --version` — CLI, commit and practice versions
@@ -47,7 +48,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `test` `drain` `loop` `climb` `fleet` `loose-ends` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -732,6 +733,58 @@ unless every one reports `outside`.
 value, state, detail, facts?}], proposal: {id, state, text} | null, report,
 bounds, tightened: [{id, from, to}]}`; `--selftest --json` → `{ok, fixture,
 measures, missed}`.
+
+<!-- topic: time | timing history and machine context -->
+
+`keel time [--weeks N] [--json]` reports retained weekly gate wall times,
+per-test passing medians, usual times (last ten passes per machine/config/
+runner lane), failure text and identical-clean-tree outcome changes. Weeks
+are UTC Monday buckets, default 8, range 1–52. Missing weeks and gate records
+are unavailable; existing retention is not an eight-week archive.
+
+Run a complete gate with `node scripts/keel/test-ledger.mjs --gate` (reads
+`.keel/keel.json` check, default `npm run check`), or `--run '<whole gate>'`.
+The wrapper sets `KEEL_USUAL` to `.keel/test-runs/usual` before launching the
+runner. The file contains `{version, tests, coverage}`; each test carries
+its file/name, lane setting, machine, median and pass count. Runners select
+their own lane. No gate ordering changes. The night uses this wrapper.
+Node reporter `wallMs` is a suite duration, never a gate time. JUnit imported
+outside the wrapper has no start sample and says so. Load averages and core
+counts at start/end plus Linux `/proc/pressure/cpu` totals/deltas are retained;
+PSI is unavailable elsewhere. Load above cores at either endpoint omits the
+run from flaky/slow analysis. Legacy missing context remains comparable but
+is always reported as unknown, never quiet.
+
+Failures keep eight lines, at most 1 KiB, redacted before truncation. Hygiene
+names repeated failures and differing outcomes on identical clean trees.
+`--json` includes `{weeks, usual, failures, diagnosis, coverage, workedAround}`.
+Local Claude Code project JSONL records contribute counts for test commands
+with timeout ≥120000 ms, background execution, or interrupted tool results. Interruption uses Claude’s
+structured `toolUseResult.interrupted` flag when present; otherwise only an
+explicit, whole-message user-interruption tool error counts. Test stdout,
+including `cancelled 0` and test names, is never searched for interruption.
+Per-file or known test/check script identities have counts; unidentifiable tests
+share an unknown bucket only after recognizing a direct test invocation in a
+recorded project cwd. Quoted mentions are not tests. A quote-aware boundary
+allows trailing output redirection, pipelines and command lists: only the
+first validated invocation counts, with ignored tails disclosed as partial
+coverage. Cwd changes, substitutions, env prefixes and unknown cwd are omitted.
+Node support requires `node --test` before file targets; script arguments do
+not qualify. Only literal relative file targets are supported; absolute paths,
+parent traversal, directories and globs are omitted. A targetless `node --test`
+uses the unknown-identity bucket. Project-changing options (`--prefix`, `--cwd`,
+`--dir`, `-C`, root/project/workspace options and their `=` forms) are omitted. No raw commands/transcripts are returned, changed,
+or uploaded; disabled in CI.
+JSONL is streamed in filename order with a 256 MiB total-byte budget,
+200,000-row ceiling and 1 MiB maximum row. Oversized rows are discarded to the
+next newline; no whole-file size skip. Coverage discloses bytes/rows read,
+oversized rows, truncated rows, omitted files and truncation. Unreadable or
+malformed records also disclose omissions.
+No valid in-window records means unavailable with null counts; observed counts
+carry partial coverage when any inputs were omitted. Gate timing belongs to
+the caller project directory, not an enclosing Git root. Reports include only
+root-project gates (dir `.`); historical non-root gates remain on disk and
+are listed under `coverage.excludedGates`.
 
 <!-- topic: test | keel test --stalls: does a test judge the code, or the machine's wall clock -->
 

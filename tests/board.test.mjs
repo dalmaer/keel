@@ -10,6 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { board, boardText, reviewItems, walkDone, walkDecide, serve, pageHtml, boardView } from '../lib/board.mjs';
 import vm from 'node:vm';
+import { timeSummary } from '../lib/time.mjs';
 import { formatProposal } from '../lib/learn.mjs';
 import { run as roadmap } from '../practices/phases/files/scripts/roadmap.mjs';
 import { run } from './helpers/run.mjs';
@@ -758,4 +759,48 @@ test('under the quota floor the board\'s reviews are n/a, saving the quota, and 
     assert.equal(low.sources.find(s => s.source === 'reviews').state, 'ok');
     assert.equal(await gh.reads(), 2);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('week strip shows gate timing and missing coverage without substituting test duration', () => {
+  const data = { ...structuredClone(synthetic), timing: { weeks: [
+    { week: '2026-09-28', lanes: [{ kind: 'tests', gateMs: null, tests: [{ median: 99999 }] }] },
+    { week: '2026-10-05', lanes: [{ kind: 'gate', machine: 'linux-x64-4cpu', gateMs: 1234 }, { kind: 'gate', machine: 'missing', gateMs: null }, { kind: 'gate', machine: 'invalid', gateMs: -10 }] },
+  ], coverage: { note: 'Retained observations only; missing weeks are unavailable.' } } };
+  const html = pageHtml(data, 'acme-token');
+  assert.match(html, /Gate wall time by week/);
+  assert.match(html, /1234 ms/);
+  assert.match(html, /missing: Unavailable/);
+  assert.match(html, /invalid: Unavailable/);
+  assert.doesNotMatch(html, /(?:missing|invalid): (?:0|-10) ms/);
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /99999 ms/);
+  assert.match(html, /missing weeks are unavailable/);
+});
+
+test('round3: board gate timing discloses successful and unsuccessful counts', () => {
+  const data = { ...structuredClone(synthetic), timing: { weeks: [
+    { week: '2026-10-05', lanes: [
+      { kind: 'gate', machine: 'acme-mixed', gateMs: 2000, successful: 2, unsuccessful: 3 },
+      { kind: 'gate', machine: 'acme-failed', gateMs: null, successful: 0, unsuccessful: 4 },
+      { kind: 'gate', machine: 'acme-unknown', gateMs: null },
+    ] },
+  ], coverage: { note: 'Acme retained gates.' } } };
+  const html = pageHtml(data, 'acme-token');
+  assert.match(html, /acme-mixed: 2000 ms \(2 successful, 3 unsuccessful\)/);
+  assert.match(html, /acme-failed: Unavailable \(0 successful, 4 unsuccessful\)/);
+  assert.match(html, /acme-unknown: Unavailable \(Unavailable successful, Unavailable unsuccessful\)/);
+  assert.match(html, /Medians use successful gates only/);
+});
+
+test('round4: board distinguishes same-machine gate configs commands and sources', () => {
+  const gate = (config, commandHash, gateSource, ms) => ({ date: '2026-10-09T00:00:00Z', kind: 'gate', dir: '.', machine: { os: 'linux', arch: 'x64', cpus: 4 }, tests: [], status: 0, config, commandHash, gateSource, ms });
+  const data = { ...structuredClone(synthetic), timing: timeSummary([
+    gate('acme-full', 'acme-full-hash', 'configured-gate', 2000), gate('acme-subset', 'acme-subset-hash', 'explicit-command', 100),
+    gate('acme-<escaped>', 'acme-<hash>', 'acme-<source>', 300),
+  ], { weeks: 1, now: Date.parse('2026-10-10') }) };
+  const html = pageHtml(data, 'acme-token');
+  assert.match(html, /linux-x64-4cpu: 2000 ms[^;]+config=acme-full command=acme-full-hash source=configured-gate/);
+  assert.match(html, /linux-x64-4cpu: 100 ms[^;]+config=acme-subset command=acme-subset-hash source=explicit-command/);
+  assert.match(html, /config=acme-&lt;escaped&gt; command=acme-&lt;hash&gt; source=acme-&lt;source&gt;/);
+  assert.doesNotMatch(html, /acme-<(?:escaped|hash|source)>/);
 });

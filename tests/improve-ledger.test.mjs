@@ -64,7 +64,8 @@ test('flaky_tests and slow_tests are n/a, never zero, with fewer runs than the w
   for (const id of LEDGER) assert.equal(byId(await read(dir), id).state, 'n/a', id);
   await put(dir, { tests: { 'an anvil drops': ['pass', 400], 'the roadrunner is caught': ['pass', 10] } });
   await put(dir, { tests: { 'an anvil drops': ['pass', 410], 'the roadrunner is caught': ['fail', 10] } });
-  await assertTooFew(dir);
+  assert.equal(byId(await read(dir), 'flaky_tests').value, 1, 'a confirmed flake needs no minimum history');
+  assert.equal(byId(await read(dir), 'slow_tests').state, 'n/a');
   await put(dir, { tests: { 'an anvil drops': ['pass', 390], 'the roadrunner is caught': ['pass', 10] } });
   let data = await read(dir);
   assert.deepEqual([byId(data, 'flaky_tests').state, byId(data, 'flaky_tests').value], ['outside', 1]);
@@ -113,7 +114,7 @@ test('mutation: counting same-machine runs alone (any config) reads 0 for the mi
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
-  const from = 'const same = comparable(runs, newest).length;';
+  const from = "const same = comparable(runs, newest).filter(r => busyState(r) !== 'busy').length;";
   assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
   await writeFile(file, text.replace(from, 'const same = runs.filter(r => r !== newest && machineClass(r.machine) === machine).length;'));
   const mutant = await import(pathToFileURL(file).href);
@@ -198,7 +199,7 @@ async function acmeRepo(t, tests) {
 async function junitRun(dir, runner, xml) {
   await mkdir(join(dir, '.keel', 'test-runs'), { recursive: true });
   await writeFile(join(dir, JUNIT), xml);
-  const r = await readJunit({ runner, cwd: dir });
+  const r = await readJunit({ runner, cwd: dir, start: null, sample: async () => ({ load: [0, 0, 0], cores: 4 }) });
   assert.ok(!r.lines.some(l => /could not|not JUnit|already recorded/.test(l)), r.lines.join('\n'));
   return r;
 }
@@ -278,8 +279,8 @@ test('mutation: a ledger measure that returns 0 instead of n/a with too few runs
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
-  const guard = 'if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}` };';
-  assert.equal(text.split(guard).length, 3, 'both measures guard on the window');
+  const guard = 'if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}${busyNote(runs)}` };';
+  assert.equal(text.split(guard).length, 2, 'slow tests still require a full baseline');
   await writeFile(file, text.replaceAll(guard, 'if (runs.length < opts.window) return { value: 0, detail: \'fine\' };'));
   const mutant = await import(pathToFileURL(file).href);
   await assert.rejects(assertTooFew(dir, mutant), assert.AssertionError);
@@ -326,4 +327,52 @@ test('proofs_hold\'s ledger half: a cited test that did not pass in the newest r
   assert.equal((await proofs()).value, 0, 'a narrowed run that left the cited test out says nothing about it');
   await record(dir, at('skip'));
   assert.equal((await proofs()).value, 0, 'a skip says nothing about it: the newest pass stands');
+});
+
+test('night reports busy omissions as unavailable rather than zero slow or flaky findings', async t => {
+  const dir = await acme(t, { window: 2 });
+  for (const outcome of ['pass', 'fail']) await record(dir, { tree: 'Acme', dirty: false, machine: MACHINE, date: new Date(Date.UTC(2026, 9, 1) + (minute++) * 60000).toISOString(), busy: { start: { load: [100], cores: 4 }, end: { load: [100], cores: 4 } }, tests: [{ file: 'a.test.mjs', name: 'Acme', outcome, ms: 1000 }] });
+  const data = await read(dir);
+  for (const id of LEDGER) {
+    assert.equal(byId(data, id).state, 'n/a');
+    assert.match(byId(data, id).detail, /2 busy runs omitted/);
+  }
+});
+
+test('flaky_tests preserves confirmed quiet findings when a recent busy run is omitted', async t => {
+  for (const confirmed of [true, false]) {
+    const dir = await acme(t, { window: 3 });
+    for (const [i, outcome] of ['pass', confirmed ? 'fail' : 'pass', 'fail'].entries()) {
+      const sample = { load: [i === 2 ? 8 : 0], cores: 4 };
+      await record(dir, { tree: 'acme-tree', dirty: false, machine: MACHINE, date: `2026-10-01T00:0${i}:00Z`, busy: { start: sample, end: sample },
+        tests: [{ file: 'tests/acme.test.mjs', name: 'Acme', outcome, ms: 1 }] });
+    }
+    const finding = byId(await read(dir), 'flaky_tests');
+    assert.match(finding.detail, /1 busy runs omitted/);
+    if (confirmed) {
+      assert.equal(finding.state, 'outside');
+      assert.equal(finding.value, 1);
+      assert.equal(finding.facts.flaky[0].passed, 1);
+      assert.equal(finding.facts.flaky[0].failed, 1);
+    } else {
+      assert.equal(finding.state, 'n/a');
+      assert.equal(finding.value, null);
+    }
+  }
+});
+
+test('flaky_tests backfills its eligible window and leaves all-busy history unavailable', async t => {
+  for (const mode of ['confirmed', 'quiet', 'busy']) {
+    const dir = await acme(t, { window: 3 });
+    for (let i = 0; i < 5; i++) {
+      const sample = { load: [mode === 'busy' || i >= 3 ? 8 : 0], cores: 4 };
+      await record(dir, { tree: 'acme-tree', dirty: false, machine: MACHINE, date: `2026-10-01T00:0${i}:00Z`, busy: { start: sample, end: sample },
+        tests: [{ file: 'tests/acme.test.mjs', name: 'Acme', outcome: mode === 'confirmed' && i === 0 ? 'fail' : 'pass', ms: 1 }] });
+    }
+    const finding = byId(await read(dir), 'flaky_tests');
+    assert.match(finding.detail, new RegExp(`${mode === 'busy' ? 5 : 2} busy runs omitted`));
+    assert.equal(finding.value, mode === 'busy' ? null : mode === 'confirmed' ? 1 : 0);
+    if (mode === 'busy') assert.equal(finding.state, 'n/a');
+    if (mode === 'confirmed') assert.equal(finding.facts.flaky[0].failed, 1);
+  }
 });

@@ -25,3 +25,13 @@ phase 56 keeps current gate ordering after the measured no-gain experiment;
 phase 61 reuses CI only for the exact clean revision, not another main commit.
 
 Validation command: `npm run check` (tests, roadmap, render and inbox guards).
+
+## Broader phase audit
+
+`node scripts/keel/reconcile.mjs --github --json` completed with no structured
+contradictions, 67 legacy-reference notes and one advisory unresolved PR
+reference in phase 45. This is limited coverage, not proof that all prose is
+current. Manual review found phase 45 still describing climb/tend as Claude-only;
+phases 46/47 and their existing evidence supersede those current-scope claims.
+The original trajectory remains historical, and the owner's review assessment
+remains owed. The configuration PR is now explicitly repo-qualified.

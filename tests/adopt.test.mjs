@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { load, fill, wanted } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
 import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, HEADING, REPORT } from '../lib/adopt.mjs';
-import { testsConfigProblems } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { testsConfigProblems, readRuns, busyCoverage, hygiene } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -536,7 +536,7 @@ const J = '.keel/test-runs/junit.xml';
 const posixDir = p => p.slice(0, p.lastIndexOf('/'));
 /** The runner's step as adopt proposes it: the old file removed, the directory made (bun), the runner, its code kept, the ledger. */
 const stepOf = (runner, runCmd, { junit = J, mkdir = runner === 'bun' ? posixDir(junit) : null } = {}) =>
-  `keel_status=0; rm -f ${junit}; ${mkdir ? `mkdir -p ${mkdir} && ` : ''}${runCmd} || keel_status=$?; node scripts/keel/test-ledger.mjs --junit ${junit} --runner ${runner} --status $keel_status`;
+  `keel_status=0; rm -f ${junit}; keel_start="$(node scripts/keel/test-ledger.mjs --sample)" || keel_start=; ${mkdir ? `mkdir -p ${mkdir} && ` : ''}${runCmd} || keel_status=$?; node scripts/keel/test-ledger.mjs --junit ${junit} --runner ${runner} --status $keel_status --start "$keel_start"`;
 const BUN_STEP = stepOf('bun', `bun test --reporter=junit --reporter-outfile=${J}`);
 
 test('adopt detects bun test or vitest in the gate, records the runner, and proposes the ledger\'s reporter flags without rewriting the gate', async t => {
@@ -614,10 +614,32 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   assert.doesNotMatch(r.stdout, /after/);
   r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '0' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  // Failed, then passed, on one clean tree: the hygiene block names it, with bun's command to run it alone; a note, never a red gate.
-  assert.match(r.stdout, /^keel test ledger: 2 hygiene items \(2 runs in \.keel\/test-runs\)\./m);
-  assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
-  assert.match(r.stdout, /bun test a\.test\.ts -t '\^ \?fails on purpose\$'\nafter\n$/);
+  // The integration keeps the machine's actual load and discloses omitted/unknown
+  // observations. A busy endpoint disqualifies that run from a flake finding.
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2);
+  const coverage = busyCoverage(runs);
+  assert.ok(r.stdout.includes(`2 runs in .keel/test-runs; ${coverage.omitted} busy runs omitted; ${coverage.unknown} runs with unavailable load context (not known quiet)`));
+  if (coverage.omitted) {
+    assert.match(r.stdout, /^keel test ledger: no flaky or slower test /m);
+    assert.doesNotMatch(r.stdout, /^ {2}(?:flaky|slower) /m);
+  } else {
+    assert.match(r.stdout, /^keel test ledger: 2 hygiene items /m);
+    assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
+  }
+  assert.match(r.stdout, /\nafter\n$/);
+  // Unit evidence is deterministic: both samples are explicitly quiet, with no
+  // dependence on the host's load or elapsed time. Never rewrite saved samples.
+  const quiet = { load: [0, 0, 0], cores: 2 };
+  const synthetic = runs.map(record => ({ ...record, busy: { start: quiet, end: quiet } }));
+  const notes = hygiene(synthetic).join('\n');
+  assert.match(notes, /^keel test ledger: 2 hygiene items /m);
+  assert.match(notes, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
+  assert.ok(notes.includes("bun test a.test.ts -t '^ ?fails on purpose$'"));
+  const busy = { load: [3, 0, 0], cores: 2 };
+  const omitted = hygiene(synthetic.map(record => ({ ...record, busy: { start: quiet, end: busy } }))).join('\n');
+  assert.match(omitted, /^keel test ledger: no flaky or slower test /m);
+  assert.match(omitted, /2 busy runs omitted/);
   r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '1' });
   assert.equal(r.status, 1, 'a failure bun left out of its JUnit (a file that would not load) still fails the gate');
   r = sh({ ACME_JUNIT: '', ACME_EXIT: '0' });
@@ -662,7 +684,7 @@ function assertProposals(make = ledgerCommand) {
   assert.equal(make("echo 'bun test' && bun test", 'bun'), `echo 'bun test' && { ${bun('')}; }`);
   // After a cd, the ledger and the JUnit file are found from git's top level (review on #56).
   const moved = make('cd web && npx vitest run', 'vitest');
-  assert.equal(moved, `cd web && { keel_root="$(git rev-parse --show-toplevel)" || exit 1; keel_status=0; rm -f "$keel_root/${J}"; npx vitest run --reporter=default --reporter=junit --outputFile.junit="$keel_root/${J}" || keel_status=$?; node "$keel_root/scripts/keel/test-ledger.mjs" --junit "$keel_root/${J}" --runner vitest --status $keel_status; }`);
+  assert.equal(moved, `cd web && { keel_root="$(git rev-parse --show-toplevel)" || exit 1; keel_status=0; rm -f "$keel_root/${J}"; keel_start="$(node "$keel_root/scripts/keel/test-ledger.mjs" --sample)" || keel_start=; npx vitest run --reporter=default --reporter=junit --outputFile.junit="$keel_root/${J}" || keel_status=$?; node "$keel_root/scripts/keel/test-ledger.mjs" --junit "$keel_root/${J}" --runner vitest --status $keel_status --start "$keel_start"; }`);
   assert.equal(run('sh', ['-n', '-c', moved], { env: ENV }).status, 0);
   assert.match(make('pushd web; bun test', 'bun'), /mkdir -p "\$keel_root\/\.keel\/test-runs" && bun test/);
   assert.doesNotMatch(make("echo 'cd web' && bun test", 'bun'), /keel_root/, 'a quoted cd moves nothing');
@@ -729,4 +751,34 @@ test('no proposal where the night practice is not on and the ledger is not there
   await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
   await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
   assert.equal((await adopt({ dir, dryRun: true }, { version: VERSION })).data.tests.proposal.to, BUN_STEP);
+});
+
+test('adopted JUnit shell samples after lint immediately before the runner and tolerates sample failure', async t => {
+  const dir = await scratch(t), bin = join(dir, 'bin');
+  await mkdir(bin);
+  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
+  const source = await readFile(join(KEEL, 'practices/night/files/scripts/keel/test-ledger.mjs'), 'utf8');
+  // Instrument only the sample entrypoint to observe shell ordering, without
+  // inventing load or depending on clocks or machine quietness.
+  await writeFile(join(dir, 'scripts/keel/test-ledger.mjs'), source.replace("} else if (process.argv[2] === '--sample' && process.argv.length === 3) {", `} else if (process.argv[2] === '--sample' && process.argv.length === 3) {
+    (await import('node:fs')).appendFileSync('order', 'sample\\n');
+    if (process.env.ACME_SAMPLE_FAIL) process.exit(1);`));
+  await writeFile(join(bin, 'bun'), '#!/bin/sh\nprintf "runner\\n" >> order\nfor a in "$@"; do case "$a" in --reporter-outfile=*) out="${a#--reporter-outfile=}";; esac; done\nprintf \'<testsuites name="bun test"><testsuite name="acme.test.ts"><testcase name="Acme" time="0.1"/></testsuite></testsuites><!-- %s -->\' "$$" > "$out"\nexit "${ACME_STATUS:-0}"\n', { mode: 0o755 });
+  await writeFile(join(dir, 'lint.mjs'), "import { appendFileSync } from 'node:fs'; appendFileSync('order', 'lint\\n');");
+  const command = ledgerCommand('node lint.mjs && bun test', 'bun');
+  assert.ok(command, 'the supported lint-then-runner command has a proposal');
+  for (const fail of [false, true]) {
+    await writeFile(join(dir, 'order'), '');
+    const r = run('bash', ['-e', '-c', command], { cwd: dir, env: { ...ENV, PATH: `${bin}:${process.env.PATH}`, KEEL_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }), ACME_SAMPLE_FAIL: fail ? '1' : '', ACME_STATUS: fail ? '7' : '0' } });
+    assert.equal(r.status, fail ? 7 : 0, r.stdout + r.stderr);
+    assert.equal(await readFile(join(dir, 'order'), 'utf8'), 'lint\nsample\nrunner\n');
+    const latest = (await readRuns(dir)).runs.at(-1);
+    if (fail) {
+      assert.equal(latest.busy.start, null);
+      assert.match(latest.busy.unavailable, /start was not captured/);
+    } else {
+      assert.ok(latest.busy.start.at);
+      assert.notEqual(latest.busy.start.at, 'outer-gate');
+    }
+  }
 });
