@@ -142,6 +142,14 @@ function publicationOf(comments, repo, issueNumber) {
   }
   return null;
 }
+const TRIAGE_LIMIT = 10;
+const noteMarker = (plan,result) => `<!-- keel:robot-note ${sha256(JSON.stringify([plan.issueHash,result.state === 'question' ? null : plan.cursor,result.state,result.reason ?? '',result.headSha ?? '']))} -->`;
+const triageFields = ['repo','issueNumber','issueHash','authorization','instanceId','cursor','previousHead','previousCompletedAt','author','reviewer'];
+function triagePlans(plan) {
+  const plans = (plan.rejections ?? []).flatMap(r=>r.triage ? [r.triage] : []);
+  if (plan.triage === true && robotId(plan.issueNumber) && !plans.some(p=>p.issueNumber===plan.issueNumber)) plans.push(plan);
+  return plans;
+}
 export async function prepareRobot({ root, repo, config, event, eventName, has, now = new Date(), github = robotGithub, preflight = null }) {
   const rejections = [];
   const blocked = (reason, extra = {}) => ({ state: 'blocked', reason, rejections, ...extra });
@@ -175,6 +183,7 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     issues = [event.issue];
   } else return blocked('unsupported event');
   for (const candidate of issues) {
+    let comments = [];
     const reject = (reason, extra = {}) => { const error = new Error(reason); error.extra=extra; throw error; };
     try {
     if (!robotId(candidate.number)) return reject('invalid issue identity');
@@ -182,7 +191,7 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     if (issue.number !== candidate.number || issue.html_url !== `https://github.com/${repo}/issues/${candidate.number}` || issue.pull_request) return reject('issue identity mismatch');
     if (issue.state !== 'open' || !issue.labels?.some(l => l.name === 'keel:agent')) return reject('issue closed or robot label removed');
     await authorizeLabel(repo,issue.number,github,now);
-    const comments = await robotPages(github, `/repos/${repo}/issues/${issue.number}/comments`);
+    comments = await robotPages(github, `/repos/${repo}/issues/${issue.number}/comments`);
     if (comments.some(c => !robotId(c.id))) return reject('comment identity unavailable');
     if (routed) {
       const receipt = await robotRead(github,`/repos/${repo}/issues/comments/${trigger.authorizationId}`);
@@ -266,7 +275,15 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     return { state: 'ready', ...common, baseSha, previousHead, prNumber, instanceId, branch: `keel/robot-${issue.number}`, comments: unseen, rubric: parsed.rubric, buildSeconds: admission.buildSeconds, reviewSeconds: admission.reviewSeconds, budget, preparedAt: new Date(now).toISOString() };
     } catch (error) {
       if (error instanceof RobotGlobalError) return blocked(error.message);
-      rejections.push({issueNumber:candidate.number,reason:error.message});
+      const rejection = {issueNumber:candidate.number,reason:error.message};
+      if (error.extra?.triage === true) {
+        const triage = {...Object.fromEntries(triageFields.map(k=>[k,error.extra[k]])),state:'blocked',triage:true,reason:error.message};
+        const marker = noteMarker(triage,{state:'question',reason:triage.reason});
+        if (comments.some(c=>isBot(c.user) && c.body?.startsWith(marker+'\n'))) rejection.triageAlready = true;
+        else if (rejections.filter(r=>r.triage).length < TRIAGE_LIMIT) rejection.triage = triage;
+        else rejection.triageOmitted = true;
+      }
+      rejections.push(rejection);
       if (!scanning) return blocked(error.message,{repo,issueNumber:candidate.number,...error.extra});
     }
   }
@@ -414,12 +431,40 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
 export async function robotComment({ plan, result, message = '', github = robotGithub, now = new Date() }) {
   if (!robotRepo(plan.repo) || !robotId(plan.issueNumber)) return;
   const comments = await robotPages(github, `/repos/${plan.repo}/issues/${plan.issueNumber}/comments`);
-  const marker = `<!-- keel:robot-note ${sha256(JSON.stringify([plan.issueHash,result.state === 'question' ? null : plan.cursor,result.state,result.reason ?? '',result.headSha ?? '']))} -->`;
-  if (comments.some(c => isBot(c.user) && c.body?.startsWith(marker + '\n'))) return;
+  const marker = noteMarker(plan,result);
+  if (comments.some(c => isBot(c.user) && c.body?.startsWith(marker + '\n'))) return {posted:false,already:true};
   const state = ['published','failed','question'].includes(result.state) ? `<!-- keel:robot-state ${JSON.stringify({ repo: plan.repo, issueNumber: plan.issueNumber, issueHash: plan.issueHash, cursor: plan.cursor, instanceId: plan.instanceId ?? `issue-${plan.issueNumber}`, headSha: result.headSha ?? plan.previousHead ?? null, completedAt: new Date(now).toISOString(), previousCompletedAt: plan.previousCompletedAt ?? null })} -->\n` : '';
   const body = `${marker}\n${state}${result.prUrl ? `PR: ${result.prUrl}\n\n` : ''}${robotText(result.reason ?? result.state)}\n\n${robotText(message)}`;
   const response = await github({method:'POST', path:`/repos/${plan.repo}/issues/${plan.issueNumber}/comments`, body:{body}});
   if (response.status !== 201) throw new Error('issue response could not be confirmed');
+  return {posted:true};
+}
+export async function publishRobotTriage({repo,plan,has,github=robotGithub,now=new Date()}) {
+  const questions = triagePlans(plan), results = [];
+  if (questions.length > TRIAGE_LIMIT) throw new Error('triage handoff exceeds publication bound');
+  const seen = new Set();
+  for (const question of questions) {
+    try {
+      if (question.repo !== repo || !robotRepo(repo) || !robotId(question.issueNumber) || seen.has(question.issueNumber) || question.state !== 'blocked' || question.triage !== true || !hash64(question.issueHash) || question.authorization?.bodyHash !== question.issueHash || !/^[A-Za-z0-9_-]{1,128}$/.test(question.instanceId ?? '') || !Number.isSafeInteger(question.cursor) || question.cursor < 0 || !(question.previousHead === null || robotSha(question.previousHead)) || typeof question.reason !== 'string' || !question.reason || question.reason.length > 10000) throw new Error('triage handoff identity invalid');
+      seen.add(question.issueNumber);
+      const fresh = await currentRobotPolicy(repo,has,github);
+      if (question.author !== fresh.providers.author || question.reviewer !== fresh.providers.reviewer) throw new Error('triage providers changed');
+      await revalidateAuthorization({repo,issueNumber:question.issueNumber,authorization:question.authorization,fresh,github});
+      const comments = await robotPages(github,`/repos/${repo}/issues/${question.issueNumber}/comments`);
+      const state = stateOf(comments,repo,question.issueNumber);
+      if ((state?.headSha ?? null) !== question.previousHead || (state && (state.instanceId !== question.instanceId || state.cursor > question.cursor))) throw new Error('triage recorded state changed');
+      if (!state && comments.some(c=>isBot(c.user) && /^<!-- keel:robot-note [a-f0-9]{64} -->\n<!-- keel:robot-state /.test(String(c.body ?? '')))) throw new Error('triage recorded state malformed');
+      const pulls = await robotPages(github,`/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0]+':keel/robot-'+question.issueNumber)}`);
+      if (question.previousHead) {
+        if (pulls.length !== 1 || !robotId(pulls[0].number)) throw new Error('triage continuation unavailable');
+        const pr = await robotRead(github,`/repos/${repo}/pulls/${pulls[0].number}`), mark=robotAssociationOf(pr.body);
+        if (pr.number !== pulls[0].number || !isBot(pr.user) || pr.state !== 'open' || pr.merged_at || pr.head?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${question.issueNumber}` || pr.head?.sha !== question.previousHead || pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch || mark?.repo !== repo || mark?.issueNumber !== question.issueNumber || mark?.instanceId !== question.instanceId || mark?.headSha !== question.previousHead || mark?.author !== question.author) throw new Error('triage continuation changed; human changes preserved');
+      } else if (pulls.length) throw new Error('triage pull request appeared since admission');
+      const result = await robotComment({plan:question,result:{state:'question',reason:question.reason},github,now});
+      results.push({issueNumber:question.issueNumber,...result});
+    } catch(error) { results.push({issueNumber:question.issueNumber,posted:false,reason:error.message}); }
+  }
+  return {results,omitted:(plan.rejections ?? []).filter(r=>r.triageOmitted).length};
 }
 async function completedRobotReview({repo,prNumber,headSha,author,reviewer,github}) {
   const marker=`<!-- keel:robot-review ${headSha} ${reviewer} -->`;
@@ -483,7 +528,7 @@ export async function robotCli(args, env = process.env) {
   if (command === 'prepare') {
     const plan = await prepareRobot({root,repo,config,event:await json(env.GITHUB_EVENT_PATH),eventName:env.GITHUB_EVENT_NAME,has:hasOf(env),preflight:{runId:Number(env.GITHUB_RUN_ID),attempt:Number(env.GITHUB_RUN_ATTEMPT),job:env.GITHUB_JOB}});
     await write('robot-plan.json',plan);
-    outputs({ready:plan.state === 'ready',issue:plan.issueNumber ?? '',base:trustedBase,author:plan.author ?? '',reviewer:plan.reviewer ?? '',build_minutes:plan.buildSeconds ? plan.buildSeconds/60 : 1,review_minutes:plan.reviewSeconds ? plan.reviewSeconds/60 : 1});
+    outputs({triage:triagePlans(plan).length>0,triage_count:triagePlans(plan).length,triage_omitted:(plan.rejections ?? []).filter(r=>r.triageOmitted).length,ready:plan.state === 'ready',issue:plan.issueNumber ?? '',base:trustedBase,author:plan.author ?? '',reviewer:plan.reviewer ?? '',build_minutes:plan.buildSeconds ? plan.buildSeconds/60 : 1,review_minutes:plan.reviewSeconds ? plan.reviewSeconds/60 : 1});
     if (plan.state === 'ready') {
       const protocol = await readFile(join(root,'.agents/robot/PROTOCOL.md'),'utf8');
       await writeFile(join(temp,'robot-prompt.md'),`${protocol}\n\n## Trusted allocation and untrusted issue data\n${JSON.stringify(plan,null,2)}\n`);
@@ -501,8 +546,13 @@ export async function robotCli(args, env = process.env) {
   }
   if (command === 'publish') {
     const plan = await json(join(temp,'plan/robot-plan.json'));
-    // OFF/no-work plans have no mutation to authorize. Triage and delivery do.
-    if (plan.state === 'blocked' && (!plan.triage || !robotId(plan.issueNumber))) return plan;
+    const questions = triagePlans(plan);
+    // OFF/no-work plans have no mutation to authorize. Each question is checked
+    // independently so one stale approval cannot hide other valid questions.
+    if (plan.state === 'blocked' && !questions.length) return plan;
+    const triage = await publishRobotTriage({repo,plan,has:hasOf(env),github:robotGithub});
+    if (plan.state === 'blocked') return {...plan,triageResults:triage};
+    const finish = result => ({...result,triageResults:triage});
     const fresh = await currentRobotPolicy(repo,hasOf(env),robotGithub);
     if (plan.state === 'review') {
       validateRobotPlan({...plan,state:'ready'},{repo,baseSha:trustedBase});
@@ -510,7 +560,7 @@ export async function robotCli(args, env = process.env) {
       if (pr.number !== plan.prNumber || !isBot(pr.user) || pr.state !== 'open' || pr.head?.sha !== plan.previousHead || pr.head?.ref !== plan.branch || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || mark?.headSha !== plan.previousHead || mark?.repo !== repo || mark?.issueNumber !== plan.issueNumber || mark?.instanceId !== plan.instanceId || mark?.author !== plan.author) throw new Error('review recovery PR/head changed');
       await revalidateAuthorization({repo,issueNumber:plan.issueNumber,authorization:plan.authorization,fresh,github:robotGithub});
       await robotBase(repo, pr, robotGithub);
-      outputs({pr:pr.number,head:pr.head.sha});return {state:'review',prNumber:pr.number,headSha:pr.head.sha};
+      outputs({pr:pr.number,head:pr.head.sha});return finish({state:'review',prNumber:pr.number,headSha:pr.head.sha});
     }
     if (plan.state === 'recover') {
       const restored = {...plan,state:'ready'};
@@ -518,12 +568,12 @@ export async function robotCli(args, env = process.env) {
       if (git(root,['rev-parse','FETCH_HEAD']) !== plan.recoveryHead) throw new Error('pending publication branch moved; refusing recovery');
       const result = await publishRobot({root,repo,baseSha:plan.baseSha,plan:restored,headSha:plan.recoveryHead,has:hasOf(env)});
       await robotComment({plan:restored,result:{...result,state:'published',reason:'Recovered verified publication; other-provider review pending.'}});
-      outputs({pr:result.prNumber,head:result.headSha});return result;
+      outputs({pr:result.prNumber,head:result.headSha});return finish(result);
     }
-    if (plan.state !== 'ready') { await robotComment({plan,result:{state:plan.triage?'question':'blocked',reason:plan.reason}}); return plan; }
+    if (plan.state !== 'ready') throw new Error('unsupported publication plan state');
     validateRobotPlan(plan,{repo,baseSha:trustedBase});
     const message=await readFile(join(temp,'handoff/message.txt'),'utf8').catch(()=> 'Agent supplied no final message.');
-    if (env.ROBOT_JUDGE_OK !== 'true') { await robotComment({plan,result:{state:'failed',reason:'Agent or trusted judge failed; no PR published.'},message}); return {state:'failed'}; }
+    if (env.ROBOT_JUDGE_OK !== 'true') { await robotComment({plan,result:{state:'failed',reason:'Agent or trusted judge failed; no PR published.'},message}); return finish({state:'failed'}); }
     const judgment=await json(join(temp,'judged/robot-judgment.json'));
     if (!judgment.ok || judgment.baseSha !== trustedBase || !robotSha(judgment.headSha) || judgment.headSha !== env.ROBOT_JUDGED_HEAD) throw new Error('judged identity mismatch');
     git(root,['fetch','--no-tags',join(temp,'handoff/robot.bundle'),`refs/heads/${plan.branch}`]);
@@ -536,7 +586,7 @@ export async function robotCli(args, env = process.env) {
       throw error;
     }
     await robotComment({plan,result:{...result,state:'published',reason:`Published; ${plan.reviewer} review is pending.`},message});
-    outputs({pr:result.prNumber,head:headSha});return result;
+    outputs({pr:result.prNumber,head:headSha});return finish(result);
   }
   if(command==='review-prepare') {
     const review=await prepareRobotReview({root,repo,prNumber:Number(env.ROBOT_PR),headSha:env.ROBOT_HEAD,has:hasOf(env),preflight:{runId:Number(env.GITHUB_RUN_ID),attempt:Number(env.GITHUB_RUN_ATTEMPT),job:env.GITHUB_JOB}});

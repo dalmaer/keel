@@ -17,7 +17,7 @@ after(() => rm(runtime, {recursive:true, force:true}));
 for (const dir of ['practices/night/files/scripts/keel', 'practices/climb/files/scripts/keel']) {
   for (const name of await readdir(dir)) if (name.endsWith('.mjs')) await cp(join(dir,name),join(runtime,name));
 }
-const { prepareRobot,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,prepareRobotReview,robotSandbox,robotFetch } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
+const { prepareRobot,publishRobotTriage,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,prepareRobotReview,robotSandbox,robotFetch } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
 const repo='acme/anvils',now='2026-10-10T12:00:00Z',has={claude:true,codex:true};
 const config={robot:{on:true,budgetMinutes:60},agents:{claude:{},codex:{}}};
 const rubric={version:1,problem:'Acme sum is wrong',reproduction:'node --test',acceptance:'sum is two',change:'fix addition',prerequisites:[],ownerBlockers:[]};
@@ -647,8 +647,11 @@ test('robot publish CLI returns OFF and no-action plans quietly but triage still
    await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify(plan));
    const result=invoke();assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),plan);
  }
- await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify({state:'blocked',triage:true,repo,issueNumber:1,reason:'rubric question'}));
- const triage=invoke();assert.equal(triage.status,1);assert.match(triage.stderr,/current robot policy unavailable/);
+ const question=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:api({body:'Acme missing rubric'}).github});
+ await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify(question));
+ const triage=invoke();assert.equal(triage.status,0);
+ assert.match(JSON.parse(triage.stdout).triageResults.results[0].reason,/current robot policy unavailable/);
+ assert.equal(JSON.parse(triage.stdout).triageResults.results[0].posted,false);
 });
 
 test('robot pending review resumes under a raised current allowance without changing body authorization',async t=>{
@@ -671,5 +674,120 @@ test('robot pending review resumes under a raised current allowance without chan
      assert.equal(review.reviewSeconds,120);assert.deepEqual(review.authorization,plan.authorization);
    }
    assert.equal(b.writes.length,0);
+ }
+});
+
+function triageQueue(count,{ready=null,previousHead=null}={}) {
+ const issues=Array.from({length:count},(_,i)=>({number:i+1,html_url:`https://github.com/${repo}/issues/${i+1}`,state:'open',labels:[{name:'keel:agent'}],body:i+1===ready?formatRobotRubric(rubric):'Acme missing rubric'}));
+ const comments=new Map(issues.map(issue=>[issue.number,[receipt(issue.body,issue.number)]])),writes=[],reads=[];
+ const a=api();let current=config,labelActor=user,permission='write';
+ const pr=previousHead?{number:7,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:previousHead,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:1,instanceId:'issue-1',headSha:previousHead,author:'claude',cursor:0})}:null;
+ if(previousHead) comments.get(1).push({id:10,user:pr.user,body:`<!-- keel:robot-note ${'a'.repeat(64)} -->\n<!-- keel:robot-state ${JSON.stringify({repo,issueNumber:1,issueHash:'b'.repeat(64),instanceId:'issue-1',cursor:0,headSha:previousHead,completedAt:now})} -->\nPublished.`});
+ const github=async r=>{
+   reads.push(r.path);
+   if(Object.hasOwn(policyResponses(current),r.path))return {status:200,data:policyResponses(current)[r.path]};
+   if(r.path.includes('/collaborators/'))return {status:200,data:{permission,user:{...labelActor,login:decodeURIComponent(r.path.split('/collaborators/')[1].split('/')[0])}}};
+   if(r.path.includes('/issues?'))return {status:200,data:issues.map(i=>({number:i.number}))};
+   const match=/\/issues\/(\d+)(.*)$/.exec(r.path);
+   if(match){
+     const n=Number(match[1]),suffix=match[2];
+     if(!suffix)return {status:200,data:issues[n-1]};
+     if(suffix.startsWith('/events?'))return {status:200,data:[{id:1,event:'labeled',label:{name:'keel:agent'},actor:labelActor,created_at:'2026-10-09T00:00:00Z'}]};
+     if(suffix.startsWith('/comments?'))return {status:200,data:comments.get(n)};
+     if(suffix==='/comments'&&r.method==='POST'){
+       writes.push(r);const c={id:100+writes.length,user:{type:'Bot',login:'github-actions[bot]'},issue_url:`https://api.github.com/repos/${repo}/issues/${n}`,body:r.body.body};
+       comments.get(n).push(c);return {status:201,data:c};
+     }
+   }
+   if(r.path.includes('/pulls?'))return {status:200,data:pr&&r.path.endsWith('page=1')&&r.path.includes('robot-1&')?[{number:7}]:[]};
+   if(r.path.endsWith('/pulls/7'))return {status:200,data:pr};
+   return a.github(r);
+ };
+ return {github,issues,comments,writes,reads,pr,setPolicy:v=>current=v,revokeLabel:()=>{labelActor={login:'acme-triager',type:'User'};permission='triage';},revokeWriter:()=>permission='read'};
+}
+
+test('robot scan retains bounded approved triage while selecting later work and preserving prior heads',async t=>{
+ const root=await project(t),headSha=git(root,'rev-parse','HEAD');
+ for(const ready of [null,2]){
+   const q=triageQueue(ready?2:1,{ready,previousHead:headSha});
+   const plan=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github:q.github});
+   assert.equal(plan.state,ready?'ready':'blocked');assert.equal(plan.issueNumber,ready??undefined);
+   assert.equal(plan.rejections[0].triage?.issueNumber,1,'scan must retain the approved question');
+   assert.equal(plan.rejections[0].triage.previousHead,headSha);assert.doesNotThrow(()=>JSON.stringify(plan));
+   const result=await publishRobotTriage({repo,plan,has,now,github:q.github});
+   assert.deepEqual(result,{results:[{issueNumber:1,posted:true}],omitted:0});assert.equal(q.writes.length,1);
+   assert.match(q.writes[0].body.body,/rubric:/);
+   const state=JSON.parse(q.writes[0].body.body.match(/<!-- keel:robot-state (.+) -->/)[1]);assert.equal(state.headSha,headSha);
+   assert.equal((await publishRobotTriage({repo,plan,has,now,github:q.github})).results[0].already,true);assert.equal(q.writes.length,1);
+   const repeated=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github:q.github});
+   assert.equal(repeated.rejections[0].triageAlready,true);assert.equal(repeated.rejections[0].triage,undefined);
+ }
+ const q=triageQueue(12,{ready:12}),eventScan={repository:{full_name:repo}};
+ const plan=await prepareRobot({root,repo,config,event:eventScan,eventName:'schedule',has,now,github:q.github});
+ assert.equal(plan.issueNumber,12);assert.equal(plan.rejections.filter(r=>r.triage).length,10);assert.equal(plan.rejections.filter(r=>r.triageOmitted).length,1);
+ const result=await publishRobotTriage({repo,plan,has,now,github:q.github});
+ assert.equal(result.results.length,10);assert.equal(result.omitted,1);assert.equal(q.writes.length,10);
+ const next=await prepareRobot({root,repo,config,event:eventScan,eventName:'schedule',has,now,github:q.github});
+ assert.deepEqual(next.rejections.filter(r=>r.triage).map(r=>r.issueNumber),[11]);assert.equal(next.issueNumber,12);
+});
+
+test('robot scan triage rechecks each approval and refuses changed policy body label writer and human heads',async t=>{
+ const root=await project(t),headSha=git(root,'rev-parse','HEAD');
+ for(const mutation of ['body','policy','label','writer','head','prIdentity','foreign']){
+   const q=triageQueue(1,{previousHead:headSha});
+   const plan=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github:q.github});
+   assert.ok(plan.rejections[0].triage,'approved triage is required before mutation');
+   if(mutation==='body')q.issues[0].body='Acme edited body';
+   if(mutation==='policy')q.setPolicy({robot:{on:false}});
+   if(mutation==='label')q.revokeLabel();
+   if(mutation==='writer')q.revokeWriter();
+   if(mutation==='head')q.pr.head.sha='c'.repeat(40);
+   if(mutation==='prIdentity')q.pr.number=8;
+   if(mutation==='foreign')plan.rejections[0].triage.repo='acme/foreign';
+   const result=await publishRobotTriage({repo,plan,has,now,github:q.github});
+   assert.equal(result.results[0].posted,false,mutation);assert.ok(result.results[0].reason);assert.equal(q.writes.length,0);
+   assert.ok(q.reads.every(path=>path.startsWith(`/repos/${repo}/`)||path===`/repos/${repo}`));
+ }
+ // Revocation of one issue does not suppress another authorized question.
+ const q=triageQueue(2),plan=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github:q.github});
+ q.issues[0].body='Acme unapproved edit';
+ const result=await publishRobotTriage({repo,plan,has,now,github:q.github});
+ assert.equal(result.results[0].posted,false);assert.equal(result.results[1].posted,true);
+ assert.deepEqual(q.writes.map(r=>r.path),[`/repos/${repo}/issues/2/comments`]);
+});
+
+test('robot scan triage CLI publishes blocked-only and mixed ready plans through real shell invocations',async t=>{
+ for(const mixed of [false,true]){
+ const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-scan-triage-'));t.after(()=>rm(temp,{recursive:true,force:true}));
+ await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
+ await mkdir(join(root,'.agents/robot'),{recursive:true});await writeFile(join(root,'.agents/robot/PROTOCOL.md'),'Acme synthetic protocol.');
+ await mkdir(join(temp,'plan'));await writeFile(join(temp,'event.json'),JSON.stringify({repository:{full_name:repo}}));
+ const body='Acme missing rubric',store=join(temp,'comments.json');await writeFile(store,JSON.stringify({1:[receipt(body)],2:[receipt(formatRobotRubric(rubric),2)]}));
+ const label=[{id:1,event:'labeled',label:{name:'keel:agent'},actor:user,created_at:'2026-10-09T00:00:00Z'}],headSha=git(root,'rev-parse','HEAD');
+ const responses={...policyResponses(),
+   [`/repos/${repo}/issues?state=open&labels=keel%3Aagent&sort=created&direction=asc&per_page=100&page=1`]:mixed?[{number:1},{number:2}]:[{number:1}],
+   [`/repos/${repo}/issues/1`]:{number:1,html_url:`https://github.com/${repo}/issues/1`,body,state:'open',labels:[{name:'keel:agent'}]},
+   [`/repos/${repo}/issues/2`]:{number:2,html_url:`https://github.com/${repo}/issues/2`,body:formatRobotRubric(rubric),state:'open',labels:[{name:'keel:agent'}]},
+   [`/repos/${repo}/issues/1/events?per_page=100&page=1`]:label,
+   [`/repos/${repo}/issues/2/events?per_page=100&page=1`]:label,
+   [`/repos/${repo}/collaborators/acme/permission`]:{permission:'write',user},
+   [`/repos/${repo}/actions/workflows/keel-robot.yml`]:{id:7,path:'.github/workflows/keel-robot.yml'},
+   [`/repos/${repo}/actions/workflows/7/runs?per_page=100&page=1`]:{total_count:1,workflow_runs:[{id:7,workflow_id:7,repository:{full_name:repo},head_sha:headSha,run_attempt:1,status:'in_progress',updated_at:new Date(Date.now()-1000).toISOString()}]},
+   [`/repos/${repo}/actions/runs/7/attempts/1/jobs?per_page=100&page=1`]:{total_count:1,jobs:[{id:8,run_id:7,head_sha:headSha,name:'agent',status:'in_progress',steps:[]}]},
+ };
+ const gh=join(temp,'gh');
+ await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs'),map=${JSON.stringify(responses)},file=${JSON.stringify(store)};const method=process.argv[process.argv.indexOf('--method')+1],path=process.argv[process.argv.indexOf('--method')+2];let status=200,data=map[path];if(path.includes('/pulls?'))data=[];const n=path.split('/issues/')[1]?.split('/')[0];if(path.includes('/comments?'))data=JSON.parse(fs.readFileSync(file))[n];if(method==='POST'&&['/repos/acme/anvils/issues/1/comments','/repos/acme/anvils/issues/2/comments'].includes(path)){const rows=JSON.parse(fs.readFileSync(file));data={id:100+rows[n].length,user:{type:'Bot',login:'github-actions[bot]'},body:JSON.parse(fs.readFileSync(0,'utf8')).body};rows[n].push(data);fs.writeFileSync(file,JSON.stringify(rows));status=201;}if(data===undefined){status=404;data={};}process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));`);await chmod(gh,0o755);
+ const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh};
+ const {run}=await import('./helpers/run.mjs'),invoke=command=>run(process.execPath,[join(runtime,'robot.mjs'),command,'--json'],{cwd:root,env});
+ const prepared=invoke('prepare');assert.equal(prepared.status,0,prepared.stderr);
+ const outputs=await readFile(out,'utf8');assert.match(outputs,mixed?/^issue=2$/m:/^issue=$/m);assert.match(outputs,mixed?/^ready=true$/m:/^ready=false$/m);assert.match(outputs,/^triage=true$/m);assert.match(outputs,/^triage_count=1$/m);
+ await cp(join(temp,'robot-plan.json'),join(temp,'plan/robot-plan.json'));
+ const published=invoke('publish');assert.equal(published.status,0,published.stderr);assert.equal(JSON.parse(published.stdout).triageResults.results[0].posted,true);
+ // No model or gate is run: the mixed candidate exercises the genuine failed-
+ // judgment branch while its independently authorized question still publishes.
+ assert.equal(JSON.parse(published.stdout).state,mixed?'failed':'blocked');
+ const again=invoke('publish');assert.equal(again.status,0,again.stderr);assert.equal(JSON.parse(again.stdout).triageResults.results[0].already,true);
+ const comments=JSON.parse(await readFile(store,'utf8'));assert.equal(comments[1].length,2);assert.equal(comments[2].length,mixed?2:1);
+ if(mixed)assert.match(comments[2][1].body,/Agent or trusted judge failed/);
  }
 });

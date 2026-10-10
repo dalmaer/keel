@@ -169,3 +169,78 @@ test('robot publisher receives only credential presence flags and can read the f
  assert.doesNotMatch(step,/^\s+(?:CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY):/m);
  assert.match(step,/run: node scripts\/keel\/robot.mjs publish --json/);
 });
+
+function providerBoundaryProblems(text) {
+ const problems=[];
+ for(const id of ['build_claude','review_claude','build_codex','review_codex']) {
+  const step=text.split(`        id: ${id}\n`)[1]?.split('\n      - ')[0]??'';
+  const claude=id.endsWith('claude');
+  if(!step.includes(claude?'allowed_bots: github-actions[bot]\n':'allow-bot-users: github-actions[bot]\n'))problems.push(`${id}: trusted router bot missing`);
+  if(/(?:allowed_bots|allow-bot-users|allow-users|allowed_non_write_users):[^\n]*\*/.test(step))problems.push(`${id}: wildcard actor`);
+  if(!claude)continue;
+  if(!step.includes('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"'))problems.push(`${id}: scrub missing`);
+  if(!step.includes('--setting-sources user\n'))problems.push(`${id}: repo settings enabled`);
+  const raw=/--settings '([^']+)'/.exec(step)?.[1];
+  let settings;try{settings=JSON.parse(raw);}catch{problems.push(`${id}: settings missing`);continue;}
+  const sandbox=settings.sandbox;
+  if(sandbox?.enabled!==true||sandbox.failIfUnavailable!==true||sandbox.allowUnsandboxedCommands!==false||sandbox.enableWeakerNestedSandbox!==false||sandbox.enableWeakerNetworkIsolation!==false||sandbox.excludedCommands?.length!==0)problems.push(`${id}: sandbox can fall back`);
+  for(const path of ['//proc/**','//sys/**','//dev/**','//run/**','//var/run/**','~/.claude/**','~/.claude.json'])if(!settings.permissions?.deny?.includes(`Read(${path})`))problems.push(`${id}: direct read ${path}`);
+  const before=text.slice(0,text.indexOf(`        id: ${id}\n`));
+  const probe=before.slice(before.lastIndexOf('      - name: Require Claude subprocess isolation\n'));
+  if(!probe.includes('bwrap --unshare-user --unshare-pid --die-with-parent --ro-bind / / --proc /proc')||!probe.includes('test ! -e "/proc/$1/environ"')||probe.includes('continue-on-error: true'))problems.push(`${id}: PID preflight missing`);
+ }
+ return problems;
+}
+
+test('robot provider actions admit only the trusted router bot and require Claude credential and PID isolation',async()=>{
+ const text=await readFile(workflow,'utf8');assert.deepEqual(providerBoundaryProblems(text),[]);
+ for(const [from,to] of [
+  ['allowed_bots: github-actions[bot]','allowed_bots: "*"'],
+  ['allow-bot-users: github-actions[bot]','allow-bot-users: "*"'],
+  ['CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"','CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "0"'],
+  ['--setting-sources user','--setting-sources user,project,local'],
+  ['"failIfUnavailable":true','"failIfUnavailable":false'],
+  ['"allowUnsandboxedCommands":false','"allowUnsandboxedCommands":true'],
+  ['"enableWeakerNestedSandbox":false','"enableWeakerNestedSandbox":true'],
+  ['"enableWeakerNetworkIsolation":false','"enableWeakerNetworkIsolation":true'],
+  ['"Read(//proc/**)",',''],
+  ['--unshare-pid',''],
+  ['--proc /proc',''],
+ ])assert.ok(providerBoundaryProblems(text.replaceAll(from,to)).length,from);
+});
+
+test('robot Claude isolation prerequisite fails closed before model credentials are supplied',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'acme-robot-isolation-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const {chmod}=await import('node:fs/promises');
+ const blocks=runBlocks(await readFile(workflow,'utf8')).filter(b=>b.step==='Require Claude subprocess isolation');assert.equal(blocks.length,2);
+ const log=join(dir,'calls');
+ for(const name of ['sudo','socat','bwrap']) {
+  await writeFile(join(dir,name),`#!/bin/sh\nprintf '%s\\n' '${name}' >> "$ACME_CALLS"\n${name==='bwrap'?'exit "$ACME_PROBE_STATUS"':'exit 0'}\n`);await chmod(join(dir,name),0o755);
+ }
+ for(const block of blocks) {
+  assert.doesNotMatch(block.script,/secrets\.|ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|sysctl|apparmor|setenforce/);
+  for(const status of ['0','17']) {
+   const got=run('bash',['-e','-o','pipefail','-c',block.script],{cwd:dir,env:{...process.env,PATH:`${dir}:${process.env.PATH}`,ACME_CALLS:log,ACME_PROBE_STATUS:status}});
+   assert.equal(got.status,Number(status),got.stdout+got.stderr);
+  }
+ }
+ assert.match(await readFile(log,'utf8'),/bwrap/);
+});
+
+
+test('robot publisher runs for blocked-only triage scans without a selected issue',async()=>{
+ const text=await readFile(workflow,'utf8');
+ const agent=text.split('\n  agent:\n')[1].split(/\n  [a-z-]+:\n/)[0];
+ assert.match(agent,/^      triage: \$\{\{ steps\.prepare\.outputs\.triage \}\}$/m);
+ const publish=text.split('\n  publish:\n')[1].split('\n  review-agent:')[0];
+ const condition=/^    if: (.+)$/m.exec(publish)?.[1];
+ assert.equal(condition,"always() && (needs.agent.outputs.issue != '' || needs.agent.outputs.triage == 'true')");
+ // Evaluate the actual expression for selected work, blocked-only scans, and
+ // empty/no-authorized-work scans. A skipped judge must not suppress triage.
+ const accepts=(issue,triage)=>Function('needs','always',`return ${condition.replaceAll(' == ', ' === ').replaceAll(' != ', ' !== ')};`)({agent:{outputs:{issue,triage}}},()=>true);
+ assert.equal(accepts('', 'true'),true);
+ assert.equal(accepts('7', 'false'),true);
+ for(const triage of ['', 'false', undefined])assert.equal(accepts('',triage),false);
+ assert.match(publish,/name: robot-plan/);
+ assert.match(publish,/run: node scripts\/keel\/robot\.mjs publish --json/);
+});

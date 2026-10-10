@@ -95,3 +95,5 @@ The owner chooses one project and a weekly allowance covering build plus other-p
 - **2026-10-10** — Queue rejection is per issue, not a permanent stop for later authorized work. Human PR retargets block continuation, and missing queue labels remain a verified but unqueued outcome. Intent storage refuses symlinked paths without rewriting external files or relabelling issues.
 
 - **2026-10-10** — Current default-branch policy revokes queued work; writer authorization binds the exact body through a verified issue receipt and still requires active-label permission. The conductor’s real API probe rejected stale enabled input under current OFF policy without writing. Raised budgets remain usable for pending reviews.
+
+- **2026-10-10** — Review exposed two operational boundaries: routed bot actors need explicit provider support, and continuing a queue scan must not discard approved questions. Worker isolation now fails closed before credentials; bounded, revalidated triage survives scans independently of build selection. Effective Linux provider isolation remains part of the owner walk.

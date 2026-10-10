@@ -88,7 +88,13 @@ An old labelled issue with no matching receipt needs a fresh writer action
 issue-specific rejection reasons and continue to later candidates, including when
 an earlier issue has a malformed rubric/state or human-changed PR head/base.
 Explicit issue triggers remain blocked; global policy/provider/budget failures
-stop the entire scan.
+stop the entire scan. Approved questions about missing rubric information, owner
+blockers or unverified prerequisites remain publication work even when no build
+is selected. The trusted publisher rechecks each question's current policy,
+body approval, label authority and continuation identity before posting. It
+preserves recorded heads, avoids duplicate questions, and posts at most 10 new
+questions per run. JSON reports rejected questions and the omitted count;
+already-posted questions do not consume that bound on later scans.
 
 Admission, publication and review resolve the current default branch to a commit
 and verify its configuration blob. Disabled or unavailable policy revokes queued

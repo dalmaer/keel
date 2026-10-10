@@ -31,6 +31,7 @@ jobs:
     outputs:
       ready: ${{ steps.prepare.outputs.ready }}
       issue: ${{ steps.prepare.outputs.issue }}
+      triage: ${{ steps.prepare.outputs.triage }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -130,18 +131,37 @@ jobs:
           mkdir -p .keel/agent-git/info
           echo "/.keel/agent-git/" >> .keel/agent-git/info/exclude
           mkdir -p /tmp/keel-codex
+      - name: Require Claude subprocess isolation
+        if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.author == 'claude'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # v1's own install is best-effort; this worker requires usable PID isolation.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          command -v bwrap
+          command -v socat
+          # A fresh /proc in the new PID namespace must not expose this host shell.
+          host_pid=$$
+          bwrap --unshare-user --unshare-pid --die-with-parent --ro-bind / / --proc /proc -- /bin/sh -ec 'test ! -e "/proc/$1/environ"' sh "$host_pid"
       - name: Robot build Claude
         id: build_claude
         if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.author == 'claude'
         timeout-minutes: ${{ fromJSON(steps.prepare.outputs.build_minutes) }}
         uses: anthropics/claude-code-action@v1
+        env:
+          # v1 forwards this explicitly; Bash also gets PID isolation, not just env removal.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
+          allowed_bots: github-actions[bot]
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
           prompt: |
             Read the trusted task brief at ${{ runner.temp }}/robot-prompt.md and carry out its one bounded change.
           claude_args: |
+            --setting-sources user
+            --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"enableWeakerNestedSandbox":false,"enableWeakerNetworkIsolation":false,"excludedCommands":[]},"permissions":{"deny":["Read(//proc/**)","Read(//sys/**)","Read(//dev/**)","Read(//run/**)","Read(//var/run/**)","Read(~/.claude/**)","Read(~/.claude.json)","Edit(~/.claude/**)","Write(~/.claude/**)"]}}'
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm test*),Bash(npm run *),Bash(node *),Bash(git --git-dir=.keel/agent-git --work-tree=. *)"
       - name: Robot build Codex
         id: build_codex
@@ -152,6 +172,7 @@ jobs:
           GH_TOKEN: ""
           TMPDIR: /tmp/keel-codex
         with:
+          allow-bot-users: github-actions[bot]
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ runner.temp }}/robot-prompt.md
           output-file: ${{ runner.temp }}/codex-final-message.md
@@ -313,7 +334,7 @@ jobs:
           retention-days: 7
   publish:
     needs: [agent, judge]
-    if: always() && needs.agent.outputs.issue != ''
+    if: always() && (needs.agent.outputs.issue != '' || needs.agent.outputs.triage == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -395,18 +416,37 @@ jobs:
           path: ${{ runner.temp }}/robot-review.json
           if-no-files-found: error
           retention-days: 7
+      - name: Require Claude subprocess isolation
+        if: steps.review.outputs.reviewer == 'claude'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # v1's own install is best-effort; this worker requires usable PID isolation.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          command -v bwrap
+          command -v socat
+          # A fresh /proc in the new PID namespace must not expose this host shell.
+          host_pid=$$
+          bwrap --unshare-user --unshare-pid --die-with-parent --ro-bind / / --proc /proc -- /bin/sh -ec 'test ! -e "/proc/$1/environ"' sh "$host_pid"
       - name: Robot review Claude
         id: review_claude
         if: steps.review.outputs.reviewer == 'claude'
         timeout-minutes: ${{ fromJSON(steps.review.outputs.minutes) }}
         uses: anthropics/claude-code-action@v1
+        env:
+          # v1 forwards this explicitly; Bash also gets PID isolation, not just env removal.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
+          allowed_bots: github-actions[bot]
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
           prompt: |
             Review the trusted brief and untrusted diff in ${{ runner.temp }}/robot-review-prompt.md. Do not execute branch code. Return concrete findings only.
           claude_args: |
+            --setting-sources user
+            --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"enableWeakerNestedSandbox":false,"enableWeakerNetworkIsolation":false,"excludedCommands":[]},"permissions":{"deny":["Read(//proc/**)","Read(//sys/**)","Read(//dev/**)","Read(//run/**)","Read(//var/run/**)","Read(~/.claude/**)","Read(~/.claude.json)","Edit(~/.claude/**)","Write(~/.claude/**)"]}}'
             --allowedTools "Read,Glob,Grep"
       - name: Robot review Codex
         id: review_codex
@@ -417,6 +457,7 @@ jobs:
           GH_TOKEN: ""
           TMPDIR: /tmp/keel-codex
         with:
+          allow-bot-users: github-actions[bot]
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ runner.temp }}/robot-review-prompt.md
           output-file: ${{ runner.temp }}/codex-review-message.md
