@@ -12,7 +12,7 @@ import { ghStub, scratch, ENV } from './helpers/improve.mjs';
 const repo = 'acme/anvils', sha = 'a'.repeat(40), now = Date.parse('2026-10-10T12:00:00Z');
 const stamp = minutes => new Date(now - minutes * 60000).toISOString();
 const run = (id, extra = {}) => ({ id, run_attempt: 1, path: '.github/workflows/check.yml', name: 'Acme check', head_sha: sha, status: 'completed', conclusion: 'success', event: 'push', head_branch: 'main', head_repository: { full_name: repo }, created_at: stamp(20), updated_at: stamp(1), workflow_id: 7, ...extra });
-const job = (id, runId = 1, extra = {}) => ({ id, run_id: runId, run_attempt: 1, head_sha: sha, status: 'completed', conclusion: 'success', labels: ['ubuntu-latest'], started_at: stamp(3), completed_at: stamp(2), ...extra });
+const job = (id, runId = 1, extra = {}) => ({ id, run_id: runId, run_attempt: 1, name: 'Acme test', head_sha: sha, status: 'completed', conclusion: 'success', labels: ['ubuntu-latest'], started_at: stamp(3), completed_at: stamp(2), ...extra });
 const page = (key, rows, total = rows.length) => ({ [key]: rows, total_count: total });
 const baseApi = (runs = [run(1)], jobs = [job(101)]) => ({
   [`repos/${repo}`]: { private: false, default_branch: 'main', created_at: '2020-01-01T00:00:00Z' },
@@ -105,6 +105,42 @@ test('CI reuse requires exact clean main-push revision and actual recent job com
   assert.equal((await invoke(tied)).reused, false, 'same update timestamps cannot establish latest attempt');
   for (const bad of [{ completed_at: stamp(1500) }, { completed_at: stamp(-1) }, { run_id: 4 }, { run_attempt: 2 }, { head_sha: 'b'.repeat(40) }]) assert.equal((await invoke(gateApi(run(1), [job(101, 1, bad)]))).reused, false);
   assert.equal((await invoke({})).reused, false);
+});
+
+test('CI reuse needs evidence that tests ran: a run whose test jobs were all skipped falls back to the local gate (keel#93)', async t => {
+  const invoke = async api => readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) } });
+  const lint = job(101, 1, { name: 'lint', steps: [{ name: 'Set up', conclusion: 'success' }, { name: 'Lint', conclusion: 'success' }] });
+  const skippedTests = job(102, 1, { name: 'test', conclusion: 'skipped', started_at: stamp(2), completed_at: stamp(2) });
+  for (const conclusion of ['success', 'failure']) {
+    const none = await invoke(gateApi(run(1, { conclusion }), [lint, skippedTests]));
+    assert.equal(none.reused, false, `${conclusion}: only lint ran`);
+    assert.match(none.reason, /no test job or test-ledger run executed/);
+  }
+  const named = await invoke(gateApi(run(1), [lint, job(102, 1, { name: 'test' })]));
+  assert.deepEqual([named.reused, named.testEvidence], [true, { kind: 'job', job: 'test' }], 'an executed test job');
+  const step = await invoke(gateApi(run(1), [job(101, 1, { name: 'build', steps: [{ name: 'Install', conclusion: 'success' }, { name: 'Run tests', conclusion: 'failure' }] })]));
+  assert.deepEqual([step.reused, step.testEvidence], [true, { kind: 'step', job: 'build', step: 'Run tests' }], 'an executed test step');
+  const skippedStep = await invoke(gateApi(run(1), [job(101, 1, { name: 'build', steps: [{ name: 'Run tests', conclusion: 'skipped' }] })]));
+  assert.equal(skippedStep.reused, false, 'a skipped test step is not evidence');
+  // The test ledger's artifact, uploaded by this run once its jobs started (keel's own check: job "check", step "Run the configured gate").
+  const check = job(101, 1, { name: 'check', steps: [{ name: 'Run the configured gate', conclusion: 'success' }] });
+  const kept = (extra = {}) => { const api = gateApi(run(1), [check]); api[`repos/${repo}/actions/runs/1/artifacts`] = page('artifacts', [{ id: 9, name: 'keel-test-runs', size_in_bytes: 4096, created_at: stamp(2.5), workflow_run: { id: 1, head_sha: sha }, ...extra }]); return api; };
+  const ledger = await invoke(kept());
+  assert.deepEqual([ledger.reused, ledger.testEvidence], [true, { kind: 'test-ledger', artifact: 9 }], 'the test ledger ran');
+  for (const extra of [{ created_at: stamp(10) }, { workflow_run: { id: 2, head_sha: sha } }, { workflow_run: { id: 1, head_sha: 'b'.repeat(40) } }, { size_in_bytes: 0 }, { name: 'coverage' }]) assert.equal((await invoke(kept(extra))).reused, false, JSON.stringify(extra));
+  assert.equal((await invoke(gateApi(run(1), [check]))).reused, false, 'no artifact, no test-named job: not reused');
+  // The night runs its own gate instead.
+  const root = await scratch(t);
+  const git = (...args) => execFileSync('git', args, { cwd: root, env: ENV, encoding: 'utf8' }).trim();
+  git('init', '-q', '-b', 'main');
+  await writeFile(join(root, 'source'), 'Acme'); git('add', 'source'); git('commit', '-qm', 'Acme');
+  const commit = git('rev-parse', 'HEAD');
+  const config = { repo, ci: { gateWorkflow: 'check.yml' }, check: "node -e \"require('fs').writeFileSync('ran','yes')\"" };
+  const api = gateApi(run(1, { head_sha: commit }), [{ ...lint, head_sha: commit }, { ...skippedTests, head_sha: commit }]);
+  const [gate] = await measure({ root, config, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, measures: MEASURES.filter(m => m.id === 'gate') });
+  assert.equal(gate.facts.source, 'local-command');
+  assert.match(gate.facts.reuseUnavailable, /no test job or test-ledger run executed/);
+  assert.equal(await readFile(join(root, 'ran'), 'utf8'), 'yes');
 });
 
 test('night reuses explicit clean CI without local timing, preserves failure, and falls back safely', async t => {

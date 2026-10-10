@@ -184,6 +184,36 @@ export async function readCiUsage({ repo, env, config = {}, now = Date.now(), da
   return report;
 }
 
+/** The artifact a workflow keeps of the test ledger's records (migration 0005); uploaded only when the ledger wrote some. */
+export const LEDGER_ARTIFACT = 'keel-test-runs';
+/** A job or step whose name says it runs tests. */
+const TESTS_NAMED = /\btest(?:s|ing)?\b/i;
+/** A job or step that ran to a verdict, not one skipped, cancelled or never reached. */
+const executed = x => x?.conclusion === 'success' || x?.conclusion === 'failure';
+
+/**
+ * Evidence that the reused attempt ran tests (keel#93): an executed job, or an
+ * executed step of one, named for tests; else the test ledger's artifact
+ * uploaded by this run once its jobs started. A run whose test jobs were all
+ * skipped (only lint or setup ran) has none, and null sends the night to its
+ * local gate: a green run of nothing is not a gate that passed.
+ */
+async function testEvidence(client, repo, run, jobs, sha) {
+  const ran = jobs.filter(j => executed(j) && Number.isFinite(Date.parse(j.started_at)));
+  for (const j of ran) {
+    if (TESTS_NAMED.test(j.name ?? '')) return { kind: 'job', job: j.name };
+    const step = (Array.isArray(j.steps) ? j.steps : []).find(s => executed(s) && TESTS_NAMED.test(s?.name ?? ''));
+    if (step) return { kind: 'step', job: j.name ?? null, step: step.name };
+  }
+  if (!ran.length) return null;
+  const began = Math.min(...ran.map(j => Date.parse(j.started_at)));
+  // Paged as a run's jobs are: one run's artifacts, filtered to the ledger's name.
+  const kept = await client.pages(`repos/${repo}/actions/runs/${run.id}/artifacts?name=${LEDGER_ARTIFACT}`, 'artifacts', 'jobPages');
+  if (!client.coverage.complete) return null;
+  const artifact = kept.find(a => a.name === LEDGER_ARTIFACT && a.workflow_run?.id === run.id && a.workflow_run?.head_sha === sha && Number.isSafeInteger(a.size_in_bytes) && a.size_in_bytes > 0 && Date.parse(a.created_at) >= began);
+  return artifact ? { kind: 'test-ledger', artifact: artifact.id } : null;
+}
+
 /** Exact clean revision CI reuse. Explicit workflow selection is done by the caller. */
 export async function readCiGate({ repo, workflow, sha, clean, env, now = Date.now(), limits, request } = {}) {
   const unavailable = reason => ({ reused: false, reason });
@@ -211,6 +241,8 @@ export async function readCiGate({ repo, workflow, sha, clean, env, now = Date.n
     const completed = Math.max(...jobs.map(j => Date.parse(j.completed_at)).filter(Number.isFinite));
     const ageMs = now - completed;
     if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > DAY) return unavailable('CI result outside 24-hour window');
-    return { reused: true, source: 'github-actions', workflow: matches[0].path, runId: run.id, attempt: run.run_attempt, sha, conclusion: run.conclusion, ageMs, ordering: 'run updated_at', updatedAt: run.updated_at, completedAt: new Date(completed).toISOString(), status: run.conclusion === 'success' ? 0 : 1, tests: null, ms: null };
+    const evidence = await testEvidence(client, repo, run, jobs, sha);
+    if (!evidence) return unavailable('no test job or test-ledger run executed in the CI run');
+    return { reused: true, source: 'github-actions', workflow: matches[0].path, runId: run.id, attempt: run.run_attempt, sha, conclusion: run.conclusion, ageMs, ordering: 'run updated_at', updatedAt: run.updated_at, completedAt: new Date(completed).toISOString(), status: run.conclusion === 'success' ? 0 : 1, testEvidence: evidence, tests: null, ms: null };
   } catch { return unavailable('Actions API unavailable'); }
 }

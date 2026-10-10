@@ -147,7 +147,7 @@
     },
     "scripts/keel/ci.mjs": {
       "practice": "night",
-      "sha256": "58b6b29b97b17c027a2547add75594057dfb3a619fe702a246d5a39ed8ae51e4"
+      "sha256": "17ab20ac1ff8547fbb09b3fc2d8eaee386329fedc280f5ddb96f33ec76d4f803"
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
