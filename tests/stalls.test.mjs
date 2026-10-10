@@ -8,12 +8,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, platform, arch } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { run, cleanEnv } from './helpers/run.mjs';
-import { runFiles, judge, planOf, stallsOf, shapeOf, seedOf, replay, preloadsOfScript, SHAPE } from '../practices/night/files/scripts/keel/stalls.mjs';
+import { runFiles, judge, planOf, stallsOf, shapeOf, seedOf, replay, preloadsOfScript, flagsOfScript, SHAPE } from '../practices/night/files/scripts/keel/stalls.mjs';
 import { configHash } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -109,6 +109,11 @@ test('judge names only what passed without stalls and failed with them', () => {
   assert.deepEqual(j.both.map(x => x.name), ['broken'], 'a plain failure: stalls cannot judge it');
   // PR #57 review: an inconclusive run without stalls is no pass to compare with, so it is never named.
   assert.deepEqual(j.unbased.map(x => [x.name, x.plain]), [['unsure', 'inconclusive'], ['new', null]]);
+  // PR #57 review: two tests of one name are two tests; each is judged against its own plain run.
+  const twice = judge([t('twin', 'skip'), t('twin', 'pass')], [t('twin', 'fail'), t('twin', 'pass')]);
+  assert.deepEqual(twice.named, [], 'the first twin was skipped plainly: no pass to compare with');
+  assert.deepEqual(twice.unbased.map(x => [x.name, x.plain]), [['twin', 'skip']]);
+  assert.deepEqual(judge([t('twin', 'pass'), t('twin', 'skip')], [t('twin', 'fail'), t('twin', 'skip')]).named.map(x => x.name), ['twin']);
   assert.deepEqual(j.inconclusive.map(x => x.name), ['plays']);
   assert.deepEqual(j.missing.map(x => x.name), ['gone']);
 });
@@ -192,15 +197,23 @@ test('keel test --stalls names the wall-clock test against the ledger\'s pass on
   // The ledger's run of this very tree, an hour ago: both passed. keel test reads it in place of a plain run.
   // It must be this run's lane: the same folder and config (keel test runs here with no preload, and this env).
   const config = configHash({ env: cleanEnv(tightEnv()), preload: [], configEnv: [] });
-  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: process.version, dir: '.', config, date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
+  const record = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), dirty: false, machine: { os: platform(), arch: arch(), cpus: 4 }, node: process.version, dir: '.', config, date: new Date(Date.now() - 3_600_000).toISOString(), tests: [DEADLINE, MOCKED].map(name => ({ file: 'tests/crate.test.mjs', name, outcome: 'pass', ms: 51 })) };
   await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
   await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
   // PR #57 review: a pass under another config (NODE_OPTIONS, a preload, a configEnv value), or from another folder, never stands in.
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-00-00-000Z-1.json'), JSON.stringify({ ...record, config: 'acmeother01' }));
+  // Nor does a pass on another node, OS or architecture.
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-10-00-000Z-1.json'), JSON.stringify({ ...record, node: 'v0.0.0' }));
+  await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-20-00-000Z-1.json'), JSON.stringify({ ...record, machine: { ...record.machine, os: 'acmeos' } }));
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T09-30-00-000Z-1.json'), JSON.stringify({ ...record, dir: 'web' }));
   const other = JSON.parse(run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7', '--json'], { cwd: dir, env: tightEnv() }).stdout);
   assert.equal(other.plain.from, 'run', 'another lane\'s pass is not this run\'s baseline');
   assert.deepEqual(preloadsOfScript('node --import ./h.mjs --require=r.cjs -r \'q.cjs\' --test'), ['--import', './h.mjs', '--require=r.cjs', '-r', 'q.cjs'], 'as written: the form the ledger records and hashes');
+  // PR #57 review: a quoted path keeps its spaces, and the suite's other node flags come along; the run's own do not.
+  const script = "node --import './test helpers/setup.mjs' --conditions=acme -C dev --experimental-vm-modules --test --test-reporter=spec --test-timeout 5000 --test-name-pattern x tests/ && echo done";
+  assert.deepEqual(preloadsOfScript(script), ['--import', './test helpers/setup.mjs']);
+  assert.deepEqual(flagsOfScript(script), ['--import', './test helpers/setup.mjs', '--conditions=acme', '-C', 'dev', '--experimental-vm-modules']);
+  assert.deepEqual(flagsOfScript('vitest run'), [], 'not node\'s runner: nothing to carry');
   await writeFile(join(dir, '.keel/test-runs/2026-10-09T10-00-00-000Z-1.json'), JSON.stringify(record));
 
   const r = run(process.execPath, [BIN, 'test', 'tests/crate.test.mjs', '--stalls', '--seed', '7', '--json'], { cwd: dir, env: tightEnv() });
@@ -306,11 +319,12 @@ import assert from 'node:assert/strict';
 test('the workspace is set up', () => {
   assert.equal(globalThis.ACME_SETUP, 'web');
   assert.match(process.cwd(), /[\\\\/]web$/);
+  assert.ok(process.execArgv.includes('--conditions=acme'), "the suite's conditions");
 });
 `;
   const { dir } = await acme(t, {
-    'web/package.json': '{ "name": "acme-web", "scripts": { "test": "node --import ./setup.mjs --test tests/" } }\n',
-    'web/setup.mjs': "globalThis.ACME_SETUP = 'web';\n",
+    'web/package.json': `${JSON.stringify({ name: 'acme-web', scripts: { test: "node --import './test helpers/setup.mjs' --conditions=acme --test tests/" } })}\n`,
+    'web/test helpers/setup.mjs': "globalThis.ACME_SETUP = 'web';\n",
     'web/tests/ws.test.mjs': WS,
   });
   const r = run(process.execPath, [BIN, 'test', 'tests/ws.test.mjs', '--stalls', '--seed', '3', '--json'], { cwd: join(dir, 'web') });
@@ -319,6 +333,19 @@ test('the workspace is set up', () => {
   assert.deepEqual(out.files, ['web/tests/ws.test.mjs'], 'reported from the project\'s root');
   assert.deepEqual([...out.plain.tests, ...out.stalled.tests].map(x => [x.file, x.outcome]), [['web/tests/ws.test.mjs', 'pass'], ['web/tests/ws.test.mjs', 'pass']]);
   assert.equal(out.replay, 'keel test tests/ws.test.mjs --stalls --seed 3', 'replayed from where it was run');
+});
+
+test('PR #57 review: keel test that ran no test (only a suite, or a --name that matches none) judged nothing, and fails', async t => {
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': CRATE, 'tests/empty.test.mjs': "import { describe } from 'node:test';\ndescribe('an empty crate', () => {});\n" });
+  for (const args of [['tests/empty.test.mjs'], ['tests/crate.test.mjs', '--name', 'no such crate']]) {
+    const r = run(process.execPath, [BIN, 'test', ...args, '--stalls', '--json'], { cwd: dir });
+    assert.equal(r.status, 1, `${args.join(' ')}: ${r.stdout}`);
+    assert.equal(JSON.parse(r.stdout).ran.stalled, 0);
+    assert.deepEqual(JSON.parse(r.stdout).named, []);
+  }
+  const text = run(process.execPath, [BIN, 'test', 'tests/empty.test.mjs', '--stalls'], { cwd: dir }).stdout;
+  assert.match(text, /^ {2}no test ran: nothing was judged$/m);
+  assert.doesNotMatch(text, /No test judges the wall clock here/);
 });
 
 test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {

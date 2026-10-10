@@ -33,12 +33,14 @@ import { randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { relative, sep } from 'node:path';
 import { realpathSync } from 'node:fs';
-import { topLevel } from './test-ledger.mjs';
+import { topLevel, executed } from './test-ledger.mjs';
 
 export const SHAPE = Object.freeze({ firstMs: [0, 1000], gapMs: [500, 1500], stallMs: [50, 500] });
 /** A run's limit, of running time: paused time never counts. */
 export const TIMEOUT_MS = 30 * 60_000;
 export const MARK = 'keel-stalls ';
+/** The reporter's last line: how many tests executed (a file's own entry, a suite and a skip are not tests). */
+export const RAN = 'keel-stalls-ran ';
 export const REPORTER = fileURLToPath(import.meta.url);
 
 /** A fresh seed: a whole number, 1 to 2^31 - 1, printed so a failure can be replayed. */
@@ -88,17 +90,69 @@ export function shapeOf(env = process.env) {
   return shape;
 }
 
+/** A shell line's words: quotes ('…', "…") and backslashes read as the shell reads them, never run. */
+export function shellWords(line) {
+  const words = [];
+  let word = null, quote = null;
+  for (let i = 0; i < String(line ?? '').length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      else if (c === '\\' && quote === '"' && i + 1 < line.length) word += line[++i];
+      else word += c;
+    } else if (c === "'" || c === '"') { quote = c; word ??= ''; }
+    else if (c === '\\' && i + 1 < line.length) word = (word ?? '') + line[++i];
+    else if (/\s/.test(c)) { if (word !== null) words.push(word); word = null; }
+    else word = (word ?? '') + c;
+  }
+  if (word !== null) words.push(word);
+  return words;
+}
+
+/** Node flags that take the next word as their value when written without `=`. */
+const VALUED = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader', '--conditions', '-C', '--env-file', '--env-file-if-exists',
+  '--input-type', '--test-global-setup', '--test-isolation', '--test-concurrency', '--test-coverage-include', '--test-coverage-exclude',
+  '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-timeout', '--test-shard', '--watch-path']);
+/** The run's own: which files, which tests, what it reports, and its time limit (paused time must not count). */
+const DROPPED = new Set(['--test', '--test-reporter', '--test-reporter-destination', '--test-name-pattern', '--test-skip-pattern', '--test-only',
+  '--test-timeout', '--test-shard', '--watch', '--watch-path']);
+const PRELOADS = new Set(['--import', '--require', '-r', '--loader', '--experimental-loader']);
+
 /**
- * The --import/--require preloads a test script names (package.json's
- * scripts.test), so a file runs as the suite runs it: as written (`--import
- * x` is two words, `--import=x` one), the form node's execArgv has, so the
- * config hash matches the test ledger's record of that suite.
+ * The node flags in a list of words ({ name, words }), as written: `--import
+ * x` is two words, `--import=x` one, the form node's execArgv has. A flag
+ * not known to take a value is taken as one without (write `--flag=value`).
+ * Words that are not flags (files, folders) are left out.
  */
-export function preloadsOfScript(script) {
+function flagsIn(words) {
   const out = [];
-  for (const m of String(script ?? '').matchAll(/(?:^|\s)(--(?:import|require|loader|experimental-loader)|-r)(=|\s+)(['"]?)([^\s'"]+)\3/g)) out.push(...(m[2] === '=' ? [`${m[1]}=${m[4]}`] : [m[1], m[4]]));
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (w === '--') break;
+    if (!w.startsWith('-') || w === '-') continue;
+    const eq = w.indexOf('=');
+    const name = eq > 0 ? w.slice(0, eq) : w;
+    out.push({ name, words: eq < 0 && VALUED.has(name) && i + 1 < words.length ? [w, words[++i]] : [w] });
+  }
   return out;
 }
+
+/** The words after `node` in a test script (package.json's scripts.test), to its first `&&`, `||`, `;` or `|`. */
+function nodeWords(script) {
+  const words = shellWords(script);
+  const at = words.findIndex(w => /(^|[\\/])node(\.exe)?$/.test(w));
+  if (at < 0) return [];
+  const rest = words.slice(at + 1);
+  const end = rest.findIndex(w => ['&&', '||', ';', '|'].includes(w));
+  return end < 0 ? rest : rest.slice(0, end);
+}
+
+/** The node flags a run of the suite carries over to a stalled one: all but the run's own (files, names, reporters, time limit). */
+export const runnerFlags = words => flagsIn(words).filter(f => !DROPPED.has(f.name)).flatMap(f => f.words);
+/** The flags of a test script a file runs with, so it runs as the suite runs it: preloads, conditions, setup and the rest. */
+export const flagsOfScript = script => runnerFlags(nodeWords(script));
+/** A test script's --import/--require preloads, as written: what the test ledger's config hash reads. */
+export const preloadsOfScript = script => flagsIn(nodeWords(script)).filter(f => PRELOADS.has(f.name)).flatMap(f => f.words);
 
 /** Never a test runner's context: its node --test would run nothing and pass (lesson 14). */
 const runnerFree = env => Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_') && k !== 'KEEL_STALLS_SHAPE'));
@@ -180,7 +234,9 @@ export async function runFiles({ files, cwd = process.cwd(), root = cwd, name, p
   let base = root;
   try { base = realpathSync(root); } catch { /* as given */ }
   const tests = [];
+  let ran = 0;
   for (const line of out.split('\n')) {
+    if (line.startsWith(RAN)) { ran = Number(line.slice(RAN.length)) || 0; continue; }
     if (!line.startsWith(MARK)) continue;
     try {
       const t = JSON.parse(line.slice(MARK.length));
@@ -188,10 +244,19 @@ export async function runFiles({ files, cwd = process.cwd(), root = cwd, name, p
     } catch { /* not ours */ }
   }
   const wall = Date.now() - t0;
-  return { seed, exitCode: code, signal: sig, timedOut, wall, paused, active: wall - paused, stalls, tests, stderr: err.trim().split('\n').slice(-20).join('\n') };
+  return { seed, exitCode: code, signal: sig, timedOut, wall, paused, active: wall - paused, stalls, tests, ran, stderr: err.trim().split('\n').slice(-20).join('\n') };
 }
 
-const key = t => `${t.file ?? ''}\u0000${t.name}`;
+/** Each test's key: its file, its name, and which of that file's tests of that name it is (names can repeat). */
+const keyed = tests => {
+  const seen = new Map();
+  return tests.map(t => {
+    const k = `${t.file ?? ''}\u0000${t.name}`;
+    const n = seen.get(k) ?? 0;
+    seen.set(k, n + 1);
+    return [`${k}\u0000${n}`, t];
+  });
+};
 
 /**
  * A plain run's outcomes against a stalled run's: `named` passed plainly and
@@ -202,18 +267,18 @@ const key = t => `${t.file ?? ''}\u0000${t.name}`;
  * judging with stalls; `missing` ran plainly and not with stalls.
  */
 export function judge(plain, stalled) {
-  const before = new Map(plain.map(t => [key(t), t]));
-  const after = new Map(stalled.map(t => [key(t), t]));
+  const before = new Map(keyed(plain));
+  const after = new Map(keyed(stalled));
   const named = [], both = [], unbased = [], inconclusive = [], missing = [];
-  for (const t of stalled) {
-    const p = before.get(key(t));
+  for (const [k, t] of after) {
+    const p = before.get(k);
     if (t.outcome === 'inconclusive') inconclusive.push(t);
     if (t.outcome !== 'fail') continue;
     if (p?.outcome === 'pass') named.push({ ...t, plain: p.outcome });
     else if (p?.outcome === 'fail') both.push(t);
     else unbased.push({ ...t, plain: p?.outcome ?? null });
   }
-  for (const p of plain) if ((p.outcome === 'pass' || p.outcome === 'fail') && !after.has(key(p))) missing.push(p);
+  for (const [k, p] of before) if ((p.outcome === 'pass' || p.outcome === 'fail') && !after.has(k)) missing.push(p);
   return { named, both, unbased, inconclusive, missing };
 }
 
@@ -226,6 +291,11 @@ export const replay = (files, seed, name) => `keel test ${files.map(shellWord).j
 /** The reporter a stalled (or plain) run uses: one marked line per top-level test, at the end. */
 export default async function* stallsReporter(source) {
   const top = topLevel({ errors: true });
-  for await (const e of source) top.push(e);
+  let ran = 0;
+  for await (const e of source) {
+    if (executed(process.cwd(), e)) ran++;
+    top.push(e);
+  }
   for (const t of top.tests) yield `${MARK}${JSON.stringify(t)}\n`;
+  yield `${RAN}${ran}\n`;
 }

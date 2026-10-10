@@ -569,7 +569,7 @@ export const STALLS_LABEL = 'keel stalls';
  * the seed and the command that replays it, and an entry that pins nothing
  * fails it too. Null when nothing is pinned.
  */
-export function pinned(root, config, { env = process.env, preload = preloads(), seed: given } = {}) {
+export function pinned(root, config, { env = process.env, preload, seed: given } = {}) {
   const pins = new Set(stallsPins(config)), bad = stallsBad(config);
   if (!pins.size && !bad.length) return null;
   const started = new Map(), seen = new Map(), reached = new Set();
@@ -581,7 +581,8 @@ export function pinned(root, config, { env = process.env, preload = preloads(), 
   const start = rel => (async () => {
     const m = await import('./stalls.mjs');
     seed ??= m.freshSeed();
-    return { m, run: await m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload, env, seed }) };
+    // The suite's own node flags (preloads, conditions, setup), never its files, names, reporters or time limit.
+    return { m, run: await m.runFiles({ files: [join(root, rel)], cwd: process.cwd(), root, preload: preload ?? m.runnerFlags(process.execArgv), env, seed }) };
   })().catch(error => ({ error }));
   return {
     // A pinned file's stalled copy starts once its own run is over (node's per-file summary), never beside it:
@@ -611,7 +612,7 @@ export function pinned(root, config, { env = process.env, preload = preloads(), 
         const j = m.judge(tests.filter(t => t.file === rel), run.tests);
         const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all`;
         const failed = run.tests.filter(t => t.outcome === 'fail');
-        if (!failed.length && !run.timedOut && run.exitCode === 0) {
+        if (!failed.length && !run.timedOut && run.exitCode === 0 && run.ran > 0) {
           lines.push(`${STALLS_LABEL}: ${rel} passed with ${s}, seed ${run.seed}.`);
           continue;
         }
@@ -621,6 +622,7 @@ export function pinned(root, config, { env = process.env, preload = preloads(), 
         for (const t of j.unbased) lines.push(`  "${t.name}" failed with stalls, and was ${t.plain ?? 'not run'} without them: no pass to compare with${t.error ? `: ${t.error}` : ''}`);
         for (const t of j.both) lines.push(`  "${t.name}" failed with stalls${tests.some(x => x.file === rel && x.name === t.name) ? ' and plainly' : ''}${t.error ? `: ${t.error}` : ''}`);
         if (run.timedOut) lines.push('  it ran past its time limit (paused time not counted)');
+        else if (!failed.length && run.exitCode === 0) lines.push('  no test ran with stalls: nothing was judged');
         else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${run.stderr.split('\n').slice(-3).join(' | ') || 'no output'}`);
       }
       return lines;

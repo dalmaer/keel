@@ -740,8 +740,10 @@ keel test tests/acme.test.mjs --stalls --seed 42  # replay the same stalls
 keel test tests/acme.test.mjs --name '^a crate' --stalls --json
 ```
 
-- It runs the files under `node --test` (with the `--import`/`--require`
-  preloads of package.json's `scripts.test`) in a process group of its own,
+- It runs the files under `node --test` with the node flags of
+  package.json's `scripts.test` (preloads, conditions, setup; never its
+  files, reporters, name patterns or time limit; write an unknown valued
+  flag as `--flag=value`) in a process group of its own,
   and pauses the whole group (SIGSTOP, then SIGCONT: the runner, each file's
   process, anything they spawned) for 50 to 500 ms at moments from a seed:
   the first within a second, each next 500 to 1500 ms after the last ended.
@@ -753,9 +755,11 @@ keel test tests/acme.test.mjs --name '^a crate' --stalls --json
 - It compares that run with one without stalls: a fresh run, or, when the
   tree is clean and nothing is narrowed, the test ledger's newest whole run
   of this tree within a day in the same folder and config (`NODE_OPTIONS`,
-  the preloads, each `"tests".configEnv` variable). Each test that passed without stalls and failed
+  the preloads, each `"tests".configEnv` variable), on this node, OS and
+  architecture. Tests of one name are matched in order. Each test that passed without stalls and failed
   with them is **named**: it judges the wall clock. Exit 1 when one is named,
-  or anything failed, or the run without stalls died; 0 when none.
+  or anything failed, or the run without stalls died, or no test ran; 0
+  when none.
 - A stall only catches a wait it lands in: a file whose timing tests are a
   few ms long may see none. Run it again with another seed, or narrow it.
 - The fix is never a longer sleep. Give the code its clock: `mock.timers` in
