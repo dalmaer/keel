@@ -210,7 +210,8 @@ over (never two copies of one file at once; with a `--test-global-setup`,
 after the whole suite and its teardown), from a fresh seed, and a
 failure fails the run and prints `keel stalls: <file> failed with stalls
 (…), seed N. Replay: keel test <file> --stalls --seed N`. An entry that pins
-nothing (outside the repo, absolute, or a file that is gone) fails the run
+nothing (outside the repo, absolute, a file that is gone, or a folder) fails
+the run, and so does a test that ran without stalls and never with them
 too; the others still run. A run no stall landed in runs once more with its
 first stall inside half that run's time; none again is inconclusive, and
 fails: zero stalls judged nothing. A narrowed run never does. A passing test that said

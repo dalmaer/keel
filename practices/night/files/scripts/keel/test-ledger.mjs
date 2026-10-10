@@ -102,7 +102,7 @@
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
 import { readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
-import { realpathSync, existsSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
@@ -667,11 +667,12 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
         lines.push(`${STALLS_LABEL}: "tests".stalls pins nothing with ${bad.map(b => JSON.stringify(b)).join(', ')}: each entry is a test file relative to the repo's root. The rest still run with stalls; this run fails until it is fixed.`);
         process.exitCode = 1;
       }
-      // A pin to a file that is gone (renamed, deleted) guards nothing, so it fails the run. One this run
-      // did not reach is only said: a run of some of the suite's files is not a broken pin.
-      const gone = [...pins].filter(rel => !existsSync(join(root, rel)));
+      // A pin to a file that is gone (renamed, deleted), or to a folder, guards nothing, so it fails the run.
+      // One this run did not reach is only said: a run of some of the suite's files is not a broken pin.
+      const isFile = rel => { try { return statSync(join(root, rel)).isFile(); } catch { return false; } };
+      const gone = [...pins].filter(rel => !isFile(rel));
       if (gone.length) {
-        lines.push(`${STALLS_LABEL}: "tests".stalls pins ${gone.join(', ')}, which ${gone.length === 1 ? 'is' : 'are'} not there: a pin to a moved or deleted file guards nothing. Pin the file's new path, or drop the pin; this run fails until then.`);
+        lines.push(`${STALLS_LABEL}: "tests".stalls pins ${gone.join(', ')}, which ${gone.length === 1 ? 'is' : 'are'} not a test file: a pin to a moved or deleted file, or to a folder, guards nothing. Pin the file's path, or drop the pin; this run fails until then.`);
         process.exitCode = 1;
       }
       for (const rel of reached) if (!started.has(rel)) started.set(rel, start(rel)); // its summary never came: the suite is over now
@@ -685,11 +686,13 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
         const j = m.judge(tests.filter(t => t.file === rel), run.tests);
         const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all${again ? `; run again with the first stall within ${again.within} ms, after the first run (${Math.round(again.first)} ms) got none` : ''}`;
         const failed = run.tests.filter(t => t.outcome === 'fail');
-        if (!failed.length && !run.timedOut && run.exitCode === 0 && run.ran > 0 && run.stalls.length) {
+        // A test that ran without stalls and never with them (registered only some of the time) was not judged.
+        const unjudged = j.missing.length > 0;
+        if (!failed.length && !unjudged && !run.timedOut && run.exitCode === 0 && run.ran > 0 && run.stalls.length) {
           lines.push(`${STALLS_LABEL}: ${rel} passed with ${s}, seed ${run.seed}.`);
           continue;
         }
-        if (!failed.length && !run.timedOut && run.exitCode === 0 && run.ran > 0) {
+        if (!failed.length && !unjudged && !run.timedOut && run.exitCode === 0 && run.ran > 0) {
           // Zero stalls is not a pass: nothing paused it, so nothing was judged.
           process.exitCode = 1;
           lines.push(`${STALLS_LABEL}: ${rel} is inconclusive: no stall landed (${s}), seed ${run.seed}. A file that ends before a stall can land guards nothing pinned; unpin it, or give it a test long enough to pause.`);
@@ -699,9 +702,10 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
         lines.push(`${STALLS_LABEL}: ${rel} failed with stalls (${s}), seed ${run.seed}. Replay: ${m.replay([rel], run.seed)}`);
         for (const t of j.named) lines.push(`  "${t.name}" passed plainly and failed with stalls: it judges the wall clock${t.error ? `: ${t.error}` : ''}`);
         for (const t of j.unbased) lines.push(`  "${t.name}" failed with stalls, and was ${t.plain ?? 'not run'} without them: no pass to compare with${t.error ? `: ${t.error}` : ''}`);
+        for (const t of j.missing) lines.push(`  "${t.name}" ran without stalls and never with them: it was not judged`);
         for (const t of j.both) lines.push(`  "${t.name}" failed with stalls${tests.some(x => x.file === rel && x.name === t.name) ? ' and plainly' : ''}${t.error ? `: ${t.error}` : ''}`);
         if (run.timedOut) lines.push('  it ran past its time limit (paused time not counted)');
-        else if (!failed.length && run.exitCode === 0) lines.push('  no test ran with stalls: nothing was judged');
+        else if (!failed.length && run.exitCode === 0 && run.ran === 0) lines.push('  no test ran with stalls: nothing was judged');
         else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${run.stderr.split('\n').slice(-3).join(' | ') || 'no output'}`);
       }
       return lines;

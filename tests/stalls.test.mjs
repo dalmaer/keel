@@ -357,7 +357,7 @@ test('PR #57 review: a pin to a file that is gone fails the run; the other pins 
   const { dir } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, { tests: { stalls: ['tests/crate.test.mjs', 'tests/gone.test.mjs'] } });
   const r = gate(dir);
   assert.equal(r.status, 1, r.stdout);
-  assert.match(r.stdout, /^keel stalls: "tests"\.stalls pins tests\/gone\.test\.mjs, which is not there/m);
+  assert.match(r.stdout, /^keel stalls: "tests"\.stalls pins tests\/gone\.test\.mjs, which is not a test file/m);
   assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with /m);
   // A file that is there but this run did not reach (a run of some of the files) is not a broken pin.
   const some = run(process.execPath, ['--test', ...WITH, 'tests/anvil.test.mjs'], { cwd: dir, env: tightEnv() });
@@ -402,6 +402,21 @@ export async function globalTeardown() { closeSync(fd); unlinkSync(process.env.A
   const r = run(process.execPath, ['--test', '--test-global-setup=./tests/setup.mjs', ...WITH, 'tests/crate.test.mjs', 'tests/zinc.test.mjs'], { cwd: dir, env });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs passed with /m);
+});
+
+test('PR #57 review: a pinned test that ran plainly and never with stalls fails the run; so does a pin to a folder', async t => {
+  // Registered only when KEEL_STALLS_SHAPE is set: the suite's run has it, a stalled run never does (stalls.mjs strips it).
+  const SOMETIMES = `${MOCKED_ONLY}if (process.env.KEEL_STALLS_SHAPE) test('an anvil only sometimes', () => {});\n`;
+  const { dir } = await acme(t, { 'tests/crate.test.mjs': SOMETIMES, 'tests/anvil.test.mjs': ANVIL }, PIN);
+  const r = gate(dir);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /^keel stalls: tests\/crate\.test\.mjs failed with stalls /m);
+  assert.match(r.stdout, /^ {2}"an anvil only sometimes" ran without stalls and never with them: it was not judged$/m);
+  assert.doesNotMatch(r.stdout, /tests\/crate\.test\.mjs passed with/);
+  const { dir: folder } = await acme(t, { 'tests/crate.test.mjs': MOCKED_ONLY, 'tests/anvil.test.mjs': ANVIL }, { tests: { stalls: ['tests/crate.test.mjs', 'tests'] } });
+  const f = gate(folder);
+  assert.equal(f.status, 1, f.stdout);
+  assert.match(f.stdout, /^keel stalls: "tests"\.stalls pins tests, which is not a test file/m);
 });
 
 test('mutation: a ledger that never starts its pinned files runs none, and says nothing', async t => {
