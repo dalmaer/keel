@@ -124,3 +124,18 @@ test('both runners support help without a destination or execution', () => {
     assert.equal(r.stderr, '');
   }
 });
+
+test('exec callback promise and sync count each child and failure once', async () => {
+  const entry = join(root, 'tests/fixtures/profile/exec.mjs');
+  for (const mode of ['callback', 'promise', 'sync']) {
+    for (const outcome of ['success', 'failure']) {
+      const r = await runProfile([mode, outcome], { entry, stdio: 'ignore', env: cleanEnv(process.env) });
+      assert.equal(r.code, 0, `${mode} ${outcome}: builtin return and output contract`);
+      assert.equal(r.profile.counts.subprocess, 1, `${mode} ${outcome}: one child`);
+      assert.equal(r.profile.counts.failures, outcome === 'failure' ? 1 : 0, `${mode} ${outcome}: failure counted once`);
+      assert.equal(r.profile.incomplete.subprocess, 0);
+      assert.doesNotMatch(JSON.stringify(r), /Acme|secret|printf/);
+      partition(r.profile);
+    }
+  }
+});

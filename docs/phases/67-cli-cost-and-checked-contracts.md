@@ -76,3 +76,6 @@ these measurements do not justify a language port by themselves.
 - **2026-10-10** — Contributor tools have different distribution boundaries
   from adopter practices. Their documentation lives outside adopter guides,
   and the self-only typecheck workflow still runs the existing workflow rules.
+- **2026-10-10** — Independent review caught nested `exec`/`execFile`
+  instrumentation counting one child twice. The delegated boundary is wrapped
+  once; a red-before/green-after test covers callback, promise and sync forms.

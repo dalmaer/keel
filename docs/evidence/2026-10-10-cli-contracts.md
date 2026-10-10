@@ -52,6 +52,19 @@ including failing mutations, as shipped workflows. The CI template's comment
 now distinguishes the dependency-free runtime gate from contributor tooling;
 its execution is unchanged.
 
+Independent review of PR 81 found one process-counting defect: Node's
+`exec()` delegates to the exported `execFile()`, so wrapping both counted
+one child twice. Only the delegated boundary is now wrapped. Callback,
+promisified and synchronous success/failure cases preserve return values,
+output and errors while counting each child once. The conductor's profile
+and helper checks passed 12 tests, exit 0.
+
+`node bin/keel.mjs prove tests/profile.test.mjs --name 'exec callback promise and sync count each child and failure once' --fix scripts/profile-preload.mjs --base a83495c --trailer`:
+exit 0, VERIFIED. The uncorrected source failed at `callback success: one
+child 2 !== 1`; corrected source passed. The generated trailer accompanies
+the fix commit. The recorded local and GitHub commands use other child
+boundaries; their recorded observations are retained, not rewritten.
+
 ## Real surfaces
 
 | Did | Observed | Proves / does not prove |

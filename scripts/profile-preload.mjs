@@ -44,10 +44,12 @@ if (Number.isFinite(origin) && owner === String(process.ppid)) {
   };
   const isGh = value => typeof value === 'string' &&
     (basename(value).toLowerCase() === 'gh' || basename(value).toLowerCase() === 'gh.exe' || value === process.env.KEEL_GH);
-  for (const name of ['spawn', 'exec', 'execFile', 'fork', 'spawnSync', 'execSync', 'execFileSync']) {
+  // exec (including its native promisify hook) delegates to the exported execFile.
+  // Instrument that boundary once; execSync uses an internal spawnSync instead.
+  for (const name of ['spawn', 'execFile', 'fork', 'spawnSync', 'execSync', 'execFileSync']) {
     const original = cp[name];
     const wrapped = function (...args) {
-      const end = begin(0, name !== 'exec' && name !== 'execSync' && isGh(args[0]));
+      const end = begin(0, name !== 'execSync' && isGh(args[0]));
       try {
         const child = Reflect.apply(original, this, args);
         if (name.endsWith('Sync')) end(child?.error != null || (child?.status != null && child.status !== 0) || child?.signal != null);
@@ -58,7 +60,7 @@ if (Number.isFinite(origin) && owner === String(process.ppid)) {
         return child;
       } catch (error) { end(true); throw error; }
     };
-    if (name === 'exec' || name === 'execFile') {
+    if (name === 'execFile') {
       wrapped[promisify.custom] = (...args) => {
         let child;
         const promise = new Promise((resolve, reject) => {
