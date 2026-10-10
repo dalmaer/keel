@@ -25,8 +25,8 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] `ci_minutes` rounds each job up, applies each runner's multiplier, groups by workflow, separates keel's own, and is outside its bound when over it; n/a without the API, never zero. `tests/improve-measures.test.mjs`
-- [ ] With `gateWorkflow` set, the night's gate measure reads that workflow's conclusion on the commit and runs no check; without a run, it runs the check as today. `tests/night.test.mjs`
+- [ ] `ci_minutes` rounds each job up, applies each runner's multiplier, groups by workflow, separates keel's own, and is outside its bound when over it; n/a without the API, never zero. `tests/ci.test.mjs`, `tests/improve-measures.test.mjs`
+- [ ] With `gateWorkflow` set, the night's gate measure reads that workflow's conclusion on the commit and runs no check; without a run, it runs the check as today. `tests/ci.test.mjs`, `tests/night.test.mjs`
 - [ ] `keel adopt --dry-run` lists keel's added workflows with a monthly minutes estimate and a total. `tests/adopt.test.mjs`
 - [ ] ⚑ by hand: a month on one metered project; the owner compares keel's minutes with the estimate.
 
@@ -47,10 +47,12 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/improve-measures.test.mjs tests/night.test.mjs tests/adopt.test.mjs`; `npm run check`.
+Automated: `node --test tests/ci.test.mjs tests/improve-measures.test.mjs tests/night.test.mjs tests/adopt.test.mjs`; `npm run check`.
 Over time: a month's minutes against the estimate.
 
 ## Deliberately open
+
+- **Settled 2026-10-09: dedicated API proof.** Pagination, runner weighting, cache validation and exact-revision reuse live in `tests/ci.test.mjs`; it joins the original integration proof. The outcomes are unchanged. Reuse requires a push run on the repository's default branch, as the night operates there; other origins fall back to the local gate.
 
 - **Settled 2026-10-09: estimates, not invoices.** The 1/2/10 defaults are dated, configurable weighting assumptions. GitHub prices depend on runner hardware and billing context; standard public hosted usage and self-hosted usage can be free. Report runner/billing coverage, provenance and unavailable data explicitly. Weighted minutes are a comparable usage estimate, not a claim of billed dollars or a universal current tariff. See [GitHub runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing).
 
