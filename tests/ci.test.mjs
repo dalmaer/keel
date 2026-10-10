@@ -119,7 +119,10 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   const named = await invoke(gateApi(run(1), [lint, job(102, 1, { name: 'test' })]));
   assert.deepEqual([named.reused, named.testEvidence], [true, { kind: 'job', job: 'test' }], 'an executed test job');
   const step = await invoke(gateApi(run(1), [job(101, 1, { name: 'build', steps: [{ name: 'Install', conclusion: 'success' }, { name: 'Run tests', conclusion: 'failure' }] })]));
-  assert.deepEqual([step.reused, step.testEvidence], [true, { kind: 'step', job: 'build', step: 'Run tests' }], 'an executed test step');
+  assert.equal(step.reused, false, 'a step\'s name is not evidence (#95): only a test job whose steps all ran, or the ledger\'s artifact');
+  // #95: the shipped check workflow's job, its tests skipped and its upload step (named for the ledger) successful, no artifact.
+  const upload = await invoke(gateApi(run(1), [job(101, 1, { name: 'check', steps: [{ name: 'Run tests', conclusion: 'skipped' }, { name: 'Keep the test ledger', conclusion: 'success' }] })]));
+  assert.equal(upload.reused, false, 'an upload step named for the ledger is not evidence that tests ran');
   const skippedStep = await invoke(gateApi(run(1), [job(101, 1, { name: 'build', steps: [{ name: 'Run tests', conclusion: 'skipped' }] })]));
   assert.equal(skippedStep.reused, false, 'a skipped test step is not evidence');
   // #95: a successful job named `test` whose `Run tests` step a condition skipped ran no tests.

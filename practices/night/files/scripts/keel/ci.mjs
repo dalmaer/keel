@@ -192,9 +192,9 @@ const TESTS_NAMED = /\btest(?:s|ing)?\b/i;
 const executed = x => x?.conclusion === 'success' || x?.conclusion === 'failure';
 
 /**
- * Evidence that the reused attempt ran tests (keel#93): an executed job, or an
- * executed step of one, named for tests; else the test ledger's artifact
- * uploaded by this run once its jobs started. A run whose test jobs were all
+ * Evidence that the reused attempt ran tests (keel#93): an executed job named
+ * for tests whose every step ran; else the test ledger's artifact uploaded by
+ * this run once its jobs started. A run whose test jobs were all
  * skipped (only lint or setup ran) has none, and null sends the night to its
  * local gate: a green run of nothing is not a gate that passed.
  */
@@ -205,8 +205,8 @@ async function testEvidence(client, repo, run, jobs, sha) {
     // A job named for tests counts when none of its steps was skipped (#95): a successful `test` job whose
     // `Run tests` step a condition skipped ran no tests. With no step detail, its name is what there is.
     if (TESTS_NAMED.test(j.name ?? '') && steps.every(s => executed(s))) return { kind: 'job', job: j.name };
-    const step = steps.find(s => executed(s) && TESTS_NAMED.test(s?.name ?? ''));
-    if (step) return { kind: 'step', job: j.name ?? null, step: step.name };
+    // No step's name is evidence (#95): a step named for tests can be the one keeping the ledger's artifact
+    // ("Keep the test ledger"), which succeeds with nothing to keep. The artifact itself, checked below, is.
   }
   if (!ran.length) return null;
   const began = Math.min(...ran.map(j => Date.parse(j.started_at)));

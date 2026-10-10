@@ -281,9 +281,11 @@ heuristics do not authorize reuse. The gate measure reuses only same-repo,
 default-branch **push** CI on the exact clean SHA. PR and fork runs are excluded.
 The newest candidate by update/attempt freshness must be completed success or
 failure, with validated matching jobs completed within 24 hours, and evidence
-that tests ran (keel#93): an executed job or step named for tests, or the
-run's `keel-test-runs` artifact uploaded after its jobs started. A run whose
-test jobs were all skipped (only lint or setup ran) is not reused. A completed
+that tests ran (keel#93): a job named for tests whose every step ran, or the
+run's `keel-test-runs` artifact uploaded after its jobs started. A step's name
+is never evidence (an upload step named for the ledger succeeds with nothing to
+keep). A run whose test jobs were all skipped (only lint or setup ran), or whose
+test step was skipped, is not reused. A completed
 failure remains a failure; pending, skipped, canceled, stale or unavailable
 results fall back to the configured local command. Reused reports name the
 source, SHA, conclusion and completion age. They do not claim local execution
