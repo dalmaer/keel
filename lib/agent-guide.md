@@ -1318,7 +1318,9 @@ the night's `escapes` measure notes the `fix:` commits without one.
   not run with it; it shares its name with another test; the runner is
   read by exit code alone; the ignored files are too many to copy; the
   test script sets environment inline (`NAME=value node --test`, `export`,
-  `env`, `cross-env`); or the checkout is sparse), each with its reason. A
+  `env`, `cross-env`); the checkout is sparse; or a link in the copy, tracked
+  or laid over, points back into your checkout, so a test writing through
+  it would change your files), each with its reason. A
   skipped, todo or cancelled test never counts as run, and a suite is not a
   test: an empty suite runs nothing.
 - `--trailer` prints `Proven-by: <test>[ (<name>)] — <VERDICT> — "<the

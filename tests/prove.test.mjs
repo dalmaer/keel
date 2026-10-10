@@ -349,6 +349,26 @@ test('a test named like a suite path is never matched to the nested test it read
 
 // ---- Codex's fifth round on #55 --------------------------------------------
 
+test('a link pointing back into the checkout is never written through: INCONCLUSIVE before any run', async t => {
+  const dir = await repo(t);
+  await mkdir(join(dir, 'logs'));
+  await writeFile(join(dir, 'logs', 'real.txt'), 'acme\n');
+  await writeFile(join(dir, '.gitignore'), 'out.log\n');
+  commitAll(dir, 'acme: the log');
+  // An ignored output link with an absolute target in the checkout (Codex on #55): the test appends to it.
+  await symlink(join(dir, 'logs', 'real.txt'), join(dir, 'out.log'));
+  await writeFile(join(dir, 'tests', 'log.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { appendFileSync } from 'node:fs';\nimport { add } from '../lib/add.mjs';\ntest('logs the sum', () => { appendFileSync('out.log', 'sum\\n'); assert.equal(add(1, 2), 3); });\n");
+  // prove() asserts the tree, logs/real.txt included, is byte-identical after.
+  const j = await prove(dir, ['tests/log.test.mjs', '--fix', 'lib/add.mjs'], 1);
+  assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
+  assert.equal(j.reason, 'out.log links into your checkout: a test writing through it would change your files, so keel does not run it');
+  // A tracked link with such a target is refused too.
+  await rm(join(dir, 'out.log'));
+  await symlink(join(dir, 'logs', 'real.txt'), join(dir, 'tracked.log'));
+  commitAll(dir, 'acme: a tracked link');
+  assert.match((await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs', '--base', 'HEAD~2'], 1)).reason, /^tracked\.log links into your checkout/);
+});
+
 test('a suite is not a test: an empty suite where the failing test was is no proof', async t => {
   const dir = await repo(t);
   // Without the fix: test 'works' fails. With it: an empty suite 'works', which "passes" having run nothing.
