@@ -87,7 +87,7 @@
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
-      "sha256": "af4ea8a659f46a0e2285762863cd070fddcaa77b1580aef3a73a04645582db6f"
+      "sha256": "06dd2092c1783dfcc32a7b2321947c9aae51307f36571af0c5973b7ed2755d6f"
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
@@ -203,7 +203,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "67e8a727c8121777d4e80ba9da5eaa4c3e32e418722d3ab2c191a2bc0101862a"
+      "sha256": "d6524aa9ea611ba01984cb71032900e77a1f2a4241325ce1d22e245e69f300ce"
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",

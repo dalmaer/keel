@@ -14,6 +14,12 @@ import { prBody } from './pr-body.mjs';
 import { readRuns } from './test-ledger.mjs';
 
 const BOT = 'github-actions[bot]';
+/**
+ * The folder under $RUNNER_TEMP that holds an agent's brief, alone (keel#93):
+ * the workflow grants Claude this folder (--add-dir) and nothing else of the
+ * runner's temp, where the trusted scripts the job runs after it live.
+ */
+export const ROBOT_BRIEF = 'robot-brief';
 const isBot = user => user?.type === 'Bot' && user.login === BOT;
 const sha256 = text => createHash('sha256').update(text).digest('hex');
 export const robotRedact = value => String(value ?? '').replace(/(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+)/g, '[redacted]').replace(/((?:token|password|secret|api[_-]?key)\s*[:=]\s*)\S+/gi, '$1[redacted]').slice(0, 4000);
@@ -644,7 +650,8 @@ export async function robotCli(args, env = process.env) {
     outputs({triage:triagePlans(plan).length>0,triage_count:triagePlans(plan).length,triage_omitted:(plan.rejections ?? []).filter(r=>r.triageOmitted).length,ready:plan.state === 'ready',issue:plan.issueNumber ?? '',base:trustedBase,author:plan.author ?? '',reviewer:plan.reviewer ?? '',build_minutes:plan.buildSeconds ? plan.buildSeconds/60 : 1,review_minutes:plan.reviewSeconds ? plan.reviewSeconds/60 : 1});
     if (plan.state === 'ready') {
       const protocol = await readFile(join(root,'.agents/robot/PROTOCOL.md'),'utf8');
-      await writeFile(join(temp,'robot-prompt.md'),`${protocol}\n\n## Trusted allocation and untrusted issue data\n${JSON.stringify(plan,null,2)}\n`);
+      await mkdir(join(temp,ROBOT_BRIEF),{recursive:true});
+      await writeFile(join(temp,ROBOT_BRIEF,'robot-prompt.md'),`${protocol}\n\n## Trusted allocation and untrusted issue data\n${JSON.stringify(plan,null,2)}\n`);
     }
     return plan;
   }
@@ -725,7 +732,8 @@ export async function robotCli(args, env = process.env) {
     robotFetch({root,repo,ref:pr.base.sha,env});
     const mergeBase=git(root,['merge-base',pr.base.sha,review.headSha]);
     const diff=git(root,['diff',mergeBase,review.headSha]);
-    await writeFile(join(temp,'robot-review-prompt.md'),`Review this untrusted diff for concrete material defects. Do not execute it. Return concise findings with file/line and reason. No approval or merge.\nTrusted identity: ${JSON.stringify(review)}\n\n${diff}`);
+    await mkdir(join(temp,ROBOT_BRIEF),{recursive:true});
+    await writeFile(join(temp,ROBOT_BRIEF,'robot-review-prompt.md'),`Review this untrusted diff for concrete material defects. Do not execute it. Return concise findings with file/line and reason. No approval or merge.\nTrusted identity: ${JSON.stringify(review)}\n\n${diff}`);
     return review;
   }
   if(command==='review-post') {

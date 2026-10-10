@@ -193,6 +193,39 @@ function providerBoundaryProblems(text) {
  return problems;
 }
 
+/**
+ * keel#93: each provider reads its brief from robot.mjs's own folder under the runner's temp, and Claude is granted
+ * that folder (--add-dir) and nothing else of the runner's temp, where the trusted scripts run after it live.
+ */
+function briefProblems(text) {
+ const problems=[],folder='${{ runner.temp }}/robot-brief';
+ for(const [id,file] of [['build_claude','robot-prompt.md'],['review_claude','robot-review-prompt.md'],['build_codex','robot-prompt.md'],['review_codex','robot-review-prompt.md']]) {
+  const step=text.split(`        id: ${id}\n`)[1]?.split('\n      - ')[0]??'';
+  const brief=`${folder}/${file}`;
+  if(id.endsWith('codex')){if(!step.includes(`prompt-file: ${brief}\n`))problems.push(`${id}: its prompt-file is not ${brief}`);continue;}
+  const named=/^ {12}(?:Read|Review)\b.*?(\$\{\{ runner\.temp \}\}\S*\.md)/m.exec(step)?.[1];
+  if(named!==brief)problems.push(`${id}: the prompt names ${named ?? 'no brief'}, not ${brief}`);
+  const dirs=[...step.matchAll(/^ {12}--add-dir[ \t]+(.+?)[ \t]*$/gm)].map(m=>m[1]);
+  if(JSON.stringify(dirs)!==JSON.stringify([folder]))problems.push(`${id}: Claude may read ${dirs.join(', ')||'no folder'} beyond the checkout: only ${folder}, the brief's own`);
+ }
+ return problems;
+}
+
+test('robot Claude may read its brief: work and review are granted the brief\'s own folder, and nothing else of the runner\'s temp (keel#93)',async()=>{
+ const text=await readFile(workflow,'utf8');assert.deepEqual(briefProblems(text),[]);
+ const {ROBOT_BRIEF}=await import('../scripts/keel/robot.mjs');
+ assert.equal(ROBOT_BRIEF,'robot-brief','the folder robot.mjs writes the briefs into is the one granted');
+ const grant='            --add-dir ${{ runner.temp }}/robot-brief\n';
+ const [build,review]=[text.indexOf(grant),text.lastIndexOf(grant)];
+ assert.ok(build>0&&review>build,'one grant in each Claude step');
+ for(const [why,mutated] of [
+  ['the work step cannot read its brief',text.slice(0,build)+text.slice(build+grant.length)],
+  ['the review step cannot read its brief',text.slice(0,review)+text.slice(review+grant.length)],
+  ['Claude may read the whole runner temp',text.replaceAll(grant,'            --add-dir ${{ runner.temp }}\n')],
+  ['the brief is outside the granted folder',text.replace('${{ runner.temp }}/robot-brief/robot-prompt.md and carry out','${{ runner.temp }}/robot-prompt.md and carry out')],
+ ])assert.ok(briefProblems(mutated).length,why);
+});
+
 test('robot provider actions admit only the trusted router bot and require Claude credential and PID isolation',async()=>{
  const text=await readFile(workflow,'utf8');assert.deepEqual(providerBoundaryProblems(text),[]);
  for(const [from,to] of [

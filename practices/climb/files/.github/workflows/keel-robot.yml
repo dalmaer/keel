@@ -179,11 +179,12 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
           prompt: |
-            Read the trusted task brief at ${{ runner.temp }}/robot-prompt.md and carry out its one bounded change.
+            Read the trusted task brief at ${{ runner.temp }}/robot-brief/robot-prompt.md and carry out its one bounded change.
           claude_args: |
             --setting-sources user
             --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"enableWeakerNestedSandbox":false,"enableWeakerNetworkIsolation":false,"excludedCommands":[]},"permissions":{"deny":["Read(//proc/**)","Read(//sys/**)","Read(//dev/**)","Read(//run/**)","Read(//var/run/**)","Read(~/.claude/**)","Read(~/.claude.json)","Edit(~/.claude/**)","Write(~/.claude/**)"]}}'
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm test*),Bash(npm run *),Bash(node *),Bash(git --git-dir=.keel/agent-git --work-tree=. *)"
+            --add-dir ${{ runner.temp }}/robot-brief
       - name: Robot build Codex
         id: build_codex
         if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.author == 'codex'
@@ -195,7 +196,7 @@ jobs:
         with:
           allow-bot-users: github-actions[bot]
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: ${{ runner.temp }}/robot-prompt.md
+          prompt-file: ${{ runner.temp }}/robot-brief/robot-prompt.md
           output-file: ${{ runner.temp }}/codex-final-message.md
           sandbox: workspace-write
           safety-strategy: drop-sudo
@@ -468,11 +469,12 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
           prompt: |
-            Review the trusted brief and untrusted diff in ${{ runner.temp }}/robot-review-prompt.md. Do not execute branch code. Return concrete findings only.
+            Review the trusted brief and untrusted diff in ${{ runner.temp }}/robot-brief/robot-review-prompt.md. Do not execute branch code. Return concrete findings only.
           claude_args: |
             --setting-sources user
             --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"enableWeakerNestedSandbox":false,"enableWeakerNetworkIsolation":false,"excludedCommands":[]},"permissions":{"deny":["Read(//proc/**)","Read(//sys/**)","Read(//dev/**)","Read(//run/**)","Read(//var/run/**)","Read(~/.claude/**)","Read(~/.claude.json)","Edit(~/.claude/**)","Write(~/.claude/**)"]}}'
             --allowedTools "Read,Glob,Grep"
+            --add-dir ${{ runner.temp }}/robot-brief
       - name: Robot review Codex
         id: review_codex
         if: steps.review.outputs.reviewer == 'codex'
@@ -484,7 +486,7 @@ jobs:
         with:
           allow-bot-users: github-actions[bot]
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: ${{ runner.temp }}/robot-review-prompt.md
+          prompt-file: ${{ runner.temp }}/robot-brief/robot-review-prompt.md
           output-file: ${{ runner.temp }}/codex-review-message.md
           sandbox: read-only
           safety-strategy: drop-sudo
