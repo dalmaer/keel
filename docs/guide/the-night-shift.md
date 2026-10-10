@@ -217,7 +217,16 @@ The wrapper supplies `KEEL_USUAL` before the runner starts: a JSON file in
 Keel's own runner ordering stays unchanged. Runs with load above cores are
 omitted from flaky/slow findings; missing load context is explicitly unknown.
 Linux records CPU pressure totals and their delta; other platforms report it
-unavailable. Standalone JUnit imports cannot recover the run's start load.
+unavailable. Windows load average is unsupported and remains unknown.
+
+New JUnit adoption proposals call the internal `--sample` immediately before
+the runner and pass its JSON with `--start` to `--junit`. Sampling failure leaves
+the start unavailable and the runner still executes. Existing project gates are
+not rewritten; imports without an explicit start remain unknown, even inside a
+timed gate, because lint/build time is not the JUnit runner's start context.
+The internal `--gate` defaults only when config is absent or a valid object omits
+`check`; unreadable or invalid gate configuration stops selection. Timing-storage
+failures remain diagnostic and do not block an explicitly selected command.
 
 Locally only, Claude Code's project transcripts provide aggregate counts of
 test commands given ≥120-second timeouts, background runs, or interruptions.

@@ -202,14 +202,15 @@ export async function busySample({ os = platform(), load = loadavg, cores = avai
   if (os === 'linux') {
     try { pressure = pressureOf(await read('/proc/pressure/cpu', 'utf8')); } catch { /* explicitly unavailable */ }
   }
-  return { at: new Date().toISOString(), load: load(), cores: cores(), pressure,
+  return { at: new Date().toISOString(), load: os === 'win32' ? null : load(), cores: cores(), pressure,
+    ...(os === 'win32' ? { loadUnavailable: 'load average unsupported on win32' } : {}),
     pressureSource: pressure ? '/proc/pressure/cpu' : null };
 }
 export function busyBetween(start, end) {
   const delta = start?.pressure && end?.pressure && start.pressureSource === end.pressureSource
     ? Object.fromEntries(Object.keys(end.pressure).filter(k => start.pressure[k] && end.pressure[k].total >= start.pressure[k].total)
       .map(k => [k, end.pressure[k].total - start.pressure[k].total])) : null;
-  return { start, end, pressureUs: delta, unavailable: !start ? 'run start was not captured; wrap the command with --run' : null };
+  return { start, end, pressureUs: delta, unavailable: !start ? 'run start was not captured; pass a runner-local start sample' : null };
 }
 export function busyState(run) {
   const samples = [run.busy?.start, run.busy?.end];
@@ -684,8 +685,15 @@ export async function record(root, run, { window = DEFAULTS.window, keep = Math.
   return name;
 }
 
-async function projectConfig(root) {
-  try { return JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8')); } catch { return {}; }
+async function projectConfig(root, { strict = false } = {}) {
+  try {
+    const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
+    if (strict && (!config || typeof config !== 'object' || Array.isArray(config) || (config.check !== undefined && (typeof config.check !== 'string' || !config.check.trim())))) throw new Error('invalid gate configuration');
+    return config;
+  } catch (error) {
+    if (!strict || error.code === 'ENOENT') return {};
+    throw new Error(`cannot determine gate from .keel/keel.json (${error.code ?? 'invalid configuration'})`);
+  }
 }
 
 /**
@@ -1130,7 +1138,7 @@ export function junitTests(root, runner, fileOf = f => f, { configEnv = [], env 
  * relative to the repo's root; `runner` is bun or vitest, else "tests".runner,
  * else what the file says; `status` is the runner's own exit code, or null.
  */
-export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start } = {}) {
+export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start = null } = {}) {
   const root = rootOf(cwd);
   const config = await projectConfig(root);
   const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
@@ -1179,9 +1187,6 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
   try {
     const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
-    if (start === undefined) {
-      try { start = JSON.parse(process.env.KEEL_RUN_START ?? 'null'); } catch { start = null; }
-    }
     const run = {
       busy: busyBetween(start, await sample()),
       ...where(root, { exclude: shown === at ? [] : [shown] }), runner: kind, dir: here,
@@ -1201,7 +1206,7 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
   return done(parsed.ran, parsed.failed);
 }
 
-export const USAGE = 'usage: node scripts/keel/test-ledger.mjs --junit <file> [--runner bun|vitest] [--status <exit code>] | --gate | --run <shell-command>';
+export const USAGE = 'usage: node scripts/keel/test-ledger.mjs --junit <file> [--runner bun|vitest] [--status <exit code>] [--start <sample-json>] | --sample | --gate | --run <shell-command>';
 
 /** The command line's { junit, runner?, status? }; throws on anything else. */
 export function junitArgs(argv) {
@@ -1213,6 +1218,12 @@ export function junitArgs(argv) {
     if (flag === '--junit') out.junit = value();
     else if (flag === '--runner') out.runner = value();
     else if (flag === '--status') out.status = value();
+    else if (flag === '--start') {
+      const raw = eq > 0 ? argv[i].slice(eq + 1) : argv[++i];
+      if (raw === undefined) throw new Error('--start needs a value');
+      try { out.start = raw ? JSON.parse(raw) : null; } catch { throw new Error('--start must be sample JSON'); }
+      if (out.start !== null && (typeof out.start !== 'object' || Array.isArray(out.start))) throw new Error('--start must be sample JSON');
+    }
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   if (out.junit === undefined) throw new Error('--junit <file> is required');
@@ -1227,9 +1238,14 @@ export function junitArgs(argv) {
 // Run as a command (node scripts/keel/test-ledger.mjs --junit …), never when node loads it as a reporter.
 if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(import.meta.url))) {
   if (process.argv[2] === '--gate' && process.argv.length === 3) {
-    const config = await projectConfig(real(process.cwd()));
-    const r = await timedCommand(config.check ?? 'npm run check', { stdio: 'inherit' });
-    process.exitCode = r.status ?? 1;
+    try {
+      const config = await projectConfig(real(process.cwd()), { strict: true });
+      const r = await timedCommand(config.check ?? 'npm run check', { stdio: 'inherit' });
+      process.exitCode = r.status ?? 1;
+    } catch (error) { process.stderr.write(`${LABEL}: ${error.message}\n`); process.exitCode = 2; }
+  } else if (process.argv[2] === '--sample' && process.argv.length === 3) {
+    try { process.stdout.write(JSON.stringify(await busySample()) + '\n'); }
+    catch { process.stderr.write(`${LABEL}: start sample unavailable\n`); process.exitCode = 1; }
   } else if (process.argv[2] === '--run' && process.argv.length === 4) {
     const r = await timedCommand(process.argv[3], { stdio: 'inherit' });
     process.exitCode = r.status ?? 1;

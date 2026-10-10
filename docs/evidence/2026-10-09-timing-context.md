@@ -78,3 +78,15 @@ Configured environment values are now passed into failure redaction by both actu
 The escaped-quote head finding and conductor-discovered rule overlap are corrected by a single normalize → find protected spans in original text → merge → replace → truncate pipeline. Quoted assignments consume escaped characters and unfinished values conservatively; unquoted Authorization protects the full line without a scheme allowlist. Known configured values, private keys, URL credentials and assignment rules cannot erase each other's recognition markers. Four end-to-end/regression proofs are VERIFIED against `bd7f026`, and nine focused checks passed. The conductor also replayed both reported escaped-quote and overlapping-key examples and observed only redacted output.
 
 - Proven-by: tests/test-ledger.test.mjs (^(quoted credential tokens|escaped quoted credentials|unquoted Authorization schemes|overlapping configured and structural)) — VERIFIED — "no credential fragment survived (quoted credential tokens consume escapes multiline and unterminated values completely)"
+
+
+## Cross-platform and runner boundary corrections
+
+Review found five additional boundary errors. Windows load averages are now unavailable, not known-quiet zeros; transcript paths normalize native separators before containment checks. Malformed or unreadable gate configuration fails before choosing a command. Adopted JUnit wrappers sample immediately before the runner, after preceding lint/build work, and preserve runner exit status even if sampling fails. Legacy imports without their own sample disclose missing start rather than inheriting the full gate start. Board lanes identify configuration, command hash and available source.
+
+The builder passed 23 focused ledger/adoption checks, 11 timing/board checks and the updated real producer-shell test. Conductor isolated-copy proofs below each exited 0 with red without the fix and green with it (seven regressions). Windows path/load behavior was exercised with explicit platform inputs; no real Windows walk is claimed. Existing adopted package scripts remain project-owned and need their proposed wrapper update to capture a start.
+
+- Proven-by: tests/time.test.mjs (^round4: (transcript cwd|gate summaries)) — VERIFIED — "Expected values to be strictly equal: + actual - expected + 'undefined' - 'function' (round4: transcript cwd normalizes win32 subfolders while rejecting esca..."
+- Proven-by: tests/board.test.mjs (^round4: board distinguishes) — VERIFIED — "The input did not match the regular expression /linux-x64-4cpu: 2000 ms[^;]+config=acme-full command=acme-full-hash source=configured-gate/. Input: '<!doctyp..."
+- Proven-by: tests/test-ledger.test.mjs (^(Windows load sampling|internal gate rejects|legacy JUnit imports)) — VERIFIED — "unsupported load must not be sampled (Windows load sampling is unavailable rather than quiet zero)"
+- Proven-by: tests/adopt.test.mjs (^adopted JUnit shell samples) — VERIFIED — "Expected values to be strictly equal: + actual - expected + 'lint\nrunner\n' - 'lint\nsample\nrunner\n' ^ (adopted JUnit shell samples after lint immediately..."

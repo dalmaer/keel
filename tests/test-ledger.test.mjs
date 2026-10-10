@@ -1459,3 +1459,43 @@ test('overlapping configured and structural redactions compose on original text 
     for (const result of record.tests) assert.ok(result.error === cases[Number(result.name.slice(5))][1], 'persisted failure has every known and structural span redacted');
   }
 });
+
+test('Windows load sampling is unavailable rather than quiet zero', async () => {
+  const sample = await ledger.busySample({ os: 'win32', load: () => { throw new Error('unsupported load must not be sampled'); }, cores: () => 4 });
+  assert.equal(sample.load, null);
+  assert.match(sample.loadUnavailable, /unsupported/);
+  const busy = ledger.busyBetween(sample, sample);
+  assert.equal(ledger.busyState({ busy }), 'unknown');
+  assert.deepEqual(ledger.busyCoverage([{ busy }]), { omitted: 0, unknown: 1 });
+});
+
+test('internal gate rejects unreadable or invalid config and defaults only when absent', async t => {
+  for (const config of ['{broken', 'null', '[]', '{"check":null}', '{"check":42}', '{"check":""}', 'directory', 'absent', '{}']) {
+    const dir = await scratch(t);
+    await mkdir(join(dir, '.keel'));
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { check: 'node ran.mjs' } }));
+    await writeFile(join(dir, 'ran.mjs'), "import {writeFileSync} from 'node:fs'; writeFileSync('ran', 'yes');");
+    if (config === 'directory') await mkdir(join(dir, '.keel', 'keel.json'));
+    else if (config !== 'absent') await writeFile(join(dir, '.keel', 'keel.json'), config);
+    const r = run(process.execPath, [SOURCE, '--gate'], { cwd: dir });
+    if (config === 'absent' || config === '{}') {
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(await readFile(join(dir, 'ran'), 'utf8'), 'yes');
+    } else {
+      assert.equal(r.status, 2);
+      assert.match(r.stderr, /cannot determine gate/);
+      assert.ok(!(await readdir(dir)).includes('ran'), 'no default gate executed');
+    }
+  }
+});
+
+test('legacy JUnit imports do not inherit an outer gate start sample', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme" time="0.1"/></testsuite></testsuites>');
+  const r = run(process.execPath, [SOURCE, '--junit', 'acme.xml'], { cwd: dir, env: { ...process.env, KEEL_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }) } });
+  assert.equal(r.status, 0, r.stderr);
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].busy.start, null);
+  assert.match(runs[0].busy.unavailable, /start was not captured/);
+});

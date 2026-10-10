@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, win32, posix } from 'node:path';
 import { run } from './helpers/run.mjs';
+import * as timing from '../lib/time.mjs';
 import { timeSummary, keelTime, workedAround, testIdentities } from '../lib/time.mjs';
 import { timedCommand, readRuns } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 const quiet = { start: { load: [1, 1, 1], cores: 4 }, end: { load: [2, 2, 2], cores: 4 } };
@@ -106,22 +107,30 @@ test('nested gate wrappers record only the outer boundary', async t => {
   assert.equal((await readRuns(root)).runs.length, 0, 'gate records never displace a test baseline');
 });
 
-test('wrapped JUnit records start/end context; standalone import admits missing start', async t => {
+test('wrapped JUnit records local start/end context; omitted start ignores the outer gate sample', async t => {
   const root = await scratch(t);
   const ledger = new URL('../practices/night/files/scripts/keel/test-ledger.mjs', import.meta.url).href;
-  await writeFile(join(root, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.01"/></testsuite></testsuites>');
-  await writeFile(join(root, 'import.mjs'), `import {junitRun} from ${JSON.stringify(ledger)}; const r = await junitRun({junit:'acme.xml'}); process.exitCode=r.code;`);
-  const result = await timedCommand('node import.mjs', { cwd: root });
+  await writeFile(join(root, 'test-ledger.mjs'), await readFile(new URL(ledger), 'utf8'));
+  await writeFile(join(root, 'runner.mjs'), `import {writeFileSync} from 'node:fs'; writeFileSync('acme.xml', '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.01"/></testsuite></testsuites>');`);
+  await writeFile(join(root, 'producer.sh'), `keel_status=0
+rm -f acme.xml
+keel_start="$(node test-ledger.mjs --sample)" || keel_start=
+node runner.mjs || keel_status=$?
+printf '%s' "$keel_start" > acme-start.json
+node test-ledger.mjs --junit acme.xml --runner vitest --status "$keel_status" --start "$keel_start"
+`);
+  const result = await timedCommand('sh producer.sh', { cwd: root });
   assert.equal(result.status, 0, result.stderr);
   const { runs } = await readRuns(root);
   assert.equal(runs.length, 1);
   assert.equal(runs[0].runner, 'vitest');
   assert.ok(runs[0].busy.start.at);
+  assert.deepEqual(runs[0].busy.start, JSON.parse(await readFile(join(root, 'acme-start.json'), 'utf8')), 'JUnit uses the producer sample, not the outer gate start');
   assert.ok(runs[0].busy.end.at);
   assert.equal(runs[0].busy.unavailable, null);
   await writeFile(join(root, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.02"/></testsuite></testsuites>');
-  const { junitRun } = await import(ledger);
-  await junitRun({ cwd: root, junit: 'acme.xml', start: null });
+  const omitted = await timedCommand('node test-ledger.mjs --junit acme.xml --runner vitest', { cwd: root });
+  assert.equal(omitted.status, 0, omitted.stderr);
   const last = (await readRuns(root)).runs.at(-1);
   assert.equal(last.busy.start, null);
   assert.match(last.busy.unavailable, /start was not captured/);
@@ -472,4 +481,41 @@ test('round3: gate median excludes fast failures and reports outcome counts with
   assert.match(text, /gate 2000 ms \(2 successful, 3 unsuccessful\)/);
   assert.match(text, /config=acme-failed[^\n]+gate unavailable \(0 successful, 1 unsuccessful\)/);
   assert.match(text, /config=acme-untimed[^\n]+gate unavailable \(1 successful, 0 unsuccessful\)/);
+});
+
+test('round4: transcript cwd normalizes win32 subfolders while rejecting escapes and other drives', () => {
+  const root = 'C:\\Acme\\project';
+  assert.equal(typeof timing.transcriptDir, 'function');
+  assert.equal(timing.transcriptDir(root, 'C:\\Acme\\project\\packages\\web', win32), 'packages/web');
+  assert.equal(timing.transcriptDir(root, 'C:/Acme/project/packages/web', win32), 'packages/web');
+  assert.equal(timing.transcriptDir(root, root, win32), '');
+  assert.equal(timing.transcriptDir(root, 'C:\\Acme\\other', win32), null);
+  assert.equal(timing.transcriptDir(root, 'C:\\Acme\\project\\..\\other', win32), null);
+  assert.equal(timing.transcriptDir(root, 'D:\\Acme\\project\\packages\\web', win32), null);
+  assert.equal(timing.transcriptDir('\\\\acme-host\\share\\project', '\\\\acme-host\\share\\project\\packages\\web', win32), 'packages/web');
+  assert.equal(timing.transcriptDir('/Acme/project', '/Acme/project/packages/web', posix), 'packages/web');
+  assert.equal(timing.transcriptDir('/Acme/project', '/Acme/project/packages\\web', posix), null);
+  assert.equal(timing.transcriptDir('/Acme/project', '/Acme/other', posix), null);
+});
+
+test('round4: transcript subfolder observations retain normalized file and script identities', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const rows = ['node --test tests/acme.test.mjs', 'npm test'].map((command, id) => ({ timestamp: '2026-10-09T00:00:00Z', cwd: join(root, 'packages', 'web'), message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } }));
+  rows.push({ ...rows[0], cwd: join(home, 'outside') });
+  await writeFile(join(dir, 'acme.jsonl'), rows.map(r => JSON.stringify(r)).join('\n'));
+  const got = await workedAround({ root, home, env: {}, now: Date.parse('2026-10-10') });
+  assert.equal(got.counts.workedAround, 2);
+  assert.equal(got.skipped, 1);
+  assert.deepEqual(got.identities.map(i => [i.kind, i.id, i.dir]), [['file', 'packages/web/tests/acme.test.mjs', undefined], ['script', 'test', 'packages/web']]);
+});
+
+test('round4: gate summaries retain distinct config command and available source identity', () => {
+  const gate = (config, commandHash, gateSource) => at('2026-10-09T00:00:00Z', { kind: 'gate', status: 0, ms: 100, config, commandHash, gateSource, tests: [] });
+  const data = timeSummary([gate('acme-full', 'acme-full-hash', 'configured-gate'), gate('acme-subset', 'acme-subset-hash', 'explicit-command'), gate('acme-full', 'acme-full-hash', 'configured-gate')], { weeks: 1, now: Date.parse('2026-10-10') });
+  assert.equal(data.weeks[0].lanes.length, 2);
+  assert.deepEqual(data.weeks[0].lanes.map(l => [l.lane, l.commandHash, l.gateSources]), [
+    ['.\0acme-full', 'acme-full-hash', ['configured-gate']], ['.\0acme-subset', 'acme-subset-hash', ['explicit-command']],
+  ]);
 });
