@@ -94,3 +94,14 @@ The builder passed 23 focused ledger/adoption checks, 11 timing/board checks and
 The exact-head review found package-manager scripts bypassing the direct runners' external-target check. Forwarded absolute, parent-traversing and unsupported targets now produce explicit command omissions. Accepted invocations retain script identity because arguments alone cannot establish test identity. The focused shell-transcript test passed; conductor proof against `56158e9` is VERIFIED.
 
 - Proven-by: tests/time.test.mjs (^round5: package scripts) — VERIFIED — "Expected values to be strictly equal: 0 !== 13 (round5: package scripts omit outside forwarded targets and unknown grammar while preserving local runs)"
+
+
+## Late review after merge
+
+A second reviewer posted five findings after PR #70 merged. The follow-up is part of the phase 61 integration, not evidence that the original merge established acceptance. External Vitest configuration paths and shell assignment prefixes now disclose omissions; native Windows test paths normalize under Windows rules only. When configured redaction cannot be established, both collectors omit records while retaining runner failures and zero-test enforcement. Gate environment preparation strips inherited runner context once and preserves explicit project overrides.
+
+The conductor ran isolated-copy proofs against `2a2d70d`: all six selected regression cases failed without the fixes and passed with them. Builder focused checks also passed. Windows behavior uses injected platform rules; a native Windows walk remains unclaimed. No actual credential exposure was observed in this work; the failure path was reproduced with synthetic values.
+
+- Proven-by: tests/time.test.mjs (^late56:) — VERIFIED — "Expected values to be strictly equal: 0 !== 30 (late56: outside Vitest and forwarded config paths are explicit omissions)"
+- Proven-by: tests/test-ledger.test.mjs (^unknown redaction configuration) — VERIFIED — "The input did not match the regular expression /redaction configuration unavailable/. Input: 'keel test ledger: no flaky or slower test (1 run in .keel/test-..."
+- Proven-by: tests/improve-ledger.test.mjs (^gate preserves configured NODE_TEST) — VERIFIED — "[{'id':'gate','what':'the project's check fails, or passes having run no tests','unit':'0/1','better':'lower','bound':0,'state':'outside','value':1,'detail':..."

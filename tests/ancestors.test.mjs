@@ -6,9 +6,10 @@
 // tests/fixtures/adopt/acme-fold is shaped like one whose phases name no goal.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { run } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, readFile, readdir, lstat, readlink, rm, writeFile, realpath, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, lstat, readlink, rm, writeFile, realpath, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,9 +37,20 @@ const keel = (args, cwd = KEEL) => {
 async function copy(t, from) {
   const dir = join(await realpath(await mkdtemp(join(tmpdir(), 'keel-ancestors-'))), 'acme');
   t.after(() => rm(dirname(dir), { recursive: true, force: true }));
-  await cp(from, dir, { recursive: true });
+  await copyProject(from, dir);
   return dir;
 }
+
+test('ancestor fixture copies omit runtime ledgers before traversing project inputs', async t => {
+  const source = await realpath(await mkdtemp(join(tmpdir(), 'acme-ancestor-source-')));
+  t.after(() => rm(source, { recursive: true, force: true }));
+  await mkdir(join(source, '.keel/test-runs/usual-acme'), { recursive: true });
+  await writeFile(join(source, '.keel/test-runs/usual-acme/run.json'), '{}');
+  await writeFile(join(source, '.keel/keel.json'), '{"name":"Acme"}');
+  const dir = await copy(t, source);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')), { name: 'Acme' });
+  await assert.rejects(lstat(join(dir, '.keel/test-runs')), { code: 'ENOENT' });
+});
 
 async function tree(dir) {
   const out = {};

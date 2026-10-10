@@ -331,6 +331,8 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 
+`adopt --dry-run` (including `--with`) reports `ciCost` for only newly created workflows, with triggers, history source/window, monthly weighted estimates and total. Missing history or event exposure means unknown. See `--agent-help improve` for Actions history and cache details.
+
 <!-- topic: doctor | drift as signal, the practice's own rules, and the two fixes -->
 
 ```bash
@@ -733,6 +735,24 @@ unless every one reports `outside`.
 value, state, detail, facts?}], proposal: {id, state, text} | null, report,
 bounds, tightened: [{id, from, to}]}`; `--selftest --json` → `{ok, fixture,
 measures, missed}`.
+
+CI usage (phase 61): `keel improve --json` includes `ci_minutes`, per-workflow
+job-rounded weighted usage for seven days. Configure `ci.weeklyMinutes` for a
+bound, `ci.weights` for linux/windows/macos weights (dated defaults 1/2/10), and
+`ci.runnerWeights` for custom labels. Estimates are not invoices; inspect
+`facts.coverage`, visibility, runner billing context and observed lower bounds.
+Incomplete API history is n/a unless observed usage already exceeds the bound.
+
+`ci.gateWorkflow` (or matching top-level `gateWorkflow`) authorizes exact clean
+SHA CI reuse for completed same-repo default-branch push success/failure within
+24h, using job completion timestamps. Conflicting aliases fail configuration;
+no usable result falls back locally. Reuse reports source/SHA/conclusion/age,
+never local gate time. `adopt --dry-run` and `adopt --with ... --dry-run` include
+`ciCost` for only newly-created workflows: triggers, source/window, monthly
+weighted estimates and total. Missing/incomplete history means unknown. Source
+is Keel's workflow history (`ci.historyRepo` override); `.keel/ci-history.json`
+can supply validated reader results offline (`KEEL_CI_OFFLINE=1`). See the night
+shift guide for cache format, API bounds, attribution and cadence assumptions.
 
 <!-- topic: time | timing history and machine context -->
 

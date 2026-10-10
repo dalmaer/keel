@@ -6,8 +6,9 @@
 // line breaks, an unknown path fails like a 404. Fixtures are synthetic (Acme).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
-import { mkdtemp, readFile, readdir, rm, writeFile, realpath, chmod, cp } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +35,7 @@ async function scratch(t, prefix) {
 /** A synthetic keel home ("keel": "self", repo acme/keel), copied from the fixture. */
 async function home(t) {
   const dir = join(await scratch(t, 'keel-learn-'), 'home');
-  await cp(join(FIXTURES, 'home'), dir, { recursive: true });
+  await copyProject(join(FIXTURES, 'home'), dir);
   return dir;
 }
 
@@ -113,7 +114,7 @@ const keel = (args, cwd, env) => {
 
 test('learn runs at home only: elsewhere exit 2', async t => {
   const dir = await scratch(t, 'keel-learn-away-');
-  await cp(join(FIXTURES, 'home'), dir, { recursive: true });
+  await copyProject(join(FIXTURES, 'home'), dir);
   const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
   delete cfg.keel;
   await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(cfg));

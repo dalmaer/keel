@@ -13,9 +13,12 @@
 #   - A bot writes a pull request, never to main. The only push names
 #     refs/heads/keel-night/<date>.
 #   - One open PR per queue, the newest; drain.mjs enforces it, not a person.
-#   - A merge is checked, not trusted. A GITHUB_TOKEN PR never runs CI, so the
-#     gate that improve.mjs runs here, on this tree, is the check; the
-#     newest PR merges only when it passed and the PR holds nothing but data
+#   - A merge is checked, not trusted. improve.mjs's gate measure may reuse
+#     the latest eligible configured default-branch push CI result on the
+#     exact clean SHA, completed within 24 hours. Dirty trees or unavailable
+#     evidence fall back to the local gate. PR CI may require approval;
+#     the newest night PR merges only when the gate measure passed and the
+#     PR holds nothing but data
 #     (tonight's dated health page, docs/inbox/, docs/INBOX.md,
 #     .keel/bounds.json; never the rest of the health directory, which may be
 #     shared). The health directory is .keel/keel.json "health" (default

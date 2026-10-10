@@ -231,3 +231,8 @@ Apache-2.0.
 
 `keel time --weeks 8 --json` shows retained gate/test timing, machine load
 coverage and local worked-around counts. [Timing and the night](docs/guide/the-night-shift.md).
+
+Adoption previews include monthly weighted-minute estimates for newly added
+workflows, with history and coverage. `keel improve` reports `ci_minutes`;
+`ci.gateWorkflow` can reuse completed CI on the exact clean default-branch SHA.
+These usage estimates are not invoices. [CI usage and reuse](docs/guide/the-night-shift.md#actions-usage-and-reusing-ci).

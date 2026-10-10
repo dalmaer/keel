@@ -376,3 +376,15 @@ test('flaky_tests backfills its eligible window and leaves all-busy history unav
     if (mode === 'confirmed') assert.equal(finding.facts.flaky[0].failed, 1);
   }
 });
+
+test('gate preserves configured NODE_TEST overrides but excludes inherited runner context', async t => {
+  const root = await acme(t);
+  await writeFile(join(root, 'gate.mjs'), `import assert from 'node:assert/strict';
+    assert.equal(process.env.NODE_TEST_ACME_EXPLICIT, 'configured');
+    assert.equal(process.env.NODE_TEST_ACME_INHERITED, undefined);
+    assert.equal(process.env.NODE_TEST_CONTEXT, undefined);
+  `);
+  const config = { check: 'node gate.mjs', env: { NODE_TEST_ACME_EXPLICIT: 'configured' } };
+  const results = await measure({ root, config, env: { ...ENV, NODE_TEST_ACME_EXPLICIT: 'inherited', NODE_TEST_ACME_INHERITED: 'inherited', NODE_TEST_CONTEXT: 'child-v8' }, measures: MEASURES.filter(m => m.id === 'gate') });
+  assert.equal(results[0].state, 'ok', JSON.stringify(results));
+});

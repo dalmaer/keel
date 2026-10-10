@@ -543,3 +543,57 @@ test('round5: package scripts omit outside forwarded targets and unknown grammar
     ['script', 'test', 5], ['script', 'check', 1],
   ]);
 });
+
+test('late56: outside Vitest and forwarded config paths are explicit omissions', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const starts = ['vitest', 'npx vitest run', 'npm test --', 'pnpm run test --', 'yarn test', 'bun run test'];
+  const rejected = starts.flatMap(prefix => ['--config /other/acme.config.ts', '-c ../other/acme.config.ts', '--config=/other/acme.config.ts', '-c=../other/acme.config.ts', '--config='].map(option => `${prefix} ${option}`));
+  const accepted = starts.flatMap(prefix => ['--config ./acme.config.ts', '-c=config/acme.config.ts'].map(option => `${prefix} ${option}`));
+  await writeFile(join(dir, 'acme.jsonl'), [...rejected, ...accepted].map((command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } })).join('\n'));
+  const got = await workedAround({ root, home, env: {}, now: Date.parse('2026-10-10') });
+  assert.equal(got.coverage.commandOmissions, rejected.length);
+  assert.equal(got.counts.workedAround, accepted.length);
+  assert.equal(got.coverage.state, 'partial');
+  assert.ok(got.identities.every(i => i.kind !== 'file'), 'config files are not test identities');
+});
+
+test('late56: shell assignment prefixes disclose omitted transcript executions', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const commands = ['CI=1 npm test', 'ACME_MODE="test run" CI=1 node --test tests/acme.test.mjs', 'ACME_EMPTY= vitest run'];
+  await writeFile(join(dir, 'acme.jsonl'), commands.map((command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, run_in_background: true } }] } })).join('\n'));
+  const got = await workedAround({ root, home, env: {}, now: Date.parse('2026-10-10') });
+  assert.equal(got.coverage.commandOmissions, commands.length);
+  assert.equal(got.coverage.state, 'partial');
+  assert.equal(got.counts.workedAround, 0);
+  assert.deepEqual(got.identities, []);
+});
+
+test('late56: native Windows test targets normalize without reinterpreting POSIX backslashes', () => {
+  const scripts = new Set(['test', 'check']);
+  for (const prefix of ['node --test', 'vitest run', 'npx vitest run', 'npm test --', 'pnpm test', 'yarn test', 'bun run test']) {
+    const command = `${prefix} 'tests\\acme.test.mjs'`;
+    const got = timing.testInvocation(command, scripts, win32);
+    assert.equal(got.accepted, true, command);
+    assert.deepEqual(got.identities, [{ kind: /^(node|vitest|npx)\b/.test(prefix) ? 'file' : 'script', id: /^(node|vitest|npx)\b/.test(prefix) ? 'tests/acme.test.mjs' : 'test' }]);
+    const literal = timing.testInvocation(command, scripts, posix);
+    assert.equal(literal.accepted, false, 'POSIX literal backslashes are unsupported, not separators');
+    assert.equal(literal.omitted, true);
+    for (const target of ['..\\other\\acme.test.mjs', 'tests\\..\\..\\acme.test.mjs', 'C:\\other\\acme.test.mjs', 'C:acme.test.mjs', '\\\\acme-host\\share\\acme.test.mjs', '/other/acme.test.mjs']) {
+      assert.deepEqual(timing.testInvocation(`${prefix} '${target}'`, scripts, win32), { accepted: false, omitted: true }, target);
+    }
+  }
+  for (const prefix of ['vitest', 'npm test --']) {
+    for (const flag of ['--config', '-c']) {
+      for (const separator of [' ', '=']) {
+        assert.equal(timing.testInvocation(`${prefix} ${flag}${separator}'config\\acme.config.ts'`, scripts, win32).accepted, true);
+        for (const config of ['..\\other\\acme.config.ts', 'C:\\other\\acme.config.ts', '\\\\acme-host\\share\\acme.config.ts']) {
+          assert.deepEqual(timing.testInvocation(`${prefix} ${flag}${separator}'${config}'`, scripts, win32), { accepted: false, omitted: true });
+        }
+      }
+    }
+  }
+});

@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, cp, lstat, readdir, appendFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, lstat, appendFile } from 'node:fs/promises';
 import { run as spawnRun, testsRan } from './helpers/run.mjs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, claims, fill, plan, config, wanted } from '../lib/practices.mjs';
 import { optionalPractices } from './helpers/practices.mjs';
+import { copyProject } from './helpers/copy-project.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RENDER = 'scripts/render.mjs';
@@ -136,10 +137,7 @@ test('--self --check passes on keel', () => {
 test('--self --check fails on a copy of keel whose managed file or block was edited', async () => {
   const dir = await temp('copy');
   try {
-    for (const name of await readdir(KEEL)) {
-      if (name === '.git' || name === 'node_modules') continue;
-      await cp(join(KEEL, name), join(dir, name), { recursive: true, verbatimSymlinks: true });
-    }
+    await copyProject(KEEL, dir);
     assert.equal(node(dir, RENDER, '--self', '--check').status, 0, 'the untouched copy checks clean');
     await appendFile(join(dir, 'scripts/roadmap.mjs'), '// a local edit\n');
     const agents = join(dir, 'AGENTS.md');
@@ -235,4 +233,32 @@ test('a second render never overwrites seeded files, and refuses to overwrite ed
     assert.match(after, /\*\*Lessons are shapes, not incidents\.\*\*/);
     assert.equal(await readFile(join(dir, 'CLAUDE.md'), 'utf8'), await readFile(join(KEEL, 'CLAUDE.md'), 'utf8'));
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('render probe copies exclude runtime ledgers at every depth and preserve project inputs', async t => {
+  const source = await temp('acme-copy-source'), destination = await temp('acme-copy-destination');
+  t.after(() => Promise.all([source, destination].map(dir => rm(dir, { recursive: true, force: true }))));
+  for (const base of ['', 'tests/fixtures/acme', 'packages/acme/nested']) {
+    await mkdir(join(source, base, '.keel/test-runs'), { recursive: true });
+    await writeFile(join(source, base, '.keel/test-runs/acme.json'), '{}');
+    await writeFile(join(source, base, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+  }
+  for (const dir of ['.git', 'node_modules', 'test-runs', '.keel/test-runs-source']) {
+    await mkdir(join(source, dir), { recursive: true });
+    await writeFile(join(source, dir, 'acme.json'), '{}');
+  }
+  await copyProject(source, destination);
+  for (const base of ['', 'tests/fixtures/acme', 'packages/acme/nested']) {
+    await assert.rejects(lstat(join(destination, base, '.keel/test-runs')), { code: 'ENOENT' });
+    assert.deepEqual(JSON.parse(await readFile(join(destination, base, '.keel/keel.json'), 'utf8')), { name: 'Acme' });
+  }
+  for (const dir of ['.git', 'node_modules']) await assert.rejects(lstat(join(destination, dir)), { code: 'ENOENT' });
+  for (const dir of ['test-runs', '.keel/test-runs-source']) assert.equal(await readFile(join(destination, dir, 'acme.json'), 'utf8'), '{}');
+  // A selected-root clone copies .keel independently, not necessarily its parent.
+  const metadata = join(destination, 'metadata');
+  await copyProject(join(source, '.keel'), metadata);
+  await assert.rejects(lstat(join(metadata, 'test-runs')), { code: 'ENOENT' });
+  assert.deepEqual(JSON.parse(await readFile(join(metadata, 'keel.json'), 'utf8')), { name: 'Acme' });
+  assert.equal(await readFile(join(metadata, 'test-runs-source/acme.json'), 'utf8'), '{}');
+  await assert.rejects(copyProject(join(source, 'missing'), join(destination, 'missing')), { code: 'ENOENT' }, 'ordinary missing inputs are not swallowed');
 });

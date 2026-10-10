@@ -85,6 +85,12 @@ clean tree, or got slower than its last runs, with the command to run it
 alone. Fix it or file it. Never rerun until green — a rerun hides the flake.
 <!-- keel:end night -->
 
+**CI evidence names its source.** A configured gate may reuse recent CI only
+on the exact clean default-branch revision. Reused CI is not a local check.
+Weighted Actions minutes are usage estimates, not invoices; missing history
+stays unavailable. See [the night guide](docs/guide/the-night-shift.md).
+
+
 <!-- keel:begin lessons -->
 **Lessons are shapes, not incidents.** Add a row when a bug turns out to have
 a shape, and say where it was paid for. Read the table

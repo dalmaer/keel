@@ -5,8 +5,9 @@
 // catalogue is synthetic (Acme), tests/fixtures/distill/home.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyProject } from './helpers/copy-project.mjs';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
-import { mkdtemp, readFile, rm, writeFile, realpath, chmod, cp, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, realpath, chmod, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,7 +30,7 @@ async function scratch(t, prefix) {
 async function home(t) {
   const base = await scratch(t, 'keel-distill-');
   const dir = join(base, 'home');
-  await cp(FIXTURE, dir, { recursive: true });
+  await copyProject(FIXTURE, dir);
   const log = join(base, 'gh.log'), gh = join(base, 'gh');
   await writeFile(gh, `#!${process.execPath}\nrequire('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');\nconsole.error('stub gh: distill must not call gh');\nprocess.exit(1);\n`);
   await chmod(gh, 0o755);

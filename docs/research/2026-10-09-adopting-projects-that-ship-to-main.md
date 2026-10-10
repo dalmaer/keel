@@ -59,8 +59,9 @@ rather than ask them to change.
    answered as usual and come back as `keel:agent` issues (phase 54) or as
    follow-up commits. Nothing waits on the review.
 4. **CI cost is a measure, and adoption says what keel adds** (phase 61).
-   Billable minutes by workflow, with each OS's multiplier and the per-job
-   round-up. The night reuses the project's own CI result on main instead of
+   Weighted minutes by workflow, with configurable dated runner weights and
+   per-job round-up. Settled 2026-10-09: these are usage estimates, not invoices;
+   free/public/self-hosted and unknown billing coverage are explicit. The night reuses the project's own CI result on main instead of
    rerunning the gate. `keel adopt --dry-run` states the minutes a month that
    keel's workflows would add.
 5. **Prove a fix: the test is seen failing without it** (phase 62). Revert

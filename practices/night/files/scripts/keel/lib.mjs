@@ -560,10 +560,11 @@ export function issuesNamed(text) {
  * fleet and improve both read it here.
  */
 export function gateWorkflowOf(config) {
-  const g = config?.gateWorkflow;
-  if (g === undefined) return null;
-  if (typeof g === 'string' && g.trim()) return { name: g.trim() };
-  return { problem: '.keel/keel.json "gateWorkflow" must be a workflow\'s name, as GitHub shows it' };
+  const top = config?.gateWorkflow, nested = config?.ci?.gateWorkflow;
+  if (top === undefined && nested === undefined) return null;
+  for (const value of [top, nested]) if (value !== undefined && (typeof value !== 'string' || !value.trim())) return { problem: `.keel/keel.json "gateWorkflow" must be a workflow's name (also accepted as "ci".gateWorkflow)` };
+  if (top !== undefined && nested !== undefined && top.trim() !== nested.trim()) return { problem: 'conflicting gateWorkflow and ci.gateWorkflow names' };
+  return { name: (nested ?? top).trim() };
 }
 
 // ---- the health pages' directory ---------------------------------------------
