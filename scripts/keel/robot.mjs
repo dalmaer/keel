@@ -46,7 +46,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { isMain, rootOf, main, passAgentProblems, agentOf, AGENTS, reviewerOf, agentGitArgs, robotAgentMark } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
-import { sandboxProblems, recordRules, treeState, heldProblems } from './tend.mjs';
+import { sandboxProblems, recordRules, treeState, heldProblems, pathsOf } from './tend.mjs';
 import { LABEL, triage, missingText } from './rubric.mjs';
 
 export const KEY = 'robot';
@@ -577,7 +577,8 @@ export async function report({ root, config, base, head, issue, title, agent, bo
   // The commit the judge took (--head, PR #59), never whatever HEAD is after the gate ran.
   const h = sha(root, head || 'HEAD');
   const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..${h}`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject }; });
-  const files = git(root, ['diff', '--name-only', '--no-renames', b, h]).split('\n').filter(Boolean);
+  // NUL-delimited (PR #59): the PR's impact declaration names a phase file whatever bytes its path holds.
+  const files = pathsOf(root, ['diff', '--name-only', '--no-renames', b, h]);
   const branch = `${PREFIX}${issue}`;
   const line = `Robot #${issue}: ${commits.length} commit${commits.length === 1 ? '' : 's'} on ${branch}, ${files.length} file${files.length === 1 ? '' : 's'} changed, by ${AGENTS[agent].name}`;
   if (!commits.length) return { commits: 0, files, line, text: null };

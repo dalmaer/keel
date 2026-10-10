@@ -87,7 +87,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems, agentGitArgs, codexVerdict } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, treeState, heldProblems, recordRules, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, treeState, heldProblems, recordRules, changesOf, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -1141,7 +1141,8 @@ export async function loopPull({ root, config, env = process.env, now = new Date
 // ---- the proposals guard ---------------------------------------------------------
 
 /** Changed paths between two commits: [{ status, path }] (no renames: a move is a delete and an add). */
-const changedPaths = (root, base, head) => git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [status, ...p] = l.split('\t'); return { status: status[0], path: p.join('\t') }; });
+// NUL-delimited (tend.mjs changesOf, PR #59): a quoted path would slip past the proposals' rules.
+const changedPaths = (root, base, head) => changesOf(root, base, head).map(({ status, path }) => ({ status: status[0], path }));
 const under = (path, dir) => path === dir || path.startsWith(`${dir}/`);
 
 /** The rows of the lessons table that differ between two commits: [n]. */

@@ -90,13 +90,27 @@ const offLimit = path => OFF_LIMITS.some(p => (p.endsWith('/') ? path.startsWith
  * It runs no code from the branch, so the job that holds the write token can
  * run it (climb.mjs sandbox), and the guards run it first.
  */
+/**
+ * The paths changed from base to head, as git names them: [{ status, path }].
+ * Read NUL-delimited (-z, PR #59): without it git quotes and escapes a path
+ * with a non-ASCII byte, a quote or a control character (core.quotePath), so
+ * "docs/evidence/é.md" would come back as "\"docs/evidence/\\303\\251.md\"" and
+ * slip past every rule that reads the path. Every rule here reads paths this way.
+ */
+export function changesOf(root, base, head) {
+  const parts = git(root, ['diff', '--name-status', '-z', '--no-renames', base, head]).split('\0');
+  const out = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) if (parts[i]) out.push({ status: parts[i], path: parts[i + 1] });
+  return out;
+}
+/** Paths a git command lists with --name-only, NUL-delimited (-z): unquoted, whatever bytes they hold. */
+export const pathsOf = (root, [cmd, ...rest]) => git(root, [cmd, '-z', ...rest]).split('\0').filter(Boolean);
+
 export function sandboxProblems(root, base, head) {
   const b = sha(root, base), h = sha(root, head);
   if (git(root, ['merge-base', '--is-ancestor', b, h], { allowFail: true }).status !== 0) return [`${h.slice(0, 7)} is not on top of the base ${b.slice(0, 7)}: the agent's branch must start where the run did`];
   const out = [];
-  for (const l of git(root, ['diff', '--name-status', '--no-renames', b, h]).split('\n').filter(Boolean)) {
-    const [, ...p] = l.split('\t');
-    const path = p.join('\t');
+  for (const { path } of changesOf(root, b, h)) {
     if (offLimit(path)) out.push(`${path}: changed on the agent's branch; ${OFF_LIMITS.join(', ')} are off limits to it (the workflows, keel's scripts that judge it, and the config that names the gate and the secrets)`);
     else if (INSTALL_FILES.includes(basename(path))) out.push(`${path}: changed on the agent's branch; an install's own files (${INSTALL_FILES.join(', ')}) are off limits to it: the judge installs the base's, with the setup token, before it takes the agent's commits, and no dependency is added (ledger#92)`);
     else if (basename(path) === 'package.json') {
@@ -382,7 +396,10 @@ export async function tendNote({ root, finding, propose, tried }) {
 
 // ---- the guard ------------------------------------------------------------------
 
-const frontStatus = text => {
+/** Text as the rules read it (PR #59): a BOM dropped, CRLF and lone CR as LF, so a file converted on the way reads the same. */
+const plain = text => (typeof text === 'string' ? text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n') : text);
+const frontStatus = raw => {
+  const text = plain(raw);
   if (typeof text !== 'string' || !text.startsWith('---\n')) return null;
   const end = text.indexOf('\n---', 4);
   if (end < 0) return null;
@@ -395,7 +412,7 @@ const frontStatus = text => {
 const ticked = text => {
   const out = [];
   let inAcceptance = false;
-  String(text ?? '').split('\n').forEach((l, i) => {
+  String(plain(text) ?? '').split('\n').forEach((l, i) => {
     const h = /^#{1,6}\s+(.*)$/.exec(l);
     if (h) { inAcceptance = /acceptance/i.test(h[1]); return; }
     const m = /^\s*[-*]\s+\[[xX]\]\s+(.*)$/.exec(l);
@@ -437,7 +454,7 @@ export function heldProblems(root, before, what) {
  */
 export function recordRules(root, base, head, who = 'the agent') {
   const refused = [];
-  const changes = git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [s, ...p] = l.split('\t'); return { status: s, path: p.join('\t') }; });
+  const changes = changesOf(root, base, head);
   for (const { status, path } of changes) {
     // Evidence first, a deletion too (PR #59): historical proof is kept, whether or not a phase still cites it.
     if (path.startsWith('docs/evidence/')) { refused.push(status.startsWith('D') ? `${path}: deletes evidence; ${who} never removes evidence (historical proof is kept)` : `${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; ${who} never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
@@ -462,7 +479,7 @@ export function recordRules(root, base, head, who = 'the agent') {
  */
 export function tendCheck(root, base, head, { findings = null } = {}) {
   const refused = [];
-  const changes = git(root, ['diff', '--name-status', '--no-renames', base, head]).split('\n').filter(Boolean).map(l => { const [s, ...p] = l.split('\t'); return { status: s, path: p.join('\t') }; });
+  const changes = changesOf(root, base, head);
   for (const { status, path } of changes) {
     if (status.startsWith('D')) { refused.push(`${path}: deleted; tend never deletes a tracked file (a branch, a PR or data alike): propose it for the owner instead`); continue; }
     if (path.startsWith('docs/evidence/')) { refused.push(`${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; tend never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
@@ -530,7 +547,7 @@ export function tendCommits(root, base, head = 'HEAD') {
     const cites = [...(body ?? '').matchAll(CITE)].map(m => m[1]);
     const day = PAGE_SUBJECT.exec(subject)?.[1];
     if (day && new RegExp(`^${PAGE_TRAILER}: ${day}$`, 'm').test(body ?? '')) {
-      const files = git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', id]).split('\n').filter(Boolean);
+      const files = pathsOf(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', id]);
       if (files.length === 1 && files[0] === proposalsPageOf(day)) return { sha: id, subject, cites: [], page: true };
     }
     return { sha: id, subject, cites };
@@ -716,7 +733,7 @@ export async function tendReport({ root, config, env = process.env, body, input,
     page = proposalsPageOf(day);
     if (showAt(root, 'HEAD', page) !== proposalsPage(pass, pageProposals(pass))) throw new TendError(`${page} is not committed as the pass's notes say: climb.mjs tend-page runs before the guard`);
   }
-  const changed = () => git(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']).split('\n').filter(Boolean);
+  const changed = () => pathsOf(root, ['diff', '--name-only', '--no-renames', pass.base, 'HEAD']);
   const commits = tendCommits(root, pass.base);
   const proposing = Boolean(page);
   const after = commits.length || proposing ? { measures: await recordMeasures(root, config, env), reconciliation: reconciliationOf(root, config, env) } : null;

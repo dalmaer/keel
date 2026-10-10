@@ -94,6 +94,8 @@ const issue = (number, { body = rubricBody(FIELDS), title = `Acme issue ${number
 const comment = (at, body, { user = OWNER, association = 'OWNER', id } = {}) => ({ ...(id === undefined ? {} : { id }), created_at: at, body, user, author_association: association, html_url: `https://github.com/${REPO}/issues/1#c-${at}` });
 
 /** An injected GitHub: issues, comments and events by number, runs (each with its jobs), an open PR. Writes are recorded. */
+/** A phase on the base, in LF: partial, one box open. */
+const LID_PHASE = '---\nstatus: partial\n---\n# Lid\n\n## Acceptance\n\n- [ ] the lid opens\n';
 /** GitHub's word on a body nobody edited, labelled by the owner (the default every fake issue has). */
 const APPROVED = Object.freeze({ author: 'acme-owner', authorAssociation: 'OWNER', lastEditedAt: null, editor: null, labels: [{ at: '2026-10-01T00:00:00Z', actor: 'acme-owner', bot: false }] });
 function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = null, diff = '', approvals = {} } = {}) {
@@ -460,7 +462,7 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const config = { agents: { claude: {}, codex: {} }, robot: { ...ON.robot, agent: 'codex' }, crossReview: { for: ['keel/robot-'] } };
   const dir = await acmeRobot(t, config);
   // An old proof on the base: no phase cites it, and it is still never the robot's to remove (PR #59).
-  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n' }, 'acme: an old proof');
+  const base = await commit(dir, { 'docs/evidence/01-old-proof.md': '# Acme: an old proof\n', 'docs/phases/06-lid.md': LID_PHASE }, 'acme: an old proof');
   const guard = () => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'guard', '--job', 'robot', '--base', base, '--json'], { cwd: dir });
   git(dir, ['switch', '-q', '-c', 'keel/robot-12']);
   // Nothing committed: nothing to guard, and nothing to open.
@@ -504,6 +506,14 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     [{ 'docs/evidence/12-lid.md': '# Acme\n' }, /docs\/evidence\/12-lid\.md:1: adds evidence; the robot never writes evidence/],
     [{ 'docs/phases/03-lid.md': '---\nstatus: built\n---\n# Lid\n' }, /docs\/phases\/03-lid\.md:2: status \(none\) → built; the robot never marks a phase built/],
     [{ 'docs/phases/04-box.md': '# Box\n\n## Acceptance\n\n- [x] the box opens\n' }, /docs\/phases\/04-box\.md:5: ticks an acceptance box/],
+    // PR #59: git quotes a path with a non-ASCII byte (core.quotePath, on by default); the rules read it unquoted.
+    [{ 'docs/evidence/é-proof.md': '# Acme\n' }, /^docs\/evidence\/é-proof\.md:1: adds evidence; the robot never writes evidence/],
+    [{ 'docs/evidence/old proof 2.md': '# Acme\n' }, /^docs\/evidence\/old proof 2\.md:1: adds evidence/],
+    [{ '.github/workflows/ü.yml': 'name: acme\n' }, /^\.github\/workflows\/ü\.yml: changed on the agent's branch/],
+    [{ 'docs/phases/07-ñ.md': '---\nstatus: built\n---\n# Ñ\n' }, /^docs\/phases\/07-ñ\.md:2: status \(none\) → built/],
+    // PR #59: a phase converted to CRLF (and a BOM) on the way to built, or to a ticked box, reads the same.
+    [{ 'docs/phases/06-lid.md': LID_PHASE.replace('status: partial', 'status: built').replace(/\n/g, '\r\n') }, /^docs\/phases\/06-lid\.md:2: status partial → built; the robot never marks a phase built/],
+    [{ 'docs/phases/06-lid.md': `﻿${LID_PHASE.replace('- [ ] the lid opens', '- [x] the lid opens').replace(/\n/g, '\r\n')}` }, /^docs\/phases\/06-lid\.md:\d+: ticks an acceptance box \("the lid opens"\)/],
     [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
