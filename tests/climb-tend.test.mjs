@@ -106,6 +106,19 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   const gate = climb(dir, ['guard', '--job', 'tend', '--base', base]);
   assert.equal(gate.status, 1);
   assert.match(gate.stdout, /the gate `node -e "process\.exit\(3\)"` failed \(exit 3\)/);
+  // PR #59: the gate is the agent's code, run after the tend guard's checks. A gate that commits evidence,
+  // or only stages a change, and exits 0 is refused: what was checked is the only commit taken.
+  const checked = git(dir, ['rev-parse', 'HEAD']);
+  for (const [check, said] of [
+    ['echo "# Acme: proven" > docs/evidence/2026-10-09-sneak.md && git add docs/evidence && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
+    ['echo "more" >> README.md && git add README.md', /changed the tracked tree or the index after the guard's checks/],
+  ]) {
+    git(dir, ['reset', '-q', '--hard', checked]);
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check }));
+    const moved = climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']);
+    assert.equal(moved.status, 1, `${check}: ${moved.stdout}`);
+    assert.ok(json(moved).problems.some(p => said.test(p)), JSON.stringify(json(moved).problems));
+  }
 });
 
 test('tend off: with no tend key nothing runs and gh is never asked; with no secret the run ends green with a notice; a bad tend is red naming the key', async t => {
@@ -213,6 +226,16 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   const g = climb(dir, ['guard', '--json']);
   assert.equal(g.status, 0, g.stdout + g.stderr);
   assert.match(json(g).line, /proposals only \(2 files under \.keel\/climb\/lessons\/\), no code changed, nothing decided/);
+  // PR #59: the gate runs after the proposals' checks and is the agent's code: a gate that commits outside
+  // the proposals (here, the table itself) and exits 0 is refused, never passed.
+  const judged = git(dir, ['rev-parse', 'HEAD']);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: 'echo "| 9 | sneak |" >> docs/lessons.md && git add docs/lessons.md && git commit -q -m sneak' }));
+  const moved = climb(dir, ['guard', '--json']);
+  assert.equal(moved.status, 1, moved.stdout + moved.stderr);
+  assert.match(json(moved).problems.join('\n'), /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/);
+  git(dir, ['reset', '-q', '--hard', judged]);
+  assert.equal(climb(dir, ['guard', '--json']).status, 0, 'back on the judged commit, the honest gate passes again');
   const rep = climb(dir, ['report']);
   assert.equal(rep.status, 0, rep.stderr);
   assert.match(rep.stdout, /^climb lessons \d{4}-\d{2}-\d{2}: 2 proposals for the owner \(1 family, 1 reword\); the table unchanged; \d+ min$/m);

@@ -514,6 +514,31 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const refused = guard();
   assert.equal(refused.status, 1, refused.stdout);
   assert.match(parse(refused).problems.join('\n'), /deletes evidence/);
+  // PR #59: the gate is the agent's code, run after the checks. A gate that commits evidence (or only
+  // stages a change) and exits 0 is refused: only the commit checked is ever taken.
+  git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
+  const checked = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open";\n' }, 'lid: open on the hinge');
+  for (const [gate, said] of [
+    ['mkdir -p docs/evidence && echo "# Acme: proven" > docs/evidence/12-sneak.md && git add -A && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
+    ['echo "// more" >> src/lid.mjs && git add src/lid.mjs', /changed the tracked tree or the index after the guard's checks/],
+  ]) {
+    git(dir, ['reset', '-q', '--hard', checked]);
+    const g = await robot.robotGuard({ root: dir, config: { ...config, check: gate }, base });
+    assert.equal(g.ok, false, gate);
+    assert.ok(g.problems.some(p => said.test(p)), JSON.stringify(g.problems));
+  }
+  git(dir, ['reset', '-q', '--hard', checked]);
+  // And the publish job's own check (git alone) refuses evidence on the branch, whatever the judge said.
+  await commit(dir, { 'docs/evidence/12-sneak.md': '# Acme: proven\n' }, 'sneak');
+  const records = run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'sandbox', '--base', base, '--head', 'HEAD', '--records', '--json'], { cwd: dir });
+  assert.equal(records.status, 1, records.stdout);
+  assert.match(parse(records).problems.join('\n'), /docs\/evidence\/12-sneak\.md:1: adds evidence/);
+  const plain = run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'sandbox', '--base', base, '--head', 'HEAD', '--json'], { cwd: dir });
+  assert.equal(plain.status, 0, 'without --records, sandbox checks the off-limits paths only');
+  // The report reads the commit the judge took (--head), never a later HEAD.
+  const at = await robot.report({ root: dir, config, base, head: checked, issue: 12, title: 'Acme', agent: 'claude' });
+  assert.equal(at.commits, 1);
+  assert.deepEqual(at.files, ['src/lid.mjs']);
   // A red gate is a refusal.
   const redDir = await acmeRobot(t, { ...config, check: 'false' });
   const redBase = git(redDir, ['rev-parse', 'HEAD']);

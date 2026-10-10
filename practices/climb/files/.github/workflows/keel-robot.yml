@@ -440,6 +440,7 @@ jobs:
       commits: ${{ steps.judge.outputs.commits }}
       line: ${{ steps.judge.outputs.line }}
       judged: ${{ steps.judged.outputs.judged }}
+      validated: ${{ steps.take.outputs.head }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -493,7 +494,11 @@ jobs:
         with:
           name: keel-robot-agent
           path: ${{ runner.temp }}/handoff
+      # The commit to judge, named here before any code of the agent's runs
+      # (PR #59): the report, the hand-on and publish take this commit, never a
+      # later HEAD the gate (the agent's code) could have moved to.
       - name: Take the run's commits
+        id: take
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
         run: |
@@ -504,6 +509,7 @@ jobs:
             head=$(git rev-parse FETCH_HEAD)
           fi
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
           git switch -q -c "$BRANCH" "$head"
 
       # Judged by the script, not the agent: anything uncommitted goes; the
@@ -516,11 +522,12 @@ jobs:
           ISSUE: ${{ needs.agent.outputs.issue }}
           TITLE: ${{ needs.agent.outputs.title }}
           AGENT: ${{ needs.agent.outputs.agent }}
+          VALIDATED: ${{ steps.take.outputs.head }}
         run: |
           git reset -q --hard HEAD
           git clean -q -fd
           node scripts/keel/climb.mjs guard --job robot --base "$GITHUB_SHA"
-          node scripts/keel/robot.mjs report --base "$GITHUB_SHA" --issue "$ISSUE" --title "$TITLE" --agent "$AGENT" --body "$RUNNER_TEMP/body.md" --json > "$RUNNER_TEMP/report.json"
+          node scripts/keel/robot.mjs report --base "$GITHUB_SHA" --head "$VALIDATED" --issue "$ISSUE" --title "$TITLE" --agent "$AGENT" --body "$RUNNER_TEMP/body.md" --json > "$RUNNER_TEMP/report.json"
           node -e '
             const fs = require("fs");
             const [file, out, summary] = process.argv.slice(1);
@@ -551,10 +558,13 @@ jobs:
         if: always()
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ steps.take.outputs.head }}
         run: |
           out="$RUNNER_TEMP/judged"
           mkdir -p "$out"
-          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null; then
+          # The judged commit, by the name the take step gave it (PR #59), never this tree's HEAD.
+          if [ -n "$VALIDATED" ] && [ "$VALIDATED" != "$GITHUB_SHA" ]; then
+            git update-ref "refs/heads/$BRANCH" "$VALIDATED"
             git bundle create "$out/run.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
           fi
           if [ -f "$RUNNER_TEMP/body.md" ]; then cp "$RUNNER_TEMP/body.md" "$out/"; fi
@@ -618,6 +628,7 @@ jobs:
           BRANCH: ${{ needs.agent.outputs.branch }}
           TITLE: ${{ needs.agent.outputs.title }}
           BASE: ${{ github.event.repository.default_branch || github.ref_name }}
+          VALIDATED: ${{ needs.judge.outputs.validated }}
           GH_TOKEN: ${{ github.token }}
         run: |
           case "$ISSUE" in ''|*[!0-9]*) echo "::error::The issue number ($ISSUE) is not a number; nothing is pushed."; exit 1 ;; esac
@@ -637,7 +648,13 @@ jobs:
           # this run's commit, and the sandbox is this checkout's script.
           git fetch -q "$RUNNER_TEMP/run/run.bundle" "refs/heads/$BRANCH"
           head=$(git rev-parse FETCH_HEAD)
-          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          # Exactly the commit the judge took (PR #59), and the record rules held here, git alone: the
+          # judge ran the agent's code (the gate), so nothing it hands on is trusted for them.
+          if [ "$head" != "$VALIDATED" ]; then
+            echo "::error::The bundle's head ($head) is not the commit the judge took ($VALIDATED); nothing is pushed."
+            exit 1
+          fi
+          node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --records
           # The branch is the issue's alone; the next run on it replaces its
           # own commits (its brief carried their diff), so force is safe here and nowhere else.
           git push --force origin "$head:refs/heads/keel/robot-$ISSUE"
@@ -658,6 +675,12 @@ jobs:
           fi
           url=$(gh pr list --state open --head "$BRANCH" --json url --jq '.[0].url' || true)
           echo "url=$url" >> "$GITHUB_OUTPUT"
+          # No PR is not published (PR #59): the issue is not marked worked, and a run after the setting
+          # changes (or the owner's comment) opens it.
+          if [ -z "$url" ]; then
+            echo "::error::$BRANCH is pushed, but no pull request is open for it: the issue is not marked worked, so a later run tries again."
+            exit 1
+          fi
 
       # The issue is the conversation: the agent's last message, as it wrote
       # it, then the PR (or why there is none). Only when the judge's own step

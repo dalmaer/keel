@@ -46,7 +46,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { isMain, rootOf, main, gateEnv, passAgentProblems, agentOf, AGENTS, reviewerOf, agentGitArgs, robotAgentMark } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
-import { sandboxProblems, recordRules } from './tend.mjs';
+import { sandboxProblems, recordRules, treeState, heldProblems } from './tend.mjs';
 import { LABEL, triage, missingText } from './rubric.mjs';
 
 export const KEY = 'robot';
@@ -481,12 +481,16 @@ export async function robotGuard({ root, config, env = process.env, base, check 
   const records = recordRules(root, b, head, 'the robot');
   if (records.length) return { ok: false, job: KEY, refused: records, problems: records };
   const gate = config.check ?? check;
+  // The gate is the agent's code: what was checked is HEAD now, and it must still be HEAD after (PR #59).
+  const before = treeState(root);
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new RobotError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, job: KEY, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const moved = heldProblems(root, before, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, job: KEY, refused: moved, problems: moved };
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the robot's guard passed (nothing off limits changed, no evidence written, nothing marked built, lived-in or accepted, no box ticked)`;
   await writeRecord(root, JUDGED, { base: b, head, gate: line });
-  return { ok: true, job: KEY, line, problems: [] };
+  return { ok: true, job: KEY, head, line, problems: [] };
 }
 
 /** The impact declaration a robot PR carries (phase 26): the records it edits, or none. */
@@ -503,13 +507,15 @@ export function robotImpact(files, issue) {
  * commit) and the judge's gate line: { commits, files, line, text }. text is
  * null with no commit (nothing is pushed). Pure but for git and the files it reads.
  */
-export async function report({ root, config, base, issue, title, agent, body }) {
+export async function report({ root, config, base, head, issue, title, agent, body }) {
   if (!base) throw new RobotError('report needs --base <the run\'s commit>');
   if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('report needs --issue <number>');
   if (agent !== 'claude' && agent !== 'codex') throw new RobotError(`report --agent must be claude or codex (got ${agent})`);
   const b = sha(root, base);
-  const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..HEAD`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject }; });
-  const files = git(root, ['diff', '--name-only', '--no-renames', b, 'HEAD']).split('\n').filter(Boolean);
+  // The commit the judge took (--head, PR #59), never whatever HEAD is after the gate ran.
+  const h = sha(root, head || 'HEAD');
+  const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..${h}`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject }; });
+  const files = git(root, ['diff', '--name-only', '--no-renames', b, h]).split('\n').filter(Boolean);
   const branch = `${PREFIX}${issue}`;
   const line = `Robot #${issue}: ${commits.length} commit${commits.length === 1 ? '' : 's'} on ${branch}, ${files.length} file${files.length === 1 ? '' : 's'} changed, by ${AGENTS[agent].name}`;
   if (!commits.length) return { commits: 0, files, line, text: null };
@@ -595,7 +601,7 @@ export async function triagePost({ env = process.env, repo, issues, postIt = fal
 // ---- the command line ---------------------------------------------------------------------
 
 const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post [--json]';
-const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run', '--read': 'read', '--seen': 'seen' };
+const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--head': 'head', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run', '--read': 'read', '--seen': 'seen' };
 const SWITCHES = { '--record': 'record', '--post': 'post' };
 
 export function parseArgs(args) {
@@ -636,7 +642,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: { chars: m.length, out: o.out ?? null }, text: m ? `the agent's last message: ${m.length} characters${o.out ? ` → ${o.out}` : ''} (never printed: it goes on the issue)` : 'the agent left no last message' };
     }
     case 'report': {
-      const r = await report({ root, config, base: o.base, issue: o.issue, title: o.title, agent: o.agent, body: o.body ? resolve(o.body) : undefined });
+      const r = await report({ root, config, base: o.base, head: o.head, issue: o.issue, title: o.title, agent: o.agent, body: o.body ? resolve(o.body) : undefined });
       return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     case 'triage': {

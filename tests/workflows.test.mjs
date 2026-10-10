@@ -1970,6 +1970,17 @@ export function robotWorkflowProblems(text) {
   // PR #59: the mark carries the pick's cursor, so a comment made while the run worked starts the next one.
   if (!/robot\.mjs post [^\n]*--read "\$READ"/.test(publish) || !/READ: \$\{\{ needs\.agent\.outputs\.read \}\}/.test(publish) || !/\n {6}read: \$\{\{ steps\.pick\.outputs\.read \}\}\n/.test(text)) out.push('the run\'s mark does not carry the pick\'s cursor (--read)');
   if (!/robot\.mjs post [^\n]*--seen "\$SEEN"/.test(publish) || !/SEEN: \$\{\{ needs\.agent\.outputs\.seen \}\}/.test(publish) || !/\n {6}seen: \$\{\{ steps\.pick\.outputs\.seen \}\}\n/.test(text)) out.push('the run\'s mark does not carry the comments read in the cursor\'s second (--seen)');
+  // PR #59: the commit judged is named before the agent's code runs, and is what is reported, handed on and
+  // pushed; publish holds the record rules itself; no PR open is a publish that failed.
+  const judgeJob = jobs.find(j => j.id === 'judge')?.text ?? '';
+  const take = stepsOf(judgeJob).find(s => /- name: Take the run's commits\n/.test(s)) ?? '';
+  if (!/\n\s+id: take\n/.test(take) || !/echo "head=\$head" >> "\$GITHUB_OUTPUT"\n\s+git switch -q -c "\$BRANCH" "\$head"/.test(take)) out.push('the judge does not name the commit it takes before the agent\'s code runs');
+  if (!/\n {6}validated: \$\{\{ steps\.take\.outputs\.head \}\}\n/.test(judgeJob)) out.push('the judge job does not hand on the commit it took');
+  if (!/robot\.mjs report --base "\$GITHUB_SHA" --head "\$VALIDATED"/.test(judgeJob)) out.push('the report reads HEAD, not the commit the judge took');
+  if (!/git update-ref "refs\/heads\/\$BRANCH" "\$VALIDATED"\n\s+git bundle create "\$out\/run\.bundle" "\$GITHUB_SHA\.\.refs\/heads\/\$BRANCH"/.test(judgeJob)) out.push('the judge hands on its HEAD, not the commit it took');
+  if (!/VALIDATED: \$\{\{ needs\.judge\.outputs\.validated \}\}/.test(publish) || !/if \[ "\$head" != "\$VALIDATED" \]; then\n[^\n]*\n\s+exit 1/.test(publish)) out.push('publish pushes a head that is not the commit the judge took');
+  if (!/node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head" --records\n/.test(publish)) out.push('publish does not hold the record rules itself (sandbox --records)');
+  if (!/if \[ -z "\$url" \]; then\n[^\n]*\n\s+exit 1/.test(publish)) out.push('no PR open still counts as published, so the issue is marked worked');
   if (!/robot\.mjs triage --repo "\$REPO" --issues "\$TRIAGE" --post\n/.test(publish) || !/TRIAGE: \$\{\{ needs\.agent\.outputs\.triage \}\}/.test(publish)) out.push('the triage is not answered by robot.mjs in the publish job, from the pick\'s issue numbers');
   const steps = [...text.matchAll(/^ {6}- (?:name: (.+)|uses: (\S+))$/gm)].map(m => m[1] ?? m[2]);
   if (!(steps[0]?.startsWith('actions/checkout') && steps[1] === 'Is the robot on?')) out.push('"Is the robot on?" is not the first step after checkout');
@@ -2097,9 +2108,16 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
     ['the checkout keeps its credential', t.replace('          fetch-depth: 0\n          persist-credentials: false\n', '          fetch-depth: 0\n'), agentSandboxProblems],
     ['Claude trades for its app token', t.replace(claudeStep, claudeStep.replace('          github_token: ${{ github.token }}\n', '')), agentSandboxProblems],
     ['the push in the agent\'s job', t.replace(/(\n {6}- name: Did the agent run\?\n)/, `\n      - run: ${push}$1`), agentSandboxProblems],
-    ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n'), agentSandboxProblems],
+    ['no sandbox before the push', t.replace(/(\n {6}- name: Open the [\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head" --records\n/, '$1\n'), agentSandboxProblems],
     ['the judge takes the commits unchecked', t.replace(/(\n {2}judge:\n[\s\S]*?)\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n/, '$1\n'), agentSandboxProblems],
     ['the judge\'s guard trusts a record', t.replace('climb.mjs guard --job robot --base "$GITHUB_SHA"', 'climb.mjs guard --job robot'), agentSandboxProblems],
+    // PR #59: publish holds the record rules itself, on exactly the commit the judge took.
+    ['publish without the record rules', t.replace('--head "$head" --records\n', '--head "$head"\n'), robotWorkflowProblems],
+    ['publish takes any head', t.replace(/\n {10}if \[ "\$head" != "\$VALIDATED" \]; then\n[\s\S]*?\n {10}fi\n/, '\n'), robotWorkflowProblems],
+    ['the judge hands on its HEAD', t.replace('            git update-ref "refs/heads/$BRANCH" "$VALIDATED"\n', ''), robotWorkflowProblems],
+    ['the report reads HEAD', t.replace(' --head "$VALIDATED" --issue', ' --issue'), robotWorkflowProblems],
+    ['the commit named after the gate', t.replace('          echo "head=$head" >> "$GITHUB_OUTPUT"\n', ''), robotWorkflowProblems],
+    ['no PR, still published', t.replace(/\n {10}if \[ -z "\$url" \]; then\n[\s\S]*?\n {10}fi\n/, '\n'), robotWorkflowProblems],
     ['Codex in danger-full-access', t.replace('          sandbox: workspace-write\n', '          sandbox: danger-full-access\n'), x => codexEditProblems(x, opts)],
     ['Codex holds the token', t.replace('        env:\n          GH_TOKEN: ""\n', '        env:\n'), x => codexEditProblems(x, opts)],
     ['Codex in the publish job', t.replace(publish, `${publish.replace(/\n$/, '')}\n${codexStep}\n`), agentSandboxProblems],

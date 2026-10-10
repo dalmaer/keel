@@ -412,6 +412,24 @@ const firstAdded = (root, base, head, path) => {
 };
 
 /**
+ * What a guard checked, before any code of the agent's runs (PR #59): HEAD,
+ * and the tracked tree and index as git status says them. The gate, a perf
+ * check or a build is the agent's code, and could commit or stage after the
+ * checks passed; heldProblems says so, so a guard never passes a commit it
+ * did not check.
+ */
+export function treeState(root) {
+  return { head: sha(root, 'HEAD'), status: git(root, ['status', '--porcelain', '--untracked-files=no']) };
+}
+/** What moved since `before` (treeState): [problem]. `what` names the code that ran. */
+export function heldProblems(root, before, what) {
+  const now = treeState(root), out = [];
+  if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
+  if (now.status !== before.status) out.push(`${what} changed the tracked tree or the index after the guard's checks (git status: ${now.status.split('\n').filter(Boolean).slice(0, 3).join('; ') || 'clean'}): nothing is taken`);
+  return out;
+}
+
+/**
  * The record rules any agent's branch keeps (keel phase 54: the robot's, as
  * tend's): no file added or edited under docs/evidence/, no front-matter
  * status changed to built, lived-in or accepted, no acceptance box ticked.
@@ -480,9 +498,12 @@ export async function tendGuard({ root, config, env = process.env, base, check =
   const { refused } = tendCheck(root, b, head, { findings: pass?.worksheet?.findings ?? null });
   if (refused.length) return { ok: false, job: 'tend', refused, problems: refused };
   const gate = config.check ?? check;
+  const before = treeState(root);
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new TendError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, job: 'tend', problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const moved = heldProblems(root, before, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, job: 'tend', refused: moved, problems: moved };
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the tend guard passed (no evidence written, no status marked built, lived-in or accepted, no box ticked, nothing deleted, nothing outside its surfaces, every commit cites a finding)`;
   if (pass) { pass.gate = line; await writePass(root, pass); }
   return { ok: true, job: 'tend', line, problems: [] };

@@ -32,6 +32,20 @@ test('guard: fails when a test that ran in the base did not run in the candidate
   const ok = guard();
   assert.equal(ok.status, 0, ok.stdout + ok.stderr);
   assert.match(json(ok).line, /exit 0 on [0-9a-f]{7}; 2 tests ran, none dropped or skipped against the base/);
+  // PR #59: the gate is the agent's code, run after the guard's checks. One that runs the suite, then
+  // commits (or only stages) a change and exits 0, is refused: only the commit checked is ever taken.
+  const checked = git(dir, ['rev-parse', 'HEAD']);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  for (const [tail, said] of [
+    ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
+    ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs', /changed the tracked tree or the index after the guard's checks/],
+  ]) {
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: `${LEDGER_TEST} && ${tail}` }));
+    const moved = guard();
+    assert.equal(moved.status, 1, moved.stdout + moved.stderr);
+    assert.ok(json(moved).problems.some(p => said.test(p)), JSON.stringify(json(moved).problems));
+    git(dir, ['reset', '-q', '--hard', checked]);
+  }
 
   await at('red', { 'acme.test.mjs': suite('acme adds', { text: "test('acme subtracts', () => { throw new Error('acme'); });" }) });
   const red = guard();

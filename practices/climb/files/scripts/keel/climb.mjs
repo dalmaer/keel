@@ -18,7 +18,8 @@
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
 //                                   (--job tend: tend.mjs's guard; --job robot: robot.mjs's, phase 54)
-//   node scripts/keel/climb.mjs sandbox --base r --head r     the agent's commits change no workflow, keel script, config or install file (git only)
+//   node scripts/keel/climb.mjs sandbox --base r --head r [--records]   the agent's commits change no workflow, keel script, config or install file (git only)
+//                                   (--records: and keep the record rules: no evidence, no status marked built, no box ticked)
 //   node scripts/keel/climb.mjs report [--input f] [--body f] [--state] [--issue f] [--base r]
 //   (a judge passes --base, the run's commit, to settle, guard, compare --final and report: a
 //   night's record naming any other base is refused, since the agent wrote it)
@@ -86,7 +87,7 @@ import { performance } from 'node:perf_hooks';
 import { gateEnv, healthDirOf, cells, isMain, rootOf, main, climbRetiring, passAgentProblems, agentGitArgs, codexVerdict } from './lib.mjs';
 import { readRuns, flaky, testsConfigOf, aloneCommand, KEEP } from './test-ledger.mjs';
 import { prBody } from './pr-body.mjs';
-import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
+import { tendConfigOf, tendPick, tendInput, openPass, tendNote, tendGuard, tendReport, tendPage, worksheetText, PASS, sandboxProblems, treeState, heldProblems, recordRules, OFF_LIMITS, INSTALL_FILES, recordBase } from './tend.mjs';
 import { parseLessons, lessonsPathOf } from './lib.mjs';
 // distill.mjs (phase 37) loads when a lessons night needs it, so every other job runs without it.
 let distillModule = null;
@@ -1189,13 +1190,15 @@ export async function proposalsProblems({ root, config, job, base, head }) {
   return out;
 }
 
-async function proposalsGuard({ root, config, env, night, base, head, job }) {
+async function proposalsGuard({ root, config, env, night, base, head, job, before = treeState(root) }) {
   const problems = await proposalsProblems({ root, config, job, base, head });
   if (problems.length) return { ok: false, job, problems };
   const gate = config.check ?? CHECK;
   const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
   if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
   if (r.status !== 0) return { ok: false, job, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const moved = heldProblems(root, before, `the gate \`${gate}\``);
+  if (moved.length) return { ok: false, job, gate, refused: moved, problems: moved };
   const n = changedPaths(root, base, head).length;
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; proposals only (${n} file${n === 1 ? '' : 's'} under ${job === 'lessons' ? `${LESSONS_DIR}/` : loopPaths(config).join(', ')}), no code changed, nothing decided`;
   if (night) { night.gate = line; await writeNight(root, night); }
@@ -1260,7 +1263,10 @@ export async function guard({ root, config, env = process.env, base, job }) {
   // Before anything runs: the workflows, keel's scripts and the config stay as the base has them.
   const off = sandboxProblems(root, b, head);
   if (off.length) return { ok: false, job, refused: off, problems: off };
-  if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job });
+  // PR #59: what is checked below is this HEAD and this tree; the build, the perf check and the gate are
+  // the agent's code, so before passing, the guard confirms neither moved.
+  const before = treeState(root);
+  if (JOBS[job]?.kind === 'proposals') return proposalsGuard({ root, config, env, night, base: b, head, job, before });
   const extra = {};
   if (job === 'hygiene') {
     // Lesson 40: a longer wait or a retry around the flaky test is not a fix.
@@ -1314,6 +1320,8 @@ export async function guard({ root, config, env = process.env, base, job }) {
   const missing = missingTests(baseRun, cand);
   const count = (cand.tests ?? []).filter(ran).length;
   if (missing.length) return { ok: false, gate, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
+  const moved = heldProblems(root, before, `the agent's code the guard ran (the gate \`${gate}\`${extra.perfCheck ? ', the perf check' : ''}${extra.build ? ', the build' : ''})`);
+  if (moved.length) return { ok: false, job, gate, refused: moved, problems: moved };
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}`;
   if (night) { night.gate = line; await writeNight(root, night); }
   return { ok: true, gate, line, problems: [], ...(job ? { job } : {}), ...extra };
@@ -1619,7 +1627,7 @@ const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|comp
 const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--agent': 'agent', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
-const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
+const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record', '--records': 'records' };
 
 export function parseArgs(args) {
   const [verb, ...rest] = args;
@@ -1740,7 +1748,8 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     case 'sandbox': {
       // The agent's commits, checked with git alone (no code of theirs runs): the publish job's check before it pushes.
       if (!o.base || !o.head) throw new ClimbError(`sandbox needs --base <ref> --head <ref>; ${USAGE}`);
-      const problems = sandboxProblems(root, o.base, o.head);
+      // --records (PR #59): the record rules too, git alone, so the job that pushes holds them itself, whatever ran in the judge.
+      const problems = [...sandboxProblems(root, o.base, o.head), ...(o.records ? recordRules(root, sha(root, o.base), sha(root, o.head), 'the agent') : [])];
       return { data: { ok: !problems.length, offLimits: OFF_LIMITS, problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}, and no install file (${INSTALL_FILES.join(', ')}, or package.json but its scripts)`, exitCode: problems.length ? 1 : 0 };
     }
     case 'report': {
