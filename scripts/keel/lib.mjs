@@ -918,9 +918,15 @@ function skipCondition(value) {
   return splitTop(cond, '&&').filter(p => !isLiteral(p)).join(' && ');
 }
 
-/** True when cond holding means the code runs only on the platform. */
-const onWhenTrue = (cond, platform, aliases) => sense(cond, platform, aliases) === 'on' || splitTop(cond, '&&').some(p => sense(p, platform, aliases) === 'on');
-/** True when cond failing means the code runs only on the platform. */
+/**
+ * True when cond holding means the code runs only on the platform. && binds
+ * tighter than ||, so cond is split on || first: every branch must hold only
+ * on the platform (one of its && parts is the platform's own test). In
+ * `darwin && ready || force`, force runs it anywhere: no guard.
+ */
+const onWhenTrue = (cond, platform, aliases) => sense(cond, platform, aliases) === 'on'
+  || splitTop(cond, '||').every(branch => sense(branch, platform, aliases) === 'on' || splitTop(branch, '&&').some(p => sense(p, platform, aliases) === 'on'));
+/** True when cond failing means the code runs only on the platform: one || branch is the platform's own test, ruled out. */
 const onWhenFalse = (cond, platform, aliases) => sense(cond, platform, aliases) === 'off' || splitTop(cond, '||').some(p => sense(p, platform, aliases) === 'off');
 
 /**

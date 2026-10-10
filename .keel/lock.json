@@ -159,7 +159,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "757a473abe34e331b94b9886de4e54f5780f3ec74be23f1a20b7af93a23c623e"
+      "sha256": "dce9d8258131bd41ad5d96dc9fc877d44a05fbaf83a28038b015d02c0f47bddc"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
