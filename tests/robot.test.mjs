@@ -676,7 +676,10 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const own = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open wide";\n' }, 'lid: wider\n\nFixes #12');
   assert.equal((await robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Acme', agent: 'claude' })).commits, 2, 'its own issue is fine');
   const closer = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open wider";\n' }, 'lid: tidy\n\nAlso closes acme/anvils#99');
-  await assert.rejects(robot.report({ root: dir, config, base, head: closer, issue: 12, title: 'Acme', agent: 'claude' }), /the agent's commits name issues to close besides #12: [0-9a-f]{7} \("lid: tidy"\) would close acme\/anvils#99\. Merging would close them/);
+  await assert.rejects(robot.report({ root: dir, config, base, head: closer, issue: 12, title: 'Acme', agent: 'claude' }), /the agent's commits or the issue's title name issues to close besides #12: [0-9a-f]{7} \("lid: tidy"\) would close acme\/anvils#99\. Merging would close them/);
+  // The title goes into the PR's description: a closing keyword there is refused the same, its own issue fine.
+  await assert.rejects(robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Lid sticks; fixes #99', agent: 'claude' }), /the issue's title \("Lid sticks; fixes #99"\) would close #99/);
+  assert.equal((await robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Lid sticks; fixes #12', agent: 'claude' })).commits, 2);
   git(dir, ['reset', '-q', '--hard', checked]);
   // PR #59: the run mark names the commit the run pushed; the next run force-pushes only over that, by the bot's marks alone.
   const head = 'b'.repeat(40);

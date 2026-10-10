@@ -641,7 +641,9 @@ export async function report({ root, config, base, head, issue, title, agent, bo
   const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..${h}`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject, message: git(root, ['show', '-s', '--format=%B', id]) }; });
   // A closing keyword in a commit closes what it names on merge (PR #59): the robot closes its own issue alone.
   const closes = commits.flatMap(c => closingRefs(c.message).filter(r => r !== `#${issue}`).map(r => `${c.sha.slice(0, 7)} ("${oneLine(c.subject).slice(0, 60)}") would close ${r}`));
-  if (closes.length) throw new RobotError(`the agent's commits name issues to close besides #${issue}: ${closes.join('; ')}. Merging would close them, and the robot was handed #${issue} alone; nothing is published`);
+  // The issue's title goes into the PR's description too (PR #59): a closing keyword there closes on merge as well.
+  for (const r of closingRefs(title).filter(r => r !== `#${issue}`)) closes.push(`the issue's title ("${oneLine(title).slice(0, 60)}") would close ${r}`);
+  if (closes.length) throw new RobotError(`the agent's commits or the issue's title name issues to close besides #${issue}: ${closes.join('; ')}. Merging would close them, and the robot was handed #${issue} alone; nothing is published`);
   // NUL-delimited (PR #59): the PR's impact declaration names a phase file whatever bytes its path holds.
   const files = pathsOf(root, ['diff', '--name-only', '--no-renames', b, h]);
   const branch = `${PREFIX}${issue}`;

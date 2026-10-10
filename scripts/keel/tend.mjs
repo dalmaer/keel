@@ -477,9 +477,12 @@ export function trackedPrint(root, head) {
   for (const rel of pathsOf(root, ['ls-tree', '-r', '--name-only', head])) {
     const p = join(root, rel);
     let v;
-    try { const st = lstatSync(p); v = st.isSymbolicLink() ? `link:${readlinkSync(p)}` : st.isFile() ? readFileSync(p).toString('base64') : `kind:${st.mode}`; }
+    // The bytes themselves, length first (PR #59): never a string of them, which a large file cannot be.
+    let bytes = null;
+    try { const st = lstatSync(p); if (st.isSymbolicLink()) v = `link:${readlinkSync(p)}`; else if (st.isFile()) { bytes = readFileSync(p); v = `file:${bytes.length}`; } else v = `kind:${st.mode}`; }
     catch (e) { if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e; v = 'missing'; }
     h.update(`${rel}\0${v}\0`);
+    if (bytes) h.update(bytes);
   }
   return h.digest('hex');
 }
