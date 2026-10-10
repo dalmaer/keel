@@ -25,4 +25,21 @@ Final full gate command: `npm run check`, covering the whole suite, roadmap, man
 
 ## Gaps and decision
 
-The implementation can be used now; the phase remains partial with a walk owed. GitHub Linux pressure capture must be inspected on the pushed revision. The owner reads two weeks of new context-aware records, no earlier than 2026-10-23, and judges whether timing matches their experience. Old retained observations cannot manufacture that history. Unsupported transcript syntax remains explicit coverage loss; no cost or causal productivity claim is inferred.
+The implementation can be used now; the phase remains partial with a walk owed. The owner reads two weeks of new context-aware records, no earlier than 2026-10-23, and judges whether timing matches their experience. Old retained observations cannot manufacture that history. Unsupported transcript syntax remains explicit coverage loss; no cost or causal productivity claim is inferred.
+
+## Pushed Linux proof
+
+[Actions run 38022347807](https://github.com/dalmaer/keel/actions/runs/38022347807) completed successfully on `65a03041b969f8b49785732be1e47a080f3db86a`. The downloaded `keel-test-runs` artifact records a 192,696 ms gate with status 0, four cores, load 0.39 → 16.58, and `/proc/pressure/cpu` some-pressure delta 170,413,409 μs. The test-run record also has both pressure endpoints. This is actual Linux capture, not the fixture's simulated pressure. The watcher encountered a network timeout; the final API read, not that transport exit, establishes the successful workflow conclusion.
+
+The initial phase commit's wall-time estimate was too broad: base commit 21:18 to the PR opening around 21:57 America/Denver is approximately 39 minutes. Subsequent review corrections and CI verification are additional work.
+
+## Independent review corrections
+
+PR #70 identified quoted Authorization values escaping redaction and Vitest discovery commands being counted as test executions. Both findings were reproduced, corrected and covered through the real collectors/parser. The five focused builder checks passed; conductor isolated-copy proofs below each exited 0 and observed red without the fix, green with it. An earlier redaction selector with the wrong capitalization matched no test and was correctly INCONCLUSIVE; it is not evidence of the fix.
+
+- Proven-by: tests/test-ledger.test.mjs (quoted Authorization) — VERIFIED — "The input was expected to not match the regular expression /acme-fake-credential/. Input: '{'Authorization':'Bearer acme-fake-credential'}' (quoted Authoriza..."
+- Proven-by: tests/time.test.mjs (Vitest discovery) — VERIFIED — "Expected values to be strictly equal: 6 !== 0 (transcripts exclude Vitest discovery commands with flags before or after the verb)"
+
+The integrated review-fix run exposed a generator-probe race: a nested fixture's rotating ledger disappeared during a recursive copy. The isolated generated-file test passed 3/3, establishing the concurrency dependency rather than erasing the failure. [Hygiene issue #69](https://github.com/dalmaer/keel/issues/69#issuecomment-6093634654) preserves it. The probe now omits `.keel/test-runs` directories at every project depth before traversal, while retaining configuration and source inputs. Four focused generated-file tests passed.
+
+- Proven-by: tests/keel-generated.test.mjs (generated probes exclude rotating ledgers) — VERIFIED — "Expected values to be strictly deep-equal: + actual - expected + [ + 'docs/ACME.md: its generator `node rewrites.mjs` failed (exit 1): } | | Node.js v24.21.0..."

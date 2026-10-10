@@ -320,3 +320,18 @@ test('transcript interruption uses structured status or an explicit tool error, 
   assert.equal(got.identities[0].counts.interrupted, 2);
   assert.doesNotMatch(JSON.stringify(got), /cancelled safely|stopped|ℹ/);
 });
+
+test('transcripts exclude Vitest discovery commands with flags before or after the verb', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const row = (command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } });
+  const rejected = ['vitest list', 'npx vitest list', 'vitest --silent list', 'npx vitest --reporter=json list', 'vitest --reporter json list --silent', 'vitest list --reporter json'];
+  await writeFile(join(dir, 'acme.jsonl'), rejected.map(row).join('\n'));
+  const excluded = await workedAround({ root, home, env: {} });
+  assert.equal(excluded.counts.workedAround, 0);
+  assert.deepEqual(excluded.identities, []);
+  await writeFile(join(dir, 'acme.jsonl'), ['vitest run tests/acme.test.ts', 'npx vitest --silent run tests/acme.test.ts', 'vitest --testNamePattern list run tests/acme.test.ts'].map(row).join('\n'));
+  const accepted = await workedAround({ root, home, env: {} });
+  assert.equal(accepted.counts.workedAround, 3);
+});

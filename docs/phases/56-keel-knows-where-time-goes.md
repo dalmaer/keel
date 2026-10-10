@@ -6,7 +6,7 @@ since: 2026-10-09
 goal: G5
 spec: 2
 depends: [33]
-note: "Timing context, usual times, failure memory, root-gate trends and bounded local transcript reporting are implemented. Linux CI capture and the owner's two-week usefulness read remain to be walked."
+note: "Timing context, usual times, failure memory, root-gate trends and bounded local transcript reporting are implemented. Linux CI capture is verified; the owner's two-week usefulness read remains open."
 evidence: ["evidence/2026-10-09-timing-context.md"]
 issue: 43
 ---
@@ -64,7 +64,7 @@ Over time: two weeks of keel's own runs, read by the owner.
 
 ## Next action
 
-Inspect Linux pressure capture on the pushed revision. After two weeks of context-aware runs (no earlier than 2026-10-23), the owner reads `keel time --weeks 2` and records whether it matches their experience. Until then the implementation is available, with acceptance still open.
+After two weeks of context-aware runs (no earlier than 2026-10-23), the owner reads `keel time --weeks 2` and records whether it matches their experience. Until then the implementation is available, with acceptance still open.
 
 ## Trajectory
 

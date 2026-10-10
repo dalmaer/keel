@@ -1187,3 +1187,17 @@ test('Linux pressure deltas and unavailable pressure are explicit', async () => 
   assert.equal(missing.pressure, null);
   assert.match(ledger.busyBetween(null, end).unavailable, /start was not captured/);
 });
+
+test('quoted Authorization is redacted by Node and JUnit collectors without environment secrets', () => {
+  for (const value of ['{"Authorization":"Bearer acme-fake-credential"}', "{'Authorization': 'Basic acme-fake-credential'}"]) {
+    assert.doesNotMatch(ledger.failureText(value, {}), /acme-fake-credential/);
+    const top = ledger.topLevel({ errors: true });
+    top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error(value) } } });
+    assert.match(top.tests[0].error, /\[redacted\]/);
+    assert.doesNotMatch(top.tests[0].error, /acme-fake-credential/);
+    const xml = ledger.readXml(`<testsuites name="vitest tests"><testsuite name="acme.test.ts"><testcase name="Acme"><failure><![CDATA[${value}]]></failure></testcase></testsuite></testsuites>`);
+    const error = ledger.junitTests(xml, 'vitest').tests[0].error;
+    assert.match(error, /\[redacted\]/);
+    assert.doesNotMatch(error, /acme-fake-credential/);
+  }
+});

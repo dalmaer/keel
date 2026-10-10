@@ -228,7 +228,7 @@ export function failureText(value, env = process.env) {
   }
   text = text.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g, '[redacted]')
     .replace(/((?:[\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, '$1[redacted]')
-    .replace(/(authorization\s*:\s*(?:bearer|basic)\s+)\S+/gi, '$1[redacted]')
+    .replace(/(authorization["']?\s*:\s*)(?:"[^"\n]*"|'[^'\n]*'|(?:bearer|basic)\s+[^\s,;}]+)/gi, '$1[redacted]')
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[redacted]@')
     .replace(/\x1b\[[0-9;]*m/g, '').split('\n').slice(0, 8).join('\n').slice(0, 1024);
   while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);

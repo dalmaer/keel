@@ -40,3 +40,28 @@ test('the list: each practice\'s files only when it is on; keel\'s own files onl
   assert.deepEqual(paths({ practices: ['phases', 'lessons'], keel: 'self' }), ['docs/ROADMAP.md', 'docs/keel-lessons.md', 'docs/patterns.md', 'docs/INBOX.md']);
   assert.ok(GENERATORS.every(g => Object.isFrozen(g) && g.path && g.args.length));
 });
+
+test('generated probes exclude rotating ledgers at every project depth and retain source inputs', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-generated-acme-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  for (const base of ['', 'tests/fixtures/acme']) {
+    await mkdir(join(dir, base, '.keel', 'test-runs'), { recursive: true });
+    await writeFile(join(dir, base, '.keel', 'test-runs', 'acme.json'), '{}');
+    await writeFile(join(dir, base, '.keel', 'keel.json'), '{}');
+  }
+  await mkdir(join(dir, 'test-runs'), { recursive: true });
+  await writeFile(join(dir, 'test-runs', 'source.json'), '{}');
+  await mkdir(join(dir, 'docs'), { recursive: true });
+  await writeFile(join(dir, 'docs', 'ACME.md'), '# Acme\n');
+  await writeFile(join(dir, 'rewrites.mjs'), `
+    import assert from 'node:assert/strict';
+    import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+    for (const base of ['', 'tests/fixtures/acme/']) {
+      assert.equal(existsSync(base + '.keel/test-runs'), false);
+      assert.equal(readFileSync(base + '.keel/keel.json', 'utf8'), '{}');
+    }
+    assert.equal(readFileSync('test-runs/source.json', 'utf8'), '{}');
+    writeFileSync('docs/ACME.md', '# Acme');
+  `);
+  assert.deepEqual(await survivors(dir, [{ path: 'docs/ACME.md', args: ['rewrites.mjs'] }]), []);
+});
