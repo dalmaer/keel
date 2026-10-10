@@ -37,6 +37,7 @@ export async function readRobotBudget({ repo, policy, now = new Date(), github =
     for (const run of runs) {
       if (!robotId(run.id) || ids.has(run.id) || run.workflow_id !== workflow.id || run.repository?.full_name !== repo || !robotSha(run.head_sha) || !robotId(run.run_attempt)) throw new Error('budget run identity unavailable');
       ids.add(run.id);
+      if (preflight?.runId === run.id && preflight.attempt !== run.run_attempt) throw new Error('current preflight attempt unavailable');
       // Updated time is only an exclusion when the entire logical run completed before this week.
       if (!Number.isFinite(Date.parse(run.updated_at)) || Date.parse(run.updated_at) > end) throw new Error('budget run time unavailable');
       if (run.status === 'completed' && Date.parse(run.updated_at) < start) continue;
@@ -64,7 +65,9 @@ export async function readRobotBudget({ repo, policy, now = new Date(), github =
             used += Math.max(0, b - Math.max(a, start)) / 1000;
           }
           if (['agent', 'review-agent'].includes(job.name) && seen.size !== 2 && !beforeModel) throw new Error('model job step coverage incomplete');
-          if (preflight?.runId === run.id && preflight.attempt === attempt && job.name === 'agent' && job.status === 'completed' && seen.size === 2) countedCurrentBuild = true;
+          // Re-run failed jobs can reuse the completed build from an earlier
+          // attempt of this same logical run; every attempt is still accounted.
+          if (preflight?.runId === run.id && attempt <= preflight.attempt && job.name === 'agent' && job.status === 'completed' && seen.size === 2) countedCurrentBuild = true;
         }
       }
     }

@@ -187,7 +187,7 @@
     },
     "scripts/keel/robot-budget.mjs": {
       "practice": "climb",
-      "sha256": "0ec1543adada3f74c60dfcf3eca6d88738a96c34205cb6336ab380d311d4b1ba"
+      "sha256": "bae6690cf3fb91927a2c1dc09189d295bddacb4f318fda527cb81b04946d61af"
     },
     "scripts/keel/robot-delivery.mjs": {
       "practice": "climb",
@@ -203,7 +203,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "4ea24895cedf95d340fef9a6be10023655d3cdb609c8a0f4ae2fa686c76b8308"
+      "sha256": "25dc4d0267c044b7658f79bbe1cfce5632a159d91d7986d19c294087a95ce33d"
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",

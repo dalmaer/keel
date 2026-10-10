@@ -42,7 +42,10 @@ const save = () => fs.writeFileSync(${JSON.stringify(statePath)}, JSON.stringify
 const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length + 1);
 const deny = () => { console.error('stub gh: a write the test did not expect: ' + argv.join(' ')); process.exit(1); };
 if (s.down) { console.error('error connecting to api.github.com'); process.exit(1); }
-const node = c => ({ databaseId: c.databaseId, author: { login: c.author }, body: c.body, createdAt: c.createdAt, url: 'https://github.com/acme/app/pull/3#c' + c.databaseId });
+const node = c => {
+  const value = { databaseId: c.databaseId, author: { ...(s.windowAuthor ? { __typename: 'User' } : {}), login: c.author }, body: c.body, createdAt: c.createdAt, url: 'https://github.com/acme/app/pull/3#c' + c.databaseId };
+  return s.reorder ? Object.fromEntries(Object.entries(value).reverse()) : value;
+};
 if (argv[0] === 'api' && argv.includes('--include')) {
   const method = argv[argv.indexOf('--method') + 1], path = argv[argv.indexOf('--method') + 2];
   s.agentIssues ??= [];
@@ -55,6 +58,11 @@ if (argv[0] === 'api' && argv.includes('--include')) {
     if (s.agentFailPost) { status = 503; data = {}; }
     else { s.agentIssues.push(data); status = 201; }
     if (s.followupOnCreate) { s.threads[0].comments.push({ databaseId: 700, author: 'acme-reviewer', body: 'Acme new evidence', createdAt: '2026-10-06T13:00:00Z' }); s.followupOnCreate = false; }
+    if (s.editOnCreate) {
+      const rows = s.editOnCreate === 'inline' ? s.threads[0].comments : s.editOnCreate === 'reply' ? s.threads[1].comments : s[s.editOnCreate];
+      rows[rows.length - 1].body += '\\nAcme changed evidence'; delete s.editOnCreate;
+    }
+    if (s.fullOnCreate) s.windowAuthor = false;
     save();
   } else if (path.includes('/contents/')) {
     if (!s.contents) { status = 404; data = {}; }
@@ -618,6 +626,82 @@ test('keel review reads a window first and the full fragment only when a list ov
 });
 
 const AGENT_RUBRIC = { version: 1, problem: 'Acme sorting fails.', reproduction: 'Run Acme regression.', acceptance: 'Both keys retained.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
+test('review content receipts reject full-body edits before creation and during creation', async t => {
+  for (const kind of ['inline', 'reply', 'bodies', 'comments']) for (const during of [false, true]) await t.test(`${kind} ${during ? 'during' : 'before'} creation`, async t => {
+    const dir = await project(t);
+    const long = '**P1** Acme unchanged summary.\n\n' + 'Acme evidence. '.repeat(200);
+    const gh = await stubGh(t, {
+      threads: [{ ...UNANSWERED, comments: [c(11, 'acme-reviewer', long)] },
+        { id: 'PRRT_other', comments: [c(20, 'acme-reviewer', 'Acme separate defect'), c(21, 'acme-reviewer', long)] }],
+      bodies: [{ id: 'PRR_edit', ...c(30, 'acme-reviewer', long) }],
+      comments: [{ id: 'IC_edit', ...c(40, 'acme-reviewer', long) }], writes: true,
+      ...(during ? { editOnCreate: kind } : {}),
+    });
+    const args = [...await agentArgs(dir), '--yes'];
+    keel(dir, gh, ['acme/app#3', '--json']);
+    if (!during) await gh.change(s => {
+      const rows = kind === 'inline' ? s.threads[0].comments : kind === 'reply' ? s.threads[1].comments : s[kind];
+      rows[rows.length - 1].body += '\nAcme changed evidence';
+    });
+    const result = keel(dir, gh, args);
+    assert.equal(result.code, 2, result.out + result.err);
+    assert.match(result.out, /review (?:content )?changed/);
+    let state = await gh.state();
+    assert.equal((state.agentIssues ?? []).length, during ? 1 : 0);
+    assert.equal(state.threads[0].comments.length, 1, 'no stale tracked reply');
+    keel(dir, gh, ['acme/app#3', '--json']);
+    const retry = keel(dir, gh, args);
+    assert.equal(retry.code, 0, retry.out + retry.err);
+    state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
+  });
+});
+test('review content receipts accept reordered properties and sequential own answers', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED, { id: 'PRRT_two', comments: [c(20, 'acme-reviewer', 'Acme second defect')] }], writes: true });
+  keel(dir, gh, ['acme/app#3', '--json']);
+  await gh.change(s => { s.reorder = true; });
+  for (const id of ['PRRT_open', 'PRRT_two']) {
+    const result = keel(dir, gh, ['acme/app#3', '--close', id, '--fixed', 'abc1234', '--json']);
+    assert.equal(result.code, 0, result.out + result.err);
+  }
+  const state = await gh.state();
+  assert.ok(state.threads.every(thread => thread.isResolved && thread.comments.length === 2));
+});
+test('review content receipts tolerate actual window/full author projections but reject edits at both checks', async t => {
+  // These are the actual differing thread-comment selections, not property ordering.
+  assert.match(windowFragment(), /databaseId author \{ __typename login \} body/);
+  assert.match(reviewFragment(), /databaseId author \{ login \} body/);
+  for (const during of [false, true]) for (const edited of [false, true]) await t.test(`${during ? 'post-creation' : 'fresh close'} ${edited ? 'edited' : 'unchanged'}`, async t => {
+    const dir = await project(t), gh = await stubGh(t, {
+      threads: [UNANSWERED], writes: true, windowAuthor: true,
+      ...(during ? { fullOnCreate: true, ...(edited ? { editOnCreate: 'inline' } : {}) } : {}),
+    });
+    keel(dir, gh, ['acme/app#3', '--json']);
+    if (!during) await gh.change(s => {
+      s.windowAuthor = false;
+      if (edited) s.threads[0].comments[0].body += '\nAcme changed evidence';
+    });
+    const result = keel(dir, gh, [...await agentArgs(dir), '--yes']);
+    assert.equal(result.code, edited ? 2 : 0, result.out + result.err);
+    const state = await gh.state();
+    assert.equal(state.threads[0].comments.length, edited ? 1 : 2);
+    assert.equal((state.agentIssues ?? []).length, !during && edited ? 0 : 1);
+    if (edited) assert.match(result.out, /review (?:content )?changed/);
+  });
+});
+test('review content receipts require fresh read for legacy receipts and detect deleted replies', async t => {
+  for (const legacy of [true, false]) await t.test(legacy ? 'legacy' : 'deleted reply', async t => {
+    const dir = await project(t), gh = await stubGh(t, { threads: [{ ...UNANSWERED, comments: [...UNANSWERED.comments, c(12, 'acme-reviewer', 'Acme follow-up')] }], writes: true });
+    keel(dir, gh, ['acme/app#3', '--json']);
+    if (legacy) {
+      const path = join(dir, '.keel-cache', 'reviews', 'acme__app__3.json');
+      const receipt = JSON.parse(await readFile(path, 'utf8')); delete receipt.content; delete receipt.contentVersion;
+      await writeFile(path, JSON.stringify(receipt));
+    } else await gh.change(s => { s.threads[0].comments.pop(); });
+    const result = keel(dir, gh, [...await agentArgs(dir), '--yes']);
+    assert.equal(result.code, 2, result.out + result.err);
+    assert.match(result.out, /read .*again/); assert.equal(writesIn(await gh.calls()).length, 0);
+  });
+});
 async function agentArgs(dir) {
   const file = join(dir, 'rubric.json'); await writeFile(file, JSON.stringify(AGENT_RUBRIC));
   return ['acme/app#3', '--close', 'PRRT_open', '--tracked', '--file-agent-issue', '--title', 'Fix Acme equality', '--rubric', file, '--json'];

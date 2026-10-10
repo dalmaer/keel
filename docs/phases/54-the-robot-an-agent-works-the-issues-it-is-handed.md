@@ -101,3 +101,5 @@ The owner chooses one project and a weekly allowance covering build plus other-p
 - **2026-10-10** — Review exposed two operational boundaries: routed bot actors need explicit provider support, and continuing a queue scan must not discard approved questions. Worker isolation now fails closed before credentials; bounded, revalidated triage survives scans independently of build selection. Effective Linux provider isolation remains part of the owner walk.
 
 - **2026-10-10** — A lease protects the branch, not a concurrently edited PR description. Continuations now preserve that description and publish exact-head bot comments; review readers retain historical findings against their own verified delivery. Agent closing directives are inert, with only the trusted task reference active.
+
+- **2026-10-10** — Retry identity spans a logical run, not just its newest attempt; reuse a verified earlier build without dropping any attempt's usage. Review freshness also includes full content, and a trusted-runtime judge must reject candidate runtime selectors.

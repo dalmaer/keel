@@ -851,3 +851,37 @@ test('robot continuation preserves concurrent human description edits and recove
  git(remote,'update-ref',`refs/heads/${plan.branch}`,baseSha);
  await assert.rejects(publishRobot({root,repo,baseSha,plan,headSha,github,now}),/continuation changed/);assert.equal(writes.length,1);assert.equal(pr.body,expectedBody);
 });
+
+test('robot sandbox refuses runtime selector changes before either gate executes',async t=>{
+ const root=await project(t),selectors=['.nvmrc','.node-version','.tool-versions','packages/acme/.nvmrc','packages/acme/.node-version','packages/acme/.tool-versions'];
+ await mkdir(join(root,'packages/acme'),{recursive:true});
+ for(const path of selectors)await writeFile(join(root,path),'24.21.0\n');
+ git(root,'add','.');git(root,'commit','-qm','Acme trusted runtime');const base=git(root,'rev-parse','HEAD');
+ const sentinel=join(root,'gate-ran');
+ const check=`node -e 'require("node:fs").writeFileSync(process.env.ACME_RUNTIME_GATE_MARKER,"ran")'`;
+ for(const path of selectors)for(const operation of ['edit','delete','rename']){
+   git(root,'reset','--hard',base);
+   if(operation==='edit')await writeFile(join(root,path),'18\n');
+   else if(operation==='delete')await rm(join(root,path));
+   else git(root,'mv',path,path+'.disabled');
+   git(root,'add','.');git(root,'commit','-qm',`Acme ${operation} selector`);const head=git(root,'rev-parse','HEAD');
+   assert.match(robotSandbox(root,base,head).join('\n'),/runtime selectors are off limits/,`${operation} ${path}`);
+   const result=await judgeRobot({root,baseSha:base,headSha:head,config:{check},env:{...process.env,ACME_RUNTIME_GATE_MARKER:sentinel}});
+   assert.equal(result.ok,false);assert.match(result.problems.join('\n'),/runtime selectors are off limits/);
+   await assert.rejects(readFile(sentinel),{code:'ENOENT'});
+ }
+ git(root,'reset','--hard',base);git(root,'rm','.nvmrc');git(root,'commit','-qm','Acme base without selector');const without=git(root,'rev-parse','HEAD');
+ await writeFile(join(root,'.nvmrc'),'18\n');git(root,'add','.');git(root,'commit','-qm','Acme added selector');
+ assert.match(robotSandbox(root,without,git(root,'rev-parse','HEAD')).join('\n'),/runtime selectors are off limits/);
+});
+
+test('robot runtime package policy remains protected while ordinary gate scripts stay editable',async t=>{
+ const root=await project(t),pkg={private:true,engines:{node:'>=24.21.0'},volta:{node:'24.21.0'},packageManager:'npm@11.0.0',devEngines:{runtime:{name:'node',version:'>=24.21.0'}},scripts:{test:'node --test'}};
+ await writeFile(join(root,'package.json'),JSON.stringify(pkg));git(root,'add','.');git(root,'commit','-qm','Acme package runtime policy');const base=git(root,'rev-parse','HEAD');
+ for(const [field,value] of Object.entries({engines:{node:'>=18'},volta:{node:'18.0.0'},packageManager:'npm@10.0.0',devEngines:{runtime:{name:'node',version:'>=18'}}})){
+   git(root,'reset','--hard',base);await writeFile(join(root,'package.json'),JSON.stringify({...pkg,[field]:value}));git(root,'add','.');git(root,'commit','-qm',`Acme changed ${field}`);
+   assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join('\n'),/only "scripts" may change/);
+ }
+ git(root,'reset','--hard',base);await writeFile(join(root,'package.json'),JSON.stringify({...pkg,scripts:{test:'node --test tests/acme.test.mjs'}}));git(root,'add','.');git(root,'commit','-qm','Acme gate script');
+ assert.deepEqual(robotSandbox(root,base,git(root,'rev-parse','HEAD')),[]);
+});

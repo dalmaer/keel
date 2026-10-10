@@ -79,3 +79,26 @@ test('robot budget never treats more than 500 actual worker runs as complete or 
  assert.equal(b.usedSeconds,null);assert.equal(b.remainingSeconds,null);
  assert.match(b.reasons.join(' '),/bounded coverage/);
 });
+
+
+test('robot review retry reuses prior attempt build while accounting every attempt and requiring current preflight', async () => {
+ const preflight={runId:11,attempt:2,job:'review-agent'};
+ const fixture=({build=true,latest=2,active=true,buildAttempt=1,future=false}={})=>async ({path})=>{
+  if(path.endsWith('/workflows/keel-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/keel-robot.yml'}};
+  if(path.includes('/runs?'))return {status:200,data:{total_count:1,workflow_runs:[{id:11,workflow_id:7,repository:{full_name:repo},head_sha:sha,run_attempt:latest,updated_at:now,status:'in_progress'}]}};
+  const attempt=Number(/attempts\/(\d+)/.exec(path)[1]);
+  const base={run_id:11,run_attempt:attempt,head_sha:sha};
+  const jobs=attempt===1?[{...base,id:41,name:'review-agent',status:'completed',steps:[{...step('Robot review Claude',20),conclusion:'failure'},step('Robot review Codex',0)]}]
+   :[{...base,id:40+attempt,name:'review-agent',status:active?'in_progress':'queued',steps:[]}];
+  if(build&&attempt===buildAttempt)jobs.push({...base,id:80+attempt,name:'agent',status:'completed',steps:[{...step('Robot build Claude',40),...(future?{completed_at:'2026-10-11T00:00:00Z'}:{})},step('Robot build Codex',0)]});
+  return {status:200,data:{total_count:jobs.length,jobs}};
+ };
+ const result=await readRobotBudget({repo,policy,now,preflight,github:fixture()});
+ assert.equal(result.state,'available');assert.equal(result.complete,true);
+ assert.equal(result.usedSeconds,60,'prior build and failed review both charged');assert.equal(result.remainingSeconds,540);
+ for(const options of [{build:false},{active:false},{latest:3,buildAttempt:3},{future:true}]) {
+  const got=await readRobotBudget({repo,policy,now,preflight,github:fixture(options)});
+  assert.equal(got.state,'unknown',JSON.stringify(options));assert.equal(got.usedSeconds,null);assert.equal(got.remainingSeconds,null);
+ }
+ for(const changed of [{...preflight,runId:12},{...preflight,attempt:3},{...preflight,attempt:1}])assert.equal((await readRobotBudget({repo,policy,now,preflight:changed,github:fixture()})).state,'unknown');
+});

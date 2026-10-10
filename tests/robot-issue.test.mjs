@@ -431,3 +431,28 @@ test('robot issue mixed-case repository URLs create and recover with canonical j
   const file = (await readdir(join(stateDir, dir))).find(f => f.endsWith('.json') && !f.startsWith('subject-'));
   assert.equal(JSON.parse(await readFile(join(stateDir, dir, file), 'utf8')).repo, 'acme/widget');
 });
+
+
+test('robot issue full final page at 500 records permits creation and recovery but next link stays incomplete', async t => {
+  const stateDir = await temp(t), api = remote();
+  let next = false, missingHeaders = false;
+  const pages = [];
+  const github = async request => {
+    if (!request.path.includes('?')) return api.github(request);
+    const page = Number(new URL(`https://api.github.com${request.path}`).searchParams.get('page')); pages.push(page);
+    const rows = Array.from({ length: 500 }, (_, i) => api.row(i + 100, 'Acme ordinary issue'));
+    // Keep 500 records on recovery too, with our exact marker on the last page.
+    if (api.rows.length) rows[499] = api.rows[0];
+    return { status: 200, data: rows.slice((page - 1) * 100, page * 100), ...(missingHeaders ? {} : { headers: page < 5 || next ? { link: '<https://api.github.com/repos/acme/app/issues?page=6>; rel="next"' } : {} }) };
+  };
+  const args = { ...work, stateDir, github, yes: true };
+  assert.equal((await ensureRobotIssue(args)).state, 'created');
+  assert.deepEqual(pages, [1,2,3,4,5]); pages.length = 0;
+  assert.equal((await recoverRobotIssue(args)).state, 'recovered'); assert.deepEqual(pages, [1,2,3,4,5]);
+  next = true; pages.length = 0;
+  assert.equal((await recoverRobotIssue(args)).state, 'ambiguous'); assert.deepEqual(pages, [1,2,3,4,5]);
+  assert.equal((await ensureRobotIssue({ ...args, stateDir: await temp(t), instanceId: 'acme-unread' })).state, 'blocked');
+  next = false; missingHeaders = true;
+  assert.equal((await recoverRobotIssue(args)).state, 'ambiguous');
+  assert.equal(api.posts().length, 1);
+});

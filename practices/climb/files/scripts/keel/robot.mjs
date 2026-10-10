@@ -323,6 +323,9 @@ export function robotFetch({root,repo,ref,env=process.env}) {
 export function robotSandbox(root, base, head) {
   const problems = sandboxProblems(root, base, head);
   const files = git(root, ['diff', '--name-only', '--no-renames', '-z', base, head]).split('\0').filter(Boolean);
+  // Both gates use the runtime selected from the trusted checkout. A changed
+  // selector cannot be verified under that old environment, even in a subproject.
+  for (const path of files) if (/(?:^|\/)(?:\.nvmrc|\.node-version|\.tool-versions)$/.test(path)) problems.push(`${path}: runtime selectors are off limits; the judge uses the trusted base runtime, so runtime changes require owner verification`);
   if (files.some(p => /^docs\/(?:phases\/|decisions\/|evidence\/|research\/|projects\/|design\.md$|goals\.json$|ROADMAP\.md$)/.test(p))) problems.push('record changes require owner reconciliation; robot cannot publish phase, decision, evidence or project-record changes');
   if (files.some(p => p.startsWith('.agents/') || p.startsWith('.claude/') || p.startsWith('.codex/') || /(?:^|\/)(?:AGENTS|CLAUDE)\.md$/i.test(p))) problems.push('agent protocols and settings are off limits');
   return problems;

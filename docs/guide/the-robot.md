@@ -115,6 +115,13 @@ Only verified human write/maintain/admin permission can start comment follow-up.
 Unknown permissions, unmet prerequisites and human-edited continuation heads
 block work. A person reads and merges; the robot does not merge itself.
 
+Runtime changes require owner verification. Both gates run under the runtime
+selected from the trusted checkout, so the robot refuses changes to `.nvmrc`,
+`.node-version` and `.tool-versions`, including nested files, deletion and rename.
+Existing guards also protect workflows, keel configuration and package metadata
+such as `engines`, `volta`, `devEngines` and `packageManager`; ordinary gate scripts
+remain editable.
+
 Continuations preserve the PR description, including owner edits. Its initial
 association anchors identity; a canonical bot comment binds each later judged
 head and its authorization. Missing, conflicting or incompletely read metadata
