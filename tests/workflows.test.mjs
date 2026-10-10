@@ -1964,7 +1964,10 @@ export function robotWorkflowProblems(text) {
   const publish = jobs.find(j => j.id === 'publish')?.text ?? '';
   const pushes = code(text).filter(l => /\bgit push\b/.test(l.line));
   if (pushes.length !== 1) out.push(`${pushes.length} git pushes; one, the robot's PR branch`);
-  for (const { line } of pushes) if (!/^\s*git push --force origin "\$head:refs\/heads\/keel\/robot-\$ISSUE"$/.test(line)) out.push(`a push that is not to the issue's own branch: ${line.trim()}`);
+  for (const { line } of pushes) if (!/^\s*git push --force-with-lease="refs\/heads\/keel\/robot-\$ISSUE:\$tip" origin "\$head:refs\/heads\/keel\/robot-\$ISSUE"$/.test(line)) out.push(`a push that is not to the issue's own branch, leased on the tip the robot pushed: ${line.trim()}`);
+  // PR #59: the branch is replaced only when the robot pushed what is there: absent, or the tip its last run mark names.
+  const owns = /\n {10}mine=\$\(node scripts\/keel\/robot\.mjs pushed --repo "\$REPO" --issue "\$ISSUE"\)\n {10}tip=\$\(git ls-remote origin "refs\/heads\/keel\/robot-\$ISSUE" \| cut -f1\)\n {10}if \[ -n "\$tip" \] && \[ "\$tip" != "\$mine" \]; then\n[^\n]*\n {12}exit 1\n {10}fi\n {10}git push --force-with-lease/;
+  if (!owns.test(publish)) out.push('the push does not first refuse a branch whose tip the robot did not push (robot.mjs pushed against git ls-remote)');
   if (pushes.length && !publish.includes(pushes[0].line)) out.push('the push is not in the publish job');
   const create = code(publish).find(l => /\bgh pr create\b/.test(l.line))?.line ?? '';
   if (!/gh pr create --base "\$BASE" --head "\$BRANCH" --title "[^"]*" --body-file "\$RUNNER_TEMP\/run\/body\.md"/.test(create)) out.push('no PR opened on the robot\'s branch with the judge\'s body (it says Closes #<issue>)');
@@ -2109,7 +2112,7 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
   assert.deepEqual(w.declared.sort(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY']);
   const agentPerms = '    permissions:\n      contents: read\n      pull-requests: read\n      actions: read\n      issues: read\n';
   assert.ok(t.includes(agentPerms));
-  const push = 'git push --force origin "$head:refs/heads/keel/robot-$ISSUE"';
+  const push = 'git push --force-with-lease="refs/heads/keel/robot-$ISSUE:$tip" origin "$head:refs/heads/keel/robot-$ISSUE"';
   assert.ok(t.includes(push));
   const publish = jobsOf(t).find(j => j.id === 'publish').text;
   const codexStep = stepsOf(t).find(s => s.includes('uses: openai/codex-action@'));
@@ -2120,6 +2123,8 @@ test('keel-robot.yml holds every climb sandbox rule for both providers, and its 
     ['a push to main', t.replace(push, 'git push origin "$head:refs/heads/main"'), rules],
     ['a push to main by name', t.replace(push, 'git push origin HEAD:main'), rules],
     ['a push outside keel/robot-', t.replace(push, 'git push --force origin "$head:refs/heads/keel-tend/$ISSUE"'), rules],
+    ['a force without the lease', t.replace(push, 'git push --force origin "$head:refs/heads/keel/robot-$ISSUE"'), robotWorkflowProblems],
+    ['no check of who pushed the tip', t.replace('          if [ -n "$tip" ] && [ "$tip" != "$mine" ]; then\n', '          if false; then\n'), robotWorkflowProblems],
     ['a push instead of the PR', t.replace(/\n {10}num=\$\(gh pr list[\s\S]*?\n {10}fi\n {10}url=/, '\n          url='), robotWorkflowProblems],
     ['the agent may write issues', t.replace(agentPerms, agentPerms.replace('issues: read', 'issues: write')), agentSandboxProblems],
     ['the agent may write contents', t.replace(agentPerms, agentPerms.replace('contents: read', 'contents: write')), agentSandboxProblems],

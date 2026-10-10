@@ -112,6 +112,15 @@ export function sandboxProblems(root, base, head) {
   const b = sha(root, base), h = sha(root, head);
   if (git(root, ['merge-base', '--is-ancestor', b, h], { allowFail: true }).status !== 0) return [`${h.slice(0, 7)} is not on top of the base ${b.slice(0, 7)}: the agent's branch must start where the run did`];
   const out = [];
+  // Each commit as well as the whole (PR #59): a file added in one commit and taken out in a later one is
+  // not in base..head, yet the branch's history carries it into main on any merge but a squash.
+  for (const c of pathsOf(root, ['rev-list', '--reverse', `${b}..${h}`])) {
+    const whole = new Set(changesOf(root, b, h).map(x => x.path));
+    for (const { path } of changesOf(root, `${c}^`, c)) {
+      if (whole.has(path)) continue;
+      if (offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) out.push(`${path}: changed in ${c.slice(0, 7)} on the agent's branch and changed back later; the branch's history would still carry it (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
+    }
+  }
   for (const { path } of changesOf(root, b, h)) {
     if (offLimit(path)) out.push(`${path}: changed on the agent's branch; ${OFF_LIMITS.join(', ')} are off limits to it (the workflows, keel's scripts that judge it, and the config that names the gate and the secrets)`);
     else if (INSTALL_FILES.includes(basename(path))) out.push(`${path}: changed on the agent's branch; an install's own files (${INSTALL_FILES.join(', ')}) are off limits to it: the judge installs the base's, with the setup token, before it takes the agent's commits, and no dependency is added (ledger#92)`);
@@ -565,6 +574,8 @@ export function recordRules(root, base, head, who = 'the agent') {
     }
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; ${who} never marks a phase built, lived-in or accepted`);
+    // PR #59: a status taken out of the front matter takes the phase's state with it.
+    if (b && !a) refused.push(`${path}: removes the front matter's status (${b.status}, line ${b.line} on the base); ${who} never marks a phase`);
     for (const x of added(ticked(before), ticked(after), x => x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); ${who} never accepts a phase`);
     // PR #59: a ticked box deleted, unticked or moved out of Acceptance erases the owner's acceptance: refused too.
     for (const x of added(ticked(after), ticked(before), x => x.text)) refused.push(`${path}: removes or unticks an acceptance box ("${x.text.slice(0, 80)}", line ${x.line} on the base); ${who} never undoes the owner's acceptance`);

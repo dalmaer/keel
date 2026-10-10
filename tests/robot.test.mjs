@@ -557,6 +557,8 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     // The parser's own form (STATUS_LINE in lib.mjs), the bold span closing after the word: refused the same.
     [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('**Status:** PART-DONE', '**Status: CLOSED.**') }, /^docs\/projects\/lid\/phases\.md:4: changes a phase's status line \("\*\*Status: CLOSED\.\*\*"\); the robot never marks a phase/],
     [{ 'docs/projects/lid/phases.md': LID_PROJECT.replace('- [ ] the lid opens', '- [x] the lid opens').replace(/\n/g, '\r\n') }, /^docs\/projects\/lid\/phases\.md:6: ticks a box \("the lid opens"\)/],
+    // PR #59: a status taken out of the front matter.
+    [{ 'docs/phases/06-lid.md': LID_PHASE.replace('status: partial\n', '') }, /^docs\/phases\/06-lid\.md: removes the front matter's status \(partial, line 2 on the base\); the robot never marks a phase$/],
     [{ 'docs/evidence/01-old-proof.md': null }, /docs\/evidence\/01-old-proof\.md: deletes evidence; the robot never removes evidence/],
   ]) {
     git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
@@ -596,7 +598,8 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     assert.equal(existsSync(mark), false, `${gate}: a hook or fsmonitor the gate planted ran from keel's git`);
     await rm(join(dir, '.git/hooks/reference-transaction'), { force: true });
     run('git', ['config', '--unset', 'core.fsmonitor'], { cwd: dir });
-    run('git', ['update-index', '--no-assume-unchanged', '--no-skip-worktree', 'src/lid.mjs'], { cwd: dir });
+    git(dir, ['update-index', '--no-assume-unchanged', 'src/lid.mjs']);
+    git(dir, ['update-index', '--no-skip-worktree', 'src/lid.mjs']);
   }
   git(dir, ['reset', '-q', '--hard', checked]);
   // A flag already set when the guard looked, then an edit behind it: the flags match, the files on disk do not.
@@ -654,6 +657,38 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   assert.match(parse(records).problems.join('\n'), /docs\/evidence\/12-sneak\.md:1: adds evidence/);
   const plain = run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'sandbox', '--base', base, '--head', 'HEAD', '--json'], { cwd: dir });
   assert.equal(plain.status, 0, 'without --records, sandbox checks the off-limits paths only');
+  // PR #59: evidence or an off-limits file added in one commit and taken out in a later one is refused: the
+  // whole diff no longer shows it, but the branch's history would carry it into main on any merge but a squash.
+  for (const [what, file] of [['evidence', 'docs/evidence/12-sneak.md'], ['a keel script', 'scripts/keel/robot.mjs']]) {
+    git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
+    const was = await readFile(join(dir, file), 'utf8').catch(() => null);
+    const sneak = await commit(dir, { [file]: '# Acme: proven\n', 'src/lid.mjs': 'export const lid = () => "open";\n' }, `acme: ${what}`);
+    if (was === null) { await rm(join(dir, file)); await commit(dir, {}, 'acme: take it back'); } else await commit(dir, { [file]: was }, 'acme: take it back');
+    const g = await robot.robotGuard({ root: dir, config: { ...config, check: 'echo the gate ran; exit 3' }, base });
+    assert.equal(g.ok, false, what);
+    assert.ok(g.problems.some(p => p.startsWith(`${file}: changed in ${sneak.slice(0, 7)} on the agent's branch and changed back later`)), `${what}: ${JSON.stringify(g.problems)}`);
+    assert.ok(!g.problems.some(p => /^the gate `/.test(p)), 'refused before the gate');
+  }
+  git(dir, ['reset', '-q', '--hard', checked]);
+  // PR #59: a closing keyword in a commit closes what it names on merge; the robot closes its own issue alone.
+  assert.deepEqual(robot.closingRefs('Closes #3. fixed: #4, resolves https://github.com/a/b/issues/5; see #6; Fixes acme/x#7; prefixes #8; re-fix #9'), ['#3', '#4', 'https://github.com/a/b/issues/5', 'acme/x#7', '#9']);
+  git(dir, ['switch', '-q', '-C', 'keel/robot-12', checked]);
+  const own = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open wide";\n' }, 'lid: wider\n\nFixes #12');
+  assert.equal((await robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Acme', agent: 'claude' })).commits, 2, 'its own issue is fine');
+  const closer = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open wider";\n' }, 'lid: tidy\n\nAlso closes acme/anvils#99');
+  await assert.rejects(robot.report({ root: dir, config, base, head: closer, issue: 12, title: 'Acme', agent: 'claude' }), /the agent's commits name issues to close besides #12: [0-9a-f]{7} \("lid: tidy"\) would close acme\/anvils#99\. Merging would close them/);
+  git(dir, ['reset', '-q', '--hard', checked]);
+  // PR #59: the run mark names the commit the run pushed; the next run force-pushes only over that, by the bot's marks alone.
+  const head = 'b'.repeat(40);
+  const marked = robotMod.runMark('2026-10-05T10:00:00Z', ['7'], head);
+  assert.equal(marked, `<!-- keel:robot run read=2026-10-05T10:00:00.000Z seen=7 head=${head} -->`);
+  assert.equal(robotMod.runMark(undefined, [], head), `<!-- keel:robot run head=${head} -->`);
+  assert.equal(robotMod.runMark(undefined, [], 'not a sha'), robotMod.RUN_MARK);
+  const bot = (at, body) => comment(at, body, { user: BOT, association: 'NONE' });
+  assert.equal(robotMod.pushedHead([bot('2026-10-05T10:00:00Z', marked), bot('2026-10-06T10:00:00Z', robotMod.runMark('2026-10-06T09:00:00Z'))]), head, 'a later run that pushed nothing leaves the branch as it was');
+  assert.equal(robotMod.pushedHead([comment('2026-10-07T10:00:00Z', `<!-- keel:robot run head=${'c'.repeat(40)} -->`)]), null, 'a person\'s comment names nothing');
+  assert.equal(robotMod.pushedHead([]), null);
+  assert.equal(R.issueState(issue(12), [bot('2026-10-05T10:05:00Z', marked), comment('2026-10-05T10:00:00Z', 'more, please', { id: 7 })]).kind, 'worked', 'the cursor and seen= still read with head=');
   // The report reads the commit the judge took (--head), never a later HEAD.
   const at = await robot.report({ root: dir, config, base, head: checked, issue: 12, title: 'Acme', agent: 'claude' });
   assert.equal(at.commits, 1);

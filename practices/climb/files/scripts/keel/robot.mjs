@@ -69,8 +69,30 @@ export const RUN_MARK = '<!-- keel:robot run -->';
  * before the mark is posted, so the next run reads from the cursor, never
  * from when the mark was posted.
  */
-export const runMark = (read, seen = []) => (isInstant(read) ? `<!-- keel:robot run read=${new Date(read).toISOString()}${seen.length ? ` seen=${seen.join(',')}` : ''} -->` : RUN_MARK);
-const RUN_RE = /<!-- keel:robot run(?: read=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)(?: seen=(\d+(?:,\d+)*))?)? -->/;
+export const runMark = (read, seen = [], head) => {
+  const parts = isInstant(read) ? [`read=${new Date(read).toISOString()}`, ...(seen.length ? [`seen=${seen.join(',')}`] : [])] : [];
+  // The commit the run pushed to keel/robot-<issue> (PR #59): the next run force-pushes only over that.
+  if (SHA_RE.test(head ?? '')) parts.push(`head=${head}`);
+  return parts.length ? `<!-- keel:robot run ${parts.join(' ')} -->` : RUN_MARK;
+};
+const SHA_RE = /^[0-9a-f]{40}$/;
+const RUN_RE = /<!-- keel:robot run(?: read=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)(?: seen=(\d+(?:,\d+)*))?)?(?: head=([0-9a-f]{40}))? -->/;
+/**
+ * The commit the robot last pushed to the issue's branch, by its own run
+ * marks (the workflow's bot alone), or null (PR #59). The branch is the
+ * robot's only while its tip is this commit: anything else there is someone
+ * else's work, and is never force-pushed over.
+ */
+export function pushedHead(comments = []) {
+  return comments.filter(fromRobot).map(c => RUN_RE.exec(c.body)?.[3]).filter(Boolean).at(-1) ?? null;
+}
+/**
+ * GitHub's closing keywords and what they name (PR #59): close, fix or
+ * resolve (any tense), then #N, owner/repo#N or an issue's URL. In a commit
+ * message or a PR's description, merging closes what they name.
+ */
+const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b\s*:?\s+((?:[\w.-]+\/[\w.-]+)?#\d+|https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+)/gi;
+export const closingRefs = text => [...String(text ?? '').matchAll(CLOSING)].map(m => m[1]);
 /** A comment's id list as the mark carries it: digits, comma-separated. */
 const SEEN = /^\d+(?:,\d+)*$/;
 /** A time to the second, as GitHub stamps a comment. */
@@ -616,7 +638,10 @@ export async function report({ root, config, base, head, issue, title, agent, bo
   const b = sha(root, base);
   // The commit the judge took (--head, PR #59), never whatever HEAD is after the gate ran.
   const h = sha(root, head || 'HEAD');
-  const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..${h}`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject }; });
+  const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..${h}`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject, message: git(root, ['show', '-s', '--format=%B', id]) }; });
+  // A closing keyword in a commit closes what it names on merge (PR #59): the robot closes its own issue alone.
+  const closes = commits.flatMap(c => closingRefs(c.message).filter(r => r !== `#${issue}`).map(r => `${c.sha.slice(0, 7)} ("${oneLine(c.subject).slice(0, 60)}") would close ${r}`));
+  if (closes.length) throw new RobotError(`the agent's commits name issues to close besides #${issue}: ${closes.join('; ')}. Merging would close them, and the robot was handed #${issue} alone; nothing is published`);
   // NUL-delimited (PR #59): the PR's impact declaration names a phase file whatever bytes its path holds.
   const files = pathsOf(root, ['diff', '--name-only', '--no-renames', b, h]);
   const branch = `${PREFIX}${issue}`;
@@ -646,14 +671,14 @@ export async function report({ root, config, base, head, issue, title, agent, bo
 // ---- what is posted ------------------------------------------------------------------------
 
 /** The robot's comment on the issue, pure: its mark, the agent's last message as it wrote it, then keel's line. */
-export function runComment({ message, pr, judge, line, run, read, seen = [] }) {
+export function runComment({ message, pr, judge, line, run, read, seen = [], head }) {
   let said = String(message ?? '').replace(/<!--\s*keel:[\s\S]*?-->/g, '').trim();
   if (said.length > MESSAGE_CHARS) said = `${said.slice(0, MESSAGE_CHARS)}\n\n… (cut at ${MESSAGE_CHARS} characters)`;
   const status = pr ? `The pull request: ${pr}`
     : judge === 'failure' ? `No pull request: the judge refused the branch${run ? ` (${run})` : ''}.`
       : `No pull request${line ? `: ${line}` : ': the agent committed nothing'}.`;
   return [
-    runMark(read, seen),
+    runMark(read, seen, head),
     '**keel robot**: the agent\'s last message, as it wrote it.',
     '',
     said || '(The agent left no message.)',
@@ -667,14 +692,15 @@ export function runComment({ message, pr, judge, line, run, read, seen = [] }) {
   ].join('\n');
 }
 
-export async function post({ env = process.env, repo, issue, message, pr, judge, line, run, read, seen, github = githubOf(env) }) {
+export async function post({ env = process.env, repo, issue, message, pr, judge, line, run, read, seen, head, github = githubOf(env) }) {
   repo = repoOf(repo, env);
   if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('post needs --issue <number>');
   if (read !== undefined && read !== '' && !isInstant(read)) throw new RobotError(`post --read must be the pick's ISO time (got ${JSON.stringify(read)})`);
   let text = '';
   if (message) try { text = await readFile(message, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new RobotError(`${message}: ${e.message}`); }
   if (seen !== undefined && seen !== '' && !SEEN.test(seen)) throw new RobotError(`post --seen must be comment ids, comma-separated (got ${JSON.stringify(seen)})`);
-  const body = runComment({ message: text, pr, judge, line, run, read: read || undefined, seen: seen ? seen.split(',') : [] });
+  if (head !== undefined && head !== '' && !SHA_RE.test(head)) throw new RobotError(`post --head must be the pushed commit's full sha (got ${JSON.stringify(head)})`);
+  const body = runComment({ message: text, pr, judge, line, run, read: read || undefined, seen: seen ? seen.split(',') : [], head: head || undefined });
   github.comment(repo, Number(issue), body);
   return { issue: Number(issue), chars: body.length, pr: pr || null };
 }
@@ -713,7 +739,7 @@ export async function triagePost({ env = process.env, repo, issues, postIt = fal
 
 // ---- the command line ---------------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post [--json]';
+const USAGE = 'usage: node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post|pushed [--json]';
 const FLAGS = { '--repo': 'repo', '--out': 'out', '--agent': 'agent', '--file': 'file', '--base': 'base', '--head': 'head', '--issue': 'issue', '--title': 'title', '--body': 'body', '--issues': 'issues', '--message': 'message', '--pr': 'pr', '--judge': 'judge', '--line': 'line', '--run': 'run', '--read': 'read', '--seen': 'seen' };
 const SWITCHES = { '--record': 'record', '--post': 'post' };
 
@@ -763,8 +789,13 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: t, text: t.length ? t.map(x => `#${x.issue}: ${x.posted ? 'answered: ' : o.post ? 'nothing posted: ' : ''}${x.why}`).join('\n') : 'no issue to triage' };
     }
     case 'post': {
-      const p = await post({ env, repo: o.repo, issue: o.issue, message: o.message ? resolve(o.message) : undefined, pr: o.pr, judge: o.judge, line: o.line, run: o.run, read: o.read, seen: o.seen });
+      const p = await post({ env, repo: o.repo, issue: o.issue, message: o.message ? resolve(o.message) : undefined, pr: o.pr, judge: o.judge, line: o.line, run: o.run, read: o.read, seen: o.seen, head: o.head });
       return { data: p, text: `posted the agent's last message on #${p.issue} (${p.chars} characters)` };
+    }
+    case 'pushed': {
+      if (!/^\d+$/.test(String(o.issue ?? ''))) throw new RobotError('pushed needs --issue <number>');
+      const head = pushedHead(githubOf(env).comments(repoOf(o.repo, env), Number(o.issue)));
+      return { data: { head }, text: head ?? '' };
     }
     default: throw new RobotError(o.verb ? `unknown subcommand ${o.verb}; ${USAGE}` : USAGE);
   }

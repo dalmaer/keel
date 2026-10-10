@@ -633,6 +633,7 @@ jobs:
           BASE: ${{ github.event.repository.default_branch || github.ref_name }}
           VALIDATED: ${{ needs.judge.outputs.validated }}
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           case "$ISSUE" in ''|*[!0-9]*) echo "::error::The issue number ($ISSUE) is not a number; nothing is pushed."; exit 1 ;; esac
           if [ "$BRANCH" != "keel/robot-$ISSUE" ]; then
@@ -658,9 +659,19 @@ jobs:
             exit 1
           fi
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --records
-          # The branch is the issue's alone; the next run on it replaces its
-          # own commits (its brief carried their diff), so force is safe here and nowhere else.
-          git push --force origin "$head:refs/heads/keel/robot-$ISSUE"
+          # The next run on the branch replaces its own commits (its brief
+          # carried their diff), so it may force, but only over what the robot
+          # pushed (PR #59): the branch is absent, or its tip is the commit the
+          # robot's last run mark on the issue names. Anything else there is
+          # someone's work and is never replaced; the lease holds that to the push.
+          mine=$(node scripts/keel/robot.mjs pushed --repo "$REPO" --issue "$ISSUE")
+          tip=$(git ls-remote origin "refs/heads/keel/robot-$ISSUE" | cut -f1)
+          if [ -n "$tip" ] && [ "$tip" != "$mine" ]; then
+            echo "::error::keel/robot-$ISSUE is at $tip, which the robot did not push (its last run pushed ${mine:-nothing}): someone else's work is there, so nothing is pushed. Delete the branch, or move that work elsewhere, for the robot to work #$ISSUE."
+            exit 1
+          fi
+          git push --force-with-lease="refs/heads/keel/robot-$ISSUE:$tip" origin "$head:refs/heads/keel/robot-$ISSUE"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
           num=$(gh pr list --state open --head "$BRANCH" --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository == false)][0].number // empty')
           if [ -z "$num" ]; then
             code=0
@@ -707,9 +718,10 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE: ${{ needs.agent.outputs.issue }}
           PR_URL: ${{ steps.pr.outputs.url }}
+          PUSHED: ${{ steps.pr.outputs.head }}
           JUDGE: ${{ needs.judge.outputs.judged }}
           READ: ${{ needs.agent.outputs.read }}
           SEEN: ${{ needs.agent.outputs.seen }}
           LINE: ${{ needs.judge.outputs.line }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/keel/robot.mjs post --repo "$REPO" --issue "$ISSUE" --message "$RUNNER_TEMP/run/message.md" --pr "$PR_URL" --judge "$JUDGE" --line "$LINE" --run "$RUN_URL" --read "$READ" --seen "$SEEN"
+        run: node scripts/keel/robot.mjs post --repo "$REPO" --issue "$ISSUE" --message "$RUNNER_TEMP/run/message.md" --pr "$PR_URL" --judge "$JUDGE" --line "$LINE" --run "$RUN_URL" --read "$READ" --seen "$SEEN" --head "$PUSHED"
