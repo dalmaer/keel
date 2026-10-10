@@ -59,7 +59,9 @@ is a projection; source files and GitHub keep their respective authority.
 [Phase 50](phases/50-project-life-on-isocan.md) tracks implementation and the
 real-project walk. Local snapshot/render and reviewed retro capture work now;
 the optional public-CLI adapter publishes immutable runs. Conditional updates,
-the stable live pulse and the deployed owner walk remain unproven. See the
+the stable live pulse and recovery/concurrent-edit proof remain unproven. The
+owner-approved private canvas has live Keel and fleet Loop editions; a weekly
+local report task is active, separate from the unproven GitHub night integration. See the
 [current command guide](guide/project-canvas.md) for supported behavior.
 
 ## The mechanisms
@@ -326,8 +328,10 @@ generate views from their owners, without another tracking system.
   was, and `keel update` carries only practice entries. What settled it: the
   dry run of a release after 0.5.2, whose changes were all keel-side, now
   reports the practice unchanged at 0.5.2 and leaves every project current.
-- **The isocan canvas.** Still an optional practice that comes in once two
-  projects have used it through keel, not before.
+- **The isocan canvas. Settled 2026-10-08:** optional source projections are
+  implemented and approved private immutable editions are live (phase 50).
+  Fleet Loop reporting keeps project identities and coverage separate; stable
+  conditional updates and sustained scheduled-use acceptance remain open.
 - **License.** **Settled 2026-10-03:** Apache-2.0, matching isocan, chosen when
   the owner decided keel goes public (phase 17). Adapted isocan material keeps
   its attribution in each file.

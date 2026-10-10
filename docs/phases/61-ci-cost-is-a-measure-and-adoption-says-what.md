@@ -20,7 +20,7 @@ The night reports each workflow's billable minutes for the last 7 days (each job
 The design is [Adopting projects that already have a practice](../research/2026-10-09-adopting-projects-that-ship-to-main.md), change 4.
 
 - **The measure** `ci_minutes`: from the Actions API (one REST call per run for its jobs' timing), each job rounded up to a whole minute and multiplied by its runner's rate (Linux 1, Windows 2, macOS 10; overridable), by workflow, for the last 7 days; bound `.keel/keel.json` `"ci": { "weeklyMinutes": N }`. keel's own workflows are listed apart, so the owner sees what keel costs.
-- **The gate, reused**: when `.keel/keel.json` names the project's CI workflow (`"ci": { "gateWorkflow": "ci.yml" }`), the night's `gate` measure reads that workflow's conclusion on the night's commit (or the newest on main) instead of running the check; it runs the check only when there is no such run.
+- **The gate, reused**: when `.keel/keel.json` names the project's CI workflow (`"ci": { "gateWorkflow": "ci.yml" }`), the night's `gate` measure reads that workflow's conclusion on the night's exact commit instead of running the check; it runs the check only when there is no such run.
 - **Adoption states it**: `keel adopt --dry-run` lists each workflow keel would add with its trigger and an estimate in billable minutes a month (from keel's own history of that workflow), and the total.
 
 ## Acceptance
@@ -53,7 +53,10 @@ Over time: a month's minutes against the estimate.
 ## Deliberately open
 
 - **Multipliers change**: GitHub's rates are configuration, not code; they are dated in the measure's detail.
-- **A gate run on another commit**: the newest main run may not be the night's commit. Its age is said; a gate older than a day is run again.
+- **Settled 2026-10-09: exact revision only.** A successful run on another
+  commit cannot validate this tree. Reuse only a completed run on the exact
+  commit, no older than a day, and never reuse it for a dirty tree. Otherwise
+  run the check. Pending runs and unavailable API data never mean success.
 
 ## Next action
 

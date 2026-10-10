@@ -111,8 +111,9 @@ Every run records the context an agent never has:
   slowed by a busy machine is said to be that, and is never counted as a
   slower test.
 - **Usual times.** Each test's median over its last ten passes, given to
-  the runner (`KEEL_USUAL`) so it can start the longest first. The gate
-  orders its files that way.
+  the runner (`KEEL_USUAL`) so runners can start the longest first. Keel keeps its current
+  ordering: the October 9 alternating experiment found no gain (phase 56
+  Trajectory). Usual times remain useful evidence, not an unproven optimization.
 - **Failure memory.** The first lines of what a test said each time it
   failed. A failure that matches an earlier flake says so up front. A test
   that ends differently on identical files was decided by something besides

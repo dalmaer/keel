@@ -1,11 +1,11 @@
 ---
 status: partial
-since: 2026-10-08
+since: 2026-10-09
 goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
-note: "Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Owner-approved remote walk, conditional live pulse and deployed night proof remain."
-evidence: ["evidence/2026-10-08-project-canvas.md"]
+note: "Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Approved private canvas and immutable dashboards are live; conditional live pulse, recovery/human-edit walk and deployed night proof remain."
+evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md"]
 ---
 
 # A project's isocan canvas shows what Keel improves
@@ -34,14 +34,12 @@ aggregation follows the per-project walk; no additional tracking authority.
 
 ## Your part
 
-- **Ask:** Choose where keel's project canvas lives on isocan (which home and which space), confirm that only you can see it, and allow keel to create it and write to it.
-- **Why:** Nothing is created on isocan until you approve; after that the conductor connects the canvas, runs the first sync, and checks it survives edits and a restart.
-- **Look at:** The first-connection rules in [the canvas spec](../specs/isocan-project-canvas.md).
-- **Choices:** Approve | Not yet
-- **Keeps it open:** Not yet
-- **Takes:** 5 minutes
-- **Then:** Approve: recorded; name the home and space in the note, and the conductor connects the canvas there, visible only to you, and records the walk. Not yet: recorded, and the walk stays open; nothing is created.
-- **Ready:** yes
+The owner approved the private destination and Keel writer on 2026-10-08;
+that decision is settled and must not be asked again. Canvas
+`prj_9CgFY5l-na`, private space `spc_JA2u7KSKSI`, writer `usr_FkZbi3ZGqT`.
+The weekly local report task is approved and active (Monday 08:00 Denver).
+GitHub night credentials and scheduled access are a separate, unprovisioned
+surface; prepare its concrete setup before requesting any new credential.
 
 ## Real surfaces
 
@@ -75,22 +73,23 @@ deployed integration.
   immutable runs, with durable pending receipts and unique-match recovery;
   never treat read/check/write as CAS. The stable live pulse, atomic publication
   and remote retention remain open requirements, not silently reduced scope.
-- Choose home/space/audience and retention in the owner walk. Do not assume
-  public sharing, credentials, quota or unlimited remote snapshot history.
+- **Settled 2026-10-08:** private home/space/audience and writer approved and used. Immutable editions retain history; automated retention remains open. No public sharing or GitHub night credentials are implied.
 - Historical retros and unsupported local variants may lack usable data. Show
   coverage gaps; do not backfill invented outcomes. Settle per adapter in slice 3.
 
 ## Next action
 
-Owner: approve the Keel identity and owner-only space/canvas on the selected
-home, then run the reviewed connection and immutable sync through Keel. Verify
-native groups, both faces, source links, human edits and restart recovery in the
-real UI. Separately establish a deployed conditional-edit contract before
-implementing the stable live pulse; provision and walk the existing night only
-with explicit scheduled-access approval. No scheduled publication is enabled.
+Verify interruption/restart recovery and preservation of human edits on the
+approved canvas; establish a deployed conditional-edit contract for a stable
+live pulse. Package/installation proof and the GitHub night credential/recovery
+walk remain. The approved weekly local automation is active; its first scheduled
+run and seven-night sustained-use proof are not yet observed. Do not ask for
+canvas destination or writer approval again.
 
 ## Trajectory
 
 - **2026-10-08** — isocan already supplies native groups and versioned source/visual items. Keel's retro is read-only, so outcome tracking requires explicit reviewed capture. A canvas remains a projection; its comments never accept source work.
 - **2026-10-08** — CLI inspection ruled out safe in-place updates. Immutable runs preserve human content and stop on ambiguous receipts; that mode does not satisfy the full live-pulse acceptance. The globally installed older CLI lacks native groups.
 - **2026-10-08** — A fresh night checkout loses ignored sync receipts. Restore the latest trusted canvas-enabled attempt, including failed attempts, and refuse missing state; restoring only successful attempts can duplicate an interrupted write.
+
+- **2026-10-09** — Reconciled the October 8 owner approval, live Keel and fleet Loop dashboards, durable acknowledged receipts and weekly local schedule. These prove immutable publication and interactive rendering, not conditional updates, restart recovery, or seven scheduled nights. See the reconciliation evidence.
