@@ -113,7 +113,7 @@ test('mutation: counting same-machine runs alone (any config) reads 0 for the mi
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
-  const from = 'const same = comparable(runs, newest).length;';
+  const from = "const same = comparable(runs, newest).filter(r => busyState(r) !== 'busy').length;";
   assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
   await writeFile(file, text.replace(from, 'const same = runs.filter(r => r !== newest && machineClass(r.machine) === machine).length;'));
   const mutant = await import(pathToFileURL(file).href);
@@ -198,7 +198,7 @@ async function acmeRepo(t, tests) {
 async function junitRun(dir, runner, xml) {
   await mkdir(join(dir, '.keel', 'test-runs'), { recursive: true });
   await writeFile(join(dir, JUNIT), xml);
-  const r = await readJunit({ runner, cwd: dir });
+  const r = await readJunit({ runner, cwd: dir, start: null, sample: async () => ({ load: [0, 0, 0], cores: 4 }) });
   assert.ok(!r.lines.some(l => /could not|not JUnit|already recorded/.test(l)), r.lines.join('\n'));
   return r;
 }
@@ -278,7 +278,7 @@ test('mutation: a ledger measure that returns 0 instead of n/a with too few runs
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
-  const guard = 'if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}` };';
+  const guard = 'if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}${busyNote(runs)}` };';
   assert.equal(text.split(guard).length, 3, 'both measures guard on the window');
   await writeFile(file, text.replaceAll(guard, 'if (runs.length < opts.window) return { value: 0, detail: \'fine\' };'));
   const mutant = await import(pathToFileURL(file).href);
@@ -326,4 +326,14 @@ test('proofs_hold\'s ledger half: a cited test that did not pass in the newest r
   assert.equal((await proofs()).value, 0, 'a narrowed run that left the cited test out says nothing about it');
   await record(dir, at('skip'));
   assert.equal((await proofs()).value, 0, 'a skip says nothing about it: the newest pass stands');
+});
+
+test('night reports busy omissions as unavailable rather than zero slow or flaky findings', async t => {
+  const dir = await acme(t, { window: 2 });
+  for (const outcome of ['pass', 'fail']) await record(dir, { tree: 'Acme', dirty: false, machine: MACHINE, date: new Date(Date.UTC(2026, 9, 1) + (minute++) * 60000).toISOString(), busy: { start: { load: [100], cores: 4 }, end: { load: [100], cores: 4 } }, tests: [{ file: 'a.test.mjs', name: 'Acme', outcome, ms: 1000 }] });
+  const data = await read(dir);
+  for (const id of LEDGER) {
+    assert.equal(byId(data, id).state, 'n/a');
+    assert.match(byId(data, id).detail, /2 busy runs omitted/);
+  }
 });

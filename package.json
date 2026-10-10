@@ -26,6 +26,6 @@
     "render": "node scripts/render.mjs --self",
     "render:check": "node scripts/render.mjs --self --check",
     "inbox:check": "node bin/keel.mjs learn render --check",
-    "check": "npm test && npm run roadmap:check && npm run render:check && npm run inbox:check"
+    "check": "node scripts/keel/test-ledger.mjs --run \"npm test && npm run roadmap:check && npm run render:check && npm run inbox:check\""
   }
 }

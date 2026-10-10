@@ -66,7 +66,7 @@ import {
   shapeOf, readProjectRecords, climbLine, readClimbNight, tendLine, readTendPass, climbRetiring, retireLine, budgetPasses, budgetUse, budgetLine, budgetOf, budgetRaw, budgetSince, BUDGET_RUNS, BUDGET_EXAMINE, BUDGET_HISTORY, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter, addDays, walk, gateWorkflowOf,
   reviewConfigOf, repoReviewArgs, prReviewArgs, graphqlData, readRepoReviews, unansweredPrs, windowPrs, sameLogin, IncompleteRead, REVIEW_DAYS, REVIEW_PRS, REVIEW_PAGES,
 } from './lib.mjs';
-import { RUNS, readRuns, testsConfigOf, flaky, slower, comparable, machineClass, lastOutcome, aloneCommand, nightOnly, NIGHT_ONLY } from './test-ledger.mjs';
+import { RUNS, readRuns, timedCommand, busyState, busyCoverage, busyNote, testsConfigOf, flaky, slower, comparable, machineClass, lastOutcome, aloneCommand, nightOnly, NIGHT_ONLY } from './test-ledger.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 /** The default health directory; a project's own is .keel/keel.json `health` (healthDirOf). */
@@ -277,16 +277,15 @@ async function notes(ctx, dir) {
 }
 
 /** The project's gate, run once: { command, status, tests, ms }. */
-const gateRun = ctx => once(ctx, 'gate', () => {
+const gateRun = ctx => once(ctx, 'gate', async () => {
   const command = ctx.config.check ?? CHECK;
-  const started = Date.now();
   // Never a test runner's context (lesson 14); the project's .keel/keel.json `env` over it.
-  const r = spawnSync(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config), shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
+  const r = await timedCommand(command, { cwd: ctx.root, env: gateEnv(ctx.env, ctx.config) });
   if (r.error) throw new Error(`could not run \`${command}\`: ${r.error.message}`);
   if (r.status === null) throw new Error(`\`${command}\` was killed (${r.signal}) before it finished`);
   const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
   const counts = [...out.matchAll(/^(?:ℹ|#) tests (\d+)$/gm)].map(m => Number(m[1]));
-  return { command, status: r.status, tests: counts.length ? counts.reduce((a, b) => a + b, 0) : null, ms: Date.now() - started };
+  return { command, status: r.status, tests: counts.length ? counts.reduce((a, b) => a + b, 0) : null, ms: r.ms };
 });
 
 /** gh, ready to read the project's repo, or a reason it is not. */
@@ -403,7 +402,7 @@ async function gateWorkflow(ctx) {
 }
 
 /** The test ledger's history and settings, read once; a bad .keel/keel.json "tests" is a broken instrument. */
-const ledgerHistory = ctx => once(ctx, 'ledger', async () => ({ opts: testsConfigOf(ctx.config), ...await readRuns(ctx.root) }));
+const ledgerHistory = ctx => once(ctx, 'ledger', async () => { const history = await readRuns(ctx.root); return { opts: testsConfigOf(ctx.config), ...history, runs: history.runs.filter(r => r.kind !== 'gate') }; });
 const tooFew = (n, window, what = `recorded runs in ${RUNS}`) => `${what}: ${n}, fewer than the window of ${window}; n/a until there are ${window} (the gate's own runs and CI's keel-test-runs artifacts fill it), never a zero`;
 const named = t => `${t.file} "${t.name}"`;
 /** The ledger measures' note when the history is the nights' own: CI's check does not keep its runs. */
@@ -753,15 +752,16 @@ export const MEASURES = [
     id: 'flaky_tests', what: 'tests that both passed and failed on one clean tree, in the newest window of recorded runs (the test ledger)', unit: 'tests', bound: 0, better: 'lower', ratchet: false,
     async run(ctx) {
       const { opts, runs, skipped } = await ledgerHistory(ctx);
-      if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}` };
+      if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}${busyNote(runs)}` };
       const recent = runs.slice(-opts.window);
+      if (recent.filter(r => busyState(r) !== 'busy').length < opts.window) return { na: `too few recent runs after busy filtering${busyNote(recent)}` };
       const found = flaky(recent);
       const trees = new Set(recent.filter(r => r.dirty === false && r.tree).map(r => r.tree)).size;
       return {
         value: found.length,
-        detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${opts.window} of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}${nightNote(runs)}`,
+        detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${opts.window} of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}${nightNote(runs)}${busyNote(recent)}`,
         // A bun or vitest finding carries its runner, so the run-alone command is that runner's (phase 59).
-        facts: { flaky: found.map(({ file, name, describe, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, ...(describe ? { describe } : {}), tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
+        facts: { coverage: busyCoverage(recent), flaky: found.map(({ file, name, describe, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, ...(describe ? { describe } : {}), tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
       };
     },
   },
@@ -769,16 +769,17 @@ export const MEASURES = [
     id: 'slow_tests', what: 'tests in the newest recorded run above factor × their median over the last window passing runs on the same machine class and config, and above the floor (the test ledger)', unit: 'tests', bound: 0, better: 'lower', ratchet: false,
     async run(ctx) {
       const { opts, runs } = await ledgerHistory(ctx);
-      if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}` };
+      if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}${busyNote(runs)}` };
       const newest = runs.at(-1), machine = machineClass(newest.machine);
       // The baseline slower() judges against: the same machine class AND config. Fewer is n/a, never a zero.
-      const same = comparable(runs, newest).length;
-      if (same < opts.window) return { na: `${tooFew(same, opts.window, `earlier recorded runs on ${machine} under config ${newest.config ?? 'none'}`)}${nightNote(runs)}` };
+      if (busyState(newest) === 'busy') return { na: `newest run was busy${busyNote(runs)}` };
+      const same = comparable(runs, newest).filter(r => busyState(r) !== 'busy').length;
+      if (same < opts.window) return { na: `${tooFew(same, opts.window, `earlier recorded runs on ${machine} under config ${newest.config ?? 'none'}`)}${nightNote(runs)}${busyNote(runs)}` };
       const found = slower(runs, opts, newest);
       return {
         value: found.length,
-        detail: `${found.length ? list(found.map(t => `${named(t)} ${Math.round(t.ms)} ms against ${t.median} ms`), 3) : 'none'}; the newest run (${newest.date}) against ${opts.window} before it on ${machine} under config ${newest.config ?? 'none'}; ×${opts.factor} and +${opts.floorMs} ms${nightNote(runs)}`,
-        facts: { slower: found, factor: opts.factor, floorMs: opts.floorMs, window: opts.window, machine },
+        detail: `${found.length ? list(found.map(t => `${named(t)} ${Math.round(t.ms)} ms against ${t.median} ms`), 3) : 'none'}; the newest run (${newest.date}) against ${opts.window} before it on ${machine} under config ${newest.config ?? 'none'}; ×${opts.factor} and +${opts.floorMs} ms${nightNote(runs)}${busyNote(runs)}`,
+        facts: { coverage: busyCoverage(runs), slower: found, factor: opts.factor, floorMs: opts.floorMs, window: opts.window, machine },
       };
     },
   },

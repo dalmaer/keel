@@ -1,0 +1,322 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { run } from './helpers/run.mjs';
+import { timeSummary, keelTime, workedAround, testIdentities } from '../lib/time.mjs';
+import { timedCommand, readRuns } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+const quiet = { start: { load: [1, 1, 1], cores: 4 }, end: { load: [2, 2, 2], cores: 4 } };
+const machine = { os: 'linux', arch: 'x64', cpus: 4 };
+const at = (date, extra = {}) => ({ date, dir: '.', machine, config: 'acme', tests: [{ file: 'a.test.mjs', name: 'Acme ships', outcome: 'pass', ms: 10 }], busy: quiet, ...extra });
+async function scratch(t) { const p = await mkdtemp(join(tmpdir(), 'keel-time-')); t.after(() => rm(p, { recursive: true, force: true })); return p; }
+
+test('weeks separate full gates, subsets, machines and configs; no duration is fabricated', () => {
+  const runs = [at('2026-09-28T12:00:00Z', { wallMs: 9999 }), at('2026-10-05T12:00:00Z'),
+    at('2026-10-06T12:00:00Z', { kind: 'gate', runner: 'gate', ms: 100, tests: [] }),
+    at('2026-10-07T12:00:00Z', { kind: 'gate', runner: 'gate', ms: 300, tests: [] }),
+    at('2026-10-07T12:00:00Z', { config: 'other', tests: [{ file: 'a.test.mjs', name: 'Acme ships', outcome: 'pass', ms: 1000 }] }),
+    at('2026-10-08T12:00:00Z', { machine: { ...machine, cpus: 8 }, busy: undefined })];
+  const data = timeSummary(runs, { weeks: 3, now: Date.parse('2026-10-09T00:00:00Z') });
+  assert.deepEqual(data.weeks.map(w => w.week), ['2026-09-21', '2026-09-28', '2026-10-05']);
+  assert.deepEqual(data.coverage.missingWeeks, ['2026-09-21']);
+  assert.equal(data.weeks[1].lanes[0].gateMs, null);
+  assert.equal(data.weeks[2].lanes.find(l => l.kind === 'gate').gateMs, 200);
+  assert.equal(data.weeks[2].lanes.length, 4);
+  assert.equal(data.coverage.unknown, 1);
+  assert.match(data.coverage.note, /retention/);
+});
+
+test('wrapper provides KEEL_USUAL before runner starts and records the whole command, with its exit status', async t => {
+  const root = await scratch(t);
+  await writeFile(join(root, 'runner.mjs'), `import {readFileSync} from 'node:fs'; const data = JSON.parse(readFileSync(process.env.KEEL_USUAL)); console.log(JSON.stringify({version:data.version, tests:data.tests})); process.exitCode=7;`);
+  const result = await timedCommand('node runner.mjs', { cwd: root });
+  assert.equal(result.status, 7);
+  assert.equal(JSON.parse(result.stdout).version, 1);
+  const { runs } = await readRuns(root, undefined, { gates: true });
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].kind, 'gate');
+  assert.equal(runs[0].status, 7);
+  assert.ok(runs[0].ms >= 0);
+  assert.ok(runs[0].busy.start.cores > 0);
+  assert.ok(runs[0].busy.end.cores > 0);
+  const report = await keelTime({ root, env: { CI: 'true' } });
+  assert.equal(report.data.coverage.gateRuns, 1);
+  assert.equal(report.data.workedAround.available, false);
+});
+
+test('fixture Claude transcript reports timeout/background/interrupt counts, no content, no writes; CI reads nothing', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const timestamp = '2026-10-09T00:00:00Z';
+  const row = content => JSON.stringify({ timestamp, cwd: root, message: { content } });
+  const raw = [row([{ type: 'tool_use', id: 'a', name: 'Bash', input: { command: 'npm test # private text', timeout: 120000 } }]),
+    row([{ type: 'tool_use', id: 'b', name: 'Bash', input: { command: 'node --test a.test.mjs', run_in_background: true } }]),
+    row([{ type: 'tool_result', tool_use_id: 'a', is_error: true, content: 'interrupted by user' }]),
+    row([{ type: 'tool_use', id: 'c', name: 'Bash', input: { command: 'echo private', timeout: 500000 } }]), '{bad'].join('\n');
+  await writeFile(join(dir, 'acme.jsonl'), raw);
+  const before = await readdir(dir);
+  const got = await workedAround({ root, home, env: {} });
+  assert.deepEqual(got.counts, { longTimeout: 1, background: 1, interrupted: 1, workedAround: 2 });
+  assert.equal(got.skipped, 1);
+  assert.equal(got.coverage.state, 'partial');
+  assert.equal(got.coverage.observedRecords, 4);
+  assert.deepEqual(got.identities.map(i => [i.kind, i.id, i.counts.workedAround]), [['script', 'test', 1], ['file', 'a.test.mjs', 1]]);
+  assert.doesNotMatch(JSON.stringify(got), /private|npm test/);
+  assert.deepEqual(await readdir(dir), before);
+  assert.equal(await readFile(join(dir, 'acme.jsonl'), 'utf8'), raw);
+  const ci = await workedAround({ root, home, env: { CI: 'true' } });
+  assert.equal(ci.reason, 'disabled in CI');
+  assert.equal(ci.counts, null);
+  assert.equal((await workedAround({ root: join(home, 'other'), home, env: {} })).available, false);
+});
+
+test('public time command returns JSON and validates its week window', async t => {
+  const root = await scratch(t);
+  await mkdir(join(root, '.keel'));
+  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  const cli = resolve('bin/keel.mjs');
+  const r = run(process.execPath, [cli, 'time', '--weeks', '2', '--json'], { cwd: root, env: { ...process.env, CI: 'true' } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).weeks.length, 2);
+  const bad = run(process.execPath, [cli, 'time', '--weeks', '0', '--json'], { cwd: root });
+  assert.equal(bad.status, 2);
+  assert.match(JSON.parse(bad.stdout).error, /weeks/);
+});
+
+
+test('worked-around identities retain only safe test paths or known test/check scripts', () => {
+  assert.deepEqual(testIdentities('node --test tests/acme.test.mjs --token=fake-private'), [{ kind: 'file', id: 'tests/acme.test.mjs' }]);
+  assert.deepEqual(testIdentities('npm test && echo private.test.mjs'), [{ kind: 'script', id: 'test' }]);
+  assert.deepEqual(testIdentities('npm run test:unit --secret fake-private', new Set(['test:unit'])), [{ kind: 'script', id: 'test:unit' }]);
+  for (const command of ['node --test /private/acme.test.mjs', 'node --test ../other/acme.test.mjs', 'node --test --name=fake-private', 'npm run test:unknown', 'node --test tests/../../acme.test.mjs', 'cd /private && node --test private.test.mjs', 'node --test --secret private.test.mjs', 'echo private.test.mjs && npm test']) {
+    assert.deepEqual(testIdentities(command), [{ kind: 'unknown', id: null }]);
+  }
+});
+
+test('nested gate wrappers record only the outer boundary', async t => {
+  const root = await scratch(t);
+  const ledger = new URL('../practices/night/files/scripts/keel/test-ledger.mjs', import.meta.url).href;
+  await writeFile(join(root, 'inner.mjs'), `import {timedCommand} from ${JSON.stringify(ledger)}; const result = await timedCommand('node -e "console.log(123)"'); process.stdout.write(result.stdout); process.exitCode=result.status;`);
+  const result = await timedCommand('node inner.mjs', { cwd: root });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '123');
+  assert.equal((await readRuns(root, undefined, { gates: true })).runs.length, 1);
+  assert.equal((await readRuns(root)).runs.length, 0, 'gate records never displace a test baseline');
+});
+
+test('wrapped JUnit records start/end context; standalone import admits missing start', async t => {
+  const root = await scratch(t);
+  const ledger = new URL('../practices/night/files/scripts/keel/test-ledger.mjs', import.meta.url).href;
+  await writeFile(join(root, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.01"/></testsuite></testsuites>');
+  await writeFile(join(root, 'import.mjs'), `import {junitRun} from ${JSON.stringify(ledger)}; const r = await junitRun({junit:'acme.xml'}); process.exitCode=r.code;`);
+  const result = await timedCommand('node import.mjs', { cwd: root });
+  assert.equal(result.status, 0, result.stderr);
+  const { runs } = await readRuns(root);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].runner, 'vitest');
+  assert.ok(runs[0].busy.start.at);
+  assert.ok(runs[0].busy.end.at);
+  assert.equal(runs[0].busy.unavailable, null);
+  await writeFile(join(root, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.02"/></testsuite></testsuites>');
+  const { junitRun } = await import(ledger);
+  await junitRun({ cwd: root, junit: 'acme.xml', start: null });
+  const last = (await readRuns(root)).runs.at(-1);
+  assert.equal(last.busy.start, null);
+  assert.match(last.busy.unavailable, /start was not captured/);
+});
+
+
+test('all unavailable transcript inputs have null counts; observed zero and partial coverage differ', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  for (const input of ['{broken', '{}', 'null', ' '.repeat(4097)]) {
+    await writeFile(join(dir, 'acme.jsonl'), input);
+    const got = await workedAround({ root, home, env: {}, limits: { maxRowBytes: 4096 } });
+    assert.equal(got.available, false);
+    assert.equal(got.counts, null);
+    assert.equal(got.identities, null);
+    assert.equal(got.coverage.state, 'unavailable');
+  }
+  await rm(join(dir, 'acme.jsonl'));
+  await mkdir(join(dir, 'unreadable.jsonl')); // reading a directory fails, also under root
+  assert.equal((await workedAround({ root, home, env: {} })).counts, null);
+  const valid = JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', message: { content: [] } });
+  await writeFile(join(dir, 'acme.jsonl'), valid);
+  const partial = await workedAround({ root, home, env: {} });
+  assert.equal(partial.coverage.state, 'partial');
+  assert.equal(partial.counts.workedAround, 0);
+  await rm(join(dir, 'unreadable.jsonl'), { recursive: true });
+  const complete = await workedAround({ root, home, env: {} });
+  assert.equal(complete.coverage.state, 'observed');
+  assert.equal(complete.counts.workedAround, 0);
+  assert.equal((await workedAround({ root, home, env: {}, since: Date.parse('2026-10-10') })).counts, null);
+});
+
+test('nested projects keep their gates out of the enclosing Git ledger; historical non-root gates remain explicit exclusions', async t => {
+  const root = await scratch(t), child = join(root, 'fixtures', 'acme');
+  const init = run('git', ['init', '-q', root]); assert.equal(init.status, 0);
+  await mkdir(child, { recursive: true });
+  const result = await timedCommand('node -e ""', { cwd: child });
+  assert.equal(result.status, 0);
+  assert.equal((await readRuns(root, undefined, { gates: true })).runs.length, 0);
+  const records = (await readRuns(child, undefined, { gates: true })).runs;
+  assert.equal(records.length, 1);
+  assert.equal(records[0].dir, '.');
+  assert.equal(records[0].gateSource, 'explicit-command');
+  const old = at('2026-10-09T00:00:00Z', { kind: 'gate', dir: 'fixtures/acme', tests: [], ms: 100 });
+  const summary = timeSummary([old], { now: Date.parse('2026-10-10') });
+  assert.equal(summary.coverage.gateRuns, 0);
+  assert.equal(summary.coverage.excludedGates[0].dir, 'fixtures/acme');
+  assert.ok(summary.weeks.every(w => w.lanes.every(l => l.kind !== 'gate')));
+  assert.equal(old.ms, 100, 'historical observation is not mutated');
+});
+
+
+test('transcripts exclude quoted test mentions and unverified cwd changes instead of counting unknown tests', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const row = (id, command, cwd = root) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } });
+  await writeFile(join(dir, 'acme.jsonl'), [row('a', 'echo "npm test"'), row('b', 'cd /other/acme && npm test')].join('\n'));
+  const rejected = await workedAround({ root, home, env: {} });
+  assert.equal(rejected.counts.longTimeout, 0);
+  assert.equal(rejected.counts.workedAround, 0);
+  assert.deepEqual(rejected.identities, []);
+  assert.equal(rejected.coverage.state, 'partial');
+  assert.equal(rejected.coverage.commandOmissions, 1);
+  await writeFile(join(dir, 'acme.jsonl'), [row('c', 'node --test'), row('d', 'npm test', join(home, 'other')), row('e', 'node -e "console.log(123)"'), row('f', 'npm run check')].join('\n'));
+  const actual = await workedAround({ root, home, env: {} });
+  assert.equal(actual.counts.workedAround, 2);
+  assert.deepEqual(actual.identities.map(i => [i.kind, i.id]), [['unknown', null], ['script', 'check']]);
+  assert.equal(actual.coverage.state, 'partial');
+  await writeFile(join(dir, 'acme.jsonl'), JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', message: { content: [{ type: 'tool_use', name: 'Bash', id: 'no-cwd', input: { command: 'npm test', timeout: 120000 } }] } }));
+  const unknownCwd = await workedAround({ root, home, env: {} });
+  assert.equal(unknownCwd.counts.workedAround, 0);
+  assert.equal(unknownCwd.coverage.commandOmissions, 1);
+});
+
+
+test('transcripts respect runner boundaries and reject outside targets or project-changing options before assigning unknown identity', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const row = (command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } });
+  const rejected = ['node helper.mjs --test', 'node --test /other/acme.test.mjs', 'node --test ../other/acme.test.mjs', 'node --test tests/acme.test.mjs /other/acme.test.mjs', 'node --test tests/',
+    ...['--prefix', '--cwd', '--dir', '-C'].flatMap(flag => [`npm test ${flag} /other/acme`, `npm test ${flag}=/other/acme`]),
+    'npm test -C/other/acme', 'npm test --workspace other', 'vitest --root /other/acme'];
+  await writeFile(join(dir, 'acme.jsonl'), rejected.map(row).join('\n'));
+  const excluded = await workedAround({ root, home, env: {} });
+  assert.equal(excluded.counts.longTimeout, 0);
+  assert.equal(excluded.counts.workedAround, 0);
+  assert.deepEqual(excluded.identities, []);
+  assert.equal(excluded.coverage.commandOmissions, rejected.length);
+  await writeFile(join(dir, 'acme.jsonl'), ['node --test', 'node --test tests/acme.test.mjs', 'node --test --test-name-pattern Acme custom.mjs'].map(row).join('\n'));
+  const accepted = await workedAround({ root, home, env: {} });
+  assert.equal(accepted.counts.workedAround, 3);
+  assert.deepEqual(accepted.identities.map(i => [i.kind, i.id]), [['unknown', null], ['file', 'tests/acme.test.mjs'], ['file', 'custom.mjs']]);
+  assert.equal(accepted.coverage.commandOmissions, 0);
+});
+
+
+test('streamed transcripts skip oversized rows, bound total bytes and rows, and preserve only observed summaries', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const row = id => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command: 'npm test', timeout: 120000 } }] } });
+  const first = row('a'), second = row('b');
+  await writeFile(join(dir, 'acme.jsonl'), first + '\n' + 'x'.repeat(130000) + '\n' + second);
+  const complete = await workedAround({ root, home, env: {}, limits: { maxRowBytes: 2048 } });
+  assert.equal(complete.counts.workedAround, 2);
+  assert.equal(complete.coverage.oversizedRows, 1);
+  assert.equal(complete.coverage.truncated, false);
+  assert.equal(complete.coverage.state, 'partial');
+  assert.equal(complete.coverage.rowsRead, 3);
+  assert.equal(complete.coverage.bytesRead, Buffer.byteLength(first + '\n' + 'x'.repeat(130000) + '\n' + second));
+  const byteCut = await workedAround({ root, home, env: {}, limits: { maxBytes: Buffer.byteLength(first) + 20, maxRowBytes: 2048 } });
+  assert.equal(byteCut.counts.workedAround, 1);
+  assert.equal(byteCut.coverage.bytesRead, Buffer.byteLength(first) + 20);
+  assert.equal(byteCut.coverage.truncatedRows, 1);
+  assert.equal(byteCut.coverage.truncated, true);
+  assert.equal(byteCut.coverage.state, 'partial');
+  await writeFile(join(dir, 'acme.jsonl'), first + '\n' + second + '\n');
+  await writeFile(join(dir, 'later.jsonl'), row('c'));
+  const rowCut = await workedAround({ root, home, env: {}, limits: { maxRows: 1 } });
+  assert.equal(rowCut.counts.workedAround, 1);
+  assert.equal(rowCut.coverage.rowsRead, 1);
+  assert.equal(rowCut.coverage.omittedFiles, 1);
+  assert.equal(rowCut.coverage.truncated, true);
+  const noObservation = await workedAround({ root, home, env: {}, limits: { maxBytes: 10 } });
+  assert.equal(noObservation.counts, null);
+  assert.equal(noObservation.coverage.truncated, true);
+  // CI returns before reading files or even validating injected limits.
+  assert.equal((await workedAround({ root, home, env: { CI: 'true' }, limits: { maxBytes: 0 } })).reason, 'disabled in CI');
+  assert.doesNotMatch(JSON.stringify(complete), /xxxx|npm test/);
+});
+
+
+test('CLI reports absent gate timing as unavailable and excludes negative durations from medians', async t => {
+  const root = await scratch(t), date = new Date().toISOString();
+  await mkdir(join(root, '.keel', 'test-runs'), { recursive: true });
+  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  const gate = { kind: 'gate', dir: '.', tests: [], date, machine, config: 'acme' };
+  await writeFile(join(root, '.keel', 'test-runs', 'missing.json'), JSON.stringify(gate));
+  await writeFile(join(root, '.keel', 'test-runs', 'negative.json'), JSON.stringify({ ...gate, ms: -100 }));
+  const cli = resolve('bin/keel.mjs');
+  const shown = run(process.execPath, [cli, 'time', '--weeks', '1'], { cwd: root, env: { ...process.env, CI: 'true' } });
+  assert.equal(shown.status, 0, shown.stderr);
+  assert.match(shown.stdout, /gate unavailable/);
+  assert.doesNotMatch(shown.stdout, /gate (?:0|-100) ms/);
+  assert.equal((await keelTime({ root, weeks: 1, env: { CI: 'true' } })).data.weeks[0].lanes[0].gateMs, null);
+  await writeFile(join(root, '.keel', 'test-runs', 'valid.json'), JSON.stringify({ ...gate, ms: 100 }));
+  assert.equal((await keelTime({ root, weeks: 1, env: { CI: 'true' } })).data.weeks[0].lanes[0].gateMs, 100);
+});
+
+
+test('transcripts count only the leading validated invocation before quote-aware output and list boundaries', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const row = (command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } });
+  const accepted = ['npm test 2>&1 | tail -n 20', 'node --test tests/acme.test.mjs > /tmp/acme.log',
+    'node --test --test-name-pattern "Acme | rockets > crates" tests/acme.test.mjs >> "/tmp/acme log" 2>&1',
+    'npm test && npm run check', 'npm run check; node --test private.test.mjs'];
+  const rejected = ['echo "npm test 2>&1 | tail"', 'cd /other/acme && npm test', 'env ACME=1 npm test | tail',
+    'npm test --prefix /other/acme | tail', 'node --test /other/acme.test.mjs > /tmp/acme.log',
+    'node helper.mjs --test | tail', 'npm test > /tmp/acme.log --prefix /other/acme',
+    'node --test > /tmp/acme.log /other/acme.test.mjs', 'npm test "unterminated > /tmp/acme.log'];
+  await writeFile(join(dir, 'acme.jsonl'), [...accepted, ...rejected].map(row).join('\n'));
+  const result = await workedAround({ root, home, env: {} });
+  assert.equal(result.counts.workedAround, accepted.length);
+  assert.equal(result.coverage.recognizedTestInvocations, accepted.length);
+  assert.equal(result.coverage.ignoredTails, accepted.length);
+  assert.equal(result.coverage.state, 'partial');
+  assert.deepEqual(result.identities.map(i => [i.kind, i.id, i.counts.workedAround]), [['script', 'test', 2], ['file', 'tests/acme.test.mjs', 2], ['script', 'check', 1]]);
+  assert.doesNotMatch(JSON.stringify(result), /private.test|acme.log|tail -n|rockets/);
+});
+
+
+test('transcript interruption uses structured status or an explicit tool error, never test stdout', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const row = (content, extra = {}) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root, message: { content }, ...extra });
+  const use = id => row([{ type: 'tool_use', id, name: 'Bash', input: { command: 'npm test', timeout: 1000 } }]);
+  const output = '✔ interrupted requests are cancelled safely\nℹ tests 1\nℹ pass 1\nℹ cancelled 0';
+  const lines = [
+    use('completed'), row([{ type: 'tool_result', tool_use_id: 'completed', content: output }]),
+    use('actual'), row([{ type: 'tool_result', tool_use_id: 'actual', content: 'stopped' }], { toolUseResult: { interrupted: true } }),
+    use('false-status'), row([{ type: 'tool_result', tool_use_id: 'false-status', is_error: true, content: 'interrupted by user' }], { toolUseResult: { interrupted: false } }),
+    use('explicit-error'), row([{ type: 'tool_result', tool_use_id: 'explicit-error', is_error: true, content: '[Request interrupted by user for tool use]' }]),
+    use('failing-test'), row([{ type: 'tool_result', tool_use_id: 'failing-test', is_error: true, content: output }]),
+    use('plain-stdout'), row([{ type: 'tool_result', tool_use_id: 'plain-stdout', content: 'interrupted by user' }]),
+  ];
+  await writeFile(join(dir, 'acme.jsonl'), lines.join('\n'));
+  const got = await workedAround({ root, home, env: {} });
+  assert.equal(got.coverage.recognizedTestInvocations, 6);
+  assert.deepEqual(got.counts, { longTimeout: 0, background: 0, interrupted: 2, workedAround: 2 });
+  assert.equal(got.identities[0].counts.interrupted, 2);
+  assert.doesNotMatch(JSON.stringify(got), /cancelled safely|stopped|ℹ/);
+});

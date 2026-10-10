@@ -759,3 +759,19 @@ test('under the quota floor the board\'s reviews are n/a, saving the quota, and 
     assert.equal(await gh.reads(), 2);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('week strip shows gate timing and missing coverage without substituting test duration', () => {
+  const data = { ...structuredClone(synthetic), timing: { weeks: [
+    { week: '2026-09-28', lanes: [{ kind: 'tests', gateMs: null, tests: [{ median: 99999 }] }] },
+    { week: '2026-10-05', lanes: [{ kind: 'gate', machine: 'linux-x64-4cpu', gateMs: 1234 }, { kind: 'gate', machine: 'missing', gateMs: null }, { kind: 'gate', machine: 'invalid', gateMs: -10 }] },
+  ], coverage: { note: 'Retained observations only; missing weeks are unavailable.' } } };
+  const html = pageHtml(data, 'acme-token');
+  assert.match(html, /Gate wall time by week/);
+  assert.match(html, /1234 ms/);
+  assert.match(html, /missing: Unavailable/);
+  assert.match(html, /invalid: Unavailable/);
+  assert.doesNotMatch(html, /(?:missing|invalid): (?:0|-10) ms/);
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /99999 ms/);
+  assert.match(html, /missing weeks are unavailable/);
+});

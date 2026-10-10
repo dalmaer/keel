@@ -201,3 +201,32 @@ note. Merging it is safe: it is data, and the drain would merge it anyway.
   finds.
 - [`practices/night/README.md`](../../practices/night/README.md): the
   practice's full argument.
+
+## Where time goes
+
+`keel time --weeks 8` reads the retained ledger; `--json` includes weekly
+medians isolated by machine, config and runner, usual times, failure memory,
+and missing coverage. Node suite timing is never called full-gate timing.
+Keel’s `npm run check` and the night measure the entire configured gate,
+without changing its command order. Nested wrappers record only the outer gate. Locally, use
+`node scripts/keel/test-ledger.mjs --gate` to record that same boundary.
+Do not put this wrapper inside the configured check itself (that recurses).
+
+The wrapper supplies `KEEL_USUAL` before the runner starts: a JSON file in
+`.keel/test-runs/usual`, with each test's last-ten-pass median and its lane.
+Keel's own runner ordering stays unchanged. Runs with load above cores are
+omitted from flaky/slow findings; missing load context is explicitly unknown.
+Linux records CPU pressure totals and their delta; other platforms report it
+unavailable. Standalone JUnit imports cannot recover the run's start load.
+
+Locally only, Claude Code's project transcripts provide aggregate counts of
+test commands given ≥120-second timeouts, background runs, or interruptions.
+Only repo-relative test paths or known test/check script names and counts are
+reported, with an unknown-identity bucket. No command text is exported. CI never reads transcripts. Retention can leave
+holes in the requested weeks; the report names them rather than inventing
+history. See `keel --agent-help time` for the JSON contract.
+
+Gate reports and the board show only root-project gates (`dir: "."`).
+Historical subproject gates stay on disk and appear as explicit exclusions.
+Transcript counts are null when no valid records were observed in the window;
+partial coverage retains observed counts and names omissions.

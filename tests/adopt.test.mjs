@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { load, fill, wanted } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
 import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, HEADING, REPORT } from '../lib/adopt.mjs';
-import { testsConfigProblems } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { testsConfigProblems, readRuns, busyCoverage, hygiene } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -614,10 +614,32 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   assert.doesNotMatch(r.stdout, /after/);
   r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '0' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  // Failed, then passed, on one clean tree: the hygiene block names it, with bun's command to run it alone; a note, never a red gate.
-  assert.match(r.stdout, /^keel test ledger: 2 hygiene items \(2 runs in \.keel\/test-runs\)\./m);
-  assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
-  assert.match(r.stdout, /bun test a\.test\.ts -t '\^ \?fails on purpose\$'\nafter\n$/);
+  // The integration keeps the machine's actual load and discloses omitted/unknown
+  // observations. A busy endpoint disqualifies that run from a flake finding.
+  const { runs } = await readRuns(dir);
+  assert.equal(runs.length, 2);
+  const coverage = busyCoverage(runs);
+  assert.ok(r.stdout.includes(`2 runs in .keel/test-runs; ${coverage.omitted} busy runs omitted; ${coverage.unknown} runs with unavailable load context (not known quiet)`));
+  if (coverage.omitted) {
+    assert.match(r.stdout, /^keel test ledger: no flaky or slower test /m);
+    assert.doesNotMatch(r.stdout, /^ {2}(?:flaky|slower) /m);
+  } else {
+    assert.match(r.stdout, /^keel test ledger: 2 hygiene items /m);
+    assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
+  }
+  assert.match(r.stdout, /\nafter\n$/);
+  // Unit evidence is deterministic: both samples are explicitly quiet, with no
+  // dependence on the host's load or elapsed time. Never rewrite saved samples.
+  const quiet = { load: [0, 0, 0], cores: 2 };
+  const synthetic = runs.map(record => ({ ...record, busy: { start: quiet, end: quiet } }));
+  const notes = hygiene(synthetic).join('\n');
+  assert.match(notes, /^keel test ledger: 2 hygiene items /m);
+  assert.match(notes, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
+  assert.ok(notes.includes("bun test a.test.ts -t '^ ?fails on purpose$'"));
+  const busy = { load: [3, 0, 0], cores: 2 };
+  const omitted = hygiene(synthetic.map(record => ({ ...record, busy: { start: quiet, end: busy } }))).join('\n');
+  assert.match(omitted, /^keel test ledger: no flaky or slower test /m);
+  assert.match(omitted, /2 busy runs omitted/);
   r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '1' });
   assert.equal(r.status, 1, 'a failure bun left out of its JUnit (a file that would not load) still fails the gate');
   r = sh({ ACME_JUNIT: '', ACME_EXIT: '0' });

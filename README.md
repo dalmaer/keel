@@ -167,6 +167,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel render` | Write the practices onto the project; `--check` only compares |
 | `keel doctor` | What the project changed of keel's files, and practice rules broken. Changes nothing without `--fix` |
 | `keel improve` | Is the practice working here? Measures against bounds, one proposal; `--report` writes the health page |
+| `keel time [--weeks N]` | Retained weekly gate/test timing, load coverage, failure memory and local worked-around test summaries |
 | `keel test <file> --stalls` | Run test files paused at random moments, and without; name each test that judges the wall clock rather than the code |
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
 | `keel lessons` | Send what this project learned home to keel |
@@ -227,3 +228,6 @@ ported to ledger, then to duo and cajones. Keel adapts isocan's conduct skill
 and its measurement ideas under Apache-2.0, and credits them in
 [NOTICE](NOTICE) and in each adapted file's header. Keel itself is
 Apache-2.0.
+
+`keel time --weeks 8 --json` shows retained gate/test timing, machine load
+coverage and local worked-around counts. [Timing and the night](docs/guide/the-night-shift.md).

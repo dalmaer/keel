@@ -30,8 +30,8 @@
 // nothing. A narrowed run never does this.
 //
 // A record: { commit, tree, dirty, machine: { os, arch, cpus }, node, dir,
-// config, setting: { env, preload }, flags, filtered?, date, tests: [{ file, name,
-// outcome, ms, inconclusive? }] } for each top-level test. `flags` are the
+// config, setting: { env, preload }, flags, filtered?, date, busy, wallMs, tests: [{ file, name,
+// outcome, ms, inconclusive?, error? }] } for each top-level test. `flags` are the
 // node flags a rerun of the suite carries (preloads, conditions, setup; not
 // in the config hash, so lanes stay as they were). An outcome is pass,
 // fail, skip, todo, or inconclusive: a passing test that said
@@ -101,12 +101,12 @@
 //
 // Adapted ideas, not code: isocan's test profile and shard weights, and
 // nerd's pass history (docs/research/2026-10-06-spec-rigor.md).
-import { readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, readdir, writeFile, mkdir, rm, rename } from 'node:fs/promises';
 import { realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
-import { platform, arch, availableParallelism } from 'node:os';
+import { platform, arch, availableParallelism, loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 export const RUNS = '.keel/test-runs';
@@ -183,6 +183,107 @@ export function flagsIn(words) {
 /** The node flags a run of the suite carries over to a stalled one: all but the run's own (files, names, reporters, time limit). */
 export const runnerFlags = words => flagsIn(words).filter(f => !DROPPED.has(f.name)).flatMap(f => f.words);
 
+// ---- machine context and failure memory --------------------------------------
+
+/** Linux PSI totals are microseconds of contention, not CPU utilization. */
+export function pressureOf(text) {
+  const out = {};
+  for (const line of text.trim().split('\n')) {
+    const [kind, ...fields] = line.split(/\s+/);
+    if (!['some', 'full'].includes(kind)) continue;
+    const values = Object.fromEntries(fields.map(f => f.split('=' )).map(([k, v]) => [k, Number(v)]));
+    if (Number.isFinite(values.total)) out[kind] = values;
+  }
+  return Object.keys(out).length ? out : null;
+}
+export async function busySample({ os = platform(), load = loadavg, cores = availableParallelism, read = readFile } = {}) {
+  let pressure = null;
+  if (os === 'linux') {
+    try { pressure = pressureOf(await read('/proc/pressure/cpu', 'utf8')); } catch { /* explicitly unavailable */ }
+  }
+  return { at: new Date().toISOString(), load: load(), cores: cores(), pressure,
+    pressureSource: pressure ? '/proc/pressure/cpu' : null };
+}
+export function busyBetween(start, end) {
+  const delta = start?.pressure && end?.pressure && start.pressureSource === end.pressureSource
+    ? Object.fromEntries(Object.keys(end.pressure).filter(k => start.pressure[k] && end.pressure[k].total >= start.pressure[k].total)
+      .map(k => [k, end.pressure[k].total - start.pressure[k].total])) : null;
+  return { start, end, pressureUs: delta, unavailable: !start ? 'run start was not captured; wrap the command with --run' : null };
+}
+export function busyState(run) {
+  const samples = [run.busy?.start, run.busy?.end];
+  if (samples.some(s => Number.isFinite(s?.load?.[0]) && s?.cores > 0 && s.load[0] > s.cores)) return 'busy';
+  return samples.every(s => Number.isFinite(s?.load?.[0]) && s?.cores > 0) ? 'quiet' : 'unknown';
+}
+export function busyCoverage(runs) {
+  return { omitted: runs.filter(r => busyState(r) === 'busy').length, unknown: runs.filter(r => busyState(r) === 'unknown').length };
+}
+export const busyNote = runs => { const c = busyCoverage(runs); return `; ${c.omitted} busy runs omitted; ${c.unknown} runs with unavailable load context (not known quiet)`; };
+
+/** First eight lines, at most 1 KiB, redacted before truncation (including configured secrets). */
+export function failureText(value, env = process.env) {
+  let text = String(value ?? '');
+  for (const [name, secret] of Object.entries(env)) {
+    if (/token|secret|password|credential|api.?key/i.test(name) && secret) text = text.split(secret).join('[redacted]');
+  }
+  text = text.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g, '[redacted]')
+    .replace(/((?:[\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, '$1[redacted]')
+    .replace(/(authorization\s*:\s*(?:bearer|basic)\s+)\S+/gi, '$1[redacted]')
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[redacted]@')
+    .replace(/\x1b\[[0-9;]*m/g, '').split('\n').slice(0, 8).join('\n').slice(0, 1024);
+  while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);
+  return text;
+}
+
+/** Each lane and machine keeps its own last ten passing observations, including coverage. */
+export function usualTimes(runs) {
+  const groups = new Map();
+  for (const r of runs) {
+    if (r.kind === 'gate' || busyState(r) === 'busy') continue;
+    for (const t of r.tests ?? []) {
+      if (t.outcome !== 'pass' || !Number.isFinite(t.ms) || t.ms < 0) continue;
+      const k = JSON.stringify([laneOf(r), machineClass(r.machine), key(t)]);
+      const g = groups.get(k) ?? { file: t.file, name: t.name, ...suiteOf(t), ...seenUnder(r), machine: machineClass(r.machine), samples: [] };
+      g.samples.push(t.ms); g.samples = g.samples.slice(-10); groups.set(k, g);
+    }
+  }
+  return [...groups.values()].map(({ samples, ...g }) => ({ ...g, median: median(samples), passes: samples.length }));
+}
+export async function writeUsual(root, runs) {
+  const dir = await ignoreRuns(root);
+  const path = join(dir, 'usual'); // not a run: no .json suffix
+  const temporary = `${path}-${randomUUID()}`;
+  try {
+    await writeFile(temporary, JSON.stringify({ version: 1, tests: usualTimes(runs), coverage: busyCoverage(runs) }) + '\n');
+    await rename(temporary, path);
+  } finally { await rm(temporary, { force: true }); }
+  return path;
+}
+
+/** Run a whole gate, preserving its exit code, and give runners a usual-times file. */
+export async function timedCommand(command, { cwd = process.cwd(), env = process.env, stdio = 'pipe' } = {}) {
+  // A nested project's gate belongs to that project, never the enclosing Git repository.
+  const root = real(cwd), config = await projectConfig(root);
+  const options = { cwd, shell: true, stdio, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 };
+  if (env.KEEL_GATE_ACTIVE === root) {
+    const started = Date.now();
+    const result = spawnSync(command, { ...options, env });
+    return { ...result, ms: Date.now() - started };
+  }
+  const history = await readRuns(root);
+  const usual = await writeUsual(root, history.runs);
+  const identity = where(root);
+  const start = await busySample(), started = Date.now();
+  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
+  const result = spawnSync(command, { ...options, env: { ...childEnv, KEEL_GATE_ACTIVE: root, KEEL_USUAL: usual, KEEL_RUN_START: JSON.stringify(start) } });
+  const ms = Date.now() - started, busy = busyBetween(start, await busySample());
+  await record(root, { ...identity, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
+    config: configHash({ env, preload: [], configEnv: config.tests?.configEnv ?? [], runner: 'gate' }),
+    gateSource: command === (config.check ?? 'npm run check') ? 'configured-check' : 'explicit-command', commandHash: sha12(command), date: new Date().toISOString(), tests: [], ms, busy,
+    status: result.status, signal: result.signal });
+  return { ...result, ms };
+}
+
 // ---- config ------------------------------------------------------------------
 
 /** What is wrong with .keel/keel.json "tests": [string]. */
@@ -228,8 +329,8 @@ export function testsConfigOf(config) {
 
 const isRun = r => r && typeof r === 'object' && typeof r.date === 'string' && Array.isArray(r.tests);
 
-/** Every recorded run under root, oldest first: { runs, skipped }. No directory: no runs. */
-export async function readRuns(root, dir = RUNS) {
+/** Test runs under root, oldest first: { runs, skipped }. gates:true includes full-gate records. No directory: no runs. */
+export async function readRuns(root, dir = RUNS, { gates = false } = {}) {
   let names;
   try { names = (await readdir(join(root, dir))).filter(n => n.endsWith('.json')); }
   catch (e) { if (['ENOENT', 'ENOTDIR'].includes(e.code)) return { runs: [], skipped: 0 }; throw e; }
@@ -238,7 +339,7 @@ export async function readRuns(root, dir = RUNS) {
   for (const name of names) {
     try {
       const r = JSON.parse(await readFile(join(root, dir, name), 'utf8'));
-      if (isRun(r)) runs.push({ ...r, id: name.slice(0, -5) }); else skipped++;
+      if (isRun(r)) { if (gates || r.kind !== 'gate') runs.push({ ...r, id: name.slice(0, -5) }); } else skipped++;
     } catch { skipped++; }
   }
   runs.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
@@ -279,10 +380,10 @@ const median = xs => { const s = [...xs].sort((a, b) => a - b), h = s.length >> 
 export function flaky(runs) {
   const seen = new Map();
   for (const r of runs) {
-    if (r.dirty !== false || !r.tree) continue;
+    if (r.dirty !== false || !r.tree || busyState(r) === 'busy') continue;
     for (const t of r.tests ?? []) {
       if (!['pass', 'fail'].includes(t.outcome)) continue;
-      const k = `${r.tree}\u0000${laneOf(r)}\u0000${key(t)}`;
+      const k = `${r.tree}\u0000${laneOf(r)}\u0000${machineClass(r.machine)}\u0000${key(t)}`;
       const s = seen.get(k) ?? { file: t.file ?? null, name: t.name, ...suiteOf(t), tree: r.tree, passed: 0, failed: 0, ...seenUnder(r) };
       s[t.outcome === 'pass' ? 'passed' : 'failed']++;
       seen.set(k, s);
@@ -299,13 +400,13 @@ export function flaky(runs) {
  * fewer than `window` such runs is not judged yet.
  * [{ file, name, ms, median, over, window, machine, dir, config, setting }]
  */
-export function slower(runs, { window = DEFAULTS.window, factor = DEFAULTS.factor, floorMs = DEFAULTS.floorMs } = {}, current = runs.at(-1)) {
-  if (!current) return [];
+export function slower(runs, { window = DEFAULTS.window, factor = DEFAULTS.factor, floorMs = DEFAULTS.floorMs } = {}, current = runs.filter(r => r.kind !== 'gate').at(-1)) {
+  if (!current || busyState(current) === 'busy') return [];
   const machine = machineClass(current.machine);
-  const before = comparable(runs, current);
+  const before = comparable(runs, current).filter(r => busyState(r) !== 'busy');
   const out = [];
   for (const t of current.tests ?? []) {
-    if (t.outcome !== 'pass' || !Number.isFinite(t.ms)) continue;
+    if (t.outcome !== 'pass' || !Number.isFinite(t.ms) || t.ms < 0) continue;
     const past = [];
     for (let i = before.length - 1; i >= 0 && past.length < window; i--) {
       const p = before[i].tests?.find(x => key(x) === key(t));
@@ -408,10 +509,12 @@ const named = t => `${t.file ?? '(no file)'} "${t.name}"`;
 
 /** The block printed at the end of a run: [line]. One line when clean. */
 export function hygiene(runs, opts = DEFAULTS, { preload = [], skipped = 0, here = '.' } = {}) {
+  runs = runs.filter(r => r.kind !== 'gate');
   const recent = runs.slice(-opts.window);
   const f = flaky(recent), s = slower(runs, opts);
-  const of = `${runs.length} run${runs.length === 1 ? '' : 's'} in ${RUNS}${skipped ? `, ${skipped} unreadable` : ''}`;
-  if (!f.length && !s.length) return [`${LABEL}: no flaky or slower test (${of}).`];
+  const memory = failureMemory(runs);
+  const of = `${runs.length} run${runs.length === 1 ? '' : 's'} in ${RUNS}${skipped ? `, ${skipped} unreadable` : ''}${busyNote(runs)}`;
+  if (!f.length && !s.length) return [`${LABEL}: no flaky or slower test (${of}).`, ...memory.map(m => `  ${m.message}`)];
   const items = f.length + s.length;
   return [
     `${LABEL}: ${items} hygiene item${items === 1 ? '' : 's'} (${of}). Each is work: fix it or file it; never rerun until green.`,
@@ -419,11 +522,31 @@ export function hygiene(runs, opts = DEFAULTS, { preload = [], skipped = 0, here
       `  flaky   ${named(t)}: passed ${t.passed}, failed ${t.failed} on one clean tree (${shortTree(t.tree)}) in the last ${recent.length} runs`,
       `          ${aloneCommand(t, preload, { here })}`,
     ]),
+    ...memory.map(m => `  ${m.message}`),
     ...s.flatMap(t => [
       `  slower  ${named(t)}: ${Math.round(t.ms)} ms against a median of ${t.median} ms over its last ${t.window} passing runs (${t.machine}), +${t.over} ms`,
       `          ${aloneCommand(t, preload, { here })}`,
     ]),
   ];
+}
+
+const busyDescription = r => `${busyState(r)} [${[r.busy?.start, r.busy?.end].map(s => s ? `${s.load?.[0] ?? '?'} load/${s.cores ?? '?'} cores` : 'unavailable').join(' → ')}]`;
+
+/** Failure matches and differing outcomes, independently of whether load permits a flake finding. */
+export function failureMemory(runs) {
+  const current = runs.filter(r => r.kind !== 'gate').at(-1);
+  if (!current || current.dirty !== false || !current.tree) return [];
+  const history = runs.filter(r => r !== current && r.dirty === false && r.tree === current.tree && laneOf(r) === laneOf(current) && machineClass(r.machine) === machineClass(current.machine));
+  return (current.tests ?? []).flatMap(t => {
+    if (!['pass', 'fail'].includes(t.outcome)) return [];
+    const prior = history.filter(r => r.date <= current.date).flatMap(r => r.tests.filter(p => key(p) === key(t) && ['pass', 'fail'].includes(p.outcome)).map(p => ({ date: r.date, outcome: p.outcome, error: p.error, busy: r.busy ?? null })));
+    const different = prior.some(p => p.outcome !== t.outcome);
+    if (!different) return [];
+    const knownFlake = flaky([...history, current]).some(f => key(f) === key(t));
+    const repeat = knownFlake && t.outcome === 'fail' && Boolean(t.error) && prior.some(p => p.outcome === 'fail' && p.error === t.error);
+    return [{ file: t.file, name: t.name, ...seenUnder(current), machine: machineClass(current.machine), repeat, runs: [...prior, { date: current.date, outcome: t.outcome, error: t.error, busy: current.busy ?? null }],
+      message: `${named(t)}: ${repeat ? 'matches an earlier failure on a flaky test; ' : ''}different outcomes on an identical clean tree: decided by something besides the files; load ${[...prior.map(p => busyDescription({ busy: p.busy })), busyDescription(current)].join(', ')}` }];
+  });
 }
 
 // ---- recording ---------------------------------------------------------------
@@ -581,7 +704,7 @@ export function inconclusiveOf(message) {
  * subtest's before its parent's.
  */
 export function topLevel({ root = null, errors = false } = {}) {
-  const tests = [], last = new Map(), pending = new Map(), names = new Map();
+  const tests = [], last = new Map(), pending = new Map(), names = new Map(), failures = new Map();
   const fileOf = f => {
     if (!names.has(f)) names.set(f, root ? relative(root, real(f)).split(sep).join('/') : real(f));
     return names.get(f);
@@ -598,14 +721,18 @@ export function topLevel({ root = null, errors = false } = {}) {
         else pending.set(d.file, what);
         return;
       }
+      if (errors && e.type === 'test:fail' && d?.nesting > 0 && d.file && !failures.has(d.file)) {
+        const err = d.details?.error; failures.set(d.file, failureText(err?.cause?.message ?? err?.message ?? err ?? ''));
+      }
       if ((e.type !== 'test:pass' && e.type !== 'test:fail') || d?.nesting !== 0) return;
       const t = { file: d.file ? fileOf(d.file) : null, name: String(d.name), outcome: outcomeOf(e), ms: Math.round((d.details?.duration_ms ?? 0) * 10) / 10 };
       if (errors && t.outcome === 'fail') {
         const err = d.details?.error;
-        t.error = String(err?.cause?.message ?? err?.message ?? err ?? '').split('\n')[0].slice(0, 300);
+        t.error = failures.get(d.file) ?? failureText(err?.cause?.message ?? err?.message ?? err ?? '');
       }
       if (d.file && pending.has(d.file)) { mark(t, pending.get(d.file)); pending.delete(d.file); }
       if (d.file) last.set(d.file, { test: t, line: d.line });
+      failures.delete(d.file);
       tests.push(t);
     },
   };
@@ -718,7 +845,8 @@ export default async function* ledger(source) {
   const cwd = process.cwd();
   const root = rootOf(cwd);
   const config = await projectConfig(root);
-  const top = topLevel({ root });
+  const started = Date.now(), start = await busySample();
+  const top = topLevel({ root, errors: true });
   const { tests } = top;
   const pins = narrowed() ? null : pinned(root, config);
   let ran = 0;
@@ -740,7 +868,7 @@ export default async function* ledger(source) {
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
     // flags: the node flags a rerun of this suite carries (runnerFlags), so keel test reuses this run as a
     // baseline only under the same ones; the config hash, and so the lanes, are as they were.
-    const run = { ...where(root), dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
+    const run = { ...where(root), busy: busyBetween(start, await busySample()), wallMs: Date.now() - started, dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
     const w = config?.tests?.window;
     await record(root, run, { window: Number.isInteger(w) && w >= 2 && w <= MAX_WINDOW ? w : DEFAULTS.window });
     let opts;
@@ -776,7 +904,7 @@ const END = new RegExp(`</(${XNAME})\\s*>`, 'y');
 
 /**
  * A small XML reader, enough for JUnit: elements, their attributes (entities
- * read) and children. Text is dropped (a failure's message body is not kept);
+ * read) and children. Text is retained for bounded, redacted failure snippets;
  * comments, CDATA, the declaration, processing instructions and a DOCTYPE are
  * skipped. What is not well formed throws: a tag left open, an end tag that
  * does not match, an attribute without a quoted value or given twice, a second
@@ -791,9 +919,10 @@ export function readXml(text) {
   for (;;) {
     const lt = text.indexOf('<', i);
     if (lt < 0) break;
+    if (stack.length > 1) stack.at(-1).text = (stack.at(-1).text ?? '') + xmlText(text.slice(i, lt));
     i = lt;
     if (text.startsWith('<!--', i)) past('-->', 'comment');
-    else if (text.startsWith('<![CDATA[', i)) past(']]>', 'CDATA section');
+    else if (text.startsWith('<![CDATA[', i)) { const end = text.indexOf(']]>', i); if (end >= 0) stack.at(-1).text = (stack.at(-1).text ?? '') + text.slice(i + 9, end); past(']]>', 'CDATA section'); }
     else if (text.startsWith('<?', i)) past('?>', 'declaration');
     else if (text.startsWith('<!', i)) {
       const close = text.indexOf('>', i), bracket = text.indexOf('[', i);
@@ -906,16 +1035,18 @@ export function junitTests(root, runner, fileOf = f => f) {
         const top = own ? { name: file, describe: false } : topOf(child, runner);
         const g = add(`${file}\u0000${top.describe ? 'd' : 't'}\u0000${top.name}`, file, top.name);
         g.outcomes.push(count(child, own));
+        const failure = child.children.find(c => ['failure', 'error'].includes(c.name));
+        if (failure && !g.error) g.error = failureText([failure.attrs.message, failure.text].filter(Boolean).join('\n'));
         g.ms += msOf(child.attrs.time);
       } else if (child.name === 'testsuite') {
         const name = child.attrs.name ?? '';
         const g = add(`${file}\u0000d\u0000${name}`, file, name);
-        for (const c of casesIn(child)) { g.outcomes.push(count(c, false)); g.ms += msOf(c.attrs.time); }
+        for (const c of casesIn(child)) { g.outcomes.push(count(c, false)); g.ms += msOf(c.attrs.time); const failure = c.children.find(x => ['failure', 'error'].includes(x.name)); if (failure && !g.error) g.error = failureText([failure.attrs.message, failure.text].filter(Boolean).join('\n')); }
         if (child.attrs.time !== undefined) g.ms = msOf(child.attrs.time);
       }
     }
     for (const g of groups.values()) {
-      if (g.outcomes.length) tests.push({ file: g.file, name: g.name, ...(g.describe ? { describe: true } : {}), outcome: groupOutcome(g.outcomes), ms: Math.round(g.ms * 10) / 10 });
+      if (g.outcomes.length) tests.push({ file: g.file, name: g.name, ...(g.describe ? { describe: true } : {}), outcome: groupOutcome(g.outcomes), ...(g.error ? { error: g.error } : {}), ms: Math.round(g.ms * 10) / 10 });
     }
   }
   return { tests, ran, failed };
@@ -928,7 +1059,7 @@ export function junitTests(root, runner, fileOf = f => f) {
  * relative to the repo's root; `runner` is bun or vitest, else "tests".runner,
  * else what the file says; `status` is the runner's own exit code, or null.
  */
-export async function junitRun({ junit, runner, status = null, cwd = process.cwd() } = {}) {
+export async function junitRun({ junit, runner, status = null, cwd = process.cwd(), sample = busySample, start } = {}) {
   const root = rootOf(cwd);
   const config = await projectConfig(root);
   const lines = [];
@@ -977,7 +1108,11 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
     const configEnv = Array.isArray(config?.tests?.configEnv) ? config.tests.configEnv.filter(v => typeof v === 'string') : [];
     const workflow = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_WORKFLOW ? { workflow: process.env.GITHUB_WORKFLOW } : {};
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
+    if (start === undefined) {
+      try { start = JSON.parse(process.env.KEEL_RUN_START ?? 'null'); } catch { start = null; }
+    }
     const run = {
+      busy: busyBetween(start, await sample()),
       ...where(root, { exclude: shown === at ? [] : [shown] }), runner: kind, dir: here,
       config: configHash({ configEnv, preload: [], runner: kind }), setting: settingOf({ configEnv, preload: [] }),
       ...workflow, junit: hash, date: new Date().toISOString(), tests: parsed.tests,
@@ -995,7 +1130,7 @@ export async function junitRun({ junit, runner, status = null, cwd = process.cwd
   return done(parsed.ran, parsed.failed);
 }
 
-export const USAGE = 'usage: node scripts/keel/test-ledger.mjs --junit <file> [--runner bun|vitest] [--status <exit code>]';
+export const USAGE = 'usage: node scripts/keel/test-ledger.mjs --junit <file> [--runner bun|vitest] [--status <exit code>] | --gate | --run <shell-command>';
 
 /** The command line's { junit, runner?, status? }; throws on anything else. */
 export function junitArgs(argv) {
@@ -1020,6 +1155,14 @@ export function junitArgs(argv) {
 
 // Run as a command (node scripts/keel/test-ledger.mjs --junit …), never when node loads it as a reporter.
 if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(import.meta.url))) {
+  if (process.argv[2] === '--gate' && process.argv.length === 3) {
+    const config = await projectConfig(real(process.cwd()));
+    const r = await timedCommand(config.check ?? 'npm run check', { stdio: 'inherit' });
+    process.exitCode = r.status ?? 1;
+  } else if (process.argv[2] === '--run' && process.argv.length === 4) {
+    const r = await timedCommand(process.argv[3], { stdio: 'inherit' });
+    process.exitCode = r.status ?? 1;
+  } else {
   let args = null;
   try { args = junitArgs(process.argv.slice(2)); }
   catch (e) { process.stderr.write(`${LABEL}: ${e.message}\n${USAGE}\n`); process.exitCode = 2; }
@@ -1028,4 +1171,5 @@ if (process.argv[1] && real(resolve(process.argv[1])) === real(fileURLToPath(imp
     process.stdout.write(`${lines.join('\n')}\n`);
     process.exitCode = code;
   }
+}
 }
