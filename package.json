@@ -1,6 +1,6 @@
 {
   "name": "keel",
-  "version": "0.8.26",
+  "version": "0.8.27",
   "private": true,
   "description": "The mothership for projects run the isocan/ledger way: phases that own their status, lessons as shapes, a conductor, and a night shift.",
   "type": "module",

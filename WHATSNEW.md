@@ -5,6 +5,39 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.27 — practice 0.8.27 (2026-10-10)
+
+- **The robot works the issues it is handed** (phase 54). An issue labelled `keel:agent` that holds the rubric is worked by the provider the project names, within a weekly budget, as a PR a person merges. Since it landed, the robot also refuses:
+  - commits that would close any issue but its own;
+  - a branch that edits the gate's `"scripts"`;
+  - a planted test-ledger record;
+  - a forbidden file hidden in an intermediate commit.
+
+  A follow-up with no new commit no longer jams the issue. An infrastructure failure is retried rather than marked worked, and a deterministic one (a merge conflict preparing the branch) waits for the owner's comment rather than being retried forever.
+- **Climb and tend publish exactly the commit their guard passed** (#68). The judge names the commit before any agent code runs and bundles exactly that commit. Publish refuses any other head, and re-runs climb's sandbox, or tend's record and finding checks, from its own checkout.
+- **Climb's and tend's guards hold against the agent's own code.** Code the guard runs can't slip anything past it:
+  - Hooks, fsmonitor and replace refs are off for keel's git.
+  - The git dir is checked before keel runs any more git, the shared one in a linked worktree too: its location, config, hooks, attributes and refs.
+  - The guard re-reads index flags and every tracked file from disk.
+  - The tree is held right after the gate, the perf check and the build.
+  - A path git quotes, or a forbidden file added in one commit and reverted in a later one, is refused.
+  - A merge is judged by the default-branch commits it brought in, compared by blob.
+  - The base's gate runs before any of the agent's code.
+  - `.nvmrc`, `.node-version` and `.tool-versions` are off limits.
+  - A planted ledger record, or a test that fails in one run behind `|| true`, is refused.
+- **Review after the push, for projects that ship to main** (phase 60). The other provider reviews each push to main as one batch, and the findings come back as an issue to answer. A pushed script can't move the review record past its own push.
+- **`keel review` reads every page of a PR's reviews**, up to 2000, so a PR answered at length (each reply is a review) no longer reads as incomplete.
+- **A release is reviewed before the fleet sees it** (phase 48). Practice changes land through a merged PR whose review passes `keel review --gate`, and `--unreviewed "<why>"` is the owner's override. **A release is rehearsed on the fleet before it is tagged** (phase 53). **A fleet update always leaves a PR** (phase 52).
+- **Time.**
+  - Tests judge the code, not the machine (phase 55).
+  - keel knows where time goes (phase 56).
+  - Time getting worse becomes a proposal, and a fix (phase 57).
+  - CLI cost is measured, and evidence contracts are checked (phase 67).
+- **CI cost is a measure**, and adoption says what keel adds (phase 61). **The test ledger reads `bun test` and vitest** (phase 59). **A fix is proven by its test failing without it** (phase 62). **Read this before touching that** (phase 65).
+- keel's own suite is split, so `npm test` takes about half the time (lesson 57). Its tests run on `node --test`, as decided in docs/design.md.
+
+Released without the review gate (41 practice commits unchecked): 41 practice commits exceed the release gate's 40-read cap; every one verified by hand on 2026-10-10: 39 came through 17 merged PRs that each pass keel review --gate (#54 #55 #56 #57 #58 #65 #70 #71 #74 #78 #79 #81 #82 #83 #84 #85 #88), and 913f3cc and 6e0f250 predate the release gate
+
 ## v0.8.26 — practice 0.8.26 (2026-10-09)
 
 - **Canvas recovery follows when each night ran**, not its run id: an old night rerun after newer ones recovers from them, and the next night recovers from that rerun. Any failure before the canvas is touched leaves a never-ran receipt, so a passing API error cannot stop later nights.
