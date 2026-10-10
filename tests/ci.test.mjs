@@ -122,6 +122,11 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   assert.deepEqual([step.reused, step.testEvidence], [true, { kind: 'step', job: 'build', step: 'Run tests' }], 'an executed test step');
   const skippedStep = await invoke(gateApi(run(1), [job(101, 1, { name: 'build', steps: [{ name: 'Run tests', conclusion: 'skipped' }] })]));
   assert.equal(skippedStep.reused, false, 'a skipped test step is not evidence');
+  // #95: a successful job named `test` whose `Run tests` step a condition skipped ran no tests.
+  const skippedInTestJob = await invoke(gateApi(run(1), [job(102, 1, { name: 'test', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'Install', conclusion: 'success' }, { name: 'Run tests', conclusion: 'skipped' }] })]));
+  assert.equal(skippedInTestJob.reused, false, 'a test job whose test step was skipped is not evidence');
+  const wholeTestJob = await invoke(gateApi(run(1), [job(102, 1, { name: 'test', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'npm run check', conclusion: 'success' }] })]));
+  assert.deepEqual([wholeTestJob.reused, wholeTestJob.testEvidence], [true, { kind: 'job', job: 'test' }], 'a test job whose every step ran');
   // The test ledger's artifact, uploaded by this run once its jobs started (keel's own check: job "check", step "Run the configured gate").
   const check = job(101, 1, { name: 'check', steps: [{ name: 'Run the configured gate', conclusion: 'success' }] });
   const kept = (extra = {}) => { const api = gateApi(run(1), [check]); api[`repos/${repo}/actions/runs/1/artifacts`] = page('artifacts', [{ id: 9, name: 'keel-test-runs', size_in_bytes: 4096, created_at: stamp(2.5), workflow_run: { id: 1, head_sha: sha }, ...extra }]); return api; };

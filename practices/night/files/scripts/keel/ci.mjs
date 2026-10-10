@@ -201,8 +201,11 @@ const executed = x => x?.conclusion === 'success' || x?.conclusion === 'failure'
 async function testEvidence(client, repo, run, jobs, sha) {
   const ran = jobs.filter(j => executed(j) && Number.isFinite(Date.parse(j.started_at)));
   for (const j of ran) {
-    if (TESTS_NAMED.test(j.name ?? '')) return { kind: 'job', job: j.name };
-    const step = (Array.isArray(j.steps) ? j.steps : []).find(s => executed(s) && TESTS_NAMED.test(s?.name ?? ''));
+    const steps = Array.isArray(j.steps) ? j.steps : [];
+    // A job named for tests counts when none of its steps was skipped (#95): a successful `test` job whose
+    // `Run tests` step a condition skipped ran no tests. With no step detail, its name is what there is.
+    if (TESTS_NAMED.test(j.name ?? '') && steps.every(s => executed(s))) return { kind: 'job', job: j.name };
+    const step = steps.find(s => executed(s) && TESTS_NAMED.test(s?.name ?? ''));
     if (step) return { kind: 'step', job: j.name ?? null, step: step.name };
   }
   if (!ran.length) return null;
