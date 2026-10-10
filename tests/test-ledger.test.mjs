@@ -5,7 +5,7 @@
 // copy of the module with the rule removed must fail these assertions.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -823,9 +823,11 @@ async function assertEmptyJunit(dir, mod) {
   assert.equal((await read()).code, 1, 'only a file that would not load: no test ran');
   await writeFile(at, passing(await fixture('bun.xml')));
   assert.equal((await read()).code, 0, 'a run with tests passes');
-  r = await read();
-  assert.equal(r.code, 1, 'the same file again is stale: the runner wrote nothing new (bun writes none when no test ran)');
-  assert.match(r.lines[0], /junit\.xml is one already recorded: the tests wrote no new one/);
+  const past = new Date(Date.now() - 3_600_000);
+  await utimes(at, past, past);
+  r = await mod.junitRun({ junit: at, status: 0, cwd: dir, start: { at: new Date().toISOString() }, sample: async () => ({ load: [0, 0, 0], cores: 4 }) });
+  assert.equal(r.code, 1, 'a file last written before this run began is stale: the runner wrote nothing new (bun writes none when no test ran)');
+  assert.match(r.lines[0], /junit\.xml was last written before this run began: the tests wrote no new one/);
   await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { allowEmpty: true } }));
   await writeFile(at, await fixture('vitest-empty.xml'));
   assert.equal((await read()).code, 0, 'allowEmpty: a project with no tests yet passes');
@@ -851,7 +853,7 @@ test('--junit: a file with no tests, no file, or a stale one is "no tests ran" (
 test('mutations: an empty JUnit file that passes without allowEmpty, or a stale file read again, fails the zero-tests test', async t => {
   for (const [from, to] of [
     ['return { lines, code: empty ? 1 : status || (failed ? 1 : 0) };', 'return { lines, code: status || (failed ? 1 : 0) };'],
-    ['if (history?.runs.some(r => r.junit === hash)) {', 'if (false) {'],
+    ['if (since !== null && written + FRESH_SLACK_MS < since) {', 'if (false) {'],
   ]) {
     const { dir } = await acmeRepo(t);
     await mkdir(join(dir, '.keel'), { recursive: true });
@@ -860,22 +862,36 @@ test('mutations: an empty JUnit file that passes without allowEmpty, or a stale 
   }
 });
 
-/** One report's bytes at two paths (two packages, each its own folder) are two runs; the same path read again is stale. */
-async function assertStalePerPath(dir, mod) {
-  const xml = passing(await fixture('bun.xml'));
+/**
+ * Freshness is this run's (keel#93): byte-identical reports are each a run (one path's, rewritten by the next run of
+ * deterministic tests, and two packages'); a report last written before the run began (its --start sample, else the
+ * gate's own start) is stale.
+ */
+async function assertFreshPerRun(dir, mod) {
+  const xml = passing(await fixture('bun.xml')), sample = async () => ({ load: [0, 0, 0], cores: 4 });
+  for (const n of [1, 2]) {
+    const start = { at: new Date().toISOString() }; // the wrapper's sample, just before the runner
+    await junitAt(dir, 'junit.xml', xml);
+    const r = await mod.junitRun({ junit: 'junit.xml', cwd: dir, start, sample, env: {} });
+    assert.equal(r.code, 0, `run ${n}: the report the runner wrote, byte for byte as the last, is this run's\n${r.lines.join('\n')}`);
+  }
   await junitAt(dir, 'junit.xml', xml);
+  assert.equal((await mod.junitRun({ junit: 'junit.xml', cwd: dir, env: {} })).code, 0, 'no start known: the wrapper removed the old report, so this one is the run\'s');
   await junitAt(dir, 'web/junit.xml', xml);
-  assert.equal((await mod.junitRun({ junit: 'junit.xml', cwd: dir })).code, 0);
-  const web = await mod.junitRun({ junit: 'junit.xml', cwd: join(dir, 'web') });
-  assert.equal(web.code, 0, `web's identical report is its own run, not the root's read again\n${web.lines.join('\n')}`);
-  const twice = await mod.junitRun({ junit: 'junit.xml', cwd: dir });
-  assert.equal(twice.code, 1, 'the root\'s report read again is stale');
-  assert.deepEqual((await readRuns(dir)).runs.map(r => r.dir), ['.', 'web']);
+  assert.equal((await mod.junitRun({ junit: 'junit.xml', cwd: join(dir, 'web'), env: {} })).code, 0, 'web\'s identical report is its own run');
+  const past = new Date(Date.now() - 3_600_000), began = { at: new Date().toISOString() };
+  await utimes(join(dir, 'junit.xml'), past, past);
+  const stale = await mod.junitRun({ junit: 'junit.xml', cwd: dir, start: began, sample, env: {} });
+  assert.equal(stale.code, 1, 'a report last written before this run began is stale');
+  assert.match(stale.lines[0], /junit\.xml was last written before this run began/);
+  const gate = await mod.junitRun({ junit: 'junit.xml', cwd: dir, env: { KEEL_RUN_START: JSON.stringify(began) } });
+  assert.equal(gate.code, 1, 'no --start: the gate\'s own start judges it');
+  assert.deepEqual((await readRuns(dir)).runs.map(r => r.dir), ['.', '.', '.', 'web']);
 }
 
-test('stale is per path: two packages\' byte-identical reports are two runs; one report read twice is one (review on #56)', async t => {
+test('a fresh JUnit report is judged for this run: byte-identical reports are each a run; one written before the run began is stale (keel#93)', async t => {
   const { dir } = await acmeRepo(t);
-  await assertStalePerPath(dir, ledger);
+  await assertFreshPerRun(dir, ledger);
 });
 
 /** A test named exactly like its file is a test when it ran: only vitest's failed entry for a file that would not load is the file's (review on #56). */
@@ -942,10 +958,10 @@ test('"tests".junit lives in .keel/test-runs/, which ignores itself; a report th
   assert.equal(git('status', '--porcelain'), '', 'and still no untracked report');
 });
 
-test('mutation: a stale check on the bytes alone takes the second package\'s run for the first\'s, and fails the per-path test', async t => {
+test('mutation: no gate start as the fallback reads a report older than the gate as fresh, and fails the fresh-per-run test', async t => {
   const { dir } = await acmeRepo(t);
-  const m = await mutant(t, 'const hash = sha12(`${shown}\\u0000${xml}`);', 'const hash = sha12(xml);');
-  await assert.rejects(assertStalePerPath(dir, m), assert.AssertionError);
+  const m = await mutant(t, 'const since = sampledAt(start) ?? sampledAt(gateStart(env));', 'const since = sampledAt(start);');
+  await assert.rejects(assertFreshPerRun(dir, m), assert.AssertionError);
 });
 
 test('mutation: a JUnit file outside keel\'s directories left in the dirty check makes every run dirty, and fails the record test\'s clean tree', async t => {

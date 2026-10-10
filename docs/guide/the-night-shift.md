@@ -280,7 +280,14 @@ from `scripts/keel/ci.mjs` for read-only API walks.
 heuristics do not authorize reuse. The gate measure reuses only same-repo,
 default-branch **push** CI on the exact clean SHA. PR and fork runs are excluded.
 The newest candidate by update/attempt freshness must be completed success or
-failure, with validated matching jobs completed within 24 hours. A completed
+failure, with validated matching jobs completed within 24 hours, and evidence
+that tests ran (keel#93): a job named for tests whose every step ran. A step's
+name is never evidence (an upload step named for the ledger succeeds with
+nothing to keep), and neither is the `keel-test-runs` artifact until its
+contents are read (#96): the gate's own timing record is uploaded even when no
+tests ran. A CI with no test-named job, keel's own `check.yml` among them, is
+not reused; the night runs its local gate. A run whose test jobs were all skipped (only lint or setup ran), or whose
+test step was skipped, is not reused. A completed
 failure remains a failure; pending, skipped, canceled, stale or unavailable
 results fall back to the configured local command. Reused reports name the
 source, SHA, conclusion and completion age. They do not claim local execution

@@ -1214,20 +1214,37 @@ async function proposalsGuard({ root, config, env, night, base, head, job, befor
 
 // ---- guard ---------------------------------------------------------------------
 
-const key = t => `${t.file ?? ''}\u0000${t.name}`;
+/**
+ * A test's identity: its file, whether it is a JUnit describe, and its name, as the ledger keys it (keel#93): a
+ * top-level describe and a test of one file and name are two records, so dropping either is seen.
+ */
+const key = t => `${t.file ?? ''}\u0000${t.describe === true ? 'd' : 't'}\u0000${t.name}`;
 const ran = t => t.outcome === 'pass' || t.outcome === 'fail';
+/** A record's describe flag, carried into what the guard says of it. */
+const kindOf = t => t.describe === true ? { describe: true } : {};
+/** How the guard names a test: its file, and "describe" before a describe's name. */
+const shown = t => `${t.file ?? '(no file)'} ${t.describe ? 'describe ' : ''}"${t.name}"`;
 
-/** Tests that ran in `base` and did not run in `candidate`: [{ file, name, how: dropped|skipped }]. */
+/** Tests that ran in `base` and did not run in `candidate`: [{ file, name, describe?, how: dropped|skipped }]. */
 export function missingTests(base, candidate) {
   const now = new Map((candidate.tests ?? []).map(t => [key(t), t]));
   const out = [];
   for (const t of base.tests ?? []) {
     if (!ran(t)) continue;
     const c = now.get(key(t));
-    if (!c) out.push({ file: t.file ?? null, name: t.name, how: 'dropped' });
-    else if (!ran(c)) out.push({ file: t.file ?? null, name: t.name, how: c.outcome === 'todo' ? 'skipped (todo)' : 'skipped' });
+    if (!c) out.push({ file: t.file ?? null, name: t.name, ...kindOf(t), how: 'dropped' });
+    else if (!ran(c)) out.push({ file: t.file ?? null, name: t.name, ...kindOf(t), how: c.outcome === 'todo' ? 'skipped (todo)' : 'skipped' });
   }
   return out;
+}
+
+/**
+ * Every test that failed in a record of `commit`, once each (keyed as above), before ranOn merges a test's runs
+ * into one (#82): a test run twice, passing then failing behind `|| true`, would keep only its pass.
+ */
+export function failedOn(runs, commit) {
+  const seen = new Set();
+  return runs.filter(x => x.commit === commit).flatMap(x => x.tests ?? []).filter(t => t.outcome === 'fail' && !seen.has(key(t)) && seen.add(key(t)));
 }
 
 /**
@@ -1235,7 +1252,7 @@ export function missingTests(base, candidate) {
  * passes only the records its own gate run wrote. A gate
  * records a run per suite it runs (ledger's check:all: the root's, then
  * web's), each its own lane; the newest alone would be one suite. A test is
- * keyed by its root-relative file and name, so suites never collide, and it
+ * keyed by its root-relative file, kind (test or describe) and name, so suites never collide, and it
  * counts as run when any record of the commit ran it.
  */
 export function ranOn(runs, commit) {
@@ -1313,12 +1330,9 @@ export async function ledgerCheck({ root, config, env = process.env, gate, base:
   // its suites in more invocations, each a real record, and the gate line says the scripts changed for the person.
   if (cand.runs > baseRun.runs && !scriptsChanged(root, b, head).length) return { ok: false, problems: [`the gate \`${gate}\` left ${cand.runs} test ledger records for ${head.slice(0, 7)} where the base ${b.slice(0, 7)}'s gate wrote ${baseRun.runs}: a record its own reporter did not write is in .keel/test-runs (the branch's code wrote it?), so what ran cannot be told`] };
   const missing = missingTests(baseRun, cand);
-  if (missing.length) return { ok: false, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
-  // Every record of this run, before ranOn merges a test's runs into one (#82): a test run twice, passing then
-  // failing behind `|| true`, would keep only its pass.
-  const seen = new Set();
-  const failed = r.runs.filter(x => x.commit === head).flatMap(x => x.tests ?? []).filter(t => t.outcome === 'fail' && !seen.has(`${t.file ?? ''}\0${t.name}`) && seen.add(`${t.file ?? ''}\0${t.name}`));
-  if (failed.length) return { ok: false, problems: failed.map(t => `failed: ${t.file ?? '(no file)'} "${t.name}" failed on ${head.slice(0, 7)}, though the gate \`${gate}\` exited 0`) };
+  if (missing.length) return { ok: false, missing, problems: missing.map(m => `${m.how}: ${shown(m)} ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
+  const failed = failedOn(r.runs, head);
+  if (failed.length) return { ok: false, problems: failed.map(t => `failed: ${shown(t)} failed on ${head.slice(0, 7)}, though the gate \`${gate}\` exited 0`) };
   return { ok: true, problems: [], count: (cand.tests ?? []).filter(ran).length };
 }
 

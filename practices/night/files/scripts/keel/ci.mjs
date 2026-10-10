@@ -184,6 +184,35 @@ export async function readCiUsage({ repo, env, config = {}, now = Date.now(), da
   return report;
 }
 
+/** The artifact a workflow keeps of the test ledger's records (migration 0005); uploaded only when the ledger wrote some. */
+export const LEDGER_ARTIFACT = 'keel-test-runs';
+/** A job or step whose name says it runs tests. */
+const TESTS_NAMED = /\btest(?:s|ing)?\b/i;
+/** A job or step that ran to a verdict, not one skipped, cancelled or never reached. */
+const executed = x => x?.conclusion === 'success' || x?.conclusion === 'failure';
+
+/**
+ * Evidence that the reused attempt ran tests (keel#93, #95): an executed job
+ * named for tests whose every step ran. Not a step's name, and not the test
+ * ledger's artifact until its contents are read (#96). A run with none (its
+ * test jobs skipped, only lint or setup run) gives null, and the night runs
+ * its local gate: a green run of nothing is not a gate that passed.
+ */
+async function testEvidence(client, repo, run, jobs, sha) {
+  const ran = jobs.filter(j => executed(j) && Number.isFinite(Date.parse(j.started_at)));
+  for (const j of ran) {
+    const steps = Array.isArray(j.steps) ? j.steps : [];
+    // A job named for tests counts when none of its steps was skipped (#95): a successful `test` job whose
+    // `Run tests` step a condition skipped ran no tests. With no step detail, its name is what there is.
+    if (TESTS_NAMED.test(j.name ?? '') && steps.every(s => executed(s))) return { kind: 'job', job: j.name };
+    // No step's name is evidence (#95): a step named for tests can be the one keeping the ledger's artifact
+    // ("Keep the test ledger"), which succeeds with nothing to keep.
+  }
+  // Nor the ledger's artifact, until its contents are read (#95, #96): the gate's own timing record (kind
+  // "gate", no tests) is written and uploaded even when no tests ran. Without evidence, the local gate runs.
+  return null;
+}
+
 /** Exact clean revision CI reuse. Explicit workflow selection is done by the caller. */
 export async function readCiGate({ repo, workflow, sha, clean, env, now = Date.now(), limits, request } = {}) {
   const unavailable = reason => ({ reused: false, reason });
@@ -211,6 +240,8 @@ export async function readCiGate({ repo, workflow, sha, clean, env, now = Date.n
     const completed = Math.max(...jobs.map(j => Date.parse(j.completed_at)).filter(Number.isFinite));
     const ageMs = now - completed;
     if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > DAY) return unavailable('CI result outside 24-hour window');
-    return { reused: true, source: 'github-actions', workflow: matches[0].path, runId: run.id, attempt: run.run_attempt, sha, conclusion: run.conclusion, ageMs, ordering: 'run updated_at', updatedAt: run.updated_at, completedAt: new Date(completed).toISOString(), status: run.conclusion === 'success' ? 0 : 1, tests: null, ms: null };
+    const evidence = await testEvidence(client, repo, run, jobs, sha);
+    if (!evidence) return unavailable('no test job or test-ledger run executed in the CI run');
+    return { reused: true, source: 'github-actions', workflow: matches[0].path, runId: run.id, attempt: run.run_attempt, sha, conclusion: run.conclusion, ageMs, ordering: 'run updated_at', updatedAt: run.updated_at, completedAt: new Date(completed).toISOString(), status: run.conclusion === 'success' ? 0 : 1, testEvidence: evidence, tests: null, ms: null };
   } catch { return unavailable('Actions API unavailable'); }
 }

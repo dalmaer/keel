@@ -181,8 +181,10 @@ the repo's root (`keel_root="$(git rev-parse --show-toplevel)"`). `keel adopt`
 finds the runner in the gate, records `"tests": {"runner", "junit"}` and
 proposes this line, only where the night practice is on (it installs the
 ledger); it never rewrites the gate. The record is a node run's, plus
-`runner` and a short hash of the file's path and bytes (`junit`): the same
-report read again at the same path is stale and is not counted.
+`runner` and a short hash of the file's path and bytes (`junit`). A report
+last written before the run began (the `--start` sample, else the gate's own
+start) is stale and is not counted; byte-identical reports of two runs are
+two runs (keel#93).
 Each top-level test is the file's own test, or one top-level describe with
 every test in it, failed when one failed. The exit code is 1 when no tests
 ran (no file, none in it, or stale; unless `allowEmpty`), else the runner's

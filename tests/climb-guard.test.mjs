@@ -338,6 +338,20 @@ test('guard: a gate that records a run per suite (the root\'s, then web\'s) is c
   assert.equal(m.ranOn([], 'c'), null);
 });
 
+test('guard: a describe and a test of one file and name are two tests in ranOn, missingTests and the failure dedup; dropping either is seen (keel#93)', async () => {
+  const m = await import('../scripts/keel/climb.mjs');
+  const test = (outcome = 'pass') => ({ file: 'a.test.ts', name: 'save', outcome });
+  const suite = (outcome = 'pass') => ({ ...test(outcome), describe: true });
+  const base = m.ranOn([{ commit: 'b', tests: [test(), suite()] }], 'b');
+  assert.equal(base.tests.length, 2, 'ranOn keeps the test and the describe of one name');
+  assert.deepEqual(m.ranOn([{ commit: 'b', tests: [test()] }, { commit: 'b', tests: [suite('skip')] }], 'b').tests.map(t => [t.describe ?? false, t.outcome]), [[false, 'pass'], [true, 'skip']], 'the test\'s pass never stands for the skipped describe');
+  assert.deepEqual(m.missingTests(base, { tests: [suite()] }), [{ file: 'a.test.ts', name: 'save', how: 'dropped' }], 'the dropped test is seen though a describe of its name ran');
+  assert.deepEqual(m.missingTests(base, { tests: [test()] }), [{ file: 'a.test.ts', name: 'save', describe: true, how: 'dropped' }], 'and the dropped describe, as a describe');
+  assert.deepEqual(m.missingTests(base, { tests: [test(), suite('skip')] }).map(x => [x.describe ?? false, x.how]), [[true, 'skipped']]);
+  assert.deepEqual(m.missingTests(base, { tests: [test(), suite()] }), []);
+  assert.deepEqual(m.failedOn([{ commit: 'h', tests: [test('fail'), suite('fail')] }, { commit: 'h', tests: [test('fail')] }, { commit: 'x', tests: [test('fail')] }], 'h').map(t => t.describe ?? false), [false, true], 'each fails once, as itself');
+});
+
 test('guard: only the records its own gate run wrote count; a suite the candidate dropped from its gate is not masked by a record the agent left at that commit (ledger#94)', async t => {
   const reporter = dest => `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${dest}scripts/keel/test-ledger.mjs --test-reporter-destination=stdout`;
   const ROOT = `node --test ${reporter('./')} acme.test.mjs`, WEB = `cd web && node --test ${reporter('../')} web.test.mjs`;

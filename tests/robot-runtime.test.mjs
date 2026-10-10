@@ -232,7 +232,7 @@ test('robot shipped CLI stays OFF before any GitHub call or model preparation', 
   assert.equal(r.status,0,r.stdout+r.stderr);
   assert.equal(JSON.parse(await readFile(join(temp,'robot-plan.json'),'utf8')).reason,'robot is off');
   assert.match(await readFile(join(temp,'outputs'),'utf8'),/^ready=false$/m);
-  await assert.rejects(readFile(join(temp,'robot-prompt.md')), {code:'ENOENT'});
+  await assert.rejects(readFile(join(temp,'robot-brief','robot-prompt.md')), {code:'ENOENT'});
 });
 
 test('robot weekly recovery notices a corrected rubric without replaying an unchanged completed issue', async t => {
@@ -321,7 +321,7 @@ test('robot review prompt uses merge base when the default branch advances',asyn
  const {run}=await import('./helpers/run.mjs');
  const r=run(process.execPath,[join(runtime,'robot.mjs'),'review-prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_RUN_ID:'11',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'review-agent',GITHUB_OUTPUT:join(temp,'outputs'),RUNNER_TEMP:temp,GH_TOKEN:'acme-synthetic-token',GITHUB_SERVER_URL:server.url,ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh}});
  assert.equal(r.status,0,r.stdout+r.stderr);
- const prompt=await readFile(join(temp,'robot-review-prompt.md'),'utf8');assert.match(prompt,/candidate correction/);assert.doesNotMatch(prompt,/unrelated.txt|new default branch work/);
+ const prompt=await readFile(join(temp,'robot-brief','robot-review-prompt.md'),'utf8');assert.match(prompt,/candidate correction/);assert.doesNotMatch(prompt,/unrelated.txt|new default branch work/);
 });
 
 
@@ -781,6 +781,8 @@ test('robot scan triage CLI publishes blocked-only and mixed ready plans through
  const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'true',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh};
  const {run}=await import('./helpers/run.mjs'),invoke=command=>run(process.execPath,[join(runtime,'robot.mjs'),command,'--json'],{cwd:root,env});
  const prepared=invoke('prepare');assert.equal(prepared.status,0,prepared.stderr);
+ // keel#93: a ready plan's brief is alone in the folder the workflow grants Claude.
+ if(mixed)assert.match(await readFile(join(temp,'robot-brief','robot-prompt.md'),'utf8'),/## Trusted allocation and untrusted issue data/);
  const outputs=await readFile(out,'utf8');assert.match(outputs,mixed?/^issue=2$/m:/^issue=$/m);assert.match(outputs,mixed?/^ready=true$/m:/^ready=false$/m);assert.match(outputs,/^triage=true$/m);assert.match(outputs,/^triage_count=1$/m);
  await cp(join(temp,'robot-plan.json'),join(temp,'plan/robot-plan.json'));
  const published=invoke('publish');assert.equal(published.status,0,published.stderr);assert.equal(JSON.parse(published.stdout).triageResults.results[0].posted,true);

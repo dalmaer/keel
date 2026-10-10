@@ -105,7 +105,9 @@ A changed builder/reviewer pair blocks the pending candidate. To finish that
 candidate, restore its original provider pair, then merge or close it before
 changing providers for a new issue. Published metadata binds the judged candidate's
 body/writer/provider authorization to its review, without changing acceptance.
-The worker uses sandbox guards. Agents and
+The worker uses sandbox guards. Each agent's brief sits alone in
+`$RUNNER_TEMP/robot-brief/`; Claude is granted that folder (`--add-dir`) and no
+other part of the runner's temp. Agents and
 judges cannot publish. A trusted publisher opens a `keel/robot-<issue>` PR,
 invokes review by the other provider and reports the actual PR on the issue.
 Standalone cross-review refuses `keel/robot-` branches, even with a matching
