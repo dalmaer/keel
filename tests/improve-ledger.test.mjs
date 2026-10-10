@@ -337,3 +337,25 @@ test('night reports busy omissions as unavailable rather than zero slow or flaky
     assert.match(byId(data, id).detail, /2 busy runs omitted/);
   }
 });
+
+test('flaky_tests preserves confirmed quiet findings when a recent busy run is omitted', async t => {
+  for (const confirmed of [true, false]) {
+    const dir = await acme(t, { window: 3 });
+    for (const [i, outcome] of ['pass', confirmed ? 'fail' : 'pass', 'fail'].entries()) {
+      const sample = { load: [i === 2 ? 8 : 0], cores: 4 };
+      await record(dir, { tree: 'acme-tree', dirty: false, machine: MACHINE, date: `2026-10-01T00:0${i}:00Z`, busy: { start: sample, end: sample },
+        tests: [{ file: 'tests/acme.test.mjs', name: 'Acme', outcome, ms: 1 }] });
+    }
+    const finding = byId(await read(dir), 'flaky_tests');
+    assert.match(finding.detail, /1 busy runs omitted/);
+    if (confirmed) {
+      assert.equal(finding.state, 'outside');
+      assert.equal(finding.value, 1);
+      assert.equal(finding.facts.flaky[0].passed, 1);
+      assert.equal(finding.facts.flaky[0].failed, 1);
+    } else {
+      assert.equal(finding.state, 'n/a');
+      assert.equal(finding.value, null);
+    }
+  }
+});

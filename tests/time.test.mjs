@@ -335,3 +335,82 @@ test('transcripts exclude Vitest discovery commands with flags before or after t
   const accepted = await workedAround({ root, home, env: {} });
   assert.equal(accepted.counts.workedAround, 3);
 });
+
+test('review: Vitest outside targets are omissions and local targets retain identities after flags', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const outside = ['vitest /other/acme.test.mjs', 'npx vitest ../other/acme.test.mjs',
+    'vitest run tests/acme.test.ts tests/../../other/acme.test.ts'];
+  const local = ['vitest --silent tests/acme.test.ts', 'npx vitest --reporter json run ./tests/acme.test.ts',
+    'vitest --testNamePattern ../Acme --run tests/acme.test.ts'];
+  await writeFile(join(dir, 'acme.jsonl'), [...outside, ...local].map((command, id) => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', cwd: root,
+    message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command, timeout: 120000 } }] } })).join('\n'));
+  const got = await workedAround({ root, home, env: {}, now: Date.parse('2026-10-10') });
+  assert.equal(got.coverage.commandOmissions, outside.length);
+  assert.equal(got.coverage.state, 'partial');
+  assert.equal(got.counts.workedAround, local.length);
+  assert.deepEqual(got.identities.map(i => [i.kind, i.id, i.counts.workedAround]), [['file', 'tests/acme.test.ts', local.length]]);
+});
+
+test('review: time CLI rejects typo positional and missing week arguments', async t => {
+  const root = await scratch(t);
+  await mkdir(join(root, '.keel'));
+  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  for (const args of [['--week', '2'], ['2'], ['--weeks'], ['--weeks', '--json'], ['--weeks', '0'], ['--weeks', '53'], ['--weeks', '1.5']]) {
+    const got = run(process.execPath, [resolve('bin/keel.mjs'), 'time', ...args, '--json'], { cwd: root, env: { ...process.env, CI: 'true' } });
+    assert.equal(got.status, 2, JSON.stringify(args));
+    assert.match(JSON.parse(got.stdout).error, /unexpected argument|weeks/);
+  }
+});
+
+test('review: transcript window includes both boundaries and excludes future uses and results', async t => {
+  const home = await scratch(t), root = join(home, 'acme');
+  const dir = join(home, '.claude', 'projects', resolve(root).replace(/[^a-zA-Z0-9]/g, '-'));
+  await mkdir(dir, { recursive: true });
+  const now = Date.parse('2026-10-09T12:00:00Z');
+  const use = (timestamp, id) => ({ timestamp, cwd: root, message: { content: [{ type: 'tool_use', name: 'Bash', id, input: { command: 'npm test', timeout: 120000 } }] } });
+  const rows = [use('2026-10-04T23:59:59.999Z', 'old'), use('2026-10-05T00:00:00Z', 'start'),
+    use('2026-10-09T12:00:00Z', 'end'), use('2026-10-09T12:00:00.001Z', 'future'),
+    { timestamp: '2026-10-09T12:00:00.001Z', cwd: root, toolUseResult: { interrupted: true }, message: { content: [{ type: 'tool_result', tool_use_id: 'end', content: 'Acme private output' }] } }];
+  await writeFile(join(dir, 'acme.jsonl'), rows.map(r => JSON.stringify(r)).join('\n'));
+  const { data, text } = await keelTime({ root, home, env: {}, weeks: 1, now });
+  assert.equal(data.workedAround.counts.workedAround, 2);
+  assert.equal(data.workedAround.counts.interrupted, 0);
+  assert.equal(data.workedAround.coverage.outOfWindow, 3);
+  assert.equal(data.workedAround.coverage.observedRecords, 2);
+  assert.match(text, /3 records out of window/);
+  assert.doesNotMatch(JSON.stringify({ data, text }), /Acme private output/);
+  await writeFile(join(dir, 'acme.jsonl'), JSON.stringify(rows[3]));
+  const futureOnly = await keelTime({ root, home, env: {}, weeks: 1, now });
+  assert.equal(futureOnly.data.workedAround.counts, null);
+  assert.equal(futureOnly.data.workedAround.coverage.outOfWindow, 1);
+});
+
+test('review: human timing shows bounded named medians usual times failures and diagnosis with lane and window', async t => {
+  const root = await scratch(t), dir = join(root, '.keel', 'test-runs');
+  await mkdir(dir, { recursive: true });
+  const tests = Array.from({ length: 12 }, (_, i) => ({ file: `tests/acme-${i}.test.mjs`, name: `Acme case ${i}`, outcome: 'pass', ms: 10 + i }));
+  const first = at('2026-10-08T00:00:00Z', { tests, dirty: false, tree: 'acme-tree', runner: 'vitest' });
+  const second = at('2026-10-09T00:00:00Z', { tests: [{ ...tests[11], outcome: 'fail', error: 'Acme expected shipment, received delay\nAcme detail' }], dirty: false, tree: 'acme-tree', runner: 'vitest' });
+  await writeFile(join(dir, 'first.json'), JSON.stringify(first));
+  await writeFile(join(dir, 'second.json'), JSON.stringify(second));
+  const { text, data } = await keelTime({ root, env: { CI: 'true' }, weeks: 1, now: Date.parse('2026-10-09T12:00:00Z') });
+  assert.match(text, /2026-10-05 through 2026-10-09T12:00:00.000Z/);
+  assert.match(text, /runner=vitest dir=\. config=acme machine=linux-x64-4cpu/);
+  assert.match(text, /tests\/acme-11.test.mjs — Acme case 11: median 21 ms/);
+  assert.match(text, /Acme case 11: usual 21 ms/);
+  assert.match(text, /Acme expected shipment, received delay/);
+  assert.match(text, /different outcomes on an identical clean tree/);
+  assert.equal((text.match(/2 entries omitted/g) ?? []).length, 2);
+  assert.equal(data.usual.length, 12);
+  assert.doesNotMatch(text, /Acme case 0:/);
+  assert.match(text, /gate unavailable/);
+  assert.match(text, /disabled in CI/);
+  second.tests = Array.from({ length: 12 }, (_, i) => ({ ...tests[i], outcome: 'fail', error: i === 11 ? null : 'Acme '.repeat(100) }));
+  await writeFile(join(dir, 'second.json'), JSON.stringify(second));
+  const bounded = await keelTime({ root, env: { CI: 'true' }, weeks: 1, now: Date.parse('2026-10-09T12:00:00Z') });
+  assert.match(bounded.text, /Acme case 11: unavailable/);
+  assert.match(bounded.text, /characters omitted/);
+  assert.equal((bounded.text.match(/2 entries omitted/g) ?? []).length, 4);
+});

@@ -1201,3 +1201,43 @@ test('quoted Authorization is redacted by Node and JUnit collectors without envi
     assert.doesNotMatch(error, /acme-fake-credential/);
   }
 });
+
+test('ANSI-colored credentials are redacted before Node and JUnit collection', () => {
+  assert.equal(ledger.failureText('acme-\x1b[32mfake-credential', { ACME_SECRET: 'acme-fake-credential' }), '[redacted]');
+  for (const value of ['Authorization: \x1b[32mBearer acme-fake-credential\x1b[0m', '{"Author\x1b[32mization":"Bearer acme-fake-credential"}', 'password=acme-\x1b[32mfake-credential']) {
+    assert.doesNotMatch(ledger.failureText(value, {}), /acme-|fake-credential/);
+    const top = ledger.topLevel({ errors: true });
+    top.push({ type: 'test:fail', data: { nesting: 0, name: 'Acme', details: { error: new Error(value) } } });
+    const xml = ledger.readXml(`<testsuites><testsuite name="acme.test.ts"><testcase name="Acme"><failure><![CDATA[${value}]]></failure></testcase></testsuite></testsuites>`);
+    for (const error of [top.tests[0].error, ledger.junitTests(xml, 'vitest').tests[0].error]) {
+      assert.match(error, /\[redacted\]/);
+      assert.doesNotMatch(error, /acme-|fake-credential|\x1b/);
+    }
+  }
+});
+
+test('timed gates execute and preserve exit status when telemetry storage fails', async t => {
+  for (const preparationFails of [true, false]) for (const status of [0, 7]) {
+    const dir = await scratch(t);
+    await mkdir(join(dir, '.keel'));
+    if (preparationFails) await writeFile(join(dir, '.keel', 'test-runs'), 'not a directory');
+    await writeFile(join(dir, 'gate.mjs'), `
+      import { rmSync, writeFileSync } from 'node:fs';
+      writeFileSync('observed.json', JSON.stringify({ ran: true, usual: process.env.KEEL_USUAL ?? null }));
+      ${preparationFails ? '' : "rmSync('.keel/test-runs', { recursive: true }); writeFileSync('.keel/test-runs', 'not a directory');"}
+      process.exit(${status});
+    `);
+    const source = `import { timedCommand } from ${JSON.stringify(pathToFileURL(SOURCE).href)};
+      const result = await timedCommand(${JSON.stringify(`'${process.execPath}' gate.mjs`)});
+      console.log(JSON.stringify({ status: result.status, telemetry: result.telemetry }));`;
+    const r = run(process.execPath, ['--input-type=module', '-e', source], { cwd: dir, env: { ...process.env, KEEL_USUAL: '/stale/acme', KEEL_GATE_ACTIVE: '' } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout), { status, telemetry: { usual: !preparationFails, recorded: false } });
+    const observed = JSON.parse(await readFile(join(dir, 'observed.json'), 'utf8'));
+    assert.equal(observed.ran, true);
+    if (preparationFails) assert.equal(observed.usual, null, 'no stale inherited usual file');
+    else assert.equal(observed.usual, join(dir, '.keel', 'test-runs', 'usual'));
+    assert.match(r.stderr, /gate timing record unavailable/);
+    if (preparationFails) assert.match(r.stderr, /usual timing unavailable/);
+  }
+});

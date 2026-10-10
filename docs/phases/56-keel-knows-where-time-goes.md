@@ -72,3 +72,5 @@ After two weeks of context-aware runs (no earlier than 2026-10-23), the owner re
 
 - **2026-10-09** — The real transcript exceeds 42 MB and wraps test commands in output redirection and pipelines. Bounded streaming recognizes the first direct invocation and discloses ignored tails; structured interruption metadata owns interruption, never stdout keywords. See the timing evidence.
 - **2026-10-09** — Gate timing belongs to the caller project, not its enclosing Git repository. Existing nested fixture observations are retained but excluded from the root trend; absent or invalid durations remain unavailable.
+
+- **2026-10-09** — Telemetry must not stop the gate: unavailable storage is diagnostic and preserves the check's exit. Positive quiet-run evidence survives omission of busy observations. Independent review and regression proofs established both boundaries before acceptance.

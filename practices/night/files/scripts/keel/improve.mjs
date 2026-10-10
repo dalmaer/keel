@@ -754,8 +754,8 @@ export const MEASURES = [
       const { opts, runs, skipped } = await ledgerHistory(ctx);
       if (runs.length < opts.window) return { na: `${tooFew(runs.length, opts.window)}${nightNote(runs)}${busyNote(runs)}` };
       const recent = runs.slice(-opts.window);
-      if (recent.filter(r => busyState(r) !== 'busy').length < opts.window) return { na: `too few recent runs after busy filtering${busyNote(recent)}` };
       const found = flaky(recent);
+      if (!found.length && recent.filter(r => busyState(r) !== 'busy').length < opts.window) return { na: `too few recent runs after busy filtering${busyNote(recent)}` };
       const trees = new Set(recent.filter(r => r.dirty === false && r.tree).map(r => r.tree)).size;
       return {
         value: found.length,

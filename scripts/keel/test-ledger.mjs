@@ -108,6 +108,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join, relative, resolve, sep, posix, isAbsolute } from 'node:path';
 import { platform, arch, availableParallelism, loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 
 export const RUNS = '.keel/test-runs';
 /** Runs kept on disk per lane (a suite's folder and config), at least; older ones are pruned. */
@@ -222,7 +223,7 @@ export const busyNote = runs => { const c = busyCoverage(runs); return `; ${c.om
 
 /** First eight lines, at most 1 KiB, redacted before truncation (including configured secrets). */
 export function failureText(value, env = process.env) {
-  let text = String(value ?? '');
+  let text = stripVTControlCharacters(String(value ?? ''));
   for (const [name, secret] of Object.entries(env)) {
     if (/token|secret|password|credential|api.?key/i.test(name) && secret) text = text.split(secret).join('[redacted]');
   }
@@ -230,7 +231,7 @@ export function failureText(value, env = process.env) {
     .replace(/((?:[\w-]*(?:token|secret|password|credential|api[_-]?key|key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, '$1[redacted]')
     .replace(/(authorization["']?\s*:\s*)(?:"[^"\n]*"|'[^'\n]*'|(?:bearer|basic)\s+[^\s,;}]+)/gi, '$1[redacted]')
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[redacted]@')
-    .replace(/\x1b\[[0-9;]*m/g, '').split('\n').slice(0, 8).join('\n').slice(0, 1024);
+    .split('\n').slice(0, 8).join('\n').slice(0, 1024);
   while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);
   return text;
 }
@@ -270,18 +271,27 @@ export async function timedCommand(command, { cwd = process.cwd(), env = process
     const result = spawnSync(command, { ...options, env });
     return { ...result, ms: Date.now() - started };
   }
-  const history = await readRuns(root);
-  const usual = await writeUsual(root, history.runs);
+  let usual;
+  const telemetry = { usual: false, recorded: false };
+  const unavailable = (stage, error) => process.stderr.write(`${LABEL}: ${stage} unavailable (${error.code ?? 'storage error'}); gate exit unchanged.\n`);
+  try {
+    const history = await readRuns(root);
+    usual = await writeUsual(root, history.runs);
+    telemetry.usual = true;
+  } catch (error) { unavailable('usual timing', error); }
   const identity = where(root);
   const start = await busySample(), started = Date.now();
-  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
-  const result = spawnSync(command, { ...options, env: { ...childEnv, KEEL_GATE_ACTIVE: root, KEEL_USUAL: usual, KEEL_RUN_START: JSON.stringify(start) } });
+  const childEnv = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_') && k !== 'KEEL_USUAL'));
+  const result = spawnSync(command, { ...options, env: { ...childEnv, KEEL_GATE_ACTIVE: root, ...(usual ? { KEEL_USUAL: usual } : {}), KEEL_RUN_START: JSON.stringify(start) } });
   const ms = Date.now() - started, busy = busyBetween(start, await busySample());
-  await record(root, { ...identity, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
+  try {
+    await record(root, { ...identity, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
     config: configHash({ env, preload: [], configEnv: config.tests?.configEnv ?? [], runner: 'gate' }),
     gateSource: command === (config.check ?? 'npm run check') ? 'configured-check' : 'explicit-command', commandHash: sha12(command), date: new Date().toISOString(), tests: [], ms, busy,
     status: result.status, signal: result.signal });
-  return { ...result, ms };
+    telemetry.recorded = true;
+  } catch (error) { unavailable('gate timing record', error); }
+  return { ...result, ms, telemetry };
 }
 
 // ---- config ------------------------------------------------------------------

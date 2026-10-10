@@ -43,3 +43,13 @@ PR #70 identified quoted Authorization values escaping redaction and Vitest disc
 The integrated review-fix run exposed a generator-probe race: a nested fixture's rotating ledger disappeared during a recursive copy. The isolated generated-file test passed 3/3, establishing the concurrency dependency rather than erasing the failure. [Hygiene issue #69](https://github.com/dalmaer/keel/issues/69#issuecomment-6093634654) preserves it. The probe now omits `.keel/test-runs` directories at every project depth before traversal, while retaining configuration and source inputs. Four focused generated-file tests passed.
 
 - Proven-by: tests/keel-generated.test.mjs (generated probes exclude rotating ledgers) — VERIFIED — "Expected values to be strictly deep-equal: + actual - expected + [ + 'docs/ACME.md: its generator `node rewrites.mjs` failed (exit 1): } | | Node.js v24.21.0..."
+
+## Further head-review corrections
+
+Independent review follow-up: strip terminal escape sequences before redaction, so presentation cannot hide a credential; keep confirmed quiet-run flakes even when other observations are busy; keep timing storage diagnostic so unavailable telemetry cannot stop the underlying gate or replace its exit status. Transcript project/time scope, CLI argument validation and human-readable report details are covered by focused regressions. The API/JSON report and human report expose the same underlying observations without implying certainty for omitted history.
+
+Conductor grouped proofs verified all seven newly reported regressions: every named test failed without its code fix and passed with it. The real human CLI exited 0 and printed named weekly/ usual timing, failure and coverage sections. The 20 timing tests and five focused ledger/measure checks passed before integration.
+
+- Proven-by: tests/time.test.mjs (^review:) — VERIFIED — "Expected values to be strictly equal: 0 !== 3 (review: Vitest outside targets are omissions and local targets retain identities after flags)"
+- Proven-by: tests/test-ledger.test.mjs (ANSI-colored|timed gates execute) — VERIFIED — "Expected values to be strictly equal: + actual - expected + 'acme-fake-credential' - '[redacted]' (ANSI-colored credentials are redacted before Node and JUni..."
+- Proven-by: tests/improve-ledger.test.mjs (preserves confirmed quiet findings) — VERIFIED — "Expected values to be strictly equal: 'n/a' !== 'outside' (flaky_tests preserves confirmed quiet findings when a recent busy run is omitted)"
