@@ -79,7 +79,10 @@ unrelated comment that happens to come later is not an answer
 that opens with a hidden `<!-- … -->` marker (a status board the bot edits
 in place) is listed as **status** and owes no answer. A read GitHub could
 not complete (a list longer than one page) is never reported as clean:
-`keel review` exits 2, and the night's count is n/a.
+`keel review` exits 2, and the night's count is n/a. A PR's reviews are the
+exception: each reply to a thread is a review, so a PR answered at length
+passes one page, and `keel review` reads them page by page up to 2000. Past
+2000 the read is still incomplete.
 
 **By default nothing waits and nothing blocks a merge.** Fleet update and
 the drain merge as before; the night counts what is left as

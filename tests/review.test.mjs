@@ -431,6 +431,9 @@ test('a PR past 100 reviews is read page by page (each reply is a review): the h
   const over = keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: [...exactly, { user: 'acme-owner', commit_id: OLD }] }), ['acme/app#3', '--json']);
   assert.equal(over.code, 2, over.out);
   assert.match(over.json().error, /more than 2000 reviews; the read is incomplete/);
+  // The bodies' first read is page 1: MAX_REVIEW_PAGES in all, so 20 pages that end there are whole, 21 are not.
+  const pagesOf = async n => { const g = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] }); keel(dir, g, ['acme/app#3', '--json']); return (await g.calls()).filter(a => a.some(x => String(x).includes('$after'))).length; };
+  assert.equal(await pagesOf(), 19, 'the first read and 19 more: 20 pages in all');
   // Pages without end: past MAX_REVIEW_PAGES the read is incomplete (exit 2), never a count.
   const endless = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] });
   const r = keel(dir, endless, ['acme/app#3', '--json']);
