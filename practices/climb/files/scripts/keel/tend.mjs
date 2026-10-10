@@ -123,14 +123,21 @@ export function sandboxProblems(root, base, head) {
     // from its first parent must be as the base has it, and a package.json's install keys as the base has them.
     // Never the combined diff, which lists only paths differing from every parent: two merges could take an
     // older version of a protected file from one and put it back from another, and neither would show it.
-    const merge = git(root, ['rev-list', '--parents', '-n', '1', c]).split(' ').length > 2;
-    if (merge) {
-      for (const { path } of changesOf(root, `${c}^`, c)) {
+    const [, first, ...others] = git(root, ['rev-list', '--parents', '-n', '1', c]).split(' ');
+    if (others.length) {
+      // The trusted commits this merge brought in (#85): on the base's own history (at or before the base) and new
+      // to the branch (not already in its first parent's). A protected path may be as one of them has it, so a
+      // branch that merged the default branch twice, a workflow changed each time, passes; an older version taken
+      // from a commit the branch already holds does not.
+      const isAncestor = (a, d) => git(root, ['merge-base', '--is-ancestor', a, d], { allowFail: true }).status === 0;
+      const brought = others.filter(p => isAncestor(p, b) && !isAncestor(p, first));
+      for (const { path } of changesOf(root, first, c)) {
         if (basename(path) === 'package.json') {
-          const why = packageProblem(showAt(root, b, path), showAt(root, c, path));
-          if (why) out.push(`${path}: ${why} in the merge ${c.slice(0, 7)}, against the base; a merge brings only what the base has, so the branch is refused whole (ledger#92)`);
-        } else if ((offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) && showAt(root, c, path) !== showAt(root, b, path)) {
-          out.push(`${path}: the merge ${c.slice(0, 7)} on the agent's branch leaves it unlike both its first parent and the base; a merge brings only what the base has (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
+          if (brought.some(p => !packageProblem(showAt(root, p, path), showAt(root, c, path)))) continue;
+          const why = packageProblem(showAt(root, b, path), showAt(root, c, path)) ?? 'install keys unlike any default-branch commit it merged';
+          out.push(`${path}: ${why} in the merge ${c.slice(0, 7)}; a merge brings only what the default branch had, so the branch is refused whole (ledger#92)`);
+        } else if ((offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) && !brought.some(p => showAt(root, c, path) === showAt(root, p, path))) {
+          out.push(`${path}: the merge ${c.slice(0, 7)} on the agent's branch leaves it unlike its first parent and unlike any default-branch commit it brought in; a merge brings only what the default branch had (${path.startsWith('docs/evidence/') ? 'evidence is never the agent\'s to write' : 'it is off limits to the agent'}), so the branch is refused whole`);
         }
       }
       continue;
