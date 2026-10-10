@@ -44,7 +44,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
-import { isMain, rootOf, main, gateEnv, passAgentProblems, agentOf, AGENTS, reviewerOf, agentGitArgs, robotAgentMark } from './lib.mjs';
+import { isMain, rootOf, main, passAgentProblems, agentOf, AGENTS, reviewerOf, agentGitArgs, robotAgentMark } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
 import { sandboxProblems, recordRules, treeState, heldProblems } from './tend.mjs';
 import { LABEL, triage, missingText } from './rubric.mjs';
@@ -213,7 +213,7 @@ export const fromWriter = c => !isBot(c) && ASKERS.includes(c?.author_associatio
  * `comments` on work are the writers' comments since the last run.
  */
 export function issueState(issue, comments = []) {
-  const base = { number: issue.number, title: String(issue.title ?? ''), url: issue.html_url ?? null, created: issue.created_at ?? null };
+  const base = { number: issue.number, title: String(issue.title ?? ''), url: issue.html_url ?? null, created: issue.created_at ?? null, hash: bodyHash(issue.body) };
   const mine = comments.filter(fromRobot);
   // The last run: its mark's cursor (when that run read the comments), else when the mark was posted.
   const mark = mine.map(c => ({ c, m: RUN_RE.exec(c.body) })).filter(x => x.m).at(-1);
@@ -249,11 +249,53 @@ export function againSince(state, events = []) {
 /** What a run does with these states (oldest issue first): every triage to post, and the one issue to work. Pure. */
 export function choose(states) {
   return {
-    triage: states.filter(s => s.kind === 'triage').slice(0, MAX_TRIAGE).map(s => s.number),
+    triage: states.filter(s => s.kind === 'triage' || s.kind === 'unapproved').slice(0, MAX_TRIAGE).map(s => s.number),
     work: states.find(s => s.kind === 'work') ?? null,
-    waiting: states.filter(s => s.kind === 'worked' || s.kind === 'waits-rubric').map(s => s.number),
+    waiting: states.filter(s => s.kind === 'worked' || s.kind === 'waits-rubric' || s.kind === 'waits-approval').map(s => s.number),
   };
 }
+
+// ---- who approved the body --------------------------------------------------------------
+//
+// PR #59: the label is the approval. Only someone who can label issues puts keel:agent on one, but anyone
+// who wrote the issue can edit its body after. So the body worked is one a person approved: unedited since
+// a person (never a bot) last put keel:agent on it, or last edited by a writer (the person who labelled it,
+// or the issue's author when the author has write access). Otherwise one comment asks a writer to put the
+// label on again, and the issue is not worked.
+
+const APPROVE_RE = /<!-- keel:robot approve ([0-9a-f]{12}) -->/;
+export const approveMark = hash => `<!-- keel:robot approve ${hash} -->`;
+const sameLogin = (a, b) => typeof a === 'string' && typeof b === 'string' && a.replace(/\[bot\]$/i, '').toLowerCase() === b.replace(/\[bot\]$/i, '').toLowerCase();
+
+/**
+ * Whether the body as it stands was approved, pure: { ok, why }. `a` is
+ * what GitHub says of the issue: { author, authorAssociation, lastEditedAt,
+ * editor, labels: [{ at, actor, bot }] } (the keel:agent labelled events).
+ */
+export function approvalOf(a) {
+  const label = (a?.labels ?? []).filter(l => l?.actor && !l.bot && Number.isFinite(at(l.at))).sort((x, y) => at(x.at) - at(y.at)).at(-1);
+  if (!label) return { ok: false, why: `no person's ${LABEL} label was found on it` };
+  if (!a.lastEditedAt || at(a.lastEditedAt) <= at(label.at)) return { ok: true, why: `${label.actor} put ${LABEL} on it after its last edit` };
+  if (sameLogin(a.editor, label.actor)) return { ok: true, why: `last edited by ${a.editor}, who put ${LABEL} on it` };
+  if (sameLogin(a.editor, a.author) && ASKERS.includes(a.authorAssociation)) return { ok: true, why: `last edited by its author ${a.editor}, who has write access (${a.authorAssociation})` };
+  return { ok: false, why: `its body was last edited ${a.lastEditedAt}${a.editor ? ` by ${a.editor}` : ''}, after ${label.actor} put ${LABEL} on it (${label.at}), and the robot cannot tell that editor has write access` };
+}
+
+/** A state that would be worked, held to its approval (PR #59): unapproved, answered once per body. Pure. */
+export function withApproval(state, approval, comments = []) {
+  if (state.kind !== 'work') return state;
+  const v = approvalOf(approval);
+  if (v.ok) return { ...state, approved: v.why };
+  const answered = comments.some(c => fromRobot(c) && APPROVE_RE.exec(c.body)?.[1] === state.hash);
+  return { ...state, kind: answered ? 'waits-approval' : 'unapproved', unapproved: v.why };
+}
+
+/** The comment an unapproved issue gets, once per body. */
+export const approvalText = (hash, why) => `${approveMark(hash)}\nThis issue is labelled \`${LABEL}\`, but ${why}. So the robot will not work it as it stands: a person with write access reads the body and puts \`${LABEL}\` on it again (remove it, then add it), which approves this body.\n`;
+
+const APPROVAL_QUERY = `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) {
+  author { login } authorAssociation lastEditedAt editor { login }
+  timelineItems(itemTypes: [LABELED_EVENT], last: 100) { nodes { ... on LabeledEvent { createdAt label { name } actor { __typename login } } } } } } }`;
 
 // ---- reading GitHub ------------------------------------------------------------------
 
@@ -301,6 +343,20 @@ export function githubOf(env = process.env) {
       return list[0] ? { number: list[0].number, url: list[0].html_url } : null;
     },
     prDiff: (repo, n) => ghRun(env, ['pr', 'diff', String(n), '--repo', repo]),
+    // Who wrote and edited the body, and who labelled it when (PR #59): GraphQL, read whole or not at all.
+    approval: (repo, n) => {
+      const [owner, name] = repo.split('/');
+      const out = ghRun(env, ['api', 'graphql', '-f', `query=${APPROVAL_QUERY}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${n}`]);
+      let data;
+      try { data = JSON.parse(out); } catch { throw new RobotError('gh api graphql did not print JSON'); }
+      if (data?.errors?.length) throw new RobotError(`gh api graphql: ${String(data.errors[0]?.message ?? 'an error').split('\n')[0]}; the robot never guesses`);
+      const i = data?.data?.repository?.issue;
+      if (!i || !Array.isArray(i.timelineItems?.nodes)) throw new RobotError(`gh api graphql: issue #${n} came back without its edits and labels`);
+      return {
+        author: i.author?.login ?? null, authorAssociation: i.authorAssociation ?? null, lastEditedAt: i.lastEditedAt ?? null, editor: i.editor?.login ?? null,
+        labels: i.timelineItems.nodes.filter(e => e?.label?.name === LABEL).map(e => ({ at: e.createdAt, actor: e.actor?.login ?? null, bot: e.actor?.__typename === 'Bot' || /\[bot\]$/i.test(e.actor?.login ?? '') })),
+      };
+    },
     comment: (repo, n, body) => { ghRun(env, ['issue', 'comment', String(n), '--repo', repo, '--body-file', '-'], body); },
   };
 }
@@ -341,8 +397,11 @@ export async function pick({ root, config, env = process.env, repo, record = fal
   const states = [];
   let work = null;
   for (const issue of github.issues(repo)) {
-    let s = issueState(issue, github.comments(repo, issue.number));
+    const comments = github.comments(repo, issue.number);
+    let s = issueState(issue, comments);
     if (!work && s.kind === 'worked') s = againSince(s, github.events(repo, issue.number));
+    // PR #59: only a body a person approved is worked; an unapproved one is answered once, not worked.
+    if (!work && s.kind === 'work') s = withApproval(s, github.approval(repo, issue.number), comments);
     if (!work && s.kind === 'work') work = { state: s, issue };
     states.push(s);
   }
@@ -472,7 +531,7 @@ const sha = (root, ref) => git(root, ['rev-parse', '--verify', `${ref}^{commit}`
  * the record rules (no evidence, no status marked built, lived-in or
  * accepted, no acceptance box ticked), and passes the gate. { ok, problems, line? }.
  */
-export async function robotGuard({ root, config, env = process.env, base, check = 'npm run check' }) {
+export async function robotGuard({ root, config, env = process.env, base, check = 'npm run check', ledger }) {
   if (!base) throw new RobotError('guard --job robot needs --base <the run\'s commit>');
   const head = sha(root, 'HEAD'), b = sha(root, base);
   if (head === b) return { ok: true, job: KEY, skipped: true, line: 'nothing changed: HEAD is the base, so there is nothing to guard', problems: [] };
@@ -483,12 +542,15 @@ export async function robotGuard({ root, config, env = process.env, base, check 
   const gate = config.check ?? check;
   // The gate is the agent's code: what was checked is HEAD now, and it must still be HEAD after (PR #59).
   const before = treeState(root);
-  const r = spawnSync(gate, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
-  if (r.error) throw new RobotError(`could not run the gate \`${gate}\`: ${r.error.message}`);
-  if (r.status !== 0) return { ok: false, job: KEY, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  // Judged by what it ran, not its exit alone (PR #59): climb's ledger comparison against the base's own
+  // gate, so a gate script the branch rewrote (`"check": "true"`, `|| true`) is refused. climb.mjs hands
+  // its ledgerCheck in (it loads this module, so this one never imports it back at load).
+  const check_ = ledger ?? (await import('./climb.mjs')).ledgerCheck;
+  const l = await check_({ root, config, env, gate, base: b, head });
+  if (!l.ok) return { ok: false, job: KEY, problems: l.problems, ...(l.missing ? { missing: l.missing } : {}) };
   const moved = heldProblems(root, before, `the gate \`${gate}\``);
   if (moved.length) return { ok: false, job: KEY, refused: moved, problems: moved };
-  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; the robot's guard passed (nothing off limits changed, no evidence written, nothing marked built, lived-in or accepted, no box ticked)`;
+  const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${l.count} tests ran, none dropped, skipped or failed against the base ${b.slice(0, 7)}'s own gate (the test ledger); the robot's guard passed (nothing off limits changed, no evidence written, nothing marked built, lived-in or accepted, no box ticked)`;
   await writeRecord(root, JUDGED, { base: b, head, gate: line });
   return { ok: true, job: KEY, head, line, problems: [] };
 }
@@ -589,8 +651,17 @@ export async function triagePost({ env = process.env, repo, issues, postIt = fal
   for (const n of numbers.slice(0, MAX_TRIAGE).map(Number)) {
     const issue = github.issue(repo, n);
     if (issue?.state !== 'open' || !(issue.labels ?? []).some(l => (l?.name ?? l) === LABEL) || issue.pull_request) { out.push({ issue: n, posted: false, why: `not an open issue labelled ${LABEL}` }); continue; }
-    const s = issueState(issue, github.comments(repo, n));
-    if (s.kind !== 'triage') { out.push({ issue: n, posted: false, why: s.kind === 'waits-rubric' ? 'this body was answered already' : 'it holds the rubric' }); continue; }
+    const comments = github.comments(repo, n);
+    let s = issueState(issue, comments);
+    // PR #59: a body edited since a person approved it is answered once, as pick found it.
+    if (s.kind === 'work') s = withApproval(s, github.approval(repo, n), comments);
+    if (s.kind === 'unapproved') {
+      const body = approvalText(s.hash, s.unapproved);
+      if (postIt) github.comment(repo, n, body);
+      out.push({ issue: n, posted: postIt, unapproved: s.unapproved, why: `not approved: ${s.unapproved}`, ...(postIt ? {} : { body }) });
+      continue;
+    }
+    if (s.kind !== 'triage') { out.push({ issue: n, posted: false, why: s.kind === 'waits-rubric' || s.kind === 'waits-approval' ? 'this body was answered already' : 'it holds the rubric' }); continue; }
     const body = `${triageMark(s.hash)}\n${missingText(s.missing)}\n`;
     if (postIt) github.comment(repo, n, body);
     out.push({ issue: n, posted: postIt, missing: s.missing.map(m => m.id), why: `misses ${s.missing.map(m => m.id).join(', ')}`, ...(postIt ? {} : { body }) });

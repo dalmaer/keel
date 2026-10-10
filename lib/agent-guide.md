@@ -1335,14 +1335,20 @@ becomes a PR on `keel/robot-<issue>` that a person merges.
   issue never worked, or with a writer's comment (or a reopen, or the label
   again) since its last run (the robot's own comment). An issue that misses
   a rubric field gets one comment naming each missing one (once per body:
-  edit the body to fix it), and is not worked.
+  edit the body to fix it), and is not worked. The label approves the body
+  as it stands: a body edited after a person last put `keel:agent` on it,
+  by anyone but that person or an author with write access, gets one
+  comment and is not worked until a writer puts the label on again.
 - **A run**: three jobs, as climb's. The agent (read-only token) works on
   `keel/robot-<issue>` from the default branch, its brief
   `.agents/climb/ROBOT.md` with the issue, the writers' comments since its
   last run, and its open PR's diff. The judge runs `climb.mjs guard --job
   robot --base <run's commit>`: nothing off limits changed (`sandbox`), no
   evidence written, nothing marked built, lived-in or accepted, no box
-  ticked, then the gate. Publish pushes only `refs/heads/keel/robot-<issue>`,
+  ticked, then the gate, judged as climb's is: the test ledger's records of
+  it against the base's own gate (the gate must write to the ledger), so a
+  gate script the branch rewrote (`true`, `|| true`, fewer tests) is
+  refused. Publish pushes only `refs/heads/keel/robot-<issue>`,
   opens the PR (`Closes #<issue>`), never merges, and posts the agent's
   last message on the issue (what changed, how it knows; or one question
   with choices), then the PR. A comment there starts the next run.

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
-import { acme, commit, git, KEEL } from './helpers/climb.mjs';
+import { acme, commit, git, KEEL, LEDGER_TEST, suite } from './helpers/climb.mjs';
 import { reviewerOf } from '../practices/night/files/scripts/keel/lib.mjs';
 import { LABEL, RUBRIC, rubricBody, triage, missingText, CHECKS_HEADING } from '../practices/climb/files/scripts/keel/rubric.mjs';
 
@@ -39,11 +39,11 @@ const robotLib = () => loaded ??= (async () => {
 
 /** An Acme project with the robot's scripts and brief, committed on main. */
 async function acmeRobot(t, config = {}) {
-  const dir = await acme(t, { climb: null, config: { repo: REPO, check: 'true', ...config } });
+  const dir = await acme(t, { climb: null, config: { repo: REPO, check: LEDGER_TEST, ...config } });
   for (const f of ['robot.mjs', 'rubric.mjs']) await cp(join(ROBOT_DIR, f), join(dir, 'scripts/keel', f));
   await mkdir(join(dir, '.agents/climb'), { recursive: true });
   await cp(join(KEEL, 'practices/climb/files/.agents/climb/ROBOT.md'), join(dir, '.agents/climb/ROBOT.md'));
-  await commit(dir, { 'src/lid.mjs': 'export const lid = () => "stuck";\n' }, 'acme: the robot');
+  await commit(dir, { 'src/lid.mjs': 'export const lid = () => "stuck";\n', 'acme.test.mjs': suite('acme opens the lid', 'acme shuts the lid') }, 'acme: the robot');
   return dir;
 }
 
@@ -66,6 +66,7 @@ const args = process.argv.slice(2);
 const fx = JSON.parse(readFileSync(${JSON.stringify(fixture)}, 'utf8'));
 let input = ''; try { input = readFileSync(0, 'utf8'); } catch {}
 appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input }) + '\\n');
+if (args[0] === 'api' && args[1] === 'graphql') { process.stdout.write(JSON.stringify(fx.graphql ?? { data: { repository: { issue: { author: { login: 'acme-owner' }, authorAssociation: 'OWNER', lastEditedAt: null, editor: null, timelineItems: { nodes: [{ createdAt: '2026-10-01T00:00:00Z', label: { name: 'keel:agent' }, actor: { __typename: 'User', login: 'acme-owner' } }] } } } } })); process.exit(0); }
 if (args[0] === 'api') {
   const u = new URL(args[1], 'https://acme.test/');
   const page = Number(u.searchParams.get('page') ?? 1);
@@ -93,7 +94,9 @@ const issue = (number, { body = rubricBody(FIELDS), title = `Acme issue ${number
 const comment = (at, body, { user = OWNER, association = 'OWNER', id } = {}) => ({ ...(id === undefined ? {} : { id }), created_at: at, body, user, author_association: association, html_url: `https://github.com/${REPO}/issues/1#c-${at}` });
 
 /** An injected GitHub: issues, comments and events by number, runs (each with its jobs), an open PR. Writes are recorded. */
-function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = null, diff = '' } = {}) {
+/** GitHub's word on a body nobody edited, labelled by the owner (the default every fake issue has). */
+const APPROVED = Object.freeze({ author: 'acme-owner', authorAssociation: 'OWNER', lastEditedAt: null, editor: null, labels: [{ at: '2026-10-01T00:00:00Z', actor: 'acme-owner', bot: false }] });
+function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = null, diff = '', approvals = {} } = {}) {
   const posted = [];
   const asked = [];
   return {
@@ -105,6 +108,8 @@ function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = n
     runs: (_, since) => { asked.push(`runs ${since}`); return runs.filter(r => !r.inProgress).map(r => ({ id: r.id, conclusion: r.conclusion ?? 'success', run_attempt: r.attempts?.length ?? 1, ...(r.updated ? { updated_at: r.updated } : {}) })); },
     jobs: (_, id, attempt = 1) => { asked.push(`jobs ${id}/${attempt}`); const r = runs.find(x => x.id === id); return r.attempts ? r.attempts[attempt - 1] : r.jobs; },
     openPr: () => pr,
+    // Who approved each body (PR #59): by default unedited, labelled by the owner.
+    approval: (_, n) => { asked.push(`approval ${n}`); return approvals[n] ?? APPROVED; },
     prDiff: () => diff,
     comment: (_, n, body) => posted.push({ n, body }),
   };
@@ -463,14 +468,14 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open";\n' }, 'lid: open on the hinge');
   const ok = guard();
   assert.equal(ok.status, 0, ok.stdout + ok.stderr);
-  assert.match(parse(ok).line, /^`true` exit 0 on [0-9a-f]{7}; the robot's guard passed/);
+  assert.match(parse(ok).line, /^`node --test [^`]*` exit 0 on [0-9a-f]{7}; 2 tests ran, none dropped, skipped or failed against the base [0-9a-f]{7}'s own gate \(the test ledger\); the robot's guard passed/);
   const r = run(process.execPath, [join(dir, 'scripts/keel/robot.mjs'), 'report', '--base', base, '--issue', '12', '--title', 'Acme lid sticks', '--agent', 'codex', '--body', join(dir, '.keel/robot/body.md'), '--json'], { cwd: dir });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(parse(r).commits, 1);
   const body = await readFile(join(dir, '.keel/robot/body.md'), 'utf8');
   assert.match(body, /^Closes #12$/m);
   assert.match(body, /src\/\n.*lid\.mjs/);
-  assert.match(body, /Gate: `true` exit 0/);
+  assert.match(body, /Gate: `node --test [^`]*` exit 0/);
   assert.match(body, /Review: written by codex \(keel\/robot-, its PR's mark\): reviewed by claude/);
   assert.match(body, /```keel-impact\n\{"version":1,"phases":\[\],/);
   // PR #59: the body records who wrote it, so a later /review reads that, never today's "robot".agent.
@@ -523,7 +528,7 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     ['echo "// more" >> src/lid.mjs && git add src/lid.mjs', /changed the tracked tree or the index after the guard's checks/],
   ]) {
     git(dir, ['reset', '-q', '--hard', checked]);
-    const g = await robot.robotGuard({ root: dir, config: { ...config, check: gate }, base });
+    const g = await robot.robotGuard({ root: dir, config: { ...config, check: `${LEDGER_TEST} && ${gate}` }, base });
     assert.equal(g.ok, false, gate);
     assert.ok(g.problems.some(p => said.test(p)), JSON.stringify(g.problems));
   }
@@ -550,4 +555,95 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const empty = await robot.report({ root: redDir, config, base: 'HEAD', issue: 12, title: 'Acme', agent: 'claude' });
   assert.equal(empty.commits, 0);
   assert.equal(empty.text, null);
+});
+
+// PR #59: the gate is the project's, but its script lives in package.json, which the agent's branch may
+// change ("scripts" but the install's own). The guard judges what the gate ran against what the base's
+// own gate runs (climb.mjs ledgerCheck, the test ledger), so a rewritten gate script never passes.
+test('the judge: a gate script the branch rewrote (to `true`, to `|| true`, to fewer tests) is refused; an honest change passes', async t => {
+  const robot = await robotLib();
+  const pkg = check => `${JSON.stringify({ name: 'acme', private: true, scripts: { check } }, null, 2)}\n`;
+  // No "check" in .keel/keel.json: the gate is `npm run check`, as package.json defines it.
+  const dir = await acmeRobot(t, { check: undefined });
+  const base = await commit(dir, { 'package.json': pkg(LEDGER_TEST) }, 'acme: the gate is npm run check');
+  const judge = async (files, message) => {
+    git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
+    await commit(dir, files, message);
+    return robot.robotGuard({ root: dir, config: JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')), base });
+  };
+  const honest = await judge({ 'src/lid.mjs': 'export const lid = () => "open";\n' }, 'lid: open on the hinge');
+  assert.equal(honest.ok, true, JSON.stringify(honest.problems));
+  for (const [why, files, said] of [
+    ['the gate script rewritten to true', { 'package.json': pkg('true') }, /exited 0 on [0-9a-f]{7} but recorded no test ledger run, where the base [0-9a-f]{7}'s ran 2 tests/],
+    ['a failing test hidden by || true', { 'package.json': pkg(`${LEDGER_TEST} || true`), 'acme.test.mjs': suite('acme opens the lid', { text: "test('acme shuts the lid', () => { throw new Error('stuck'); });" }) }, /^failed: acme\.test\.mjs "acme shuts the lid" failed on [0-9a-f]{7}, though the gate `npm run check` exited 0$/],
+    ['the gate narrowed to a test of its own', { 'package.json': pkg(LEDGER_TEST.replace('acme.test.mjs', 'acme-easy.test.mjs')), 'acme-easy.test.mjs': suite('acme passes') }, /^dropped: acme\.test\.mjs "acme opens the lid" ran in the base [0-9a-f]{7} and not in [0-9a-f]{7}$/],
+  ]) {
+    const g = await judge(files, `acme: ${why}`);
+    assert.equal(g.ok, false, `${why}: ${JSON.stringify(g)}`);
+    assert.ok(g.problems.some(p => said.test(p)), `${why}: ${JSON.stringify(g.problems)}`);
+  }
+  // The command line agrees: exit 1, naming it.
+  await judge({ 'package.json': pkg('true') }, 'acme: true');
+  const cli = run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), 'guard', '--job', 'robot', '--base', base, '--json'], { cwd: dir });
+  assert.equal(cli.status, 1, cli.stdout + cli.stderr);
+  assert.match(parse(cli).problems.join('\n'), /recorded no test ledger run, where the base/);
+});
+
+// PR #59: the keel:agent label is the approval of the body as it stood. An outsider's issue can be edited
+// by its author after a writer labels it; that body is never worked until a writer labels it again.
+test('an issue whose body was edited after it was labelled, by someone the robot cannot tell has write access, is answered once and not worked; a writer\'s edit is fine', async t => {
+  const robot = await robotLib();
+  const labelled = { at: '2026-10-02T09:00:00Z', actor: 'acme-owner', bot: false };
+  const outsider = { author: 'mallory', authorAssociation: 'NONE', lastEditedAt: '2026-10-03T09:00:00Z', editor: 'mallory', labels: [labelled] };
+  // Pure: the rule.
+  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: null }).ok, true, 'an outsider\'s body, unedited since a writer labelled it');
+  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: '2026-10-01T09:00:00Z' }).ok, true, 'edited before the label: the labeller read that body');
+  assert.equal(robot.approvalOf(outsider).ok, false, 'edited after the label by its outsider author');
+  assert.match(robot.approvalOf(outsider).why, /its body was last edited 2026-10-03T09:00:00Z by mallory, after acme-owner put keel:agent on it/);
+  assert.equal(robot.approvalOf({ ...outsider, editor: 'acme-owner' }).ok, true, 'edited after the label by the writer who labelled it');
+  assert.equal(robot.approvalOf({ ...outsider, author: 'acme-dev', authorAssociation: 'MEMBER', editor: 'acme-dev' }).ok, true, 'edited by its author, a member');
+  assert.equal(robot.approvalOf({ ...outsider, editor: 'acme-dev' }).ok, false, 'edited by someone else the robot cannot place');
+  assert.equal(robot.approvalOf({ ...outsider, labels: [{ ...labelled, at: '2026-10-04T09:00:00Z' }] }).ok, true, 'labelled again after the edit: approved');
+  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: null, labels: [{ ...labelled, actor: 'acme-bot[bot]', bot: true }] }).ok, false, 'a bot\'s label approves nothing');
+  assert.equal(robot.approvalOf({ ...outsider, lastEditedAt: null, labels: [] }).ok, false, 'no label event found: never assumed');
+
+  // pick: the outsider-edited issue (#3, the oldest) is not worked and is answered; #5, a writer's edit, is worked.
+  const github = fakeGithub({ issues: [issue(3), issue(5)], approvals: { 3: outsider, 5: { ...outsider, author: 'acme-dev', authorAssociation: 'COLLABORATOR', editor: 'acme-dev' } } });
+  const p = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github });
+  assert.equal(p.action, 'work');
+  assert.equal(p.issue, 5, 'the writer-edited issue is worked');
+  assert.deepEqual(p.triage, [3], 'the outsider-edited issue is answered');
+  const only = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [issue(3)], approvals: { 3: outsider } }) });
+  assert.equal(only.action, 'triage');
+  assert.equal(only.issue, undefined, 'an unapproved body is never worked');
+
+  // The publish job's answer: one comment, once per body.
+  const gh = fakeGithub({ issues: [issue(3)], approvals: { 3: outsider } });
+  const [said] = await robot.triagePost({ repo: REPO, issues: '3', postIt: true, github: gh });
+  assert.equal(said.posted, true);
+  assert.match(gh.posted[0].body, /^<!-- keel:robot approve [0-9a-f]{12} -->\nThis issue is labelled `keel:agent`, but its body was last edited .* by mallory, after acme-owner put keel:agent on it/);
+  assert.match(gh.posted[0].body, /puts `keel:agent` on it again \(remove it, then add it\), which approves this body/);
+  const answered = [comment('2026-10-03T10:00:00Z', gh.posted[0].body, { user: BOT, association: 'NONE' })];
+  const again = fakeGithub({ issues: [issue(3)], approvals: { 3: outsider }, comments: { 3: answered } });
+  assert.equal((await robot.triagePost({ repo: REPO, issues: '3', postIt: true, github: again }))[0].posted, false, 'answered already');
+  const waits = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: again });
+  assert.deepEqual([waits.action, waits.waiting], ['none', [3]]);
+  // A writer puts the label on again: the body is approved and worked.
+  const relabelled = fakeGithub({ issues: [issue(3)], approvals: { 3: { ...outsider, labels: [labelled, { ...labelled, at: '2026-10-04T09:00:00Z' }] } }, comments: { 3: answered } });
+  assert.equal((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: relabelled })).issue, 3);
+
+  // GitHub's own shape, through gh (the stub): the GraphQL read becomes the approval the rule reads.
+  const dir = await acmeRobot(t, ON);
+  const { gh: stub, calls } = await stubGh(t);
+  const fx = JSON.parse(await readFile(join(dirname(stub), 'fixture.json'), 'utf8'));
+  fx.graphql = { data: { repository: { issue: { author: { login: 'mallory' }, authorAssociation: 'NONE', lastEditedAt: '2026-10-03T09:00:00Z', editor: { login: 'mallory' },
+    timelineItems: { nodes: [{ createdAt: '2026-10-02T09:00:00Z', label: { name: 'keel:agent' }, actor: { __typename: 'User', login: 'acme-owner' } }, { createdAt: '2026-10-02T09:30:00Z', label: { name: 'bug' }, actor: { __typename: 'User', login: 'acme-owner' } }] } } } } };
+  fx.api = { [`repos/${REPO}/issues/3`]: issue(3), [`repos/${REPO}/issues/3/comments`]: [] };
+  await writeFile(join(dirname(stub), 'fixture.json'), JSON.stringify(fx));
+  const r = robotCli(dir, ['triage', '--repo', REPO, '--issues', '3', '--post', '--json'], { KEEL_GH: stub });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(parse(r)[0].posted, true);
+  const graphql = (await calls()).find(c => c.args[1] === 'graphql');
+  assert.deepEqual(graphql.args.slice(-6), ['-f', 'owner=acme', '-f', 'name=anvils', '-F', 'number=3']);
+  assert.match((await calls()).find(c => c.args[0] === 'issue' && c.args[1] === 'comment').input, /^<!-- keel:robot approve /);
 });

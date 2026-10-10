@@ -151,7 +151,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "c7c263aa8622eb3bdec3dad67a4427e737cbbc757b14672b71effb8edbd9813a"
+      "sha256": "aa7323b0f34540693d0719e80e74bc177ee71347276d0c4a2f35467d772f5949"
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
@@ -187,7 +187,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "68afb6f96b8b48e50bed38affcd5a0062db469acc1cc01d170b059a7e77a7ef6"
+      "sha256": "8fe19cf26287abce6568665ea1a7c5211c7cc63e70e66a697bdb25e2f6dd550c"
     },
     "scripts/keel/rubric.mjs": {
       "practice": "climb",

@@ -1249,6 +1249,48 @@ async function gateRun(cwd, gate, { env, config }) {
   return { ...r, runs: (await readRuns(cwd)).runs.filter(x => !before.has(x.id)) };
 }
 
+/**
+ * The gate, judged by what it ran, not by its exit alone (PR #59; climb's
+ * guard since ledger#94, the robot's guard too): the gate runs on the
+ * candidate, then the base's own gate (the same command, read from the
+ * base's tree: its package.json scripts, in a worktree of the base), and the
+ * test ledger's records of each are compared. Refused: a candidate gate that
+ * failed; one that recorded no ledger run where the base's did (a gate script
+ * rewritten to `true`); a test the base ran that the candidate dropped or
+ * skipped; a test that failed though the gate exited 0 (`|| true`). Only this
+ * gate run's records count: a record written before it (the agent testing a
+ * file at the same commit, a CI run, a record the agent's job handed back)
+ * could hold a suite the candidate's gate no longer runs. A base gate that
+ * fails or records nothing throws (exit 2): there is nothing to compare.
+ * { ok, problems, count?, missing? }.
+ */
+export async function ledgerCheck({ root, config, env = process.env, gate, base: b, head }) {
+  const r = await gateRun(root, gate, { env, config });
+  if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
+  if (r.status !== 0) return { ok: false, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
+  const cand = ranOn(r.runs, head);
+  // The base's names, from the base's own gate, run now in a worktree beside
+  // the tree (its siblings resolve as the checkout's): never a record read
+  // from the ledger, which the agent's job hands back.
+  let baseRun = null, dir = null;
+  try {
+    dir = await siblingWorktree(root, b, 'guard');
+    const t = await gateRun(dir, gate, { env, config });
+    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
+    baseRun = ranOn(t.runs, b);
+  } finally {
+    await dropWorktree(root, dir);
+  }
+  if (!baseRun) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for the base ${b.slice(0, 7)}${cand ? '' : ` or ${head.slice(0, 7)}`}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
+  const ranBase = (baseRun.tests ?? []).filter(ran).length;
+  if (!cand) return { ok: false, problems: [`the gate \`${gate}\` exited 0 on ${head.slice(0, 7)} but recorded no test ledger run, where the base ${b.slice(0, 7)}'s ran ${ranBase} tests: the candidate's gate does not run what the base's does (its gate script changed?)`] };
+  const missing = missingTests(baseRun, cand);
+  if (missing.length) return { ok: false, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
+  const failed = (cand.tests ?? []).filter(t => t.outcome === 'fail');
+  if (failed.length) return { ok: false, problems: failed.map(t => `failed: ${t.file ?? '(no file)'} "${t.name}" failed on ${head.slice(0, 7)}, though the gate \`${gate}\` exited 0`) };
+  return { ok: true, problems: [], count: (cand.tests ?? []).filter(ran).length };
+}
+
 export async function guard({ root, config, env = process.env, base, job }) {
   on(config);
   const night = await readNight(root);
@@ -1295,31 +1337,9 @@ export async function guard({ root, config, env = process.env, base, job }) {
     if (night) night.perfCheck = extra.perfCheck;
   }
   const gate = config.check ?? CHECK;
-  // Only this gate run's records count (ledger#94): a record written before
-  // it (the agent testing a file at the same commit, a CI run, a record the
-  // agent's job handed back) could hold a suite the candidate's gate no
-  // longer runs. The ledger's files before the run are set aside by name.
-  const r = await gateRun(root, gate, { env, config });
-  if (r.error) throw new ClimbError(`could not run the gate \`${gate}\`: ${r.error.message}`);
-  if (r.status !== 0) return { ok: false, gate, problems: [`the gate \`${gate}\` failed (exit ${r.status ?? r.signal}) on ${head.slice(0, 7)}`] };
-  const cand = ranOn(r.runs, head);
-  if (!cand) throw new ClimbError(`the gate \`${gate}\` recorded no test ledger run for ${head.slice(0, 7)}: add scripts/keel/test-ledger.mjs as a second reporter to the test script; without it guard cannot tell a dropped test`);
-  // The base's names, from the base's own gate, run now in a worktree beside
-  // the tree (its siblings resolve as the checkout's): never a record read
-  // from the ledger, which the agent's job hands back.
-  let baseRun = null, dir = null;
-  try {
-    dir = await siblingWorktree(root, b, 'guard');
-    const t = await gateRun(dir, gate, { env, config });
-    if (t.error || t.status !== 0) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate \`${gate}\` did not pass (exit ${t.status ?? t.error?.message}); guard has no base to compare against`);
-    baseRun = ranOn(t.runs, b);
-  } finally {
-    await dropWorktree(root, dir);
-  }
-  if (!baseRun) throw new ClimbError(`the base ${b.slice(0, 7)}'s gate recorded no test ledger run: guard cannot tell a dropped test without one`);
-  const missing = missingTests(baseRun, cand);
-  const count = (cand.tests ?? []).filter(ran).length;
-  if (missing.length) return { ok: false, gate, missing, problems: missing.map(m => `${m.how}: ${m.file ?? '(no file)'} "${m.name}" ran in the base ${b.slice(0, 7)} and not in ${head.slice(0, 7)}`) };
+  const ledger = await ledgerCheck({ root, config, env, gate, base: b, head });
+  if (!ledger.ok) return { ok: false, gate, ...(ledger.missing ? { missing: ledger.missing } : {}), problems: ledger.problems };
+  const count = ledger.count;
   const moved = heldProblems(root, before, `the agent's code the guard ran (the gate \`${gate}\`${extra.perfCheck ? ', the perf check' : ''}${extra.build ? ', the build' : ''})`);
   if (moved.length) return { ok: false, job, gate, refused: moved, problems: moved };
   const line = `\`${gate}\` exit 0 on ${head.slice(0, 7)}; ${count} tests ran, none dropped or skipped against the base ${b.slice(0, 7)} (the test ledger)${extra.perfCheck ? `; the perf check ${extra.perfCheck}` : ''}`;
@@ -1740,7 +1760,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     case 'guard': {
       // The robot's guard (phase 54) lives in robot.mjs, loaded only when it runs.
       const g = o.job === 'tend' ? await tendGuard({ ...ctx, base: o.base, check: CHECK })
-        : o.job === 'robot' ? await (await import('./robot.mjs')).robotGuard({ ...ctx, base: o.base, check: CHECK })
+        : o.job === 'robot' ? await (await import('./robot.mjs')).robotGuard({ ...ctx, base: o.base, check: CHECK, ledger: ledgerCheck })
           : await guard({ ...ctx, base: o.base, job: o.job });
       const noted = (g.noted ?? []).map(n => `  note: ${n.message}`);
       return { data: g, text: g.ok ? [`guard: ${g.line}`, ...noted].join('\n') : `guard failed:\n${g.problems.map(p => `  ${p}`).join('\n')}`, exitCode: g.ok ? 0 : 1 };
