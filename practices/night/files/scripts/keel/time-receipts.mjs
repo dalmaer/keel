@@ -90,12 +90,13 @@ export function suiteCollector({ root, plan, flagsHash, sanitize = value => valu
       if (truncated) problems.push('inventory or summary limit exceeded');
       const expected = plan?.available === true ? plan.expectedFiles : [];
       const files = summaries.map(s => s.file);
-      const complete = plan?.available === true && plan.executionSettings?.isolation === 'process' && !plan.executionSettings.filtered &&
-        plan.executionSettings.flagsHash === flagsHash && aggregates === 1 && aggregate?.success === true && nonnegative(aggregate.durationMs) && expected.length > 0 &&
-        files.length === expected.length && new Set(files).size === files.length && files.every(f => expected.includes(f)) && summaries.every(s => s.success === true && nonnegative(s.durationMs));
+      const selectionComplete = plan?.available === true && plan.executionSettings?.isolation === 'process' && !plan.executionSettings.filtered &&
+        plan.executionSettings.flagsHash === flagsHash && aggregates === 1 && typeof aggregate?.success === 'boolean' && nonnegative(aggregate.durationMs) && expected.length > 0 &&
+        files.length === expected.length && new Set(files).size === files.length && files.every(f => expected.includes(f)) && summaries.every(s => typeof s.success === 'boolean' && nonnegative(s.durationMs));
+      const complete = selectionComplete && aggregate.success === true && summaries.every(s => s.success === true);
       return { version: 1, invocationId: plan?.invocationId ?? null, revision: plan?.revision ?? null, expectedFiles: expected,
         executionSettings: plan?.executionSettings ?? null, settingsHash: plan?.settingsHash ?? null, commandHash: plan?.commandHash ?? null,
-        observedSummaries: summaries, aggregate, complete, observedInventory,
+        observedSummaries: summaries, aggregate, selectionComplete, complete, observedInventory,
         inventoryComplete: complete && !problems.length && !truncated, inventoryProblems: [...new Set(problems)],
         gaps: complete ? [] : [plan?.reason ?? 'expected files, settings or successful final summaries unavailable'] };
     },

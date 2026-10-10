@@ -150,10 +150,12 @@ OFF the issue is unlabelled. If robot is enabled but its label is absent,
 acceptance remains incomplete with the verified issue link; an owner must resolve
 queueing, and retry will not restore a removed label or create a duplicate.
 
-A split or execution-settings change needs an exhaustive owner-reviewed mapping:
+For a `critical_file` proposal, a split or execution-settings change needs an exhaustive owner-reviewed mapping:
 `keel walk decide --proposal <health-page> --instance <id> --map <mapping.json>`.
 It binds the original and successor test identities/settings to the verified PR
-head. The original proposal baseline remains frozen. The night compares only
-fresh observations whose revisions contain the verified merge; it reports
+head. Mappings cannot change identity kind, project scope, runner or machine
+class, and are not supported for other time measures. The original proposal
+baseline remains frozen. The night compares only explicitly clean, matched-selection
+observations whose revisions contain the verified merge; it reports
 inside, outside or unavailable. A merge itself is not evidence of improvement.
 Two real proposal-to-fix walks remain required before this loop is lived-in.

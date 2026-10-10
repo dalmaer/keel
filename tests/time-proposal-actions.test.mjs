@@ -73,6 +73,35 @@ test('time remeasurement verifies fresh merge local ancestry and reviewed full t
  pr.head.sha=merge;git(f.root,'checkout','-q','--force','--detach',f.base);result=await remeasureTimeProposal({root:f.root,proposal:accepted.proposal,at:'2026-10-14T00:00:00Z',github,evaluate});assert.equal(result.state,'unavailable');assert.equal(calls,1);
 });
 
+async function mappingFixture(t,measure='critical_file') {
+ const f=await fixture(t),p=makeTimeProposal({...f.proposal,measure,threshold:{...f.proposal.threshold,rule:measure},at});
+ await writeFile(join(f.root,path),'# Acme health\n\n## Proposal\n\n'+formatTimeProposal(p));
+ await decideTimeProposal({root:f.root,path,expectedInstance:p.instanceId,decision:'accept',at,github:f.github});
+ const pr={number:8,html_url:`https://github.com/${repo}/pull/8`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:f.base,ref:'keel/robot-7',repo:{full_name:repo}},base:{sha:f.base,ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:7,instanceId:p.instanceId,author:'claude',headSha:f.base,cursor:0})};
+ const github=async r=>{assert.equal(r.method,'GET','mapping never writes remotely');if(r.path.includes('/pulls?'))return {status:200,data:[{number:8}]};if(r.path.endsWith('/pulls/8'))return {status:200,data:pr};throw Error('unexpected Acme read');};
+ const id={file:'tests/acme.test.mjs',hierarchy:['Acme case'],occurrence:1};
+ const transition={instanceId:p.instanceId,pr:{repo,number:8,headSha:f.base,mergeSha:null},fromIdentity:p.identity,toIdentity:{...p.identity,target:'tests/acme-successor.test.mjs'},testMapping:[{from:id,to:[{...id,file:'tests/acme-successor.test.mjs'}]}],executionSettings:{before:{isolation:'process',concurrency:1},after:{isolation:'process',concurrency:2}}};
+ return {f,p,transition,args:{root:f.root,path,expectedInstance:p.instanceId,decision:'map',at,github}};
+}
+test('time mapping action rejects non-critical proposals without recording a transition',async t=>{
+ const {f,transition,args}=await mappingFixture(t,'time_creep');
+ const before=await readFile(join(f.root,path),'utf8');
+ await assert.rejects(decideTimeProposal({...args,transition}),/only critical_file/);
+ assert.equal(await readFile(join(f.root,path),'utf8'),before);
+});
+test('time mapping action preserves kind scope runner machine while allowing reviewed command settings',async t=>{
+ const {f,transition,args}=await mappingFixture(t);
+ const before=await readFile(join(f.root,path),'utf8');
+ for(const [field,value] of [['kind','stalls'],['scope','other-project'],['runner','vitest'],['machineClass','linux-x64-64cpu']])await t.test(field,async()=>{
+   await assert.rejects(decideTimeProposal({...args,transition:{...transition,toIdentity:{...transition.toIdentity,[field]:value}}}),new RegExp(`preserve.*${field}`));
+   assert.equal(await readFile(join(f.root,path),'utf8'),before);
+ });
+ const reviewed={...transition,toIdentity:{...transition.toIdentity,configHash:'acme-new-config',flagsHash:'acme-new-flags',commandHash:'acme-new-command'}};
+ const saved=await decideTimeProposal({...args,transition:reviewed});
+ assert.equal(saved.decision,'transition-reviewed');assert.deepEqual(saved.proposal.lifecycle.transition.toIdentity,reviewed.toIdentity);
+ assert.deepEqual(saved.proposal.lifecycle.transition.executionSettings,reviewed.executionSettings);
+});
+
 
 test('adopted night without climb imports and executes shipped remeasurement with verified delivery',async t=>{
  const f=await fixture(t);

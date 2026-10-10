@@ -22,11 +22,15 @@ export async function timeProposalDelivery(root,proposal,github) {
   return {repo,delivery};
 }
 export function checkedTimeTransition(transition,proposal,repo,delivery,at) {
+  if(proposal.measure!=='critical_file')throw new Error('only critical_file proposals support topology mapping');
   const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
   const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
   const pr=transition?.pr;
   if(!transition||transition.instanceId!==proposal.instanceId||pr?.repo?.toLowerCase()!==repo||pr.number!==delivery.pr.number||pr.headSha!==delivery.pr.headSha||pr.mergeSha!==(delivery.pr.mergeSha??null))throw new Error('mapping must bind this instance and verified PR head/merge');
   if(!same(transition.fromIdentity,proposal.identity)||!transition.toIdentity||!Array.isArray(transition.testMapping)||!transition.testMapping.length||!transition.executionSettings?.before||!transition.executionSettings?.after)throw new Error('mapping requires original/successor identities and execution settings');
+  for(const field of ['kind','scope','runner','machineClass']){
+    if(transition.toIdentity[field]!==proposal.identity[field])throw new Error(`mapping must preserve ${field} identity`);
+  }
   // Full identity, not just a filename. Exhaustiveness against producer receipts
   // and frozen inventories is the evaluator's responsibility.
   const valid=id=>id&&typeof id.file==='string'&&id.file&&!isAbsolute(id.file)&&!id.file.split(/[\\/]/).includes('..')&&Array.isArray(id.hierarchy)&&id.hierarchy.length>0&&id.hierarchy.every(n=>typeof n==='string'&&n.trim())&&Number.isSafeInteger(id.occurrence)&&id.occurrence>=0;

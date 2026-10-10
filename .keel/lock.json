@@ -219,15 +219,15 @@
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "2b4dd3f9848fbd3cca0399cf8514728031815e976e84dfd7e0376fc0c87975e6"
+      "sha256": "14e5579bcf3d6a03709ea10e6a0f2123a0107ff4ea666be2ed215e56bb81e455"
     },
     "scripts/keel/time-measures.mjs": {
       "practice": "night",
-      "sha256": "ac6a3f250f685ef99e62f80d01d0cf7aaf9bee74ef248d573faee78c6ed5d98d"
+      "sha256": "854d7138390401b9b76d040af8cc1611862a2ffc25023b5c5ae957af38daad1d"
     },
     "scripts/keel/time-proposal-remeasurement.mjs": {
       "practice": "night",
-      "sha256": "87ce4222a8768cb191d5880d053826cf3f266670e1126d278c9c3ca6ac8cfb92"
+      "sha256": "b7dc513a3e745370ff9575fb61d5982f91d90bd5b3559f4343d74c69633e5688"
     },
     "scripts/keel/time-proposals.mjs": {
       "practice": "night",
@@ -235,7 +235,7 @@
     },
     "scripts/keel/time-receipts.mjs": {
       "practice": "night",
-      "sha256": "de18cbd895dd563e46cd288d12e07d67ea90986840bea346c7513d535aa2498e"
+      "sha256": "a33d8dd393d3df734aa3fbb03b298130d53005f16106673d9751eba56dd96efc"
     },
     "scripts/keel/workflows.mjs": {
       "practice": "ci",

@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {run} from './helpers/run.mjs';
 import {evaluateTimeEvidence,validateTimeTransition} from '../practices/night/files/scripts/keel/time-measures.mjs';
 import {digest,nodePlan,suiteCollector} from '../practices/night/files/scripts/keel/time-receipts.mjs';
-import {flagsIn,shellWords,readRuns,retainedRecords,RETENTION} from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import {flagsIn,shellWords,timedCommand,readRuns,retainedRecords,RETENTION} from '../practices/night/files/scripts/keel/test-ledger.mjs';
 const T=Date.parse('2026-10-10T12:00:00Z'),DAY=86400000,sha='a'.repeat(40);
 const quiet={start:{load:[0],cores:4},end:{load:[0],cores:4}};
 const inv=file=>({file,hierarchy:['Acme'],occurrence:1,type:'test',outcome:'pass'});
@@ -183,4 +183,99 @@ test('postmerge gate comparison uses newest three verified outer gates and their
  }
  assert.equal(evaluate('gate_time',[1,2,3].map(d=>({...gate(d,1000),provenance:{...gate(d,1000).provenance,outerCommandHash:'acme-other'}})),{comparison}).state,'unavailable');
  assert.equal(evaluate('gate_time',[1,1.01,1.02,3].map(d=>gate(d,1000)),{comparison}).state,'unavailable');
+});
+
+test('postmerge comparison requires explicit clean revision while discovery stays observational',()=>{
+ const gates=[1,2,3].map(d=>({...record(d),kind:'gate',runner:'gate',gateSource:'configured-check',commandHash:'acmegate',ms:2000,status:0,invocationId:`acme-${d}`,provenance:{source:'outer-launcher',invocationId:`acme-${d}`,outerCommandHash:'acmegate'}}));
+ const found=evaluate('gate_time',gates,{gateBoundMs:1250}),comparison={...found,mergeTime:new Date(T-5*DAY).toISOString(),mergeSha:sha,eligibleRevisionShas:[sha]};
+ for(const dirty of [true,null,undefined]){
+  const rs=gates.map(r=>({...r,dirty,ms:1000}));assert.equal(evaluate('gate_time',rs,{comparison}).state,'unavailable');
+  assert.equal(evaluate('gate_time',rs,{gateBoundMs:500}).state,'outside','discovery is observational, not postmerge verification');
+ }
+ assert.equal(evaluate('gate_time',gates.map(r=>({...r,ms:1000})),{comparison}).state,'inside');
+});
+
+test('gate and Node collector bind clean revision to both start and completion',async t=>{
+ const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs');
+ for(const producer of ['gate','reporter'])for(const change of ['none','dirty','commit']){
+  const root=await mkdtemp(join(tmpdir(),'acme-clean-receipt-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));
+  await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check:'node probe.mjs'}));await writeFile(join(root,'tracked.txt'),'Acme baseline\n');
+  const mutate=`if(${JSON.stringify(change)}!=='none')writeFileSync('tracked.txt','Acme changed\\n');if(${JSON.stringify(change)}==='commit'){execFileSync('git',['add','tracked.txt']);execFileSync('git',['commit','-qm','Acme changed']);}`;
+  await writeFile(join(root,'probe.mjs'),`import {writeFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';${producer==='gate'?mutate:`import reporter from ${JSON.stringify('file://'+ledger)};async function* events(){${mutate}yield {type:'test:pass',data:{name:'Acme',file:process.cwd()+'/acme.test.mjs',nesting:0,details:{type:'test',duration_ms:1}}};}for await(const line of reporter(events()))process.stdout.write(line);`}`);
+  for(const args of [['init','-q'],['add','.'],['commit','-qm','Acme baseline']])assert.equal(run('git',args,{cwd:root}).status,0);
+  const before=run('git',['rev-parse','HEAD'],{cwd:root}).stdout.trim();
+  const result=run(process.execPath,producer==='gate'?[ledger,'--gate']:['probe.mjs'],{cwd:root});assert.equal(result.status,0,result.stderr);
+  const rows=(await readRuns(root,undefined,{gates:true})).runs;assert.equal(rows.length,1);assert.equal(rows[0].commit,before);assert.equal(rows[0].dirty,change!=='none',`${producer}/${change}`);
+ }
+});
+
+test('critical comparison selection uses newest three complete observations for dates value and coverage',()=>{
+ const original=[1,2,3].map(d=>record(d)),found=evaluate('critical_file',original);
+ const comparison={...found,mergeTime:new Date(T-6*DAY).toISOString(),mergeSha:sha,eligibleRevisionShas:[sha]};
+ const sameDate=[0,1,2].map(i=>{const r=record(1,i);r.suite=suite(3000,1000);return r;});
+ assert.equal(evaluate('critical_file',[...sameDate,record(3)],{comparison}).state,'unavailable','an older date cannot qualify three same-date observations');
+ const selected=[record(1),record(2),record(2,1)].map(r=>({...r,suite:suite(3000,1000)}));
+ const r=evaluate('critical_file',[...selected,record(4)],{comparison});assert.equal(r.state,'inside');assert.equal(r.value,0.3);assert.equal(r.coverage.eligible,3);assert.equal(r.coverage.omitted,1);assert.equal(r.coverage.dates.length,2);
+});
+
+test('comparison topology transitions cannot waive noncritical or critical machine comparability',()=>{
+ const rs=[30,31,32,33,34].map(d=>record(d,0,100));rs.push(...[1,2,3,4,5].map(d=>record(d,0,500)));
+ const found=evaluate('time_creep',rs),recent=[1,2,3,4,5].map(d=>({...record(d,0,100),machine:{os:'linux',arch:'x64',cpus:8}}));
+ const c={...found,mergeTime:new Date(T-6*DAY).toISOString(),mergeSha:sha,eligibleRevisionShas:[sha],transition:{toIdentity:{...found.identity,machineClass:'linux-x64-8cpu'}}};
+ assert.equal(evaluate('time_creep',recent,{comparison:c}).state,'unavailable');
+ const original=[1,2,3].map(d=>record(d)),critical=evaluate('critical_file',original),successor=original.map(r=>({...r,suite:suite(3000,1000)}));
+ const base={...critical,instanceId:'acme',mergeTime:new Date(T-6*DAY).toISOString(),mergeSha:sha,eligibleRevisionShas:[sha]};
+ const transition={instanceId:'acme',reviewedAt:new Date(T-5*DAY).toISOString(),pr:{headSha:sha,mergeSha:sha},fromIdentity:base.identity,toIdentity:base.identity,testMapping:original[0].suite.observedInventory.map(t=>({from:t,to:[t]})),executionSettings:{before:original[0].suite.executionSettings,after:successor[0].suite.executionSettings}};
+ assert.equal(evaluate('critical_file',successor,{comparison:{...base,transition}}).state,'inside');
+ for(const key of ['kind','scope','runner','machineClass'])assert.equal(validateTimeTransition({...base,transition:{...transition,toIdentity:{...base.identity,[key]:'acme-other'}}},successor).ok,false,key);
+ const changed=structuredClone(successor);changed.forEach(r=>{r.config='reviewed-config';r.flags=['--conditions=acme'];r.suite.commandHash='reviewed-command';r.suite.executionSettings.concurrency='4';});
+ const toIdentity={...base.identity,configHash:'reviewed-config',flagsHash:digest(['--conditions=acme']),commandHash:'reviewed-command'};
+ assert.equal(evaluate('critical_file',changed,{comparison:{...base,transition:{...transition,toIdentity,executionSettings:{before:transition.executionSettings.before,after:changed[0].suite.executionSettings}}}}).state,'inside','explicitly reviewed topology settings remain supported');
+});
+
+test('pinned clean revision preserves unknown start after git status recovers',async t=>{
+ const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs'),realGit=run('which',['git']).stdout.trim();assert.ok(realGit);
+ for(const unknown of [false,true]){
+  const root=await mkdtemp(join(tmpdir(),'acme-pinned-identity-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'bin'));
+  await writeFile(join(root,'.keel/keel.json'),'{}');
+  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme',async()=>{await new Promise(r=>setTimeout(r,30));});\n");
+  await writeFile(join(root,'bin/git'),`#!/bin/sh\nif [ "$ACME_STATUS_UNKNOWN" = 1 ]; then\n for arg in "$@"; do [ "$arg" != status ] || exit 1; done\nfi\nexec '${realGit.replaceAll("'","'\"'\"'")}' "$@"\n`,{mode:0o755});
+  await writeFile(join(root,'probe.mjs'),`import {pinned,where,readStalls} from ${JSON.stringify('file://'+ledger)};
+process.env.PATH=process.cwd()+'/bin:'+process.env.PATH;
+${unknown?"process.env.ACME_STATUS_UNKNOWN='1';":''}
+const before=where(process.cwd());const p=pinned(process.cwd(),{tests:{stalls:['acme.test.mjs']}},{seed:42,preload:[]});
+delete process.env.ACME_STATUS_UNKNOWN;
+p.saw({type:'test:summary',data:{file:process.cwd()+'/acme.test.mjs'}});const diagnostics=await p.said([{file:'acme.test.mjs',name:'Acme',outcome:'pass',ms:30}]);
+console.log(JSON.stringify({before,after:where(process.cwd()),diagnostics,receipts:(await readStalls(process.cwd())).receipts}));`);
+  for(const args of [['init','-q'],['add','.'],['commit','-qm','Acme baseline']])assert.equal(run('git',args,{cwd:root}).status,0);
+  const result=run(process.execPath,['probe.mjs'],{cwd:root});assert.equal(result.stderr,'');
+  const data=JSON.parse(result.stdout);assert.equal(data.before.dirty,unknown?null:false);assert.equal(data.after.dirty,false);assert.equal(data.after.commit,data.before.commit);assert.equal(data.receipts.length,1);assert.equal(data.receipts[0].revision,data.before.commit);assert.equal(data.receipts[0].clean,!unknown);
+  // Identity is independent of whether the scheduler landed a pause. A valid
+  // no-injection result must still be the specific inconclusive verdict, not
+  // an arbitrary failed child or missing receipt.
+  const receipt=data.receipts[0];assert.equal(receipt.complete,true);assert.equal(receipt.plain,'pass');assert.equal(receipt.stalled,'pass');assert.equal(receipt.seed,42);assert.equal(data.diagnostics.length,1);
+  if(receipt.pauses===0){assert.equal(receipt.verifiedInjected,false);assert.equal(result.status,1);assert.match(data.diagnostics[0],/^keel stalls: acme\.test\.mjs is inconclusive: no stall landed \(0 stalls,/);}
+  else{assert.ok(receipt.pauses>0);assert.equal(receipt.verifiedInjected,true);assert.equal(result.status,0);assert.match(data.diagnostics[0],/^keel stalls: acme\.test\.mjs passed with [1-9][0-9]* stalls?,/);}
+ }
+});
+
+test('actual Node subset cannot borrow full command identity while failed full selection remains classified',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'acme-selection-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'tests'));
+ const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs'),prefix=`node --test --test-reporter=${JSON.stringify(ledger)}`,declared=`${prefix} tests/acme.test.mjs tests/other.test.mjs`;
+ await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:declared}}));await writeFile(join(root,'.keel/keel.json'),'{}');
+ await writeFile(join(root,'tests/acme.test.mjs'),"import {test} from 'node:test';test('Acme',()=>{});");
+ await writeFile(join(root,'tests/other.test.mjs'),"import {test} from 'node:test';test('Acme other',()=>{if(process.env.ACME_FAIL)throw Error('Acme failure');});");
+ for(const args of [['init','-q'],['add','.'],['commit','-qm','Acme selection']])assert.equal(run('git',args,{cwd:root}).status,0);
+ const collect=async(command,env=process.env)=>{const result=await timedCommand(command,{cwd:root,env,stdio:'pipe'});return {status:result.status,row:(await readRuns(root)).runs.at(-1)};};
+ const full=await collect(declared),subset=await collect(`${prefix} tests/acme.test.mjs`),failed=await collect(declared,{...process.env,ACME_FAIL:'1'});
+ assert.equal(full.status,0);assert.equal(full.row.suite.complete,true);assert.equal(subset.status,0);assert.equal(subset.row.suite.complete,false);
+ assert.equal(failed.status,1);assert.equal(failed.row.suite.complete,false);
+ const f=full.row,identity={kind:'timing',scope:f.dir,runner:'node',configHash:f.config,flagsHash:digest(f.flags),machineClass:`${f.machine.os}-${f.machine.arch}-${f.machine.cpus}cpu`,commandHash:f.commandHash,target:{file:'tests/acme.test.mjs',name:'Acme',describe:false}};
+ const comparison={identity,mergeTime:new Date(T-6*DAY).toISOString(),mergeSha:f.commit,eligibleRevisionShas:[f.commit],baseline:{value:100000},threshold:{parameters:{ratio:1.5,increaseMs:200}}};
+ // Expand synthetic dates/IDs and declare quiet load explicitly; never assume host load.
+ const expand=(r,n=5)=>Array.from({length:n},(_,i)=>({...structuredClone(r),id:`acme-${i}`,date:new Date(T-(1+i%3)*DAY-i).toISOString(),busy:quiet}));
+ assert.equal(evaluate('time_creep',expand(subset.row),{comparison}).state,'unavailable');assert.equal(subset.row.suite.selectionComplete,false);assert.equal(failed.row.suite.selectionComplete,true);assert.equal(evaluate('time_creep',expand(full.row),{comparison}).state,'inside');
+ const classified=evaluate('inconclusive_share',expand(failed.row,10));assert.equal(classified.state,'inside');assert.equal(classified.coverage.eligible,10);
+ const unknown=structuredClone(failed.row);delete unknown.suite.selectionComplete;assert.equal(evaluate('inconclusive_share',expand(unknown,10)).state,'unavailable');
+ const old=structuredClone(full.row);delete old.suite.selectionComplete;assert.equal(evaluate('time_creep',expand(old),{comparison}).state,'inside','older successful complete receipts remain valid');
 });

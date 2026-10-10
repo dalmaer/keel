@@ -361,7 +361,7 @@ export async function timedCommand(command, { cwd = process.cwd(), env = process
   if (active) await rm(active, {force:true}).catch(() => {});
   await rm(join(root, RUNS, `payload-${invocationId}`), {force:true}).catch(() => {});
   try {
-    await record(root, { ...identity, invocationId, completed: true, startedAt: new Date(started).toISOString(), provenance: { version: 1, source: 'outer-launcher', invocationId, outerCommandHash: sha12(command), innerPayloadHash, scope: '.' }, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
+    await record(root, { ...finishedIdentity(identity, root), invocationId, completed: true, startedAt: new Date(started).toISOString(), provenance: { version: 1, source: 'outer-launcher', invocationId, outerCommandHash: sha12(command), innerPayloadHash, scope: '.' }, kind: 'gate', runner: 'gate', dir: relative(root, real(cwd)) || '.',
     config: configHash({ env, preload: [], configEnv: config.tests?.configEnv ?? [], runner: 'gate' }),
     gateSource: configured && command === (config.check ?? 'npm run check') ? 'configured-check' : 'explicit-command', commandHash: sha12(command), date: new Date().toISOString(), tests: [], ms, busy,
     status: result.status, signal: result.signal });
@@ -648,6 +648,15 @@ function gitOut(cwd, args) {
 /** The repo's root (git's top level), so every package's runs land in one ledger; outside git, `cwd`. */
 export function rootOf(cwd = process.cwd()) {
   return gitOut(cwd, ['rev-parse', '--show-toplevel'])?.trim() || cwd;
+}
+
+// A receipt keeps its starting revision; an end-state change cannot be
+// attributed to that revision as a clean observation. Unknown remains unknown.
+function finishedIdentity(start, root) {
+  const end = where(root);
+  const changed = start.commit !== end.commit || start.tree !== end.tree;
+  const clean = start.dirty === false && end.dirty === false && start.commit && start.tree && !changed;
+  return {...start, dirty: clean ? false : changed || start.dirty === true || end.dirty === true ? true : null};
 }
 
 /**
@@ -967,7 +976,7 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
           continue;
         }
         const plainTests = tests.filter(t => t.file === rel);
-        try { await recordStalls(root, stallsEvidence({ sanitize: value => failureText(value,env,{configEnv:config.tests?.configEnv??[]}), identity: {...receiptIdentity, dirty: receiptIdentity.dirty || where(root).dirty !== false || where(root).commit !== receiptIdentity.commit}, plain: {tests:plainTests,exitCode:plainTests.some(t => t.outcome === 'fail') ? 1 : 0}, stalled: run, pinned: true, startedAt: receiptStartedAt, completedAt: new Date().toISOString(), configHash: configHash({env, preload: preloads(), configEnv:config.tests?.configEnv ?? []}), flagsHash:digest(preload ?? m.runnerFlags(process.execArgv)), scope: relative(root,process.cwd()).split(sep).join('/') || '.' })); } catch { lines.push(`${STALLS_LABEL}: receipt storage unavailable.`); }
+        try { await recordStalls(root, stallsEvidence({ sanitize: value => failureText(value,env,{configEnv:config.tests?.configEnv??[]}), identity: finishedIdentity(receiptIdentity, root), plain: {tests:plainTests,exitCode:plainTests.some(t => t.outcome === 'fail') ? 1 : 0}, stalled: run, pinned: true, startedAt: receiptStartedAt, completedAt: new Date().toISOString(), configHash: configHash({env, preload: preloads(), configEnv:config.tests?.configEnv ?? []}), flagsHash:digest(preload ?? m.runnerFlags(process.execArgv)), scope: relative(root,process.cwd()).split(sep).join('/') || '.' })); } catch { lines.push(`${STALLS_LABEL}: receipt storage unavailable.`); }
         const j = m.judge(plainTests, run.tests);
         const s = `${run.stalls.length} stall${run.stalls.length === 1 ? '' : 's'}, ${(run.paused / 1000).toFixed(1)} s paused, ${(run.wall / 1000).toFixed(1)} s in all${again ? `; run again with the first stall within ${again.within} ms, after the first run (${Math.round(again.first)} ms) got none` : ''}`;
         const failed = run.tests.filter(t => t.outcome === 'fail');
@@ -1036,7 +1045,7 @@ export default async function* ledger(source) {
     const here = relative(root, real(cwd)).split(sep).join('/') || '.';
     // flags: the node flags a rerun of this suite carries (runnerFlags), so keel test reuses this run as a
     // baseline only under the same ones; the config hash, and so the lanes, are as they were.
-    const run = { ...initialIdentity, suite: suite.finish(), commandHash: plan?.available ? plan.commandHash : digest({argv:process.argv.slice(1),execArgv:process.execArgv}), invocationId: plan?.invocationId ?? randomUUID(), parentInvocationId: process.env.KEEL_GATE_INVOCATION ?? null, completed: true, busy: busyBetween(start, await busySample()), wallMs: Date.now() - started, dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
+    const run = { ...finishedIdentity(initialIdentity, root), suite: suite.finish(), commandHash: plan?.available ? plan.commandHash : digest({argv:process.argv.slice(1),execArgv:process.execArgv}), invocationId: plan?.invocationId ?? randomUUID(), parentInvocationId: process.env.KEEL_GATE_INVOCATION ?? null, completed: true, busy: busyBetween(start, await busySample()), wallMs: Date.now() - started, dir: here, config: configHash({ configEnv }), setting: settingOf({ configEnv }), flags: runnerFlags(process.execArgv), ...(narrowed() ? { filtered: true } : {}), ...workflow, date: new Date().toISOString(), tests };
     const w = config?.tests?.window;
     await record(root, run, { window: Number.isInteger(w) && w >= 2 && w <= MAX_WINDOW ? w : DEFAULTS.window });
     let opts;

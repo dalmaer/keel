@@ -14,13 +14,14 @@ const targetKey = t => JSON.stringify(t);
 const scope = r => typeof r.dir==='string' && r.dir ? r.dir : null;
 const unitOf = m => ({gate_time:'ms',time_creep:'ms',critical_file:'share',inconclusive_share:'share',wall_clock_tests:'comparisons',worked_around:'invocations'})[m];
 function identityOf(r,target) {
+  if(r.kind!=='gate' && !(r.suite?.selectionComplete===true || r.suite?.selectionComplete===undefined && r.suite?.complete===true)) return null;
   const flagsHash=Array.isArray(r.flags)?digest(r.flags):r.kind==='gate'?digest([]):null;
   const commandHash=r.commandHash ?? r.suite?.commandHash;
   if (!scope(r) || !r.config || !flagsHash || !commandHash || !r.machine?.os || !r.machine?.arch || !(r.machine.cpus>0)) return null;
   return {kind:'timing',scope:scope(r),runner:runnerOf(r),configHash:r.config,flagsHash,machineClass:machineClass(r.machine),commandHash,target};
 }
 const knownEnd = r => r.completed===true && Number.isFinite(date(r));
-const successful = r => r.kind==='gate'?r.status===0:r.suite?.aggregate?.success===true;
+const successful = r => r.kind==='gate'?r.status===0:r.suite?.complete===true&&r.suite?.aggregate?.success===true;
 function coverage(retained,eligible,extras=[]) {
   return {retained:retained.length,eligible:eligible.length,omitted:retained.length-eligible.length,dates:dates(eligible),sampled:true,
     gaps:[...new Set(['bounded retained observations; not full execution history',...extras])]};
@@ -75,6 +76,7 @@ export function validateTimeTransition(comparison,rs) {
     if (rs.every(r=>same(r.suite.expectedFiles,observations[0].suite.expectedFiles)&&same(r.suite.executionSettings,observations[0].suite.executionSettings)&&same(inventory(r.suite),old[0]))) return {ok:true,files:[identity.target.file]};
     return {ok:false,reason:'changed logical suite requires an exhaustive reviewed transition'};
   }
+  if (['kind','scope','runner','machineClass'].some(key=>!identity[key] || t.toIdentity?.[key]!==identity[key])) return {ok:false,reason:'reviewed topology cannot change kind, scope, runner or machine class'};
   if (t.instanceId!==comparison.instanceId || !t.reviewedAt || !same(t.fromIdentity,identity) || t.pr?.mergeSha!==comparison.mergeSha || !t.pr?.headSha || !Array.isArray(t.testMapping)) return {ok:false,reason:'transition is not bound to this instance and verified delivery'};
   const mapping=t.testMapping, from=mapping.map(m=>inventoryKey(m.from)), to=mapping.flatMap(m=>Array.isArray(m.to)?m.to:[m.to]).filter(Boolean).map(inventoryKey);
   if (!same([...from].sort(),old[0]) || new Set(from).size!==from.length || new Set(to).size!==to.length || !to.length) return {ok:false,reason:'mapping omits or duplicates original/successor identities'};
@@ -164,18 +166,19 @@ function compareEvidence({measure,runs,stallsReceipts,localWorkarounds,T,compari
   const merge=Date.parse(c.mergeTime??c.mergedAt), start=Math.max(T-WEEK,merge);
   const retained=measure==='wall_clock_tests'?stallsReceipts:runs;
   if(!Number.isFinite(merge)||merge>=T||!c.mergeSha||!c.identity||!c.threshold)return unavailable(retained,['verified merge and frozen comparison unavailable']);
+  if(c.transition!=null&&measure!=='critical_file')return unavailable(retained,['reviewed transitions apply only to critical_file']);
   // The action layer verifies ancestry before supplying comparison observations.
   const revisionOkay=r=>Array.isArray(c.eligibleRevisionShas)&&c.eligibleRevisionShas.includes(r.commit??r.revision);
   if(measure==='worked_around')return unavailable([],['local workaround postmerge revision provenance unavailable']);
   let rs=[...new Map(retained.filter(r=>inWindow(r,start,T)&&revisionOkay(r)&&r.id).map(r=>[r.id,r])).values()];
   if(measure==='wall_clock_tests')rs=rs.filter(r=>validStalls(r)&&same(r.identity,c.identity)&&r.plain==='pass'&&['pass','fail'].includes(r.stalled));
-  else rs=rs.filter(r=>knownEnd(r)&&!r.filtered&&(measure==='inconclusive_share'||busyState(r)==='quiet'&&successful(r))&&same(identityOf(r,(c.transition?.toIdentity??c.identity).target),c.transition?.toIdentity??c.identity));
+  else rs=rs.filter(r=>r.dirty===false&&knownEnd(r)&&!r.filtered&&(measure==='inconclusive_share'||busyState(r)==='quiet'&&successful(r))&&same(identityOf(r,(c.transition?.toIdentity??c.identity).target),c.transition?.toIdentity??c.identity));
   const minimum=measure==='time_creep'?5:measure==='inconclusive_share'?10:3, ndays=['time_creep','inconclusive_share'].includes(measure)?3:2;
   if(rs.length<minimum||dates(rs).length<ndays)return unavailable(retained,['insufficient fresh ancestry-verified observations or dates']);
   let value,outside,extra={};
   if(measure==='gate_time') {rs=newest(rs.filter(r=>r.kind==='gate'&&r.gateSource==='configured-check'&&r.provenance?.source==='outer-launcher'&&r.provenance.invocationId===r.invocationId&&r.provenance.outerCommandHash===r.commandHash&&finite(r.ms))).slice(0,3);value=median(rs.map(r=>r.ms));outside=value>c.threshold.parameters.boundMs;}
   else if(measure==='critical_file') {
-    rs=rs.filter(completeSuite);if(rs.length<minimum)return unavailable(retained,['complete successor file coverage unavailable']);
+    rs=newest(rs.filter(completeSuite)).slice(0,3);if(rs.length<minimum||dates(rs).length<ndays)return unavailable(retained,['complete successor file coverage unavailable']);
     const mapping=validateTimeTransition(c,rs);if(!mapping.ok)return unavailable(retained,[mapping.reason]);
     outside=newest(rs).slice(0,3).every(r=>mapping.files.some(f=>dominance(r,f)));
     value=median(rs.map(r=>Math.max(...r.suite.observedSummaries.filter(x=>mapping.files.includes(x.file)).map(x=>x.durationMs/r.suite.aggregate.durationMs))));

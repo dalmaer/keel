@@ -1366,13 +1366,16 @@ unqueued remains `accepting` with its verified link and owner label step; retry
 neither duplicates it nor restores labels. Missing evidence stays unavailable.
 
 `keel walk decide --proposal <page> --instance <id> --map <file.json>` is exclusive
-of accept/decline. It records an owner-reviewed full test-identity mapping and
+of accept/decline and is supported only for `critical_file` proposals. It records
+an owner-reviewed full test-identity mapping and
 before/after execution settings bound to that instance and the verified PR head
 (and merge when known). The map's `testMapping` rows are `{from, to:[...]}`;
 each identity includes `file`, `hierarchy`, `occurrence` and any producer type.
 Every old and successor test must be covered; a file-only mapping is insufficient.
-The baseline never changes. Night remeasurement verifies fresh delivery and local
-merge ancestry before reporting inside, outside or unavailable, never improvement
+Identity kind, project scope, runner and machine class must remain unchanged.
+The baseline never changes. Night remeasurement verifies fresh delivery, local
+merge ancestry, explicit clean state and matching observed test selection before
+reporting inside, outside or unavailable, never improvement
 inferred from merge. Commands in proposals are display data, not executed.
 
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->
