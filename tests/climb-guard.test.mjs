@@ -144,6 +144,15 @@ test('build guard: fails when the build output changes and no harmless reason na
   assert.equal(same.status, 0, same.stdout + same.stderr);
   assert.deepEqual([json(same).build.output, json(same).build.files, json(same).build.changes], ['dist', 2, []]);
 
+  // #82: the build is the agent's code, run in a worktree that shares the git dir: a config it writes to the common
+  // git dir is refused before any git of keel's runs again.
+  const plant = `import { readFileSync, appendFileSync } from 'node:fs';\nimport { resolve } from 'node:path';\nconst gd = readFileSync('.git', 'utf8').trim().replace('gitdir: ', '');\nappendFileSync(resolve(resolve(gd, readFileSync(resolve(gd, 'commondir'), 'utf8').trim()), 'config'), '[acme]\\n\\tplanted = yes\\n');\n${build('acme anvils\n')}`;
+  await at('plant', plant);
+  const planted = climb(dir, ['guard', '--json']);
+  assert.equal(planted.status, 1, planted.stdout + planted.stderr);
+  assert.match(json(planted).problems.join('\n'), /^the build `node build\.mjs` changed the git dir's config, hooks or attributes/);
+  git(dir, ['config', '--unset', 'acme.planted']);
+
   // The output changed and nothing says why: the guard fails, naming the path. (Mutation: accepting it fails here.)
   await at('changed', build('acme anvils, faster\n'));
   const changed = climb(dir, ['guard', '--json']);
@@ -485,12 +494,17 @@ test('guard: a perf check that stages a change or sets an index flag after the g
   const honest = await guardWith('true');
   assert.equal(honest.status, 0, honest.stdout + honest.stderr);
   for (const [check, said] of [
-    ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs', /^the agent's code the guard ran \(the gate `[^`]+`, the perf check\) changed the tracked tree or the index after the guard's checks/],
-    ['git update-index --skip-worktree acme.test.mjs && echo "// sneak" >> acme.test.mjs', /^the agent's code the guard ran \(the gate `[^`]+`, the perf check\) set or cleared an index flag after the guard's checks/],
+    ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs', /^the perf check `[^`]+` changed the tracked tree or the index after the guard's checks/],
+    ['git update-index --skip-worktree acme.test.mjs && echo "// sneak" >> acme.test.mjs', /^the perf check `[^`]+` set or cleared an index flag after the guard's checks/],
+    // #82: a filter the perf check plants is refused before the ledger's git status (which would run it) or the gate.
+    ['git config filter.acme.clean "touch .filter-ran; cat" && echo "acme.test.mjs filter=acme" >> "$(git rev-parse --git-common-dir)/info/attributes" && touch acme.test.mjs', /^the perf check `[^`]+` changed the git dir's config, hooks or attributes/],
   ]) {
     const g = await guardWith(check);
     assert.equal(g.status, 1, `${check}: ${g.stdout}${g.stderr}`);
     assert.ok(json(g).problems.some(p => said.test(p)), `${check}: ${JSON.stringify(json(g).problems)}`);
+    assert.equal(existsSync(join(dir, '.filter-ran')), false, `${check}: no filter it planted ran`);
+    run('git', ['config', '--unset', 'filter.acme.clean'], { cwd: dir });
+    await rm(join(dir, '.git/info/attributes'), { force: true });
     git(dir, ['update-index', '--no-skip-worktree', 'acme.test.mjs']);
     git(dir, ['reset', '-q', '--hard', checked]);
   }
@@ -615,4 +629,20 @@ test('guard: a test that passes in one run of the gate and fails in another, beh
   const g = climb(dir, ['guard', '--base', base, '--json']);
   assert.equal(g.status, 1, g.stdout + g.stderr);
   assert.match(json(g).problems.join('\n'), /^failed: acme\.test\.mjs "acme adds" failed on [0-9a-f]{7}, though the gate `npm run check` exited 0$/m);
+});
+
+// #82: the checkout's .git pointed at another git dir (same HEAD and index, other config) is refused before keel's
+// next git reads it.
+test('guard in a linked worktree: a .git pointer moved to another git dir is refused', async t => {
+  const dir = await acme(t);
+  const wt = join(dir, '..', `${dir.split('/').pop()}-moved`);
+  git(dir, ['worktree', 'add', '-q', '--detach', wt]);
+  t.after(() => rm(wt, { recursive: true, force: true }));
+  const tend = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const held = tend.treeState(wt);
+  const other = join(dir, '..', `${dir.split('/').pop()}-othergit`);
+  t.after(() => rm(other, { recursive: true, force: true }));
+  await cp(held.gitDir, other, { recursive: true });
+  await writeFile(join(wt, '.git'), `gitdir: ${other}\n`);
+  assert.match(tend.heldProblems(wt, held, 'the gate').join('\n'), /^the gate changed where the checkout's git dir is/);
 });

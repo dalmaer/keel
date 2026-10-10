@@ -1335,6 +1335,10 @@ export async function guard({ root, config, env = process.env, base, job }) {
   if (job === 'build-time') {
     // The build's output byte for byte, or a reason per changed path that the PR names for the person.
     const built = await buildChanges(root, { config, env, base: b, candidate: head });
+    // The build is the agent's code, run in worktrees that share the git dir (#82): what it moved is refused
+    // before any git of keel's runs again.
+    const movedBuild = heldProblems(root, before, `the build \`${config.climb?.build ?? 'build'}\``);
+    if (movedBuild.length) return { ok: false, job, refused: movedBuild, problems: movedBuild };
     const reasons = night?.harmless ?? {};
     const unexplained = built.changes.filter(x => !reasons[x.path]?.trim?.());
     if (unexplained.length) return { ok: false, job, build: built, problems: unexplained.map(x => `build output ${x.how}: ${x.path} differs from the base ${b.slice(0, 7)}'s and has no harmless reason (climb.mjs harmless --path ${x.path} --why "<why>"), so the change is not the same build`) };
@@ -1347,6 +1351,10 @@ export async function guard({ root, config, env = process.env, base, job }) {
     const pc = spawnSync(check, { cwd: root, shell: true, env: gateEnv(env, config), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 60 * 60_000 });
     if (pc.error) throw new ClimbError(`could not run the perf check \`${check}\`: ${pc.error.message}`);
     if (pc.status !== 0) return { ok: false, job, problems: [`the project's own perf check \`${check}\` failed (exit ${pc.status ?? pc.signal}) on ${head.slice(0, 7)}`] };
+    // The perf check is the agent's code (#82): what it moved, a filter it planted, is refused before the ledger's
+    // git status could run it.
+    const movedPerf = heldProblems(root, before, `the perf check \`${check}\``);
+    if (movedPerf.length) return { ok: false, job, refused: movedPerf, problems: movedPerf };
     extra.perfCheck = `\`${check}\` exit 0`;
     if (night) night.perfCheck = extra.perfCheck;
   }

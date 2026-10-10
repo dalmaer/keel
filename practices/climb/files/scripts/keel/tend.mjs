@@ -469,7 +469,17 @@ export function treeState(root) {
   // A linked worktree's own git dir, and the common one its config, hooks, attributes and refs live in (#82).
   const gitDirs = [...new Set([gitDir, git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'])])];
   const head = sha(root, 'HEAD');
-  return { head, status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitDirs, gitFiles: gitDirsPrint(gitDirs), flags: indexFlags(root), files: trackedPrint(root, head) };
+  return { head, status: git(root, ['status', '--porcelain', '--untracked-files=no']), gitDir, gitDirs, pointer: gitPointer(root, gitDir), gitFiles: gitDirsPrint(gitDirs), flags: indexFlags(root), files: trackedPrint(root, head) };
+}
+/**
+ * Where the checkout's git dir is, as the disk says (#82): the .git entry (a
+ * linked worktree's pointer file, or that it is the git dir itself) and the
+ * git dir's commondir. Code that rewrote either would have keel's next git
+ * read another git dir, its config and filters with it.
+ */
+export function gitPointer(root, gitDir) {
+  const read = p => { try { const st = lstatSync(p); return st.isDirectory() ? 'dir' : st.isSymbolicLink() ? `link:${readlinkSync(p)}` : `file:${readFileSync(p, 'utf8')}`; } catch (e) { if (e.code === 'ENOENT') return 'missing'; throw e; } };
+  return `${read(join(root, '.git'))}\0${read(join(gitDir, 'commondir'))}`;
 }
 /** Each git dir's print (gitDirPrint), the worktree's and the common one. */
 const gitDirsPrint = dirs => dirs.map(gitDirPrint).join(',');
@@ -519,6 +529,8 @@ export function gitDirPrint(gitDir) {
 /** What moved since `before` (treeState): [problem]. `what` names the code that ran. */
 export function heldProblems(root, before, what) {
   // The git dir first, from disk: a hook or a config it planted must never run, so no git is asked until it is clean.
+  // Where it is, before what is in it (#82): a .git or commondir pointed elsewhere is another git dir altogether.
+  if (before.pointer !== undefined && gitPointer(root, before.gitDir) !== before.pointer) return [`${what} changed where the checkout's git dir is (its .git entry or the git dir's commondir) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
   if (gitDirsPrint(before.gitDirs ?? [before.gitDir]) !== before.gitFiles) return [`${what} changed the git dir's config, hooks or attributes, or its replace refs (${(before.gitDirs ?? [before.gitDir]).join(', ')}) after the guard's checks: nothing is taken, and no git command of keel's runs on it`];
   const now = treeState(root), out = [];
   if (now.head !== before.head) out.push(`${what} moved HEAD from ${before.head.slice(0, 7)} to ${now.head.slice(0, 7)} after the guard's checks: only ${before.head.slice(0, 7)} was checked, so nothing is taken`);
