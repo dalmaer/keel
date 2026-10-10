@@ -740,6 +740,10 @@ test('platform guard: a skip clears only the command it guards, and only in the 
   assert.deepEqual(calls(`describe.skipIf(process.platform !== 'darwin')('mac', () => { ${run} });`), {});
   assert.deepEqual(calls(`if (process.platform === 'darwin') { ${run} }`), {});
   assert.deepEqual(calls(`test('x', t => { if (process.platform !== 'darwin') return t.skip('macOS only'); ${run} });`), {});
+  assert.deepEqual(calls(`test('x', t => { if (process.platform !== 'darwin') { t.skip('macOS only'); return; } ${run} });`), {});
+  // Review of PR 58, round 4: a bare t.skip() marks the test skipped and runs on, so it guards nothing.
+  assert.deepEqual(calls(`test('mount', t => { if (process.platform !== 'darwin') t.skip(); ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`test('mount', t => { if (process.platform !== 'darwin') { t.skip(); } ${run} });`), { darwin: ['hdiutil'] });
   assert.deepEqual(calls(`const isMac = process.platform === 'darwin';\ntest('x', { skip: !isMac }, () => { ${run} });`), {});
   assert.deepEqual(calls(`if (process.platform !== 'darwin') process.exit(0);\n${run}`), {});
   assert.deepEqual(calls('[ "$(uname)" = Darwin ] || exit 0\nhdiutil attach acme.dmg\n', 'tests/mount.sh'), {});

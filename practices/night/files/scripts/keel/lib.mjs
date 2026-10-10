@@ -930,7 +930,7 @@ const onWhenFalse = (cond, platform, aliases) => sense(cond, platform, aliases) 
  *   it.runIf(process.platform === 'darwin')(…)             the same
  *   if (process.platform === 'darwin') { … }               the branch
  *   if (process.platform !== 'darwin') return;             the rest of the block
- *     (or t.skip(), this.skip(), process.exit(); at the top: the rest of the file)
+ *     (or process.exit(), or a skip then return; at the top: the rest of the file)
  * A skip whose direction runs the code elsewhere (skip: process.platform ===
  * 'darwin') covers nothing; so does one for another platform.
  */
@@ -971,7 +971,9 @@ export function guardRanges(code, bare, platform) {
     if (end < 0) continue;
     if (onWhenTrue(cond, platform, aliases)) { ranges.push([start, end]); continue; }
     const body = code.slice(bare[start] === '{' ? start + 1 : start, end).trim();
-    if (onWhenFalse(cond, platform, aliases) && /^(?:return\b|[\w$.]*\bskip\s*\(|process\.exit\s*\()/.test(body)) {
+    // An exit stops the rest: return, process.exit(), or a skip followed by return. A bare
+    // t.skip() marks the test skipped and runs on (node's test runner), so it clears nothing.
+    if (onWhenFalse(cond, platform, aliases) && /^(?:return\b|process\.exit\s*\(|[\w$.]*\bskip\s*\([^()]*\)\s*;?\s*return\b)/.test(body)) {
       const block = enclosing(m.index, '{');
       ranges.push([end, block ? block.close : bare.length]);
     }
