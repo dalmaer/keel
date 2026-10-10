@@ -245,7 +245,12 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
           # A provider's bot may open the PR (claude[bot]: Claude reviewing its
           # own, the fallback); the action allows no bot unless named. The
           # adapters' logins only (lib.mjs AGENTS login), never "*".
-          allowed_bots: claude[bot]\n`);
+          allowed_bots: claude[bot]\n`)
+    // keel#65: the push's diff is in a folder of its own under the runner's temp, which Claude may read, and nothing else there.
+    .replace('          claude_args: |\n', `          # The push's diff is in a folder of its own under the runner's temp
+          # (keel#65): Claude may read that folder, and only it, beyond the checkout.
+          claude_args: |\n`)
+    .replace(/(--allowedTools "[^"]*")$/, '$1\n            --add-dir ${{ runner.temp }}/keel-diff');
   assert.equal(review, expected);
   // Phase 47: climb and tend have one step per provider; Codex's gets OPENAI_API_KEY alone (the adapters test).
   for (const key of ['climb', 'tend']) assert.equal(agentSteps(w[key].text, 'codex').length, 1);
@@ -457,8 +462,19 @@ test('phase 60: who wrote a push is its commits\' authors and Co-authored-by tra
   const codexConnector = { ...person, message: 'acme: x\n\nCo-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>' };
   assert.deepEqual(coAuthorsOf(claudeTrailer.message), [{ name: 'Claude Opus 5.5', email: 'noreply@anthropic.com' }]);
   assert.deepEqual([person, claudeTrailer, claudeApp, codex, codexConnector].map(c => commitAuthorOf(c)), [[], ['claude'], ['claude'], ['codex'], ['codex']]);
-  // A person named Claude, at their own address, is a person.
+  // A person named Claude, at their own address, is a person: a name is never evidence, only an email the provider's commits carry (keel#65).
   assert.deepEqual(commitAuthorOf({ name: 'Claude Dupont', email: 'claude@acme.test', message: 'acme: fix' }), []);
+  assert.deepEqual(commitAuthorOf({ name: 'Claude', email: 'claude@acme.test', message: 'acme: fix' }), []);
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nCo-authored-by: Claude <claude@acme.test>' }), [], 'a trailer naming a person called Claude');
+  assert.deepEqual(commitAuthorOf({ name: 'Codex', email: 'codex@acme.test', message: 'acme: fix' }), []);
+  // Only the trailer block counts, as git reads one: a Co-authored-by line quoted in the body is prose (keel#65).
+  const quoted = { ...person, message: 'acme: document the trailer\n\nClaude Code adds a line like this:\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nwhich keel reads as Claude\'s.\n\nSigned-off-by: Acme Owner <owner@acme.test>' };
+  assert.deepEqual([coAuthorsOf(quoted.message), commitAuthorOf(quoted)], [[], []]);
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nnot a trailer line' }), [], 'a last paragraph that is not all trailers is no trailer block');
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nReviewed-by: Acme Owner <owner@acme.test>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>' }), ['claude']);
+  // git's own parse wins when given (gitOf passes %(trailers)): the message is not read again.
+  assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix', coAuthors: ['Claude Opus 5.5 <noreply@anthropic.com>'] }), ['claude']);
+  assert.deepEqual(commitAuthorOf({ ...claudeTrailer, coAuthors: [] }), []);
   assert.deepEqual(pushAuthorsOf([person, claudeTrailer, person]), ['claude']);
   const both = { agents: { claude: {}, codex: {} }, crossReview: { after: 'push' } };
   const codexFirst = { agents: { codex: {}, claude: {} }, crossReview: { after: 'push' } };
@@ -483,7 +499,7 @@ test('phase 60: who wrote a push is its commits\' authors and Co-authored-by tra
   // The script, end to end on the decision: for every listed order, the reviewer is not the author.
   const { cross } = await scripts();
   const git = { isCommit: () => true, isAncestor: () => true, parentOf: () => 'c'.repeat(40), fileAt: () => `export const PUSH_PROTOCOL = ${cross.PUSH_PROTOCOL};\n` };
-  const decide = (config, commits, extra = {}) => cross.shouldReviewPush({ config, event: 'push', head: 'b'.repeat(40), before: 'a'.repeat(40), history: { last: null, today: 0, day: '2026-10-09' }, git: { ...git, commits: () => commits }, ...extra });
+  const decide = (config, commits, extra = {}) => cross.shouldReviewPush({ config, event: 'push', head: 'b'.repeat(40), before: 'a'.repeat(40), history: { last: 'c'.repeat(40), today: 0, day: '2026-10-09' }, git: { ...git, commits: () => commits }, ...extra });
   for (const config of [both, codexFirst]) for (const commits of [[claudeTrailer], [codex], [claudeApp, person]]) {
     const r = decide(config, commits, { has: { claude: true, codex: true } });
     assert.equal(r.review, true);

@@ -45,11 +45,11 @@
 #     waiting for the next run. Findings go on the head commit (where its own
 #     diff holds the line) and into one tracking issue per push, the record
 #     the next run starts from. The same two jobs; the publish job runs from
-#     the commit before the reviewed ones, which it checks itself against
-#     facts the push cannot set (the push's before, the last record), so
-#     nothing it runs came in with the push. With nothing reviewable (a
-#     first or force push, the install, a daily run before any review) it
-#     starts the record at the run's commit, running no repository code.
+#     the commit before the reviewed ones, which it checks itself against a
+#     fact the push cannot set (the last record's end), so nothing it runs
+#     came in with the push. A review only ever starts from a record: with
+#     none that can serve it starts one first (at the push's before, or the
+#     run's commit), running no repository code and spending nothing.
 #
 # SECRET: for Claude (the default), CLAUDE_CODE_OAUTH_TOKEN (`claude
 # setup-token`) or ANTHROPIC_API_KEY, as the claude practice's; for Codex,
@@ -122,6 +122,7 @@ jobs:
       minutes: ${{ steps.which.outputs.minutes }}
       mode: ${{ steps.which.outputs.mode }}
       trusted: ${{ steps.which.outputs.trusted }}
+      start: ${{ steps.which.outputs.start }}
     env:
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
@@ -211,7 +212,7 @@ jobs:
             const fs = require("fs");
             const [file, out] = process.argv.slice(1);
             const w = JSON.parse(fs.readFileSync(file, "utf8"));
-            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\nreason=${w.reason ?? ""}\nmode=${w.mode ?? "pr"}\nbase=${w.base ?? ""}\ntrusted=${w.trusted ?? ""}\n`);
+            fs.appendFileSync(out, `review=${w.review}\nsha=${w.sha ?? ""}\nminutes=${w.minutes ?? ""}\nagent=${w.agent ?? ""}\nauthor=${w.author ?? ""}\nreason=${w.reason ?? ""}\nmode=${w.mode ?? "pr"}\nbase=${w.base ?? ""}\ntrusted=${w.trusted ?? ""}\nstart=${w.at ?? ""}\n`);
             // Its own provider reviews only when no other is available: said, never silent.
             console.log(w.review ? `${w.self ? "::notice::" : ""}review: ${w.why}` : w.notice ? `::notice::${w.why}` : `no review: ${w.why}`);
           ' "$RUNNER_TEMP/which.json" "$GITHUB_OUTPUT"
@@ -235,8 +236,12 @@ jobs:
             # The push's combined diff (pr.diff, as a PR's is named), and the head commit's own (where a commit comment may sit). No diff driver runs.
             git diff --no-color --no-ext-diff --no-textconv "$BASE" "$SHA" -- > "$RUNNER_TEMP/pr.diff"
             git diff --no-color --no-ext-diff --no-textconv "$SHA^" "$SHA" -- > "$RUNNER_TEMP/head.diff"
-            node scripts/keel/cross-review.mjs brief --push "$RUNNER_TEMP/push.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
+            # The diff the agent reads, alone in a folder of its own: Claude is granted that folder (--add-dir), nothing else of the runner's temp.
+            mkdir -p "$RUNNER_TEMP/keel-diff"
+            cp "$RUNNER_TEMP/pr.diff" "$RUNNER_TEMP/keel-diff/push.diff"
+            node scripts/keel/cross-review.mjs brief --push "$RUNNER_TEMP/push.json" --agent "$AGENT" --diff "$RUNNER_TEMP/keel-diff/push.diff" --out "$RUNNER_TEMP/prompt.md"
           else
+            mkdir -p "$RUNNER_TEMP/keel-diff"
             if ! gh pr diff "$PR" --repo "$REPO" > "$RUNNER_TEMP/pr.diff"; then
               echo "::warning::The pull request's diff could not be read; its findings cannot be posted inline."
               : > "$RUNNER_TEMP/pr.diff"
@@ -288,8 +293,11 @@ jobs:
           # own, the fallback); the action allows no bot unless named. The
           # adapters' logins only (lib.mjs AGENTS login), never "*".
           allowed_bots: claude[bot]
+          # The push's diff is in a folder of its own under the runner's temp
+          # (keel#65): Claude may read that folder, and only it, beyond the checkout.
           claude_args: |
             --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --add-dir ${{ runner.temp }}/keel-diff
       - name: Review
         id: review_codex
         if: steps.which.outputs.review == 'true' && steps.which.outputs.agent == 'codex'
@@ -380,56 +388,46 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      # After a push, the commit this job runs from, decided here from facts
-      # the pushed code cannot set (keel#65): the push's before (the event's)
-      # and where the last review ended (the record on the newest tracking
-      # issue this workflow opened, read with this job's own token). The
+      # After a push, the commit this job runs from, decided here from a fact
+      # the pushed code cannot set (keel#65): where the last review ended (the
+      # record on the newest tracking issue this workflow opened, read with
+      # this job's own token). A review only ever starts from a record. The
       # review job ran the pushed code, so its `trusted` is only a suggestion:
-      # it must be one of those facts, an ancestor of the run's commit and
-      # never it, and for a push no newer than its before (GitHub's compare).
-      # Otherwise this job is red and runs nothing. Inline: no script here is
-      # the repository's.
+      # it must be that record's end, never the run's commit, and GitHub's
+      # compare must put it below the run's commit. Otherwise this job is red
+      # and runs nothing. Inline: no script here is the repository's.
       - name: Which commit posts?
         id: trusted
         if: needs.review.outputs.mode == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
           SUGGESTED: ${{ needs.review.outputs.trusted }}
         run: |
           gh issue list --repo "$REPO" --label keel:review-after --state all --limit 60 --json body,author,createdAt > "$RUNNER_TEMP/records.json"
           node -e '
             const fs = require("fs");
-            const { SUGGESTED: s = "", BEFORE: b = "", SHA: h = "", EVENT: e = "" } = process.env;
+            const { SUGGESTED: s = "", SHA: h = "" } = process.env;
             const sha = v => /^[0-9a-f]{40}$/.test(v) && !/^0+$/.test(v);
             const record = body => { const m = /<!-- keel:review-after (\{[^\n]*\}) -->/.exec(body ?? ""); try { return m ? JSON.parse(m[1]) : null; } catch { return null; } };
             const bot = login => /^(?:app\/)?github-actions(?:\[bot\])?$/.test(login ?? "");
             const mine = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).filter(i => bot(i.author?.login) && sha(record(i.body)?.to ?? ""))
               .sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
-            const facts = [...(e === "push" && sha(b) ? [b] : []), ...(mine.length ? [record(mine[0].body).to] : [])];
+            const facts = mine.length ? [record(mine[0].body).to] : [];
             if (!sha(s) || s === h || !facts.includes(s)) {
-              console.log(`::error::The review job named ${s || "no commit"} to post from; this job posts only from the before of the push or the end of the last review (${facts.join(", ") || "neither is known"}), never a pushed commit. Nothing is posted.`);
+              console.log(`::error::The review job named ${s || "no commit"} to post from; this job posts only from the end of the last review (${facts.join(", ") || "none is recorded"}), never a pushed commit. Nothing is posted.`);
               process.exit(1);
             }
           ' "$RUNNER_TEMP/records.json"
           gh api "repos/$REPO/compare/$SUGGESTED...$SHA" > "$RUNNER_TEMP/to-head.json"
-          if [ "$EVENT" = push ] && [ "$SUGGESTED" != "$BEFORE" ]; then
-            gh api "repos/$REPO/compare/$SUGGESTED...$BEFORE" > "$RUNNER_TEMP/to-before.json"
-          else
-            echo '{"status":"identical"}' > "$RUNNER_TEMP/to-before.json"
-          fi
           node -e '
-            const fs = require("fs");
-            const status = f => JSON.parse(fs.readFileSync(f, "utf8")).status;
-            const [head, before] = process.argv.slice(1).map(status);
-            if (head !== "ahead" || !["ahead", "identical"].includes(before)) {
-              console.log(`::error::${process.env.SUGGESTED} is not below the pushed commits (to the commit of the run: ${head}; to the before of the push: ${before}). Nothing is posted.`);
+            const head = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).status;
+            if (head !== "ahead") {
+              console.log(`::error::${process.env.SUGGESTED} is not below the commit of the run (${head}). Nothing is posted.`);
               process.exit(1);
             }
-          ' "$RUNNER_TEMP/to-head.json" "$RUNNER_TEMP/to-before.json"
+          ' "$RUNNER_TEMP/to-head.json"
           echo "sha=$SUGGESTED" >> "$GITHUB_OUTPUT"
 
       # A pull request: the default branch. After a push: the commit the step
@@ -445,29 +443,40 @@ jobs:
           name: keel-cross-review
           path: ${{ runner.temp }}/review
 
-      # Nothing reviewable (a first or force push, the push that installs the
-      # publisher, a daily run before any review): the record starts at the
-      # run's own commit, a closed tracking issue the next run reviews from.
-      # Inline, from the event alone: no repository code runs, nothing is spent.
+      # No record a review can start from (none yet, one a force push dropped,
+      # one from before an upgrade): the record starts here, before any review
+      # is spent, so a review that fails later is retried from it (keel#65). At
+      # the push's before when the review job names it and GitHub puts it
+      # below the run's commit (that push is reviewed next), else at the run's
+      # own commit. A closed tracking issue, from the event alone: no
+      # repository code runs, nothing is spent.
       - name: Start the record
         if: needs.review.outputs.mode == 'start'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          STARTAT: ${{ needs.review.outputs.start }}
         run: |
-          node -e '
-            const h = process.env.SHA;
+          at="$SHA"
+          if [ "$EVENT" = push ] && [ -n "$STARTAT" ] && [ "$STARTAT" = "$BEFORE" ] && [ "$STARTAT" != "$SHA" ]; then
+            gh api "repos/$REPO/compare/$STARTAT...$SHA" > "$RUNNER_TEMP/start-below.json"
+            if node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).status === "ahead" ? 0 : 1)' "$RUNNER_TEMP/start-below.json"; then at="$STARTAT"; fi
+          fi
+          AT="$at" node -e '
+            const h = process.env.AT;
             if (!/^[0-9a-f]{40}$/.test(h)) { console.log("::error::No commit to start the record at."); process.exit(1); }
             const record = { from: null, to: h, alone: false, start: true, agent: null, findings: [] };
-            const body = [`<!-- keel:review-after ${JSON.stringify(record)} -->`, `**Review after the push starts here**, at \`${h.slice(0, 7)}\` (keel practice \`cross-review\`). No commit before it is known to hold code of main that can post a review (a first or force push, the push that installs or upgrades review after the push, or a daily run before any review), so the commits up to it are not reviewed. The next push to main is reviewed from here.`, ""].join("\n");
+            const body = [`<!-- keel:review-after ${JSON.stringify(record)} -->`, `**Review after the push starts here**, at \`${h.slice(0, 7)}\` (keel practice \`cross-review\`). The commits up to it are not reviewed; the next run reviews everything after it.`, ""].join("\n");
             process.stdout.write(JSON.stringify({ title: `keel review after ${h.slice(0, 7)}`, body, labels: ["keel:review-after"] }));
           ' > "$RUNNER_TEMP/start.json"
           gh api --method POST "repos/$REPO/labels" -f name=keel:review-after -f color=5319e7 > /dev/null 2>&1 || true
           gh api --method POST "repos/$REPO/issues" --input "$RUNNER_TEMP/start.json" > "$RUNNER_TEMP/started.json"
           number=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).number)' "$RUNNER_TEMP/started.json")
           gh api --method PATCH "repos/$REPO/issues/$number" -f state=closed -f state_reason=completed > /dev/null
-          echo "the review after the push starts at ${SHA:0:7}: #$number"
+          echo "the review after the push starts at ${at:0:7}: #$number"
 
       # The review: the agent's final message as its summary (opened by a
       # hidden marker, so it owes no answer) and its valid findings as inline

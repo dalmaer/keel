@@ -1306,6 +1306,10 @@ export function crossReviewProblems(text) {
   if (!tools) out.push('the agent has no --allowedTools list');
   else for (const t of tools.split(',').map(s => s.trim())) if (!CROSS_REVIEW_TOOLS.includes(t)) out.push(`the agent may use ${t}: only ${CROSS_REVIEW_TOOLS.join(', ')}`);
   if ((text.match(/--allowedTools/g) ?? []).length !== 1 || /--(?:dangerously-skip-permissions|permission-mode)/.test(text)) out.push('one --allowedTools list, and no way around it');
+  // keel#65: Claude reads the push's diff from a folder of its own (the Brief step writes it there), granted alone; no other directory.
+  const addDirs = code(text).flatMap(({ line }) => [...line.matchAll(/--add-dir[ \t]+(.+?)[ \t]*$/g)].map(m => m[1]));
+  if (JSON.stringify(addDirs) !== JSON.stringify(['${{ runner.temp }}/keel-diff'])) out.push(`Claude may read ${addDirs.join(', ') || 'no folder'} beyond the checkout: only the push diff's own folder, \${{ runner.temp }}/keel-diff`);
+  if (!/cp "\$RUNNER_TEMP\/pr\.diff" "\$RUNNER_TEMP\/keel-diff\/push\.diff"/.test(text) || !/brief --push "\$RUNNER_TEMP\/push\.json" --agent "\$AGENT" --diff "\$RUNNER_TEMP\/keel-diff\/push\.diff"/.test(text)) out.push('the push\'s brief does not point the agent at the diff in the folder it may read');
   // Phase 46: each job asks for its own (crossReviewSandboxProblems holds which); no job may write contents or actions.
   if (!/^permissions: \{\}$/m.test(text)) out.push('the workflow\'s permissions must be {}: each job asks for its own');
   if (/:\s*write-all|contents: write|actions: write/.test(text)) out.push('the token may write contents or actions');
@@ -1313,7 +1317,8 @@ export function crossReviewProblems(text) {
     if (/\bgit push\b|\bgh pr (merge|review|close|edit)\b|\bAPPROVE\b|REQUEST_CHANGES|--approve|--request-changes/.test(line)) out.push(`line ${n}: pushes, merges, approves or requests changes: ${line.trim()}`);
     // Phase 60 (keel#65): the publish job's own reads of GitHub's compare, and a start's label, issue and close; each exactly.
     const PUSH_API = [
-      /^\s*gh api "repos\/\$REPO\/compare\/\$SUGGESTED\.\.\.\$(?:SHA|BEFORE)" > "\$RUNNER_TEMP\/to-(?:head|before)\.json"$/,
+      /^\s*gh api "repos\/\$REPO\/compare\/\$SUGGESTED\.\.\.\$SHA" > "\$RUNNER_TEMP\/to-head\.json"$/,
+      /^\s*gh api "repos\/\$REPO\/compare\/\$STARTAT\.\.\.\$SHA" > "\$RUNNER_TEMP\/start-below\.json"$/,
       /^\s*gh api --method POST "repos\/\$REPO\/labels" -f name=keel:review-after -f color=5319e7 > \/dev\/null 2>&1 \|\| true$/,
       /^\s*gh api --method POST "repos\/\$REPO\/issues" --input "\$RUNNER_TEMP\/start\.json" > "\$RUNNER_TEMP\/started\.json"$/,
       /^\s*gh api --method PATCH "repos\/\$REPO\/issues\/\$number" -f state=closed -f state_reason=completed > \/dev\/null$/,
@@ -1506,6 +1511,11 @@ test('keel-cross-review.yml: the agent reads and comments inline, nothing else; 
     ['Codex keeps sudo', t.replace('          safety-strategy: drop-sudo\n', '')],
     ['Codex for bots', t.replace('          safety-strategy: drop-sudo\n', '          safety-strategy: drop-sudo\n          allow-bots: true\n')],
     ['Claude for any bot', t.replace('          allowed_bots: claude[bot]\n', '          allowed_bots: "*"\n')],
+    // keel#65: Claude must be able to read the push's diff, and only that folder beyond the checkout.
+    ['Claude cannot read the push diff', t.replace('            --add-dir ${{ runner.temp }}/keel-diff\n', '')],
+    ['Claude may read the whole runner temp', t.replace('            --add-dir ${{ runner.temp }}/keel-diff\n', '            --add-dir ${{ runner.temp }}\n')],
+    ['Claude may read another folder too', t.replace('            --add-dir ${{ runner.temp }}/keel-diff\n', '            --add-dir ${{ runner.temp }}/keel-diff\n            --add-dir /home/runner\n')],
+    ['the push brief points elsewhere', t.replace('--diff "$RUNNER_TEMP/keel-diff/push.diff"', '--diff "$RUNNER_TEMP/pr.diff"')],
     ['Claude for another bot', t.replace('          allowed_bots: claude[bot]\n', '          allowed_bots: claude[bot],acme-deploy[bot]\n')],
     ['Codex for any bot', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: "*"\n')],
     ['Codex for another bot', t.replace('          allow-bot-users: claude[bot]\n', '          allow-bot-users: claude[bot],acme-deploy[bot]\n')],
@@ -1596,7 +1606,8 @@ export function crossReviewSandboxProblems(text) {
     else {
       const env = stepMap(trust, 'env');
       if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode == 'push'\n/.test(trust)) out.push('the trusted step does not run for a push');
-      if (env.BEFORE !== '${{ github.event.before }}' || env.SHA !== '${{ github.sha }}' || env.SUGGESTED !== `\${{ needs.${agent.id}.outputs.trusted }}`) out.push('the trusted step does not take the push\'s facts from the event and the suggestion from the review job');
+      if (env.SHA !== '${{ github.sha }}' || env.SUGGESTED !== `\${{ needs.${agent.id}.outputs.trusted }}`) out.push('the trusted step does not take the run\'s commit from the event and the suggestion from the review job');
+      if ('BEFORE' in env || /facts = \[\.\.\./.test(trust)) out.push('the trusted step takes a fact besides the last record\'s end: a review only ever starts from a record (keel#65)');
       if (!/gh issue list --repo "\$REPO" --label keel:review-after/.test(trust) || !/\bbot\(i\.author\?\.login\)/.test(trust)) out.push('the trusted step does not read the last review\'s record itself, the workflow\'s own issues only');
       if (!/if \(!sha\(s\) \|\| s === h \|\| !facts\.includes\(s\)\)/.test(trust)) out.push('the trusted step does not refuse a suggestion that is not one of the facts, or is the run\'s own commit');
       if (!/gh api "repos\/\$REPO\/compare\/\$SUGGESTED\.\.\.\$SHA"/.test(trust) || !/head !== "ahead"/.test(trust)) out.push('the trusted step does not ask GitHub that the commit is below the run\'s');
@@ -1617,6 +1628,11 @@ export function crossReviewSandboxProblems(text) {
     // A start runs no checkout and no script of the repository's.
     const start = steps.find(st => /if: needs\.[\w-]+\.outputs\.mode == 'start'\n/.test(st));
     if (start && /scripts\/keel|cross-review\.mjs/.test(start)) out.push('the start step runs the repository\'s code');
+    if (start) {
+      const env = stepMap(start, 'env');
+      if (env.SHA !== '${{ github.sha }}' || env.BEFORE !== '${{ github.event.before }}' || env.STARTAT !== `\${{ needs.${agent.id}.outputs.start }}`) out.push('the start step does not take its facts from the event and the suggestion from the review job');
+      if (!/\n {10}at="\$SHA"\n/.test(start) || !/\[ "\$STARTAT" = "\$BEFORE" \]/.test(start) || !/\.status === "ahead" \? 0 : 1\)' "\$RUNNER_TEMP\/start-below\.json"; then at="\$STARTAT"; fi/.test(start)) out.push('the start step starts the record where the review job says, unchecked: only the push\'s before, below the run\'s commit, else the run\'s commit');
+    }
     if (start) for (const c of steps.filter(st => /uses: actions\/(?:checkout|download-artifact)@/.test(st))) if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode != 'start'\n/.test(c)) out.push(`the writing job ${w.id} checks out or downloads for a start, which has nothing to run`);
     if (!/\n {6}- uses: actions\/download-artifact@/.test(w.text)) out.push(`the writing job ${w.id} does not take the review job's artifact`);
     if (code(w.text).some(({ line }) => /cross-review\.mjs" (?:summary|push-review|push-post)|\$RUNNER_TEMP\/keel\//.test(line))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
@@ -1677,7 +1693,11 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['no trusted step', t.replace(trustStep, '      - run: true')],
     ['the trusted step trusts the review job', t.replace(trustStep, trustStep.replace('if (!sha(s) || s === h || !facts.includes(s)) {', 'if (!sha(s)) {'))],
     ['the trusted step lets the head through', t.replace(trustStep, trustStep.replace('if (!sha(s) || s === h || !facts.includes(s)) {', 'if (!sha(s) || !facts.includes(s)) {'))],
-    ['the trusted step takes its facts from the review job', t.replace(trustStep, trustStep.replace('          BEFORE: ${{ github.event.before }}\n', '          BEFORE: ${{ needs.review.outputs.trusted }}\n'))],
+    ['the trusted step takes the push\'s before as a base too', t.replace(trustStep, trustStep.replace('          SHA: ${{ github.sha }}\n', '          BEFORE: ${{ github.event.before }}\n          SHA: ${{ github.sha }}\n').replace('const facts = mine.length ? [record(mine[0].body).to] : [];', 'const facts = [...(process.env.BEFORE ? [process.env.BEFORE] : []), ...(mine.length ? [record(mine[0].body).to] : [])];'))],
+    ['the trusted step takes its run\'s commit from the review job', t.replace(trustStep, trustStep.replace('          SHA: ${{ github.sha }}\n', '          SHA: ${{ needs.review.outputs.trusted }}\n'))],
+    ['the start step starts where the review job says', t.replace(startStep, startStep.replace('          at="$SHA"\n', '          at="${STARTAT:-$SHA}"\n'))],
+    ['the start step takes any suggestion as the before', t.replace(startStep, startStep.replace(' && [ "$STARTAT" = "$BEFORE" ]', ''))],
+    ['the start step asks GitHub nothing', t.replace(startStep, startStep.replace('.status === "ahead" ? 0 : 1)\' "$RUNNER_TEMP/start-below.json"; then at="$STARTAT"; fi', '.status ? 0 : 0)\' "$RUNNER_TEMP/start-below.json"; then at="$STARTAT"; fi'))],
     ['the trusted step takes its record from anyone', t.replace(trustStep, trustStep.replace('.filter(i => bot(i.author?.login) && ', '.filter(i => '))],
     ['the trusted step asks GitHub nothing', t.replace(trustStep, trustStep.replace('          gh api "repos/$REPO/compare/$SUGGESTED...$SHA" > "$RUNNER_TEMP/to-head.json"\n', '          echo \'{"status":"ahead"}\' > "$RUNNER_TEMP/to-head.json"\n'))],
     ['the trusted step hands on first', t.replace(trustStep, trustStep.replace('        run: |\n          gh issue list', '        run: |\n          echo "sha=$SUGGESTED" >> "$GITHUB_OUTPUT"\n          gh issue list').replace(/\n {10}echo "sha=\$SUGGESTED" >> "\$GITHUB_OUTPUT"$/, ''))],

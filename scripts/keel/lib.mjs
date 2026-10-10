@@ -1806,9 +1806,10 @@ export const AGENTS = Object.freeze({
     final: 'the execution file (the step\'s execution_file output): its last "result" message\'s text',
     error: 'that result message: is_error, its turns and its result text',
     login: 'claude[bot]',
-    // Phase 60: a commit is Claude's when its author or a Co-authored-by trailer is one of these
+    // Phase 60: a commit is Claude's when its author's or a Co-authored-by trailer's email is one of these
     // (claude-code-action's commits; Claude Code's "Co-Authored-By: Claude … <noreply@anthropic.com>").
-    commits: Object.freeze({ names: /^(?:claude|claude code|claude (?:opus|sonnet|haiku|fable)\b.*|claude\[bot\])$/i, emails: /^(?:noreply@anthropic\.com|\d+\+claude\[bot\]@users\.noreply\.github\.com)$/i }),
+    // An email, never a name: a person may be named Claude (keel#65).
+    commits: Object.freeze({ emails: /^(?:noreply@anthropic\.com|(?:\d+\+)?claude\[bot\]@users\.noreply\.github\.com)$/i }),
     passes: Object.freeze(['crossReview', 'climb', 'tend']),
     refused: Object.freeze({}),
   }),
@@ -1827,7 +1828,7 @@ export const AGENTS = Object.freeze({
     // codex-action posts nothing; keel's step posts what it says.
     login: null,
     // Phase 60: a commit is Codex's when its author or a Co-authored-by trailer is one of these (Codex cloud's connector, the Codex CLI).
-    commits: Object.freeze({ names: /^(?:codex|openai codex|chatgpt codex connector|codex\[bot\]|chatgpt-codex-connector\[bot\])$/i, emails: /^(?:noreply@openai\.com|codex@openai\.com|\d+\+(?:chatgpt-codex-connector|codex)\[bot\]@users\.noreply\.github\.com)$/i }),
+    commits: Object.freeze({ emails: /^(?:noreply@openai\.com|codex@openai\.com|(?:\d+\+)?(?:chatgpt-codex-connector|codex)\[bot\]@users\.noreply\.github\.com)$/i }),
     passes: Object.freeze(['crossReview', 'climb', 'tend']),
     refused: Object.freeze({}),
   }),
@@ -1906,17 +1907,38 @@ export function reviewerOf({ config, head, has, agents = AGENTS }) {
 
 /** The Co-authored-by trailers of a commit message: [{ name, email }]. Pure. */
 export function coAuthorsOf(message) {
-  return [...String(message ?? '').matchAll(/^co-authored-by:[ \t]*(.*?)[ \t]*<([^>\n]*)>[ \t]*$/gim)].map(m => ({ name: m[1].trim(), email: m[2].trim() }));
+  return trailerValues(trailerBlock(message), 'co-authored-by').map(personOf).filter(Boolean);
 }
 
 /**
- * Who wrote a commit: the providers its author or a Co-authored-by trailer
- * names (an adapter's `commits`: its names and emails), in the adapters'
- * order; [] for a person's. `commit`: { name, email, message }. Pure.
+ * A commit message's trailer block, as git reads one (git interpret-trailers):
+ * its last paragraph, when every line of it is a `Key: value` trailer or a
+ * continuation of one. A `Co-authored-by:` line quoted in the body is not a
+ * trailer (keel#65). Pure.
+ */
+export function trailerBlock(message) {
+  const paras = String(message ?? '').replace(/\r\n/g, '\n').trim().split(/\n[ \t]*\n/);
+  if (paras.length < 2) return [];
+  const lines = paras.at(-1).split('\n');
+  return lines.every((l, i) => /^[A-Za-z0-9-]+:[ \t]*\S/.test(l) || (i > 0 && /^[ \t]+\S/.test(l))) ? lines : [];
+}
+/** The values of one trailer key (any case) in a trailer block. */
+const trailerValues = (lines, key) => lines.filter(l => l.toLowerCase().startsWith(`${key}:`)).map(l => l.slice(key.length + 1).trim());
+/** `Name <email>` → { name, email }, or null. */
+const personOf = v => { const m = /^(.*?)[ \t]*<([^>\n]*)>$/.exec(String(v ?? '').trim()); return m ? { name: m[1].trim(), email: m[2].trim() } : null; };
+
+/**
+ * Who wrote a commit: the providers whose identity its author's email, or a
+ * Co-authored-by trailer's, is (an adapter's `commits.emails`; a name alone
+ * is never evidence: a person may be named Claude), in the adapters' order;
+ * [] for a person's. `commit`: { name, email, coAuthors?, message }:
+ * `coAuthors` is git's own parse of the trailers (`%(trailers:key=Co-authored-by)`,
+ * gitOf's), else the message's trailer block is read here. Pure.
  */
 export function commitAuthorOf(commit, agents = AGENTS) {
-  const people = [{ name: commit?.name ?? '', email: commit?.email ?? '' }, ...coAuthorsOf(commit?.message)];
-  return Object.keys(agents).filter(n => agents[n].commits && people.some(p => agents[n].commits.names.test(p.name) || agents[n].commits.emails.test(p.email)));
+  const trailers = Array.isArray(commit?.coAuthors) ? commit.coAuthors.map(personOf).filter(Boolean) : coAuthorsOf(commit?.message);
+  const emails = [commit?.email ?? '', ...trailers.map(p => p.email)];
+  return Object.keys(agents).filter(n => agents[n].commits && emails.some(e => agents[n].commits.emails.test(e)));
 }
 
 /** Every provider that wrote one of a push's commits, in the adapters' order; [] when people wrote them all. Pure. */

@@ -671,6 +671,9 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   const d = keel(dir, gh, [`acme/app@${PUSHED}`, '--json']).json();
   assert.deepEqual([d.sha, d.from, d.issue, d.unanswered, d.answered, d.ok], [PUSHED, FROM, 12, 1, 1, false]);
   assert.deepEqual(d.comments.map(c => [c.id, c.answered, c.answer, c.url]), [['F1', false, null, F1.url], ['F2', true, 'not-valid', null]]);
+  // keel#65: every comment the receipt marks read is shown, whole, in prose and JSON: here a follow-up that is no answer.
+  assert.deepEqual(d.followUps.map(f => [f.id, f.author, f.body]), [['502', 'acme-owner', 'Looking at F1 now.']]);
+  assert.match(r.out, /^1 other comment on #12, read before closing:\n {2}502 {2}acme-owner {2}\S+\n {4}Looking at F1 now\.$/m);
   // The receipt: by the full sha, the findings shown and every comment the issue had.
   const receipt = JSON.parse(await readFile(join(dir, '.keel-cache', 'reviews', `acme__app__after-${PUSHED}.json`), 'utf8'));
   assert.deepEqual([receipt.head, receipt.ids, receipt.seen], [PUSHED, ['F1', 'F2'], ['501', '502']]);
@@ -682,6 +685,20 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   assert.equal(none.code, 2);
   assert.match(none.err, /no review after the push ends at 1234567 on acme\/app/);
   assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 7)}`, '--wait']).code, 2, 'nothing waits on a push');
+});
+
+test('phase 60: a finding keeps its whole text, from the record to keel review\'s JSON and a tracked finding\'s keel:agent draft (keel#65)', async t => {
+  const dir = await project(t);
+  const long = { ...F1, text: `The hinge is never checked.\n\nRepro: open a lid whose hinge is null; open() throws.\n\nFix: ${'guard the hinge before turning it. '.repeat(12)}`.trim() };
+  assert.ok(long.text.length > 300);
+  const gh = await pushGh(t, { issues: [pushIssue([long, F2])], writes: true });
+  const at = `acme/app@${PUSHED.slice(0, 7)}`;
+  const d = keel(dir, gh, [at, '--json']).json();
+  assert.equal(d.comments[0].text, `P1 ${long.text}`, 'whole, not a one-line excerpt');
+  const r = keel(dir, gh, [at]);
+  assert.match(r.out, /^ {2}UNANSWERED F1 {2}src\/lid\.js:12 {2}P1 The hinge is never checked\. Repro: .*…$/m, 'the list shows one line of it');
+  const draft = keel(dir, gh, [at, '--close', 'F1', '--tracked', '#40', '--json']).json().work[0].draft;
+  assert.ok(draft.body.includes(long.text), 'the draft carries the whole finding');
 });
 
 test('phase 60: an older push\'s review is found however many newer ones there are: every page until it is, and an incomplete read is never "no review" (keel#65)', async t => {
@@ -724,7 +741,9 @@ test('phase 60: keel review <repo>@<sha> --close answers each finding it read wi
   assert.match(td.work[0].draft.title, /^P1 src\/lid\.js:12: The hinge is never checked\.$/);
   assert.match(td.work[0].draft.body, /keel review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
   let s = await gh.state();
-  assert.equal(s.comments.at(-1).body, '**F1** `src/lid.js:12`: **Valid, tracked** in #40. Left open until the fix lands.');
+  // keel#65: the push's tracked reply says the finding is answered and the issue may close, never "left open".
+  assert.equal(s.comments.at(-1).body, '**F1** `src/lid.js:12`: **Valid, tracked** in #40: the fix is tracked there, so this finding is answered and this review\'s issue can close.');
+  assert.doesNotMatch(s.comments.at(-1).body, /Left open/);
   assert.equal(s.issues[0].state, 'OPEN');
   // A comment arrives from someone else: closing refuses until it is read.
   s.comments.push(ic(777, 'acme-reviewer', 'F2 is worse than it looks.'));
@@ -732,8 +751,11 @@ test('phase 60: keel review <repo>@<sha> --close answers each finding it read wi
   const arrived = keel(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open()']);
   assert.equal(arrived.code, 2);
   assert.match(arrived.err, /arrived since your last read \(.*\): comment 777 \(acme-reviewer\) F2 is worse than it looks\./);
-  // Read again; keel's own answer (F1's) was not news. F2 answered: every finding is, so the issue closes.
-  assert.equal(keel(dir, gh, [at]).code, 1);
+  // Read again: the read shows that comment whole before it marks it read (keel#65); keel's own answer (F1's) is not news.
+  const reread = keel(dir, gh, [at]);
+  assert.equal(reread.code, 1);
+  assert.match(reread.out, /^1 other comment on #12, read before closing:\n {2}777 {2}acme-reviewer {2}\S+\n {4}F2 is worse than it looks\.$/m);
+  // F2 answered: every finding is, so the issue closes.
   const last = keel(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open(), line 8']);
   assert.equal(last.code, 0, last.err);
   assert.match(last.out, /^#12 closed: every finding is answered$/m);

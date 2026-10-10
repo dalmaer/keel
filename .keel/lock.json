@@ -67,7 +67,7 @@
     },
     ".github/workflows/keel-cross-review.yml": {
       "practice": "cross-review",
-      "sha256": "2a1ba012c4707eff8a7ce5696761f67f80edacac8964873966c32e3e9c1d83a7"
+      "sha256": "2d57ebc34e973cd092721a42e7ca0c4d469f2c941e53386a434add7ff4e2ecf6"
     },
     ".github/workflows/keel-impact.yml": {
       "practice": "reconciliation",
@@ -143,7 +143,7 @@
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
-      "sha256": "dab7bfeac7bbee49c765698745c1700457693cb247ec6149d2c70b1aa71456b5"
+      "sha256": "e32577425fd8fb37112b1783f0e12451ea43ad5428812aa69a21c2ec782305db"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -163,7 +163,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "70a9ca3dfa4f4b3ce31a5fe3efcc427998f30dc6ed2c3ff7a3225101f3dd3e14"
+      "sha256": "4e376ae814c1dda03f475f0c2de43e4db96057d169cb2aa4ef6fd8753b2829db"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",

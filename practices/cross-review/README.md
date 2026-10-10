@@ -139,39 +139,48 @@ it lands, and nothing waits on it:
   one pending run.
 - **What it reviews.** Everything on main since the last review, as one
   batch: the combined diff. The last review's tracking issue records where
-  it ended. With no record, the push's own range (`before..after`). With
-  neither (a first push, `before` all zeros; a force push, `before` and the
-  record no longer in main's history; the push that installs or upgrades
-  the publisher; a daily run before any review), nothing is reviewed: no
-  commit before the head is known to hold main's own code that can post a
-  review. The record starts at the head instead (a closed tracking issue,
-  said in a notice), and the next run reviews from it.
+  it ended. A review only ever starts from such a record, so a review that
+  fails is retried from it, with every push since. With no record that can
+  serve (none yet; one a force push dropped; one from before an upgrade),
+  nothing is reviewed and the record starts first, before anything is
+  spent: at the push's `before` when its script can post (the next run
+  reviews that push), else at the head (a first push, `before` all zeros;
+  a force push; the push that installs or upgrades the publisher; a daily
+  run before any review). A start is a closed tracking issue, said in a
+  notice.
 - **Who reviews it.** A provider other than the one that wrote the
-  commits: each commit's author and its `Co-authored-by` trailers name the
-  provider (Claude Code's `Co-Authored-By: Claude … <noreply@anthropic.com>`,
-  `claude[bot]`, Codex's). A person's push goes to the first provider
-  listed. Its own provider reviews only when no other is available, said
-  as for a PR.
+  commits: each commit's author, and its `Co-authored-by` trailers (the
+  trailer block git parses, never a line quoted in the body), name the
+  provider by email: Claude Code's `<noreply@anthropic.com>`,
+  `claude[bot]`'s, Codex's. A name alone is never evidence: a person may
+  be named Claude. A person's push goes to the first provider listed. Its
+  own provider reviews only when no other is available, said as for a PR.
 - **Where findings go.** Checked against the push's diff exactly as a PR's
   are. Each one whose line the head commit's own diff holds becomes a
   commit comment on the head; all of them go into one tracking issue per
   push, `keel review after <sha>` (label `keel:review-after`), each with an
-  id (F1, F2, …). The issue's first line is a hidden record, the next
-  run's starting point. With no findings the issue is closed as it opens.
-  Answer each with `keel review <repo>@<sha> --close <id> --fixed …`; the
-  issue closes when every finding is answered. A finding answered tracked
-  is drafted as a `keel:agent` issue (`--json` `work`), for phase 54's
-  robot to file.
+  id (F1, F2, …). The issue opens pending; the one edit that finishes it
+  writes its hidden record (the next run's starting point, each finding's
+  whole text as far as the issue holds it) and, with no findings, closes
+  it. Until that edit lands nothing is recorded, so a failed post is
+  reviewed again. Answer each with `keel review <repo>@<sha> --close <id>
+  --fixed …`; the issue closes when every finding is answered (a tracked
+  one too: its work goes on where it is tracked). A read shows every other
+  comment on the issue, whole, before it counts it read. A finding
+  answered tracked is drafted as a `keel:agent` issue (`--json` `work`),
+  for phase 54's robot to file.
 - **The sandbox.** The same two jobs. The review job reads main's whole
   history (no credential kept) and the tracking issues (`issues: read`).
   The publish job (`issues: write` too) checks out the commit before the
   reviewed ones, the range's base, so nothing it runs came in with the
   push; it posts with `cross-review.mjs push-post`. The review job ran the
-  pushed code, so the publish job decides that commit itself, from facts
-  the push cannot set: it must be the push's `before` or the last
-  record's end (read with the publish job's own token), and GitHub's
-  compare must put it below the run's commit. Anything else is red and
-  runs nothing. The base's script must also speak the push protocol
+  pushed code, so the publish job decides that commit itself, from a fact
+  the push cannot set: it must be the last record's end (read with the
+  publish job's own token), and GitHub's compare must put it below the
+  run's commit. Anything else is red and runs nothing. A start is at the
+  push's `before` only when GitHub puts it below the run's commit, else
+  at the run's commit. Claude reads the push's diff from a folder of its
+  own under the runner's temp (`--add-dir`), granted alone. The base's script must also speak the push protocol
   (`PUSH_PROTOCOL`); one that does not (from before an install or an
   upgrade) is never a base. That is checked before any agent runs, so
   nothing is spent on a review that cannot be posted. Starting the record
