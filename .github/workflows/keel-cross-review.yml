@@ -399,7 +399,7 @@ jobs:
       # in its diff. Inline: nothing of the repository runs before the check.
       - name: Is the publisher keel's?
         id: publisher
-        if: needs.review.outputs.mode == 'push'
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -424,8 +424,11 @@ jobs:
 
       # A pull request: the default branch. After a push, no checkout: the
       # publisher above is all that runs. A start runs no repository code.
+      # Which of these runs is the event's (keel#65), never the review job's
+      # word: on a push the review job ran the pushed code, and the default
+      # branch is the pushed code.
       - uses: actions/checkout@v7
-        if: needs.review.outputs.mode == 'pr'
+        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -443,7 +446,7 @@ jobs:
       # own commit. A closed tracking issue, from the event alone: no
       # repository code runs, nothing is spent.
       - name: Start the record
-        if: needs.review.outputs.mode == 'start'
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'start'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -476,7 +479,7 @@ jobs:
       # the agent's). Should GitHub refuse the inline comments, the same
       # review goes with the findings listed in its summary.
       - name: Post the summary
-        if: needs.review.outputs.mode == 'pr'
+        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -502,7 +505,7 @@ jobs:
       # none. The posting is the publisher's (push-post, checked above), with
       # this job's token.
       - name: Post after the push
-        if: needs.review.outputs.mode == 'push'
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

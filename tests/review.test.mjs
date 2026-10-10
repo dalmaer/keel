@@ -674,6 +674,24 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   // keel#65: every comment the receipt marks read is shown, whole, in prose and JSON: here a follow-up that is no answer.
   assert.deepEqual(d.followUps.map(f => [f.id, f.author, f.body]), [['502', 'acme-owner', 'Looking at F1 now.']]);
   assert.match(r.out, /^1 other comment on #12, read before closing:\n {2}502 {2}acme-owner {2}\S+\n {4}Looking at F1 now\.$/m);
+  // keel#65: an answer naming no finding (F9, where only F1 and F2 exist) answered nothing: it is shown as any comment is,
+  // never marked read unseen, and a close refuses it until it is read.
+  const own = await project(t);
+  const stray = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true, comments: [ic(601, 'acme-reviewer', '**F9** `src/lid.js:1`: **Fixed** in abc1234. Validated against the code first.')] });
+  const at = `acme/app@${PUSHED.slice(0, 7)}`;
+  const shown = keel(own, stray, [at, '--json']).json();
+  assert.deepEqual(shown.followUps.map(f => [f.id, f.body]), [['601', '**F9** `src/lid.js:1`: **Fixed** in abc1234. Validated against the code first.']]);
+  assert.deepEqual(shown.comments.map(c => c.answered), [false, false], 'it answered no finding');
+  assert.match(keel(own, stray, [at]).out, /^1 other comment on #12, read before closing:\n {2}601 {2}acme-reviewer {2}\S+\n {4}\*\*F9\*\*/m);
+  // Arrived after the read: news, so the close refuses until it is read.
+  const later = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true });
+  keel(own, later, [at]);
+  const st = await later.state();
+  st.comments.push(ic(602, 'acme-reviewer', '**F9** `src/lid.js:1`: **Fixed** in abc1234.'));
+  await writeFile(join(dirname(later.path), 'state.json'), JSON.stringify(st));
+  const refused = keel(own, later, [at, '--close', 'F1', '--fixed', 'abc1234']);
+  assert.equal(refused.code, 2, refused.out);
+  assert.match(refused.err, /arrived since your last read \(.*\): comment 602 \(acme-reviewer\)/);
   // The receipt: by the full sha, the findings shown and every comment the issue had.
   const receipt = JSON.parse(await readFile(join(dir, '.keel-cache', 'reviews', `acme__app__after-${PUSHED}.json`), 'utf8'));
   assert.deepEqual([receipt.head, receipt.ids, receipt.seen], [PUSHED, ['F1', 'F2'], ['501', '502']]);

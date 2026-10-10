@@ -1163,6 +1163,7 @@ test('phase 60 publish: the findings, checked against the push\'s diff, go on th
   assert.equal(red.status, 1, red.out);
   // The PR step does not run for a push, nor the push step for a PR.
   const text = await readFile(WORKFLOW, 'utf8');
-  assert.match(text, /- name: Post the summary\n {8}if: needs\.review\.outputs\.mode == 'pr'\n/);
-  assert.match(text, /- name: Post after the push\n {8}if: needs\.review\.outputs\.mode == 'push'\n/);
+  // keel#65: which path runs is the event's, never the review job's word (on a push it ran the pushed code).
+  assert.ok(text.includes("- name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n"));
+  assert.ok(text.includes("- name: Post after the push\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n"));
 });

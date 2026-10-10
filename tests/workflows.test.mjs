@@ -1605,7 +1605,7 @@ export function crossReviewSandboxProblems(text) {
     if (!pub) out.push(`the writing job ${w.id} has no step that checks the publisher after a push (id: publisher)`);
     else {
       const env = stepMap(pub, 'env');
-      if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode == 'push'\n/.test(pub)) out.push('the publisher step does not run for a push');
+      if (!pub.includes("\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n")) out.push('the publisher step does not run for a push event alone');
       if (!/^(?:unrendered|[0-9a-f]{64} [0-9a-f]{64})$/.test(env.KEEL_PUBLISHER ?? '')) out.push(`the publisher's sha256 is not keel's, written here (KEEL_PUBLISHER: ${env.KEEL_PUBLISHER ?? 'none'})`);
       if (env.SHA !== '${{ github.sha }}') out.push('the publisher step does not fetch at the run\'s commit');
       const fetched = [...pub.matchAll(/gh api -H "Accept: application\/vnd\.github\.raw" "repos\/\$REPO\/contents\/scripts\/keel\/([\w.-]+)\?ref=\$SHA" > "\$out\/([\w.-]+)"/g)].map(m => `${m[1]}>${m[2]}`);
@@ -1620,7 +1620,7 @@ export function crossReviewSandboxProblems(text) {
     if (stepMap(post, 'env').PUBLISHER !== '${{ steps.publisher.outputs.dir }}') out.push('the push\'s post does not take the checked publisher\'s folder');
     for (const [i, c] of steps.entries()) if (/uses: actions\/checkout@/.test(c)) {
       // A PR: the default branch, and only for a PR; after a push nothing is checked out.
-      if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode == 'pr'\n/.test(c)) out.push(`the writing job ${w.id} checks out the repository after a push: its pushed code would be on disk where the token writes`);
+      if (!c.includes("\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n")) out.push(`the writing job ${w.id} checks out the repository after a push: its pushed code would be on disk where the token writes`);
       if (!/\n {10}ref: \$\{\{ github\.event\.repository\.default_branch \}\}(?:\n|$)/.test(c)) out.push(`the writing job ${w.id} checks out something other than the default branch for a PR: the PR's code would run where the token writes`);
       if (!/\n {10}persist-credentials: false(?:\n|$)/.test(c)) out.push(`a checkout in the writing job ${w.id} keeps the token in git`);
     }
@@ -1630,14 +1630,20 @@ export function crossReviewSandboxProblems(text) {
       if (/github\.sha\b|github\.event\.(?:after|before|head_commit)\b|github\.ref\b/.test(line) && !/^ {10}(?:BEFORE: \$\{\{ github\.event\.before \}\}|SHA: \$\{\{ github\.sha \}\})$/.test(line)) out.push(`the writing job ${w.id} reaches for the pushed commits: ${line.trim()}`);
     }
     // A start runs no checkout and no script of the repository's.
-    const start = steps.find(st => /if: needs\.[\w-]+\.outputs\.mode == 'start'\n/.test(st));
+    const start = steps.find(st => /- name: Start the record\n/.test(st));
+    if (start && !start.includes("\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'start'\n")) out.push('the start step runs on an event other than a push or the daily run');
+    // keel#65: the PR path (the default branch's checkout, its script's summary) runs on a PR's events alone, keyed on the
+    // event, never on the review job's word: on a push the review job ran the pushed code, and could say "pr".
+    const summary = steps.find(st => /- name: Post the summary\n/.test(st));
+    if (summary && !summary.includes("\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n")) out.push('the PR\'s summary step runs on an event other than a PR\'s, or on the review job\'s word');
+    if (post && !post.includes("\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n")) out.push('the push\'s post runs on an event other than a push or the daily run');
     if (start && /scripts\/keel|cross-review\.mjs/.test(start)) out.push('the start step runs the repository\'s code');
     if (start) {
       const env = stepMap(start, 'env');
       if (env.SHA !== '${{ github.sha }}' || env.BEFORE !== '${{ github.event.before }}' || env.STARTAT !== `\${{ needs.${agent.id}.outputs.start }}`) out.push('the start step does not take its facts from the event and the suggestion from the review job');
       if (!/\n {10}at="\$SHA"\n/.test(start) || !/\[ "\$STARTAT" = "\$BEFORE" \]/.test(start) || !/\.status === "ahead" \? 0 : 1\)' "\$RUNNER_TEMP\/start-below\.json"; then at="\$STARTAT"; fi/.test(start)) out.push('the start step starts the record where the review job says, unchecked: only the push\'s before, below the run\'s commit, else the run\'s commit');
     }
-    if (start) for (const c of steps.filter(st => /uses: actions\/(?:checkout|download-artifact)@/.test(st))) if (!/\n {8}if: needs\.[\w-]+\.outputs\.mode (?:!= 'start'|== 'pr')\n/.test(c)) out.push(`the writing job ${w.id} checks out or downloads for a start, which has nothing to run`);
+    if (start) for (const c of steps.filter(st => /uses: actions\/(?:checkout|download-artifact)@/.test(st))) if (!/\n {8}if: (?:needs\.[\w-]+\.outputs\.mode != 'start'|github\.event_name == 'pull_request' \|\| github\.event_name == 'issue_comment')\n/.test(c)) out.push(`the writing job ${w.id} checks out or downloads for a start, which has nothing to run`);
     if (!/\n {6}- uses: actions\/download-artifact@/.test(w.text)) out.push(`the writing job ${w.id} does not take the review job's artifact`);
     if (code(w.text).some(({ line }) => (/cross-review\.mjs" (?:summary|push-review|push-post)|\$RUNNER_TEMP\/keel\//.test(line) && !/^\s*node "\$PUBLISHER\/cross-review\.mjs" push-(?:review|post) /.test(line)))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
   }
@@ -1660,6 +1666,15 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: '' } } } }), false, 'a red "Did the agent run?" never sets ran');
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: {} } } }), false, 'no review: nothing set');
   assert.equal(evalExpression(pubIf, { needs: { review: { outputs: { ran: '', mode: 'start' } } } }), true, 'a start');
+  // keel#65: on a push the review job ran the pushed code; its saying "pr" never reaches the PR path's checkout or post.
+  const stepIf = name => /\n {8}if: (.*)\n/.exec(stepsOf(publish).find(st => st.includes(name)))[1];
+  for (const name of ['- uses: actions/checkout@', '- name: Post the summary']) {
+    for (const event_name of ['push', 'schedule']) assert.equal(evalExpression(stepIf(name), { github: { event_name }, needs: { review: { outputs: { mode: 'pr', ran: 'true' } } } }), false, `${name} on a ${event_name}`);
+    for (const event_name of ['pull_request', 'issue_comment']) assert.equal(evalExpression(stepIf(name), { github: { event_name }, needs: { review: { outputs: { mode: 'pr', ran: 'true' } } } }), true, `${name} on a ${event_name}`);
+  }
+  for (const name of ['id: publisher', '- name: Post after the push', '- name: Start the record']) {
+    for (const event_name of ['pull_request', 'issue_comment']) for (const mode of ['push', 'start']) assert.equal(evalExpression(stepIf(name), { github: { event_name }, needs: { review: { outputs: { mode } } } }), false, `${name} on a ${event_name}`);
+  }
   const trustStep = stepsOf(t).find(st => /\n {8}id: publisher\n/.test(st));
   const startStep = stepsOf(t).find(st => st.includes('- name: Start the record'));
   const claudeStep = stepsOf(t).find(st => /uses: anthropics\/claude-code-action@/.test(st));
@@ -1686,7 +1701,15 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['the publish job checks out the run\'s commit', t.replace(publish, publish.replace(`          ${trustedRef}\n`, ''))],
     // Phase 60, keel#65: after a push the default branch is the pushed code, and the review job ran it.
     // keel#65: after a push no commit is run for what it is; only the publisher keel rendered, checked byte for byte.
-    ['the publish job checks out after a push', t.replace(publish, publish.replace("      - uses: actions/checkout@v7\n        if: needs.review.outputs.mode == 'pr'\n", '      - uses: actions/checkout@v7\n'))],
+    ['the publish job checks out after a push', t.replace(publish, publish.replace("      - uses: actions/checkout@v7\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", '      - uses: actions/checkout@v7\n'))],
+    // keel#65: the path is the event's. The review job's word (it ran the pushed code) never picks the PR path.
+    ['the checkout on the review job\'s word', t.replace(publish, publish.replace("      - uses: actions/checkout@v7\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - uses: actions/checkout@v7\n        if: needs.review.outputs.mode == 'pr'\n"))],
+    ['the PR summary on the review job\'s word', t.replace(publish, publish.replace("      - name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - name: Post the summary\n        if: needs.review.outputs.mode == 'pr'\n"))],
+    ['a push event reaching the PR summary', t.replace(publish, publish.replace("      - name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment' || github.event_name == 'push'\n"))],
+    ['a push event reaching the PR checkout', t.replace(publish, publish.replace("      - uses: actions/checkout@v7\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - uses: actions/checkout@v7\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment' || github.event_name == 'push'\n"))],
+    ['the publisher on the review job\'s word alone', t.replace(publish, publish.replace("        id: publisher\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n", "        id: publisher\n        if: needs.review.outputs.mode == 'push'\n"))],
+    ['the push post on the review job\'s word alone', t.replace(publish, publish.replace("      - name: Post after the push\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n", "      - name: Post after the push\n        if: needs.review.outputs.mode == 'push'\n"))],
+    ['a start on any event', t.replace(publish, publish.replace("      - name: Start the record\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'start'\n", "      - name: Start the record\n        if: needs.review.outputs.mode == 'start'\n"))],
     ['the publish job checks out the pushed head', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.sha }}'))],
     ['the publish job checks out the last record', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ needs.review.outputs.trusted || github.event.repository.default_branch }}'))],
     ['the publish job reads the pushed head', t.replace(publish, publish.replace('          REPO: ${{ github.repository }}\n          PUBLISHER:', '          REPO: ${{ github.repository }}\n          HEAD: ${{ github.event.head_commit.id }}\n          PUBLISHER:'))],
