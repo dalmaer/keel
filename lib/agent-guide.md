@@ -80,7 +80,8 @@ stderr as one line beginning `keel:`.
   `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
   {dir, name, repo, steps, secrets}}`; with `--yes`, `github: {repo,
   created, secrets}` in place of `secrets`
-- `adopt` → `{dir, dryRun, check: {check, from}, lessons: {path, from}, stack: {stack, from, detected}, config, practices: [{name,
+- `adopt` → `{dir, dryRun, check: {check, from}, lessons: {path, from}, stack: {stack, from, detected},
+  tests: {runner, from, junit, proposal: {where, now, to} | null, declined?} | null, config, practices: [{name,
   state, why}], files: [{practice, path, kind, block?, status, note?}],
   written}`; state is `on|local|off`, status `create|same|keep-local|conflict`
 - `doctor` → `{drift: [{path, practice, state, diff, missing?, locked?}],
@@ -295,6 +296,35 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   upstream) stays local; keel installs no copy beside the original.
 - Phases with no `goal` converge by migration 0003 once every built phase
   names evidence; until then adopt and doctor list each phase that owes it.
+- `tests` in `.keel/keel.json`: `{"runner": "bun" | "vitest", "junit":
+  "<path>"}` (phase 59). Adopt reads the gate and each package.json script it
+  reaches (`npm|pnpm|yarn|bun run <s>`, `npm test`) for `bun test`, vitest
+  or `node --test`, and records bun or vitest (an existing runner stands;
+  `junit` defaults to `.keel/test-runs/junit.xml`). It proposes the test
+  ledger's part and never writes it: the old JUnit file removed, the
+  runner's step with its JUnit flags and `|| keel_status=$?` (so `set -e`
+  never skips the ledger), then `node scripts/keel/test-ledger.mjs --junit
+  <file> --runner <r> --status $keel_status`, in braces when the step is one
+  of several, with paths from `$keel_root` (git's top level) when a step
+  before it runs `cd` or `pushd` (the dry run's `Tests:` line,
+  `data.tests.proposal`, and `docs/keel-adoption.md`). Only where the night
+  practice is on, or the project already has `scripts/keel/test-ledger.mjs`:
+  otherwise nothing installs the ledger, and `declined` says so.
+  A person reads the line, so adopt rewrites one small shape and declines
+  the rest: plain steps joined by `&&` or `;`, an optional `cd` or `pushd`
+  before, and the runner as its step's own command (`bun test`, or vitest
+  alone or through npx, bunx, pnpm [exec] or yarn). Operators inside quotes
+  or after a backslash are words. `||`, a pipe, `&`, a newline, a control
+  clause (`if`, `!`), an inline variable, `time` or `env` before the runner,
+  an unclosed quote, `$(` or a backtick, a group, a redirection, or a
+  reporter or output-file flag of the step's own (`--reporter`,
+  `--reporter-outfile`, `--outputFile`; the last one wins, so keel's would
+  fight it): no proposal, and `data.tests.declined` says why. A script whose name holds
+  `vitest` (`npm run vitest:unit`) is followed to its body. A gate that runs
+  more than one runner (`npm test && npx vitest run`) records none and gets
+  no line. `junit` must be a `.xml` file directly in `.keel/test-runs/`
+  (which ignores itself, so the report never stays behind untracked), of
+  letters, digits, `_ . -`.
 - Re-running is a no-op. Adopt never commits, branches or opens a PR; that is
   ⚑, the owner's.
 
@@ -328,7 +358,10 @@ keel doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take keel's
   blank line inside it, prose between numbered rows, a second header row, or
   a numbered row stranded under a later heading; each names its line),
   `gate-config` (a
-  `setup` or `env` that is not a command or `NAME: "value"`), `health-config`
+  `setup` or `env` that is not a command or `NAME: "value"`), `tests-config`
+  (a `tests` the test ledger cannot read: an unknown key, a `runner` other
+  than node, bun or vitest, a `junit` that is not a `.xml` file in `.keel/test-runs/` of letters, digits, `_ . -`, a bad window, factor,
+  floorMs, allowEmpty or configEnv), `health-config`
   (a `health` that is not a relative directory inside the repo),
   `health-ignored` (the health directory is git-ignored, so the night's page
   is never committed; fix: set `health` to a directory that is not ignored),
@@ -631,6 +664,29 @@ node `npm test`; migration 0004 adds it to an adopted project's `node --test`
 script (any other runner is left alone). check.yml keeps each run's ledger
 as a `keel-test-runs` artifact; the night reads the newest of them on the
 default branch before improve, and keeps its own after.
+
+On `bun test` or vitest the ledger is a command after the run, reading the
+runner's JUnit XML (phase 59): `node scripts/keel/test-ledger.mjs --junit
+<file> [--runner bun|vitest] [--status <exit code>]`, e.g. `keel_status=0;
+rm -f .keel/test-runs/junit.xml; mkdir -p .keel/test-runs && bun test
+--reporter=junit --reporter-outfile=.keel/test-runs/junit.xml ||
+keel_status=$?; node scripts/keel/test-ledger.mjs --junit
+.keel/test-runs/junit.xml --runner bun --status $keel_status` (vitest:
+`--reporter=default --reporter=junit --outputFile.junit=<file>`; `keel
+adopt` proposes it; `|| keel_status=$?` survives `set -e`; after a `cd` the
+paths start from `$keel_root`, git's top level). The record is a node run's
+plus `runner` and `junit` (a short hash of the file's path and bytes: the
+same report at the same path again is stale, and not counted), with each
+top-level test or describe.
+The exit code: 1 when no tests ran (no file, none in it, or stale; unless
+`allowEmpty`), else `--status`, else 1 when a testcase failed; a file that is
+not JUnit is 1 and never recorded; a bad flag is 2. The runner is part of the
+config hash and the lane, so two runners' runs are never compared, and a
+finding's run-alone command is the runner's own (`bun test <file> -t '^
+?<name>$'` for a test, `'^ ?<name>( |$)'` for a describe, which the JUnit
+reading keeps as `describe: true`; `npx vitest run <file> -t …`). A
+`--runner` or `"tests".runner` that contradicts the runner the file names
+is refused, exit 1, never read as the wrong runner's.
 
 `--selftest` runs every measure on keel's own unhealthy fixture (gh, git and
 npm stubbed; a projects-shaped part under its docs/projects) and exits 1

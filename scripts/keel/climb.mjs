@@ -478,8 +478,11 @@ export async function flakyNow(root, config) {
   const opts = testsConfigOf(config);
   const recent = runs.slice(-opts.window);
   const preload = await preloadsOf(root, config);
-  const found = flaky(recent).map(({ file, name, tree, passed, failed }) => ({ file, name, tree, passed, failed, alone: aloneCommand({ file, name }, preload) }));
-  return { job: 'hygiene', command: JOBS.hygiene.command(config), runs: recent.length, times: [found.length], median: found.length, spread: 0, flaky: found };
+  // prove-steady runs a test with node --test: a bun or vitest flake (phase 59) is named, not climbed, until it can run those.
+  const all = flaky(recent);
+  const found = all.filter(f => !f.runner || f.runner === 'node').map(({ file, name, tree, passed, failed }) => ({ file, name, tree, passed, failed, alone: aloneCommand({ file, name }, preload) }));
+  const notClimbed = all.filter(f => f.runner && f.runner !== 'node').map(({ file, name, runner }) => ({ file, name, runner, why: `ran on ${runner}; prove-steady runs node --test only` }));
+  return { job: 'hygiene', command: JOBS.hygiene.command(config), runs: recent.length, times: [found.length], median: found.length, spread: 0, flaky: found, ...(notClimbed.length ? { notClimbed } : {}) };
 }
 
 export async function measure({ root, config, env, job, runs = DEFAULTS.runs, baseline = false }) {

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- bun test 1.2.13: bun test --reporter=junit --reporter-outfile=bun.xml, run on a synthetic Acme folder (a.test.ts, sub/b.test.ts, sub/c.test.ts); the only edit is hostname, set to acme-ci. bun flattens describe() into classname, innermost first, escaped twice. -->
+<testsuites name="bun test" tests="9" assertions="5" failures="2" skipped="2" time="0.047922">
+  <testsuite name="a.test.ts" tests="6" assertions="3" failures="2" skipped="2" time="0" hostname="acme-ci">
+    <testcase name="inner fails" classname="deeper &amp;gt; Acme widgets" time="0.000171" file="a.test.ts" assertions="0">
+      <failure type="AssertionError" />
+    </testcase>
+    <testcase name="inner passes" classname="Acme widgets" time="0.000021" file="a.test.ts" assertions="1" />
+    <testcase name="adds &lt;one&gt; &amp; &quot;two&quot;" classname="" time="0.000018" file="a.test.ts" assertions="1" />
+    <testcase name="fails on purpose" classname="" time="0.000056" file="a.test.ts" assertions="1">
+      <failure type="AssertionError" />
+    </testcase>
+    <testcase name="skipped one" classname="" time="0" file="a.test.ts" assertions="0">
+      <skipped />
+    </testcase>
+    <testcase name="todo one" classname="" time="0" file="a.test.ts" assertions="0">
+      <skipped message="TODO" />
+    </testcase>
+  </testsuite>
+  <testsuite name="sub/b.test.ts" tests="1" assertions="1" failures="0" skipped="0" time="0.031" hostname="acme-ci">
+    <testcase name="slow-ish" classname="" time="0.031953" file="sub/b.test.ts" assertions="1" />
+  </testsuite>
+  <testsuite name="sub/c.test.ts" tests="2" assertions="1" failures="0" skipped="0" time="0" hostname="acme-ci">
+    <testcase name="reaches zero" classname="countdown &amp;gt; launch &amp;gt; rockets &amp;amp; &amp;lt;crates&amp;gt;" time="0" file="sub/c.test.ts" assertions="1" />
+    <testcase name="one lands" classname="rockets &amp;amp; &amp;lt;crates&amp;gt;" time="0" file="sub/c.test.ts" assertions="0" />
+  </testsuite>
+</testsuites>

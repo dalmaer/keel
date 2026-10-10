@@ -433,7 +433,7 @@ test('a workspace\'s flaky test, recorded root-relative, prints a run-alone comm
 
 test('mutations: the root-relative file as recorded, or no change of folder, fails the workspace command test', async t => {
   for (const [from, to] of [
-    ["const file = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';", "const file = test.file ?? '';"],
+    ["const rel = test.file ? posix.relative(dir === '.' ? '' : dir, test.file) || test.file : '';", "const rel = test.file ?? '';"],
     ['return dir === here ? command :', 'return true ? command :'],
   ]) await assert.rejects(fromWorkspace(t, await mutated(from, to)), assert.AssertionError, `mutant survived: ${to}`);
 });
@@ -459,7 +459,7 @@ test('record keeps each lane (a suite\'s folder × its config) its own history: 
 });
 
 test('mutation: one lane for every run (keep 50 in all) fails the lanes test', async t => {
-  const m = await mutant(t, 'export const laneOf = r => `${dirOf(r)}\\u0000${configOf(r)}`;', "export const laneOf = () => 'all';");
+  const m = await mutant(t, 'export const laneOf = r => `${dirOf(r)}\\u0000${configOf(r)}${', "export const laneOf = () => 'all'; const unused = r => `${");
   await assert.rejects(assertLanes(t, m), assert.AssertionError);
 });
 
@@ -664,4 +664,408 @@ test('configHash: stable for one setting; NODE_OPTIONS, a preload, or a configEn
   assert.equal(narrowed(['--test', '--test-name-pattern=^x$']), true);
   assert.equal(narrowed(['--test', '--test-skip-pattern', 'x']), true);
   assert.equal(narrowed(['--test', '--test-reporter=spec']), false);
+});
+
+// ---- JUnit: bun test and vitest (phase 59) --------------------------------------
+// The fixtures are real output (tests/fixtures/junit/*.xml, each says how it was
+// made): bun 1.2.13 and vitest 5.0.3 run on one synthetic Acme folder.
+
+const JUNIT_FIXTURES = join(KEEL, 'tests', 'fixtures', 'junit');
+const fixture = name => readFile(join(JUNIT_FIXTURES, name), 'utf8');
+/** The same file with every failure taken out: the tests all pass (or skip). */
+const passing = xml => xml.replace(/<failure\b[^>]*\/>/g, '').replace(/<failure\b[^>]*>[\s\S]*?<\/failure>/g, '');
+/** The same file, different bytes: a new run of the same tests (an XML comment at its end). */
+const again = (xml, n) => `${xml}<!-- run ${n} -->\n`;
+
+/** Each fixture's top-level tests: [file, name, outcome]; a describe() is one, failed when a test in it failed. */
+const TOP = {
+  bun: [
+    ['a.test.ts', 'Acme widgets', 'fail'],
+    ['a.test.ts', 'adds <one> & "two"', 'pass'],
+    ['a.test.ts', 'fails on purpose', 'fail'],
+    ['a.test.ts', 'skipped one', 'skip'],
+    ['a.test.ts', 'todo one', 'todo'],
+    ['sub/b.test.ts', 'slow-ish', 'pass'],
+    ['sub/c.test.ts', 'rockets & <crates>', 'pass'],
+  ],
+  vitest: [
+    ['a.test.ts', 'adds <one> & "two"', 'pass'],
+    ['a.test.ts', 'fails on purpose', 'fail'],
+    ['a.test.ts', 'skipped one', 'skip'],
+    ['a.test.ts', 'todo one', 'skip'],
+    ['a.test.ts', 'Acme widgets', 'fail'],
+    ['sub/b.test.ts', 'slow-ish', 'pass'],
+    ['sub/c.test.ts', 'rockets & <crates>', 'pass'],
+  ],
+};
+
+/** The fixtures as `mod` reads them: every top-level test's outcome and time, what ran, what failed. */
+async function assertFixtures(mod) {
+  for (const runner of ['bun', 'vitest']) {
+    const xml = await fixture(`${runner}.xml`);
+    const doc = mod.readXml(xml);
+    assert.equal(mod.junitRunner(doc), runner, 'each runner names its own <testsuites>');
+    const red = mod.junitTests(doc, runner);
+    assert.deepEqual(red.tests.map(x => [x.file, x.name, x.outcome]), TOP[runner], runner);
+    assert.deepEqual([red.ran, red.failed], [7, 2], `${runner}: nine testcases, seven passed or failed, two failed`);
+    const slow = red.tests.find(x => x.name === 'slow-ish');
+    assert.ok(slow.ms > 30 && slow.ms < 34, `${runner}: seconds become ms: ${slow.ms}`);
+    assert.ok(red.tests.every(x => Number.isFinite(x.ms) && x.ms >= 0));
+    const green = mod.junitTests(mod.readXml(passing(xml)), runner);
+    assert.deepEqual(green.tests.filter(x => x.outcome === 'fail'), [], runner);
+    assert.deepEqual([green.ran, green.failed], [7, 0], runner);
+  }
+  // A file that would not load: vitest's testcase for it is the file's own, recorded as the file, and not a test.
+  const lost = mod.junitTests(mod.readXml(await fixture('vitest-load-failure.xml')), 'vitest');
+  assert.deepEqual(lost.tests.map(x => [x.file, x.name, x.outcome]), [['empty/broken.test.ts', 'empty/broken.test.ts', 'fail']]);
+  assert.deepEqual([lost.ran, lost.failed], [0, 1]);
+  assert.deepEqual(mod.junitTests(mod.readXml(await fixture('vitest-empty.xml')), 'vitest'), { tests: [], ran: 0, failed: 0 });
+  // A nested <testsuite> is a describe: one top-level test, of every testcase inside it.
+  const nested = mod.junitTests(mod.readXml('<testsuites><testsuite name="t.test.ts"><testsuite name="Acme crates" time="0.5"><testcase name="opens" time="0.1"/><testsuite name="deep"><testcase name="shuts" time="0.2"><error/></testcase></testsuite></testsuite></testsuite></testsuites>'), 'bun');
+  assert.deepEqual(nested, { tests: [{ file: 't.test.ts', name: 'Acme crates', describe: true, outcome: 'fail', ms: 500 }], ran: 2, failed: 1 });
+}
+
+test('a JUnit file from bun test or vitest reads as each top-level test, its outcome and time (a describe is one, failed if a test in it failed)', async () => {
+  await assertFixtures(ledger);
+});
+
+test('mutations: a failed testcase read as a pass, bun\'s describes read outermost-last, bun\'s names escaped once, entities not read, or a file\'s own entry counted, fails the fixture test', async t => {
+  for (const [from, to] of [
+    ["if (c.children.some(x => x.name === 'failure' || x.name === 'error')) return 'fail';", ''],
+    ['return { name: xmlText(parts.at(-1)), describe: true };', 'return { name: xmlText(parts[0]), describe: true };'],
+    ['return { name: xmlText(parts.at(-1)), describe: true };', 'return { name: parts.at(-1), describe: true };'],
+    ['if (e[0] !== \'#\') return Object.hasOwn(ENTITIES, e) ? ENTITIES[e] : m;', "if (e[0] !== '#') return m;"],
+    ["if (!own && (o === 'pass' || o === 'fail')) ran++;", "if (o === 'pass' || o === 'fail') ran++;"],
+  ]) {
+    const m = await mutant(t, from, to);
+    await assert.rejects(assertFixtures(m), assert.AssertionError, `mutant survived: ${to}`);
+  }
+});
+
+test('readXml reads the JUnit subset, entities and all, and refuses what is not well formed', () => {
+  const { readXml, xmlText } = ledger;
+  const doc = readXml('<?xml version="1.0"?>\n<!DOCTYPE testsuites [ <!ENTITY x "y"> ]>\n<!-- Acme -->\n<testsuites name=\'a &amp; b\' n="&#60;&#x3E;&apos;&quot;"><testsuite><![CDATA[ <testcase name="not one"/> ]]><testcase name="t &gt; u"><failure message="no">AssertionError: 1 &lt; 2</failure></testcase></testsuite><!-- </testsuites> --></testsuites>\n');
+  assert.equal(doc.name, 'testsuites');
+  assert.deepEqual({ ...doc.attrs }, { name: 'a & b', n: '<>\'"' });
+  assert.deepEqual(doc.children[0].children.map(c => [c.name, c.attrs.name, c.children.map(x => x.name)]), [['testcase', 't > u', ['failure']]], 'CDATA and comments are not elements');
+  assert.equal(xmlText('&unknown; &#xZZ; &amp;lt;'), '&unknown; &#xZZ; &lt;', 'one read: an unknown entity stays as written');
+  for (const bad of ['', 'Acme', '<testsuites>', '<a></b>', '</a>', '<a x=1/>', '<a x="1" x="2"/>', '<a/><b/>', '<a><!-- </a>', '<a x="<"/>', '< a/>']) {
+    assert.throws(() => readXml(bad), Error, JSON.stringify(bad));
+  }
+});
+
+const ledgerCli = (dir, args, env = {}) => run(process.execPath, ['scripts/keel/test-ledger.mjs', ...args], { cwd: dir, env: { ...process.env, ...env } });
+/** Write `xml` at `path` in `dir` (its folders made). */
+async function junitAt(dir, path, xml) {
+  await mkdir(dirname(join(dir, path)), { recursive: true });
+  await writeFile(join(dir, path), xml);
+}
+
+test('--junit: a bun and a vitest file become ledger records with the run\'s commit, tree and config; the exit code is the runner\'s, and a failed testcase fails it', async t => {
+  const { dir, git } = await acmeRepo(t);
+  const head = git('rev-parse', 'HEAD').trim(), tree = git('rev-parse', 'HEAD^{tree}').trim();
+  // bun at keel's default place; vitest at a project's own (untracked) path, which must not dirty the tree.
+  await junitAt(dir, ledger.JUNIT, await fixture('bun.xml'));
+  const bun = ledgerCli(dir, ['--junit', ledger.JUNIT, '--runner', 'bun', '--status', '1']);
+  assert.equal(bun.status, 1, `the runner's own exit code:\n${bun.stdout}${bun.stderr}`);
+  assert.equal(bun.stdout, 'keel test ledger: no flaky or slower test (1 run in .keel/test-runs).\n', 'the hygiene block, as a node run ends with');
+  await junitAt(dir, 'reports/vitest.xml', await fixture('vitest.xml'));
+  const vitest = ledgerCli(dir, ['--junit=reports/vitest.xml']); // the runner is read from the file
+  assert.equal(vitest.status, 1, 'no --status: a failed testcase fails the run');
+  const { runs } = await readRuns(dir);
+  assert.deepEqual(runs.map(r => r.runner), ['bun', 'vitest']);
+  for (const r of runs) {
+    assert.deepEqual([r.commit, r.tree, r.dirty, r.dir], [head, tree, false, '.'], `${r.runner}: the JUnit file and the ledger's directory leave the tree clean`);
+    assert.equal(r.node, process.version);
+    assert.deepEqual(Object.keys(r.machine).sort(), ['arch', 'cpus', 'os']);
+    assert.equal(r.config, ledger.configHash({ preload: [], runner: r.runner }), `${r.runner}: the config hash, with the runner in it`);
+    assert.deepEqual(r.setting.preload, []);
+    assert.match(r.junit, /^[0-9a-f]{12}$/);
+    assert.deepEqual(r.tests.map(x => [x.file, x.name, x.outcome]), TOP[r.runner]);
+  }
+  assert.notEqual(runs[0].config, runs[1].config, 'two runners, two configs');
+  assert.notEqual(runs[0].config, ledger.configHash({ preload: [] }), 'and neither is node\'s');
+  // The exit code: green and no --status is 0; green with the runner's nonzero (bun leaves a file that would not load out of its JUnit) is that.
+  await junitAt(dir, ledger.JUNIT, passing(await fixture('bun.xml')));
+  assert.equal(ledgerCli(dir, ['--junit', ledger.JUNIT]).status, 0);
+  await junitAt(dir, ledger.JUNIT, again(passing(await fixture('bun.xml')), 1));
+  assert.equal(ledgerCli(dir, ['--junit', ledger.JUNIT, '--status', '3']).status, 3);
+  // Usage: a bad flag is exit 2, before anything is read.
+  for (const args of [[], ['--junit'], ['--junit', 'x.xml', '--runner', 'jest'], ['--junit', 'x.xml', '--status', '300'], ['--acme']]) {
+    const r = ledgerCli(dir, args);
+    assert.equal(r.status, 2, JSON.stringify(args));
+    assert.match(r.stderr, /usage: node scripts\/keel\/test-ledger\.mjs --junit <file>/);
+  }
+  assert.equal((await readRuns(dir)).runs.length, 4);
+});
+
+/**
+ * The zero-tests gate on JUnit, read in `dir` by `mod`: a file with no
+ * testcase, no file, a file of only a file's own entry, and a file already
+ * recorded each fail as "no tests ran", unless allowEmpty; what is not JUnit
+ * fails even then.
+ */
+async function assertEmptyJunit(dir, mod) {
+  const at = join(dir, 'junit.xml');
+  const read = (status = 0) => mod.junitRun({ junit: at, status, cwd: dir });
+  await writeFile(at, await fixture('vitest-empty.xml'));
+  let r = await read();
+  assert.equal(r.code, 1, `a JUnit file with no tests: no tests ran\n${r.lines.join('\n')}`);
+  assert.equal(r.lines.at(-1), ledger.NO_TESTS);
+  await rm(at);
+  r = await read();
+  assert.equal(r.code, 1, 'no file: the tests did not run');
+  assert.match(r.lines[0], /no JUnit file at junit\.xml: the tests did not run/);
+  await writeFile(at, await fixture('vitest-load-failure.xml'));
+  assert.equal((await read()).code, 1, 'only a file that would not load: no test ran');
+  await writeFile(at, passing(await fixture('bun.xml')));
+  assert.equal((await read()).code, 0, 'a run with tests passes');
+  r = await read();
+  assert.equal(r.code, 1, 'the same file again is stale: the runner wrote nothing new (bun writes none when no test ran)');
+  assert.match(r.lines[0], /junit\.xml is one already recorded: the tests wrote no new one/);
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { allowEmpty: true } }));
+  await writeFile(at, await fixture('vitest-empty.xml'));
+  assert.equal((await read()).code, 0, 'allowEmpty: a project with no tests yet passes');
+  assert.equal((await read(4)).code, 4, 'allowEmpty never hides the runner\'s own failure');
+  await writeFile(at, '<testsuites><testsuite name="a.test.ts">');
+  r = await read();
+  assert.equal(r.code, 1, 'not JUnit: never a pass, allowEmpty or not');
+  assert.match(r.lines[0], /junit\.xml is not JUnit the ledger can read \(<testsuite> is never closed/);
+  await rm(join(dir, '.keel', 'keel.json'));
+}
+
+test('--junit: a file with no tests, no file, or a stale one is "no tests ran" (exit 1), as a node run is; allowEmpty lets it pass', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await assertEmptyJunit(dir, ledger);
+  // The command says it too, last, as the reporter does.
+  await writeFile(join(dir, 'empty.xml'), await fixture('vitest-empty.xml'));
+  const r = ledgerCli(dir, ['--junit', 'empty.xml', '--status', '0']);
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout.trimEnd(), ledger.NO_TESTS);
+});
+
+test('mutations: an empty JUnit file that passes without allowEmpty, or a stale file read again, fails the zero-tests test', async t => {
+  for (const [from, to] of [
+    ['return { lines, code: empty ? 1 : status || (failed ? 1 : 0) };', 'return { lines, code: status || (failed ? 1 : 0) };'],
+    ['if (history?.runs.some(r => r.junit === hash)) {', 'if (false) {'],
+  ]) {
+    const { dir } = await acmeRepo(t);
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    const m = await mutant(t, from, to);
+    await assert.rejects(assertEmptyJunit(dir, m), assert.AssertionError, `mutant survived: ${to}`);
+  }
+});
+
+/** One report's bytes at two paths (two packages, each its own folder) are two runs; the same path read again is stale. */
+async function assertStalePerPath(dir, mod) {
+  const xml = passing(await fixture('bun.xml'));
+  await junitAt(dir, 'junit.xml', xml);
+  await junitAt(dir, 'web/junit.xml', xml);
+  assert.equal((await mod.junitRun({ junit: 'junit.xml', cwd: dir })).code, 0);
+  const web = await mod.junitRun({ junit: 'junit.xml', cwd: join(dir, 'web') });
+  assert.equal(web.code, 0, `web's identical report is its own run, not the root's read again\n${web.lines.join('\n')}`);
+  const twice = await mod.junitRun({ junit: 'junit.xml', cwd: dir });
+  assert.equal(twice.code, 1, 'the root\'s report read again is stale');
+  assert.deepEqual((await readRuns(dir)).runs.map(r => r.dir), ['.', 'web']);
+}
+
+test('stale is per path: two packages\' byte-identical reports are two runs; one report read twice is one (review on #56)', async t => {
+  const { dir } = await acmeRepo(t);
+  await assertStalePerPath(dir, ledger);
+});
+
+/** A test named exactly like its file is a test when it ran: only vitest's failed entry for a file that would not load is the file's (review on #56). */
+function assertNamedLikeItsFile(mod) {
+  const one = (runner, outcome) => mod.junitTests(mod.readXml(`<testsuites><testsuite name="a.test.ts"><testcase name="a.test.ts" classname="${runner === 'vitest' ? 'a.test.ts' : ''}" time="0.001"${outcome === 'fail' ? '><failure message="no"/></testcase>' : '/>'}</testsuite></testsuites>`), runner);
+  for (const runner of ['bun', 'vitest']) assert.deepEqual([one(runner, 'pass').ran, one(runner, 'pass').failed], [1, 0], `${runner}: a passing test named for its file ran`);
+  assert.deepEqual([one('bun', 'fail').ran, one('bun', 'fail').failed], [1, 1], 'bun writes no load entry: a failed one is a test');
+  assert.deepEqual([one('vitest', 'fail').ran, one('vitest', 'fail').failed], [0, 1], 'vitest\'s failed entry named for the file is the file\'s, not a test');
+}
+
+test('a test named exactly like its file counts as a test; only vitest\'s failed entry for the file is the file\'s', () => {
+  assertNamedLikeItsFile(ledger);
+});
+
+test('mutation: any testcase named for its file taken as the file\'s turns a green run into "no tests ran", and fails the named-like-its-file test', async t => {
+  const m = await mutant(t, "const own = runner === 'vitest' && Boolean(raw) && child.attrs.name === raw && caseOutcome(child) === 'fail';", 'const own = Boolean(raw) && child.attrs.name === raw;');
+  assert.throws(() => assertNamedLikeItsFile(m), assert.AssertionError);
+});
+
+/** A top-level test and a describe of one name, in one file, are two tests: never flaky together, never each other's baseline (review on #56). */
+function assertSuiteKind(mod) {
+  const run = (testOutcome, suiteOutcome, ms = 10) => ({ ...runOf({ tests: {} }), runner: 'bun',
+    tests: [{ file: 'a.test.ts', name: 'save', outcome: testOutcome, ms }, { file: 'a.test.ts', name: 'save', describe: true, outcome: suiteOutcome, ms: 900 }] });
+  assert.deepEqual(mod.flaky([run('pass', 'fail')]), [], 'a passing test and a failing describe of one name, in one run, are not a flake');
+  const opts = { window: 3, factor: 2, floorMs: 200 };
+  assert.deepEqual(mod.slower([run('pass', 'pass'), run('pass', 'pass'), run('pass', 'pass'), run('pass', 'pass', 10)], opts), [], 'the test is judged against its own times, not the describe\'s');
+  const both = mod.flaky([run('pass', 'pass'), run('fail', 'pass')]);
+  assert.deepEqual(both.map(f => [f.name, f.describe ?? false]), [['save', false]], 'the test that did flake is named, as a test');
+}
+
+test('a test and a describe of one name are two tests in flaky and slower (review on #56)', () => {
+  assertSuiteKind(ledger);
+});
+
+test('mutation: an identity without the suite kind keys the test and the describe together, and fails the two-tests test', async t => {
+  const m = await mutant(t, "const key = t => `${t.file ?? ''}\\u0000${t.describe === true ? 'd' : 't'}\\u0000${t.name}`;", "const key = t => `${t.file ?? ''}\\u0000${t.name}`;");
+  assert.throws(() => assertSuiteKind(m), assert.AssertionError);
+});
+
+/** A test file whose path a shell would split is one quoted word in its run-alone command (review on #56). */
+function assertQuotedFile(mod) {
+  for (const runner of ['node', 'bun', 'vitest']) {
+    const cmd = mod.aloneCommand({ file: 'tests/acme widget.test.ts', name: 'save', runner });
+    assert.ok(cmd.includes(` 'tests/acme widget.test.ts'`), `${runner}: ${cmd}`);
+  }
+  assert.equal(mod.aloneCommand({ file: 'tests/a.test.ts', name: 'save', runner: 'bun' }), "bun test tests/a.test.ts -t '^ ?save$'", 'a plain path stays as it is');
+}
+
+test('a run-alone command quotes a test file path a shell would split', () => {
+  assertQuotedFile(ledger);
+});
+
+test('mutation: an unquoted path fails the quoted-file test', async t => {
+  const m = await mutant(t, "const file = rel && !/^[\\w./@+-]+$/.test(rel) ? quote(rel) : rel;", 'const file = rel;');
+  assert.throws(() => assertQuotedFile(m), assert.AssertionError);
+});
+
+test('"tests".junit lives in .keel/test-runs/, which ignores itself; a report there is ignored even when nothing is recorded (review on #56)', async t => {
+  assert.deepEqual(testsConfigProblems({ tests: { junit: '.keel/test-runs/vitest.xml' } }), []);
+  for (const junit of ['reports/vitest.xml', 'junit.xml', '.keel/test-runs/sub/x.xml', '.keel/test-runs/', '.keel/test-runs/a b.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  const { dir, git } = await acmeRepo(t);
+  await junitAt(dir, ledger.JUNIT, await fixture('vitest-empty.xml'));
+  assert.equal((await ledger.junitRun({ cwd: dir })).code, 1, 'no tests ran: nothing recorded');
+  assert.equal(git('status', '--porcelain'), '', 'and still no untracked report');
+});
+
+test('mutation: a stale check on the bytes alone takes the second package\'s run for the first\'s, and fails the per-path test', async t => {
+  const { dir } = await acmeRepo(t);
+  const m = await mutant(t, 'const hash = sha12(`${shown}\\u0000${xml}`);', 'const hash = sha12(xml);');
+  await assert.rejects(assertStalePerPath(dir, m), assert.AssertionError);
+});
+
+test('mutation: a JUnit file outside keel\'s directories left in the dirty check makes every run dirty, and fails the record test\'s clean tree', async t => {
+  const { dir } = await acmeRepo(t);
+  const m = await mutant(t, '...where(root, { exclude: shown === at ? [] : [shown] })', '...where(root)');
+  await junitAt(dir, 'reports/vitest.xml', await fixture('vitest.xml'));
+  await m.junitRun({ junit: 'reports/vitest.xml', cwd: dir });
+  assert.equal((await readRuns(dir)).runs[0].dirty, true, 'the mutant counts the JUnit file: the clean-tree assertion above is what catches it');
+  await junitAt(dir, 'reports/vitest.xml', again(await fixture('vitest.xml'), 1));
+  await ledger.junitRun({ junit: 'reports/vitest.xml', cwd: dir });
+  assert.equal((await readRuns(dir)).runs[1].dirty, false);
+});
+
+/** Runs of two runners on one clean tree, one config hash even: never flaky together, never compared for time. */
+function assertRunnersApart(mod) {
+  const opts = { window: 3, factor: 2, floorMs: 200 };
+  const as = (runner, run) => runner === 'node' ? run : { ...run, runner };
+  for (const [a, b] of [['node', 'bun'], ['bun', 'vitest'], ['node', 'vitest']]) {
+    const mixed = [as(a, runOf({ tests: { drop: ['pass', 10] } })), as(b, runOf({ tests: { drop: ['fail', 10] } }))];
+    assert.deepEqual(mod.flaky(mixed), [], `${a} passing and ${b} failing is not flaky: the runner moved`);
+    const runs = history(200, 500, opts);
+    runs[runs.length - 1] = as(b, runs.at(-1));
+    for (let i = 0; i < runs.length - 1; i++) runs[i] = as(a, runs[i]);
+    assert.deepEqual(mod.slower(runs, opts), [], `a ${b} run is not judged against ${a}'s`);
+    assert.equal(mod.comparable(runs, runs.at(-1)).length, 0);
+  }
+  const same = [as('bun', runOf({ tests: { drop: ['pass', 10] } })), as('bun', runOf({ tests: { drop: ['fail', 10] } }))];
+  assert.deepEqual(mod.flaky(same).map(f => [f.name, f.runner]), [['drop', 'bun']], 'within one runner it is flaky, and says which runner');
+  const base = mod.configHash({ env: {}, preload: [] });
+  assert.equal(mod.configHash({ env: {}, preload: [], runner: 'node' }), base, 'node\'s hash is as it was');
+  assert.equal(new Set(['node', 'bun', 'vitest'].map(runner => mod.configHash({ env: {}, preload: [], runner }))).size, 3, 'the runner is in the config hash');
+  assert.equal(mod.laneOf({ dir: '.', config: 'c' }), mod.laneOf({ dir: '.', config: 'c', runner: 'node' }), 'a record without a runner is node\'s');
+}
+
+test('the runner is part of the config and the lane: runs of two runners are never flaky together or compared for time', () => {
+  assertRunnersApart(ledger);
+});
+
+test('mutations: a lane without the runner, or a config hash without it, fails the runners test', async t => {
+  for (const [from, to] of [
+    ["${runnerOf(r) === 'node' ? '' : `\\u0000${runnerOf(r)}`}`;", '`;'],
+    ["...(runner === 'node' ? {} : { runner })", ''],
+  ]) {
+    const m = await mutant(t, from, to);
+    assert.throws(() => assertRunnersApart(m), assert.AssertionError, `mutant survived: ${to}`);
+  }
+});
+
+/**
+ * A run-alone filter runs the finding and nothing else (review on #56): a top-level test `save` is its whole
+ * name, so not `save draft`; a describe `save` is the start of its tests' names. The JUnit reading keeps which is which.
+ */
+async function assertAlone(mod) {
+  // bun's full name has a leading space and joins describes with spaces; vitest's has none.
+  const runs = (test, full) => new RegExp(/-t '(.*)'$/.exec(mod.aloneCommand(test))[1]).test(full);
+  for (const runner of ['bun', 'vitest']) {
+    const save = { file: 'a.test.ts', name: 'save', runner };
+    assert.equal(runs(save, ' save'), true, runner);
+    assert.equal(runs(save, 'save'), true, runner);
+    assert.equal(runs(save, ' save draft'), false, `${runner}: a test's filter is its whole name`);
+    const group = { ...save, describe: true };
+    assert.equal(runs(group, ' save opens the file'), true, `${runner}: a describe's filter is the start of its tests' names`);
+  }
+  assert.deepEqual(mod.junitTests(mod.readXml(await fixture('bun.xml')), 'bun').tests.filter(x => x.describe).map(x => x.name), ['Acme widgets', 'rockets & <crates>']);
+  assert.deepEqual(mod.junitTests(mod.readXml(await fixture('vitest.xml')), 'vitest').tests.filter(x => x.describe).map(x => x.name), ['Acme widgets', 'rockets & <crates>']);
+  // A finding carries it: flaky and slower.
+  const one = (outcome, ms) => ({ ...runOf({ tests: {} }), runner: 'bun', tests: [{ file: 'a.test.ts', name: 'Acme widgets', describe: true, outcome, ms }] });
+  assert.equal(mod.flaky([one('pass', 1), one('fail', 1)])[0].describe, true);
+  assert.equal(mod.slower([one('pass', 100), one('pass', 100), one('pass', 100), one('pass', 900)], { window: 3, factor: 2, floorMs: 200 })[0].describe, true);
+}
+
+test('a run-alone filter runs the finding alone: a test is its whole name, a describe the start of its tests\' names', async () => {
+  await assertAlone(ledger);
+});
+
+test('mutations: one filter for both, or a describe not kept from the JUnit or in a finding, fails the run-alone test', async t => {
+  for (const [from, to] of [
+    ["test.describe ? `^ ?${escaped}( |$)` : `^ ?${escaped}$`", '`^ ?${escaped}( |$)`'],
+    ['...(g.describe ? { describe: true } : {}), ', ''],
+    ['const s = seen.get(k) ?? { file: t.file ?? null, name: t.name, ...suiteOf(t),', 'const s = seen.get(k) ?? { file: t.file ?? null, name: t.name,'],
+  ]) {
+    const m = await mutant(t, from, to);
+    await assert.rejects(assertAlone(m), assert.AssertionError, `mutant survived: ${to}`);
+  }
+});
+
+/** A file that names its runner is read as that runner's: a --runner or "tests".runner that says otherwise is refused, never a misread record. */
+async function assertRunnerAgrees(dir, mod) {
+  await junitAt(dir, 'junit.xml', await fixture('vitest.xml'));
+  let r = await mod.junitRun({ junit: 'junit.xml', runner: 'bun', cwd: dir });
+  assert.equal(r.code, 1, r.lines.join('\n'));
+  assert.match(r.lines[0], /junit\.xml is not JUnit the ledger can read \(it is vitest's JUnit, but the runner is bun \(--runner\); say vitest\)/);
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { runner: 'bun' } }));
+  r = await mod.junitRun({ junit: 'junit.xml', cwd: dir });
+  assert.equal(r.code, 1);
+  assert.match(r.lines[0], /the runner is bun \(\.keel\/keel\.json "tests"\.runner\); say vitest/);
+  assert.equal((await readRuns(dir)).runs.length, 0, 'nothing recorded');
+  r = await mod.junitRun({ junit: 'junit.xml', runner: 'vitest', cwd: dir });
+  assert.equal(r.code, 1, 'the flag wins over the config, and agrees with the file: read, and red for its failed tests');
+  assert.equal((await readRuns(dir)).runs[0].runner, 'vitest');
+}
+
+test('a --runner or "tests".runner that contradicts the JUnit file is refused, never read as the wrong runner\'s (review on #56)', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await assertRunnerAgrees(dir, ledger);
+});
+
+test('mutation: a runner that overrides what the file says reads vitest as bun, and fails the runner test', async t => {
+  const { dir } = await acmeRepo(t);
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  const m = await mutant(t, '    if (says && kind !== says) throw', '    if (false) throw');
+  await assert.rejects(assertRunnerAgrees(dir, m), assert.AssertionError);
+});
+
+test('a bun or vitest finding\'s run-alone command is that runner\'s, from its suite\'s folder; "tests" takes runner and junit', () => {
+  assert.equal(aloneCommand({ file: 'sub/b.test.ts', name: 'slow-ish (x)', runner: 'bun' }), "bun test sub/b.test.ts -t '^ ?slow-ish \\(x\\)$'");
+  assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', describe: true, runner: 'vitest', dir: 'web' }), `cd "$(git rev-parse --show-toplevel)"/'web' && npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'`);
+  assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', describe: true, runner: 'vitest', dir: 'web' }, [], { here: 'web' }), "npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'");
+  const block = hygiene([{ ...runOf({ tests: { 'fails on purpose': ['pass', 1] } }), runner: 'bun' }, { ...runOf({ tests: { 'fails on purpose': ['fail', 1] } }), runner: 'bun' }], { window: 3, factor: 2, floorMs: 200 });
+  assert.equal(block[2].trim(), "bun test tests/anvils.test.mjs -t '^ ?fails on purpose$'");
+  assert.deepEqual(testsConfigProblems({ tests: { runner: 'bun', junit: '.keel/test-runs/junit.xml' } }), []);
+  for (const tests of [{ runner: 'jest' }, { junit: '' }, { junit: '/tmp/acme.xml' }, { junit: '../acme.xml' }, { junit: 3 }]) {
+    assert.ok(testsConfigProblems({ tests }).length, JSON.stringify(tests));
+  }
 });

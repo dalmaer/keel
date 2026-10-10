@@ -30,6 +30,8 @@
 // read .keel/test-runs, the test ledger's history (scripts/keel/test-ledger.mjs):
 // the night downloads CI's keel-test-runs artifacts into it, and the gate run
 // here adds one more when the project's test script carries the reporter.
+// A bun or vitest run (the ledger's --junit, phase 59) is read as a node run
+// is; its runner is part of its lane, so it is only compared with its own.
 // Fewer runs than the window is n/a, never a zero.
 //
 // Exit codes: 0 every measure within its bound (or n/a), 1 one outside, 2 one
@@ -746,7 +748,8 @@ export const MEASURES = [
       return {
         value: found.length,
         detail: `${found.length ? list(found.map(t => `${named(t)} (passed ${t.passed}, failed ${t.failed})`), 3) : 'none'}; the newest ${opts.window} of ${plural(runs.length, 'run')}, ${plural(trees, 'clean tree')}${skipped ? `, ${skipped} unreadable` : ''}${nightNote(runs)}`,
-        facts: { flaky: found.map(({ file, name, tree, passed, failed, dir, config, setting }) => ({ file, name, tree, passed, failed, dir, config, setting })), runs: runs.length, window: opts.window },
+        // A bun or vitest finding carries its runner, so the run-alone command is that runner's (phase 59).
+        facts: { flaky: found.map(({ file, name, describe, tree, passed, failed, dir, config, setting, runner }) => ({ file, name, ...(describe ? { describe } : {}), tree, passed, failed, dir, config, setting, ...(runner ? { runner } : {}) })), runs: runs.length, window: opts.window },
       };
     },
   },

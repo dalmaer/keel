@@ -150,7 +150,7 @@ fix it or file it, never rerun until green.
 `keel init` wires the reporter into a node project's `npm test`; migration
 0004 adds it to an adopted project's `scripts.test` when it is node's runner
 (`node --test`, or `node --import … --test`) and leaves every other runner
-alone (vitest and JUnit output are deliberately later); migration 0005 does
+alone; migration 0005 does
 the same for each workspace's and app folder's own `scripts.test` (web/,
 app/, client/, frontend/, and the root's workspaces). The ci practice's
 `check.yml` keeps each run's `.keel/test-runs` as a `keel-test-runs`
@@ -164,6 +164,37 @@ keel-test-runs": a project whose CI is its own adds the upload step (migration
 0005 prints it in the update PR; keel never edits a project's workflows).
 `proofs_hold` reads a cited test's newest pass or fail: a skip, or a narrowed
 run that left it out, says nothing about it.
+
+**bun test and vitest** (phase 59). Both write JUnit XML, and the ledger
+reads it as a command after the run:
+
+    keel_status=0; rm -f .keel/test-runs/junit.xml; mkdir -p .keel/test-runs && \
+      bun test --reporter=junit --reporter-outfile=.keel/test-runs/junit.xml || keel_status=$?; \
+      node scripts/keel/test-ledger.mjs --junit .keel/test-runs/junit.xml --runner bun --status $keel_status
+
+(vitest: `--reporter=default --reporter=junit --outputFile.junit=<file>`;
+bun makes no directory, so its line makes it). `|| keel_status=$?` keeps the
+runner's exit code where a shell runs under `set -e` (GitHub's `bash -e`),
+so a red run still reaches the ledger; the old file is removed first, so a
+run that writes none is "no tests ran". After a `cd`, the paths start from
+the repo's root (`keel_root="$(git rev-parse --show-toplevel)"`). `keel adopt`
+finds the runner in the gate, records `"tests": {"runner", "junit"}` and
+proposes this line, only where the night practice is on (it installs the
+ledger); it never rewrites the gate. The record is a node run's, plus
+`runner` and a short hash of the file's path and bytes (`junit`): the same
+report read again at the same path is stale and is not counted.
+Each top-level test is the file's own test, or one top-level describe with
+every test in it, failed when one failed. The exit code is 1 when no tests
+ran (no file, none in it, or stale; unless `allowEmpty`), else the runner's
+own (`--status`: bun leaves a file that would not load out of its JUnit),
+else 1 when a test failed. A file that is not JUnit is 1, never recorded.
+A test and a describe of one name are two tests. A climb hygiene night
+names a bun or vitest flake but does not climb it (prove-steady runs `node
+--test` only). The runner is part of the config and the lane: a bun run is only ever
+compared with bun runs, and its run-alone command is `bun test <file> -t
+'^ ?<name>$'` for a test, or `'^ ?<name>( |$)'` for a describe (vitest:
+`npx vitest run <file> -t …`). A `--runner` or `"tests".runner` that
+contradicts the runner the file names is refused (exit 1, not recorded).
 
 **The build, timed** (phase 36). When `.keel/keel.json` names
 `"climb": { "build": "<command>" }`, the night runs it once as `build_time`:

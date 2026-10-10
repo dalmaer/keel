@@ -10,7 +10,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { measure, MEASURES, proposalText } from '../practices/night/files/scripts/keel/improve.mjs';
-import { record } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { record, junitRun as readJunit, JUNIT } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { execFileSync } from 'node:child_process';
 import { ENV, byId, project } from './helpers/improve.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -173,6 +174,98 @@ test('mutation: comparable runs by config alone (any folder) judges the web run 
   await writeFile(file, text.replace(from, ' && configOf(r) === configOf(current));'));
   const mutant = await import(pathToFileURL(join(copy, 'improve.mjs')).href);
   await assert.rejects(assertWebNa(dir, mutant), assert.AssertionError);
+});
+
+// ---- bun and vitest (phase 59): the ledger's --junit records, read the same way ----
+
+const JUNIT_FIXTURES = join(KEEL, 'tests', 'fixtures', 'junit');
+/** The fixture with every failure taken out: the same tests, all passing (or skipped). */
+const passing = xml => xml.replace(/<failure\b[^>]*\/>/g, '').replace(/<failure\b[^>]*>[\s\S]*?<\/failure>/g, '');
+/** The fixture with slow-ish taking `ms`. */
+const slowIsh = (xml, ms) => xml.replace(/(name="slow-ish"[^>]*?time=")[0-9.]+/, `$1${ms / 1000}`);
+
+/** An Acme git repo on one clean commit, its .keel/keel.json among it: the ledger's own runs need a tree. */
+async function acmeRepo(t, tests) {
+  const dir = await acme(t, tests);
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-qm', 'acme');
+  return dir;
+}
+
+/** One run of `runner`, through the ledger's own --junit reading of a fixture variant. */
+async function junitRun(dir, runner, xml) {
+  await mkdir(join(dir, '.keel', 'test-runs'), { recursive: true });
+  await writeFile(join(dir, JUNIT), xml);
+  const r = await readJunit({ runner, cwd: dir });
+  assert.ok(!r.lines.some(l => /could not|not JUnit|already recorded/.test(l)), r.lines.join('\n'));
+  return r;
+}
+
+/** A describe's filter is the start of its tests' names; a test's is its whole name. */
+const ALONE = { bun: (file, name, end = '$') => `bun test ${file} -t '^ ?${name}${end}'`, vitest: (file, name, end = '$') => `npx vitest run ${file} -t '^ ?${name}${end}'` };
+
+test('flaky_tests and slow_tests read bun and vitest records as they read node\'s, and say each runner\'s run-alone command', async t => {
+  for (const runner of ['bun', 'vitest']) {
+    const dir = await acmeRepo(t, { window: 3 });
+    const red = await readFile(join(JUNIT_FIXTURES, `${runner}.xml`), 'utf8'), green = passing(red);
+    await junitRun(dir, runner, slowIsh(green, 30));
+    await junitRun(dir, runner, slowIsh(red, 31));
+    await junitRun(dir, runner, slowIsh(green, 32));
+    let data = await read(dir);
+    const flaky = byId(data, 'flaky_tests');
+    assert.deepEqual([flaky.state, flaky.value], ['outside', 2], `${runner}: ${flaky.detail}`);
+    assert.deepEqual(flaky.facts.flaky.map(f => [f.file, f.name, f.passed, f.failed, f.runner]), [['a.test.ts', 'Acme widgets', 2, 1, runner], ['a.test.ts', 'fails on purpose', 2, 1, runner]]);
+    // The run's own setting goes first (NODE_OPTIONS as it was, `env -u` when unset), as a node finding's does.
+    assert.ok(proposalText(flaky).includes(` ${ALONE[runner]('a.test.ts', 'Acme widgets', '( |$)')}\`.`), proposalText(flaky));
+    assert.equal(byId(data, 'slow_tests').state, 'n/a', 'two runs before the newest: not judged yet');
+    // Tonight's run: slow-ish at 900 ms against a median of 31.
+    await junitRun(dir, runner, slowIsh(green, 900));
+    data = await read(dir);
+    const slow = byId(data, 'slow_tests');
+    assert.deepEqual([slow.state, slow.value], ['outside', 1], `${runner}: ${slow.detail}`);
+    assert.match(slow.detail, /^sub\/b\.test\.ts "slow-ish" 900 ms against 31 ms/);
+    assert.equal(slow.facts.slower[0].runner, runner);
+    assert.ok(proposalText(slow).includes(` ${ALONE[runner]('sub/b.test.ts', 'slow-ish')}\`.`), proposalText(slow));
+  }
+});
+
+/** Three node runs and then a bun run of one test, on one tree under one config hash even: never flaky together, never compared. */
+async function runnersApart(t) {
+  const dir = await acme(t, { window: 3 });
+  for (const outcome of ['pass', 'pass', 'pass']) await put(dir, { config: 'acmeclock0', tests: { 'slow-ish': [outcome, 30] } });
+  await record(dir, { commit: 'c-acmetree1', tree: 'acmetree1', dirty: false, machine: MACHINE, node: 'v24.21.0', runner: 'bun', config: 'acmeclock0', date: new Date(Date.UTC(2026, 9, 1) + (minute++) * 60_000).toISOString(),
+    tests: [{ file: 'tests/anvils.test.mjs', name: 'slow-ish', outcome: 'fail', ms: 900 }, { file: 'tests/anvils.test.mjs', name: 'an anvil drops', outcome: 'pass', ms: 900 }] });
+  await record(dir, { commit: 'c-acmetree1', tree: 'acmetree1', dirty: false, machine: MACHINE, node: 'v24.21.0', runner: 'bun', config: 'acmeclock0', date: new Date(Date.UTC(2026, 9, 1) + (minute++) * 60_000).toISOString(),
+    tests: [{ file: 'tests/anvils.test.mjs', name: 'slow-ish', outcome: 'pass', ms: 900 }] });
+  return dir;
+}
+
+async function assertApart(dir, mod) {
+  const data = await read(dir, mod);
+  const flaky = byId(data, 'flaky_tests');
+  assert.deepEqual(flaky.facts.flaky.map(f => [f.name, f.runner]), [['slow-ish', 'bun']], 'flaky within bun\'s own runs; node\'s passes are not its history');
+  const slow = byId(data, 'slow_tests');
+  assert.equal(slow.state, 'n/a', `the bun run has one bun run before it, never node's three: ${slow.detail}`);
+  assert.match(slow.detail, /earlier recorded runs on linux-x64-4cpu under config acmeclock0: 1, fewer than the window of 3/);
+}
+
+test('runs of two runners are never compared: node\'s history is not a bun run\'s baseline, nor half of its flake', async t => {
+  await assertApart(await runnersApart(t));
+});
+
+test('mutation: a lane without the runner judges the bun run against node\'s, and fails the runners test', async t => {
+  const dir = await runnersApart(t);
+  const copy = await scratch(t, 'keel-improve-mutant-');
+  await cp(SHIPPED, copy, { recursive: true });
+  const file = join(copy, 'test-ledger.mjs');
+  const text = await readFile(file, 'utf8');
+  const from = "${runnerOf(r) === 'node' ? '' : `\\u0000${runnerOf(r)}`}`;";
+  assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
+  await writeFile(file, text.replace(from, '`;'));
+  const mutant = await import(pathToFileURL(join(copy, 'improve.mjs')).href);
+  await assert.rejects(assertApart(dir, mutant), assert.AssertionError);
 });
 
 test('mutation: a ledger measure that returns 0 instead of n/a with too few runs fails the n/a test', async t => {

@@ -13,7 +13,8 @@ import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, fill } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
-import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, HEADING, REPORT } from '../lib/adopt.mjs';
+import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, HEADING, REPORT } from '../lib/adopt.mjs';
+import { testsConfigProblems } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -526,4 +527,205 @@ test('adopt detects the stack, says it in the dry run, records it, and doctor ag
   const none = await adopt({ dir: bare, dryRun: true }, { version: VERSION });
   assert.equal(none.data.config.stack, undefined);
   assert.match(none.text, /^Stack: none \(detected: nothing; docs\/keel-lessons\.md carries keel's universal lessons\)$/m);
+});
+
+// ---- the test runner (phase 59) ---------------------------------------------------
+
+const J = '.keel/test-runs/junit.xml';
+const posixDir = p => p.slice(0, p.lastIndexOf('/'));
+/** The runner's step as adopt proposes it: the old file removed, the directory made (bun), the runner, its code kept, the ledger. */
+const stepOf = (runner, runCmd, { junit = J, mkdir = runner === 'bun' ? posixDir(junit) : null } = {}) =>
+  `keel_status=0; rm -f ${junit}; ${mkdir ? `mkdir -p ${mkdir} && ` : ''}${runCmd} || keel_status=$?; node scripts/keel/test-ledger.mjs --junit ${junit} --runner ${runner} --status $keel_status`;
+const BUN_STEP = stepOf('bun', `bun test --reporter=junit --reporter-outfile=${J}`);
+
+test('adopt detects bun test or vitest in the gate, records the runner, and proposes the ledger\'s reporter flags without rewriting the gate', async t => {
+  const dir = await scratch(t);
+  const pkg = `${JSON.stringify({ name: 'acme-bun', scripts: { check: 'npm run lint && npm test', lint: 'node -e 0', test: 'bun test' } }, null, 2)}\n`;
+  await writeFile(join(dir, 'package.json'), pkg);
+  const dry = await adopt({ dir, dryRun: true }, { version: VERSION });
+  assert.deepEqual(dry.data.tests, { runner: 'bun', from: 'package.json scripts.test', junit: '.keel/test-runs/junit.xml', proposal: { where: 'package.json scripts.test', now: 'bun test', to: BUN_STEP } });
+  assert.deepEqual(dry.data.config.tests, { runner: 'bun', junit: '.keel/test-runs/junit.xml' });
+  assert.match(dry.text, /^Tests: bun \(package\.json scripts\.test\); the test ledger reads its JUnit from \.keel\/test-runs\/junit\.xml$/m);
+  assert.ok(dry.text.includes(`\n  Proposal for package.json scripts.test (adopt never rewrites the gate): ${BUN_STEP}\n`), dry.text);
+  // Written: the runner is recorded, the proposal is in the report, and the gate is the project's own bytes.
+  const { data } = await adopt({ dir }, { version: VERSION });
+  assert.equal(await readFile(join(dir, 'package.json'), 'utf8'), pkg, 'adopt never rewrites the gate');
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).tests, { runner: 'bun', junit: '.keel/test-runs/junit.xml' });
+  const report = await readFile(join(dir, REPORT), 'utf8');
+  assert.match(report, /^## The test ledger$/m);
+  assert.ok(report.includes(`\`\`\`sh\nbun test\n\`\`\`\n\nto\n\n\`\`\`sh\n${BUN_STEP}\n\`\`\``), report);
+  assert.ok(data.written.includes('.keel/keel.json'));
+  // doctor reads "tests": a known runner is fine, an unknown one is a lint.
+  let doc = JSON.parse(keel(['doctor', '--json'], dir).out);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config'), []);
+  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
+  doc = JSON.parse(keel(['doctor', '--json'], dir).out);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a .xml file in .keel/test-runs/ (which ignores itself), of letters, digits, _ . and - only']);
+
+  // vitest as one step of the gate itself: the step goes in braces, so the steps around it run as they did.
+  const v = await scratch(t);
+  await writeFile(join(v, 'package.json'), JSON.stringify({ name: 'acme-vite', scripts: { check: 'tsc && npx vitest run --coverage && eslint .' } }));
+  const vd = (await adopt({ dir: v, dryRun: true }, { version: VERSION })).data;
+  assert.deepEqual([vd.tests.runner, vd.tests.from], ['vitest', 'package.json scripts.check']);
+  assert.equal(vd.tests.proposal.to, `tsc && { ${stepOf('vitest', `npx vitest run --reporter=default --reporter=junit --outputFile.junit=${J} --coverage`)}; } && eslint .`);
+  // node --test: the reporter is node's own (init, migration 0004); nothing recorded, nothing proposed.
+  const n = await scratch(t);
+  await writeFile(join(n, 'package.json'), JSON.stringify({ name: 'acme-node', scripts: { check: 'npm test', test: 'node --test' } }));
+  const nd = await adopt({ dir: n, dryRun: true }, { version: VERSION });
+  assert.deepEqual(nd.data.tests, { runner: 'node', from: 'package.json scripts.test', junit: null, proposal: null });
+  assert.equal(nd.data.config.tests, undefined);
+  assert.match(nd.text, /^Tests: node --test \(package\.json scripts\.test\)/m);
+  // Already wired, or a runner the config names: nothing proposed twice, and the config's runner stands.
+  const w = await scratch(t);
+  await writeFile(join(w, 'package.json'), JSON.stringify({ name: 'acme-wired', scripts: { check: 'npm test', test: BUN_STEP } }));
+  assert.equal((await adopt({ dir: w, dryRun: true }, { version: VERSION })).data.tests.proposal, null);
+  await mkdir(join(w, '.keel'), { recursive: true });
+  await writeFile(join(w, '.keel', 'keel.json'), JSON.stringify({ check: 'npm test', tests: { runner: 'vitest', window: 30 } }));
+  const own = (await adopt({ dir: w, dryRun: true }, { version: VERSION })).data;
+  assert.deepEqual([own.tests.runner, own.tests.from, own.tests.proposal], ['vitest', '.keel/keel.json', null]);
+  assert.deepEqual(own.config.tests, { runner: 'vitest', window: 30, junit: '.keel/test-runs/junit.xml' });
+  // No runner keel knows: nothing said, nothing recorded.
+  const none = await adopt({ dir: await scratch(t), dryRun: true }, { version: VERSION });
+  assert.equal(none.data.tests, null);
+  assert.doesNotMatch(none.text, /^Tests:/m);
+});
+
+test('the proposed gate runs: the ledger records the bun run, and the gate fails exactly when bun did, or when no test ran', async t => {
+  const outer = await scratch(t), dir = join(outer, 'acme-bun');
+  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
+  const git = (...args) => run('git', ['-C', dir, ...args], { env: ENV });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-qm', 'acme');
+  // Acme's stand-in for bun: writes the fixture (a new copy each run) where --reporter-outfile says, and exits ACME_EXIT.
+  const bin = join(outer, 'bin');
+  await mkdir(bin, { recursive: true });
+  await writeFile(join(bin, 'bun'), '#!/bin/sh\nfor a in "$@"; do case "$a" in --reporter-outfile=*) out="${a#--reporter-outfile=}";; esac; done\n[ -n "$ACME_JUNIT" ] && { cat "$ACME_JUNIT"; echo "<!-- $$ -->"; } > "$out"\nexit "${ACME_EXIT:-0}"\n', { mode: 0o755 });
+  const fixtures = join(KEEL, 'tests', 'fixtures', 'junit');
+  await writeFile(join(bin, 'green.xml'), (await readFile(join(fixtures, 'bun.xml'), 'utf8')).replace(/<failure\b[^>]*\/>/g, ''));
+  const gate = ledgerCommand('bun test && echo after', 'bun');
+  const shell = (line, env, how = ['sh', '-c']) => run(how[0], [...how.slice(1), line], { cwd: dir, env: { ...ENV, PATH: `${bin}:${process.env.PATH}`, ...env } });
+  const sh = env => shell(gate, env);
+  let r = sh({ ACME_JUNIT: join(fixtures, 'bun.xml'), ACME_EXIT: '1' });
+  assert.equal(r.status, 1, `bun failed: so does the gate\n${r.stdout}${r.stderr}`);
+  assert.doesNotMatch(r.stdout, /after/);
+  r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '0' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  // Failed, then passed, on one clean tree: the hygiene block names it, with bun's command to run it alone; a note, never a red gate.
+  assert.match(r.stdout, /^keel test ledger: 2 hygiene items \(2 runs in \.keel\/test-runs\)\./m);
+  assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
+  assert.match(r.stdout, /bun test a\.test\.ts -t '\^ \?fails on purpose\$'\nafter\n$/);
+  r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '1' });
+  assert.equal(r.status, 1, 'a failure bun left out of its JUnit (a file that would not load) still fails the gate');
+  r = sh({ ACME_JUNIT: '', ACME_EXIT: '0' });
+  assert.equal(r.status, 1, 'bun ran nothing and wrote nothing new: no tests ran');
+  assert.match(r.stdout, /no tests ran/);
+  const records = async () => (await readdir(join(dir, '.keel', 'test-runs'))).filter(n => n.endsWith('.json')).sort();
+  const newest = async () => JSON.parse(await readFile(join(dir, '.keel', 'test-runs', (await records()).at(-1)), 'utf8'));
+  assert.equal((await records()).length, 3);
+  assert.deepEqual([(await newest()).runner, (await newest()).dirty], ['bun', false]);
+  // GitHub runs a gate as bash -e: a red bun run still reaches the ledger and is recorded (review on #56).
+  r = shell(ledgerCommand('bun test', 'bun'), { ACME_JUNIT: join(fixtures, 'bun.xml'), ACME_EXIT: '1' }, ['bash', '-e', '-c']);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^keel test ledger: /m, 'the ledger ran after the red run');
+  assert.equal((await records()).length, 4, 'and recorded it');
+  // A step that changes directory first: the ledger is found from git's top level, and the run is recorded as that folder's (review on #56).
+  await mkdir(join(dir, 'sub'), { recursive: true });
+  r = shell(ledgerCommand('cd sub && bun test', 'bun'), { ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '0' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal((await records()).length, 5);
+  const moved = await newest();
+  assert.deepEqual([moved.dir, moved.tests[0].file, moved.dirty], ['sub', 'sub/a.test.ts', false]);
+});
+
+/** A proposal is a shell line sh can parse, and keeps every byte of the project's own steps. */
+function assertProposals(make = ledgerCommand) {
+  const bun = args => stepOf('bun', `bun test --reporter=junit --reporter-outfile=${J}${args}`);
+  const cases = [
+    // A quoted operator is part of a word, not a step's end (review on #56).
+    ["bun test -t 'one|two' && echo done", `{ ${bun(" -t 'one|two'")}; } && echo done`],
+    ['echo "a && b; c" && bun test', `echo "a && b; c" && { ${bun('')}; }`],
+    ["vitest run -t 'x;y' --coverage", stepOf('vitest', `vitest run --reporter=default --reporter=junit --outputFile.junit=${J} -t 'x;y' --coverage`)],
+    ['tsc && bun test a\\&b.test.ts && echo ok', `tsc && { ${bun(' a\\&b.test.ts')}; } && echo ok`],
+    ['pnpm exec vitest run; echo ok', `{ ${stepOf('vitest', `pnpm exec vitest run --reporter=default --reporter=junit --outputFile.junit=${J}`)}; }; echo ok`],
+  ];
+  for (const [command, want] of cases) {
+    const got = make(command, command.includes('vitest') ? 'vitest' : 'bun');
+    assert.equal(got, want, command);
+    const r = run('sh', ['-n', '-c', got], { env: ENV });
+    assert.equal(r.status, 0, `sh -n: ${got}\n${r.stderr}`);
+  }
+  // Only a runner outside quotes is the runner: a quoted one is an argument.
+  assert.equal(make("echo 'bun test' && bun test", 'bun'), `echo 'bun test' && { ${bun('')}; }`);
+  // After a cd, the ledger and the JUnit file are found from git's top level (review on #56).
+  const moved = make('cd web && npx vitest run', 'vitest');
+  assert.equal(moved, `cd web && { keel_root="$(git rev-parse --show-toplevel)" || exit 1; keel_status=0; rm -f "$keel_root/${J}"; npx vitest run --reporter=default --reporter=junit --outputFile.junit="$keel_root/${J}" || keel_status=$?; node "$keel_root/scripts/keel/test-ledger.mjs" --junit "$keel_root/${J}" --runner vitest --status $keel_status; }`);
+  assert.equal(run('sh', ['-n', '-c', moved], { env: ENV }).status, 0);
+  assert.match(make('pushd web; bun test', 'bun'), /mkdir -p "\$keel_root\/\.keel\/test-runs" && bun test/);
+  assert.doesNotMatch(make("echo 'cd web' && bun test", 'bun'), /keel_root/, 'a quoted cd moves nothing');
+  // Outside the shape keel rewrites, no proposal (review on #56): a control clause or ! (the status means something else),
+  // ||, a pipe or & after the runner, an inline variable or `time` before it (the ledger would not see it), or a script
+  // whose name holds the runner's (`npm run vitest:unit` is its own step; its body is read where it is defined).
+  for (const [command, runner] of [['if bun test; then echo ok; fi', 'bun'], ['! bun test', 'bun'], ['while bun test; do :; done', 'bun'],
+    ['bun test || true', 'bun'], ['bun test | tee out.txt', 'bun'], ['bun test &', 'bun'], ['ACME_MODE=fast bun test', 'bun'],
+    ['NODE_OPTIONS=--max-old-space-size=64 vitest run', 'vitest'], ['time bun test', 'bun'], ['env CI=1 bun test', 'bun'],
+    ['npm run vitest:unit', 'vitest'], ['npx vitest-preview', 'vitest']]) {
+    assert.equal(make(command, runner), null, command);
+  }
+  // What keel will not split by hand gets no proposal, never a broken one.
+  for (const command of ["bun test 'unclosed", 'bun test $(cat list)', 'bun test `cat list`', '(cd web && bun test)', 'bun test > out.txt', 'echo "$(bun test)"']) {
+    assert.equal(make(command, 'bun'), null, command);
+  }
+  // A JUnit path is written into the line as it is, so one a shell would read differently gets no proposal.
+  // Nor one that names a directory, not a file (review on #56): `rm -f` and the reporter would both fail on it.
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml', '.', '.keel/test-runs', 'reports/', 'reports/junit']) {
+    assert.equal(make('bun test', 'bun', junit), null, junit);
+  }
+  assert.equal(make('bun test', 'bun', '.keel/test-runs/bun.xml'), stepOf('bun', 'bun test --reporter=junit --reporter-outfile=.keel/test-runs/bun.xml', { junit: '.keel/test-runs/bun.xml' }));
+  // A report anywhere else would stay behind, untracked, after every gate (review on #56).
+  assert.equal(make('bun test', 'bun', 'reports/junit-1.xml'), null);
+}
+
+test('a proposal parses in sh: a quoted operator or runner is a word, and a command or JUnit path keel cannot write safely gets none', () => {
+  assertProposals();
+  const plan = testsPlan({ tests: { junit: 'reports/test results.xml' } }, 'bun test', {});
+  assert.equal(plan.proposal, null);
+  assert.match(plan.declined, /is not a .xml file in \.keel\/test-runs\//);
+  assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /^the gate is not the shape keel rewrites \(plain steps joined by && or ;, an optional cd, the runner as its step's own command/);
+  assert.match(testsPlan({}, 'ACME_MODE=fast bun test', {}).declined, /no inline variable/);
+  // A script whose name holds "vitest" is followed to its body, which is what gets the flags (review on #56).
+  const unit = testsPlan({}, 'npm run vitest:unit', { 'vitest:unit': 'vitest run' });
+  assert.deepEqual([unit.runner, unit.from, unit.proposal?.where], ['vitest', 'package.json scripts.vitest:unit', 'package.json scripts.vitest:unit']);
+  assert.equal(unit.proposal.to, stepOf('vitest', `vitest run --reporter=default --reporter=junit --outputFile.junit=${J}`));
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml', '.', '.keel/test-runs', 'reports/']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  // A step that already picks a reporter or its output file: keel's flags would fight it (the last one wins), so none (review on #56).
+  for (const [command, runner] of [['bun test --reporter=junit --reporter-outfile=reports/current.xml', 'bun'], ['bun test --reporter-outfile reports/current.xml', 'bun'],
+    ['vitest run --outputFile.junit=reports/current.xml', 'vitest'], ['npx vitest run --reporter=verbose', 'vitest'], ['vitest run --reporter dot', 'vitest']]) {
+    assert.equal(ledgerCommand(command, runner), null, command);
+  }
+  assert.match(testsPlan({}, 'bun test --reporter-outfile=reports/current.xml', {}).declined, /or reporter flags of its own/);
+  assert.ok(ledgerCommand('bun test --timeout=10000', 'bun').includes('--reporter-outfile=.keel/test-runs/junit.xml --timeout=10000'), 'any other option stays');
+  assert.ok(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }).length);
+  // More than one runner in the gate (`npm test` runs bun, then vitest runs): record none, propose none (review on #56).
+  const two = testsPlan({}, 'npm test && npx vitest run', { test: 'bun test' });
+  assert.deepEqual([two.runner, two.proposal], [null, null]);
+  assert.match(two.declined, /^the gate runs more than one test runner \(vitest, bun\); keel records none and proposes no line/);
+  assert.deepEqual(testsLines(two), [`Tests: none recorded (the gate: vitest; package.json scripts.test: bun); ${two.declined}`]);
+});
+
+test('no proposal where the night practice is not on and the ledger is not there: the line would run a script nothing installs', async t => {
+  const dir = await scratch(t);
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-own-night', scripts: { check: 'npm test', test: 'bun test', night: 'node -e 0' } }));
+  const { data, text } = await adopt({ dir, dryRun: true }, { version: VERSION });
+  assert.equal(states(data).night, 'local', 'its own night script keeps night local');
+  assert.equal(data.tests.proposal, null);
+  assert.match(data.tests.declined, /^the night practice is local here, so keel does not install scripts\/keel\/test-ledger\.mjs, which the line would run/);
+  assert.match(text, /^ {2}No proposal: the night practice is local here/m);
+  assert.deepEqual(data.config.tests, { runner: 'bun', junit: J }, 'the runner is still recorded');
+  // The ledger already in place: the line runs, so it is proposed.
+  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
+  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
+  assert.equal((await adopt({ dir, dryRun: true }, { version: VERSION })).data.tests.proposal.to, BUN_STEP);
 });

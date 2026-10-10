@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- vitest 5.0.3: a test file that throws while loading; vitest reports it as a testcase named for the file (not a test). Only hostname and timestamp edited. -->
+<testsuites name="vitest tests" tests="1" failures="1" errors="0" time="0">
+    <testsuite name="empty/broken.test.ts" timestamp="2026-10-09T12:00:00.000Z" hostname="acme-ci" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="empty/broken.test.ts" name="empty/broken.test.ts" time="0">
+            <failure message="load failure" type="Error">
+Error: load failure
+ ❯ empty/broken.test.ts:2:7
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

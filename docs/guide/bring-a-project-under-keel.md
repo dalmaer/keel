@@ -83,7 +83,10 @@ change something to see what would now switch on.
 
 ## What you'll see
 
-The dry run's survey: `Gate:`, `Lessons:`, `Stack:`, `Repo:`, then
+The dry run's survey: `Gate:`, `Lessons:`, `Stack:`, `Repo:`, `Tests:` when
+the gate runs `bun test`, vitest or `node --test` (on bun or vitest, with the
+line that lets keel's test ledger read the runner's JUnit; adopt records the
+runner but never edits the gate, so making that change is yours), then
 `Practices:` with `on`, `local` or `off` and the reason for each, then
 `Files:` with `create`, `same`, `keep-local` or `conflict`, then the secrets
 the switched-on practices need, each a ⚑ step for the owner.

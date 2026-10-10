@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- vitest 5.0.3: vitest run nomatch --passWithNoTests --reporter=junit: a run that found no test. It exits 0, and writes this. -->
+<testsuites name="vitest tests" tests="0" failures="0" errors="0" time="0">
+</testsuites>
