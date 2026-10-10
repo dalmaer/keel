@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "strict": true,
+    "noEmit": true,
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "exactOptionalPropertyTypes": true
+  },
+  "include": [
+    "practices/night/files/scripts/keel/time-receipts.mjs",
+    "practices/climb/files/scripts/keel/robot-policy.mjs",
+    "type-tests/**/*.mts"
+  ]
+}

@@ -219,9 +219,16 @@ guide, [docs/design.md](docs/design.md) is the argument, and
 ```bash
 npm run next     # next phase and action
 npm run check    # tests, roadmap, rendered practices and inbox views
+npm ci --ignore-scripts  # development-only type tooling
+npm run typecheck        # checked JSDoc, no emitted JavaScript
 ```
 
 In Claude Code, `/conduct` walks the phases.
+
+The CLI still runs directly from its `.mjs` source with zero runtime
+dependencies. Type checking covers selected production evidence contracts;
+it does not compile the CLI or change what adopted projects must install.
+See [measuring CLI cost and checking contracts](docs/development.md).
 
 ## Lineage and license
 

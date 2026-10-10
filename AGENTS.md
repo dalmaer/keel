@@ -12,6 +12,7 @@ work here.
 ```bash
 npm run next      # the next phase to conduct, and its next action
 npm run check     # tests + roadmap, render and inbox guards; run before pushing
+npm run typecheck # selected production JSDoc contracts; npm ci first
 npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 ```
 
@@ -142,6 +143,11 @@ A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for
   tests. Installing from `main` must work.
+- **Check the contracts without compiling the runtime.** `npm ci --ignore-scripts`
+  installs development-only type tooling. Run `npm run typecheck` alongside
+  `npm run check` before pushing; CI runs both. Its explicit scope is in
+  `tsconfig.json`, not a claim that the whole repository is typed. External
+  JSON still needs runtime validation; missing evidence is never a zero.
 - **Every command takes `--json`.** Agents drive keel and must never parse prose.
 - **A verb nobody is told about doesn't exist.** `keel --agent-help` ships with
   the CLI, and a test fails when a verb is missing from it.

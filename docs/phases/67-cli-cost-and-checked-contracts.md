@@ -1,11 +1,11 @@
 ---
-status: designed
+status: built
 since: 2026-10-10
 goal: G0
 spec: 2
 depends: [56, 57]
-note: "Measure CLI cost and check evidence contracts without compiling runtime source."
-evidence: []
+note: "Local and real GitHub cost measured; two production contracts checked without compiling runtime source."
+evidence: ["evidence/2026-10-10-cli-contracts.md"]
 ---
 
 # CLI cost is measured and evidence contracts are checked
@@ -30,16 +30,16 @@ Runtime validation remains necessary. No language port or speculative speedup.
 
 ## Acceptance
 
-- [ ] Profiling preserves command output and failure status, handles overlapping and failed operations, and records no sensitive payloads: `tests/profile.test.mjs`.
-- [ ] Selected production state/receipt modules pass no-emit checking, and negative contract cases prove invalid states are rejected: `npm run typecheck`.
-- [ ] Startup, local work, subprocesses and a real read-only network operation are measured with context and limits: `docs/research/2026-10-10-cli-cost.md`.
-- [ ] The integrated runtime tests and documentation guards pass: `npm run check`.
+- [x] Profiling preserves command output and failure status, handles overlapping and failed operations, and records no sensitive payloads: `tests/profile.test.mjs`.
+- [x] Selected production state/receipt modules pass no-emit checking, and negative contract cases prove invalid states are rejected: `npm run typecheck`.
+- [x] Startup, local work, subprocesses and a real read-only network operation are measured with context and limits in the research record: `node scripts/profile-benchmark.mjs --output /tmp/keel-phase67-bench/final-github.json --samples 3 --github --json`.
+- [x] The integrated runtime tests and documentation guards pass: `npm run check`.
 
 ## Real surfaces
 
 - Owner's machine: repeated local CLI measurements, with Node/OS/sample count and raw timing records.
-- GitHub: read-only API measurement; no remote writes are needed for the benchmark.
-- Installed package: unpacked CLI remains directly executable without development dependencies.
+- GitHub API: read-only API measurement; no remote writes are needed for the benchmark.
+- Published package: unpacked CLI remains directly executable without development dependencies.
 
 ## Proof
 
@@ -62,4 +62,17 @@ The research record names the final profiling commands and results.
 
 ## Next action
 
-Build opt-in measurements and checked contracts, then run the named proof.
+None. Repeated use may justify wider type coverage or targeted profiling;
+these measurements do not justify a language port by themselves.
+
+## Trajectory
+
+- **2026-10-10** — Checked JSDoc's object braces collided with practice
+  interpolation before a real GitHub call. Spaced braces preserve both
+  contracts; the actual renderer now verifies byte-for-byte compatibility.
+- **2026-10-10** — Most remote doctor time was in opaque `gh` subprocesses;
+  local timing queries had no such waits. Keep the categories and workload
+  context separate before proposing a runtime rewrite.
+- **2026-10-10** — Contributor tools have different distribution boundaries
+  from adopter practices. Their documentation lives outside adopter guides,
+  and the self-only typecheck workflow still runs the existing workflow rules.

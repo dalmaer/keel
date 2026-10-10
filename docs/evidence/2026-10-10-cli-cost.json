@@ -1,0 +1,2142 @@
+{
+  "version": 1,
+  "date": "2026-10-10",
+  "base": "9a233a9 + phase67 working tree",
+  "paired": {
+    "date": "2026-10-10T12:36:50.071Z",
+    "node": "v24.21.0",
+    "load": [
+      23.83740234375,
+      51.79443359375,
+      40.00537109375
+    ],
+    "policy": "10 interleaved plain/profiled fresh processes per command; no warmup discard; warm caches uncontrolled",
+    "results": {
+      "help": [
+        {
+          "plain": {
+            "elapsedMs": 46.469042,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 60.265459,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 56.78304201364517,
+              "parentSpawnToPreload": 47.76741701364517,
+              "nodeProcessToPreload": 33.080875,
+              "cliImports": 6.847791969776154,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.015625,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 51.41970900000001,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 73.038584,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 69.19358402490616,
+              "parentSpawnToPreload": 59.401542007923126,
+              "nodeProcessToPreload": 42.009834,
+              "cliImports": 7.11933296918869,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.792042016983032,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 52.91941700000001,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 68.614042,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 65.28462499380112,
+              "parentSpawnToPreload": 54.94191700220108,
+              "nodeProcessToPreload": 36.638834,
+              "cliImports": 7.824249982833862,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 10.342707991600037,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 52.80091599999997,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 63.75,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 60.45383298397064,
+              "parentSpawnToPreload": 50.94245797395706,
+              "nodeProcessToPreload": 34.193416,
+              "cliImports": 6.72537499666214,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.51137501001358,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 48.65383300000002,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 59.189167,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 55.300625026226044,
+              "parentSpawnToPreload": 46.68587499856949,
+              "nodeProcessToPreload": 30.654417,
+              "cliImports": 6.554250001907349,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 8.614750027656555,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 49.1825419999999,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 63.889709,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 61.012458980083466,
+              "parentSpawnToPreload": 51.506749987602234,
+              "nodeProcessToPreload": 33.995375,
+              "cliImports": 7.3629589676856995,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.505708992481232,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 50.84008399999993,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 63.819458,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 60.69262504577637,
+              "parentSpawnToPreload": 51.29662501811981,
+              "nodeProcessToPreload": 34.618541,
+              "cliImports": 7.049749970436096,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.396000027656555,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 50.082583,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 62.860916,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 59.45550000667572,
+              "parentSpawnToPreload": 50.03058296442032,
+              "nodeProcessToPreload": 33.046584,
+              "cliImports": 6.932874977588654,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.424917042255402,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 48.95791699999995,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 69.097375,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 65.65216600894928,
+              "parentSpawnToPreload": 56.1328330039978,
+              "nodeProcessToPreload": 38.390333,
+              "cliImports": 7.018249988555908,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 9.519333004951477,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 58.819124999999985,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 93.458708,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 89.12937498092651,
+              "parentSpawnToPreload": 75.57283300161362,
+              "nodeProcessToPreload": 51.974,
+              "cliImports": 10.206125020980835,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 13.556541979312897,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        }
+      ],
+      "status": [
+        {
+          "plain": {
+            "elapsedMs": 139.47587499999986,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 180.338833,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 174.8151249885559,
+              "parentSpawnToPreload": 97.77058297395706,
+              "nodeProcessToPreload": 66.08175,
+              "cliImports": 13.020583033561707,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 77.04454201459885,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 162.46687500000007,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 182.878958,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 177.3508329987526,
+              "parentSpawnToPreload": 96.91341704130173,
+              "nodeProcessToPreload": 64.784667,
+              "cliImports": 13.910957992076874,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 80.43741595745087,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 141.41216599999984,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 124.428167,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 120.0402079820633,
+              "parentSpawnToPreload": 68.29783302545547,
+              "nodeProcessToPreload": 44.987584,
+              "cliImports": 10.146833002567291,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 51.74237495660782,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 102.28837500000009,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 114.154208,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 110.1659579873085,
+              "parentSpawnToPreload": 63.16316598653793,
+              "nodeProcessToPreload": 42.711709,
+              "cliImports": 8.828499972820282,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 47.00279200077057,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 89.53270799999973,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 99.637208,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 96.03575003147125,
+              "parentSpawnToPreload": 52.99924999475479,
+              "nodeProcessToPreload": 35.677125,
+              "cliImports": 6.902207970619202,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 43.03650003671646,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 87.44133299999976,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 99.612916,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 96.17629104852676,
+              "parentSpawnToPreload": 56.240250051021576,
+              "nodeProcessToPreload": 39.320875,
+              "cliImports": 6.476583003997803,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 39.93604099750519,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 76.7612909999998,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 86.36425,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 82.96441698074341,
+              "parentSpawnToPreload": 46.333584010601044,
+              "nodeProcessToPreload": 31.603917,
+              "cliImports": 5.880750000476837,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 36.630832970142365,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 79.006167,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 95.800375,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 92.3652920126915,
+              "parentSpawnToPreload": 51.64366698265076,
+              "nodeProcessToPreload": 35.2915,
+              "cliImports": 6.584417045116425,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 40.72162503004074,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 85.22329200000013,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 95.255667,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 91.970458984375,
+              "parentSpawnToPreload": 50.902459025382996,
+              "nodeProcessToPreload": 33.421583,
+              "cliImports": 7.5096670389175415,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 41.067999958992004,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 77.86812499999996,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 86.514542,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 83.18229204416275,
+              "parentSpawnToPreload": 46.11524999141693,
+              "nodeProcessToPreload": 30.638042,
+              "cliImports": 6.514083027839661,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 37.06704205274582,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        }
+      ],
+      "next": [
+        {
+          "plain": {
+            "elapsedMs": 73.28833299999997,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 82.939667,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 79.86962497234344,
+              "parentSpawnToPreload": 45.116208016872406,
+              "nodeProcessToPreload": 30.789125,
+              "cliImports": 5.9744579792022705,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 34.75341695547104,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 71.60316699999976,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 86.748458,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 83.39987498521805,
+              "parentSpawnToPreload": 46.760082960128784,
+              "nodeProcessToPreload": 32.150334,
+              "cliImports": 6.3525829911231995,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 36.639792025089264,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 78.87920900000017,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 85.112625,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 81.82275003194809,
+              "parentSpawnToPreload": 46.03670805692673,
+              "nodeProcessToPreload": 31.116583,
+              "cliImports": 6.483042001724243,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 35.78604197502136,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 71.15754199999992,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 79.757042,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 76.4279580116272,
+              "parentSpawnToPreload": 41.83716702461243,
+              "nodeProcessToPreload": 28.120583,
+              "cliImports": 5.96212500333786,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 34.59079098701477,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 70.9477079999997,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 79.842,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 76.3477920293808,
+              "parentSpawnToPreload": 41.73945903778076,
+              "nodeProcessToPreload": 27.947667,
+              "cliImports": 6.178749978542328,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 34.60833299160004,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 66.89637500000026,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 80.448375,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 77.28670799732208,
+              "parentSpawnToPreload": 43.57158297300339,
+              "nodeProcessToPreload": 29.365125,
+              "cliImports": 5.572250008583069,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 33.715125024318695,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 71.90833400000065,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 85.277833,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 82.2743330001831,
+              "parentSpawnToPreload": 45.45337504148483,
+              "nodeProcessToPreload": 30.452292,
+              "cliImports": 6.308291971683502,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 36.82095795869827,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 75.18545799999993,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 83.491417,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 80.61608403921127,
+              "parentSpawnToPreload": 46.07275003194809,
+              "nodeProcessToPreload": 30.960542,
+              "cliImports": 6.2028340101242065,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 34.543334007263184,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 71.76508300000023,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 83.532875,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 79.99787503480911,
+              "parentSpawnToPreload": 43.88916701078415,
+              "nodeProcessToPreload": 29.402583,
+              "cliImports": 6.495541036128998,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 36.10870802402496,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 70.48233400000026,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 82.1055,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 78.92916697263718,
+              "parentSpawnToPreload": 44.28633397817612,
+              "nodeProcessToPreload": 29.855708,
+              "cliImports": 5.972292006015778,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 34.64283299446106,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        }
+      ],
+      "time": [
+        {
+          "plain": {
+            "elapsedMs": 273.18833300000006,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 299.893583,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 295.60970801115036,
+              "parentSpawnToPreload": 47.13725000619888,
+              "nodeProcessToPreload": 31.994125,
+              "cliImports": 5.821250021457672,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 248.47245800495148,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 330.55912499999977,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 336.086792,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 331.58533400297165,
+              "parentSpawnToPreload": 56.42387503385544,
+              "nodeProcessToPreload": 37.65525,
+              "cliImports": 7.107958972454071,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 275.1614589691162,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 377.2795420000002,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 378.82475,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 374.2895830273628,
+              "parentSpawnToPreload": 68.79183304309845,
+              "nodeProcessToPreload": 48.164458,
+              "cliImports": 8.472334027290344,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 305.4977499842644,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 372.3317500000003,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 368.948,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 363.6886249780655,
+              "parentSpawnToPreload": 65.58295798301697,
+              "nodeProcessToPreload": 44.398916,
+              "cliImports": 9.261083006858826,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 298.1056669950485,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 360.3257080000003,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 403.656667,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 398.35374999046326,
+              "parentSpawnToPreload": 66.06433296203613,
+              "nodeProcessToPreload": 45.131,
+              "cliImports": 9.3661670088768,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 332.2894170284271,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 288.98049999999967,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 301.447958,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 297.0524579882622,
+              "parentSpawnToPreload": 49.156749963760376,
+              "nodeProcessToPreload": 34.625709,
+              "cliImports": 6.426541984081268,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 247.8957080245018,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 247.36987500000032,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 230.433833,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 226.9162079691887,
+              "parentSpawnToPreload": 39.313125014305115,
+              "nodeProcessToPreload": 26.649,
+              "cliImports": 4.601916015148163,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 187.60308295488358,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 224.06079200000022,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 234.577833,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 230.84845799207687,
+              "parentSpawnToPreload": 37.11691600084305,
+              "nodeProcessToPreload": 23.645917,
+              "cliImports": 4.705958008766174,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 193.73154199123383,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 230.2241670000003,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 255.764667,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 251.85941702127457,
+              "parentSpawnToPreload": 46.20533400774002,
+              "nodeProcessToPreload": 31.480541,
+              "cliImports": 5.519582986831665,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 205.65408301353455,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 218.12937500000044,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 226.690333,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 223.2857080101967,
+              "parentSpawnToPreload": 37.73400002717972,
+              "nodeProcessToPreload": 24.783291,
+              "cliImports": 4.677666962146759,
+              "subprocessBusy": 0,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 0,
+              "localResidual": 185.55170798301697,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        }
+      ],
+      "version": [
+        {
+          "plain": {
+            "elapsedMs": 53.533417000000554,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 63.56,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 60.89862495660782,
+              "parentSpawnToPreload": 40.35437494516373,
+              "nodeProcessToPreload": 27.607833,
+              "cliImports": 5.151208996772766,
+              "subprocessBusy": 14.22775000333786,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 14.22775000333786,
+              "localResidual": 6.316500008106232,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 51.20129199999974,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 57.800583,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 55.54445803165436,
+              "parentSpawnToPreload": 36.42225003242493,
+              "nodeProcessToPreload": 23.837542,
+              "cliImports": 4.762542009353638,
+              "subprocessBusy": 13.242624998092651,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 13.242624998092651,
+              "localResidual": 5.87958300113678,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 54.23316700000032,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 59.928791,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 57.31233298778534,
+              "parentSpawnToPreload": 37.29945796728134,
+              "nodeProcessToPreload": 24.723083,
+              "cliImports": 5.916457951068878,
+              "subprocessBusy": 12.983042001724243,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 12.983042001724243,
+              "localResidual": 7.029833018779755,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 48.31908300000032,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 58.706791,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 56.43758296966553,
+              "parentSpawnToPreload": 37.77262496948242,
+              "nodeProcessToPreload": 25.482584,
+              "cliImports": 4.643499970436096,
+              "subprocessBusy": 12.97350001335144,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 12.97350001335144,
+              "localResidual": 5.691457986831665,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 47.58508299999994,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 61.035042,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 58.43037497997284,
+              "parentSpawnToPreload": 37.81370800733566,
+              "nodeProcessToPreload": 25.259209,
+              "cliImports": 6.1108750104904175,
+              "subprocessBusy": 13.39537501335144,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 13.39537501335144,
+              "localResidual": 7.221291959285736,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 49.65495899999951,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 57.26975,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 55.1025829911232,
+              "parentSpawnToPreload": 36.497749984264374,
+              "nodeProcessToPreload": 23.9165,
+              "cliImports": 4.936833024024963,
+              "subprocessBusy": 12.55145800113678,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 12.55145800113678,
+              "localResidual": 6.053375005722046,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 45.98195900000064,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 58.903166,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 56.624207973480225,
+              "parentSpawnToPreload": 37.0704579949379,
+              "nodeProcessToPreload": 23.809041,
+              "cliImports": 4.570459008216858,
+              "subprocessBusy": 13.837499976158142,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 13.837499976158142,
+              "localResidual": 5.716250002384186,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 51.65495799999917,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 61.965666,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 59.61700004339218,
+              "parentSpawnToPreload": 39.71487504243851,
+              "nodeProcessToPreload": 26.460291,
+              "cliImports": 5.00995796918869,
+              "subprocessBusy": 13.803708970546722,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 13.803708970546722,
+              "localResidual": 6.098416030406952,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 51.27733400000034,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 62.77675,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 60.02137500047684,
+              "parentSpawnToPreload": 39.22095799446106,
+              "nodeProcessToPreload": 25.131583,
+              "cliImports": 5.561749994754791,
+              "subprocessBusy": 13.891874969005585,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 13.891874969005585,
+              "localResidual": 6.908542037010193,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        },
+        {
+          "plain": {
+            "elapsedMs": 49.34537499999897,
+            "code": 0,
+            "signal": null
+          },
+          "profiled": {
+            "code": 0,
+            "signal": null,
+            "elapsedMs": 59.329084,
+            "profileUnavailable": false,
+            "timingMs": {
+              "childUntilExit": 56.716250002384186,
+              "parentSpawnToPreload": 38.153042018413544,
+              "nodeProcessToPreload": 25.251292,
+              "cliImports": 4.772125005722046,
+              "subprocessBusy": 12.673166990280151,
+              "directNetworkBusy": 0,
+              "subprocessNetworkOverlap": 0,
+              "observedBusy": 12.673166990280151,
+              "localResidual": 5.890040993690491,
+              "ghNetworkCapableOpaque": 0
+            },
+            "counts": {
+              "subprocess": 2,
+              "directNetwork": 0,
+              "ghOpaque": 0,
+              "failures": 0
+            },
+            "incomplete": {
+              "subprocess": 0,
+              "directNetwork": 0,
+              "cliImports": false
+            }
+          }
+        }
+      ]
+    },
+    "loadEnd": [
+      21.2578125,
+      49.8720703125,
+      39.5263671875
+    ]
+  },
+  "github": {
+    "environment": {
+      "node": "v24.21.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "osRelease": "27.0.0",
+      "logicalCpus": 14,
+      "start": {
+        "timestamp": "2026-10-10T12:36:07.214Z",
+        "loadavg": [
+          39.37841796875,
+          58.130859375,
+          41.56640625
+        ]
+      },
+      "end": {
+        "timestamp": "2026-10-10T12:36:13.239Z",
+        "loadavg": [
+          36.705078125,
+          57.26513671875,
+          41.35791015625
+        ]
+      }
+    },
+    "policy": "sequential fresh processes; no warmup discard; output suppressed; failures retained; cache and scheduler uncontrolled",
+    "doctor": [
+      {
+        "code": 0,
+        "signal": null,
+        "elapsedMs": 1934.185125,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 1929.7878329753876,
+          "parentSpawnToPreload": 46.34258300065994,
+          "nodeProcessToPreload": 31.034917,
+          "cliImports": 5.583167016506195,
+          "subprocessBusy": 1641.1992500424385,
+          "directNetworkBusy": 0,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 1641.1992500424385,
+          "localResidual": 242.24599993228912,
+          "ghNetworkCapableOpaque": 1612.0077920556068
+        },
+        "counts": {
+          "subprocess": 5,
+          "directNetwork": 0,
+          "ghOpaque": 2,
+          "failures": 1
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      },
+      {
+        "code": 0,
+        "signal": null,
+        "elapsedMs": 1718.153208,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 1714.4015410542488,
+          "parentSpawnToPreload": 39.54645800590515,
+          "nodeProcessToPreload": 26.750334,
+          "cliImports": 4.921749949455261,
+          "subprocessBusy": 1467.2614570856094,
+          "directNetworkBusy": 0,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 1467.2614570856094,
+          "localResidual": 207.59362596273422,
+          "ghNetworkCapableOpaque": 1440.2905000448227
+        },
+        "counts": {
+          "subprocess": 5,
+          "directNetwork": 0,
+          "ghOpaque": 2,
+          "failures": 1
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      },
+      {
+        "code": 0,
+        "signal": null,
+        "elapsedMs": 1726.965875,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 1723.0940000414848,
+          "parentSpawnToPreload": 46.31800001859665,
+          "nodeProcessToPreload": 29.481125,
+          "cliImports": 6.282541990280151,
+          "subprocessBusy": 1420.4106659889221,
+          "directNetworkBusy": 0,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 1420.4106659889221,
+          "localResidual": 256.36533403396606,
+          "ghNetworkCapableOpaque": 1386.7479159832
+        },
+        "counts": {
+          "subprocess": 5,
+          "directNetwork": 0,
+          "ghOpaque": 2,
+          "failures": 1
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      }
+    ]
+  },
+  "direct": {
+    "date": "2026-10-10T12:34:17.433Z",
+    "load": [
+      97.0068359375,
+      65.40185546875,
+      41.20166015625
+    ],
+    "kind": "independent public GitHub HTTPS probe, not a Keel command",
+    "raw": [
+      {
+        "code": 0,
+        "signal": null,
+        "elapsedMs": 415.550041,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 408.58891600370407,
+          "parentSpawnToPreload": 59.8614159822464,
+          "nodeProcessToPreload": 39.53675,
+          "cliImports": null,
+          "subprocessBusy": 0,
+          "directNetworkBusy": 347.2497910261154,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 347.2497910261154,
+          "localResidual": 1.4777089953422546,
+          "ghNetworkCapableOpaque": 0
+        },
+        "counts": {
+          "subprocess": 0,
+          "directNetwork": 1,
+          "ghOpaque": 0,
+          "failures": 0
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      },
+      {
+        "code": 0,
+        "signal": null,
+        "elapsedMs": 333.362542,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 316.9557920098305,
+          "parentSpawnToPreload": 74.95883399248123,
+          "nodeProcessToPreload": 56.281916,
+          "cliImports": null,
+          "subprocessBusy": 0,
+          "directNetworkBusy": 238.95266699790955,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 238.95266699790955,
+          "localResidual": 3.0442910194396973,
+          "ghNetworkCapableOpaque": 0
+        },
+        "counts": {
+          "subprocess": 0,
+          "directNetwork": 1,
+          "ghOpaque": 0,
+          "failures": 0
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      },
+      {
+        "code": 0,
+        "signal": null,
+        "elapsedMs": 324.645709,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 317.41433399915695,
+          "parentSpawnToPreload": 72.06020903587341,
+          "nodeProcessToPreload": 48.28875,
+          "cliImports": null,
+          "subprocessBusy": 0,
+          "directNetworkBusy": 244.00512498617172,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 244.00512498617172,
+          "localResidual": 1.3489999771118164,
+          "ghNetworkCapableOpaque": 0
+        },
+        "counts": {
+          "subprocess": 0,
+          "directNetwork": 1,
+          "ghOpaque": 0,
+          "failures": 0
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      }
+    ],
+    "loadEnd": [
+      97.0068359375,
+      65.40185546875,
+      41.20166015625
+    ]
+  },
+  "failedInitialGithub": {
+    "reason": "JSDoc object comments interpreted as template placeholders before network; corrected comment syntax and tested actual renderer",
+    "rows": [
+      {
+        "code": 1,
+        "signal": null,
+        "elapsedMs": 218.712959,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 212.68683403730392,
+          "parentSpawnToPreload": 79.52279204130173,
+          "nodeProcessToPreload": 52.388125,
+          "cliImports": 11.478291988372803,
+          "subprocessBusy": 43.23049998283386,
+          "directNetworkBusy": 0,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 43.23049998283386,
+          "localResidual": 89.93354201316833,
+          "ghNetworkCapableOpaque": 0
+        },
+        "counts": {
+          "subprocess": 2,
+          "directNetwork": 0,
+          "ghOpaque": 0,
+          "failures": 1
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      },
+      {
+        "code": 1,
+        "signal": null,
+        "elapsedMs": 257.779291,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 251.87183302640915,
+          "parentSpawnToPreload": 75.18325001001358,
+          "nodeProcessToPreload": 53.757917,
+          "cliImports": 9.822958052158356,
+          "subprocessBusy": 54.3045420050621,
+          "directNetworkBusy": 0,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 54.3045420050621,
+          "localResidual": 122.38404101133347,
+          "ghNetworkCapableOpaque": 0
+        },
+        "counts": {
+          "subprocess": 2,
+          "directNetwork": 0,
+          "ghOpaque": 0,
+          "failures": 1
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      },
+      {
+        "code": 1,
+        "signal": null,
+        "elapsedMs": 185.7525,
+        "profileUnavailable": false,
+        "timingMs": {
+          "childUntilExit": 179.99274998903275,
+          "parentSpawnToPreload": 63.01741701364517,
+          "nodeProcessToPreload": 42.978125,
+          "cliImports": 7.734166979789734,
+          "subprocessBusy": 47.185416996479034,
+          "directNetworkBusy": 0,
+          "subprocessNetworkOverlap": 0,
+          "observedBusy": 47.185416996479034,
+          "localResidual": 69.78991597890854,
+          "ghNetworkCapableOpaque": 0
+        },
+        "counts": {
+          "subprocess": 2,
+          "directNetwork": 0,
+          "ghOpaque": 0,
+          "failures": 1
+        },
+        "incomplete": {
+          "subprocess": 0,
+          "directNetwork": 0,
+          "cliImports": false
+        }
+      }
+    ]
+  }
+}

@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**38 of 68 phases built; 23 owe a walk.** Built means implemented and checked; planned is not available.
+**39 of 68 phases built; 23 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Verify interruption/restart recovery and preservation of human edits on the approved canvas; establish a deployed conditional-edit contract for a stable live pulse. Package/installation proof and the GitHub night credential/recovery walk remain. The approved weekly local automation is active; its first scheduled run and seven-night sustained-use proof are not yet observed. Do not ask for canvas destination or writer approval again. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-6/12 built; 4 owe a walk.
+7/12 built; 4 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -28,7 +28,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [62. A fix is proven by its test failing without it](phases/62-a-fix-is-proven-by-its-test-failing-without-it.md) | partial, walk owed | 2026-10-09 | — | Built: keel prove runs the named test in a scratch copy of the repository with the fix's files put back at the base, then in a second scratch copy with the fix, and prints VERIFIED, NOT WORKING or INCONCLUSIVE with the failure's first line; --trailer and --evidence record it; the conduct skill and AGENTS block ask a Proven-by: trailer of every fix: commit; the night's escapes notes the fix: commits without one. Owes the walk: two weeks of keel's own fixes carry it, and the owner reads three. · [#49](https://github.com/dalmaer/keel/issues/49) |
 | [64. A rule says the failure that made it, and a number says when](phases/64-a-rule-says-the-failure-that-made-it-and-a.md) | planned | 2026-10-09 | — | Two habits from a project with its own practice: a rule without the failure that caused it gets 'improved' away by the next session, and a number in a doc is a dated observation, worth less than the command that re-derives it. keel's rendered rules mostly lack their cause, and its evidence quotes numbers without a date or a command. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#51](https://github.com/dalmaer/keel/issues/51) |
 | [65. Read this before touching that](phases/65-read-this-before-touching-that.md) | partial, walk owed | 2026-10-09 | — | Two guards an agent should meet before editing: some code has an as-built contract that must be read first (a project's own measured rule), and a test that calls a macOS-only tool passes on the Mac gate and fails on Linux CI. keel maps path patterns to the doc to read first, points agents to it, and lints tests that reach a platform-only tool without saying so. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#52](https://github.com/dalmaer/keel/issues/52) |
-| [67. CLI cost is measured and evidence contracts are checked](phases/67-cli-cost-and-checked-contracts.md) | designed | 2026-10-10 | [56](phases/56-keel-knows-where-time-goes.md), [57](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md) | Measure CLI cost and check evidence contracts without compiling runtime source. |
+| [67. CLI cost is measured and evidence contracts are checked](phases/67-cli-cost-and-checked-contracts.md) | built | 2026-10-10 | [56](phases/56-keel-knows-where-time-goes.md), [57](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md) | Local and real GitHub cost measured; two production contracts checked without compiling runtime source. |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.

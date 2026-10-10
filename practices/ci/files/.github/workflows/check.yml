@@ -27,7 +27,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      # Zero dependencies, so no install step. The roadmap is a VIEW of the
+      # This workflow's configured gate needs no dependency installation;
+      # contributor typechecking runs separately. The roadmap is a VIEW of the
       # phases; a view that can go stale is how status came to be written in
       # two places that disagreed.
       # When night supplies the ledger, record the configured outer gate.

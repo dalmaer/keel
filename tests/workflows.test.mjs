@@ -30,8 +30,15 @@ export const PREFIX = {
   'claude.yml': 'claude/',
   'keel-cross-review.yml': null,
   'check.yml': null,
+  'typecheck.yml': null,
   'keel-impact.yml': null,
 };
+
+// Contributor-only workflows are deliberately not installed by a practice.
+// Register each by name so adding another cannot silently escape the guards.
+const LOCAL_WORKFLOWS = Object.freeze({
+  'typecheck.yml': { declared: [] },
+});
 
 const code = text => text.split('\n').map((line, i) => ({ line, n: i + 1 })).filter(({ line }) => !/^\s*#/.test(line));
 
@@ -110,8 +117,32 @@ test('every workflow keel ships keeps the night shift\'s rules, as a template an
     assert.deepEqual(problems(w.name, rendered, w.declared), [], `keel's ${w.path}`);
   }
   for (const n of (await readdir(join(KEEL, '.github/workflows'))).filter(n => /\.ya?ml$/.test(n))) {
-    assert.ok(all.some(w => w.name === n), `keel's ${n} is not shipped by a practice; it would escape this test`);
+    assert.ok(all.some(w => w.name === n) || Object.hasOwn(LOCAL_WORKFLOWS, n), `keel's ${n} is neither shipped by a practice nor registered locally; it would escape this test`);
+    if (Object.hasOwn(LOCAL_WORKFLOWS, n)) {
+      assert.ok(!all.some(w => w.name === n), `${n}: a local workflow must not also ship to adopters`);
+      assert.ok(Object.hasOwn(PREFIX, n), `${n}: name its own branch prefix in PREFIX`);
+      const text = await readFile(join(KEEL, '.github/workflows', n), 'utf8');
+      assert.deepEqual(problems(n, text, LOCAL_WORKFLOWS[n].declared), [], `keel's local ${n}`);
+      assert.deepEqual(await shellProblems(n, text), [], `keel's local ${n}`);
+    }
   }
+});
+
+test('local typecheck workflow installs contributor dependencies and obeys the same workflow guards', async () => {
+  const name = 'typecheck.yml';
+  assert.ok(Object.hasOwn(LOCAL_WORKFLOWS, name));
+  assert.equal(PREFIX[name], null, 'typechecking has no branch it may push');
+  const text = await readFile(join(KEEL, '.github/workflows', name), 'utf8');
+  assert.match(text, /- run: npm ci --ignore-scripts\s*\n\s*- run: npm run typecheck/);
+  for (const [why, changed, expected] of [
+    ['prohibited push', text + '\n      - run: git push origin HEAD:refs/heads/acme-check\n', /outside this workflow's prefix/],
+    ['missing concurrency', text.replace(/^concurrency:\n(?:[ \t]+[^\n]*\n)+/m, ''), /no concurrency group/],
+  ]) {
+    assert.notEqual(changed, text, `${why}: mutation must apply`);
+    assert.ok(problems(name, changed, LOCAL_WORKFLOWS[name].declared).some(p => expected.test(p)), why);
+  }
+  const malformed = text.replace('run: npm run typecheck', 'run: if true; then echo');
+  assert.ok((await shellProblems(name, malformed)).length, 'the local workflow also gets shell syntax checks');
 });
 
 test('the night workflow measures before it drains, pushes only its dated branch, and goes red on a broken instrument or gate', async () => {

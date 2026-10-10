@@ -266,6 +266,20 @@ generate views from their owners, without another tracking system.
 
 ## Rules keel holds itself to
 
+**Measured cost and checked contracts (10 October 2026, phase 67).** Before
+choosing a different implementation language, measure startup, local residual
+work, child-process elapsed time and directly observed network boundaries.
+Residual wall time is not CPU time, overlapping spans do not add up to wall
+time, and a network-capable subprocess does not reveal its internal latency.
+Opt-in development profiling must preserve command output and status and
+retain no arguments, URLs, credentials or response bodies.
+
+Selected production evidence contracts use checked JSDoc with a development-only,
+no-emit TypeScript check. The runtime remains JavaScript, needs no build or
+external package, and retains runtime validation for untrusted JSON. Type
+coverage is explicit and incremental; CI checks it separately from the
+dependency-free runtime gate. This is not a decision to port Keel.
+
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** Installing from
   `main` must work. isocan #47 was an install from an unbuilt branch that
   shipped an empty directory.

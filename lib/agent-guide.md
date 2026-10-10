@@ -1540,6 +1540,14 @@ read-only `keel retro` worksheet or select candidates for the owner.
 
 <!-- topic: install | how keel is installed, and how to tell which keel you have -->
 
+For development in Keel's source checkout, `npm ci --ignore-scripts` installs
+development-only type tooling. Run `npm run typecheck` and `npm run check`;
+the former checks an explicit JSDoc scope without emitting runtime files.
+`node scripts/profile.mjs --output <new-json-file> -- <keel arguments>` profiles
+one command without changing its output or exit status. It records timing
+boundaries, not arguments or payloads; subprocess internals remain opaque.
+See `docs/development.md`. These tools are not required by adopters.
+
 Keel needs Node 24.21.0 or later and git. It is a checkout plus a link;
 there is no registry and no build step.
 Keel is public, so with nothing installed, `npx` runs it from GitHub: put
