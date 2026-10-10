@@ -63,6 +63,9 @@ these issues one at a time, as a pass beside climb and tend.
 - **The trigger is GitHub's own.** `keel-robot.yml` runs on `issues:
   labeled|reopened` and on `issue_comment: created`, but only for a
   comment from someone with write access to the repo, and never from a bot.
+  Settled 2026-10-09: confirm current repository permission through the API;
+  author association is only an early filter, and unavailable permission
+  means no agent run.
   A concurrency group means one issue at a time per project, and a weekly
   schedule picks up anything missed. No server listens anywhere.
 - **The sandbox is climb's.** The same three jobs (agent read-only, judge,
