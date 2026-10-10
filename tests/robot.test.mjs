@@ -22,7 +22,9 @@ const BOT = { login: 'github-actions[bot]', type: 'Bot' };
 const OWNER = { login: 'acme-owner', type: 'User' };
 
 /** robot.mjs as a project has it (beside the night's lib.mjs), loaded once. */
-let loaded = null;
+let loaded = null, crossLoaded = null;
+/** cross-review.mjs beside the same lib.mjs: loaded with robot.mjs. */
+const crossReviewLib = async () => { await robotLib(); return crossLoaded; };
 const robotLib = () => loaded ??= (async () => {
   const dir = await mkdtemp(join(tmpdir(), 'keel-robot-lib-'));
   process.on('exit', () => { try { run('rm', ['-rf', dir]); } catch {} });
@@ -30,6 +32,8 @@ const robotLib = () => loaded ??= (async () => {
   await mkdir(keel, { recursive: true });
   for (const f of ['lib.mjs', 'test-ledger.mjs', 'pr-body.mjs']) await cp(join(KEEL, 'practices/night/files/scripts/keel', f), join(keel, f));
   for (const f of ['climb.mjs', 'tend.mjs', 'robot.mjs', 'rubric.mjs']) await cp(join(ROBOT_DIR, f), join(keel, f));
+  await cp(join(KEEL, 'practices/cross-review/files/scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
+  crossLoaded = import(pathToFileURL(join(keel, 'cross-review.mjs')).href);
   return import(pathToFileURL(join(keel, 'robot.mjs')).href);
 })();
 
@@ -86,7 +90,7 @@ process.exit(1);
 const FIELDS = { wrong: 'The anvil lid sticks after one use.', see: 'node --test tests/lid.test.mjs fails "the lid opens twice"', mended: 'That test passes ten runs in a row.' };
 const issue = (number, { body = rubricBody(FIELDS), title = `Acme issue ${number}`, created = `2026-10-0${Math.min(number, 9)}T08:00:00Z` } = {}) =>
   ({ number, title, body, state: 'open', labels: [{ name: LABEL }], created_at: created, html_url: `https://github.com/${REPO}/issues/${number}` });
-const comment = (at, body, { user = OWNER, association = 'OWNER' } = {}) => ({ created_at: at, body, user, author_association: association, html_url: `https://github.com/${REPO}/issues/1#c-${at}` });
+const comment = (at, body, { user = OWNER, association = 'OWNER', id } = {}) => ({ ...(id === undefined ? {} : { id }), created_at: at, body, user, author_association: association, html_url: `https://github.com/${REPO}/issues/1#c-${at}` });
 
 /** An injected GitHub: issues, comments and events by number, runs (each with its jobs), an open PR. Writes are recorded. */
 function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = null, diff = '' } = {}) {
@@ -98,19 +102,19 @@ function fakeGithub({ issues = [], comments = {}, events = {}, runs = [], pr = n
     issue: (_, n) => issues.find(i => i.number === n),
     comments: (_, n) => comments[n] ?? [],
     events: (_, n) => { asked.push(`events ${n}`); return events[n] ?? []; },
-    runs: (_, since) => { asked.push(`runs ${since}`); return runs.map(r => ({ id: r.id, conclusion: r.conclusion ?? 'success', run_attempt: r.attempts?.length ?? 1 })); },
-    jobs: (_, id, attempt = 1) => { const r = runs.find(x => x.id === id); return r.attempts ? r.attempts[attempt - 1] : r.jobs; },
+    runs: (_, since) => { asked.push(`runs ${since}`); return runs.filter(r => !r.inProgress).map(r => ({ id: r.id, conclusion: r.conclusion ?? 'success', run_attempt: r.attempts?.length ?? 1, ...(r.updated ? { updated_at: r.updated } : {}) })); },
+    jobs: (_, id, attempt = 1) => { asked.push(`jobs ${id}/${attempt}`); const r = runs.find(x => x.id === id); return r.attempts ? r.attempts[attempt - 1] : r.jobs; },
     openPr: () => pr,
     prDiff: () => diff,
     comment: (_, n, body) => posted.push({ n, body }),
   };
 }
 /** A run whose "Work the issue" step took `minutes` (its check: ok unless `failed`). */
-const robotRun = (id, minutes, { failed = false, conclusion = 'success' } = {}) => ({
+const robotRun = (id, minutes, { failed = false, conclusion = 'success', start = '2026-10-06T10:00:00Z' } = {}) => ({
   id, conclusion,
   jobs: [{ steps: [
     { name: 'Work the issue', conclusion: 'skipped' },
-    { name: 'Work the issue', conclusion: 'success', started_at: '2026-10-06T10:00:00Z', completed_at: new Date(Date.parse('2026-10-06T10:00:00Z') + minutes * 60_000).toISOString() },
+    { name: 'Work the issue', conclusion: 'success', started_at: start, completed_at: new Date(Date.parse(start) + minutes * 60_000).toISOString() },
     { name: 'Did the agent run?', conclusion: failed ? 'failure' : 'success' },
   ] }],
 });
@@ -135,12 +139,32 @@ test('keel issue new --agent writes an issue with every rubric field, and files 
   assert.deepEqual(triage(plan.body), [], 'the triage finds nothing missing');
   assert.deepEqual(await calls(), [], 'a dry run calls no gh');
 
-  const filed = run(process.execPath, [BIN, 'issue', 'new', ...flags, '--json'], { env });
+  // PR #59: filing on a repo other than the project's own is a ⚑ step: exit 3, nothing filed, until --yes.
+  const project = await acmeRobot(t, ON);
+  const outside = await mkdtemp(join(tmpdir(), 'keel-robot-outside-'));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  for (const [where, cwd, repoFlags] of [['another repo', project, ['--repo', 'acme/elsewhere']], ['no project', outside, []]]) {
+    const asked = run(process.execPath, [BIN, 'issue', 'new', ...flags.filter((f, i) => f !== '--repo' && flags[i - 1] !== '--repo'), ...repoFlags, ...(where === 'no project' ? ['--repo', REPO] : []), '--json'], { env, cwd });
+    assert.equal(asked.status, 3, `${where}: ${asked.stdout}${asked.stderr}`);
+    const said = JSON.parse(asked.stdout);
+    assert.equal(said.needs, 'yes', where);
+    assert.equal(said.ok, false);
+  }
+  assert.deepEqual(await calls(), [], 'nothing filed without the owner\'s yes');
+  const yes = run(process.execPath, [BIN, 'issue', 'new', ...flags.filter((f, i) => f !== '--repo' && flags[i - 1] !== '--repo'), '--repo', 'acme/elsewhere', '--yes', '--json'], { env, cwd: project });
+  assert.equal(yes.status, 0, yes.stderr);
+  assert.equal((await calls())[0].args[3], 'acme/elsewhere', 'with --yes, filed there');
+
+  // The project's own repo (named, or from .keel/keel.json) needs no --yes.
+  const filed = run(process.execPath, [BIN, 'issue', 'new', ...flags, '--json'], { env, cwd: project });
   assert.equal(filed.status, 0, filed.stderr);
   assert.equal(JSON.parse(filed.stdout).url, `https://github.com/${REPO}/issues/77`);
-  const [create] = await calls();
+  const create = (await calls())[1];
   assert.deepEqual(create.args, ['issue', 'create', '--repo', REPO, '--title', 'Acme lid sticks', '--label', LABEL, '--body-file', '-']);
   assert.equal(create.input, plan.body, 'the body goes on stdin, as written');
+  const fromConfig = run(process.execPath, [BIN, 'issue', 'new', ...flags.filter((f, i) => f !== '--repo' && flags[i - 1] !== '--repo'), '--json'], { env, cwd: project });
+  assert.equal(fromConfig.status, 0, fromConfig.stderr);
+  assert.equal((await calls())[2].args[3], REPO);
 
   // A missing field, or no --agent, is usage (exit 2), naming it; nothing is filed.
   const noSee = run(process.execPath, [BIN, 'issue', 'new', ...flags.filter((f, i) => f !== '--see' && flags[i - 1] !== '--see'), '--json'], { env });
@@ -149,7 +173,7 @@ test('keel issue new --agent writes an issue with every rubric field, and files 
   const noAgent = run(process.execPath, [BIN, 'issue', 'new', ...flags.slice(1), '--json'], { env });
   assert.equal(noAgent.status, 2);
   assert.match(JSON.parse(noAgent.stdout).error, /pass --agent/);
-  assert.equal((await calls()).length, 1, 'only the one issue was filed');
+  assert.equal((await calls()).length, 3, 'only the three issues above were filed');
 });
 
 test('the triage names each missing field on an issue that lacks it, answers it once per body, and the robot does not work it', async () => {
@@ -166,12 +190,12 @@ test('the triage names each missing field on an issue that lacks it, answers it 
   // #3 lacks "how to see it"; #5 holds the rubric. #5 is worked; #3 is answered, never worked.
   const lacking = issue(3, { body: rubricBody({ ...FIELDS, see: '' }) });
   const github = fakeGithub({ issues: [lacking, issue(5)] });
-  const p = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github });
+  const p = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github });
   assert.equal(p.action, 'work');
   assert.equal(p.issue, 5, 'the issue that holds the rubric is worked');
   assert.deepEqual(p.triage, [3]);
   // Only #3: a triage run, no work, no brief.
-  const only = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: fakeGithub({ issues: [lacking] }) });
+  const only = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [lacking] }) });
   assert.equal(only.action, 'triage');
   assert.equal(only.issue, undefined, 'an issue that misses a rubric field is never worked');
   assert.deepEqual(only.triage, [3]);
@@ -187,17 +211,17 @@ test('the triage names each missing field on an issue that lacks it, answers it 
   const after = fakeGithub({ issues: [lacking], comments: { 3: [comment('2026-10-08T09:00:00Z', gh.posted[0].body, { user: BOT, association: 'NONE' })] } });
   assert.equal((await robot.triagePost({ repo: REPO, issues: '3', postIt: true, github: after }))[0].posted, false, 'answered already');
   assert.equal(after.posted.length, 0);
-  const again = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: after });
+  const again = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: after });
   assert.equal(again.action, 'none');
   assert.deepEqual(again.triage, []);
   // A person's copy of the mark is not the robot's answer; an edited body that still misses a field is answered again.
   const forged = fakeGithub({ issues: [lacking], comments: { 3: [comment('2026-10-08T09:00:00Z', gh.posted[0].body)] } });
-  assert.deepEqual((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: forged })).triage, [3]);
+  assert.deepEqual((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: forged })).triage, [3]);
   const edited = { ...lacking, body: rubricBody({ ...FIELDS, see: '', mended: '' }) };
-  assert.deepEqual((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: fakeGithub({ issues: [edited], comments: { 3: after.comments(REPO, 3) } }) })).triage, [3]);
+  assert.deepEqual((await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [edited], comments: { 3: after.comments(REPO, 3) } }) })).triage, [3]);
   // Once the body holds the rubric, the issue is worked.
   const fixed = { ...lacking, body: rubricBody(FIELDS) };
-  const worked = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: fakeGithub({ issues: [fixed], comments: { 3: after.comments(REPO, 3) } }) });
+  const worked = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [fixed], comments: { 3: after.comments(REPO, 3) } }) });
   assert.equal(worked.action, 'work');
   assert.equal(worked.issue, 3);
 });
@@ -213,13 +237,13 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   const owner = comment('2026-10-08T11:00:00Z', 'Use the hinge, not the clasp.');
   // Worked, and only a stranger and a bot spoke since: nothing to do.
   const quiet = fakeGithub({ issues: [issue(7)], comments: { 7: [before, ran, stranger, bot] } });
-  const none = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: quiet });
+  const none = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: quiet });
   assert.equal(none.action, 'none');
   assert.deepEqual(none.waiting, [7]);
   // The owner's comment since the run: worked again, and its brief carries that comment alone.
   const dir = await acmeRobot(t, ON);
   const talk = fakeGithub({ issues: [issue(7)], comments: { 7: [before, ran, stranger, bot, owner] }, pr: { number: 21, url: `https://github.com/${REPO}/pull/21` }, diff: '--- a/src/lid.mjs\n+++ b/src/lid.mjs\n-stuck\n+open\n' });
-  const p = await robot.pick({ root: dir, config: ON, repo: REPO, now: NOW, github: talk, record: true });
+  const p = await robot.pick({ root: dir, config: ON, repo: REPO, now: NOW, env: {}, github: talk, record: true });
   assert.equal(p.action, 'work');
   assert.equal(p.issue, 7);
   assert.equal(p.branch, 'keel/robot-7');
@@ -245,6 +269,23 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   // A cursor after its own mark is not believed: the mark's time stands.
   const future = comment('2026-10-08T10:30:00Z', robot.runComment({ message: 'Done.', read: '2026-10-09T00:00:00.000Z' }), { user: BOT, association: 'NONE' });
   assert.equal(robot.issueState(issue(7), [future, comment('2026-10-08T11:00:00Z', 'Later.')]).kind, 'work');
+  // PR #59: GitHub stamps a comment to the second. Pick read at 10:00:00.400, having read #11 (10:00:00);
+  // #12 came at 10:00:00 too, after the read. #12 starts the next run, and #11 is never read twice.
+  const read = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: new Date('2026-10-08T10:00:00.400Z'), env: {}, github: fakeGithub({ issues: [issue(7)], comments: { 7: [comment('2026-10-08T10:00:00Z', 'Same second, read.', { id: 11 })] } }) });
+  assert.deepEqual(read.seen, [11], 'the comments read in the cursor\'s own second');
+  const sameSecond = comment('2026-10-08T10:20:00Z', robot.runComment({ message: 'Done.', read: read.read, seen: read.seen }), { user: BOT, association: 'NONE' });
+  assert.match(sameSecond.body, /^<!-- keel:robot run read=2026-10-08T10:00:00\.400Z seen=11 -->\n/);
+  const after = robot.issueState(issue(7), [comment('2026-10-08T10:00:00Z', 'Same second, read.', { id: 11 }), comment('2026-10-08T10:00:00Z', 'Same second, after the read.', { id: 12 }), sameSecond]);
+  assert.equal(after.kind, 'work');
+  assert.deepEqual(after.comments.map(c => c.id), [12]);
+  // PR #59: the brief is bounded: each comment, the comments in all (the newest kept), and the body, each cut said.
+  const long = n => ({ login: 'acme-owner', association: 'OWNER', at: `2026-10-08T0${n}:00:00Z`, url: `https://github.com/${REPO}/issues/7#c${n}`, body: `comment ${n}: ${'lid '.repeat(1250)}` });
+  const big = robot.briefText('# The robot\'s brief\n', { issue: { number: 7, title: 'Acme', url: `https://github.com/${REPO}/issues/7`, body: 'x'.repeat(20_000) }, fresh: false, branch: 'keel/robot-7', comments: [1, 2, 3, 4, 5, 6].map(long), pr: null });
+  assert.ok(big.length < robot.BODY_CHARS + robot.COMMENTS_CHARS + 2_000, `the brief is bounded (${big.length} characters)`);
+  assert.match(big, /… \(the issue's body \(read it whole on the issue: https:\/\/github\.com\/acme\/anvils\/issues\/7\) is cut at 16000 of its 20000 characters\)/);
+  assert.match(big, /… \(this comment \(https:\/\/github\.com\/acme\/anvils\/issues\/7#c6\) is cut at 4000 of its 5010 characters\)/);
+  assert.match(big, /\(3 earlier comments are left out: the comments here are cut at 16000 characters in all, the newest kept/);
+  assert.ok(big.includes('comment 6:') && big.includes('comment 4:') && !big.includes('comment 3:'), 'the newest kept, the oldest left out');
   // A never-worked issue's brief carries every writer's comment, and no stranger's.
   const fresh = robot.issueState(issue(8), [before, stranger]);
   assert.equal(fresh.kind, 'work');
@@ -257,7 +298,7 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   assert.equal(robot.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'acme-bot[bot]', type: 'Bot' } }]).kind, 'worked');
   assert.equal(robot.againSince(worked, [{ event: 'reopened', created_at: '2026-10-06T00:00:00Z', actor: OWNER }]).kind, 'worked', 'a reopen before the run');
   // The oldest issue that needs work goes first.
-  const two = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: fakeGithub({ issues: [issue(2), issue(4)] }) });
+  const two = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [issue(2), issue(4)] }) });
   assert.equal(two.issue, 2);
 });
 
@@ -312,7 +353,7 @@ test('the robot is off without "robot": { "on": true }; past its weekly budget i
   const robot = await robotLib();
   const never = new Proxy({}, { get: (_, k) => () => assert.fail(`gh was asked (${String(k)}) while the robot is off`) });
   for (const config of [{}, { robot: { on: false, budgetMinutes: 60 } }, { robot: { budgetMinutes: 60 } }]) {
-    const p = await robot.pick({ root: '/nonexistent', config, repo: REPO, now: NOW, github: never });
+    const p = await robot.pick({ root: '/nonexistent', config, repo: REPO, now: NOW, env: {}, github: never });
     assert.equal(p.on, false, JSON.stringify(config));
     assert.equal(p.action, 'none');
     assert.match(p.reason, /the robot is off/);
@@ -337,7 +378,7 @@ test('the robot is off without "robot": { "on": true }; past its weekly budget i
   // Its use: every run whose agent step ran, an agent that errored too (it spent its minutes); a skipped step is none.
   assert.deepEqual(robot.weekUse([robotRun(1, 20), robotRun(2, 15, { failed: true }), { id: 3, jobs: [{ steps: [{ name: 'Work the issue', conclusion: 'skipped' }] }] }]), { seconds: 35 * 60, minutes: 35, runs: 2 });
 
-  const work = runs => robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: fakeGithub({ issues: [issue(4)], runs }) });
+  const work = runs => robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, env: {}, github: fakeGithub({ issues: [issue(4)], runs }) });
   const fresh = await work([]);
   assert.equal(fresh.action, 'work');
   assert.equal(fresh.minutes, 30, 'the default run, within the week');
@@ -355,23 +396,43 @@ test('the robot is off without "robot": { "on": true }; past its weekly budget i
   const twice = await work([rerun]);
   assert.equal(twice.action, 'wait', 'both attempts count: 58 of 60');
   assert.match(twice.reason, /used 58 of its 60 minutes in 2026-W41 \(2 runs\)/);
+  // PR #59, again: an attempt counts by when its agent step started. Run 7 was created last week (attempt 1
+  // spent 40 then) and rerun on Wednesday (attempt 2 spends 25 this week); run 8 was last touched last week.
+  const older = { id: 7, updated: '2026-10-07T09:00:00Z', attempts: [robotRun(7, 40, { start: '2026-09-30T10:00:00Z' }).jobs, robotRun(7, 25, { start: '2026-10-07T08:00:00Z' }).jobs] };
+  const stale = { ...robotRun(8, 50, { start: '2026-09-29T10:00:00Z' }), updated: '2026-09-29T11:00:00Z' };
+  const weekly = fakeGithub({ issues: [issue(4)], runs: [older, stale] });
+  const w = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: weekly, env: {} });
+  assert.equal(w.action, 'work');
+  assert.equal(w.budget.used, 25, 'last week\'s attempt is last week\'s; this week\'s rerun is this week\'s');
+  assert.ok(weekly.asked.includes(`runs ${new Date(Date.parse('2026-10-05T00:00:00Z') - 30 * 86_400_000).toISOString().slice(0, 10)}`), 'runs created up to 30 days back can be rerun this week');
+  assert.ok(!weekly.asked.some(a => a.startsWith('jobs 8/')), 'a run not touched this week is not read');
+  // This run is itself a rerun (attempt 3, still in progress, so never in the completed list): its own
+  // earlier attempts spent 20 and 18 this week, and count.
+  const current = { id: 50, inProgress: true, attempts: [robotRun(50, 20, { start: '2026-10-08T10:00:00Z' }).jobs, robotRun(50, 18, { start: '2026-10-08T11:00:00Z' }).jobs] };
+  const mine = await robot.pick({ root: '/nonexistent', config: ON, repo: REPO, now: NOW, github: fakeGithub({ issues: [issue(4)], runs: [older, current] }), env: { GITHUB_RUN_ID: '50', GITHUB_RUN_ATTEMPT: '3' } });
+  assert.equal(mine.action, 'wait', '25 + 20 + 18 is past the 60 minutes');
+  assert.match(mine.reason, /used 63 of its 60 minutes in 2026-W41 \(3 runs\)/);
 
   // The command line, with the stub gh: the week's runs are read from Monday, and the wait is a notice, green.
   const dir = await acmeRobot(t, ON);
   // The week's start is today's (the command line reads the clock): the runs key from the script's own rule.
-  const monday = robot.weekStart(new Date()).toISOString().slice(0, 10);
+  const mondayAt = robot.weekStart(new Date());
+  const monday = mondayAt.toISOString().slice(0, 10);
+  const back = new Date(mondayAt.getTime() - robot.RERUN_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const start = new Date(mondayAt.getTime() + 3_600_000).toISOString().replace(/\.000Z$/, 'Z');
   const { gh, calls } = await stubGh(t, { api: {
     [`repos/${REPO}/issues?labels=${LABEL}&state=open&sort=created&direction=asc`]: [issue(4)],
     [`repos/${REPO}/issues/4/comments`]: [],
-    [`repos/${REPO}/actions/workflows/keel-robot.yml/runs?status=completed&created=>=${monday}`]: { workflow_runs: [{ id: 1, conclusion: 'success' }, { id: 2, conclusion: 'success' }, { id: 3, conclusion: 'skipped' }] },
-    [`repos/${REPO}/actions/runs/1/attempts/1/jobs`]: { jobs: robotRun(1, 40).jobs },
-    [`repos/${REPO}/actions/runs/2/attempts/1/jobs`]: { jobs: robotRun(2, 18).jobs },
+    [`repos/${REPO}/actions/workflows/keel-robot.yml/runs?status=completed&created=>=${back}`]: { workflow_runs: [{ id: 1, conclusion: 'success' }, { id: 2, conclusion: 'success' }, { id: 3, conclusion: 'skipped' }] },
+    [`repos/${REPO}/actions/runs/1/attempts/1/jobs`]: { jobs: robotRun(1, 40, { start }).jobs },
+    [`repos/${REPO}/actions/runs/2/attempts/1/jobs`]: { jobs: robotRun(2, 18, { start }).jobs },
   } });
-  const text = robotCli(dir, ['pick', '--repo', REPO], { KEEL_GH: gh });
+  // Not this test's own run: blank the Actions ids (CI sets them).
+  const text = robotCli(dir, ['pick', '--repo', REPO], { KEEL_GH: gh, GITHUB_RUN_ID: '', GITHUB_RUN_ATTEMPT: '' });
   assert.equal(text.status, 0, text.stderr);
   assert.match(text.stdout, /^::notice::the robot waits: it used 58 of its 60 minutes/);
   const asked = (await calls()).map(c => c.args[1]);
-  assert.ok(asked.some(a => a.startsWith(`repos/${REPO}/actions/workflows/keel-robot.yml/runs?status=completed&created=${encodeURIComponent(`>=${monday}`)}`)), asked.join('\n'));
+  assert.ok(asked.some(a => a.startsWith(`repos/${REPO}/actions/workflows/keel-robot.yml/runs?status=completed&created=${encodeURIComponent(`>=${back}`)}`)), asked.join('\n'));
   assert.ok(!asked.some(a => a.includes('/runs/3/')), 'a skipped run is not read');
   assert.ok(!existsSync(join(dir, '.keel/robot/run.json')), 'a run that waits writes no brief');
   // Off on the command line: no gh at all.
@@ -410,12 +471,24 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   assert.match(body, /^Closes #12$/m);
   assert.match(body, /src\/\n.*lid\.mjs/);
   assert.match(body, /Gate: `true` exit 0/);
-  assert.match(body, /Review: written by codex \(keel\/robot-, "robot"\.agent\): reviewed by claude/);
+  assert.match(body, /Review: written by codex \(keel\/robot-, its PR's mark\): reviewed by claude/);
   assert.match(body, /```keel-impact\n\{"version":1,"phases":\[\],/);
+  // PR #59: the body records who wrote it, so a later /review reads that, never today's "robot".agent.
+  assert.match(body, /^<!-- keel:robot agent=codex -->\n/);
   // Who reviews a robot PR: the provider that did not write it.
   assert.equal(reviewerOf({ config, head: 'keel/robot-12' }).reviewer, 'claude');
   assert.equal(reviewerOf({ config: { ...config, robot: { ...ON.robot, agent: 'claude' } }, head: 'keel/robot-12' }).reviewer, 'codex');
   assert.equal(reviewerOf({ config: { ...config, robot: undefined }, head: 'keel/robot-12' }).author, null, 'no robot, no robot author');
+  // "robot".agent changed to claude after Codex wrote the PR: its mark still says codex, so Claude reviews it.
+  const changed = { ...config, robot: { ...ON.robot, agent: 'claude' } };
+  assert.deepEqual([reviewerOf({ config: changed, head: 'keel/robot-12', body }).author, reviewerOf({ config: changed, head: 'keel/robot-12', body }).reviewer], ['codex', 'claude']);
+  assert.equal(reviewerOf({ config: { ...config, robot: undefined }, head: 'keel/robot-12', body }).reviewer, 'claude', 'the mark stands with the robot off');
+  // Cross-review's own choice reads the PR's body (gh pr view's JSON).
+  const cross = await crossReviewLib();
+  const asked = cross.shouldReview({ config: changed, event: { name: 'issue_comment', comment: { body: '/review', association: 'OWNER', login: 'acme-owner', type: 'User' } },
+    pr: { number: 21, headRefName: 'keel/robot-12', headRefOid: 'a'.repeat(40), isCrossRepository: false, isDraft: false, state: 'OPEN', body } });
+  assert.equal(asked.review, true, asked.why);
+  assert.deepEqual([asked.author, asked.agent], ['codex', 'claude']);
 
   // Refused, each naming the path: a keel script, a workflow, evidence, a status marked built, a ticked box.
   // (Called as a library: a branch that rewrote scripts/keel/ cannot judge itself, and the judge's

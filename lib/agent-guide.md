@@ -127,7 +127,8 @@ stderr as one line beginning `keel:`.
 - `release` → bare: `{version, tag, tagged, newest}`; with a version:
   `{ok, dryRun, version, from, tag, commit, review, rehearsal, files, entry, push}`
 - `issue new --agent` → `{ok, repo, title, label, body, url}`; `--dry-run`:
-  `{ok, dryRun: true, repo, title, label, body}` (the `robot` topic)
+  `{ok, dryRun: true, repo, title, label, body}`; another repo than the
+  project's, without `--yes`: exit 3, `{ok: false, needs: "yes", plan}` (the `robot` topic)
 - `help` → `{verbs: [{name, usage, summary}], flags}`
 - `--agent-help` → `{coldStart, topics: [{slug, summary}]}`; with a topic,
   `{slug, summary, body}`
@@ -1312,12 +1313,14 @@ becomes a PR on `keel/robot-<issue>` that a person merges.
   step); one change that fits in one run; waits on no work that is not on
   the default branch.
 - `keel issue new --agent --title "…" --wrong "…" --see "…" --mended "…"
-  [--repo <owner/name>] [--dry-run]` writes that body (the boxes ticked:
-  filing it says they hold) and creates it with gh, labelled `keel:agent`
-  → `{ok, repo, title, label, body, url}`; `--dry-run` files nothing
-  (`dryRun: true`). Exit 2 for a missing field, no `--agent` or no repo
-  (`--repo`, else `"repo"`); 1 when gh fails (a missing label: `gh label
-  create keel:agent`). **An agent that finds a fault outside its own work
+  [--repo <owner/name>] [--yes] [--dry-run]` writes that body (the boxes
+  ticked: filing it says they hold) and creates it with gh, labelled
+  `keel:agent` → `{ok, repo, title, label, body, url}`; `--dry-run` files
+  nothing (`dryRun: true`). A repo other than the project's own `"repo"`
+  (or any repo outside a project) is a ⚑ step: exit 3, `{ok: false, needs:
+  "yes", plan}`, nothing filed, until the owner's `--yes`. Exit 2 for a
+  missing field, no `--agent` or no repo (`--repo`, else `"repo"`); 1 when
+  gh fails (a missing label: `gh label create keel:agent`). **An agent that finds a fault outside its own work
   files one this way, when the three boxes hold, and goes on.**
 - **When it runs**: the `keel:agent` label put on an issue, a labelled issue
   reopened, a comment on one from an OWNER, MEMBER or COLLABORATOR (never a
@@ -1338,7 +1341,8 @@ becomes a PR on `keel/robot-<issue>` that a person merges.
   opens the PR (`Closes #<issue>`), never merges, and posts the agent's
   last message on the issue (what changed, how it knows; or one question
   with choices), then the PR. A comment there starts the next run.
-- **Review**: a robot PR's author is `"robot".agent`, so cross-review picks
+- **Review**: a robot PR's body names its author (`<!-- keel:robot agent=… -->`;
+  without it, `"robot".agent`), so cross-review picks
   the other provider (add `"keel/robot-"` to `"crossReview".for`). A PR the
   workflow's token opens starts no other workflow, so comment `/review` on it.
 - **The budget**: the week is the ISO week (Monday 00:00 UTC); its use is the

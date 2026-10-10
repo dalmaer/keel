@@ -1969,6 +1969,7 @@ export function robotWorkflowProblems(text) {
   if (!/robot\.mjs post --repo "\$REPO" --issue "\$ISSUE" --message "\$RUNNER_TEMP\/run\/message\.md"/.test(publish)) out.push('the agent\'s last message is not posted on the issue by robot.mjs post');
   // PR #59: the mark carries the pick's cursor, so a comment made while the run worked starts the next one.
   if (!/robot\.mjs post [^\n]*--read "\$READ"/.test(publish) || !/READ: \$\{\{ needs\.agent\.outputs\.read \}\}/.test(publish) || !/\n {6}read: \$\{\{ steps\.pick\.outputs\.read \}\}\n/.test(text)) out.push('the run\'s mark does not carry the pick\'s cursor (--read)');
+  if (!/robot\.mjs post [^\n]*--seen "\$SEEN"/.test(publish) || !/SEEN: \$\{\{ needs\.agent\.outputs\.seen \}\}/.test(publish) || !/\n {6}seen: \$\{\{ steps\.pick\.outputs\.seen \}\}\n/.test(text)) out.push('the run\'s mark does not carry the comments read in the cursor\'s second (--seen)');
   if (!/robot\.mjs triage --repo "\$REPO" --issues "\$TRIAGE" --post\n/.test(publish) || !/TRIAGE: \$\{\{ needs\.agent\.outputs\.triage \}\}/.test(publish)) out.push('the triage is not answered by robot.mjs in the publish job, from the pick\'s issue numbers');
   const steps = [...text.matchAll(/^ {6}- (?:name: (.+)|uses: (\S+))$/gm)].map(m => m[1] ?? m[2]);
   if (!(steps[0]?.startsWith('actions/checkout') && steps[1] === 'Is the robot on?')) out.push('"Is the robot on?" is not the first step after checkout');
@@ -2130,14 +2131,17 @@ export function robotPostProblems(text) {
   const post = stepsOf(jobsOf(text).find(j => j.id === 'publish')?.text ?? '').find(s => /- name: Post the agent's last message\n/.test(s)) ?? '';
   const cond = /\n\s+if: (.*)\n/.exec(post)?.[1] ?? '';
   if (!cond.startsWith('always() && ')) return [...out, 'the post step is not always() (a refused judge still posts why)'];
-  const posts = (result, judgedAs, action = 'work') => evalExpression(cond.replace(/^always\(\) && /, ''), { needs: { agent: { outputs: { action } }, judge: { result, outputs: judgedAs === undefined ? {} : { judged: judgedAs } } } });
-  for (const [result, judgedAs, want, why] of [
-    ['success', 'success', true, 'a judge that passed'],
+  const posts = (result, judgedAs, action = 'work', pr = result === 'success' ? 'success' : 'skipped') => evalExpression(cond.replace(/^always\(\) && /, ''), { needs: { agent: { outputs: { action } }, judge: { result, outputs: judgedAs === undefined ? {} : { judged: judgedAs } } }, steps: { pr: { outcome: pr } } });
+  for (const [result, judgedAs, want, why, pr] of [
+    ['success', 'success', true, 'a judge that passed, published'],
+    // PR #59: the mark says the issue was worked; a failed push or PR must leave it to be tried again.
+    ['success', 'success', false, 'a judge that passed, but the push or the PR failed', 'failure'],
+    ['success', 'success', false, 'a judge that passed, but publishing never ran', 'skipped'],
     ['failure', 'failure', true, 'a judge that refused'],
     ['failure', 'skipped', false, 'a judge job that failed before judging'],
     ['failure', undefined, false, 'a judge job that failed before it could say'],
     ['skipped', undefined, false, 'no judge'],
-  ]) if (posts(result, judgedAs) !== want) out.push(`the post step ${want ? 'does not post' : 'posts the run\'s mark'} for ${why}`);
+  ]) if (posts(result, judgedAs, 'work', pr) !== want) out.push(`the post step ${want ? 'does not post' : 'posts the run\'s mark'} for ${why}`);
   if (posts('success', 'success', 'triage')) out.push('the post step posts on a triage run');
   if (!/JUDGE: \$\{\{ needs\.judge\.outputs\.judged \}\}/.test(post)) out.push('the post says the job\'s result, not the judge step\'s');
   return out;
@@ -2149,10 +2153,11 @@ test('PR #59: keel-robot.yml posts the run\'s mark only when the judge\'s own st
   assert.deepEqual(robotPostProblems(await readFile(join(KEEL, '.github/workflows/keel-robot.yml'), 'utf8')), [], "keel's rendered keel-robot.yml");
   const judged = /\n {6}# Whether the judge itself ran[\s\S]*?echo "judged=\$OUTCOME" >> "\$GITHUB_OUTPUT"\n/.exec(t)[0];
   for (const [why, text] of [
-    ['posted on the job\'s result, as it was', t.replace("(needs.judge.outputs.judged == 'success' || needs.judge.outputs.judged == 'failure')", "(needs.judge.result == 'success' || needs.judge.result == 'failure')")],
+    ['posted on the job\'s result, as it was', t.replace("((needs.judge.outputs.judged == 'success' && steps.pr.outcome == 'success') || needs.judge.outputs.judged == 'failure')", "(needs.judge.result == 'success' || needs.judge.result == 'failure')")],
     ['no step says the judge ran', t.replace(judged, '\n')],
     ['the step reads the job, not the judge step', t.replace('OUTCOME: ${{ steps.judge.outcome }}', 'OUTCOME: ${{ job.status }}')],
     ['the step only when all went well', t.replace('        id: judged\n        if: always()\n', '        id: judged\n')],
+    ['posted whatever publishing did', t.replace("(needs.judge.outputs.judged == 'success' && steps.pr.outcome == 'success')", "needs.judge.outputs.judged == 'success'")],
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
     assert.ok(robotPostProblems(text).length, `${why}: expected a problem`);

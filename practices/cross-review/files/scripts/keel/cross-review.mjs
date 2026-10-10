@@ -182,7 +182,7 @@ export function shouldReview({ config, event, pr, has, choose = reviewerOf }) {
   const prefix = c.for.find(p => head.startsWith(p));
   if (!prefix) return no(`#${pr.number}'s branch ${head || '(none)'} matches no "${KEY}".for prefix (${c.for.join(', ')})`);
   if (!/^[0-9a-f]{40}$/.test(String(pr.headRefOid ?? ''))) return no(`#${pr.number} came back without its head commit`);
-  const who = choose({ config, head, has });
+  const who = choose({ config, head, has, body: pr.body });
   if (!who.reviewer) throw new CrossReviewError(`#${pr.number} on ${head}: ${who.why}; no agent runs`);
   // Its own provider reviews a PR only when no other is available: listed, able to review, its secret set.
   const other = c.agents.find(n => n !== who.author && AGENTS[n]?.passes.includes(KEY) && (!has || has[n] !== false));

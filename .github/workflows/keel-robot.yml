@@ -103,6 +103,7 @@ jobs:
       title: ${{ steps.pick.outputs.title }}
       triage: ${{ steps.pick.outputs.triage }}
       read: ${{ steps.pick.outputs.read }}
+      seen: ${{ steps.pick.outputs.seen }}
       agent: ${{ steps.on.outputs.agent }}
     steps:
       - uses: actions/checkout@v7
@@ -207,7 +208,7 @@ jobs:
             const [pick, out] = process.argv.slice(1);
             const p = JSON.parse(fs.readFileSync(pick, "utf8"));
             const eof = `KEEL_EOF_${Date.now()}`;
-            const lines = [`action=${p.action}`, `issue=${p.issue ?? ""}`, `branch=${p.branch ?? ""}`, `minutes=${p.minutes ?? ""}`, `read=${p.read ?? ""}`, `triage=${(p.triage ?? []).join(" ")}`, `title<<${eof}`, p.title ?? "", eof];
+            const lines = [`action=${p.action}`, `issue=${p.issue ?? ""}`, `branch=${p.branch ?? ""}`, `minutes=${p.minutes ?? ""}`, `read=${p.read ?? ""}`, `seen=${(p.seen ?? []).join(",")}`, `triage=${(p.triage ?? []).join(" ")}`, `title<<${eof}`, p.title ?? "", eof];
             fs.appendFileSync(out, `${lines.join("\n")}\n`);
             console.log(p.action === "wait" ? `::notice::${p.reason}` : `${p.action}: ${p.reason}`);
           ' "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
@@ -662,9 +663,12 @@ jobs:
       # it, then the PR (or why there is none). Only when the judge's own step
       # ran (PR #59): an agent that never started is red above, and a judge
       # job that failed before judging posts nothing, so the issue is not
-      # marked worked and the next run tries it again.
+      # marked worked and the next run tries it again. A judged branch is
+      # posted only once publishing succeeded (the push, the PR, or nothing to
+      # publish, said so): a failed push or PR leaves the issue to be tried
+      # again, never marked worked with nothing to show (PR #59).
       - name: Post the agent's last message
-        if: always() && needs.agent.outputs.action == 'work' && (needs.judge.outputs.judged == 'success' || needs.judge.outputs.judged == 'failure')
+        if: always() && needs.agent.outputs.action == 'work' && ((needs.judge.outputs.judged == 'success' && steps.pr.outcome == 'success') || needs.judge.outputs.judged == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -672,6 +676,7 @@ jobs:
           PR_URL: ${{ steps.pr.outputs.url }}
           JUDGE: ${{ needs.judge.outputs.judged }}
           READ: ${{ needs.agent.outputs.read }}
+          SEEN: ${{ needs.agent.outputs.seen }}
           LINE: ${{ needs.judge.outputs.line }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/keel/robot.mjs post --repo "$REPO" --issue "$ISSUE" --message "$RUNNER_TEMP/run/message.md" --pr "$PR_URL" --judge "$JUDGE" --line "$LINE" --run "$RUN_URL" --read "$READ"
+        run: node scripts/keel/robot.mjs post --repo "$REPO" --issue "$ISSUE" --message "$RUNNER_TEMP/run/message.md" --pr "$PR_URL" --judge "$JUDGE" --line "$LINE" --run "$RUN_URL" --read "$READ" --seen "$SEEN"

@@ -198,7 +198,8 @@ runs `climb.mjs guard --job robot` (the sandbox; no evidence, no status
 marked built, lived-in or accepted, no box ticked; the gate); publish pushes
 only `refs/heads/keel/robot-<issue>`, opens the PR (`Closes #<issue>`),
 never merges, answers the triage, and posts the agent's last message on the
-issue. A robot PR's author is `"robot".agent`, so cross-review (with
+issue. A robot PR's body names its author (`<!-- keel:robot agent=… -->`, else
+`"robot".agent`), so cross-review (with
 `keel/robot-` in its `for`) picks the other provider, on a `/review`.
 `keel issue new --agent` files an issue in the rubric's shape.
 

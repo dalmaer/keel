@@ -1866,6 +1866,10 @@ export const listedAgents = config => (isObject(config?.agents) ? Object.keys(co
 export const authorOf = (head, agents = AGENTS) => Object.keys(agents).find(n => agents[n].branch && String(head ?? '').startsWith(agents[n].branch)) ?? null;
 /** The robot's branches (keel phase 54, robot.mjs PREFIX): written by the provider "robot".agent names. */
 export const ROBOT_BRANCH = 'keel/robot-';
+/** The mark a robot PR's body carries for the provider that wrote it (robot.mjs report writes it). */
+export const robotAgentMark = agent => `<!-- keel:robot agent=${agent} -->`;
+/** The provider a robot PR's body names, or null. */
+export const robotAgentOf = body => /<!-- keel:robot agent=([a-z]+) -->/.exec(String(body ?? ''))?.[1] ?? null;
 
 /**
  * Every provider a "for" prefix's PRs can be written by: a prefix that
@@ -1892,9 +1896,12 @@ export function prefixAuthors(prefix, agents = AGENTS) {
  * branch names is reviewed by "crossReview".agent, default claude.
  * { author, reviewer, self, why }: reviewer null when none can. Pure.
  */
-export function reviewerOf({ config, head, has, agents = AGENTS }) {
+export function reviewerOf({ config, head, has, body, agents = AGENTS }) {
   // A robot PR (keel/robot-<issue>) was written by the robot's provider: reviewed by another, as any provider's.
-  const robot = String(head ?? '').startsWith(ROBOT_BRANCH) && isObject(config?.robot) ? agentOf(config, 'robot') : null;
+  // Who wrote it is the PR's own record (its body's ROBOT_AGENT mark, PR #59), so a "robot".agent changed since
+  // never makes the author its own reviewer; a PR without the mark falls back to "robot".agent.
+  const robot = !String(head ?? '').startsWith(ROBOT_BRANCH) ? null
+    : robotAgentOf(body) ?? (isObject(config?.robot) ? agentOf(config, 'robot') : null);
   const author = authorOf(head, agents) ?? (Object.hasOwn(agents, robot ?? '') ? robot : null);
   const listed = listedAgents(config).filter(n => agents[n]?.passes.includes('crossReview'));
   const available = n => !has || has[n] !== false;
@@ -1904,7 +1911,7 @@ export function reviewerOf({ config, head, has, agents = AGENTS }) {
   }
   const others = listed.filter(n => n !== author);
   const other = others.find(available);
-  const wrote = authorOf(head, agents) ? `written by ${author} (${agents[author].branch})` : `written by ${author} (${ROBOT_BRANCH}, "robot".agent)`;
+  const wrote = authorOf(head, agents) ? `written by ${author} (${agents[author].branch})` : `written by ${author} (${ROBOT_BRANCH}, ${robotAgentOf(body) ? 'its PR\'s mark' : '"robot".agent'})`;
   if (other) return { author, reviewer: other, self: false, why: `${wrote}: reviewed by ${other}, the first other provider "agents" lists${others[0] !== other ? ` with its secret set (${others.slice(0, others.indexOf(other)).join(', ')} has none)` : ''}` };
   if (listed.includes(author) && available(author)) {
     const reason = selfReason({ author, listed, has, agents });
