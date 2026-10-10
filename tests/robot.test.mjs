@@ -636,6 +636,12 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   const gone = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('**Status:** PART-DONE\n', '') }, 'acme: drop a status');
   assert.match(tend.recordRules(dir, two, gone, 'the robot').join('\n'), /^docs\/projects\/lid\/phases\.md: removes a phase's status line \("\*\*Status:\*\* PART-DONE", line 9 on the base\); the robot never marks a phase$/m);
   git(dir, ['reset', '-q', '--hard', two]);
+  // A ticked box deleted or unticked: the owner's acceptance, refused in both shapes.
+  const unticked = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('- [x] it opens', '- [ ] it opens'), 'docs/phases/06-lid.md': LID_PHASE.replace('- [ ] the lid opens', '- [ ] the lid opens') }, 'acme: untick');
+  const undone = tend.recordRules(dir, two, unticked, 'the robot').join('\n');
+  assert.match(undone, /^docs\/projects\/lid\/phases\.md: removes or unticks a ticked box \("it opens", line 6 on the base\); the robot never undoes the owner's acceptance$/m);
+  assert.match(undone, /^docs\/phases\/06-lid\.md: removes or unticks an acceptance box \("the lid opens", line \d+ on the base\); the robot never undoes the owner's acceptance$/m);
+  git(dir, ['reset', '-q', '--hard', two]);
   // Two phases trading statuses keep the same lines in all: by heading, phase 2's CLOSED is still new.
   const swapped = await commit(dir, { 'docs/projects/lid/phases.md': TWO.replace('**Status:** CLOSED', '**Status:** PART-DONE').replace(/(## 2\. The lid shuts\n)\*\*Status:\*\* PART-DONE/, '$1**Status:** CLOSED') }, 'acme: trade statuses');
   assert.match(tend.recordRules(dir, two, swapped, 'the robot').join('\n'), /^docs\/projects\/lid\/phases\.md:9: changes a phase's status line \("\*\*Status:\*\* CLOSED"\)/m);

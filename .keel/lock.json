@@ -199,7 +199,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "1bf3a6e449c771312080d0da727e8376035db93f39c69a66d8d33d3bb0222cf7"
+      "sha256": "8d9fade5f15be75542018051f0b1671730f131183a0367af28d7f1840e3f0013"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",

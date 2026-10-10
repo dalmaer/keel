@@ -557,12 +557,17 @@ export function recordRules(root, base, head, who = 'the agent') {
         if (/^(?:[-*]\s+)?\*\*Status\b/i.test(s)) refused.push(`${path}:${i + 1}: changes a phase's status line ("${s.slice(0, 80)}"); ${who} never marks a phase`);
         else if (/^[-*]\s+\[[xX]\]\s+/.test(s)) refused.push(`${path}:${i + 1}: ticks a box ("${s.replace(/^[-*]\s+\[[xX]\]\s+/, '').slice(0, 80)}"); ${who} never accepts a phase`);
       }
-      // And a status line taken away (PR #59): the phase's status goes with it.
-      for (const { s, i } of added(lines(after), lines(before), x => x.key)) if (/^(?:[-*]\s+)?\*\*Status\b/i.test(s)) refused.push(`${path}: removes a phase's status line ("${s.slice(0, 80)}", line ${i + 1} on the base); ${who} never marks a phase`);
+      // And a status line or a ticked box taken away (PR #59): the phase's status, or the owner's acceptance, goes with it.
+      for (const { s, i } of added(lines(after), lines(before), x => x.key)) {
+        if (/^(?:[-*]\s+)?\*\*Status\b/i.test(s)) refused.push(`${path}: removes a phase's status line ("${s.slice(0, 80)}", line ${i + 1} on the base); ${who} never marks a phase`);
+        else if (/^[-*]\s+\[[xX]\]\s+/.test(s)) refused.push(`${path}: removes or unticks a ticked box ("${s.replace(/^[-*]\s+\[[xX]\]\s+/, '').slice(0, 80)}", line ${i + 1} on the base); ${who} never undoes the owner's acceptance`);
+      }
     }
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; ${who} never marks a phase built, lived-in or accepted`);
     for (const x of added(ticked(before), ticked(after), x => x.text)) refused.push(`${path}:${x.line}: ticks an acceptance box ("${x.text.slice(0, 80)}"); ${who} never accepts a phase`);
+    // PR #59: a ticked box deleted, unticked or moved out of Acceptance erases the owner's acceptance: refused too.
+    for (const x of added(ticked(after), ticked(before), x => x.text)) refused.push(`${path}: removes or unticks an acceptance box ("${x.text.slice(0, 80)}", line ${x.line} on the base); ${who} never undoes the owner's acceptance`);
   }
   return refused;
 }
