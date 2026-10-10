@@ -24,6 +24,8 @@ export const PREFIX = {
   'keel-night.yml': 'keel-night/',
   'keel-loop.yml': 'keel-loop/',
   'keel-climb.yml': 'keel-climb/',
+  'keel-robot.yml': 'keel/robot-',
+  'keel-robot-route.yml': null,
   'keel-tend.yml': 'keel-tend/',
   'claude.yml': 'claude/',
   'keel-cross-review.yml': null,
@@ -99,7 +101,7 @@ async function shipped() {
 
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-tend.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -1767,7 +1769,7 @@ export function budgetedAgentSteps(text) {
     let j = start + 1;
     for (; j < lines.length && !(lines[j].trim() && /^(\s*)/.exec(lines[j])[1].length <= indent); j++) body.push(lines[j]);
     const step = body.join('\n');
-    if (!/^\s*timeout-minutes:\s*\$\{\{\s*fromJSON\(steps\.[\w-]+\.outputs\.minutes\)\s*\}\}/m.test(step)) continue;
+    if (!/^\s*timeout-minutes:\s*\$\{\{\s*fromJSON\(steps\.[\w-]+\.outputs\.(?:minutes|build_minutes)\)\s*\}\}/m.test(step)) continue;
     const nameOf = l => /^\s*(?:- )?name:\s*["']?(.+?)["']?\s*$/.exec(l ?? '')?.[1] ?? null;
     // The next step starts at the same indent with `- `; its name is on that line or the step's own lines.
     const agent = nameOf(step.split('\n').find(l => /^\s*name:/.test(l)));
@@ -1792,6 +1794,13 @@ test('the Budget line\'s step map equals each shipped workflow\'s budgeted claud
   const found = {};
   for (const w of all) {
     const names = budgetedAgentSteps(w.template);
+    if (w.name === 'keel-robot.yml') {
+      const { ROBOT_MODEL_STEPS } = await import('../practices/climb/files/scripts/keel/robot-budget.mjs');
+      assert.deepEqual(names.map(n => n.agent).sort(), [...ROBOT_MODEL_STEPS].sort(), 'robot accounts for both build and review providers');
+      const rendered = await readFile(join(KEEL, w.path), 'utf8');
+      assert.deepEqual(budgetedAgentSteps(rendered), names);
+      continue;
+    }
     assert.ok(names.length <= 1, `${w.path}: one budgeted agent step`);
     if (names.length) found[w.name] = { ...names[0] };
     if (w.optional || !names.length) continue;

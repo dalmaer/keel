@@ -10,7 +10,10 @@
     { "name": "STITCH_API_KEY", "why": "a loop night's pull (the loop practice's key); without it the night proposes for the findings already pulled, with a notice", "workflow": ".github/workflows/keel-climb.yml" },
     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "the same credential, for the weekly tend pass; it spends model tokens up to .keel/keel.json tend.budget.minutes, and only when \"tend\" is set", "workflow": ".github/workflows/keel-tend.yml" },
     { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN for the tend pass; set one of the two, not both", "workflow": ".github/workflows/keel-tend.yml" },
-    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the tend pass, only when tend.agent is \"codex\": billed per token to the OpenAI API account, up to tend.budget.minutes", "workflow": ".github/workflows/keel-tend.yml" }
+    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the tend pass, only when tend.agent is \"codex\": billed per token to the OpenAI API account, up to tend.budget.minutes", "workflow": ".github/workflows/keel-tend.yml" },
+    {"name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/keel-robot.yml"},
+    {"name": "ANTHROPIC_API_KEY", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/keel-robot.yml"},
+    {"name": "OPENAI_API_KEY", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/keel-robot.yml"}
   ],
   "files": [
     { "path": ".github/workflows/keel-climb.yml", "from": ".github/workflows/keel-climb.yml", "kind": "managed" },
@@ -25,6 +28,14 @@
     { "path": ".agents/climb/jobs/build-time.md", "from": ".agents/climb/jobs/build-time.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/perf.md", "from": ".agents/climb/jobs/perf.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/lessons.md", "from": ".agents/climb/jobs/lessons.md", "kind": "managed" },
-    { "path": ".agents/climb/jobs/loop.md", "from": ".agents/climb/jobs/loop.md", "kind": "managed" }
+    { "path": ".agents/climb/jobs/loop.md", "from": ".agents/climb/jobs/loop.md", "kind": "managed" },
+    {"path": ".github/workflows/keel-robot.yml", "from": ".github/workflows/keel-robot.yml", "kind": "managed"},
+    {"path": ".github/workflows/keel-robot-route.yml", "from": ".github/workflows/keel-robot-route.yml", "kind": "managed"},
+    {"path": ".agents/robot/PROTOCOL.md", "from": ".agents/robot/PROTOCOL.md", "kind": "managed"},
+    {"path": "scripts/keel/robot.mjs", "from": "scripts/keel/robot.mjs", "kind": "managed"},
+    {"path": "scripts/keel/robot-policy.mjs", "from": "scripts/keel/robot-policy.mjs", "kind": "managed"},
+    {"path": "scripts/keel/robot-budget.mjs", "from": "scripts/keel/robot-budget.mjs", "kind": "managed"},
+    {"path": "scripts/keel/robot-delivery.mjs", "from": "scripts/keel/robot-delivery.mjs", "kind": "managed"},
+    {"path": "scripts/keel/robot-rubric.mjs", "from": "scripts/keel/robot-rubric.mjs", "kind": "managed"}
   ]
 }

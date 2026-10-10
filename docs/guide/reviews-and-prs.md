@@ -222,14 +222,16 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
   Pass several ids comma-separated in one call rather than looping in the
   shell. There is no "all": each id is named because each was validated.
 - `--close` closes only what was read. Every read leaves a receipt (the
-  ids it showed, each thread's comment count, every comment id the PR had)
+  ids it showed, comment counts and hashes of full comment/review content)
   in keel's cache, outside the repo:
   `$KEEL_CACHE`, else `$XDG_CACHE_HOME/keel`, else `~/.cache/keel` (macOS
   too), as `reviews/<owner>__<repo>__<n>.json`. `--close` refuses, posting
   nothing, an id that read did not show, one with a reviewer's follow-up
   since, or any call while a comment it does not name is new since the
-  read (by id and count, never by clock): it names each, and you read again
-  first. This exists because a
+  read. In-place edits also require a fresh read, including edits while an
+  agent issue is being created; its tracking reply is withheld. These checks
+  use content and identity, never elapsed time. Older receipts without content
+  identity require another read. This exists because a
   close list once built from a query of every unanswered thread swept in
   four threads posted minutes after the last read, two of them security
   findings, and answered them "fixed" unread. Validating stays your
@@ -285,3 +287,11 @@ that hides it.
   and [`docs/research/2026-10-06-pr-and-retro.md`](../research/2026-10-06-pr-and-retro.md):
   the designs.
 - [`docs/reconciliation.md`](../reconciliation.md): the `keel-impact` block.
+
+### Robot pull requests
+
+`keel/robot-` PRs use the robot workflow's explicit other-provider review and
+shared build/review allowance. Standalone cross-review refuses these branches,
+even with a matching prefix or an owner `/review` comment. Continue the issue
+conversation through the robot; reading and answering review findings with
+`keel review` remains available. See [the robot guide](the-robot.md).

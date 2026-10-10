@@ -1405,11 +1405,11 @@ export class IncompleteRead extends Error {
  * smaller window first and this full one only when a list overflows it.
  */
 export const reviewFragment = ({ threads = 100, replies = 100, comments = 100, reviews = 100 } = {}) => `fragment KeelReview on PullRequest {
-  number title url state mergedAt updatedAt headRefName headRefOid author { __typename login }
+  number title url state mergedAt updatedAt headRefName headRefOid body repository { nameWithOwner } headRepository { nameWithOwner } author { __typename login }
   reviewThreads(first: ${threads}) { pageInfo { hasNextPage } nodes { id isResolved path line
     comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
-  comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { login } body createdAt url } }
-  reviews(first: ${reviews}) { pageInfo { hasNextPage } nodes { id databaseId author { login } body state submittedAt url } }
+  comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } body createdAt url } }
+  reviews(first: ${reviews}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
 }`;
 
 // ---- what a read costs (GitHub's GraphQL allowance) -----------------------------
@@ -1455,6 +1455,45 @@ const plainLines = body => String(body ?? '').replace(/<!--[\s\S]*?-->/g, '').sp
 const firstLine = body => plainLines(body)[0]?.slice(0, 140) ?? '';
 /** A bot's status board (a sticky comment it edits in place, opened by a hidden <!-- marker -->): listed, never owed an answer. */
 const isStatus = body => /^\s*<!--/.test(String(body ?? ''));
+// Robot author and reviewer share the Actions identity. Only the exact posted
+// envelope, tied to this PR's canonical delivery association, is an exception.
+function robotReview(pr, review) {
+  const bot = author => author?.__typename === 'Bot' && sameLogin(author.login, 'github-actions[bot]');
+  if (!bot(pr.author) || !bot(review.author)) return null;
+  if ((String(review.body ?? '').match(/<!-- keel:robot-review/g) ?? []).length !== 1) return null;
+  const envelope = /^<!-- keel:robot-review ((?:[a-f0-9]{40}|[a-f0-9]{64})) (claude|codex) -->\nReviewed by (claude|codex); built by (claude|codex)\.\n\n([\s\S]+)$/.exec(review.body ?? '');
+  if (!envelope || envelope[2] !== envelope[3] || envelope[2] === envelope[4] || review.commit?.oid !== envelope[1]) return null;
+  const marks = [...String(pr.body ?? '').matchAll(/^<!-- keel:robot-delivery (.+) -->$/gm)];
+  if (marks.length !== 1) return null;
+  let mark;
+  try { mark = JSON.parse(marks[0][1]); } catch { return null; }
+  const {version,repo,issueNumber,instanceId,author,headSha,cursor} = mark ?? {};
+  if (version !== 1 || !/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || repo.split('/').some(part => part === '.' || part === '..') || !Number.isSafeInteger(pr.number) || pr.number < 1 || !Number.isSafeInteger(issueNumber) || issueNumber < 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(instanceId ?? '') || !Number.isSafeInteger(cursor) || cursor < 0 || author !== envelope[4] || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(headSha ?? '') || pr.headRefName !== `keel/robot-${issueNumber}` || pr.repository?.nameWithOwner !== repo || pr.headRepository?.nameWithOwner !== repo || pr.url !== `https://github.com/${repo}/pull/${pr.number}`) return null;
+  if (marks[0][1] !== JSON.stringify({version,repo,issueNumber,instanceId,author,headSha,cursor})) return null;
+  if (headSha !== envelope[1]) {
+    // A later review must have its own immutable bot receipt. A short window
+    // cannot prove absence, uniqueness, or that nobody answered the finding.
+    if (!Array.isArray(pr.comments?.nodes) || pr.comments.pageInfo?.hasNextPage !== false || pr.comments.pageInfo?.hasPreviousPage) throw new IncompleteRead('robot continuation comments are incomplete');
+    const matches = new Set();
+    for (const c of pr.comments.nodes) {
+      if (!bot(c.author) || !String(c.body ?? '').includes('<!-- keel:robot-continuation')) continue;
+      const fail = () => { throw new Error('robot continuation metadata is malformed or inconsistent'); };
+      if (!Number.isSafeInteger(c.databaseId) || c.databaseId < 1 || c.url !== `${pr.url}#issuecomment-${c.databaseId}` || (c.body.match(/<!-- keel:robot-continuation/g) ?? []).length !== 1) fail();
+      const m = /^<!-- keel:robot-continuation (.+) -->\nTrusted robot continuation\.\n\n/.exec(c.body);
+      if (!m) fail();
+      let v;
+      try { v = JSON.parse(m[1]); } catch { fail(); }
+      const a = v?.authorization;
+      if (!v || !a || !Number.isSafeInteger(a.receiptId) || a.receiptId < 1 || !/^[a-f0-9]{64}$/.test(a.bodyHash ?? '') || !/^[a-f0-9]{64}$/.test(a.policyHash ?? '') || !/^[A-Za-z0-9-]+$/.test(a.writer ?? '')) fail();
+      const canonical = {version:1,repo,prNumber:pr.number,issueNumber,instanceId,author,headSha:v.headSha,cursor:v.cursor,authorization:{receiptId:a.receiptId,bodyHash:a.bodyHash,writer:a.writer,policyHash:a.policyHash}};
+      if (JSON.stringify(canonical) !== m[1] || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v.headSha ?? '') || !Number.isSafeInteger(v.cursor) || v.cursor < cursor) fail();
+      if (v.headSha === envelope[1]) matches.add(m[1]);
+    }
+    if (matches.size !== 1) throw new Error('robot review exact-head continuation metadata is missing or conflicting');
+  }
+  const text = envelope[5].trim();
+  return { text, status: false };
+}
 /** Whether `body` answers comment `c`: it names c's id, links c's URL, or quotes (`> `) a line of it. */
 export function references(body, c) {
   const text = String(body ?? '');
@@ -1499,14 +1538,15 @@ export function reviewComments(pr, reviewers = []) {
     out.push({ kind: 'thread', id: t.id, databaseId: first.databaseId, author: by, at: since.createdAt, path: t.path ?? null, line: t.line ?? null,
       text: firstLine(first.body), url: first.url, resolved: !!t.isResolved, answered });
   }
-  const reviews = (page(pr.reviews, 'reviews', pr) ?? []).filter(r => String(r?.body ?? '').trim() && !(pr.author?.login && sameLogin(loginOf(r), pr.author.login)));
+  const reviews = (page(pr.reviews, 'reviews', pr) ?? []).filter(r => String(r?.body ?? '').trim() && (robotReview(pr, r) || !(pr.author?.login && sameLogin(loginOf(r), pr.author.login))));
   if (!reviewers.length && !reviews.length) return out;
   const convo = page(pr.comments, 'conversation comments', pr);
   if (!Array.isArray(convo)) throw new Error('the pull request came back without its conversation comments');
   const entry = (kind, c, at) => {
-    const by = loginOf(c), status = isStatus(c.body), after = Date.parse(at);
+    const robot = kind === 'review' ? robotReview(pr, c) : null;
+    const by = loginOf(c), status = robot ? robot.status : isStatus(c.body), after = Date.parse(at);
     const replied = convo.some(o => Date.parse(o.createdAt) > after && !sameLogin(loginOf(o), by) && !isNamed(loginOf(o)) && references(o.body, c));
-    return { kind, id: c.id, databaseId: c.databaseId, author: by, at, path: null, line: null, text: firstLine(c.body), url: c.url, resolved: false, status, answered: status || replied };
+    return { kind, id: c.id, databaseId: c.databaseId, author: by, at, path: null, line: null, text: firstLine(robot ? robot.text : c.body), url: c.url, resolved: false, status, answered: status || replied };
   };
   for (const r of reviews) out.push(entry('review', r, r.submittedAt));
   for (const c of convo) if (isNamed(loginOf(c))) out.push(entry('comment', c, c.createdAt));
@@ -1536,13 +1576,13 @@ export const WINDOW_CONVO = 20;
 export const WINDOW_BODIES = 10;
 /** At most this many PRs a repo are read alone; past it the read is incomplete. */
 export const SOLO_READS = 6;
-const NODE = 'databaseId author { login } body createdAt url';
+const NODE = 'databaseId author { __typename login } body createdAt url';
 export const windowFragment = () => `fragment KeelReviewWindow on PullRequest {
-  keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid author { __typename login }
+  keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid body repository { nameWithOwner } headRepository { nameWithOwner } author { __typename login }
   reviewThreads(first: ${WINDOW_THREADS}) { pageInfo { hasNextPage } nodes { id isResolved path line
     tail: comments(last: ${WINDOW_TAIL}) { totalCount nodes { ${NODE} } } } }
   comments(last: ${WINDOW_CONVO}) { pageInfo { hasPreviousPage } nodes { id ${NODE} } }
-  reviews(last: ${WINDOW_BODIES}) { pageInfo { hasPreviousPage } nodes { id databaseId author { login } body state submittedAt url } }
+  reviews(last: ${WINDOW_BODIES}) { pageInfo { hasPreviousPage } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
 }`;
 export const repoReviewQuery = () => `query($owner: String!, $name: String!, $open: Boolean!, $merged: Boolean!, $openAfter: String, $mergedAfter: String) { ${RATE_LIMIT} repository(owner: $owner, name: $name) {
   open: pullRequests(states: OPEN, first: ${REVIEW_PRS}, after: $openAfter, orderBy: { field: UPDATED_AT, direction: DESC }) @include(if: $open) { pageInfo { hasNextPage endCursor } nodes { ...KeelReviewWindow } }
@@ -1588,9 +1628,9 @@ export function fromWindow(pr, reviewers = []) {
   // A missing connection stays missing, so reviewComments refuses it.
   const list = conn => conn && Array.isArray(conn.nodes) ? { pageInfo: { hasNextPage: !!conn.pageInfo?.hasPreviousPage }, nodes: conn.nodes } : conn;
   const comments = list(rest.comments), reviews = list(rest.reviews);
-  const bodies = (reviews?.nodes ?? []).some(r => String(r?.body ?? '').trim() && !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login)));
+  const bodies = (reviews?.nodes ?? []).some(r => String(r?.body ?? '').trim() && (String(r.body).startsWith('<!-- keel:robot-review ') || !(rest.author?.login && sameLogin(r?.author?.login, rest.author.login))));
   if (reviews?.pageInfo.hasNextPage) whole = false;
-  if (comments?.pageInfo.hasNextPage && (reviewers.length || bodies)) whole = false;
+  if ((reviewers.length || bodies) && (!comments || comments.pageInfo.hasNextPage)) whole = false;
   return { pr: { ...rest, reviewThreads: { pageInfo: { hasNextPage: !!rest.reviewThreads?.pageInfo?.hasNextPage }, nodes: threads }, comments, reviews }, whole };
 }
 

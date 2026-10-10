@@ -60,11 +60,7 @@ these issues one at a time, as a pass beside climb and tend.
   `keel issue new --agent` writes an issue in that shape. An issue the
   owner labels that misses part of it gets one comment naming what's
   missing, and is not worked.
-- **The trigger is GitHub's own.** `keel-robot.yml` runs on `issues:
-  labeled|reopened` and on `issue_comment: created`, but only for a
-  comment from someone with write access to the repo, and never from a bot.
-  A concurrency group means one issue at a time per project, and a weekly
-  schedule picks up anything missed. No server listens anywhere.
+- **The trigger is GitHub's own.** Settled 2026-10-10: `keel-robot-route.yml` checks public label, reopen and issue-comment events against current repository write/maintain/admin permission and fresh issue identity. It has no model credentials and dispatches the worker only when enabled. `keel-robot.yml` revalidates routing data, active label provenance and allowance; a weekly schedule picks up missed work. Public router runs never occupy its serialized worker queue or budget history. Unavailable permission means no agent run. No server listens anywhere.
 - **The sandbox is climb's.** The same three jobs (agent read-only, judge,
   publish), the same provider adapters (Claude or Codex), and the same
   guards. The result is a PR, never a push to main. The PR is reviewed by
@@ -73,9 +69,12 @@ these issues one at a time, as a pass beside climb and tend.
   on the issue: what changed, how it knows, the PR, or the one question it
   needs answered, with choices. A comment from the owner starts the next
   run on that issue with the comment included.
+- **Authorization binds the issue body.** Settled 2026-10-10: the trusted event router compares the writer event snapshot with the fresh body and records its hash in a bot receipt on the issue. The worker accepts that exact body only while the writer still has permission. An edited body needs a new writer action; a surviving label is not renewed approval. Scheduled scans skip rejected work with reasons.
 - **Spend is opt-in.** The pass is off until `.keel/keel.json` turns it
   on, with a budget the owner sets per week. When the budget runs out, the
-  robot waits and says so on the board.
+  robot waits and says so on the board. Admission, publication and independent
+  review fetch current default-branch policy; a newer OFF setting revokes queued
+  work even when its immutable checkout was enabled.
 - **Where issues come from.** A review comment answered `--tracked` can
   file its issue in the agent's shape. So can an accepted proposal from the
   night (phase 57). So can any agent that finds a fault outside its own
@@ -166,3 +165,7 @@ The night already writes one proposal. Phase 57 gives time a voice in it:
 55 first, because it fixes keel's own tests and is small. 56 builds on the
 ledger. 54 can start in parallel: it reuses climb's jobs. 57 needs 56, and
 needs 54 for its last step.
+
+### Robot continuation publication settlement (2026-10-10)
+
+Keep the initial PR description editable by its owner. Continuations append canonical trusted bot delivery/permission comments instead of replacing that description. Every consumer binds current metadata to the exact PR, repository, instance and head; absent or conflicting metadata is unavailable. Keep publication intent before pushing and recover an exact already-posted continuation idempotently. Agent-authored text must neutralize GitHub closing directives; only the trusted task reference can close an issue.

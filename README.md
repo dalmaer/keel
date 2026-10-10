@@ -141,6 +141,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Climb and tend](docs/guide/climb-and-tend.md) | you want an agent to improve a number, or keep the records true, while you sleep |
 | [Lessons and learning](docs/guide/lessons-and-learning.md) | a bug turned out to have a shape, or lessons are waiting at home |
 | [Keep the fleet current](docs/guide/keep-the-fleet-current.md) | the practice changed and every project should have it |
+| [The robot](docs/guide/the-robot.md) | Preview agent issues and opt in to bounded build/review work |
 | [Reviews and PRs](docs/guide/reviews-and-prs.md) | a PR from keel arrived, or a reviewer commented on one |
 | [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
@@ -189,6 +190,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | --- | --- |
 | `keel canvas` | Project lifecycle snapshots and isocan canvas publishing; preview changes before applying them |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
+| `keel issue new --agent` | Preview a rubric issue; `--yes` creates it, unlabelled while robot is OFF |
 | `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read. Not a gate |
 | `keel board` | Whose turn it is: every open item as yours, broken, the agent's or waiting on time, gathered from the roadmap, loose ends, reviews, the health page, the inbox and the fleet. A page on 127.0.0.1, or `--json` |
 | `keel walk done\|decide` | Settle the owner's turn: `done` checks a phase's ⚑ walk and writes the read into its evidence (built when nothing is left open); `decide` accepts or declines a health proposal. Leaves a diff to commit |

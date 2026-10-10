@@ -321,6 +321,34 @@ test('numbered lessons are not PRs and qualified external PRs are never requalif
   assert.equal(lessons.proposals.length, 0);
 });
 
+test('linked PR identity owns its label without hiding standalone or unavailable PRs', async t => {
+  const linked = '[Acme PR #105](https://github.com/acme/external/pull/105)';
+  const root = await fixture(t, {
+    '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }),
+    [phasePath]: `# Acme\n## Next action\nReview the draft PR ${linked}.\n\nReview the draft PR.\n\n~~~md\nReview [Acme PR #106](https://github.com/acme/example/pull/106).\n~~~\n## History\nReview [Acme PR #107](https://github.com/acme/archive/pull/107).`,
+  });
+  const external = 'acme/external#105';
+  const out = await reconcile({ root, github: true, prFacts: { [external]: merged } });
+  assert.deepEqual(out.unknown, []);
+  assert.deepEqual(Object.keys(out.snapshot.prs), [external]);
+  const notes = out.notes.filter(n => n.rule === 'pr-state-contradiction');
+  assert.deepEqual(notes.map(n => [n.source.pr, n.association]), [
+    [external, 'explicit reference'], [external, 'single same-document PR reference'],
+  ]);
+
+  await put(root, phasePath, `# Acme\n## Next action\nReview the draft PR ${linked}.\nReview PR #105.\nReview acme/fork#105.\nReview PR#108 and PR109.\nReview [Acme PR #110](notes.md).`);
+  const prFacts = Object.fromEntries([external, 'acme/app#105', 'acme/fork#105', 'acme/app#108', 'acme/app#109', 'acme/app#110'].map(ref => [ref, merged]));
+  const mixed = await reconcile({ root, github: true, prFacts });
+  assert.deepEqual(mixed.unknown, []);
+  assert.deepEqual(Object.keys(mixed.snapshot.prs).sort(), Object.keys(prFacts).sort());
+  assert.deepEqual(mixed.notes.filter(n => n.rule === 'pr-state-contradiction' && n.observed.includes(linked)).map(n => n.source.pr), [external]);
+
+  await put(root, phasePath, `# Acme\n## Next action\nReview the draft PR ${linked}.`);
+  const unavailable = await reconcile({ root, github: true, prFacts: {} });
+  assert.equal(unavailable.snapshot.remote, 'incomplete');
+  assert.deepEqual(unavailable.unknown.map(n => [n.rule, n.path]), [['github-unavailable', external]]);
+});
+
 test('generic open PR product specification is not unresolved work; explicit open claims still compare', async t => {
   const root = await fixture(t, { [phasePath]: '# Acme loose ends\n## Done when\nLists an open PR, a draft PR, and unfinished work for the owner.\n## Next action\nImplement the list.' });
   const spec = await reconcile({ root, github: true, prFacts: {} });
@@ -332,4 +360,15 @@ test('generic open PR product specification is not unresolved work; explicit ope
   await put(root, phasePath, '# Acme\nImplementation is in an open PR acme/app#12.');
   const explicit = await reconcile({ root, github: true, prFacts: facts });
   assert.equal(explicit.notes.filter(n => n.rule === 'pr-state-contradiction').length, 1);
+});
+
+
+test('qualified PR links with optional Markdown titles never invent a local PR', async t => {
+  const root = await fixture(t, {'.keel/keel.json': JSON.stringify({repo:'acme/app'})});
+  for (const title of ['"Acme PR #999"', "'Acme title'", '(Acme title)']) {
+    await put(root, phasePath, `# Acme\n## Next action\nReview draft PR [Acme PR #105](https://github.com/acme/external/pull/105 ${title}).\nReview PR #106.`);
+    const out = await reconcile({root,github:true,prFacts:{'acme/app#106':merged}});
+    assert.deepEqual(out.unknown.map(n=>[n.rule,n.path]), [['github-unavailable','acme/external#105']]);
+    assert.deepEqual(Object.keys(out.snapshot.prs).sort(), ['acme/app#106']);
+  }
 });

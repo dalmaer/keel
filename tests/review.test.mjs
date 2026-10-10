@@ -10,7 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { answerOf, parseTarget, summarizedHead } from '../lib/review.mjs';
-import { graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { reviewFragment, windowFragment, graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -42,8 +42,37 @@ const save = () => fs.writeFileSync(${JSON.stringify(statePath)}, JSON.stringify
 const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length + 1);
 const deny = () => { console.error('stub gh: a write the test did not expect: ' + argv.join(' ')); process.exit(1); };
 if (s.down) { console.error('error connecting to api.github.com'); process.exit(1); }
-const node = c => ({ databaseId: c.databaseId, author: { login: c.author }, body: c.body, createdAt: c.createdAt, url: 'https://github.com/acme/app/pull/3#c' + c.databaseId });
-if (argv[0] === 'api' && argv[1] === 'graphql') {
+const node = c => {
+  const value = { databaseId: c.databaseId, author: { ...(s.windowAuthor ? { __typename: 'User' } : {}), login: c.author }, body: c.body, createdAt: c.createdAt, url: 'https://github.com/acme/app/pull/3#c' + c.databaseId };
+  return s.reorder ? Object.fromEntries(Object.entries(value).reverse()) : value;
+};
+if (argv[0] === 'api' && argv.includes('--include')) {
+  const method = argv[argv.indexOf('--method') + 1], path = argv[argv.indexOf('--method') + 2];
+  s.agentIssues ??= [];
+  let status = 200, data;
+  if (method === 'POST') {
+    if (!s.writes) deny();
+    const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+    const number = s.agentIssues.length + 10;
+    data = { number, state: 'open', body: input.body, labels: input.labels, html_url: 'https://github.com/acme/app/issues/' + number, url: 'https://api.github.com/repos/acme/app/issues/' + number };
+    if (s.agentFailPost) { status = 503; data = {}; }
+    else { s.agentIssues.push(data); status = 201; }
+    if (s.followupOnCreate) { s.threads[0].comments.push({ databaseId: 700, author: 'acme-reviewer', body: 'Acme new evidence', createdAt: '2026-10-06T13:00:00Z' }); s.followupOnCreate = false; }
+    if (s.editOnCreate) {
+      const rows = s.editOnCreate === 'inline' ? s.threads[0].comments : s.editOnCreate === 'reply' ? s.threads[1].comments : s[s.editOnCreate];
+      rows[rows.length - 1].body += '\\nAcme changed evidence'; delete s.editOnCreate;
+    }
+    if (s.fullOnCreate) s.windowAuthor = false;
+    save();
+  } else if (path.includes('/contents/')) {
+    if (!s.contents) { status = 404; data = {}; }
+    else data = { path: '.keel/keel.json', encoding: 'base64', content: Buffer.from(JSON.stringify(s.contents)).toString('base64') };
+  } else {
+    const number = /issues\\/(\\d+)$/.exec(path);
+    data = number ? s.agentIssues.find(i => i.number === Number(number[1])) : s.agentIssues;
+  }
+  console.log('HTTP/2.0 ' + status + ' OK\\ncontent-type: application/json\\n\\n' + JSON.stringify(data));
+} else if (argv[0] === 'api' && argv[1] === 'graphql') {
   const q = field('query');
   if (q.startsWith('mutation')) {
     if (!s.writes) deny();
@@ -64,6 +93,7 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
   if (m) s.threads.find(t => t.comments[0].databaseId === Number(m[1])).comments.push({ databaseId: 900 + s.threads.length, author: 'acme-owner', body: field('body'), createdAt: '2026-10-06T12:00:00Z' });
   else s.comments.push({ id: 'IC_new', databaseId: 999, author: 'acme-owner', body: field('body'), createdAt: '2026-10-06T12:00:00Z' });
   save();
+  if (s.loseReply) { s.loseReply = false; save(); console.error('Acme reply response lost'); process.exit(1); }
   console.log('{}');
 } else if (argv[0] === 'api' && /\\/pulls\\/\\d+\\/reviews/.test(argv[1])) {
   s.reviewReads++; save();
@@ -595,6 +625,156 @@ test('keel review reads a window first and the full fragment only when a list ov
   assert.match(keel(dir, gh, ['acme/app#3']).out, /Warning: your GitHub quota is low: 900 left/);
 });
 
+const AGENT_RUBRIC = { version: 1, problem: 'Acme sorting fails.', reproduction: 'Run Acme regression.', acceptance: 'Both keys retained.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
+test('review content receipts reject full-body edits before creation and during creation', async t => {
+  for (const kind of ['inline', 'reply', 'bodies', 'comments']) for (const during of [false, true]) await t.test(`${kind} ${during ? 'during' : 'before'} creation`, async t => {
+    const dir = await project(t);
+    const long = '**P1** Acme unchanged summary.\n\n' + 'Acme evidence. '.repeat(200);
+    const gh = await stubGh(t, {
+      threads: [{ ...UNANSWERED, comments: [c(11, 'acme-reviewer', long)] },
+        { id: 'PRRT_other', comments: [c(20, 'acme-reviewer', 'Acme separate defect'), c(21, 'acme-reviewer', long)] }],
+      bodies: [{ id: 'PRR_edit', ...c(30, 'acme-reviewer', long) }],
+      comments: [{ id: 'IC_edit', ...c(40, 'acme-reviewer', long) }], writes: true,
+      ...(during ? { editOnCreate: kind } : {}),
+    });
+    const args = [...await agentArgs(dir), '--yes'];
+    keel(dir, gh, ['acme/app#3', '--json']);
+    if (!during) await gh.change(s => {
+      const rows = kind === 'inline' ? s.threads[0].comments : kind === 'reply' ? s.threads[1].comments : s[kind];
+      rows[rows.length - 1].body += '\nAcme changed evidence';
+    });
+    const result = keel(dir, gh, args);
+    assert.equal(result.code, 2, result.out + result.err);
+    assert.match(result.out, /review (?:content )?changed/);
+    let state = await gh.state();
+    assert.equal((state.agentIssues ?? []).length, during ? 1 : 0);
+    assert.equal(state.threads[0].comments.length, 1, 'no stale tracked reply');
+    keel(dir, gh, ['acme/app#3', '--json']);
+    const retry = keel(dir, gh, args);
+    assert.equal(retry.code, 0, retry.out + retry.err);
+    state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
+  });
+});
+test('review content receipts accept reordered properties and sequential own answers', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED, { id: 'PRRT_two', comments: [c(20, 'acme-reviewer', 'Acme second defect')] }], writes: true });
+  keel(dir, gh, ['acme/app#3', '--json']);
+  await gh.change(s => { s.reorder = true; });
+  for (const id of ['PRRT_open', 'PRRT_two']) {
+    const result = keel(dir, gh, ['acme/app#3', '--close', id, '--fixed', 'abc1234', '--json']);
+    assert.equal(result.code, 0, result.out + result.err);
+  }
+  const state = await gh.state();
+  assert.ok(state.threads.every(thread => thread.isResolved && thread.comments.length === 2));
+});
+test('review content receipts tolerate actual window/full author projections but reject edits at both checks', async t => {
+  // These are the actual differing thread-comment selections, not property ordering.
+  assert.match(windowFragment(), /databaseId author \{ __typename login \} body/);
+  assert.match(reviewFragment(), /databaseId author \{ login \} body/);
+  for (const during of [false, true]) for (const edited of [false, true]) await t.test(`${during ? 'post-creation' : 'fresh close'} ${edited ? 'edited' : 'unchanged'}`, async t => {
+    const dir = await project(t), gh = await stubGh(t, {
+      threads: [UNANSWERED], writes: true, windowAuthor: true,
+      ...(during ? { fullOnCreate: true, ...(edited ? { editOnCreate: 'inline' } : {}) } : {}),
+    });
+    keel(dir, gh, ['acme/app#3', '--json']);
+    if (!during) await gh.change(s => {
+      s.windowAuthor = false;
+      if (edited) s.threads[0].comments[0].body += '\nAcme changed evidence';
+    });
+    const result = keel(dir, gh, [...await agentArgs(dir), '--yes']);
+    assert.equal(result.code, edited ? 2 : 0, result.out + result.err);
+    const state = await gh.state();
+    assert.equal(state.threads[0].comments.length, edited ? 1 : 2);
+    assert.equal((state.agentIssues ?? []).length, !during && edited ? 0 : 1);
+    if (edited) assert.match(result.out, /review (?:content )?changed/);
+  });
+});
+test('review content receipts require fresh read for legacy receipts and detect deleted replies', async t => {
+  for (const legacy of [true, false]) await t.test(legacy ? 'legacy' : 'deleted reply', async t => {
+    const dir = await project(t), gh = await stubGh(t, { threads: [{ ...UNANSWERED, comments: [...UNANSWERED.comments, c(12, 'acme-reviewer', 'Acme follow-up')] }], writes: true });
+    keel(dir, gh, ['acme/app#3', '--json']);
+    if (legacy) {
+      const path = join(dir, '.keel-cache', 'reviews', 'acme__app__3.json');
+      const receipt = JSON.parse(await readFile(path, 'utf8')); delete receipt.content; delete receipt.contentVersion;
+      await writeFile(path, JSON.stringify(receipt));
+    } else await gh.change(s => { s.threads[0].comments.pop(); });
+    const result = keel(dir, gh, [...await agentArgs(dir), '--yes']);
+    assert.equal(result.code, 2, result.out + result.err);
+    assert.match(result.out, /read .*again/); assert.equal(writesIn(await gh.calls()).length, 0);
+  });
+});
+async function agentArgs(dir) {
+  const file = join(dir, 'rubric.json'); await writeFile(file, JSON.stringify(AGENT_RUBRIC));
+  return ['acme/app#3', '--close', 'PRRT_open', '--tracked', '--file-agent-issue', '--title', 'Fix Acme equality', '--rubric', file, '--json'];
+}
+test('review agent issue requires fresh receipt before even approved creation and rechecks changed head', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true });
+  const args = await agentArgs(dir);
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  await gh.change(s => { s.head = OLD; });
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  await gh.change(s => { s.threads[0].comments.push(c(100, 'acme-reviewer', 'Acme follow-up')); });
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(writesIn(await gh.calls()).length, 0);
+});
+test('review agent issue previews OFF then creates once and supplies verified tracked link leaving thread open', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true });
+  const args = await agentArgs(dir);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const preview = keel(dir, gh, args);
+  assert.equal(preview.code, 3, preview.out + preview.err);
+  assert.equal(preview.json().state, 'preview'); assert.equal(writesIn(await gh.calls()).length, 0);
+  const created = keel(dir, gh, [...args, '--yes']);
+  assert.equal(created.code, 0, created.out + created.err);
+  assert.equal(created.json().value, 'https://github.com/acme/app/issues/10');
+  const st = await gh.state(); assert.deepEqual(st.agentIssues[0].labels, []); assert.equal(st.threads[0].isResolved, undefined);
+  assert.equal(st.threads[0].comments.length, 2);
+  const retry = keel(dir, gh, [...args, '--yes']);
+  assert.equal(retry.code, 0, retry.out + retry.err);
+  const after = await gh.state(); assert.equal(after.agentIssues.length, 1); assert.equal(after.threads[0].comments.length, 2);
+});
+test('review agent issue creation grammar rejects explicit tracking references multiple targets and bare tracked elsewhere', async t => {
+  const dir = await project(t), gh = await stubGh(t, {}), args = await agentArgs(dir);
+  for (const bad of [args.map(x => x === 'PRRT_open' ? 'PRRT_open,PRRT_two' : x), [...args, '--close', 'PRRT_two'], [...args.slice(0, 4), 'acme/app#12', ...args.slice(4)], [...args, '--fixed', 'abc1234'], ['acme/app#3', '--close', 'PRRT_open', '--tracked']]) {
+    const r = keel(dir, gh, bad); assert.equal(r.code, 2, r.out + r.err);
+  }
+  assert.equal((await gh.calls()).length, 0);
+});
+
+
+test('review agent issue lost reply response recovers without duplicate issue or tracked reply', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, loseReply: true });
+  const args = await agentArgs(dir);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const first = keel(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
+  const retry = keel(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
+  const state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
+});
+test('review agent issue new evidence during creation requires reread before tracked reply', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, followupOnCreate: true });
+  const args = await agentArgs(dir);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const first = keel(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
+  assert.match(first.out, /review changed/);
+  let state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
+  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  keel(dir, gh, ['acme/app#3', '--json']);
+  const retry = keel(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
+  state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 3);
+});
+test('review agent issue uncertain creation never supplies a tracked reply or retries POST', async t => {
+  const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, agentFailPost: true });
+  const args = await agentArgs(dir); keel(dir, gh, ['acme/app#3', '--json']);
+  for (let i = 0; i < 2; i++) {
+    const result = keel(dir, gh, [...args, '--yes']); assert.equal(result.code, 2, result.out); assert.equal(result.json().state, 'pending'); assert.equal(result.json().issue, null);
+  }
+  assert.equal(writesIn(await gh.calls()).length, 1);
+  const state = await gh.state(); assert.equal(state.threads[0].comments.length, 1);
+});
+
 // ---- phase 60: a push reviewed after it landed, read and answered as <repo>@<sha> -------
 
 const PUSHED = 'b'.repeat(8) + 'c0ffee00'.repeat(4);
@@ -794,4 +974,98 @@ test('phase 60: keel review <repo>@<sha> --close answers each finding it read wi
   assert.ok((await gh.calls()).some(c => c.join(' ') === 'api -X PATCH repos/acme/app/issues/12 -f state=closed -f state_reason=completed'));
   // Read after: nothing unanswered.
   assert.equal(keel(dir, gh, [at]).code, 0);
+});
+
+
+test('merged review grammar rejects agent issue creation for commit targets before any GitHub read', async t => {
+  const dir = await project(t), gh = await pushGh(t, { issues: [pushIssue([F1])], writes: true });
+  const args = await agentArgs(dir); args[0] = `acme/app@${PUSHED}`;
+  const r = keel(dir, gh, [...args, '--yes']);
+  assert.equal(r.code, 2); assert.match(r.err + r.out, /requires a PR target/);
+  assert.equal((await gh.calls()).length, 0);
+});
+
+
+test('agent issue canonical rubric identity survives reordered keys in manual and review CLI recovery', async t => {
+  for (const mode of ['manual', 'review']) {
+    const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, loseReply: mode === 'review' });
+    const reviewArgs = await agentArgs(dir);
+    const args = mode === 'review' ? ['review', ...reviewArgs, '--yes']
+      : ['issue', 'new', '--agent', '--title', 'Fix Acme equality', '--rubric', join(dir, 'rubric.json'), '--yes', '--json'];
+    const invoke = () => run(process.execPath, [BIN, ...args], { cwd: dir, env: { ...cleanEnv(), KEEL_GH: gh.path, KEEL_CACHE: join(dir, '.keel-cache') } });
+    if (mode === 'review') keel(dir, gh, ['acme/app#3', '--json']);
+    const first = invoke(); assert.equal(first.status, mode === 'review' ? 2 : 0, first.stdout + first.stderr);
+    const reordered = Object.fromEntries(Object.entries(AGENT_RUBRIC).reverse().map(([key, value]) => [key, typeof value === 'string' ? `  ${value}  ` : value]));
+    await writeFile(join(dir, 'rubric.json'), JSON.stringify(reordered, null, 2));
+    const retry = invoke(); assert.equal(retry.status, 0, `${mode}: ${retry.stdout}${retry.stderr}`);
+    if (mode === 'manual') assert.equal(JSON.parse(retry.stdout).state, 'recovered');
+    const state = await gh.state(); assert.equal(state.agentIssues.length, 1);
+    const posts = (await gh.calls()).filter(c => c.includes('POST') && c.some(a => /\/issues$/.test(a)));
+    assert.equal(posts.length, 1, 'canonical retry never creates a second issue');
+    if (mode === 'review') assert.equal(state.threads[0].comments.length, 2, 'lost reply is recovered once');
+  }
+});
+
+
+test('verified robot top-level reviews remain actionable across heads and prose', () => {
+  const head='a'.repeat(40), old='b'.repeat(40), bot={__typename:'Bot',login:'github-actions'};
+  const conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
+  for (const author of ['claude','codex']) {
+    const reviewer=author==='claude'?'codex':'claude';
+    const mark={version:1,repo:'acme/app',issueNumber:7,instanceId:'issue-7',author,headSha:old,cursor:0};
+    const review={id:'PRR_acme',databaseId:12,author:bot,commit:{oid:old},submittedAt:'2026-10-01T00:00:00Z',url:'https://github.com/acme/app/pull/8#pullrequestreview-12',body:`<!-- keel:robot-review ${old} ${reviewer} -->\nReviewed by ${reviewer}; built by ${author}.\n\n[P1] acme.js:9 loses a correction.`};
+    const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:'keel/robot-7',headRefOid:head,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(mark)} -->`,reviewThreads:conn([]),comments:conn([]),reviews:conn([review])};
+    const entries=reviewComments(pr);
+    assert.equal(entries.length,1,'verified robot review must not be dropped as the PR author own review');
+    assert.equal(reviewComments({...pr,headRefOid:'c'.repeat(40)})[0].answered,false);
+    assert.equal(entries[0].answered,false);assert.equal(entries[0].status,false);assert.match(entries[0].text,/loses a correction/);
+    const duplicate={...review,body:review.body+`\n<!-- keel:robot-review ${head} ${reviewer} -->`};
+    assert.deepEqual(reviewComments({...pr,reviews:conn([duplicate])}),[]);
+    for (const value of [null, false, 7, 'Acme', [], {}]) {
+      assert.deepEqual(reviewComments({...pr,body:`<!-- keel:robot-delivery ${JSON.stringify(value)} -->`}),[]);
+    }
+    const clean={...review,body:review.body.replace('[P1] acme.js:9 loses a correction.','No findings.')};
+    assert.equal(reviewComments({...pr,reviews:conn([clean])})[0].answered,false);
+    for (const bad of [{...review,author:{__typename:'User',login:'github-actions'}},{...review,commit:{oid:head}},{...review,body:review.body.replace(`Reviewed by ${reviewer}`,`Reviewed by ${author}`)}]) assert.deepEqual(reviewComments({...pr,reviews:conn([bad])}),[]);
+    for (const patch of [{body:''},{headRefName:'human-branch'},{headRepository:{nameWithOwner:'acme/foreign'}},{body:pr.body+'\n'+pr.body}])assert.deepEqual(reviewComments({...pr,...patch}),[]);
+    const reply={id:'IC_reply',author:{login:'acme-owner'},createdAt:'2026-10-02T00:00:00Z',body:'Tracked PRR_acme in Acme issue #9.'};
+    assert.equal(reviewComments({...pr,comments:conn([reply])})[0].answered,true);
+    const window={...pr,keelWindow:'PullRequest',comments:{nodes:[],pageInfo:{hasPreviousPage:true}},reviews:{nodes:[review],pageInfo:{hasPreviousPage:false}}};
+    assert.equal(fromWindow(window).whole,false);
+  }
+  for (const fragment of [reviewFragment(),windowFragment()]) {
+    assert.match(fragment,/headRefOid body repository/);
+    assert.match(fragment,/author \{ __typename login \} commit \{ oid \}/);
+  }
+});
+
+test('robot continuation reviews require complete exact-head bot metadata without hiding historical findings', () => {
+  const initial='a'.repeat(40), later='b'.repeat(40), current='c'.repeat(40);
+  const bot={__typename:'Bot',login:'github-actions'}, conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
+  for (const author of ['claude','codex']) {
+    const reviewer=author==='claude'?'codex':'claude';
+    const anchor={version:1,repo:'acme/app',issueNumber:7,instanceId:'acme-7',author,headSha:initial,cursor:2};
+    const metadata={version:1,repo:'acme/app',prNumber:8,issueNumber:7,instanceId:'acme-7',author,headSha:later,cursor:3,authorization:{receiptId:10,bodyHash:'d'.repeat(64),writer:'acme-owner',policyHash:'e'.repeat(64)}};
+    const body=v=>`<!-- keel:robot-continuation ${JSON.stringify(v)} -->\nTrusted robot continuation.\n\nAcme bounded change.`;
+    const comment={databaseId:20,author:bot,url:'https://github.com/acme/app/pull/8#issuecomment-20',body:body(metadata)};
+    const review=head=>({id:`PRR_${head[0]}`,author:bot,commit:{oid:head},submittedAt:'2026-10-01T00:00:00Z',body:`<!-- keel:robot-review ${head} ${reviewer} -->\nReviewed by ${reviewer}; built by ${author}.\n\nAcme defect remains.`});
+    const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:'keel/robot-7',headRefOid:current,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(anchor)} -->`,reviewThreads:conn([]),comments:conn([comment]),reviews:conn([review(initial),review(later)])};
+    assert.throws(()=>reviewComments({...pr,comments:conn([])}),/exact-head continuation metadata/, 'a PR body for another head cannot authorize this review');
+    assert.deepEqual(reviewComments(pr).map(r=>[r.id,r.answered]),[['PRR_a',false],['PRR_b',false]]);
+    const replay={...comment,databaseId:21,url:'https://github.com/acme/app/pull/8#issuecomment-21'};
+    assert.equal(reviewComments({...pr,comments:conn([comment,replay])}).length,2);
+    for (const patch of [{repo:'acme/foreign'},{prNumber:9},{issueNumber:8},{instanceId:'other'},{author:reviewer},{cursor:1},{cursor:-1},{version:2},{extra:true},{authorization:{...metadata.authorization,receiptId:0}},{authorization:{...metadata.authorization,extra:true}}]) {
+      assert.throws(()=>reviewComments({...pr,comments:conn([{...comment,body:body({...metadata,...patch})}])}),/metadata/,JSON.stringify(patch));
+    }
+    for (const patch of [{databaseId:0},{url:'https://github.com/acme/app/pull/9#issuecomment-20'},{body:comment.body+'\n<!-- keel:robot-continuation {} -->'},{body:'prefix\n'+comment.body},{body:body(null)}]) assert.throws(()=>reviewComments({...pr,comments:conn([{...comment,...patch}])}),/metadata/);
+    for (const fake of [{__typename:'User',login:'github-actions'},{__typename:'Bot',login:'acme'}]) assert.throws(()=>reviewComments({...pr,comments:conn([{...comment,author:fake}])}),/missing/);
+    assert.throws(()=>reviewComments({...pr,comments:conn([comment,{...replay,body:body({...metadata,cursor:4})}])}),/conflicting/);
+    assert.throws(()=>reviewComments({...pr,comments:{nodes:[comment],pageInfo:{hasNextPage:true}}}),/incomplete/);
+    const window={...pr,keelWindow:'PullRequest',comments:{nodes:[],pageInfo:{hasPreviousPage:true}},reviews:{nodes:[review(later)],pageInfo:{hasPreviousPage:false}}};
+    const converted=fromWindow(window);assert.equal(converted.whole,false);assert.throws(()=>reviewComments(converted.pr),/incomplete/);
+    const answer={id:'IC_answer',author:{login:'acme-owner'},createdAt:'2026-10-02T00:00:00Z',body:'Tracked PRR_b in Acme #9.'};
+    assert.deepEqual(reviewComments({...pr,comments:conn([comment,answer])}).map(r=>r.answered),[false,true]);
+    assert.equal(reviewComments({...pr,reviews:conn([review(initial)]),comments:conn([])}).length,1);
+  }
+  for(const fragment of [reviewFragment(),windowFragment()]) assert.match(fragment,/comments\((?:first|last): \d+\).*author \{ __typename login \} body createdAt url/);
 });

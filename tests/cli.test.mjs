@@ -138,7 +138,8 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     await writeFile(join(dir, 'acme-health.md'), '# Acme health\n\n## Proposal\n\n**`acme_measure`** (outside) — Acme proposes.\n');
     // keel test runs a file with stalls: a synthetic one-test file, not one of keel's own suites.
     await writeFile(join(dir, 'acme-stalls.test.mjs'), "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n");
-    const needs = { walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
+    await writeFile(join(dir, 'acme-rubric.json'), JSON.stringify({ version: 1, problem: 'Acme loses rows.', reproduction: 'Run Acme regression.', acceptance: 'Both rows remain.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] }));
+    const needs = { issue: ['new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'acme-rubric.json'], walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'],
       prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'] };
@@ -152,13 +153,14 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
       const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
-      assert.equal(r.code, 0, `${name}: ${r.err}${r.out}`);
+      assert.equal(r.code, name === 'issue' ? 3 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
     }
     // render onto an unchanged copy rewrites nothing.
     await rm(join(dir, 'fresh'), { recursive: true, force: true });
-    assert.equal(JSON.parse(keel(['render', '--check', '--json'], dir).out).ok, true);
+    const rendered = keel(['render', '--check', '--json'], dir);
+    assert.equal(JSON.parse(rendered.out).ok, true, rendered.out + rendered.err);
     await rm(dirname(proving), { recursive: true, force: true });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
@@ -237,4 +239,18 @@ test('installs from a checkout with no build step, on a machine that has never s
     assert.equal(next.code, 0, next.err);
     assert.deepEqual(JSON.parse(next.out), JSON.parse(keel(['next', '--json']).out));
   } finally { await rm(tmp, { recursive: true, force: true }); }
+});
+
+test('issue new agent CLI previews all rubric fields with OFF policy and requires explicit grammar', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-issue-cli-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, '.keel'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app' }));
+  const rubric = { version: 1, problem: 'Acme loses rows.', reproduction: 'Run Acme test.', acceptance: 'Retain both rows.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
+  await writeFile(join(dir, 'rubric.json'), JSON.stringify(rubric));
+  const args = ['issue', 'new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'rubric.json', '--json'];
+  const r = keel(args, dir); assert.equal(r.code, 3, r.err + r.out);
+  const data = JSON.parse(r.out); assert.equal(data.state, 'preview'); assert.deepEqual(data.preview.labels, []);
+  for (const heading of ['Problem', 'Reproduction', 'Acceptance', 'One change', 'Prerequisites', 'Owner blockers']) assert.ok(data.preview.body.includes(`### ${heading}`));
+  for (const bad of [args.filter(x => x !== '--agent'), [...args, '--title', 'Duplicate'], ['issue', 'new', '--agent', '--json']]) assert.equal(keel(bad, dir).code, 2);
 });

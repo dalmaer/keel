@@ -1,0 +1,93 @@
+# Public events have a separate history and never hold the model worker's queue.
+# This router runs no repository code and has no model credentials.
+name: keel-robot-route
+on:
+  issues:
+    types: [labeled, reopened]
+  issue_comment:
+    types: [created]
+permissions: {}
+concurrency:
+  group: keel-robot-route-${{ github.run_id }}-${{ github.run_attempt }}
+  cancel-in-progress: false
+jobs:
+  route:
+    # Cheap event filters only; current permission and issue/comment identity
+    # are checked through the API below. Association alone grants nothing.
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.sender.type == 'User' &&
+      contains(github.event.issue.labels.*.name, 'keel:agent') &&
+      (github.event_name == 'issue_comment' || github.event.action == 'reopened' || github.event.label.name == 'keel:agent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Verify current writer and route one issue event
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const repo = process.env.GITHUB_REPOSITORY, eventName = process.env.GITHUB_EVENT_NAME;
+          const id = n => Number.isSafeInteger(n) && n > 0;
+          const login = event.sender?.login;
+          if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? '') || repo.split('/').some(s => s === '.' || s === '..') || event.repository?.full_name !== repo) throw new Error('router repository mismatch');
+          if (event.issue?.pull_request || !id(event.issue?.number) || event.sender?.type !== 'User' || !/^[A-Za-z0-9-]+$/.test(login ?? '')) process.exit(0);
+          const comment = eventName === 'issue_comment' && event.action === 'created';
+          const issueEvent = eventName === 'issues' && (event.action === 'reopened' || (event.action === 'labeled' && event.label?.name === 'keel:agent'));
+          if (!comment && !issueEvent) process.exit(0);
+          if (comment && (!id(event.comment?.id) || event.comment.user?.type !== 'User' || event.comment.user.login !== login)) process.exit(0);
+          const bodyHashOf = body => {
+            if (body !== null && typeof body !== 'string') throw new Error('issue body snapshot unavailable; fresh writer action required');
+            if (Buffer.byteLength(body ?? '', 'utf8') > 1048576) throw new Error('issue body exceeds bound');
+            return createHash('sha256').update(body ?? '', 'utf8').digest('hex');
+          };
+          const bodyHash = bodyHashOf(event.issue.body);
+          const api = async (path, body, expected = body === undefined ? 200 : 204) => {
+            const response = await fetch(`${process.env.GITHUB_API_URL || 'https://api.github.com'}${path}`, {
+              method: body === undefined ? 'GET' : 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),
+              headers: { authorization: `Bearer ${process.env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json' },
+              ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+            });
+            if (response.status !== expected) throw new Error(`router GitHub request unavailable (${response.status})`);
+            return expected === 204 ? null : response.json();
+          };
+          const permission = await api(`/repos/${repo}/collaborators/${encodeURIComponent(login)}/permission`);
+          if (permission.user?.login !== login || !['write', 'maintain', 'admin'].includes(permission.permission)) process.exit(0);
+          const issueNumber = event.issue.number;
+          const issue = await api(`/repos/${repo}/issues/${issueNumber}`);
+          if (issue.number !== issueNumber || issue.html_url !== `https://github.com/${repo}/issues/${issueNumber}` || issue.pull_request || issue.state !== 'open' || !issue.labels?.some(l => l.name === 'keel:agent')) process.exit(0);
+          if (bodyHashOf(issue.body) !== bodyHash) throw new Error('issue body changed; fresh writer action required');
+          if (comment) {
+            const fresh = await api(`/repos/${repo}/issues/comments/${event.comment.id}`);
+            if (fresh.id !== event.comment.id || fresh.issue_url !== `https://api.github.com/repos/${repo}/issues/${issueNumber}` || fresh.user?.type !== 'User' || fresh.user.login !== login) process.exit(0);
+          }
+          const repository = await api(`/repos/${repo}`);
+          if (repository.full_name !== repo || typeof repository.default_branch !== 'string' || !repository.default_branch.trim()) throw new Error('router default branch unavailable');
+          const file = await api(`/repos/${repo}/contents/.keel/keel.json?ref=${encodeURIComponent(repository.default_branch)}`);
+          if (file.type !== 'file' || file.path !== '.keel/keel.json' || file.encoding !== 'base64' || typeof file.content !== 'string' || file.content.length > 1400000) throw new Error('router policy unavailable');
+          const config = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
+          // This is only the OFF switch. The worker validates full policy and
+          // current allowance again; router data never grants model admission.
+          if (config?.robot?.on !== true) process.exit(0);
+          const commentId = comment ? event.comment.id : null;
+          const authorization = { version: 1, repo, issueNumber, bodyHash, writer: login, eventName, action: event.action, commentId };
+          const receiptBody = `<!-- keel:robot-authorization ${JSON.stringify(authorization)} -->`;
+          if (receiptBody.length > 2000) throw new Error('authorization exceeds bound');
+          const posted = await api(`/repos/${repo}/issues/${issueNumber}/comments`, { body: receiptBody }, 201);
+          if (!id(posted?.id)) throw new Error('authorization receipt identity unavailable');
+          const receipt = await api(`/repos/${repo}/issues/comments/${posted.id}`);
+          if (receipt.id !== posted.id || receipt.issue_url !== `https://api.github.com/repos/${repo}/issues/${issueNumber}` || receipt.user?.type !== 'Bot' || receipt.user.login !== 'github-actions[bot]' || receipt.body !== receiptBody) throw new Error('authorization receipt read-back mismatch');
+          const trigger = { version: 1, repo, eventName, action: event.action, issueNumber, commentId, sender: login, authorizationId: posted.id, bodyHash };
+          await api(`/repos/${repo}/actions/workflows/keel-robot.yml/dispatches`, { ref: repository.default_branch, inputs: { robot_trigger: JSON.stringify(trigger) } });
+          console.log(`Routed verified ${eventName} for issue #${issueNumber}.`);
+          NODE

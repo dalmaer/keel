@@ -6,7 +6,7 @@ since: 2026-10-09
 goal: G5
 spec: 2
 depends: [43]
-note: "Implemented: bounded CI usage estimates, exact clean default-branch CI reuse and adoption cost previews. Real API accounting and estimates verified; clean committed reuse and the owner’s month on a metered project remain owed."
+note: "Implemented: bounded CI usage estimates, exact clean default-branch CI reuse and adoption cost previews. Real API accounting, estimates and clean committed CI reuse verified; the owner’s month on a metered project remains owed."
 evidence: ["evidence/2026-10-09-ci-usage.md"]
 issue: 48
 ---
@@ -66,7 +66,7 @@ Over time: a month's minutes against the estimate.
 
 ## Next action
 
-After merge and successful default-branch CI, verify reuse from a clean checkout and record its exact source. The owner then chooses a metered project, captures its adoption estimate, and compares one month of actual usage with it. No new project schedule is enabled by this phase.
+The owner chooses a metered project, captures its adoption estimate, and compares one month of actual usage with it. No new project schedule is enabled by this phase.
 
 ## Trajectory
 
@@ -76,3 +76,5 @@ After merge and successful default-branch CI, verify reuse from a clean checkout
 - **2026-10-10** — A completion-based usage window excludes and discloses active work; otherwise the night invalidates its own report. Adoption averages require the whole logical run to finish, including retries. Incomplete completed-job data remains a gap. [Review evidence](../evidence/2026-10-09-ci-usage.md).
 
 - **2026-10-10** — Per-run estimates exclude partial-window logical runs, retain positively dated zero-cost runs, and use workflow age for event exposure. A completed-window total and a complete per-run sample answer different questions. [Review evidence](../evidence/2026-10-09-ci-usage.md).
+
+- **2026-10-10** — Clean committed reuse was walked on the exact merged revision and preserved its failed CI conclusion without creating a local timing record. Reuse is provenance, not a success claim; the remaining acceptance is the owner’s metered month. [Walk evidence](../evidence/2026-10-09-ci-usage.md).
