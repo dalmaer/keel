@@ -753,3 +753,28 @@ test('sandbox: two honest merges of the default branch, each bringing a newer wo
   assert.equal(sb.status, 0, sb.stdout + sb.stderr);
   assert.ok(start);
 });
+
+// #85: a merge of two of the agent's own branches whose package.json change is only a test script passes, as a
+// commit's would; one that changes a dependency is refused.
+test('sandbox: a merge of the agent\'s own branches changing only a test script passes; one adding a dependency is refused', async t => {
+  const pkg = (test, deps = {}) => `${JSON.stringify({ name: 'acme', private: true, scripts: { test }, dependencies: deps }, null, 2)}\n`;
+  const dir = await acme(t, { files: { 'acme.mjs': 'export const anvil = 1;\n', 'package.json': pkg('node --test') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const mergeOf = async (side, change) => {
+    git(dir, ['checkout', '-q', '-f', '-B', 'agent', base]);
+    await commit(dir, { 'acme.mjs': 'export const anvil = 2;\n' }, 'acme: one side');
+    git(dir, ['checkout', '-q', '-B', side, base]);
+    await commit(dir, { 'acme-b.mjs': 'export const b = 1;\n' }, 'acme: the other side');
+    git(dir, ['checkout', '-q', 'agent']);
+    git(dir, ['merge', '-q', '--no-commit', side]);
+    await write(dir, { 'package.json': change });
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-q', '--no-edit']);
+    return climb(dir, ['sandbox', '--base', base, '--head', 'HEAD', '--json']);
+  };
+  const scripts = await mergeOf('side-a', pkg('node --test --test-concurrency=4'));
+  assert.equal(scripts.status, 0, scripts.stdout + scripts.stderr);
+  const deps = await mergeOf('side-b', pkg('node --test', { 'acme-anvil': '1.0.0' }));
+  assert.equal(deps.status, 1, deps.stdout);
+  assert.match(json(deps).problems.join('\n'), /^package\.json: /m);
+});

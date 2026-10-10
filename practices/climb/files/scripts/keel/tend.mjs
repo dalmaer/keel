@@ -133,7 +133,8 @@ export function sandboxProblems(root, base, head) {
       const brought = others.filter(p => isAncestor(p, b) && !isAncestor(p, first));
       for (const { path } of changesOf(root, first, c)) {
         if (basename(path) === 'package.json') {
-          if (brought.some(p => !packageProblem(showAt(root, p, path), showAt(root, c, path)))) continue;
+          // Install keys as its first parent has them (only "scripts" changed), or as a commit it brought in has them.
+          if (!packageProblem(showAt(root, first, path), showAt(root, c, path)) || brought.some(p => !packageProblem(showAt(root, p, path), showAt(root, c, path)))) continue;
           const why = packageProblem(showAt(root, b, path), showAt(root, c, path)) ?? 'install keys unlike any default-branch commit it merged';
           out.push(`${path}: ${why} in the merge ${c.slice(0, 7)}; a merge brings only what the default branch had, so the branch is refused whole (ledger#92)`);
         } else if ((offLimit(path) || INSTALL_FILES.includes(basename(path)) || path.startsWith('docs/evidence/')) && !brought.some(p => showAt(root, c, path) === showAt(root, p, path))) {
