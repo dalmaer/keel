@@ -94,22 +94,34 @@ export function pushedHead(comments = []) {
 const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b\s*:?\s+((?:[\w.-]+\/[\w.-]+)?#\d+|https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+)/gi;
 export const closingRefs = text => [...String(text ?? '').matchAll(CLOSING)].map(m => m[1]);
 /**
+ * Whether a closing reference names the robot's own issue (PR #59): #N, and,
+ * when the repo is known, owner/repo#N or the issue's URL, in any case.
+ */
+export const ownRef = (ref, issue, repo) => {
+  const r = String(ref).toLowerCase(), n = String(issue);
+  if (r === `#${n}`) return true;
+  const full = String(repo ?? '').toLowerCase();
+  return Boolean(full) && (r === `${full}#${n}` || r.replace(/^http:/, 'https:') === `https://github.com/${full}/issues/${n}`);
+};
+/** Text from the agent (a commit subject, the issue's title) made safe for the PR's Markdown (PR #59): no HTML comment or tag, no code span, can hide what follows. */
+export const mdSafe = text => oneLine(text).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/`/g, "'");
+/**
  * What base..head's commit messages and the PR's description (`body`, a
  * file) would close besides #issue: [string] (PR #59). The publish job
  * runs it in its own repository, the judged bundle fetched as objects: the
  * judge ran the gate, which can rewrite a loose object report() then reads.
  */
-export async function closesOf({ root, base, head, issue, body }) {
+export async function closesOf({ root, base, head, issue, body, repo }) {
   if (!/^\d+$/.test(String(issue ?? ''))) throw new RobotError('closes needs --issue <number>');
   const b = sha(root, base), h = sha(root, head);
   const out = [];
   for (const id of git(root, ['rev-list', '--reverse', `${b}..${h}`]).split('\n').filter(Boolean)) {
-    for (const r of closingRefs(git(root, ['show', '-s', '--format=%B', id])).filter(r => r !== `#${issue}`)) out.push(`${id.slice(0, 7)} would close ${r}`);
+    for (const r of closingRefs(git(root, ['show', '-s', '--format=%B', id])).filter(r => !ownRef(r, issue, repo))) out.push(`${id.slice(0, 7)} would close ${r}`);
   }
   if (body) {
     let text;
     try { text = await readFile(body, 'utf8'); } catch (e) { throw new RobotError(`${body}: ${e.message}`); }
-    for (const r of closingRefs(text).filter(r => r !== `#${issue}`)) out.push(`the PR's description would close ${r}`);
+    for (const r of closingRefs(text).filter(r => !ownRef(r, issue, repo))) out.push(`the PR's description would close ${r}`);
   }
   return out;
 }
@@ -303,7 +315,9 @@ export function issueState(issue, comments = [], { writer = NOBODY } = {}) {
  */
 export function againSince(state, events = [], { writer = NOBODY } = {}) {
   if (state.kind !== 'worked') return state;
-  const again = events.find(e => at(e?.created_at) > at(state.lastRun) && e?.actor?.type !== 'Bot' && !/\[bot\]$/i.test(e?.actor?.login ?? '') && writer(e?.actor?.login)
+  // The same second counts (PR #59): GitHub stamps an event and the run's mark to the second, so a reopen or a
+  // relabel just after the mark may share it; a run too many is cheaper than a writer's event lost.
+  const again = events.find(e => at(e?.created_at) >= at(state.lastRun) && e?.actor?.type !== 'Bot' && !/\[bot\]$/i.test(e?.actor?.login ?? '') && writer(e?.actor?.login)
     && (e.event === 'reopened' || (e.event === 'labeled' && e.label?.name === LABEL)));
   return again ? { ...state, kind: 'work', fresh: false, again: again.event, comments: [] } : state;
 }
@@ -660,9 +674,10 @@ export async function report({ root, config, base, head, issue, title, agent, bo
   const h = sha(root, head || 'HEAD');
   const commits = git(root, ['log', '--reverse', '--format=%H%x00%s', `${b}..${h}`]).split('\n').filter(Boolean).map(l => { const [id, subject] = l.split('\x00'); return { sha: id, subject, message: git(root, ['show', '-s', '--format=%B', id]) }; });
   // A closing keyword in a commit closes what it names on merge (PR #59): the robot closes its own issue alone.
-  const closes = commits.flatMap(c => closingRefs(c.message).filter(r => r !== `#${issue}`).map(r => `${c.sha.slice(0, 7)} ("${oneLine(c.subject).slice(0, 60)}") would close ${r}`));
+  const repo = config?.repo ?? process.env.GITHUB_REPOSITORY ?? null;
+  const closes = commits.flatMap(c => closingRefs(c.message).filter(r => !ownRef(r, issue, repo)).map(r => `${c.sha.slice(0, 7)} ("${oneLine(c.subject).slice(0, 60)}") would close ${r}`));
   // The issue's title goes into the PR's description too (PR #59): a closing keyword there closes on merge as well.
-  for (const r of closingRefs(title).filter(r => r !== `#${issue}`)) closes.push(`the issue's title ("${oneLine(title).slice(0, 60)}") would close ${r}`);
+  for (const r of closingRefs(title).filter(r => !ownRef(r, issue, repo))) closes.push(`the issue's title ("${oneLine(title).slice(0, 60)}") would close ${r}`);
   if (closes.length) throw new RobotError(`the agent's commits or the issue's title name issues to close besides #${issue}: ${closes.join('; ')}. Merging would close them, and the robot was handed #${issue} alone; nothing is published`);
   // NUL-delimited (PR #59): the PR's impact declaration names a phase file whatever bytes its path holds.
   const files = pathsOf(root, ['diff', '--name-only', '--no-renames', b, h]);
@@ -674,12 +689,12 @@ export async function report({ root, config, base, head, issue, title, agent, bo
   const mark = robotAgentMark(agent);
   const who = reviewerOf({ config, head: branch, body: mark });
   const input = {
-    summary: { lead: `keel robot: #${issue}${title ? ` (${oneLine(title)})` : ''}, worked by ${AGENTS[agent].name} on its own; a person merges.`, files },
+    summary: { lead: `keel robot: #${issue}${title ? ` (${mdSafe(title)})` : ''}, worked by ${AGENTS[agent].name} on its own; a person merges.`, files },
     evidence: { gate: judged?.gate ?? 'not run: the judge recorded no gate line' },
     danger: { door: 'two-way', why: 'one issue\'s change, on its own branch; reverting the merge restores everything', surfaces: [], within: 'files' },
     notes: [
       `Closes #${issue}`,
-      `Commits:\n\n${commits.map(c => `- ${c.subject} (${c.sha.slice(0, 7)})`).join('\n')}`,
+      `Commits:\n\n${commits.map(c => `- ${mdSafe(c.subject)} (${c.sha.slice(0, 7)})`).join('\n')}`,
       `Review: ${who.reviewer ? `${who.why}.` : 'no provider is listed to review it.'} A pull request the workflow's token opens starts no other workflow, so cross-review runs when someone with write access comments \`/review\` here (its "for" must name \`${PREFIX}\`).`,
       'The robot never merges. Comment on the issue to start its next run on this branch.',
     ],
@@ -815,7 +830,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: p, text: `posted the agent's last message on #${p.issue} (${p.chars} characters)` };
     }
     case 'closes': {
-      const c = await closesOf({ root: process.cwd(), base: o.base, head: o.head, issue: o.issue, body: o.body ? resolve(o.body) : undefined });
+      const c = await closesOf({ root: process.cwd(), base: o.base, head: o.head, issue: o.issue, body: o.body ? resolve(o.body) : undefined, repo: o.repo ?? env.GITHUB_REPOSITORY });
       return { data: { ok: !c.length, closes: c }, text: c.length ? `::error::the branch would close issues besides #${o.issue}: ${c.join('; ')}; nothing is pushed` : `closes #${o.issue} alone`, exitCode: c.length ? 1 : 0 };
     }
     case 'pushed': {

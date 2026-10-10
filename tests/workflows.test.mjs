@@ -1969,7 +1969,7 @@ export function robotWorkflowProblems(text) {
   const owns = /\n {10}mine=\$\(node scripts\/keel\/robot\.mjs pushed --repo "\$REPO" --issue "\$ISSUE"\)\n {10}tip=\$\(git ls-remote origin "refs\/heads\/keel\/robot-\$ISSUE" \| cut -f1\)\n {10}if \[ -n "\$tip" \] && \[ "\$tip" != "\$mine" \]; then\n[^\n]*\n {12}exit 1\n {10}fi\n {10}git push --force-with-lease/;
   if (!owns.test(publish)) out.push('the push does not first refuse a branch whose tip the robot did not push (robot.mjs pushed against git ls-remote)');
   // PR #59: what merging would close is read in publish, from the bundle's objects, before the push.
-  const closes = publish.indexOf('node scripts/keel/robot.mjs closes --base "$GITHUB_SHA" --head "$head" --issue "$ISSUE" --body "$RUNNER_TEMP/run/body.md"');
+  const closes = publish.indexOf('node scripts/keel/robot.mjs closes --repo "$REPO" --base "$GITHUB_SHA" --head "$head" --issue "$ISSUE" --body "$RUNNER_TEMP/run/body.md"');
   if (closes < 0 || closes > publish.indexOf('git push')) out.push('publish does not check what merging would close (robot.mjs closes) before the push');
   if (pushes.length && !publish.includes(pushes[0].line)) out.push('the push is not in the publish job');
   const create = code(publish).find(l => /\bgh pr create\b/.test(l.line))?.line ?? '';

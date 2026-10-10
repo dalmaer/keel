@@ -1368,9 +1368,14 @@ becomes a PR on `keel/robot-<issue>` that a person merges.
   them. Under 5 minutes left: the run ends green with a notice naming the
   minutes used and the day it starts again. The night's Budget line shows
   the robot's runs against `runMinutes`.
-- `node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post`
+- `node scripts/keel/robot.mjs config|pick|brief|message|report|triage|post|pushed|closes`
   (each `--json`): the run's steps; exit 2 on a bad config or GitHub
-  unreadable (it never guesses).
+  unreadable (it never guesses). `pushed --repo <r> --issue <n>` →
+  `{head}`, the commit the robot's last run mark names (null when none):
+  publish replaces `keel/robot-<n>` only over that tip. `closes --repo <r>
+  --base <sha> --head <sha> --issue <n> [--body <file>]` → `{ok, closes}`,
+  what merging would close besides #n (exit 1 when any), read from the
+  publish job's own objects.
 
 <!-- topic: board | whose turn it is: the owner's board, and the verbs that settle its items -->
 

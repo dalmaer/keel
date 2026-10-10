@@ -553,6 +553,17 @@ export function added(before, after, key) {
 /** The records a deletion of is refused (PR #59), beside docs/evidence/. */
 export const RECORD_DIRS = Object.freeze(['docs/phases/', 'docs/projects/', 'docs/decisions/']);
 export function recordRules(root, base, head, who = 'the agent') {
+  const whole = recordRulesOf(root, base, head, who);
+  if (whole.length) return whole;
+  // Each commit as well (PR #59): a phase marked built, a box ticked or a record deleted in one commit and put
+  // back in a later one is not in base..head, yet the branch's history carries it into main on any merge but a squash.
+  for (const c of git(root, ['rev-list', '--reverse', `${base}..${head}`]).split('\n').filter(Boolean)) {
+    const own = recordRulesOf(root, `${c}^`, c, who);
+    if (own.length) return own.map(p => `${c.slice(0, 7)} (put back later): ${p}`);
+  }
+  return [];
+}
+function recordRulesOf(root, base, head, who) {
   const refused = [];
   const changes = changesOf(root, base, head);
   for (const { status, path } of changes) {

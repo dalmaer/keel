@@ -335,6 +335,9 @@ test('a writer\'s comment since the last run starts the next run, with the comme
   assert.equal(R.againSince(worked, [{ event: 'labeled', label: { name: LABEL }, created_at: '2026-10-08T00:00:00Z', actor: OWNER }]).kind, 'work');
   assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'acme-bot[bot]', type: 'Bot' } }]).kind, 'worked');
   assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-06T00:00:00Z', actor: OWNER }]).kind, 'worked', 'a reopen before the run');
+  // PR #59: GitHub stamps to the second; a reopen or a relabel in the run's own second counts.
+  assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: worked.lastRun, actor: OWNER }]).kind, 'work', 'a reopen in the same second as the run');
+  assert.equal(R.againSince(worked, [{ event: 'labeled', label: { name: LABEL }, created_at: worked.lastRun, actor: OWNER }]).kind, 'work', 'a relabel in the same second');
   // PR #59: anyone who wrote an issue can close and reopen it; only a writer's reopen (or label) sends it back.
   assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'mallory', type: 'User' } }]).kind, 'worked', 'a reopen by someone without write access');
   assert.equal(R.againSince(worked, [{ event: 'reopened', created_at: '2026-10-08T00:00:00Z', actor: { login: 'acme-member', type: 'User' } }]).kind, 'worked', 'a reopen by an org member who only reads');
@@ -676,6 +679,16 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
     assert.ok(g.problems.some(p => p.startsWith(`${file}: changed in ${sneak.slice(0, 7)} on the agent's branch and changed back later`)), `${what}: ${JSON.stringify(g.problems)}`);
     assert.ok(!g.problems.some(p => /^the gate `/.test(p)), 'refused before the gate');
   }
+  // PR #59: the record rules on each commit too: a phase marked built, or a box ticked, then put back.
+  for (const [what, file, marked] of [['a phase marked built', 'docs/phases/06-lid.md', LID_PHASE.replace('status: partial', 'status: built')], ['a box ticked', 'docs/phases/06-lid.md', LID_PHASE.replace('- [ ] the lid opens', '- [x] the lid opens')]]) {
+    git(dir, ['switch', '-q', '-C', 'keel/robot-12', base]);
+    const was = await readFile(join(dir, file), 'utf8');
+    const flip = await commit(dir, { [file]: marked, 'src/lid.mjs': 'export const lid = () => "open";\n' }, `acme: ${what}`);
+    await commit(dir, { [file]: was }, 'acme: put it back');
+    const g = await robot.robotGuard({ root: dir, config: { ...config, check: 'echo the gate ran; exit 3' }, base });
+    assert.equal(g.ok, false, what);
+    assert.ok(g.problems.some(p => p.startsWith(`${flip.slice(0, 7)} (put back later): ${file}:`)), `${what}: ${JSON.stringify(g.problems)}`);
+  }
   git(dir, ['reset', '-q', '--hard', checked]);
   // PR #59: a closing keyword in a commit closes what it names on merge; the robot closes its own issue alone.
   assert.deepEqual(robot.closingRefs('Closes #3. fixed: #4, resolves https://github.com/a/b/issues/5; see #6; Fixes acme/x#7; prefixes #8; re-fix #9'), ['#3', '#4', 'https://github.com/a/b/issues/5', 'acme/x#7', '#9']);
@@ -688,10 +701,22 @@ test('the judge: the robot\'s guard refuses what is off limits and any evidence,
   await assert.rejects(robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Lid sticks; fixes #99', agent: 'claude' }), /the issue's title \("Lid sticks; fixes #99"\) would close #99/);
   assert.equal((await robot.report({ root: dir, config, base, head: own, issue: 12, title: 'Lid sticks; fixes #12', agent: 'claude' })).commits, 2);
   // The publish job's own read of what merging would close (robot.mjs closes): commits and the PR's description.
-  const closesCli = (head, body) => run(process.execPath, [join(dir, 'scripts/keel/robot.mjs'), 'closes', '--base', base, '--head', head, '--issue', '12', ...(body ? ['--body', body] : []), '--json'], { cwd: dir });
+  const closesCli = (head, body) => run(process.execPath, [join(dir, 'scripts/keel/robot.mjs'), 'closes', '--repo', REPO, '--base', base, '--head', head, '--issue', '12', ...(body ? ['--body', body] : []), '--json'], { cwd: dir });
   const bodyFile = join(dirname(mark), 'body.md');
   await writeFile(bodyFile, 'keel robot: #12\n\nCloses #12\n');
   assert.equal(closesCli(own, bodyFile).status, 0, 'its own issue, in a commit and the description');
+  // Its own issue qualified (owner/repo#N, the URL) is its own, any case; another repo's #12 is not.
+  assert.deepEqual(['#12', 'acme/anvils#12', 'Acme/Anvils#12', 'https://github.com/acme/anvils/issues/12', 'acme/other#12', '#120', 'https://github.com/acme/other/issues/12'].map(r => robot.ownRef(r, 12, 'acme/anvils')), [true, true, true, true, false, false, false]);
+  assert.equal(robot.ownRef('acme/anvils#12', 12, null), false, 'no repo known: only #N is its own');
+  git(dir, ['reset', '-q', '--hard', own]);
+  const qualified = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open, qualified";\n' }, 'lid: qualified\n\nFixes acme/anvils#12');
+  assert.equal(closesCli(qualified, bodyFile).status, 0, 'a qualified reference to its own issue');
+  // A subject or title carrying Markdown that could hide the rest of the PR's description is shown, never parsed.
+  const sly = await commit(dir, { 'src/lid.mjs': 'export const lid = () => "open, sly";\n' }, 'lid: open <!-- hide `the rest');
+  const shown = (await robot.report({ root: dir, config: { ...config, repo: REPO }, base, head: sly, issue: 12, title: 'Lid <b>sticks</b>', agent: 'claude' })).text;
+  assert.ok(shown.includes('- lid: open &lt;!-- hide \'the rest ('), shown);
+  assert.ok(shown.includes('(Lid &lt;b&gt;sticks&lt;/b&gt;)'));
+  assert.ok(!shown.includes('lid: open <!--') && /Record impact|keel-impact/.test(shown), 'the impact section still stands');
   const refusedCloses = closesCli(closer, bodyFile);
   assert.equal(refusedCloses.status, 1, refusedCloses.stdout);
   assert.deepEqual(parse(refusedCloses).closes, [`${closer.slice(0, 7)} would close acme/anvils#99`]);

@@ -661,7 +661,7 @@ jobs:
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --records
           # What merging would close, read here from the bundle's objects
           # (PR #59): the judge ran the gate, which can rewrite what it read.
-          node scripts/keel/robot.mjs closes --base "$GITHUB_SHA" --head "$head" --issue "$ISSUE" --body "$RUNNER_TEMP/run/body.md"
+          node scripts/keel/robot.mjs closes --repo "$REPO" --base "$GITHUB_SHA" --head "$head" --issue "$ISSUE" --body "$RUNNER_TEMP/run/body.md"
           # The next run on the branch replaces its own commits (its brief
           # carried their diff), so it may force, but only over what the robot
           # pushed (PR #59): the branch is absent, or its tip is the commit the
