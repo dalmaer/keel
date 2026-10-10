@@ -42,7 +42,9 @@ export function parseRobotRubric(body) {
   if (body.split(begin).length !== 2 || body.split(end).length !== 2 || body.split('<!-- keel:robot-data ').length !== 2) return fail('exactly one versioned robot rubric section is required');
   const start = body.indexOf(begin), finish = body.indexOf(end) + end.length;
   const section = body.slice(start, finish);
-  const match = /<!-- keel:robot-data (.*) -->/.exec(section);
+  // JSON.stringify preserves U+2028/U+2029 inside strings. Accept those
+  // separators without changing canonical rendering or durable rubric identity.
+  const match = /<!-- keel:robot-data ([^\r\n]*) -->/.exec(section);
   if (!match) return fail('rubric data is missing');
   try {
     const checked = validateRobotRubric(JSON.parse(match[1]));

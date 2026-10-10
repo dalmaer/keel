@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { readFile,mkdtemp,writeFile,mkdir,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -59,8 +60,9 @@ test('robot public events cannot enter serialized worker history before trusted 
  assert.deepEqual(await shellProblems('robot-router', text), []);
  assert.match(text,/^concurrency:\n  group: keel-robot-route-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}\n  cancel-in-progress: false$/m);
  assert.match(text, /issue_comment:\n    types: \[created\]/);
- assert.doesNotMatch(text, /uses: (?:anthropics|openai|actions\/checkout)|secrets\.|contents: write|issues: write/);
+ assert.doesNotMatch(text, /uses: (?:anthropics|openai|actions\/checkout)|secrets\.|contents: write/);
  assert.match(text, /actions: write/);
+ assert.match(text, /issues: write/);
  assert.match(text, /github\.event\.issue\.pull_request == null/);
 });
 
@@ -70,21 +72,25 @@ test('robot router dispatches only fresh writer-authorized issue events, preserv
  const script = runBlocks(await readFile(router, 'utf8')).find(b => b.step === 'Verify current writer and route one issue event').script;
  const stub = join(dir, 'fetch.mjs'), fixtures = join(dir, 'responses.json'), log = join(dir, 'calls.jsonl'), eventFile = join(dir, 'event.json');
  await writeFile(stub, `import {readFileSync,appendFileSync} from 'node:fs';
-globalThis.fetch=async (url,options)=>{const u=new URL(url),path=u.pathname+u.search;const calls={path,method:options.method,body:options.body?JSON.parse(options.body):null};appendFileSync(process.env.ACME_CALLS,JSON.stringify(calls)+'\\n');const responses=JSON.parse(readFileSync(process.env.ACME_RESPONSES,'utf8'));const r=responses[path];if(!r)throw Error('unexpected API path '+path);return {status:r.status,json:async()=>r.data};};`);
+let receiptBody;globalThis.fetch=async (url,options)=>{const u=new URL(url),path=u.pathname+u.search;const calls={path,method:options.method,body:options.body?JSON.parse(options.body):null};appendFileSync(process.env.ACME_CALLS,JSON.stringify(calls)+'\\n');const responses=JSON.parse(readFileSync(process.env.ACME_RESPONSES,'utf8'));const r=responses[path];if(!r)throw Error('unexpected API path '+path);if(options.method==='POST' && path.endsWith('/comments'))receiptBody=calls.body.body;return {status:r.status,json:async()=>r.data?.body==='__receipt__'?{...r.data,body:receiptBody}:r.data};};`);
  const repo = 'acme/anvils', user = { login: 'acme-owner', type: 'User' };
- const issue = { number: 7, html_url: `https://github.com/${repo}/issues/7`, state: 'open', labels: [{name:'keel:agent'}] };
+ const issue = { body:'Acme task 🛠️', number: 7, html_url: `https://github.com/${repo}/issues/7`, state: 'open', labels: [{name:'keel:agent'}] };
  const comment = { id: 23, user, issue_url: `https://api.github.com/repos/${repo}/issues/7` };
  const event = { repository:{full_name:repo}, action:'created', issue, sender:user, comment };
  const permissionPath = `/repos/${repo}/collaborators/${user.login}/permission`, issuePath = `/repos/${repo}/issues/7`, commentPath = `/repos/${repo}/issues/comments/23`;
  const dispatchPath = `/repos/${repo}/actions/workflows/keel-robot.yml/dispatches`;
  const configPath = `/repos/${repo}/contents/.keel/keel.json?ref=release%2Facme`;
  const policyFile = config => ({status:200,data:{type:'file',path:'.keel/keel.json',encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}});
+ const receiptPath=`/repos/${repo}/issues/comments/91`, receiptPost=`/repos/${repo}/issues/7/comments`;
+ const receipt={id:91,issue_url:`https://api.github.com/repos/${repo}/issues/7`,user:{type:'Bot',login:'github-actions[bot]'},body:'__receipt__'};
+ const bodyHash=createHash('sha256').update(issue.body).digest('hex');
  const responses = {
   [permissionPath]:{status:200,data:{user,permission:'write'}},
   [issuePath]:{status:200,data:issue}, [commentPath]:{status:200,data:comment},
   [`/repos/${repo}`]:{status:200,data:{full_name:repo,default_branch:'release/acme'}},
   [configPath]:policyFile({robot:{on:true,budgetMinutes:10}}),
   [dispatchPath]:{status:204},
+  [receiptPost]:{status:201,data:{id:91}}, [receiptPath]:{status:200,data:receipt},
  };
  const invoke = async ({ payload=event, eventName='issue_comment', overrides={} }={}) => {
   await writeFile(eventFile, JSON.stringify(payload)); await writeFile(fixtures, JSON.stringify({...responses,...overrides})); await writeFile(log,'');
@@ -94,18 +100,25 @@ globalThis.fetch=async (url,options)=>{const u=new URL(url),path=u.pathname+u.se
  };
  for (const permission of ['write','maintain','admin']) {
   const out=await invoke({overrides:{[permissionPath]:{status:200,data:{user,permission}}}});
-  assert.equal(out.status,0,out.stderr); assert.equal(out.posts.length,1);
+  assert.equal(out.status,0,out.stderr); assert.equal(out.posts.length,2);
   assert.equal(out.calls[0].path,permissionPath);
   assert.ok(out.calls.findIndex(c=>c.path===configPath)<out.calls.findIndex(c=>c.path===dispatchPath));
-  assert.deepEqual(out.posts[0],{path:dispatchPath,method:'POST',body:{ref:'release/acme',inputs:{robot_trigger:JSON.stringify({version:1,repo,eventName:'issue_comment',action:'created',issueNumber:7,commentId:23,sender:user.login})}}});
+  assert.ok(out.calls.findIndex(c=>c.path===receiptPath)<out.calls.findIndex(c=>c.path===dispatchPath));
+  assert.equal(out.posts[0].path,receiptPost);
+  assert.equal(out.posts[0].body.body,`<!-- keel:robot-authorization ${JSON.stringify({version:1,repo,issueNumber:7,bodyHash,writer:user.login,eventName:'issue_comment',action:'created',commentId:23})} -->`);
+  assert.deepEqual(out.posts[1],{path:dispatchPath,method:'POST',body:{ref:'release/acme',inputs:{robot_trigger:JSON.stringify({version:1,repo,eventName:'issue_comment',action:'created',issueNumber:7,commentId:23,sender:user.login,authorizationId:91,bodyHash})}}});
  }
  for (const action of ['labeled','reopened']) {
   const out=await invoke({eventName:'issues',payload:{...event,action,label:{name:'keel:agent'}}});
-  assert.equal(out.status,0,out.stderr);assert.equal(out.posts.length,1);
-  const trigger=JSON.parse(out.posts[0].body.inputs.robot_trigger);
+  assert.equal(out.status,0,out.stderr);assert.equal(out.posts.length,2);
+  const trigger=JSON.parse(out.posts[1].body.inputs.robot_trigger);
   assert.equal(trigger.action,action);assert.equal(trigger.commentId,null);assert.equal(trigger.eventName,'issues');
  }
  const rejected = [
+  {payload:{...event,issue:{...issue,body:undefined}}},
+  {payload:{...event,issue:{...issue,body:42}}},
+  {overrides:{[issuePath]:{status:200,data:{...issue,body:'Edited after writer action'}}}},
+  {overrides:{[issuePath]:{status:200,data:{...issue,body:undefined}}}},
   {payload:{...event,sender:{...user,type:'Bot'}}},
   {payload:{...event,issue:{...issue,pull_request:{url:'acme'}}}},
   {payload:{...event,comment:{...comment,user:{...user,login:'acme-other'}}}},
@@ -124,6 +137,16 @@ globalThis.fetch=async (url,options)=>{const u=new URL(url),path=u.pathname+u.se
   const out=await invoke(input);
   assert.equal(out.posts.length,0,JSON.stringify(input));
  }
+ for (const data of [{...receipt,id:92},{...receipt,issue_url:`https://api.github.com/repos/${repo}/issues/8`},{...receipt,user:{type:'User',login:'github-actions[bot]'}},{...receipt,user:{type:'Bot',login:'acme[bot]'}},{...receipt,body:'altered receipt'}]) {
+  const out=await invoke({overrides:{[receiptPath]:{status:200,data}}});
+  assert.notEqual(out.status,0);assert.equal(out.posts.length,1);assert.equal(out.posts[0].path,receiptPost);
+ }
+ for (const overrides of [{[receiptPost]:{status:201,data:{id:null}}},{[receiptPost]:{status:403,data:{}}},{[receiptPath]:{status:404,data:{}}}]) {
+  const out=await invoke({overrides});assert.notEqual(out.status,0);assert.equal(out.posts.some(p=>p.path===dispatchPath),false);
+ }
+ const empty=await invoke({payload:{...event,issue:{...issue,body:null}},overrides:{[issuePath]:{status:200,data:{...issue,body:null}}}});
+ assert.equal(empty.status,0,empty.stderr);assert.equal(JSON.parse(empty.posts[1].body.inputs.robot_trigger).bodyHash,createHash('sha256').update('').digest('hex'));
+
 });
 
 test('robot completed review skips message artifacts while retaining exact-head post verification',async()=>{
@@ -135,4 +158,14 @@ test('robot completed review skips message artifacts while retaining exact-head 
  assert.match(review,/uses: actions\/upload-artifact@v7\n        if: steps.review.outputs.complete != 'true'\n        with:\n          name: robot-review-message/);
  assert.match(post,/if: needs.review-agent.result == 'success' && needs.review-agent.outputs.complete != 'true'\n        with:\n          name: robot-review-message/);
  assert.match(post,/ROBOT_HEAD: \$\{\{ needs.publish.outputs.head \}\}/);
+});
+
+test('robot publisher receives only credential presence flags and can read the fresh budget',async()=>{
+ const text=await readFile(workflow,'utf8'),publish=text.split('\n  publish:\n')[1].split('\n  review-agent:')[0];
+ assert.match(publish,/^      actions: read$/m);
+ const step=publish.split('      - name: Publish verified candidate or explicit blocked outcome\n')[1];
+ assert.match(step,/ROBOT_HAS_CLAUDE: \$\{\{ secrets\.CLAUDE_CODE_OAUTH_TOKEN != '' \|\| secrets\.ANTHROPIC_API_KEY != '' \}\}/);
+ assert.match(step,/ROBOT_HAS_CODEX: \$\{\{ secrets\.OPENAI_API_KEY != '' \}\}/);
+ assert.doesNotMatch(step,/^\s+(?:CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY):/m);
+ assert.match(step,/run: node scripts\/keel\/robot.mjs publish --json/);
 });

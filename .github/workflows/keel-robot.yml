@@ -317,6 +317,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: write
       issues: write
       pull-requests: write
@@ -351,6 +352,8 @@ jobs:
         id: publish
         env:
           GH_TOKEN: ${{ github.token }}
+          ROBOT_HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+          ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
           ROBOT_JUDGE_OK: ${{ needs.judge.result == 'success' }}
           ROBOT_JUDGED_HEAD: ${{ needs.judge.outputs.head }}
         run: node scripts/keel/robot.mjs publish --json

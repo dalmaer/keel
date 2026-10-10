@@ -83,11 +83,11 @@
     },
     ".github/workflows/keel-robot-route.yml": {
       "practice": "climb",
-      "sha256": "53fd231a36400fa6f6e62700d72a6cf4a7506f74a83047996a3324831e138c97"
+      "sha256": "b082de322545e7fedd42df37f8bd26ebfb410acec10d02a57eabed081126c642"
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
-      "sha256": "3586cde0c7a71ca9b0e87c76154f0799a0f60e6f8e25e9c9c9c58b3b86d14d83"
+      "sha256": "34096d582ae22daa21ae73ce3164077b3824daebd7a852b0d1e649765a6dd2c1"
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
@@ -199,11 +199,11 @@
     },
     "scripts/keel/robot-rubric.mjs": {
       "practice": "climb",
-      "sha256": "00021db04f40d8cf9dfd3f648c576336ebb619143efb2560ff072352fd90303e"
+      "sha256": "0cc8bb9d19a158e582b414742c34ee0d94b09ad294941ec3626d2b0890e43948"
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "696bfb3ff84399682c134a1147fce0f010561d9257897efbd26bce9c805fb381"
+      "sha256": "0e4c9b3905e75a38bec3c55adda7c470318893687feeebd08d99638c5340fc7d"
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",

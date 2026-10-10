@@ -33,3 +33,23 @@ test('robot rubric bounds escaped output as well as input so every accepted rubr
   const accepted = { ...rubric, problem: '<'.repeat(1000) };
   assert.deepEqual(parseRobotRubric(formatRobotRubric(accepted)).rubric, accepted);
 });
+
+
+test('robot rubric round trips Unicode line and paragraph separators without changing canonical identity', () => {
+  for (const separator of ['\u2028', '\u2029', '\u2028\u2029']) {
+    const text = `Acme first${separator}Acme second`;
+    for (const field of ['problem', 'reproduction', 'acceptance', 'change', 'prerequisites', 'ownerBlockers']) {
+      const input = { ...rubric, [field]: Array.isArray(rubric[field]) ? [text] : text };
+      const canonical = validateRobotRubric(input);
+      assert.equal(canonical.ok, true);
+      const body = formatRobotRubric(input);
+      assert.ok(body.includes(`<!-- keel:robot-data ${JSON.stringify(canonical.rubric)} -->`), 'existing canonical serialization is unchanged');
+      const parsed = parseRobotRubric(body);
+      assert.equal(parsed.ok, true, `${field}: ${JSON.stringify(parsed.problems)}`);
+      assert.deepEqual(parsed.rubric, canonical.rubric);
+      assert.equal(formatRobotRubric(parsed.rubric), body);
+      assert.equal(parseRobotRubric(body.replace('### Problem', '### Changed')).ok, false, 'display and data must still agree');
+      assert.equal(parseRobotRubric(body + '\n' + body).ok, false, 'duplicate sections remain invalid');
+    }
+  }
+});

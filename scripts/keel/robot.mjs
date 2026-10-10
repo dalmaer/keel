@@ -35,6 +35,84 @@ export async function robotWriter({ repo, user, github = robotGithub }) {
     return data.user?.login === user.login && ['write', 'maintain', 'admin'].includes(data.permission);
   } catch { return false; }
 }
+const hash64 = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+class RobotGlobalError extends Error {}
+async function currentRobotPolicy(repo, has, github) {
+  try {
+    if (!robotRepo(repo)) throw new Error('repository identity unavailable');
+    const repository = await robotRead(github, `/repos/${repo}`);
+    if (repository.full_name !== repo || typeof repository.default_branch !== 'string' || !repository.default_branch.trim()) throw new Error('repository/default branch identity unavailable');
+    const ref = await robotRead(github, `/repos/${repo}/git/ref/heads/${encodeURIComponent(repository.default_branch)}`);
+    if (ref.ref !== `refs/heads/${repository.default_branch}` || ref.object?.type !== 'commit' || !robotSha(ref.object.sha)) throw new Error('default branch commit unavailable');
+    const file = await robotRead(github, `/repos/${repo}/contents/.keel/keel.json?ref=${ref.object.sha}`);
+    if (file.type !== 'file' || file.path !== '.keel/keel.json' || file.encoding !== 'base64' || typeof file.content !== 'string' || file.content.length > 1400000) throw new Error('pinned configuration unavailable');
+    const bytes = Buffer.from(file.content.replace(/\s/g,''), 'base64');
+    const blob = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    if (file.sha !== blob || file.size !== bytes.length || bytes.length > 1048576) throw new Error('configuration blob identity unavailable');
+    const config = JSON.parse(bytes.toString('utf8')), policy = robotPolicy(config);
+    if (!policy.valid || !policy.enabled) throw new Error('robot is off or current policy invalid');
+    const providers = robotProviders(config, has);
+    if (providers.problems.length) throw new Error(providers.problems.join('; '));
+    const policyHash = sha256(JSON.stringify({author:providers.author,reviewer:providers.reviewer}));
+    return {repository,config,policy,providers,policyHash};
+  } catch (error) { throw new RobotGlobalError(`current robot policy unavailable: ${error.message}`); }
+}
+async function authorizeLabel(repo, issueNumber, github, now = new Date()) {
+  let active;
+  try {
+    const events = (await robotPages(github,`/repos/${repo}/issues/${issueNumber}/events`)).filter(e=>['labeled','unlabeled'].includes(e.event) && e.label?.name==='keel:agent');
+    const seen = new Set();
+    for (const e of events) {
+      if (!robotId(e.id) || seen.has(e.id) || !Number.isFinite(Date.parse(e.created_at)) || Date.parse(e.created_at)>new Date(now).getTime()) throw new Error();
+      seen.add(e.id);
+    }
+    active=events.sort((a,b)=>Date.parse(a.created_at)-Date.parse(b.created_at)||a.id-b.id).at(-1);
+  } catch { throw new Error('active robot label provenance unavailable'); }
+  if (active?.event !== 'labeled' || !await robotWriter({repo,user:active.actor,github})) throw new Error('active robot label actor lacks verified current write access');
+}
+function authorizationReceipt(comment, repo, issueNumber) {
+  if (!robotId(comment?.id) || !isBot(comment.user) || comment.issue_url !== `https://api.github.com/repos/${repo}/issues/${issueNumber}` || typeof comment.body !== 'string' || comment.body.length > 2000) return null;
+  const m = /^<!-- keel:robot-authorization (.+) -->$/.exec(comment.body);
+  if (!m) return null;
+  try {
+    const r = JSON.parse(m[1]);
+    const canonical = {version:1,repo:r.repo,issueNumber:r.issueNumber,bodyHash:r.bodyHash,writer:r.writer,eventName:r.eventName,action:r.action,commentId:r.commentId};
+    if (comment.body !== `<!-- keel:robot-authorization ${JSON.stringify(canonical)} -->` || r.version !== 1 || r.repo !== repo || r.issueNumber !== issueNumber || !hash64(r.bodyHash) || !/^[A-Za-z0-9-]+$/.test(r.writer ?? '') || !((r.eventName === 'issues' && ['labeled','reopened'].includes(r.action) && r.commentId === null) || (r.eventName === 'issue_comment' && r.action === 'created' && robotId(r.commentId) && r.commentId < comment.id))) return null;
+    return {...r,id:comment.id};
+  } catch { return null; }
+}
+async function authorizeBody({repo,issue,comments,github,trigger=null}) {
+  if (!(issue.body === null || typeof issue.body === 'string') || Buffer.byteLength(issue.body ?? '') > 1048576) throw new Error('issue body unavailable or exceeds authorization bound');
+  const bodyHash = sha256(issue.body ?? '');
+  for (const comment of [...comments].sort((a,b)=>b.id-a.id)) {
+    const receipt = authorizationReceipt(comment,repo,issue.number);
+    if (!receipt || receipt.bodyHash !== bodyHash) continue;
+    if (trigger && (receipt.id !== trigger.authorizationId || bodyHash !== trigger.bodyHash || receipt.writer !== trigger.sender || receipt.eventName !== trigger.eventName || receipt.action !== trigger.action || receipt.commentId !== trigger.commentId)) continue;
+    if (!await robotWriter({repo,user:{login:receipt.writer,type:'User'},github})) continue;
+    return {receiptId:receipt.id,bodyHash,writer:receipt.writer};
+  }
+  throw new Error('current issue body lacks a trusted receipt from a current writer; fresh writer action required');
+}
+function permissionMarker(authorization) {
+  return `<!-- keel:robot-permission ${JSON.stringify(authorization)} -->`;
+}
+function permissionOf(body) {
+  const matches = [...String(body ?? '').matchAll(/^<!-- keel:robot-permission (.+) -->$/gm)];
+  if (matches.length !== 1) throw new Error('published authorization unavailable');
+  let a; try { a=JSON.parse(matches[0][1]); } catch { throw new Error('published authorization malformed'); }
+  if (!hash64(a?.policyHash) || !hash64(a.bodyHash) || !robotId(a.receiptId) || !/^[A-Za-z0-9-]+$/.test(a.writer ?? '') || permissionMarker(a) !== matches[0][0]) throw new Error('published authorization malformed');
+  return a;
+}
+async function revalidateAuthorization({repo,issueNumber,authorization,fresh,github}) {
+  if (!authorization || authorization.policyHash !== fresh.policyHash) throw new Error('planned robot authorization changed; owner action required');
+  const issue = await robotRead(github,`/repos/${repo}/issues/${issueNumber}`);
+  if (issue.number !== issueNumber || issue.html_url !== `https://github.com/${repo}/issues/${issueNumber}` || issue.pull_request || issue.state !== 'open' || !issue.labels?.some(l=>l.name==='keel:agent')) throw new Error('authorized issue is no longer open and labelled');
+  await authorizeLabel(repo,issueNumber,github);
+  const comments = await robotPages(github,`/repos/${repo}/issues/${issueNumber}/comments`);
+  const receipt = comments.find(c=>c.id===authorization.receiptId);
+  const approved = await authorizeBody({repo,issue,comments:receipt?[receipt]:[],github});
+  if (approved.bodyHash !== authorization.bodyHash || approved.writer !== authorization.writer) throw new Error('planned issue authorization changed');
+}
 function stateOf(comments, repo, issueNumber) {
   const states = [];
   for (const c of comments) {
@@ -67,16 +145,20 @@ function publicationOf(comments, repo, issueNumber) {
 export async function prepareRobot({ root, repo, config, event, eventName, has, now = new Date(), github = robotGithub, preflight = null }) {
   const rejections = [];
   const blocked = (reason, extra = {}) => ({ state: 'blocked', reason, rejections, ...extra });
-  const policy = robotPolicy(config);
-  if (!policy.valid || !policy.enabled) return blocked(policy.valid ? 'robot is off' : policy.problems.join('; '));
+  // A checkout that is already OFF cannot initiate work; enabled checkouts
+  // still need the freshly pinned policy below.
+  const local = robotPolicy(config);
+  if (!local.valid || !local.enabled) return blocked(local.valid ? 'robot is off' : local.problems.join('; '));
+  let fresh;
+  try { fresh = await currentRobotPolicy(repo,has,github); } catch(error) { return blocked(error.message); }
+  const {policy,providers} = fresh;
   if (!robotRepo(repo) || event?.repository?.full_name !== repo) return blocked('event repository mismatch');
-  let routed = false;
+  let routed = false, trigger;
   if (eventName === 'workflow_dispatch' && event.inputs?.robot_trigger !== undefined && event.inputs.robot_trigger !== '') {
-    let trigger;
     try {
       if (typeof event.inputs.robot_trigger !== 'string' || event.inputs.robot_trigger.length > 2000) throw new Error();
       trigger=JSON.parse(event.inputs.robot_trigger);
-      if (!trigger || Object.keys(trigger).sort().join(',') !== 'action,commentId,eventName,issueNumber,repo,sender,version' || trigger.version !== 1 || trigger.repo !== repo || !robotId(trigger.issueNumber) || typeof trigger.sender !== 'string' || !/^[A-Za-z0-9-]+$/.test(trigger.sender) || !((trigger.eventName === 'issues' && ['labeled','reopened'].includes(trigger.action) && trigger.commentId === null) || (trigger.eventName === 'issue_comment' && trigger.action === 'created' && robotId(trigger.commentId)))) throw new Error();
+      if (!trigger || Object.keys(trigger).sort().join(',') !== 'action,authorizationId,bodyHash,commentId,eventName,issueNumber,repo,sender,version' || trigger.version !== 1 || !robotId(trigger.authorizationId) || !hash64(trigger.bodyHash) || trigger.repo !== repo || !robotId(trigger.issueNumber) || typeof trigger.sender !== 'string' || !/^[A-Za-z0-9-]+$/.test(trigger.sender) || !((trigger.eventName === 'issues' && ['labeled','reopened'].includes(trigger.action) && trigger.commentId === null) || (trigger.eventName === 'issue_comment' && trigger.action === 'created' && robotId(trigger.commentId)))) throw new Error();
     } catch { return blocked('invalid routed robot trigger'); }
     routed = true;
     eventName=trigger.eventName;
@@ -92,63 +174,46 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     if (!await robotWriter({ repo, user: event.sender, github })) return blocked('sender does not have verified write access');
     issues = [event.issue];
   } else return blocked('unsupported event');
-  const providers = robotProviders(config, has);
   for (const candidate of issues) {
-    if (!robotId(candidate.number)) return blocked('invalid issue identity');
+    const reject = (reason, extra = {}) => { const error = new Error(reason); error.extra=extra; throw error; };
+    try {
+    if (!robotId(candidate.number)) return reject('invalid issue identity');
     const issue = await robotRead(github, `/repos/${repo}/issues/${candidate.number}`);
-    if (issue.number !== candidate.number || issue.html_url !== `https://github.com/${repo}/issues/${candidate.number}` || issue.pull_request) return blocked('issue identity mismatch');
-    if (issue.state !== 'open' || !issue.labels?.some(l => l.name === 'keel:agent')) continue;
-    if (routed || eventName === 'schedule' || eventName === 'workflow_dispatch') {
-      // Triage can apply labels: discovery must not turn that into model-spend
-      // authority. Replay the complete bounded label history, then check the
-      // active actor's CURRENT permissions, not their role when it was applied.
-      let active;
-      try {
-        const events = (await robotPages(github, `/repos/${repo}/issues/${issue.number}/events`))
-          .filter(e => ['labeled','unlabeled'].includes(e.event) && e.label?.name === 'keel:agent');
-        const seen = new Set();
-        for (const e of events) {
-          if (!robotId(e.id) || seen.has(e.id) || !Number.isFinite(Date.parse(e.created_at)) || Date.parse(e.created_at) > new Date(now).getTime()) throw new Error('label history identity unavailable');
-          seen.add(e.id);
-        }
-        active = events.sort((a,b) => Date.parse(a.created_at)-Date.parse(b.created_at) || a.id-b.id).at(-1);
-      } catch {
-        const reason = 'active robot label provenance unavailable';
-        rejections.push({issueNumber:issue.number,reason});
-        if (scanning) continue;
-        return blocked(reason, {repo,issueNumber:issue.number});
-      }
-      if (active?.event !== 'labeled' || !await robotWriter({repo,user:active.actor,github})) {
-        const reason = 'active robot label actor lacks verified current write access';
-        rejections.push({issueNumber:issue.number,reason});
-        if (scanning) continue;
-        return blocked(reason, {repo,issueNumber:issue.number});
-      }
-    }
+    if (issue.number !== candidate.number || issue.html_url !== `https://github.com/${repo}/issues/${candidate.number}` || issue.pull_request) return reject('issue identity mismatch');
+    if (issue.state !== 'open' || !issue.labels?.some(l => l.name === 'keel:agent')) return reject('issue closed or robot label removed');
+    await authorizeLabel(repo,issue.number,github,now);
     const comments = await robotPages(github, `/repos/${repo}/issues/${issue.number}/comments`);
-    if (comments.some(c => !robotId(c.id))) return blocked('comment identity unavailable');
+    if (comments.some(c => !robotId(c.id))) return reject('comment identity unavailable');
+    if (routed) {
+      const receipt = await robotRead(github,`/repos/${repo}/issues/comments/${trigger.authorizationId}`);
+      if (!comments.some(c=>c.id===receipt.id && c.body===receipt.body)) return reject('routed authorization receipt unavailable');
+      await authorizeBody({repo,issue,comments:[receipt],github,trigger});
+    }
+    const authorization = {...await authorizeBody({repo,issue,comments,github,trigger:routed?trigger:null}),policyHash:fresh.policyHash};
     if (routed && eventName === 'issue_comment') {
       const comment=await robotRead(github, `/repos/${repo}/issues/comments/${event.comment.id}`);
-      if (comment.id !== event.comment.id || comment.issue_url !== `https://api.github.com/repos/${repo}/issues/${issue.number}` || comment.user?.login !== event.sender.login || comment.user?.type !== 'User') return blocked('routed comment association unavailable');
+      if (comment.id !== event.comment.id || comment.issue_url !== `https://api.github.com/repos/${repo}/issues/${issue.number}` || comment.user?.login !== event.sender.login || comment.user?.type !== 'User') return reject('routed comment association unavailable');
     }
-    if (eventName === 'issue_comment' && !comments.some(c => c.id === event.comment?.id && c.user?.login === event.sender.login && c.user?.type === 'User')) return blocked('triggering comment unavailable');
+    if (eventName === 'issue_comment' && !comments.some(c => c.id === event.comment?.id && c.user?.login === event.sender.login && c.user?.type === 'User')) return reject('triggering comment unavailable');
     const state = stateOf(comments, repo, issue.number);
+    if (!state && comments.some(c=>isBot(c.user) && /^<!-- keel:robot-note [a-f0-9]{64} -->\n<!-- keel:robot-state /.test(String(c.body ?? '')))) return reject('recorded robot state malformed; owner resolution needed');
     const pending = publicationOf(comments, repo, issue.number);
     if (pending && (!state || pending.commentId > state.commentId)) {
-      if (pending.plan.issueHash !== sha256(issue.body ?? '')) return blocked('pending publication issue changed; owner resolution needed');
+      await revalidateAuthorization({repo,issueNumber:issue.number,authorization:pending.plan.authorization,fresh,github});
+      if (pending.plan.issueHash !== sha256(issue.body ?? '')) return reject('pending publication issue changed; owner resolution needed');
       const ref = await github({method:'GET',path:`/repos/${repo}/git/ref/heads/${pending.plan.branch}`});
       if (ref.status === 200 && ref.data?.ref === `refs/heads/${pending.plan.branch}` && ref.data.object?.type === 'commit' && ref.data.object.sha === pending.headSha) {
         const pulls = await robotPages(github, `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0]+':'+pending.plan.branch)}`);
-        if (pulls.length > 1) return blocked('multiple robot pull requests; owner resolution needed');
+        if (pulls.length > 1) return reject('multiple robot pull requests; owner resolution needed');
         if (pulls.length) {
           const pr = await robotRead(github, `/repos/${repo}/pulls/${pulls[0].number}`);
-          try { await robotBase(repo, pr, github); } catch (error) { return blocked(error.message, {repo,issueNumber:issue.number}); }
+          if (pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch) return reject('PR base branch changed; refusing human retarget');
         }
         return {...pending.plan, state:'recover', recoveryHead:pending.headSha, rejections};
       }
       // A crash before push leaves no new branch/head: normal admission can rebuild.
       const unpushed = (ref.status === 404 && pending.plan.previousHead === null) || (ref.status === 200 && ref.data?.ref === `refs/heads/${pending.plan.branch}` && ref.data.object?.type === 'commit' && ref.data.object.sha === pending.plan.previousHead);
-      if (!unpushed) return blocked('pending publication branch changed or unavailable; refusing recovery', {repo,issueNumber:issue.number});
+      if (!unpushed) return reject('pending publication branch changed or unavailable; refusing recovery', {repo,issueNumber:issue.number});
     }
     const unseen = [];
     for (const c of comments.filter(c => c.id > (state?.cursor ?? 0)).sort((a,b) => a.id-b.id)) {
@@ -161,35 +226,36 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     let instanceId = state?.instanceId ?? `issue-${issue.number}`;
     if (issueMarks.length) {
       let mark;
-      try { mark = JSON.parse(issueMarks[0][1]); } catch { return blocked('issue instance marker malformed'); }
-      if (issueMarks.length !== 1 || mark.version !== 1 || mark.repo !== repo.toLowerCase() || !/^[A-Za-z0-9_-]{1,128}$/.test(mark.instanceId) || !/^[a-f0-9]{64}$/.test(mark.subject) || (state && state.instanceId !== mark.instanceId)) return blocked('issue instance identity changed or malformed');
+      try { mark = JSON.parse(issueMarks[0][1]); } catch { return reject('issue instance marker malformed'); }
+      if (issueMarks.length !== 1 || mark.version !== 1 || mark.repo !== repo.toLowerCase() || !/^[A-Za-z0-9_-]{1,128}$/.test(mark.instanceId) || !/^[a-f0-9]{64}$/.test(mark.subject) || (state && state.instanceId !== mark.instanceId)) return reject('issue instance identity changed or malformed');
       instanceId = mark.instanceId;
     }
-    const common = { rejections, instanceId, repo, issueNumber: issue.number, cursor, previousHead: state?.headSha ?? null, previousCompletedAt: state?.completedAt ?? null, issueHash: sha256(issue.body ?? ''), author: providers.author, reviewer: providers.reviewer };
+    const common = { authorization, rejections, instanceId, repo, issueNumber: issue.number, cursor, previousHead: state?.headSha ?? null, previousCompletedAt: state?.completedAt ?? null, issueHash: sha256(issue.body ?? ''), author: providers.author, reviewer: providers.reviewer };
     const { parseRobotRubric } = await import('./robot-rubric.mjs');
     const parsed = parseRobotRubric(issue.body);
-    if (!parsed.ok) return blocked(`rubric: ${parsed.problems.map(p => p.message).join('; ')}`, { ...common, triage: true });
-    if (parsed.rubric.ownerBlockers.length) return blocked('owner-only blockers remain', { ...common, triage: true });
+    if (!parsed.ok) return reject(`rubric: ${parsed.problems.map(p => p.message).join('; ')}`, { ...common, triage: true });
+    if (parsed.rubric.ownerBlockers.length) return reject('owner-only blockers remain', { ...common, triage: true });
     // Prerequisites are deliberately fail-closed until verified: prose is not evidence.
-    if (parsed.rubric.prerequisites.length) return blocked('prerequisite verification unavailable; resolve prerequisites before labelling', { ...common, triage: true });
-    if (providers.problems.length) return blocked(providers.problems.join('; '), common);
+    if (parsed.rubric.prerequisites.length) return reject('prerequisite verification unavailable; resolve prerequisites before labelling', { ...common, triage: true });
+
     const pulls = await robotPages(github, `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0] + ':keel/robot-' + issue.number)}`);
-    if (pulls.length > 1) return blocked('multiple robot pull requests; owner resolution needed', common);
+    if (pulls.length > 1) return reject('multiple robot pull requests; owner resolution needed', common);
     let previousHead = null, prNumber = null;
     if (pulls.length) {
       const pr = await robotRead(github, `/repos/${repo}/pulls/${pulls[0].number}`);
-      try { await robotBase(repo, pr, github); } catch (error) { return blocked(error.message, common); }
+      if (pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch) return reject('PR base branch changed; refusing human retarget',common);
       const association = robotAssociationOf(pr.body);
-      if (!state?.headSha || pr.state !== 'open' || pr.merged_at || !isBot(pr.user) || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${issue.number}` || pr.head?.sha !== state.headSha || association?.headSha !== state.headSha || association?.repo !== repo || association?.issueNumber !== issue.number) return blocked('continuation head or association changed; no human changes are overwritten', common);
+      if (!state?.headSha || pr.state !== 'open' || pr.merged_at || !isBot(pr.user) || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${issue.number}` || pr.head?.sha !== state.headSha || association?.headSha !== state.headSha || association?.repo !== repo || association?.issueNumber !== issue.number) return reject('continuation head or association changed; no human changes are overwritten', common);
       previousHead = pr.head.sha; prNumber = pr.number;
-    } else if (state?.headSha) return blocked('recorded pull request unavailable', common);
+    } else if (state?.headSha) return reject('recorded pull request unavailable', common);
     const baseSha = git(root, ['rev-parse', 'HEAD']);
     if (previousHead) {
       const pr=await robotRead(github, `/repos/${repo}/pulls/${prNumber}`), mark=robotAssociationOf(pr.body);
-      try { await robotBase(repo, pr, github); } catch (error) { return blocked(error.message, common); }
-      if (mark?.instanceId !== instanceId || mark?.author !== providers.author) return blocked('published provider or instance changed',common);
+      if (pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch) return reject('PR base branch changed; refusing human retarget',common);
+      if (mark?.instanceId !== instanceId || mark?.author !== providers.author) return reject('published provider or instance changed',common);
       if (!await completedRobotReview({repo,prNumber,headSha:previousHead,author:mark.author,reviewer:providers.reviewer,github})) {
-        return {...common,state:'review',baseSha,previousHead,prNumber,branch:`keel/robot-${issue.number}`,cursor:state.cursor};
+        await revalidateAuthorization({repo,issueNumber:issue.number,authorization:permissionOf(pr.body),fresh,github});
+        return {...common,authorization:permissionOf(pr.body),state:'review',baseSha,previousHead,prNumber,branch:`keel/robot-${issue.number}`,cursor:state.cursor};
       }
     }
     if (unchanged) continue;
@@ -198,6 +264,11 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
     const admission = robotAdmission({ policy, budget, requestedBuildSeconds: 45 * 60, reservedReviewSeconds: 5 * 60 });
     if (!admission.allowed) return blocked(admission.reason, { ...common, budget });
     return { state: 'ready', ...common, baseSha, previousHead, prNumber, instanceId, branch: `keel/robot-${issue.number}`, comments: unseen, rubric: parsed.rubric, buildSeconds: admission.buildSeconds, reviewSeconds: admission.reviewSeconds, budget, preparedAt: new Date(now).toISOString() };
+    } catch (error) {
+      if (error instanceof RobotGlobalError) return blocked(error.message);
+      rejections.push({issueNumber:candidate.number,reason:error.message});
+      if (!scanning) return blocked(error.message,{repo,issueNumber:candidate.number,...error.extra});
+    }
   }
   return blocked('no pending robot issue');
 }
@@ -266,7 +337,7 @@ async function revalidateIssue(plan, github) {
   return issue;
 }
 function publicationPlan(plan) {
-  return Object.fromEntries(['state','repo','baseSha','issueNumber','issueHash','cursor','instanceId','author','reviewer','previousHead','prNumber','branch'].map(k => [k,plan[k]]));
+  return Object.fromEntries(['state','repo','baseSha','issueNumber','issueHash','authorization','cursor','instanceId','author','reviewer','previousHead','prNumber','branch'].map(k => [k,plan[k]]));
 }
 function publicationBody(plan, headSha) {
   return `<!-- keel:robot-publication ${JSON.stringify({version:1,plan:publicationPlan(plan),headSha})} -->\nTrusted publication intent; recovery may publish only this judged head.`;
@@ -279,10 +350,13 @@ async function robotBase(repo, pr, github) {
   if (pr && (pr.base?.repo?.full_name !== repo || pr.base?.ref !== repository.default_branch)) throw new Error('PR base branch changed; refusing human retarget');
   return repository;
 }
-export async function publishRobot({ root, repo, baseSha, plan, headSha, message = '', github = robotGithub, push = true }) {
+export async function publishRobot({ root, repo, baseSha, plan, headSha, message = '', github = robotGithub, push = true, has = {claude:true,codex:true}, now = new Date() }) {
   validateRobotPlan(plan, { repo, baseSha });
-  const policy = robotPolicy(JSON.parse(await readFile(join(root, '.keel/keel.json'), 'utf8')));
-  if (!policy.valid || !policy.enabled) throw new Error('trusted robot policy no longer permits publication');
+  const fresh = await currentRobotPolicy(repo,has,github);
+  await revalidateAuthorization({repo,issueNumber:plan.issueNumber,authorization:plan.authorization,fresh,github});
+  if (plan.author !== fresh.providers.author || plan.reviewer !== fresh.providers.reviewer) throw new Error('planned providers changed');
+  const budget = await readRobotBudget({repo,policy:fresh.policy,now,github});
+  if (!budget.complete) throw new Error('publication budget unavailable');
   await revalidateIssue(plan, github);
   if (!robotSha(headSha) || headSha === baseSha || robotSandbox(root, baseSha, headSha).length) throw new Error('candidate fails trusted sandbox');
   if (plan.previousHead && git(root, ['merge-base','--is-ancestor',plan.previousHead,headSha], {allowFail:true}).status !== 0) throw new Error('candidate discards continuation history');
@@ -296,6 +370,7 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
     if (pulls.length !== 1 || pulls[0].number !== plan.prNumber) throw new Error('continuation PR changed');
     pr = await robotRead(github, `/repos/${repo}/pulls/${plan.prNumber}`);
     await robotBase(repo, pr, github);
+    permissionOf(pr.body);
     const mark = robotAssociationOf(pr.body);
     if (pr.state !== 'open' || pr.merged_at || (pr.head?.sha !== plan.previousHead && !(resuming && pr.head?.sha === headSha)) || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || (mark?.headSha !== plan.previousHead && !(resuming && mark?.headSha === headSha)) || mark?.instanceId !== plan.instanceId || mark?.author !== plan.author || pr.head?.ref !== plan.branch || mark?.issueNumber !== plan.issueNumber || mark?.repo !== repo || !isBot(pr.user)) throw new Error('continuation changed; refusing to overwrite');
     if (resuming && mark.headSha === headSha && pr.head.sha === headSha && pr.html_url === `https://github.com/${repo}/pull/${pr.number}`) return {prNumber:pr.number,prUrl:pr.html_url,headSha};
@@ -309,14 +384,14 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
   }
   const association = robotAssociation({ ...plan, headSha });
   const files = git(root,['diff','--name-only','--no-renames','-z',baseSha,headSha]).split('\0').filter(Boolean);
-  const newBody = `${association}\n\n${prBody({
+  const newBody = `${association}\n${permissionMarker(plan.authorization)}\n\n${prBody({
     summary:{lead:`Robot candidate for issue #${plan.issueNumber}; acceptance remains with the owner.`,files:files.map(robotText)},
     evidence:{gate:`Configured full gate passed on base ${baseSha} and candidate ${headSha}; no executed test dropped.`},
     danger:{door:'two-way',why:'Reverting this candidate restores its file changes; operational effects and acceptance still require owner review.',surfaces:['adopted project','published package']},
     notes:[`Closes #${plan.issueNumber}`,robotText(message) || 'Agent supplied no final message.',`Other-provider review pending (${plan.reviewer}); only a person merges.`],
     impact:{declaration:{version:1,phases:[],decisions:[],supersedes:[],evidence:[],reconciliation:'none',reason:'Trusted diff contains no phase, decision, evidence, research/design or project-record changes; record updates are blocked by the robot sandbox. This candidate does not establish acceptance.'}},
   })}`;
-  const body = pr ? `${pr.body.replace(/^<!-- keel:robot-delivery .+ -->$/m, association)}\n\nContinuation (${headSha.slice(0,12)}):\n${robotText(message)}\nOther-provider review pending (${plan.reviewer}).\n` : newBody;
+  const body = pr ? `${pr.body.replace(/^<!-- keel:robot-delivery .+ -->$/m, association).replace(/^<!-- keel:robot-permission .+ -->$/m,permissionMarker(plan.authorization))}\n\nContinuation (${headSha.slice(0,12)}):\n${robotText(message)}\nOther-provider review pending (${plan.reviewer}).\n` : newBody;
   if (body.length > 60_000) throw new Error('PR conversation exceeds safe update bound; owner resolution needed');
   const comments = await robotPages(github, `/repos/${repo}/issues/${plan.issueNumber}/comments`);
   const intent = publicationOf(comments,repo,plan.issueNumber);
@@ -352,23 +427,29 @@ async function completedRobotReview({repo,prNumber,headSha,author,reviewer,githu
   return reviews.some(r => isBot(r.user) && r.state === 'COMMENTED' && r.commit_id === headSha && r.body?.startsWith(`${marker}\nReviewed by ${reviewer}; built by ${author}.\n`) && (r.body.match(/<!-- keel:robot-review/g) ?? []).length === 1);
 }
 export async function prepareRobotReview({ root, repo, prNumber, headSha, has, now = new Date(), github = robotGithub, preflight = null }) {
-  const config = JSON.parse(await readFile(join(root,'.keel/keel.json'),'utf8')), policy = robotPolicy(config);
-  const providers = robotProviders(config, has);
+  const fresh = await currentRobotPolicy(repo,has,github), {policy,providers} = fresh;
   if (!policy.valid || !policy.enabled || providers.problems.length || !robotRepo(repo) || !robotId(prNumber) || !robotSha(headSha)) throw new Error('review policy/identity unavailable');
   const pr = await robotRead(github, `/repos/${repo}/pulls/${prNumber}`), mark = robotAssociationOf(pr.body);
   if (!mark || mark.repo !== repo || mark.author !== providers.author || mark.headSha !== headSha || pr.head?.sha !== headSha || pr.state !== 'open' || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${mark.issueNumber}` || !isBot(pr.user)) throw new Error('published head/provenance changed before review');
   await robotBase(repo, pr, github);
-  const identity={repo,prNumber,headSha,author:providers.author,reviewer:providers.reviewer,issueNumber:mark.issueNumber};
+  const authorization = permissionOf(pr.body);
+  await revalidateAuthorization({repo,issueNumber:mark.issueNumber,authorization,fresh,github});
+  const identity={repo,prNumber,headSha,author:providers.author,reviewer:providers.reviewer,issueNumber:mark.issueNumber,authorization};
   if (await completedRobotReview({...identity,github})) return {...identity,complete:true,reviewSeconds:0};
   const budget = await readRobotBudget({ repo,policy,now,github,preflight });
   const seconds = Math.floor(Math.min(300,budget.remainingSeconds ?? 0)/60)*60;
   if (!budget.complete || budget.state !== 'available' || seconds < 60) throw new Error('review allowance unavailable');
-  return { repo,prNumber,headSha,author:providers.author,reviewer:providers.reviewer,reviewSeconds:seconds,issueNumber:mark.issueNumber };
+  return {...identity,reviewSeconds:seconds};
 }
-export async function postRobotReview({ review, message, github = robotGithub }) {
+export async function postRobotReview({ review, message, github = robotGithub, has = {claude:true,codex:true} }) {
   if (!robotRepo(review.repo) || !robotId(review.prNumber) || !robotSha(review.headSha) || !['claude','codex'].includes(review.author) || !['claude','codex'].includes(review.reviewer) || review.author === review.reviewer || (!review.complete && !String(message ?? '').trim())) throw new Error('review is empty or identity invalid');
   const pr = await robotRead(github, `/repos/${review.repo}/pulls/${review.prNumber}`), mark = robotAssociationOf(pr.body);
   if (pr.head?.sha !== review.headSha || pr.head?.repo?.full_name !== review.repo || pr.base?.repo?.full_name !== review.repo || pr.state !== 'open' || mark?.author !== review.author || mark?.headSha !== review.headSha || !isBot(pr.user)) throw new Error('head changed before review publication');
+  const fresh = await currentRobotPolicy(review.repo,has,github);
+  if (fresh.providers.author !== review.author || fresh.providers.reviewer !== review.reviewer) throw new Error('review providers changed');
+  const authorization = permissionOf(pr.body);
+  if (review.authorization && JSON.stringify(review.authorization) !== JSON.stringify(authorization)) throw new Error('review authorization changed');
+  await revalidateAuthorization({repo:review.repo,issueNumber:mark.issueNumber,authorization,fresh,github});
   await robotBase(review.repo, pr, github);
   const marker = `<!-- keel:robot-review ${review.headSha} ${review.reviewer} -->`;
   if (await completedRobotReview({...review,github})) return {posted:false,already:true};
@@ -420,10 +501,14 @@ export async function robotCli(args, env = process.env) {
   }
   if (command === 'publish') {
     const plan = await json(join(temp,'plan/robot-plan.json'));
+    // OFF/no-work plans have no mutation to authorize. Triage and delivery do.
+    if (plan.state === 'blocked' && (!plan.triage || !robotId(plan.issueNumber))) return plan;
+    const fresh = await currentRobotPolicy(repo,hasOf(env),robotGithub);
     if (plan.state === 'review') {
       validateRobotPlan({...plan,state:'ready'},{repo,baseSha:trustedBase});
       const pr=await robotRead(robotGithub,`/repos/${repo}/pulls/${plan.prNumber}`),mark=robotAssociationOf(pr.body);
       if (pr.number !== plan.prNumber || !isBot(pr.user) || pr.state !== 'open' || pr.head?.sha !== plan.previousHead || pr.head?.ref !== plan.branch || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || mark?.headSha !== plan.previousHead || mark?.repo !== repo || mark?.issueNumber !== plan.issueNumber || mark?.instanceId !== plan.instanceId || mark?.author !== plan.author) throw new Error('review recovery PR/head changed');
+      await revalidateAuthorization({repo,issueNumber:plan.issueNumber,authorization:plan.authorization,fresh,github:robotGithub});
       await robotBase(repo, pr, robotGithub);
       outputs({pr:pr.number,head:pr.head.sha});return {state:'review',prNumber:pr.number,headSha:pr.head.sha};
     }
@@ -431,7 +516,7 @@ export async function robotCli(args, env = process.env) {
       const restored = {...plan,state:'ready'};
       git(root,['fetch','--no-tags','origin',`refs/heads/${plan.branch}`]);
       if (git(root,['rev-parse','FETCH_HEAD']) !== plan.recoveryHead) throw new Error('pending publication branch moved; refusing recovery');
-      const result = await publishRobot({root,repo,baseSha:plan.baseSha,plan:restored,headSha:plan.recoveryHead});
+      const result = await publishRobot({root,repo,baseSha:plan.baseSha,plan:restored,headSha:plan.recoveryHead,has:hasOf(env)});
       await robotComment({plan:restored,result:{...result,state:'published',reason:'Recovered verified publication; other-provider review pending.'}});
       outputs({pr:result.prNumber,head:result.headSha});return result;
     }
@@ -445,7 +530,7 @@ export async function robotCli(args, env = process.env) {
     const headSha=git(root,['rev-parse','FETCH_HEAD']);
     if(headSha!==judgment.headSha) throw new Error('bundle differs from judged head');
     let result;
-    try { result=await publishRobot({root,repo,baseSha:trustedBase,plan,headSha,message}); }
+    try { result=await publishRobot({root,repo,baseSha:trustedBase,plan,headSha,message,has:hasOf(env)}); }
     catch (error) {
       await robotComment({plan,result:{state:'blocked',reason:`Publication blocked: ${error.message}`},message});
       throw error;
@@ -470,6 +555,7 @@ export async function robotCli(args, env = process.env) {
     return review;
   }
   if(command==='review-post') {
+    const fresh = await currentRobotPolicy(repo,hasOf(env),robotGithub);
     if (env.ROBOT_REVIEW_OK !== 'true') {
       const plan = await json(join(temp,'plan/robot-plan.json'));
       const recovered = plan.state === 'recover';
@@ -480,15 +566,16 @@ export async function robotCli(args, env = process.env) {
       const pr = await robotRead(robotGithub, `/repos/${repo}/pulls/${Number(env.ROBOT_PR)}`);
       const mark=robotAssociationOf(pr.body);
       if (pr.number !== Number(env.ROBOT_PR) || pr.state !== 'open' || !isBot(pr.user) || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== plan.branch || pr.head?.sha !== env.ROBOT_HEAD || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || mark?.issueNumber !== plan.issueNumber || mark?.repo !== repo || mark?.instanceId !== plan.instanceId || mark?.headSha !== env.ROBOT_HEAD || mark?.author !== plan.author) throw new Error('failed-review PR identity mismatch');
+      await revalidateAuthorization({repo,issueNumber:plan.issueNumber,authorization:permissionOf(pr.body),fresh,github:robotGithub});
       await robotBase(repo, pr, robotGithub);
       await robotComment({plan,result:{state:'blocked',reason:'Other-provider review failed or could not establish its remaining allowance. No review is claimed; owner action is needed.',prUrl:pr.html_url,headSha:pr.head.sha}});
       throw new Error('other-provider review failed');
     }
     const review=await json(join(temp,'review/robot-review.json'));
     if(review.repo!==repo || review.prNumber!==Number(env.ROBOT_PR) || review.headSha!==env.ROBOT_HEAD)throw new Error('review artifact identity mismatch');
-    const providers=robotProviders(config,hasOf(env));
+    const providers=fresh.providers;
     if(providers.author!==review.author || providers.reviewer!==review.reviewer)throw new Error('review provider mismatch');
-    return postRobotReview({review,message:review.complete ? '' : await readFile(join(temp,'review/message.txt'),'utf8')});
+    return postRobotReview({review,has:hasOf(env),message:review.complete ? '' : await readFile(join(temp,'review/message.txt'),'utf8')});
   }
   if(command==='message') {
     const text=await readFile(env.ROBOT_MESSAGE_FILE,'utf8').catch(()=> '');

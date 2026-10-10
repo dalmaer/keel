@@ -71,12 +71,35 @@ discard intent records to force another POST. Phase proposal callers supply stab
 to `ensureRobotIssue`; this journal is recovery state, not an acceptance record.
 
 Public issue and comment events first enter a trusted router, which checks the
-current default-branch policy and sender permission before dispatching the worker.
-The worker runs only on its schedule or dispatch; it revalidates routed identity,
-current label authorization and comment association. Unrelated public events do
-not enter its serialized, budget-counted run history.
+current default-branch policy and sender permission. It compares the event's
+issue body with a fresh read, then records an exact-body authorization receipt in
+a bot comment and verifies that comment before dispatching. The router's
+`issues: write` permission is only for this receipt; it does not run models or
+change issue labels. Unrelated public events do not enter the worker's serialized,
+budget-counted run history.
 
-The worker uses trusted default-branch policy and sandbox guards. Agents and
+The worker runs only on its schedule or dispatch. It requires both a current
+writer's receipt for the exact current body and verified current write permission
+for the active label actor. A receipt cannot authorize a later body edit or
+override a writer removing the label followed by a triage user's relabel.
+Routed requests also revalidate the identified receipt and comment association.
+An old labelled issue with no matching receipt needs a fresh writer action
+(a comment, reopening, or applying the label). Scheduled/manual scans record
+issue-specific rejection reasons and continue to later candidates, including when
+an earlier issue has a malformed rubric/state or human-changed PR head/base.
+Explicit issue triggers remain blocked; global policy/provider/budget failures
+stop the entire scan.
+
+Admission, publication and review resolve the current default branch to a commit
+and verify its configuration blob. Disabled or unavailable policy revokes queued
+work even when its immutable checkout is still enabled. The fresh allowance and
+provider choice govern admission. Allowance changes take effect immediately and
+can resume an exhausted pending review; they do not invalidate its body approval.
+A changed builder/reviewer pair blocks the pending candidate. To finish that
+candidate, restore its original provider pair, then merge or close it before
+changing providers for a new issue. Published metadata binds the judged candidate's
+body/writer/provider authorization to its review, without changing acceptance.
+The worker uses sandbox guards. Agents and
 judges cannot publish. A trusted publisher opens a `keel/robot-<issue>` PR,
 invokes review by the other provider and reports the actual PR on the issue.
 Standalone cross-review refuses `keel/robot-` branches, even with a matching
