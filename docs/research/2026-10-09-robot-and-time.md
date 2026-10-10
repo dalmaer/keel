@@ -130,6 +130,8 @@ merges.
 
 ## Phase 57: getting worse becomes a proposal, and a fix
 
+Settled 2026-10-10: the [timing proposal contract](../specs/time-proposals.md) defines numerical eligibility, bounded retained history, complete producer telemetry, resumable acceptance and reviewed topology transitions. Missing evidence stays unavailable; a merge never establishes improvement.
+
 The night already writes one proposal. Phase 57 gives time a voice in it:
 
 - **New measures with bounds:**

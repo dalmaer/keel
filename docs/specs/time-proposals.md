@@ -1,0 +1,79 @@
+# Timing proposal contract
+
+These defaults are investigation thresholds, not statistical significance or causal proof. Settled 2026-10-10 for phase 57; operational calibration remains open.
+
+**Eligibility/windows.** Anchor T to report time; use UTC, completion timestamps and half-open intervals. Exclude future/incomplete records. Timing comparisons require successful, unfiltered, explicitly quiet observations, matching project scope, runner/config/flags, machine class and command identity; gate measures require actual configured full gates. Unknown load and CI reuse supply no eligible local timing. Report retained/eligible/omitted counts and sampling coverage separately.
+
+**gate_time.** Current = median of newest three eligible gates in [T−7d,T), on at least two UTC dates. Explicit positive project bound wins; otherwise threshold = 1.25 × baseline median from [T−35d,T−7d), requiring at least twelve gates, including three in each seven-day bin. Outside means strictly greater. Missing baseline means n/a unless an explicit bound applies.
+
+**time_creep.** Compare [T−35d,T−28d) with [T−7d,T): median test duration, at least five eligible observations on three dates in each window. Outside requires ratio >1.5 and increase >200ms; zero baseline is n/a. Never mix parent/child identities or sum them.
+
+**critical_file.** Require the same file to dominate each of the newest three eligible complete suites within seven days, covering two dates and an identical file set of at least two files. In each: file duration >0.8 × suite duration, ≥1.5 × runner-up duration, and ≥1000ms above runner-up. Uniform slowdown/ties stay inside. Missing topology/coverage is n/a. Splitting/concurrency is a candidate to validate, not a promised speed-up.
+
+**Other measures.** inconclusive_share: ≥10 classified observations over ≥3 dates within 28 days; numerator inconclusive, denominator pass+fail+inconclusive; ≥0.5 outside. Skips/unknowns are omitted. wall_clock_tests: ≥1 complete matched plain-pass/stalled-fail comparison within 28 days, same clean revision/config, verified injected stalls and replay seed; currently unpinned. worked_around: ≥2 distinct validated invocations for one safe identity within seven days; local only. Unknown identities/partial transcript coverage cannot establish inside. Decline suppression: 28 days per subject.
+
+**Retention/recovery.** Keep newest 50 records/lane plus eight UTC weeks of 20 quiet and five other records/week, deduplicated. Weekly selection uses lowest stable hashes of run IDs, not durations/outcomes. Cap 16 most-recently-active lanes, 4,000 records and 256MiB globally; byte pressure evicts oldest records, disclosing losses. Recover one verified cumulative night artifact plus ≤16 CI artifacts (two/week); discovery ≤500 artifacts, downloads ≤256MiB uncompressed. Gaps remain explicit.
+
+**Minimal telemetry.** Current ledger persists test durations and reporter wallMs, not complete file summaries. Persist Node process-isolated `test:summary` per-file duration and final aggregate duration, invocation identity, isolation/concurrency settings, complete-file coverage and outcome. Existing pinned logic already receives these events. Never sum tests or use reporter wallMs (includes pinned work). Old records, non-isolated Node and unverified JUnit topology: critical_file n/a. [Node summary contract](https://nodejs.org/download/release/v24.19.0/docs/api/test.html#event-testsummary).
+
+**Remeasurement.** Freeze baseline/bound; require ≥3 comparable postmerge observations on ≥2 dates within seven days, satisfying any larger measure-specific minimum, on revisions containing the verified merge. Otherwise unavailable, never improved-by-merge.
+
+## Producer and comparison settlement
+
+These producer requirements refine the numerical eligibility rules above. Required identities are specific to the evidence type; timing-only quiet criteria do not exclude verified stalls receipts.
+
+1. **Critical-file discovery versus verification.** Discovery freezes the original suite/target, baseline and numeric rule. Splitting must not compare each replacement file independently against the old file. The action layer records an explicitly reviewed transition bound to proposal instance and verified PR head/merge: old-to-new test identity mapping, replacement files, and before/after execution settings. The evaluator validates observed inventories against that mapping, preserving all original logical tests and requiring complete coverage of the new logical suite. Missing/ambiguous mappings, missing tests or unexplained settings changes mean unavailable; disappearance never means inside. Apply the frozen critical-file predicate to the complete successor suite and mapped successors, with the same minima/dominance margins. Report suite-wall change beside it; disappearance of file dominance alone is not proof of faster execution. Unrelated files retain their identities. Numeric speed-improvement acceptance, if required, needs a separately settled bound rather than an invented one.
+
+2. **Explicit execution plan and completion.** Add versioned producer telemetry: invocation ID, expectedFiles, observed per-file summaries, aggregate summary duration/success, completion state, observed logical-test inventory/coverage, and actual isolation/concurrency/settings hashes. Resolve expectedFiles independently before execution from the trusted declared suite plan, never from files observed by the reporter. Minimum support: recognized Node test scripts with literal files/globs, expanded before launch against the recorded revision; dynamic shell/discovery remains unavailable. Match each expected file exactly once, reject extras/duplicates, require successful final aggregation, and distinguish filtered invocations. Persist authoritative Node summary durations; never sum test durations or substitute reporter/pinned-stalls wall time. Older/JUnit/non-isolated records lacking the contract remain unavailable.
+
+3. **Typed evidence, not one compulsory machine/config shape.** Identity is a discriminated union: gate = project/configured command/environment/machine; test = suite lane plus test identity; critical_file = logical suite plus file; stalls = test identity and paired execution settings; worked_around = local project plus validated test-file/script identity. Unknown required fields invalidate only that evidence type. Extend evaluateTimeEvidence with separate typed stallsReceipts and localWorkarounds inputs, not fabricated ledger runs. A stalls receipt records revision, identity, settings, timestamps, paired plain/stalled outcomes and completion, verified nonzero injected stalls, seed/replay, and pin state. Persist bounded receipts from both keel test and pinned reporter paths. Discovery selects unpinned plain-pass/stalled-fail findings; comparison may succeed when now pinned with verified matched plain/stalled passes. No evidence, no injected stalls, or lost target remains unavailable. Never upload transcripts or local workaround source content.
+
+4. **Actual configured gate provenance.** The current npm check script's inner --run payload is explicit-command history, not configured-check history. Keep it that way. Known gate callers should use the existing --gate/timedCommand outer launcher to time the complete configured command. The launcher resolves trusted project configuration, snapshots command/config/revision identity, clears inherited provenance, assigns invocation ID, and records completion/status. Its nested wrapper inherits that relation and must not create another gate observation. Persist outer-command hash, inner payload hash when known, scope and invocation linkage. Direct inner-wrapper calls remain explicit/partial; npm lifecycle environment alone cannot prove outer wall time. No historical relabelling. gate_time initially remains n/a until eligible outer observations meet its minima.
+
+**Shared API amendment:** comparison gains an optional reviewed transition; evaluation inputs gain typed receipts/local observations. Actions own transition review, local-repository binding and ancestry; evaluator owns coverage, mapping/settings compatibility and numerical verdicts. Proposal subject identity remains measure+canonical target/lane; transitions never mutate its frozen baseline or create automatic acceptance.
+
+**Inventory refinement settled by conductor:** expected file selection is independent of execution; complete successful per-file and aggregate summaries establish file coverage. Logical-test inventories describe observed executions, not all dynamically possible tests. Freeze inventories from every contributing baseline run; disagreement requires a reviewed explanation or unavailable comparison. An owner-reviewed exhaustive old-to-new mapping independently declares successor identities. Match those to complete successful observed successor execution, rejecting unexplained additions, omissions, collisions, skipped/todo replacements and truncated identities. Concurrent duplicate names cannot use completion order as stable identity. Bind review to the instance, inventories, settings and verified PR head/merge. This verifies identity coverage, not semantic assertion equivalence, which remains owner review. No new sidecar or second execution is required. Initial file dominance may be diagnosed when logical transition evidence is unavailable; transition verification may not.
+
+## Proposal and action contract
+
+
+Unique bounded `keel-time-proposal` fence inside generated-region delimiters:
+`{version:1,instanceId,subjectKey,measure,createdAt,identity,candidate,baseline,threshold,coverage,lifecycle}`.
+
+`candidate:{title,rubric,remeasureCommand}` uses54 rubric; commands remain display data.
+`baseline:{windowStart,windowEnd,value,unit,runIds,revisionShas}` and `threshold:{contractVersion,rule,parameters}` freeze at creation.
+`coverage:{retained,eligible,omitted,dates,sampled,gaps}` never implies complete execution history.
+`lifecycle:{state,decidedAt,reason,issue,transition,remeasurement}`; states proposed/accepting/accepted/declined; absent values null. Issue is verified `{repo,number,url}`. Remeasurement reports inside/outside/unavailable, observedAt/value/coverage/delivery/reasons; never merge-caused improvement.
+
+Identity is tagged: `{kind:'timing',scope,runner,configHash,flagsHash,machineClass,commandHash,target}`, `{kind:'stalls',scope,runner,configHash,flagsHash,target}`, or `{kind:'local-workaround',scope,invocationIdentity,target}`. Required fields depend on measure; never manufacture machine/config for local transcripts.
+
+Subject hashes measure+canonical target/lane identity ONLY. Instance additionally binds candidate+baseline+threshold+creation time. Rewording cannot evade suppression.
+
+## Producers and transitions
+
+The producer's complete-suite receipt explicitly records expectedFiles (resolved before execution), observedSummaries, aggregate duration/outcome, completion, revision and executionSettings (isolation/concurrency/selection). Completeness compares expected versus observed; observed files never define expected coverage. Missing topology remains unavailable.
+
+Typed stalls receipts retain matched plain/stalled identities, revision/config, seed, verified injected pauses, outcomes, completion and pinned status. Post-fix pinned+verified stalled-pass matched to plain-pass is eligible wall_clock evidence; timing-quiet eligibility must not reject it indiscriminately. Pinned status is enforcement policy, not itself a changed execution identity; actual settings must match or have a reviewed transition. Local workaround evidence is a separate evaluator input.
+
+Gate provenance comes from a trusted outer launcher executing the actual configured command, recording config/command/revision/start/end/exit and a generated invocation ID. Inner payload receipts reference that ID; only a matching completed outer receipt establishes configured-gate timing. Existing `--run` payload history stays explicit-command. Environment labels alone confer no provenance.
+
+Critical-file discovery freezes original target/bounds. Changed topology requires explicit owner-reviewed `transition:{instanceId,pr:{repo,number,headSha,mergeSha},fromIdentity,toIdentity,testMapping,executionSettings,reviewedAt}` bound to the instance AND verified PR head/merge, persisted by `walk decide --proposal <page> --instance <id> --map <file>` (exclusive of accept/decline); action decision is transition-reviewed. testMapping maps full identities (file plus test hierarchy/occurrence), covering every original logical-suite test and every replacement; file-only mapping is insufficient. Producer receipts carry independently expected files, complete observed file summaries and observed logical-test identities. Baseline observed inventories freeze the reference; the reviewed exhaustive mapping declares expected successor identities, never inferred from successor observations. Inventory disagreement, duplicate identity ambiguity, skipped/todo replacements and missing/truncated coverage make transition comparison unavailable. Splits/renames require explicit mappings; unexplained additions/removals remain unavailable. Validate mapping against complete producer coverage/settings and verified delivery; a moved PR head invalidates its review. Before merge, mergeSha is null; only fresh verified merge facts can bind it for remeasurement. Original baseline remains unchanged. Missing mapping, vanished target or incomplete coverage is unavailable, never inside.
+
+## Shared exports
+
+Proposal helper:
+- `makeTimeProposal({measure,identity,candidate,baseline,threshold,coverage,at})`
+- `parseTimeProposal(text) -> {proposal,problems}`
+- `readTimeProposals({root,healthDir}) -> {proposals,gaps}`
+- `selectableTimeProposal({candidate,history,at}) -> {allowed,reason}`
+- `mergeHealthPage({previous,generated}) -> {text,problems}`
+- `withTimeProposal({root,path,expectedInstance},callback)` supplies `{proposal,saveLifecycle}` under shared lock.
+- `writeHealthReport({root,path,generated})` uses same lock, reread/merge/atomic replacement; preserves ALL human bytes and ALL accepted instances, lifecycle/history and frozen baselines, including across later report dates. A new proposal never replaces an accepted instance. Unmarked legacy content is preserved conservatively.
+
+Evaluator: `evaluateTimeEvidence({measure,runs,stallsReceipts,localWorkarounds,at,comparison}) -> {state,value,identity,baseline,threshold,coverage,reasons,timeCandidates}`. Comparison carries frozen identity/baseline/threshold, verified merge time/SHA and reviewed transition. Per-target candidates have makeTimeProposal inputs; filter suppression BEFORE ranking, including alternative targets within one measure. Still one proposal.
+
+Action layer: `decideTimeProposal({root,path,expectedInstance,decision,reason,transition,at,github})`; `remeasureTimeProposal({root,proposal,at,github,evaluate})` verifies delivery/ancestry before evaluation.
+
+Time actions require instance binding. Accept authorizes issue API yes:true, without second confirmation. Target derives from local repo/trusted policy, never metadata. Persist accepting before POST; reuse54 journal/recovery; completed retries return verified issue. Non-time behavior stays unchanged.
+
+An enabled-but-unqueued result is not completed acceptance: retain lifecycle `accepting`, the verified issue identity, instance and reason across regeneration. Retry recovers that issue without duplication or automatic relabelling. Advance to `accepted` only on verified `created` or `recovered`; OFF-policy unlabelled creation remains successful. The board names the owner label step and never claims queued work from a mere issue URL.
