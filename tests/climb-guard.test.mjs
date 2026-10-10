@@ -469,6 +469,33 @@ test('guard: an index flag the gate set, an edit behind a flag set before the gu
   clean();
 });
 
+// PR #59: the build and the project's perf check run before the gate and are the agent's code too: the guard
+// holds the tree from before the first of them, not only across the gate.
+test('guard: a perf check that stages a change or sets an index flag after the guard\'s checks is refused, though the gate after it passes', async t => {
+  const perf = check => ({ jobs: ['perf'], perf: { command: 'node -e "console.log(1)"', better: 'higher', check } });
+  const dir = await acme(t, { climb: perf('true'), config: { check: LEDGER_TEST }, files: { 'acme.test.mjs': suite('acme adds') } });
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  git(dir, ['checkout', '-q', '-b', 'refactor']);
+  const checked = await commit(dir, { 'acme.test.mjs': `${suite('acme adds')}// shared fixture\n` }, 'acme: refactor');
+  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  const guardWith = async check => {
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, climb: perf(check) }));
+    return climb(dir, ['guard', '--base', base, '--job', 'perf', '--json']);
+  };
+  const honest = await guardWith('true');
+  assert.equal(honest.status, 0, honest.stdout + honest.stderr);
+  for (const [check, said] of [
+    ['echo "// sneak" >> acme.test.mjs && git add acme.test.mjs', /^the agent's code the guard ran \(the gate `[^`]+`, the perf check\) changed the tracked tree or the index after the guard's checks/],
+    ['git update-index --skip-worktree acme.test.mjs && echo "// sneak" >> acme.test.mjs', /^the agent's code the guard ran \(the gate `[^`]+`, the perf check\) set or cleared an index flag after the guard's checks/],
+  ]) {
+    const g = await guardWith(check);
+    assert.equal(g.status, 1, `${check}: ${g.stdout}${g.stderr}`);
+    assert.ok(json(g).problems.some(p => said.test(p)), `${check}: ${JSON.stringify(json(g).problems)}`);
+    git(dir, ['update-index', '--no-skip-worktree', 'acme.test.mjs']);
+    git(dir, ['reset', '-q', '--hard', checked]);
+  }
+});
+
 // PR #59: the test ledger's reporter writes one record per suite it runs; a record more than the base's gate
 // wrote is one the branch's own code wrote, and it could name tests the candidate's gate no longer runs.
 test('guard: a ledger record the branch\'s own tests planted, naming a test its gate dropped, is refused by the count of records', async t => {
