@@ -11,7 +11,7 @@ import { cp, mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, 
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load, fill } from '../lib/practices.mjs';
+import { load, fill, wanted } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
 import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, HEADING, REPORT } from '../lib/adopt.mjs';
 import { testsConfigProblems } from '../practices/night/files/scripts/keel/test-ledger.mjs';
@@ -69,7 +69,8 @@ const states = data => Object.fromEntries(data.practices.map(p => [p.name, p.sta
 function shippedFiles(practices, on, have) {
   const out = new Set(['.keel/keel.json', '.keel/lock.json', REPORT]);
   for (const p of practices.values()) if (on[p.name] === 'on') {
-    for (const f of p.files) if (f.kind !== 'block' && !(f.path in have)) out.add(f.path);
+    // A conditional file (practice.json "when") only while its condition holds: these fixtures set no contracts.
+    for (const f of p.files) if (f.kind !== 'block' && wanted(f, {}) && !(f.path in have)) out.add(f.path);
   }
   return [...out].sort();
 }

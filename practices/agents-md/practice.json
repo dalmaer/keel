@@ -7,6 +7,8 @@
     { "path": "CLAUDE.md", "from": "CLAUDE.md", "kind": "managed" },
     { "path": ".agents/skills/keel/SKILL.md", "from": ".agents/skills/keel/SKILL.md", "kind": "managed" },
     { "path": ".claude/skills/keel", "link": "../../.agents/skills/keel", "kind": "managed" },
-    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "agents-md" }
+    { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "agents-md" },
+    { "path": "scripts/keel/contract-hook.mjs", "from": "scripts/keel/contract-hook.mjs", "kind": "managed", "when": "contracts" },
+    { "path": ".claude/settings.json", "from": ".claude/settings.json", "kind": "seeded", "when": "contracts" }
   ]
 }

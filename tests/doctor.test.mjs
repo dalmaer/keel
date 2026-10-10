@@ -1,5 +1,7 @@
 // keel doctor: drift is signal, the practice's own rules are linted, and
 // nothing changes unless a fix is chosen and answered with --yes.
+// Git the same on every machine, also when this file is run alone without npm test's --import (the phase's Proof).
+import './helpers/hermetic.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
@@ -10,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lineDiff, blockBody, lessonsTableShapes, runsTest, globRegex } from '../lib/doctor.mjs';
-import { lessonsTableSplit, setupEnvProblems } from '../practices/night/files/scripts/keel/lib.mjs';
+import { lessonsTableSplit, setupEnvProblems, platformCalls, platformLints } from '../practices/night/files/scripts/keel/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -678,4 +680,144 @@ test('stack: a declaration the evidence disagrees with is a finding either way; 
   r = doctor(dir);
   assert.deepEqual(stackRules(r.data), ['stack-evidence note']);
   assert.match(r.data.notes.find(n => n.rule === 'stack-evidence').message, /no "stack" declared; the files show node \(package\.json\), github-actions/);
+});
+
+// ---- the platform guard (phase 65) ------------------------------------------
+
+const CHILD = ['node', 'child_process'].join(':');
+
+test('platform guard: a tool counts only where a process runner the file imports runs it as a command', () => {
+  // The fixtures' import is spelled through CHILD so tests/helpers.test.mjs's spawn guard reads no import here.
+  const CP = `import { execFileSync, execSync, spawnSync, execFile, spawn } from '${CHILD}';\nimport { promisify } from 'node:util';\n`;
+  const calls = (text, path = 'tests/a.test.mjs') => platformCalls(path.endsWith('.sh') ? text : CP + text, path);
+  // Run as a command: a runner's first argument or array, a shell string, sh -c, a path to it, a two-word tool's array form.
+  assert.deepEqual(calls("execFileSync('hdiutil', ['attach', 'acme.dmg']);"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execSync('cd /tmp && hdiutil attach acme.dmg');"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execFileSync('/usr/bin/hdiutil', ['info']);"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execFile('sh', ['-c', 'pbcopy < notes.txt']);"), { darwin: ['pbcopy'] });
+  assert.deepEqual(calls("await promisify(execFile)('codesign', ['-v', app]);"), { darwin: ['codesign'] });
+  assert.deepEqual(calls("const sh = promisify(execFile);\nawait sh('codesign', ['-v', app]);"), { darwin: ['codesign'] });
+  assert.deepEqual(calls("execFileSync('defaults', ['write', 'com.acme', 'x', '1']);"), { darwin: ['defaults write'] });
+  assert.deepEqual(calls("execSync('powershell -Command Get-Date');"), { win32: ['powershell'] });
+  assert.deepEqual(platformCalls("import { $ } from 'zx';\nawait $`osascript -e 'beep'`;", 'tests/a.test.mjs'), { darwin: ['osascript'] });
+  assert.deepEqual(platformCalls("const cp = require('child_process');\ncp.execSync('launchctl list');", 'tests/a.test.cjs'), { darwin: ['launchctl'] });
+  assert.deepEqual(calls('#!/bin/sh\nhdiutil attach acme.dmg\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  // Prose, test names, comments and fixtures held in a string: not a command.
+  assert.deepEqual(calls("// hdiutil attach is macOS only\ntest('hdiutil attaches the image', () => { assert.ok(says('uses hdiutil')); });"), {});
+  assert.deepEqual(calls("/* execFileSync('hdiutil', []) */ const x = 1;"), {});
+  assert.deepEqual(calls("const fixture = `execFileSync('hdiutil', ['attach'])`;"), {});
+  assert.deepEqual(calls("execFileSync('defaults', ['read', 'com.acme']);"), {}, 'defaults read is not defaults write');
+  assert.deepEqual(calls('# hdiutil is macOS only\necho ok\n', 'tests/mount.sh'), {});
+  // Review of PR 58: a helper of the file's own is not a process runner; nor is a file that imports none.
+  assert.deepEqual(calls("function run(x) { return x; }\nrun('powershell');\nconst sh = s => s; sh('hdiutil attach');"), {});
+  assert.deepEqual(platformCalls("execFileSync('hdiutil', ['attach']);", 'tests/a.test.mjs'), {}, 'no runner imported: nothing runs');
+  assert.deepEqual(calls("const m = /x/.exec('hdiutil attach');"), {}, 'a RegExp exec runs nothing');
+  // Review of PR 58: a separator inside the shell's quotes separates nothing; $( ) inside double quotes still runs.
+  assert.deepEqual(calls(`execSync('echo "hello; hdiutil attach acme.dmg"');`), {});
+  assert.deepEqual(calls(`execSync("echo 'a && pbcopy'");`), {});
+  assert.deepEqual(calls(`execSync('echo "size: $(hdiutil info)"');`), { darwin: ['hdiutil'] });
+  // Review of PR 58, round 3: environment assignments before the command, alone or after env.
+  assert.deepEqual(calls("execSync('LC_ALL=C hdiutil info');"), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls("execSync('env PATH=/usr/bin codesign -v acme.app');"), { darwin: ['codesign'] });
+  assert.deepEqual(calls(`execSync("A='x y' B=1 osascript -e beep");`), { darwin: ['osascript'] });
+  assert.deepEqual(calls("execSync('echo LC_ALL=C hdiutil');"), {}, 'an argument of echo, not a command');
+  // Review of PR 58: GNU stat -f (file system status) runs on Linux; BSD stat -f <format> is macOS-only.
+  assert.deepEqual(calls("execSync('stat -f .');"), {});
+  assert.deepEqual(calls("execFileSync('stat', ['-f', '.']);"), {});
+  assert.deepEqual(calls('execSync(`stat -f %z ${file}`);'), { darwin: ['stat -f %'] });
+  assert.deepEqual(calls(`execSync("stat -f '%m' x");`), { darwin: ['stat -f %'] });
+  assert.deepEqual(calls("execFileSync('stat', ['-f', '%z', file]);"), { darwin: ['stat -f %'] });
+});
+
+test('platform guard: a skip clears only the command it guards, and only in the right direction', () => {
+  const CP = `import { test, describe } from 'node:test';\nimport { execFileSync, execSync } from '${CHILD}';\n`;
+  const calls = (text, path = 'tests/a.test.mjs') => platformCalls(path.endsWith('.sh') ? text : CP + text, path);
+  const run = "execFileSync('hdiutil', ['attach']);";
+  // Guards that cover the command.
+  assert.deepEqual(calls(`test('mounts', { skip: process.platform !== 'darwin' }, () => { ${run} });`), {});
+  assert.deepEqual(calls(`test('mounts', { skip: process.platform !== 'darwin' && 'macOS only' }, () => { ${run} });`), {});
+  assert.deepEqual(calls(`describe('mac', { skip: process.platform !== 'darwin' }, () => { test('a', () => { ${run} }); });`), {});
+  assert.deepEqual(calls(`describe.skipIf(process.platform !== 'darwin')('mac', () => { ${run} });`), {});
+  assert.deepEqual(calls(`if (process.platform === 'darwin') { ${run} }`), {});
+  assert.deepEqual(calls(`test('x', t => { if (process.platform !== 'darwin') return t.skip('macOS only'); ${run} });`), {});
+  assert.deepEqual(calls(`test('x', t => { if (process.platform !== 'darwin') { t.skip('macOS only'); return; } ${run} });`), {});
+  // Review of PR 58, round 4: a bare t.skip() marks the test skipped and runs on, so it guards nothing.
+  assert.deepEqual(calls(`test('mount', t => { if (process.platform !== 'darwin') t.skip(); ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`test('mount', t => { if (process.platform !== 'darwin') { t.skip(); } ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`const isMac = process.platform === 'darwin';\ntest('x', { skip: !isMac }, () => { ${run} });`), {});
+  assert.deepEqual(calls(`if (process.platform !== 'darwin') process.exit(0);\n${run}`), {});
+  assert.deepEqual(calls('[ "$(uname)" = Darwin ] || exit 0\nhdiutil attach acme.dmg\n', 'tests/mount.sh'), {});
+  assert.deepEqual(calls('if [ "$(uname)" = "Darwin" ]; then\n  hdiutil attach acme.dmg\nfi\n', 'tests/mount.sh'), {});
+  // Review of PR 58: one skipped test does not clear an unguarded one after it.
+  assert.deepEqual(calls(`test('a', { skip: process.platform !== 'darwin' }, () => { ${run} });\ntest('b', () => { ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls('if [ "$(uname)" = "Darwin" ]; then\n  hdiutil attach a.dmg\nfi\nhdiutil detach b\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  // Review of PR 58: a guard the wrong way round runs the command elsewhere.
+  assert.deepEqual(calls(`test('x', { skip: process.platform === 'darwin' }, () => { ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`if (process.platform !== 'darwin') ${run}`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`if (process.platform !== 'darwin') { ${run} }`), { darwin: ['hdiutil'] });
+  // A skip for another platform guards nothing here; a guard on the tool's own platform does.
+  assert.deepEqual(calls(`test('x', { skip: process.platform !== 'win32' }, () => { ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`if (process.platform === 'win32') execSync('powershell x');`), {});
+  // Review of PR 58, round 3: ruling Linux out still leaves Windows, so it is no darwin guard.
+  assert.deepEqual(calls(`test('x', { skip: process.platform === 'linux' }, () => { ${run} });`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`test('x', t => { if (process.platform === 'linux') return t.skip(); ${run} });`), { darwin: ['hdiutil'] });
+  // Review of PR 58, round 5: && binds tighter than ||, so an || branch without the platform test runs anywhere.
+  assert.deepEqual(calls(`if (process.platform === 'darwin' && ready || force) { ${run} }`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`if (force || process.platform === 'darwin') { ${run} }`), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls(`if (process.platform === 'darwin' && (ready || force)) { ${run} }`), {}, 'the || is inside the && part');
+  assert.deepEqual(calls(`if (process.platform === 'darwin' && ready || process.platform === 'darwin' && force) { ${run} }`), {}, 'every branch tests the platform');
+  assert.deepEqual(calls(`describe.runIf(process.platform === 'darwin' && ready || force)('mac', () => { ${run} });`), { darwin: ['hdiutil'] });
+  // Review of PR 58, round 6: a one-line if with its own else holds both branches; the line is no guard.
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then :; else hdiutil attach x; fi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then hdiutil attach x; fi\n', 'tests/mount.sh'), {});
+  assert.deepEqual(calls('if [ -f x.dmg ]; then hdiutil attach x.dmg; fi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] }, 'after then is a command\'s position');
+  // Review of PR 58, round 3: a shell if's else branch runs off the platform.
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then\n  hdiutil attach a.dmg\nelse\n  hdiutil attach b.dmg\nfi\n', 'tests/mount.sh'), { darwin: ['hdiutil'] });
+  assert.deepEqual(calls('if [ "$(uname)" = Darwin ]; then\n  hdiutil attach a.dmg\nelse\n  echo skipped\nfi\n', 'tests/mount.sh'), {});
+});
+
+test('platform guard: doctor fails a tracked test calling hdiutil without a darwin skip, passes one with it, and checks a project\'s added tool', async t => {
+  const dir = await project(t);
+  const git = (...args) => assert.equal(run('git', ['-C', dir, ...args], { env: ENV }).status, 0, `git ${args.join(' ')}`);
+  const guard = data => data.lint.filter(l => l.rule === 'platform-guard').map(l => l.path);
+  // After the CLI's report is checked once, the rule runs in-process: each doctor run takes about a second.
+  const guarded = async () => (await platformLints(dir, JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')))).map(l => l.path);
+  await mkdir(join(dir, 'tests'), { recursive: true });
+  const bare = "import { test } from 'node:test';\nimport { execFileSync } from 'node:child_process';\ntest('mounts the image', () => { execFileSync('hdiutil', ['attach', 'acme.dmg']); });\n";
+  await writeFile(join(dir, 'tests', 'mount.test.mjs'), bare);
+  git('add', '-A'); git('commit', '-q', '-m', 'acme: mount test');
+  let r = doctor(dir);
+  assert.equal(r.code, 1, JSON.stringify(r.data.lint));
+  assert.deepEqual(guard(r.data), ['tests/mount.test.mjs']);
+  assert.match(r.data.lint.find(l => l.rule === 'platform-guard').message, /runs hdiutil \(macOS only\) with no darwin skip/);
+  assert.match(keel(['doctor'], dir).out, /platform-guard\s+tests\/mount\.test\.mjs/, 'the text report names it');
+
+  // An untracked test is not the gate's: only tracked files are read.
+  await writeFile(join(dir, 'tests', 'scratch.test.mjs'), bare);
+  assert.deepEqual(await guarded(), ['tests/mount.test.mjs']);
+  await rm(join(dir, 'tests', 'scratch.test.mjs'));
+
+  // With the skip: clean.
+  await writeFile(join(dir, 'tests', 'mount.test.mjs'), bare.replace("test('mounts the image', ()", "test('mounts the image', { skip: process.platform !== 'darwin' }, ()"));
+  git('commit', '-q', '-am', 'acme: skip off macOS');
+  r = doctor(dir);
+  assert.deepEqual(guard(r.data), []);
+  assert.equal(r.code, 0, JSON.stringify(r.data.lint));
+
+  // A tool the project adds ("platformTools"): checked too; a bad list is a finding on the config.
+  await writeFile(join(dir, 'tests', 'sim.test.mjs'), "import { execFileSync } from 'node:child_process';\nexecFileSync('xcrun', ['simctl', 'list']);\n");
+  git('add', '-A'); git('commit', '-q', '-m', 'acme: simulator test');
+  assert.deepEqual(await guarded(), [], 'xcrun is not on keel\'s list');
+  const path = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: ['xcrun'] }, null, 2)}\n`);
+  assert.deepEqual(await guarded(), ['tests/sim.test.mjs']);
+  await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: [{ tool: 'xcrun', platform: 'darwin' }] }, null, 2)}\n`);
+  assert.deepEqual(await guarded(), ['tests/sim.test.mjs']);
+  await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: [{ tool: 'xcrun' }] }, null, 2)}\n`);
+  assert.deepEqual(await guarded(), ['.keel/keel.json']);
+});
+
+test('platform guard: keel\'s own tests are clean of it', async () => {
+  assert.deepEqual(await platformLints(KEEL, JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8'))), []);
 });

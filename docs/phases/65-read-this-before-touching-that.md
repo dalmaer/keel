@@ -1,5 +1,6 @@
 ---
-status: planned
+status: partial
+owes: walk
 since: 2026-10-09
 goal: G0
 spec: 2
@@ -25,8 +26,8 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] Contracts render into the guide, doctor notes a missing doc or an unmatched pattern, and the hook prints the doc for a matching path and stays silent otherwise. `tests/contracts.test.mjs`
-- [ ] The platform-guard lint fails a test file calling `hdiutil` without a darwin skip, and passes one with it; a project's added tool is checked too. `tests/doctor.test.mjs`
+- [x] Contracts render into the guide, doctor notes a missing doc or an unmatched pattern, and the hook prints the doc for a matching path and stays silent otherwise. `tests/contracts.test.mjs`
+- [x] The platform-guard lint fails a test file calling `hdiutil` without a darwin skip, and passes one with it; a project's added tool is checked too. `tests/doctor.test.mjs`
 - [ ] ⚑ by hand: one adopted project's contracts set, and an agent's edit near one shown the doc first.
 
 ## Your part
@@ -46,7 +47,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/contracts.test.mjs tests/doctor.test.mjs`; `npm run check`.
+Automated: `node --test tests/contracts.test.mjs tests/doctor.test.mjs` (both load the hermetic bootstrap themselves; `tests/hermetic.test.mjs` runs them alone under a hostile git config); `npm run check`.
 By hand: one agent edit pointed to its contract.
 
 ## Deliberately open
@@ -55,4 +56,13 @@ By hand: one agent edit pointed to its contract.
 
 ## Next action
 
-Brief a builder on `contracts` and the platform-guard lint.
+The ⚑ walk: set one adopted project's `contracts`, run `keel render`, and let an agent edit near one in Claude Code.
+
+## Trajectory
+
+- **2026-10-09** — Claude Code's docs (as read on 9 Oct) name `additionalContext` for UserPromptSubmit, and not plainly for PreToolUse, where plain stdout reaches only the transcript. The hook prints JSON with both `systemMessage` (shown to the person) and `hookSpecificOutput.additionalContext` (for the model), and never a `permissionDecision`. Whether the model sees it is the walk's question.
+- **2026-10-09** — `.claude/settings.json` is seeded, not managed: a project's own settings are never written over. A project that has one gets a `contract-hook` note naming the entry to add. The hook script and the settings are conditional targets (practice.json `"when": "contracts"`), so no project gets them until it sets contracts.
+- **2026-10-09** — The table lives in the `agents-md` block, not a block of its own: a new block would need markers in every project's AGENTS.md. Without contracts the block's bytes are the template's.
+- **2026-10-09** — A skip counts only when it compares `process.platform` with the tool's own platform: `{ skip: process.platform !== 'win32' }` does not guard an `hdiutil` call. The lint also runs in the night's project-side reading (PROJECT_LINTS).
+- **2026-10-09** — Review of PR 58 (two Codex reviewers) changed the guard. A skip now clears only the command it covers (its test, its `if` branch, or the rest of the block after an early return), and only in the right direction: `skip: process.platform === 'darwin'` runs the command on Linux, so it is a finding. A command counts only through a process runner the file imports (child_process, execa, zx), not a helper of its own named `run` or `sh`, and outside the shell's quotes. `stat -f` became `stat -f %` (BSD's format form): GNU's `stat -f .` runs on Linux. Doctor parses `.claude/settings.json` for a real PreToolUse hook instead of finding the path anywhere. A conditional target turned off keeps its lock row, so an edit made while it is dormant is refused, not overwritten, when it comes back.
+- **2026-10-09** — Where adopt skipped the `agents-md` block (or it is ejected or off), the table has no place to render. keel does not add a block of its own there: the project chose to state keel's rules in its own words, and render cannot write a region it has no markers for. Doctor raises `contract-guide` with the exact rows AGENTS.md lacks, so there is still one guide and it is the project's. A brace alternative is now a glob of its own (`src/{*.js,*.ts}`), and validation compiles every pattern.
