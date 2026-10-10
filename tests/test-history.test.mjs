@@ -159,6 +159,38 @@ test('history refuses existing symlinked records and status destinations', async
 test('history absent diagnostics are explicitly unavailable', async t => {
   assert.equal((await readTestHistory(await project(t))).complete, false);
 });
+test('issue #91: history recovers from the project\'s own gate workflow (pages.yml, no check.yml), found as improve finds it', async t => {
+  // An Acme project that gates in pages.yml: no check.yml, no gateWorkflow named; pages.yml runs the check.
+  const pages = f => {
+    delete f.routes['repos/acme/app/actions/workflows/check.yml'];
+    f.routes['repos/acme/app/actions/workflows/pages.yml'] = { id: 11, path: '.github/workflows/pages.yml' };
+    for (const [path, value] of Object.entries(f.routes)) if (path.startsWith('repos/acme/app/actions/runs/') && value.workflow_id === 11) value.path = '.github/workflows/pages.yml';
+    return f;
+  };
+  const root = await project(t);
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ repo, check: 'npm run check:all' }));
+  await mkdir(join(root, '.github/workflows'), { recursive: true });
+  await writeFile(join(root, '.github/workflows/pages.yml'), 'name: Acme pages\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run check:all\n');
+  await writeFile(join(root, '.github/workflows/deploy.yml'), 'name: Acme deploy\non: push\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo Acme\n');
+  const f = pages(fixture());
+  const result = await recover(root, f);
+  assert.ok(!f.calls.includes('repos/acme/app/actions/workflows/check.yml'), 'never asks for a check.yml the project does not have');
+  assert.deepEqual(result.gaps.filter(g => g.code === 'workflow-unavailable' || g.code === 'artifact-rejected'), [], JSON.stringify(result.gaps));
+  assert.deepEqual(result.selected.map(s => s.kind).sort(), ['ci', 'night']);
+  assert.equal(result.imported, 2, 'pages.yml\'s artifact is accepted as the gate\'s');
+  // The gate named as GitHub shows it (not a file) is found by that name, among the repository's workflows.
+  const named = await project(t), g = pages(fixture());
+  await writeFile(join(named, '.keel/keel.json'), JSON.stringify({ repo, gateWorkflow: 'Acme pages' }));
+  g.routes['repos/acme/app/actions/workflows?per_page=100'] = { total_count: 3, workflows: [{ id: 10, name: 'keel night', path: '.github/workflows/keel-night.yml' }, { id: 11, name: 'Acme pages', path: '.github/workflows/pages.yml' }, { id: 12, name: 'Acme deploy', path: '.github/workflows/deploy.yml' }] };
+  const byName = await recover(named, g);
+  assert.equal(byName.imported, 2, JSON.stringify(byName.gaps));
+  // Nothing runs the gate: said as a gap, never a guess at check.yml.
+  const none = await project(t), n = pages(fixture());
+  await writeFile(join(none, '.keel/keel.json'), JSON.stringify({ repo }));
+  const missing = await recover(none, n);
+  assert.ok(missing.gaps.some(gap => gap.code === 'workflow-unavailable' && /no workflow .* runs the gate/.test(gap.detail)), JSON.stringify(missing.gaps));
+  assert.ok(!n.calls.includes('repos/acme/app/actions/workflows/check.yml'));
+});
 const receipt = () => stallsEvidence({ identity: { commit: head, dirty: false }, plain: { tests: [{ file: 'tests/acme.test.mjs', name: 'Acme timing', outcome: 'pass' }], exitCode: 0 }, stalled: { tests: [{ file: 'tests/acme.test.mjs', name: 'Acme timing', outcome: 'fail' }], exitCode: 1, seed: 42, stalls: [1], paused: 10 }, pinned: false, startedAt: '2026-10-09T00:00:00Z', completedAt: '2026-10-09T00:01:00Z', configHash: 'acme-config', flagsHash: 'acme-flags' })[0];
 const wrapper = r => ({ kind: 'stalls', version: 1, date: r.completedAt, completed: true, tests: [], stallsReceipts: [r], dir: r.identity.scope, config: r.identity.configHash, flagsHash: r.identity.flagsHash, commit: r.revision });
 test('history round-trips producer stalls wrappers and inconclusive records through actual ledger readers', async t => {
@@ -213,6 +245,7 @@ test('night extracted Gather shell recovers real system ZIP via synthetic gh end
   const zipped = join(root, 'history.zip'); const z = run('zip', ['-q', zipped, 'acme.json'], { cwd: inputs }); assert.equal(z.status, 0, z.stderr);
   await mkdir(join(root, 'scripts/keel'), { recursive: true }); await writeFile(join(root, 'scripts/keel/test-history.mjs'), await readFile(source));
   await writeFile(join(root, 'scripts/keel/time-receipts.mjs'), await readFile(resolve('practices/night/files/scripts/keel/time-receipts.mjs')));
+  await writeFile(join(root, 'scripts/keel/lib.mjs'), await readFile(resolve('practices/night/files/scripts/keel/lib.mjs')));
   const gh = join(root, 'gh'); await writeFile(gh, `#!${process.execPath}\nconst fs=require('node:fs');const routes=${JSON.stringify(f.routes)};const p=process.argv[3];if(p==='repos/acme/app/actions/artifacts/1/zip')process.stdout.write(fs.readFileSync(${JSON.stringify(zipped)}));else if(routes[p])console.log(JSON.stringify(routes[p]));else process.exit(1);\n`); await chmod(gh, 0o755);
   const script = runBlocks(await readFile(workflow, 'utf8')).find(b => b.step === 'Gather the test ledger').script;
   assert.doesNotMatch(script, /unzip|gh api/);

@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fill } from '../lib/practices.mjs';
+import { run } from './helpers/run.mjs';
+import { shellWords, flagsIn } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 import { nodePlan, readReceiptPlan, suiteCollector, isStallsReceipt } from '../practices/night/files/scripts/keel/time-receipts.mjs';
 
 test('receipt JSON boundary round-trips producer plans and rejects malformed claims', async t => {
@@ -66,4 +68,73 @@ test('checked production templates survive adopter interpolation byte for byte',
     // typechecked by contributors are installed as directly executable JS.
     assert.equal(fill(source, {name: 'Acme', repo: 'acme/anvils'}, target), source, path);
   }
+});
+
+// Issue #91: Node added testId in 24.16 and parentId in 24.19. A Node 24 before
+// them still says each test's file and nesting, in declaration order, where a
+// test's subtests come just before it. An inventory keyed on testId kept only
+// the last test of each file (`file:undefined`).
+const ACME_SUITE = {
+  'tests/acme.test.mjs': `import { test, describe, it } from 'node:test';
+test('Acme anvil', () => {});
+describe('Acme rockets', () => {
+  it('launches', () => {});
+  describe('stage two', () => { it('separates', () => {}); it('launches', () => {}); });
+  it('lands', () => {});
+});
+test('Acme crate', async t => {
+  await t.test('is packed', () => {});
+  await t.test('is shipped', async t => { await t.test('by rail', () => {}); await t.test('by road', () => {}); });
+});
+test('Acme catapult', { concurrency: true }, async t => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  await Promise.all([t.test('winds', () => wait(20)), t.test('fires', () => wait(1))]);
+});
+for (const n of ['one', 'two', 'three']) test('Acme magnet ' + n, () => {});
+`,
+  'tests/anvil.test.mjs': `import { test, describe, it } from 'node:test';
+describe('Acme anvil', () => { for (let i = 1; i <= 5; i++) it('drops ' + i, () => {}); });
+test('Acme spring', () => {});
+`,
+};
+const ACME_HIERARCHIES = [
+  'acme|Acme anvil', 'acme|Acme rockets', 'acme|Acme rockets/launches', 'acme|Acme rockets/stage two', 'acme|Acme rockets/stage two/separates',
+  'acme|Acme rockets/stage two/launches', 'acme|Acme rockets/lands', 'acme|Acme crate', 'acme|Acme crate/is packed', 'acme|Acme crate/is shipped',
+  'acme|Acme crate/is shipped/by rail', 'acme|Acme crate/is shipped/by road', 'acme|Acme catapult', 'acme|Acme catapult/winds', 'acme|Acme catapult/fires',
+  'acme|Acme magnet one', 'acme|Acme magnet two', 'acme|Acme magnet three',
+  'anvil|Acme anvil', ...[1, 2, 3, 4, 5].map(i => `anvil|Acme anvil/drops ${i}`), 'anvil|Acme spring',
+].sort();
+
+test('issue #91: the inventory is built from file, nesting and declaration order, on every Node 24', async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'acme-inventory-')));
+  t.after(() => rm(root, {recursive: true, force: true}));
+  await mkdir(join(root, 'tests'));
+  for (const [path, text] of Object.entries(ACME_SUITE)) await writeFile(join(root, path), text);
+  await writeFile(join(root, 'reporter.mjs'), `export default async function*(events) {
+    for await (const e of events) if (['test:pass', 'test:fail', 'test:summary'].includes(e.type)) yield JSON.stringify(e, (k, v) => v instanceof Error ? { message: v.message } : v) + '\\n';
+  }`);
+  const r = run(process.execPath, ['--test', '--test-reporter=./reporter.mjs', 'tests/acme.test.mjs', 'tests/anvil.test.mjs'], {cwd: root});
+  assert.equal(r.status, 0, r.stderr);
+  const events = r.stdout.trim().split('\n').map(line => JSON.parse(line));
+  const plan = await nodePlan({root, script: 'node --test tests/*.test.mjs', words: shellWords, flags: flagsIn});
+  const finish = list => { const c = suiteCollector({root, cwd: root, plan, flagsHash: plan.executionSettings.flagsHash}); for (const e of list) c.push(structuredClone(e)); return c.finish(); };
+  const without = (...keys) => events.map(e => ({...e, data: Object.fromEntries(Object.entries(e.data).filter(([k]) => !keys.includes(k)))}));
+  const shapes = {'as this Node emits them': events, 'Node 24 before 24.16: no testId, no parentId': without('testId', 'parentId'), 'Node 24.16 to 24.18: no parentId': without('parentId')};
+  for (const [shape, list] of Object.entries(shapes)) {
+    const receipt = finish(list);
+    assert.equal(receipt.complete, true, shape);
+    assert.deepEqual(receipt.inventoryProblems, [], shape);
+    assert.equal(receipt.inventoryComplete, true, shape);
+    assert.deepEqual(receipt.observedInventory.map(i => `${i.file.slice(6, -9)}|${i.hierarchy.join('/')}`).sort(), ACME_HIERARCHIES, shape);
+  }
+  // Where Node names a parent, it must be the one the order says.
+  const rockets = events.find(e => e.type === 'test:pass' && e.data.name === 'Acme rockets');
+  if (Number.isInteger(rockets.data.testId)) {
+    const crossed = events.map(e => e.type === 'test:pass' && e.data.name === 'separates' ? {...e, data: {...e.data, parentId: rockets.data.testId}} : e);
+    assert.ok(finish(crossed).inventoryProblems.includes('logical identity linkage unavailable'));
+  }
+  // A subtest whose parent's result never came is not placed under another test.
+  const orphaned = finish(without('testId', 'parentId').filter(e => e.data.name !== 'is shipped'));
+  assert.equal(orphaned.inventoryComplete, false);
+  assert.ok(orphaned.inventoryProblems.includes('missing parent identity'), orphaned.inventoryProblems.join(', '));
 });

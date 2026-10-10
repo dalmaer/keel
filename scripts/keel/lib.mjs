@@ -48,6 +48,8 @@
 //                            recordsDisagree, statusUnknown, changelogGaps,
 //                            issuesNamed, the record measures' rules
 //   gateWorkflowOf(config)   the gate workflow a project names (gateWorkflow)
+//   gateWorkflowIn(root, config)  the workflow that runs the gate: the named
+//                            one, else check.yml, else one running the check
 //   reviewConfigOf(config), reviewFragment, reviewComments(pr, reviewers)
 //                            a PR's review comments and which are answered
 //                            (keel review and reviews_unanswered: one rule);
@@ -567,6 +569,25 @@ export function gateWorkflowOf(config) {
   for (const value of [top, nested]) if (value !== undefined && (typeof value !== 'string' || !value.trim())) return { problem: `.keel/keel.json "gateWorkflow" must be a workflow's name (also accepted as "ci".gateWorkflow)` };
   if (top !== undefined && nested !== undefined && top.trim() !== nested.trim()) return { problem: 'conflicting gateWorkflow and ci.gateWorkflow names' };
   return { name: (nested ?? top).trim() };
+}
+
+/**
+ * The workflow that runs the gate on pushes: the one .keel/keel.json names
+ * (gateWorkflowOf: no guess beats the project saying), else check.yml, else
+ * one whose file runs the check command (a project that gates in its own
+ * pages.yml has no check.yml). { name } (a file, or the name GitHub shows when
+ * the config gives one), { problem }, or null when nothing runs the gate.
+ * improve's CI measures and the test history's recovery both read it here.
+ */
+export async function gateWorkflowIn(root, config, check = 'npm run check') {
+  const named = gateWorkflowOf(config);
+  if (named) return named;
+  const dir = join(root, '.github', 'workflows');
+  const names = (await readdir(dir).catch(() => [])).filter(n => /\.ya?ml$/.test(n)).sort();
+  if (names.includes('check.yml')) return { name: 'check.yml' };
+  const command = config?.check ?? check;
+  for (const n of names) if ((await readFile(join(dir, n), 'utf8')).includes(command)) return { name: n };
+  return null;
 }
 
 // ---- the health pages' directory ---------------------------------------------

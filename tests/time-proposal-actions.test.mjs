@@ -73,6 +73,22 @@ test('time remeasurement verifies fresh merge local ancestry and reviewed full t
  pr.head.sha=merge;git(f.root,'checkout','-q','--force','--detach',f.base);result=await remeasureTimeProposal({root:f.root,proposal:accepted.proposal,at:'2026-10-14T00:00:00Z',github,evaluate});assert.equal(result.state,'unavailable');assert.equal(calls,1);
 });
 
+test('issue #91: remeasurement counts only runs on the merge and in this checkout, never an unrelated branch after it',async t=>{
+ const f=await fixture(t);const accepted=await decideTimeProposal({root:f.root,path,expectedInstance:f.proposal.instanceId,decision:'accept',at,github:f.github});
+ await writeFile(join(f.root,'acme.txt'),'Acme fixed');git(f.root,'add','.');git(f.root,'commit','-qm','Acme merge');const merge=git(f.root,'rev-parse','HEAD');
+ // A branch forked after the merge: it descends from the merge, but this checkout never had its code.
+ git(f.root,'checkout','-q','-b','acme-experiment');await writeFile(join(f.root,'acme.txt'),'Acme experiment');git(f.root,'commit','-qam','Acme unrelated experiment');const unrelated=git(f.root,'rev-parse','HEAD');
+ git(f.root,'checkout','-q','main');await writeFile(join(f.root,'acme.txt'),'Acme later');git(f.root,'commit','-qam','Acme later on main');const later=git(f.root,'rev-parse','HEAD');
+ const pr={number:8,html_url:`https://github.com/${repo}/pull/8`,state:'closed',merged_at:'2026-10-11T00:00:00Z',merge_commit_sha:merge,user:{type:'Bot',login:'github-actions[bot]'},head:{sha:merge,ref:'keel/robot-7',repo:{full_name:repo}},base:{sha:f.base,ref:'main',repo:{full_name:repo}},body:robotAssociation({repo,issueNumber:7,instanceId:f.proposal.instanceId,author:'claude',headSha:merge,cursor:0})};
+ const github=async r=>r.path.includes('/pulls?')?{status:200,data:[{number:8}]}:r.path.endsWith('/pulls/8')?{status:200,data:pr}:f.github(r);
+ await mkdir(join(f.root,'.keel/test-runs'),{recursive:true});
+ for(const [name,commit] of [['before',f.base],['merge',merge],['unrelated',unrelated],['later',later]])await writeFile(join(f.root,'.keel/test-runs',name+'.json'),JSON.stringify({date:'2026-10-12T00:00:00Z',commit,tests:[]}));
+ let seen=null;const evaluate=async input=>{seen=input.comparison.eligibleRevisionShas;return {state:'inside',value:0,coverage:{eligible:2},reasons:[]};};
+ const result=await remeasureTimeProposal({root:f.root,proposal:accepted.proposal,at:'2026-10-14T00:00:00Z',github,evaluate});
+ assert.equal(result.state,'inside',JSON.stringify(result));
+ assert.deepEqual(new Set(seen),new Set([merge,later]),'the merge and its descendants in this checkout; not the base, not the unrelated branch');
+});
+
 async function mappingFixture(t,measure='critical_file') {
  const f=await fixture(t),p=makeTimeProposal({...f.proposal,measure,threshold:{...f.proposal.threshold,rule:measure},at});
  await writeFile(join(f.root,path),'# Acme health\n\n## Proposal\n\n'+formatTimeProposal(p));

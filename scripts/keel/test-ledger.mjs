@@ -254,7 +254,14 @@ function assignmentSpans(text) {
 
 /** First eight lines, at most 1 KiB, redacted before truncation (including configured secrets). */
 export function failureText(value, env = process.env, { configEnv = [] } = {}) {
-  let text = stripVTControlCharacters(String(value ?? ''));
+  let text = redactedText(value, env, { configEnv }).split('\n').slice(0, 8).join('\n').slice(0, 1024);
+  while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);
+  return text;
+}
+
+/** The whole text with failureText's redaction (environment and configured secrets, assignments, keys, URL credentials), never truncated. */
+export function redactedText(value, env = process.env, { configEnv = [] } = {}) {
+  const text = stripVTControlCharacters(String(value ?? ''));
   const configured = new Set(configEnv);
   const secrets = [...new Set(Object.entries(env)
     .filter(([name, secret]) => secret && (configured.has(name) || /token|secret|password|credential|api.?key/i.test(name)))
@@ -286,9 +293,7 @@ export function failureText(value, env = process.env, { configEnv = [] } = {}) {
     redacted += text.slice(copied, start) + '[redacted]';
     copied = end;
   }
-  text = (redacted + text.slice(copied)).split('\n').slice(0, 8).join('\n').slice(0, 1024);
-  while (Buffer.byteLength(text) > 1024) text = text.slice(0, -1);
-  return text;
+  return redacted + text.slice(copied);
 }
 
 /** Each lane and machine keeps its own last ten passing observations, including coverage. */
@@ -1000,7 +1005,8 @@ export function pinned(root, config, { env = process.env, preload, seed: given }
         for (const t of j.both) lines.push(`  "${t.name}" failed with stalls${tests.some(x => x.file === rel && x.name === t.name) ? ' and plainly' : ''}${t.error ? `: ${t.error}` : ''}`);
         if (run.timedOut) lines.push('  it ran past its time limit (paused time not counted)');
         else if (!failed.length && run.exitCode === 0 && run.ran === 0) lines.push('  no test ran with stalls: nothing was judged');
-        else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${run.stderr.split('\n').slice(-3).join(' | ') || 'no output'}`);
+        // The run's raw stderr (a preload or module that aborted before any test) is redacted as a failure's text is, then its tail shown.
+        else if (!failed.length) lines.push(`  node --test exited ${run.exitCode ?? run.signal}: ${redactedText(run.stderr, env, { configEnv: config.tests?.configEnv ?? [] }).split('\n').slice(-3).join(' | ').slice(0, 1024) || 'no output'}`);
       }
       return lines;
     },

@@ -111,7 +111,9 @@ export function evaluateTimeEvidence({measure,runs=[],stallsReceipts=[],localWor
     return combine(results,stallsReceipts);
   }
   const timing=r=>knownEnd(r)&&!r.filtered&&busyState(r)==='quiet'&&successful(r)&&inWindow(r,T-35*DAY,T);
-  const eligible=[...new Map(runs.filter(r=>r.id).map(r=>[r.id,r])).values()].filter(r=>measure==='inconclusive_share'?knownEnd(r)&&!r.filtered&&inWindow(r,T-28*DAY,T):timing(r));
+  // Only a known-clean tree is evidence: a dirty (or unknown) run measured code its commit does not name,
+  // and a baseline or proposal that cites that commit would be citing other code. As compareEvidence holds.
+  const eligible=[...new Map(runs.filter(r=>r.id&&r.dirty===false).map(r=>[r.id,r])).values()].filter(r=>measure==='inconclusive_share'?knownEnd(r)&&!r.filtered&&inWindow(r,T-28*DAY,T):timing(r));
   const entries=[];
   for(const r of eligible) {
     if (measure==='gate_time') {
