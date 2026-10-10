@@ -44,8 +44,16 @@ keel review acme/app#3 --close PRRT_acme --tracked --file-agent-issue --title 'P
 Creation takes one comment, bare `--tracked`, title and rubric. Existing
 `--tracked acme/app#12` remains a separate mode. Fresh receipt checks happen
 before creation and again before the reply. A preview or ambiguous issue write
-never claims the review was answered. A verified issue link is posted as tracked;
+never claims the review was answered. A successful created/recovered issue link is posted as tracked;
 the thread remains open until its fix lands.
+
+With enabled target policy, read-back must confirm `keel:agent`. If GitHub
+omits it, creation/recovery returns `unqueued` (exit 2): the verified issue
+exists and its URL is shown, but queueing is not confirmed. Its durable identity
+is retained. Retrying neither creates a duplicate nor automatically restores a
+label someone removed. The owner decides whether to apply the label manually
+or leave the issue unqueued. Review creation does not post a tracked reply for
+this outcome.
 
 Keep `.keel/robot-issues` durable operational intents when moving the checkout.
 The same work retries with the same instance. Recovery checks exact markers and

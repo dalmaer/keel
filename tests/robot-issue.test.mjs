@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, readdir, writeFile, mkdir, symlink, lstat, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { previewRobotIssue, ensureRobotIssue, recoverRobotIssue, robotTargetPolicy } from '../lib/robot-issue.mjs';
+import { previewRobotIssue, ensureRobotIssue, recoverRobotIssue, robotTargetPolicy, robotIssueOutput } from '../lib/robot-issue.mjs';
 import { run } from './helpers/run.mjs';
 import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
 const rubric = { version: 1, problem: 'Acme drops rows.', reproduction: 'Run the Acme regression.', acceptance: 'Both rows survive.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
@@ -361,4 +361,53 @@ test('robot issue nullable bodies allow unrelated issues but never replace exact
     const refused = await ensureRobotIssue({ ...work, stateDir: await temp(t), github: malformed.github, yes: true });
     assert.equal(refused.state, 'blocked'); assert.equal(malformed.posts().length, 0);
   }
+});
+
+
+test('robot issue rejects symlinked intent ancestors directories and hashed destinations without external writes', async t => {
+  const { createHash } = await import('node:crypto');
+  const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  for (const mode of ['ancestor', 'state', 'repo', 'intent', 'subject', 'lock']) {
+    const root = await temp(t), outside = join(root, 'outside'), api = remote();
+    await mkdir(outside);
+    const stateDir = join(root, 'project', '.keel', 'robot-issues'), dir = join(stateDir, hash(work.repo));
+    const link = mode === 'ancestor' ? join(root, 'project') : mode === 'state' ? stateDir : mode === 'repo' ? dir
+      : mode === 'intent' ? join(dir, `${hash(work.instanceId)}.json`)
+      : mode === 'subject' ? join(dir, `subject-${hash(work.subjectKey)}.json`) : join(dir, 'writer.lock');
+    const { dirname } = await import('node:path');
+    await mkdir(dirname(link), { recursive: true });
+    let target = outside;
+    if (['intent', 'subject'].includes(mode)) { target = join(outside, 'human.json'); await writeFile(target, 'Acme human contents'); }
+    await symlink(target, link, ['intent', 'subject'].includes(mode) ? 'file' : 'dir');
+    const before = await readdir(outside);
+    const got = await ensureRobotIssue({ ...work, stateDir, github: api.github, yes: true });
+    assert.equal(got.state, 'blocked', mode); assert.equal(api.calls.length, 0, mode);
+    assert.deepEqual(await readdir(outside), before, mode); assert.equal((await lstat(link)).isSymbolicLink(), true, mode);
+    if (target !== outside) assert.equal(await readFile(target, 'utf8'), 'Acme human contents');
+  }
+  // macOS /tmp is a system alias, not a checkout-controlled link.
+  const root = await mkdtemp('/tmp/keel-acme-intents-'); t.after(() => rm(root, { recursive: true, force: true }));
+  const api = remote(), stateDir = join(root, 'new', 'state');
+  const got = await ensureRobotIssue({ ...work, stateDir, github: api.github, yes: true });
+  assert.equal(got.state, 'created'); assert.equal((await recoverRobotIssue({ ...work, stateDir: await realpath(stateDir), github: api.github })).state, 'recovered');
+});
+
+test('robot issue enabled label readback reports unqueued identity and never duplicates or relabels', async t => {
+  const stateDir = await temp(t), api = remote();
+  const args = { ...work, policy: robotPolicy({ robot: { on: true, budgetMinutes: 10 } }), stateDir, github: api.github, yes: true };
+  const first = await ensureRobotIssue(args);
+  assert.equal(first.state, 'unqueued'); assert.equal(first.issue.number, 1);
+  assert.deepEqual(api.posts()[0].body.labels, ['keel:agent']);
+  assert.equal(robotIssueOutput(first).exitCode, 2); assert.match(robotIssueOutput(first).text, /https:.*issues\/1/); assert.match(robotIssueOutput(first).text, /lacks keel:agent/);
+  const retry = await ensureRobotIssue(args); assert.equal(retry.state, 'unqueued'); assert.deepEqual(retry.issue, first.issue);
+  assert.equal((await recoverRobotIssue(args)).state, 'unqueued');
+  api.rows[0].labels = [{ name: 'keel:agent' }];
+  assert.equal((await ensureRobotIssue(args)).state, 'recovered');
+  api.rows[0].labels = []; // Human removal must not be reversed on retry.
+  assert.equal((await ensureRobotIssue(args)).state, 'unqueued');
+  assert.equal(api.posts().length, 1); assert.equal(api.calls.some(c => c.method === 'PATCH'), false);
+  const [dir] = await readdir(stateDir);
+  const name = (await readdir(join(stateDir, dir))).find(f => f.endsWith('.json') && !f.startsWith('subject-'));
+  const intent = JSON.parse(await readFile(join(stateDir, dir, name), 'utf8'));
+  assert.equal(intent.state, 'verified'); assert.deepEqual(intent.issue, first.issue);
 });

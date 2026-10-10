@@ -89,3 +89,5 @@ The owner chooses one project and a weekly allowance covering build plus other-p
 - **2026-10-10** — Review separated public event intake from the allowance-accounted worker, required active label provenance for scheduled work, and protected repository instruction files. Private read-only fetches use scoped credentials; recovered failures retain verified PR identity. Main’s phase 60 was integrated before the final gate.
 
 - **2026-10-10** — Publication and review completion are separate durable facts. Recovery resumes a missing exact-head review without rebuilding, and triage preserves the delivered head. Verified robot reviews remain actionable despite the shared Actions identity; a new head does not erase historical unanswered findings.
+
+- **2026-10-10** — Queue rejection is per issue, not a permanent stop for later authorized work. Human PR retargets block continuation, and missing queue labels remain a verified but unqueued outcome. Intent storage refuses symlinked paths without rewriting external files or relabelling issues.

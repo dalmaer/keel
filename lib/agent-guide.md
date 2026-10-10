@@ -1576,6 +1576,13 @@ head or comments, before issue creation. Preview never answers the review.
 A verified created/recovered issue supplies the tracked link; the thread stays
 open. Changed reviews are reread before replying even if issue creation landed.
 
+Enabled policy requires read-back of `keel:agent`. If that label is missing,
+`unqueued` (exit 2) retains the verified issue URL and durable identity: the issue
+exists, but queueing is not confirmed. Retry never creates a duplicate or
+restores a removed label automatically. The owner decides whether to apply the
+label manually or leave the issue unqueued. This outcome never posts a tracked
+review reply or claims successful queueing.
+
 The local `.keel/robot-issues` journal precedes writes; preserve it for recovery.
 Retrying the same title/rubric (or review subject) recovers its stable instance.
 Changed work cannot reuse an instance. Another active intent for the same

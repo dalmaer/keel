@@ -203,7 +203,7 @@
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "292d764b6314d198ac46b8943ab2b584370372bf9d31f66d369b42737ec8a837"
+      "sha256": "696bfb3ff84399682c134a1147fce0f010561d9257897efbd26bce9c805fb381"
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",
