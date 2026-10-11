@@ -170,6 +170,26 @@ per section, and `keel --agent-help goals` is the exact reference.
 - It never renumbers a phase. If two branches take the same number, the
   roadmap check and `keel doctor` name both files, and you renumber one.
 
+## Dated observations and re-derivation
+
+Keep a measurement's date and command next to its value. The roadmap check
+advises on undated figures with units in phase Proof/Evidence/Trajectory sections
+and regular Markdown files directly under `docs/evidence/` and `docs/research/`.
+A real ISO date in the same paragraph, list item, table row or enclosing heading
+counts. Dates in a filename, front matter or unrelated earlier paragraph do not.
+Code, comments, URLs and explicit thresholds are ignored. This is a syntax
+heuristic: it can miss inline-code figures and non-ISO dates, and some examples
+can still attract a note. Advice does not change the check's exit status.
+
+For repeatable measurements, add explicit `keel-measurements` JSON records to the
+phase or its linked evidence; `keel --agent-help evidence` gives the schema.
+Run `keel evidence rederive <phase> --json` to inspect the commands, then add
+`--yes` to execute them. It reports dated old and new observations without
+rewriting history. Programs run with your permissions, without a shell, under
+per-command time/output limits. Execution requires POSIX; Windows can preview.
+A failed command or missing numeric output stays unavailable. A changed number
+alone proves neither acceptance nor improvement.
+
 ## See also
 
 - [Conduct a phase](conduct-a-phase.md): what happens once a phase is

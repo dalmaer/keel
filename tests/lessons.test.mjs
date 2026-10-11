@@ -331,3 +331,49 @@ test('guide review: lessons includes canonical guide commits and keeps raw confi
   assert.equal(await treeHash(dir), before);
   assert.deepEqual(await stub.calls(), []);
 });
+
+// Phase 64: causal rule advice is shared with doctor, without blocking sending.
+test('rule cause grammar distinguishes structural rules, attribution, and ordinary Markdown', async () => {
+  const { ruleCauseNotes } = await import('../practices/night/files/scripts/keel/lib.mjs');
+  const input = [
+    '**Keep the source.** Do it.',
+    '',
+    '- **Name the result.** (why: a missing result cannot be checked.)',
+    '- **Record the failure.** Keel lesson 38.',
+    '- **Record its origin.** https://github.com/acme/anvils/issues/7',
+    '- **Use the check.** because it catches stale output.',
+    '- **Keep the issue.** acme/anvils#8',
+    '',
+    '**A missing cause.** (why:   )',
+    '',
+    '**Label:** ordinary prose; inline **bold words.** are not rules.',
+    '<!-- **Commented rule.** -->',
+    '~~~md', '**Example rule.**', '~~~',
+    '',
+    '**Another missing cause.**',
+    '',
+    'Unrelated paragraph: lesson 38.',
+  ].join('\n');
+  assert.deepEqual(ruleCauseNotes(input, 'GUIDE.md').map(n => [n.rule, n.path, n.line]), [
+    ['rule-without-cause', 'GUIDE.md', 1], ['rule-without-cause', 'GUIDE.md', 9], ['rule-without-cause', 'GUIDE.md', 17],
+  ]);
+  assert.deepEqual(ruleCauseNotes('**Dated attribution.** (why: 2026-10-11, a stale copy lost the rule.)'), []);
+  assert.equal(ruleCauseNotes('**Dates alone are not causes.** 2026-10-11')[0].rule, 'rule-without-cause');
+});
+
+test('lessons and doctor advise on the selected guide without making advice a failure', async t => {
+  const { diagnose } = await import('../lib/doctor.mjs');
+  const dir = await scratch(t);
+  await mkdir(join(dir, '.keel'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', keel: 'self', practices: ['base'], guide: 'GUIDE.md' }));
+  await writeFile(join(dir, 'GUIDE.md'), '**Check the result.** Run the command.\n');
+  await writeFile(join(dir, 'AGENTS.md'), '**Wrong guide.** This must not be read.\n');
+  const report = await diagnose(dir);
+  assert.equal(report.lint.some(n => n.rule === 'rule-without-cause'), false);
+  assert.deepEqual(report.notes.filter(n => n.rule === 'rule-without-cause').map(n => n.path), ['GUIDE.md']);
+  const result = await lessons({ dir }, { cliRoot: KEEL, env: ENV });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.data.ok, true);
+  assert.match(result.text, /rule-without-cause GUIDE.md/);
+  assert.equal(result.data.ruleNotes[0].rule, 'rule-without-cause');
+});

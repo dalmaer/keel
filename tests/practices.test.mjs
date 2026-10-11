@@ -98,7 +98,7 @@ test('conduct pins its upstream source', async () => {
 
 test('templates name the project only through {{name}}', async () => {
   // Deliberate mentions: provenance and the keel tool itself, never the project.
-  const allowed = [/Keel manages this file/, /Lineage: isocan → ledger .* → cajones/, /Adapted from ritmo's/];
+  const allowed = [/Keel manages this file/, /Lineage: isocan → ledger .* → cajones/, /Adapted from ritmo's/, /Keel lessons?\b/, /Keel catalogue/];
   for (const p of (await load()).values()) for (const f of p.files.filter(f => f.template)) {
     for (const line of f.template.split('\n')) {
       if (/\bKeel\b|\bCajones\b/.test(line)) assert.ok(allowed.some(r => r.test(line)), `${p.name} ${f.from}: ${line}`);
@@ -176,7 +176,8 @@ test('a render into an empty directory, plus one phase, passes its own npm run c
     const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
     assert.match(agents, /^# Working on Acme\n/);
     assert.match(agents, /<!-- keel:begin conduct -->\n\*\*Conduct the walk\.\*\*/);
-    assert.doesNotMatch(agents, /Keel|\{\{/);
+    assert.doesNotMatch(agents, /\{\{/);
+    assert.doesNotMatch(agents, /^# Working on Keel/m, 'provenance may name Keel; the project heading must name Acme');
     const lessons = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
     assert.match(lessons, /\| --- \| --- \| --- \| --- \|\n$/, 'an empty table, not keel\'s central rows');
     const template = await readFile(join(dir, 'docs/templates/phase.md'), 'utf8');
@@ -261,4 +262,21 @@ test('render probe copies exclude runtime ledgers at every depth and preserve pr
   assert.deepEqual(JSON.parse(await readFile(join(metadata, 'keel.json'), 'utf8')), { name: 'Acme' });
   assert.equal(await readFile(join(metadata, 'test-runs-source/acme.json'), 'utf8'), '{}');
   await assert.rejects(copyProject(join(source, 'missing'), join(destination, 'missing')), { code: 'ENOENT' }, 'ordinary missing inputs are not swallowed');
+});
+
+test('each shipped structural guide and conduct rule carries its cause with Keel provenance', async () => {
+  const { ruleCauseNotes } = await import('../practices/night/files/scripts/keel/lib.mjs');
+  const practices = await load();
+  let scanned = 0;
+  for (const practice of practices.values()) for (const file of practice.files) {
+    if (!(file.kind === 'block' && file.path === 'AGENTS.md') && file.path !== '.agents/skills/conduct/SKILL.md') continue;
+    const path = `practices/${practice.name}/files/${file.from}`;
+    const raw = await readFile(join(KEEL, path), 'utf8');
+    assert.deepEqual(ruleCauseNotes(raw, path), [], path);
+    assert.doesNotMatch(raw, /\(why: lesson \d/i, 'shipped lesson references must distinguish Keel from local numbers');
+    scanned++;
+  }
+  assert.ok(scanned >= 8);
+  const seed = await readFile(join(KEEL, 'practices/agents-md/files/AGENTS.md'), 'utf8');
+  assert.match(seed, /Keel catalogue/);
 });

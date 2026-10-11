@@ -2,3 +2,4 @@
 a shape, and say where it was paid for. Read the table
 (`{{lessons}}`) and keel's lessons for this stack (`docs/keel-lessons.md`,
 generated) before adding a guard.
+(why: Keel lesson 37: guarding only one reproduction leaves the same failure possible elsewhere.)

@@ -148,3 +148,14 @@ source it could not read exits 1, never reads as "nothing moved".
   practice change reaches every project.
 - [`docs/lessons.md`](../lessons.md), [`docs/patterns.md`](../patterns.md),
   and [`practices/lessons/README.md`](../../practices/lessons/README.md).
+
+## Why a rule exists
+
+Shipped rules carry their failure shape or explicitly named Keel lesson.
+`keel doctor` and `keel lessons` advise when a rule lacks a cause. The lint
+recognizes paragraphs/list items beginning with a bold sentence ending in a
+period or exclamation mark; labels, tables and fenced examples are excluded.
+A cause belongs in the same item: `(why: ...)`, a lesson or issue reference,
+or a because clause. A date alone is not a cause. This checks attribution
+syntax, not whether the cited lesson is true or the rule is still useful;
+that judgment belongs to the owner. Notes are advisory, never merge gates.

@@ -114,7 +114,7 @@ test('agent-help opens a topic, and all', () => {
   assert.match(JSON.parse(bad.out).error, /no agent-help topic/);
 });
 
-test('--json parses for every verb and flag; human text never mixes in', async () => {
+test('--json parses for every verb and flag; human text never mixes in', async t => {
   const dir = await copyTree(await mkdtemp(join(tmpdir(), 'keel-json-')));
   try {
     // A verb that cannot run bare gets the least it needs; init makes a commit,
@@ -142,10 +142,38 @@ test('--json parses for every verb and flag; human text never mixes in', async (
     const needs = { issue: ['new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'acme-rubric.json'], walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'],
-      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'] };
+      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
     const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
-    const cwdOf = name => name === 'prove' ? proving : dir;
+    // Evidence previews a synthetic record, independent of this checkout's historical measurements.
+    const measuring = await mkdtemp(join(tmpdir(), 'keel-json-evidence-'));
+    t.after(() => rm(measuring, { recursive: true, force: true }));
+    for (const path of ['.keel', 'docs/phases', 'docs/evidence']) await mkdir(join(measuring, path), { recursive: true });
+    await writeFile(join(measuring, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['phases'] }));
+    await writeFile(join(measuring, 'docs/phases/1-acme.md'), `---
+status: planned
+since: 2026-10-11
+goal: G0
+note: "Acme measurement"
+evidence: ["evidence/acme.md"]
+---
+# Acme measurement
+## Done when
+The Acme count is measured.
+## Scope
+Acme only.
+## Acceptance
+- [ ] Measure the Acme count.
+## Proof
+Run the recorded measurement.
+## Deliberately open
+None.
+## Next action
+Measure the count.
+`);
+    const measurement = { id: 'acme-count', argv: [process.execPath, '-e', 'console.log(12)'], cwd: '.', value: 10, unit: 'characters', date: '2026-10-11' };
+    await writeFile(join(measuring, 'docs/evidence/acme.md'), '\n```keel-measurements\n' + JSON.stringify([measurement]) + '\n```\n');
+    const cwdOf = name => name === 'prove' ? proving : name === 'evidence rederive' ? measuring : dir;
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     // canvas status reads local binding/receipts only; any accidental transport call
@@ -156,6 +184,12 @@ test('--json parses for every verb and flag; human text never mixes in', async (
       assert.equal(r.code, name === 'issue' ? 3 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
+      if (name === 'evidence rederive') {
+        const receipt = JSON.parse(r.out);
+        assert.equal(receipt.mode, 'preview');
+        assert.equal(receipt.records[0].id, measurement.id);
+        assert.equal(receipt.records[0].new, null);
+      }
     }
     // render onto an unchanged copy rewrites nothing.
     await rm(join(dir, 'fresh'), { recursive: true, force: true });

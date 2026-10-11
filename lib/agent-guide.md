@@ -1,8 +1,8 @@
 # keel — agent cold start
 
-Keel installs phases, derived roadmaps, lessons and evidence in a repo.
+Keel installs phases, roadmaps, lessons and evidence.
 Run in a project (`.keel/keel.json`); init/adopt also run outside one.
-Read the guide named by `.keel/keel.json` (`guide`); otherwise AGENTS.md or CLAUDE.md.
+Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
 
 Verbs (all take `--json`; parse JSON, never prose):
 
@@ -30,6 +30,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
 - `keel retro` — session friction; `capture` previews an explicit record
+- `keel evidence rederive <phase>` — preview measurements; `--yes` reruns them
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
 - `keel release <x.y.z> --notes <file>` — review, version, tag
 - `keel help` — the verbs
@@ -49,7 +50,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -1482,6 +1483,41 @@ chooses candidates or publishes transcripts, commands or private local pointers.
 Invalid records exit 2. JSON includes `schema`, `operation`, `changes`,
 `coverage`, `warnings`, `exitCode` and the reviewed record. The ordinary
 worksheet above remains read-only. See `keel --agent-help canvas` for publishing.
+
+<!-- topic: evidence | preview and rederive dated measurements without rewriting history -->
+
+`keel evidence rederive <phase> [--yes] [--json]` reads a numbered file phase
+and its linked evidence. It supports keel's files source and shape, not
+milestones, projects-shaped or local planning implementations.
+
+Only `keel-measurements` fences containing a JSON array are executable:
+
+```keel-measurements
+[{"id":"sample-count","argv":["node","-e","console.log(12)"],"cwd":".","value":10,"unit":"items","date":"2026-10-01"}]
+```
+
+Each record needs a unique `id`, nonempty string `argv` array, repository-relative
+`cwd`, finite numeric `value`, nonempty `unit`, and real ISO calendar `date`.
+Optional `jsonField` selects one top-level numeric property from JSON stdout;
+otherwise the whole trimmed stdout must be a finite number. Missing/null output
+is unavailable, never zero. No command is extracted from prose or backticks.
+
+Preview is the default: it validates every record, reference and directory,
+then returns commands and old observations without running them. `--yes` runs
+the current records in order, directly without a shell. Review the argv before
+running it: these are ordinary programs with your permissions, not a sandbox.
+Execution requires POSIX process groups (Windows supports preview only), with
+10 seconds and 65,536 combined stdout/stderr bytes per command. Ordinary
+descendants are killed on completion or timeout. Escaping paths, ambiguous
+phase/measurement IDs and invalid dates fail before any command runs.
+
+JSON data contains `phase`, `mode`, `limits`, `ok` and `records`. Each record
+has `id`, `source`, `argv`, `cwd`, optional `jsonField`, `old: {value, unit, date}`
+and `new` (null in preview). Executed `new` adds today's UTC date, `exitCode`,
+`signal`, `stderr` and `error`; failed/unparseable values are null. Exit 0:
+preview or all measurements available; 1: at least one unavailable; 2: invalid
+input or unsupported source/platform. No historical file is rewritten, no
+acceptance is checked, and a difference is not automatically an improvement.
 
 <!-- topic: prove | a fix is proven by its test failing without it, and the Proven-by: trailer that says so -->
 

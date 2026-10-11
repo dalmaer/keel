@@ -10,8 +10,9 @@ npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 
 ## How the work is run
 
-Each rule below exists because of a specific failure, recorded in
-[`{{lessons}}`]({{lessons}}).
+Each shipped rule names its cause. References to Keel lessons mean the
+[Keel catalogue](https://github.com/dalmaer/keel/blob/main/docs/lessons.md);
+this project’s own lessons live in [`{{lessons}}`]({{lessons}}).
 
 <!-- keel:begin phases -->
 <!-- keel:end phases -->
