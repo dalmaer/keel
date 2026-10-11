@@ -56,6 +56,8 @@ Over time: one fix from each.
 
 ## Deliberately open
 
+- **Robot source availability — settled 2026-10-11:** Local source freshness alone does not establish availability to the robot. Before a new delivery, verify that GitHub's default-branch file path and blob match the frozen observation; mismatches or unavailable reads block filing. Recover attempted issue writes first, even if source changed afterward. This is an acceptance-time observation, not a promise that the branch cannot change later.
+
 - **Observation and authority — settled 2026-10-11:** Worktree size is logical bytes held, not guaranteed reclaimable physical disk space. Local main reachability establishes merged code only. Current, primary, locked, dirty or incompletely inspected worktrees are protected; bounded filesystem activity and size scans disclose gaps. Commands are one-at-a-time owner advice, never automatic cleanup.
 - **Draft age — settled 2026-10-11:** Count currently open drafts by age since creation, explicitly not continuous time in draft. Bounded cached GitHub reads preserve truncation, quota and access gaps as unavailable.
 - **Thresholds — settled 2026-10-11:** Configured hygiene filters are positive finite values (draft hours, worktree days and file lines); measure count bounds remain separate, default zero with no ratchet. Long-file history and split points are bounded heuristics tied to source revisions.
