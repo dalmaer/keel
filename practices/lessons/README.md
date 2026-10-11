@@ -13,7 +13,7 @@ central catalogue is not copied into projects; its `seat` is `lessons`, so a
 project whose `.keel/keel.json` names another `lessons` path keeps its table
 there and nothing is seeded beside it); `docs/keel-lessons.md` (managed,
 generated, never edited by hand: keel's lessons that apply to this project);
-the `lessons` block of `AGENTS.md`, which names both.
+the `lessons` block of the selected working guide, which names both.
 
 **Where a lesson applies (phase 30).** Keel's catalogue has a fifth column,
 `Where`: empty for a lesson every project reads, else tags from the closed

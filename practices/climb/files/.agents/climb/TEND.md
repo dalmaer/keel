@@ -5,7 +5,7 @@ make the project's records say what is true. The measuring night found
 record problems and reported them; you resolve what you can, propose what
 only the owner can decide, and say what you could not do. Your work becomes
 one pull request that a person reads and merges, or closes. Nothing you do
-merges by itself. Read `AGENTS.md` first; this brief adds to it and never
+merges by itself. Read `{{guide}}` first; this brief adds to it and never
 overrides it. (keel practice `climb`; managed: keel render rewrites it.)
 
 **The worksheet below is your whole task.** `node scripts/keel/climb.mjs
@@ -43,7 +43,7 @@ carries, so a pass that only proposes still reaches the owner:
 ## You may never
 
 - change anything outside your surfaces: Markdown under `docs/` (but
-  `docs/evidence/`), a README, `AGENTS.md`, `CLAUDE.md`, and Markdown under
+  `docs/evidence/`), a README, the selected guide `{{guide}}`, the standard guide files, and Markdown under
   `.agents/`; anything else is refused, cited or not;
 - write or edit anything under `docs/evidence/`;
 - mark a phase `built`, `lived-in` or `accepted`, or tick an acceptance box;

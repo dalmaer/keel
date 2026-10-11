@@ -13,7 +13,7 @@
 // input's file path, and when a contract's pattern matches it says
 // "Before editing <path>, read <doc>: <why>." It never blocks: it always
 // exits 0, and a bad input or config says nothing. Other agents read the same
-// contracts as the table in AGENTS.md.
+// contracts as the table in the selected working guide.
 //
 // A pattern is a whole path from the project's root: `*` within one
 // directory, `**` across directories, `?` one character, `{a,b}` either.

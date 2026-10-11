@@ -6,7 +6,7 @@ waits for a person to have time to start it.
 
 **The rule.** `.github/workflows/claude.yml` answers `@claude` in an issue,
 a comment or a review (or an issue labelled `claude`) with Claude Code,
-which reads `AGENTS.md`, does the work on a `claude/` branch and opens a pull
+which reads the selected working guide, does the work on a `claude/` branch and opens a pull
 request. A person merges. Its tools let git read, stage and commit, not push;
 the action publishes its own branch. The action answers only people with
 write access. No model is pinned: a pinned model is a fact that ages. Branch

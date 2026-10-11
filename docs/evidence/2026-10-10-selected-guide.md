@@ -58,6 +58,26 @@ corrections, green with them. The guide proof initially could not load against
 the old module because the test imported a new helper; it now checks public
 behavior without that import. The owner acceptance is unchanged.
 
+The final consumer audit covers escaped roadmap destinations, the selected
+guide in managed agent briefs and tend permissions, and init-owned destination
+collisions. `keel prove tests/guide.test.mjs --name "guide review: init-owned"
+--fix lib/init.mjs --trailer` returned VERIFIED. Init now refuses README, its
+generated roadmap, evidence README and phase 0 as guide destinations before
+creating repository or config state.
+
+The conductor ran `tests/guide-consumers.test.mjs`, `tests/guide.test.mjs`,
+`tests/skill.test.mjs`, `tests/climb-tend.test.mjs`,
+`tests/climb-protocol.test.mjs`, `tests/cross-review.test.mjs`,
+`tests/roadmap.test.mjs`, `tests/init.test.mjs` and `tests/retro.test.mjs`
+with hermetic preload and the spec/test-ledger reporters: 120 tests passed,
+exit 0; the tend stall check passed and hygiene reported no flaky or slower
+test.
+`keel prove tests/guide-consumers.test.mjs --name "guide consumers:"` against
+`2a700e8`, with the changed runtime and brief templates named by `--fix`,
+returned VERIFIED. Installed standalone tend reads guide identity from the
+trusted base commit, rejects candidate permission grants, and preserves
+existing surfaces and evidence restrictions.
+
 ## Acceptance still owed
 
 No live project was adopted on the owner's behalf during this phase. The

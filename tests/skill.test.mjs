@@ -151,14 +151,14 @@ test('the conduct skill ends real work with a retro: the worksheet, the seven ar
   const five = text.slice(at, text.indexOf('\n## ', at + 1));
   assert.match(five, /keel retro --worksheet --since/);
   assert.match(five, /more than\s+`docs\/`/);
-  for (const area of ['navigation', 'automatable\\s+checks', 'missing standards', 'AGENTS\\.md health', 'tool economy', 'no-op\\s+instructions', 'information gaps']) {
+  for (const area of ['navigation', 'automatable\\s+checks', 'missing standards', '\\{\\{guide\\}\\} health', 'tool economy', 'no-op\\s+instructions', 'information gaps']) {
     assert.match(five, new RegExp(area), area);
   }
   assert.match(five, /\*\*seven areas\*\*/);
   assert.match(five, /at most five candidates/);
   assert.match(five, /most serious first/);
   assert.match(five, /\*\*check\*\*/);
-  assert.match(five, /\*\*AGENTS\/skill line\*\*/);
+  assert.match(five, /\*\*guide\/skill line\*\*/);
   assert.match(five, /\*\*lesson\*\*[\s\S]*keel learn/);
   assert.match(five, /\*\*The owner picks\.\*\* Nothing is applied unpicked/);
   assert.match(five, /Never run a retro from the night or a\s+climb/);

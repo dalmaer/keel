@@ -7,7 +7,7 @@
     },
     ".agents/climb/TEND.md": {
       "practice": "climb",
-      "sha256": "6cc5b2579443864be08d1725719bce9a70af6067d128b14eb82c5ca1ffc1e4bb"
+      "sha256": "bf9d4d142f554316a37b5afc03f014062d5bcd7e70baa44153362464365ddfde"
     },
     ".agents/climb/jobs/build-time.md": {
       "practice": "climb",
@@ -43,7 +43,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "7f857af95c123aac9713245232901434c42593b8fc8ba8a929cb991be4a9a62d"
+      "sha256": "b6e8b92b124a2c0d7da9cbafaba8e15f439c1ecb562ab4adc1d6aae4ee0dd622"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -175,7 +175,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "7ec2ebc735e29af493271e0299fbe9685f860fde5a11527d2bb57c83341aadce"
+      "sha256": "2d66d599123be4b152546f7fb3bf97a8de3181e03dfbeb38b9626a4cbbdfb9d0"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -211,7 +211,7 @@
     },
     "scripts/keel/tend.mjs": {
       "practice": "climb",
-      "sha256": "9c48b3c4a872a8cf1244f26f5431f26d78b5dfbacc62dd09de1a633872eceb2f"
+      "sha256": "242dd1ef4a9e0436befcf654c28e6053bf7cde26c52f53c13b0329f70cab357b"
     },
     "scripts/keel/test-history.mjs": {
       "practice": "night",
@@ -243,7 +243,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "c370114046546300fea89761cf17a30a9b5f1d0a0c460c0e9177e887debe9e1b"
+      "sha256": "8ce76818038238256eec240f396212015cf000b92c21a23db2071239a44e9604"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",

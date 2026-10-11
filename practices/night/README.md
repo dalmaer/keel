@@ -279,12 +279,12 @@ the drain.
 
 **Its files.** `.github/workflows/keel-night.yml`, `scripts/keel/improve.mjs`,
 `scripts/keel/drain.mjs`, `scripts/keel/lib.mjs`, `scripts/keel/test-ledger.mjs`,
-`scripts/keel/stalls.mjs`, `scripts/keel/pr-body.mjs` (managed), and the `night` block of `AGENTS.md` (so it needs agents-md). They need the
+`scripts/keel/stalls.mjs`, `scripts/keel/pr-body.mjs` (managed), and the `night` block of the selected working guide (so it needs agents-md). They need the
 phases practice's `scripts/roadmap.mjs` for the phase measures; with phases
 off or local those measures are n/a.
 
 **Lineage.** Keel phase 10. The rules are isocan's "The night shift's pull
-requests" (AGENTS.md; the drain after its grades and loop workflows, and
+requests" (the working guide; the drain after its grades and loop workflows, and
 `scripts/changelog-drain.mjs`); the skip-with-a-notice from isocan's
 `loop.yml`; porcelain over `git diff --quiet` from ledger's
 `agent-audit.yml`.

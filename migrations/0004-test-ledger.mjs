@@ -17,7 +17,7 @@
 // idempotent: once both are there, it does not apply.
 export const id = '0004-test-ledger';
 export const to = '0.7.0';
-export const summary = 'node test scripts gain the test ledger reporter (scripts/keel/test-ledger.mjs: every run recorded in .keel/test-runs, a flaky or slower test named at the end of the run), and AGENTS.md the night block\'s markers; any other test script is left alone';
+export const summary = 'node test scripts gain the test ledger reporter (scripts/keel/test-ledger.mjs: every run recorded in .keel/test-runs, a flaky or slower test named at the end of the run), and the selected guide the night block\'s markers; any other test script is left alone';
 
 export const LEDGER = './scripts/keel/test-ledger.mjs';
 /** The two reporter pairs, with the ledger at `ledger` (relative to where the script runs). */

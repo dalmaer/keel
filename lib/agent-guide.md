@@ -2,7 +2,7 @@
 
 Keel installs phases, derived roadmaps, lessons and evidence in a repo.
 Run in a project (`.keel/keel.json`); init/adopt also run outside one.
-Read the project's AGENTS.md before changing anything.
+Read the project's selected guide before changing anything.
 
 Verbs (all take `--json`; parse JSON, never prose):
 
@@ -215,7 +215,8 @@ cd acme-notes && keel next
   commit on `main` naming the practice version.
 - `--guide <repo-relative-path>` selects the guide (`AGENTS.md` by default),
   records it in config, and avoids creating a second guide. The same path
-  safety and ownership checks apply as for adoption.
+  safety and ownership checks apply as for adoption; init-owned files such as
+  README, the roadmap and phase 0 cannot be selected as the guide.
 - Phase 0's Done when, Acceptance and Proof are a generic draft. Replace them
   with the first thing a person could check, as their own commit, then
   conduct it.
@@ -413,7 +414,7 @@ It exits 1 on findings (drift or a broken practice rule), 0 when clean.
   `contract-unmatched` (a pattern no tracked file matches),
   `contract-hook` (the project's own `.claude/settings.json` never runs the
   hook) and `contract-guide` (the `agents-md` block is skipped, ejected or
-  off, so the table is not rendered: the note's `text` is the rows AGENTS.md
+  off, so the table is not rendered: the note's `text` is the rows the guide
   lacks, to add in the project's own words; keel never writes them there).
 - **Contracts** (phase 65): `.keel/keel.json` `"contracts": [{ "paths":
   ["src/index/**"], "read": "docs/engine/indexing.md", "why": "<one line>"
@@ -506,7 +507,8 @@ keel lessons --since v1.2 --json  # practice commits from a ref, not from adopti
   guard |`, or a three-column table numbered by position), fingerprint
   `<project>/lesson/<n>/<8 hex of the shape>`; reword or renumber it and it
   is new. `drift`: doctor's `edited`/`both`, `<project>/drift/<path>/<8 hex
-  of the project's bytes>`. `practice`: commits touching `AGENTS.md`,
+  of the project's bytes>`. `practice`: commits touching the selected guide
+  (including its symlink destination), `AGENTS.md`,
   `.agents/skills/`, `.claude/`, `.github/workflows/`, `docs/lessons.md`
   since `--since` (else since `.keel/keel.json` was first committed),
   `<project>/commit/<sha>`; `keel init:`/`keel update:` commits are skipped.
@@ -1415,7 +1417,7 @@ a worksheet, not a gate.
   times, calls over 60 s (Agent and AskUserQuestion wait by design), edits
   reverted. Never a message or a tool's output.
 - **Seven areas** to answer: navigation, automatable checks, missing
-  standards, AGENTS.md health, tool economy, no-op instructions, information
+  standards, AGENTS.md health (the selected guide), tool economy, no-op instructions, information
   gaps. Then at most five candidates in the phase report, most serious
   first, each a **check**, an **AGENTS/skill line** or a **lesson** (`keel
   learn`). The owner picks; nothing is applied unpicked. Never from the

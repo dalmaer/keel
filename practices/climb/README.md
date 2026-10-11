@@ -173,9 +173,14 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
   under `docs/evidence/`, a front-matter status changed to built, lived-in
   or accepted, an acceptance box ticked, any tracked file deleted, any file
   outside tend's surfaces (Markdown under `docs/` but `docs/evidence/`, a
-  README, `AGENTS.md`, `CLAUDE.md`, Markdown under `.agents/`), cited or
+  README, `AGENTS.md`, `CLAUDE.md`, the selected working guide, Markdown
+  under `.agents/`), cited or
   not, and a commit that cites no worksheet finding (`Tend: <id>`); then
-  the gate.
+  the gate. The configured guide and its safe in-repository aliases are read
+  from the trusted base commit, never the candidate's config or links. This
+  extension cannot authorize evidence, secrets, installation inputs or
+  control paths. Existing text surfaces retain their rules; the sandbox
+  still prohibits control-file changes.
 - `tend-page [--base r] [--date d]` — the proposals, committed by the judge
   as `docs/tend/<date>.md` before the guard (the commit cites each finding),
   so the tend guard and the gate run over the tree that is pushed.

@@ -2,7 +2,7 @@
 # render rewrites it).
 #
 # Mention @claude in an issue, a comment or a review, or label an issue
-# `claude`, and Claude works on it here with AGENTS.md as its guide. It opens
+# `claude`, and Claude works on it here with {{guide}} as its guide. It opens
 # a pull request; a person merges. It never pushes main: its tools allow git
 # to read, stage and commit, not to push, and the action publishes its work on
 # a claude/ branch of its own. The action answers only people with write

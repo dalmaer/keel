@@ -169,6 +169,14 @@ test('invalid init guide leaves an empty directory and no git or config writes',
   }
 });
 
+test('guide review: init-owned files cannot be replaced by a selected guide', async t => {
+  for (const guide of ['README.md', 'docs/ROADMAP.md', 'docs/evidence/README.md', 'docs/phases/00-first-thing-that-runs.md']) {
+    const dir = await acme(t); await rm(join(dir, 'package.json'));
+    await assert.rejects(init({ dir, guide, description: 'Acme makes anvils.' }, { version }), /guide:.*init-owned/);
+    await absent(dir, '.git'); await absent(dir, '.keel'); await absent(dir, 'README.md'); await absent(dir, 'docs');
+  }
+});
+
 test('reverse symlink, conflicting aliases, and unrelated block lock identities', async t => {
   const dir = await acme(t);
   await writeFile(join(dir, 'AGENTS.md'), '# Acme\n');

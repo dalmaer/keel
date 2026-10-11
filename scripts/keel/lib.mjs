@@ -192,7 +192,7 @@ export async function lockedSkills(root, lock) {
   return skills;
 }
 
-/** CLAUDE.md as more than a pointer to AGENTS.md: a lint, or null. */
+/** CLAUDE.md as more than a pointer to the selected guide: a lint, or null. */
 export function claudeMdLint(text, guide = 'AGENTS.md') {
   const lines = text === null ? 0 : text.split('\n').filter(l => l.trim()).length;
   return lines > CLAUDE_MD_LINES

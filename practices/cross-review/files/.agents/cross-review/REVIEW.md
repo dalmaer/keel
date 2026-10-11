@@ -15,7 +15,7 @@ have already landed, named in the last section below. Read "the pull
 request" as "the push". Your findings become comments on its head commit
 and one tracking issue, answered the same way, and the rules are the same.
 
-Read `AGENTS.md` first, then the lessons named below, then the phase the
+Read `{{guide}}` first, then the lessons named below, then the phase the
 pull request names, if any. Then read the diff (where is said below, under
 *This pull request*) and, for each change that matters, the code around it
 in the checkout (the pull request's head is checked out here).

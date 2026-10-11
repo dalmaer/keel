@@ -67,7 +67,7 @@ workflow that runs one) is a local variant: nothing is installed and its
 findings are untouched. The convergence proposal is to render with keel's
 script in a copy, compare, set `"loop"` in `.keel/keel.json`, and retire its own.
 To switch it on later, add the Loop workspace id to `.stitch.json` and run
-`keel adopt` again: it appends the `loop` markers to AGENTS.md. Or add `loop`
+`keel adopt` again: it appends the `loop` markers to the selected working guide. Or add `loop`
 to `practices` and the markers by hand, then `keel render`.
 
 `.keel/keel.json` `"loop"` (all optional) keeps a project's wording:
@@ -158,7 +158,7 @@ against a real workspace is the owner's.
 **Its files.** `scripts/loop.mjs`, `tests/loop.test.mjs`,
 `.github/workflows/keel-loop.yml` (managed); `.stitch.json` (seeded,
 `{"workspace": ""}`: a practice cannot know the id); `docs/loop/README.md`
-(seeded); the AGENTS.md `loop` block.
+(seeded); the selected working guide’s `loop` block.
 
 ## Whose shape won (settled 2026-10-02, phase 14)
 

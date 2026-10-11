@@ -2,7 +2,7 @@
 
 You are on a climb night: one job, one number, a fixed budget of minutes.
 Your work becomes one pull request that a person reads and merges, or
-closes. Nothing you do merges by itself. Read `AGENTS.md` first; this brief
+closes. Nothing you do merges by itself. Read `{{guide}}` first; this brief
 adds to it and never overrides it. (keel practice `climb`; managed: keel
 render rewrites it.)
 
