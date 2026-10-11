@@ -464,7 +464,7 @@ test('every run: block in every workflow parses as bash, and every inline node -
  * bare origin and a stub gh. Returns { dir, files: the paths the pushed
  * branch's commit carries, out }.
  */
-async function nightCommit(t, night, { health, ignore = '', tracked = {}, before = async () => {}, after = async () => {} }) {
+async function nightCommit(t, night, { health, ignore = '', tracked = {}, existingPr = '', listExit = 0, editExit = 0, before = async () => {}, after = async () => {} }) {
   const steps = runBlocks(night);
   const where = steps.find(b => b.step === 'Where the health page goes');
   const open = steps.find(b => b.step === "Open the night's pull request");
@@ -485,7 +485,21 @@ async function nightCommit(t, night, { health, ignore = '', tracked = {}, before
   git(['remote', 'add', 'origin', origin]);
   await before(dir, base);
   // gh keeps the body it is handed (--body-file), for the reader's check.
-  await writeFile(join(bin, 'gh'), `#!/bin/sh\nif [ "$1 $2" = "pr list" ]; then exit 0; fi\nwhile [ $# -gt 0 ]; do if [ "$1" = --body-file ]; then cp "$2" "${join(base, 'body.md')}"; fi; shift; done\necho https://github.test/acme/acme/pull/1\n`, { mode: 0o755 });
+  await writeFile(join(bin, 'gh'), `#!${process.execPath}
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(join(base, 'gh.jsonl'))}, JSON.stringify(args) + '\\n');
+if (args[0] === 'pr' && args[1] === 'list') {
+  if (${listExit}) { console.error('Acme PR lookup failed'); process.exit(${listExit}); }
+  console.log(${JSON.stringify(existingPr)});
+} else if (args[0] === 'pr' && ['create', 'edit'].includes(args[1])) {
+  const body = args.indexOf('--body-file');
+  if (body < 0) process.exit(2);
+  fs.copyFileSync(args[body + 1], ${JSON.stringify(join(base, 'body.md'))});
+  if (args[1] === 'edit' && ${editExit}) { console.error('Acme PR edit failed'); process.exit(${editExit}); }
+  console.log('https://github.test/acme/acme/pull/1');
+} else { process.exit(2); }
+`, { mode: 0o755 });
   // The night's writes: a page where the config says, the bounds, and something that is not data.
   const out = join(temp, 'out');
   await writeFile(out, '');
@@ -506,10 +520,44 @@ async function nightCommit(t, night, { health, ignore = '', tracked = {}, before
   const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', BASE: 'main', HEALTH: page ?? '' } });
   const pushed = run('git', ['--git-dir', origin, 'show', '--name-only', '--format=', 'refs/heads/keel-night/2026-10-05']);
   const body = await readFile(join(base, 'body.md'), 'utf8').catch(() => null);
+  const calls = (await readFile(join(base, 'gh.jsonl'), 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+  const generatedBody = await readFile(join(temp, 'body.md'), 'utf8').catch(() => null);
   const show = run('git', ['--git-dir', origin, 'show', '--name-status', '--format=', 'refs/heads/keel-night/2026-10-05']);
-  return { page, where: 0, status: o.status, out: o.stdout + o.stderr, body, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null,
+  return { page, where: 0, status: o.status, out: o.stdout + o.stderr, body, calls, generatedBody, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null,
     changes: show.status === 0 ? show.stdout.trim().split('\n').filter(Boolean).sort() : null };
 }
+
+test('the night refreshes an existing PR body by exact number, or creates a new PR', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  for (const existingPr of ['42', '']) {
+    const r = await nightCommit(t, night, { existingPr });
+    assert.equal(r.status, 0, r.out);
+    assert.deepEqual(r.calls.map(args => args.slice(0, 2)), [['pr', 'list'], ['pr', existingPr ? 'edit' : 'create']]);
+    assert.deepEqual(r.calls[0], ['pr', 'list', '--state', 'open', '--head', 'keel-night/2026-10-05', '--json', 'number', '--jq', '.[0].number']);
+    const publish = r.calls[1], bodyAt = publish.indexOf('--body-file');
+    assert.ok(bodyAt >= 0, 'publish receives a body file');
+    assert.equal(r.body, r.generatedBody, 'publish receives the complete freshly generated body');
+    assert.match(r.body, /^Gate: ok: npm test passed, 12 tests/m);
+    if (existingPr) {
+      assert.deepEqual(publish, ['pr', 'edit', existingPr, '--body-file', publish[bodyAt + 1]], 'edit preserves the human title');
+    } else {
+      assert.deepEqual(publish, ['pr', 'create', '--base', 'main', '--head', 'keel-night/2026-10-05', '--title', 'keel night: 2026-10-05', '--body-file', publish[bodyAt + 1]]);
+    }
+  }
+});
+
+test('the night fails on PR lookup or edit errors without creating a replacement', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  for (const [options, code, message, verbs] of [
+    [{ listExit: 7 }, 7, /Acme PR lookup failed/, ['list']],
+    [{ existingPr: '42', editExit: 9 }, 9, /Acme PR edit failed/, ['list', 'edit']],
+  ]) {
+    const r = await nightCommit(t, night, options);
+    assert.equal(r.status, code, r.out);
+    assert.match(r.out, message);
+    assert.deepEqual(r.calls.map(args => args[1]), verbs);
+  }
+});
 
 test('the night commits its page from the configured health dir (read at run time), only data, and goes red on an ignored one', async t => {
   const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');

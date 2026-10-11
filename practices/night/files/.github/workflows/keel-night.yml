@@ -322,7 +322,10 @@ jobs:
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own reading, so force is safe here and nowhere else.
           git push --force origin "HEAD:refs/heads/keel-night/$DAY"
-          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+          PR=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number')
+          if [ -n "$PR" ]; then
+            gh pr edit "$PR" --body-file "$RUNNER_TEMP/body.md"
+          else
             # A repo that has not allowed Actions to open PRs is unconfigured,
             # not broken: a notice, like a missing secret. Any other failure is red.
             code=0
