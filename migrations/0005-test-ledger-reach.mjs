@@ -38,7 +38,8 @@ export const UPLOAD_STEP = [
   '  with: { name: keel-test-runs, path: .keel/test-runs/, include-hidden-files: true, if-no-files-found: ignore, retention-days: 30 }',
 ].join('\n');
 
-const on = (config, name) => (config?.practices ?? []).includes(name);
+const on = (config, name) => (config?.practices ?? []).includes(name)
+  && !(name === 'phases' && config.phases?.source === 'milestones');
 
 async function json(project, path) {
   const raw = await project.read(path);

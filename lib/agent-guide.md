@@ -326,6 +326,8 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   `due` is a deadline, never `after`. Issue checkboxes and milestone closure
   report source planning state, never verified acceptance. Edit this plan in
   GitHub; local goal and phase mutations and `walk done` are unavailable.
+  Adoption leaves the file-based conductor off. Source-disabled managed files
+  retain dormant drift hashes, and local phase-conversion migrations are skipped.
 - A practice whose `source.path` is a real file in the repo (the repo is its
   upstream) stays local; keel installs no copy beside the original.
 - Phases with no `goal` converge by migration 0003 once every built phase

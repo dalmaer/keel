@@ -19,7 +19,7 @@ export const summary = 'a project updating from before 0.8.15 with keel\'s phase
 
 export async function applies(project) {
   const config = project.config ?? {};
-  if (!(config.practices ?? []).includes('phases')) return false;
+  if (config.phases?.source === 'milestones' || !(config.practices ?? []).includes('phases')) return false;
   if (config.phases !== undefined && (typeof config.phases !== 'object' || config.phases === null || Array.isArray(config.phases))) return false; // not ours to repair
   if (config.phases?.livedIn !== undefined) return false;
   const from = String(config.practice ?? '0.0.0').replace(/^v/, '');

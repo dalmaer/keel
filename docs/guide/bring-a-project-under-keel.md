@@ -51,7 +51,11 @@ Projects that plan with GitHub milestones can keep that plan. With
 milestone descriptions and issues for `next`, the board and the night.
 Adoption proposes this source when it finds described milestones and no
 existing local plan to preserve. It does not create phase files or change
-GitHub milestones and issues.
+GitHub milestones and issues. The file-based conductor stays off because it
+requires local phase and goal files; existing project instructions remain yours.
+Switching an existing project to this source preserves dormant managed-file
+hashes, so returning to file plans cannot overwrite edits made in the meantime.
+Local phase-conversion migrations leave archived plans untouched.
 
 A milestone deadline is `due`: it never postpones work until that date.
 Issue checkboxes reflect GitHub issue state, and a closed milestone reflects

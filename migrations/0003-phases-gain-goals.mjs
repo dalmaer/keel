@@ -54,6 +54,7 @@ export async function owing(project) {
 }
 
 export async function applies(project) {
+  if (project.config?.phases?.source === 'milestones') return false;
   const config = project.config ?? {};
   if (config.phases?.shape === 'projects' || (config.practices ?? []).includes('phases')) return false;
   if (await project.exists('docs/milestones.json')) return false; // 0001's work

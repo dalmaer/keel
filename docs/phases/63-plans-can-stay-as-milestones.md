@@ -29,7 +29,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 - [x] Milestones with descriptions and issues map to phases: Done when, boxes, walks, `due` and status, as above. `tests/milestones.test.mjs`
 - [x] `keel next`, the board and the night use them on a project with `source: milestones`, through the cache and the quota floor; nothing is written to GitHub. `tests/board.test.mjs`
-- [x] Adopt proposes `source: milestones` for a project with described milestones. `tests/adopt.test.mjs`
+- [x] Adopt proposes `source: milestones` for a project with described milestones. `tests/adopt.test.mjs`, `tests/milestone-integration.test.mjs`
 - [ ] ⚑ by hand: one project's release seen on the board as phases, read by its owner.
 
 ## Your part
@@ -49,7 +49,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs`; `npm run check`.
+Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs tests/milestone-integration.test.mjs`; `npm run check`.
 By hand: one release on the board.
 
 ## Deliberately open
@@ -69,3 +69,5 @@ Owner: select a project with a GitHub milestone release, adopt the proposed read
 - **2026-10-10** — GitHub's `updatedAt` does not measure time in a status. The night leaves status age unavailable instead of treating unrelated edits as progress.
 - **2026-10-10** — A failed GraphQL response can still charge quota, including when `gh` exits nonzero. Accounting precedes projection validation; cache keys hash the configured owner label to prevent different labels sharing a walk projection.
 - **2026-10-10** — Review found that closed history could consume the entire milestone bound. Open milestones now have a separate 50-record allowance; a separate 20-record recent-history allowance cannot hide active work.
+
+- **2026-10-10** — Source selection governs migrations and dormant ownership as well as reads. Archived plans stay untouched, and disabled managed files retain hashes so returning to file plans cannot overwrite intervening edits. Milestone adoption leaves the file-based conductor off.
