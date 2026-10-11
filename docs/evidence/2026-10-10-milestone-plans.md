@@ -34,3 +34,9 @@ A real project's release still needs to be displayed and read by its owner. The 
 ## Review and limitations
 
 Independent review found charged-error accounting and owner-label cache collisions; both were corrected before integration and have regression cases. The canvas deliberately reports milestone phase coverage as unsupported. No real release adoption, owner read, production acceptance or lived-in use is claimed.
+
+## Cross-review correction
+
+Review of PR #103 found that selecting the oldest 50 mixed-state milestones could permanently hide an active plan behind closed history. The reader now reserves separate bounded connections: 50 open milestones and 20 recently updated closed milestones, in one query. Each connection discloses truncation. The earlier live query's cost 26 describes the initial query, not this revised query. The conductor ran `keel prove tests/milestones.test.mjs --fix practices/night/files/scripts/keel/milestones.mjs --trailer`: exit 0, VERIFIED (red without the fix, green with it). The complete adapter suite covers a history larger than its bound while the earliest open milestone remains next, including independent open/history truncation. Focused milestone adoption/board checks also exited 0.
+
+The corrected production query was read live on 2026-10-10 via `63-live-adapter.mjs`: exit 0, one query cost 36, complete empty source. The second read was cached with zero queries/cost. This replaces the initial query's pricing observation; it still does not establish a real milestone adoption.

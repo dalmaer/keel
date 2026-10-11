@@ -9,7 +9,7 @@ import { rememberQuota } from '../lib/quota.mjs';
 import { verbs } from '../lib/cli.mjs';
 import { collect } from '../practices/phases/files/scripts/roadmap.mjs';
 import { goalAdd, goalRetire, phaseNew } from '../lib/goals.mjs';
-import { milestoneConfig as config, connection, milestone, issue, response } from './helpers/milestones.mjs';
+import { milestoneConfig as config, connection, milestone, issue, response, queryResponse } from './helpers/milestones.mjs';
 
 async function scratch(t) {
   const root = await mkdtemp(join(tmpdir(), 'keel-milestone-'));
@@ -38,7 +38,7 @@ test('malformed/error responses fail; complete empty and every truncation are di
   const m = milestone(1, 'CLOSED', [issue(1)]);
   m.issues.pageInfo.hasNextPage = true;
   m.issues.nodes[0].labels.pageInfo.hasNextPage = true;
-  const data = projectMilestones(response([m], true), config);
+  const data = projectMilestones(response([m], { closed: true }), config);
   assert.equal(data.coverage.complete, false);
   assert.equal(data.coverage.gaps.length, 3);
   assert.equal(milestoneNext(data), null);
@@ -64,7 +64,7 @@ test('bounded read uses shared ten-minute cache and quota floor; failed reads ar
 test('CLI envelope never interprets truncated closed-only data as complete; local mutations refuse', async t => {
   const root = await scratch(t);
   // Seed the real shared cache; CLI uses that exact cache without any live read.
-  await readMilestones(config, { env: process.env, fresh: true, guard: async () => null, graphql: async () => response([milestone(1, 'CLOSED')], true) });
+  await readMilestones(config, { env: process.env, fresh: true, guard: async () => null, graphql: async () => response([milestone(1, 'CLOSED')], { closed: true }) });
   const ctx = { root: async () => root };
   for (const name of ['next', 'status', 'phase list']) {
     const r = await verbs.get(name).run([], ctx);
@@ -128,4 +128,36 @@ test('a nonzero gh GraphQL response still remembers its validated quota and neve
   await rememberQuota(env, { remaining: 1001, resetAt: '2099-01-01T00:00:00Z' });
   await assert.rejects(readMilestones(config, { env }), /Acme denied/);
   await assert.rejects(readMilestones(config, { env }), /saving your GitHub quota \(975/);
+});
+
+
+test('closed history cannot consume open capacity; one query bounds each connection and projects number order', async t => {
+  const root = await scratch(t), env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const history = Array.from({ length: 60 }, (_, i) => ({ ...milestone(i + 1, 'CLOSED'), updatedAt: new Date(Date.UTC(2026, 0, 60 - i)).toISOString() }));
+  for (const openCount of [2, 51]) {
+    let calls = 0;
+    const active = Array.from({ length: openCount }, (_, i) => milestone(61 + i));
+    const data = await readMilestones(config, { env, fresh: true, guard: async () => null, graphql: async ({ query }) => {
+      calls++;
+      assert.match(query, /openMilestones: milestones\(first:50,states:\[OPEN\],orderBy:\{field:NUMBER,direction:ASC\}\)/);
+      assert.match(query, /closedMilestones: milestones\(first:20,states:\[CLOSED\],orderBy:\{field:UPDATED_AT,direction:DESC\}\)/);
+      assert.equal([...query.matchAll(/issues\(first:50\)/g)].length, 2);
+      assert.equal([...query.matchAll(/labels\(first:20\)/g)].length, 2);
+      return queryResponse(query, [...active, ...history].reverse());
+    } });
+    assert.equal(calls, 1);
+    assert.equal(milestoneNext(data).id, 61);
+    assert.deepEqual(data.phases.map(p => p.id), [...Array.from({ length: 20 }, (_, i) => i + 1), ...active.slice(0, 50).map(m => m.number)]);
+    assert.deepEqual(data.coverage, { complete: false, gaps: openCount > 50 ? ['open milestones truncated', 'closed milestones truncated'] : ['closed milestones truncated'] });
+  }
+});
+
+test('each milestone connection must be present and well formed, even when the other is empty', () => {
+  for (const name of ['openMilestones', 'closedMilestones']) {
+    for (const value of [undefined, null, { nodes: [] }, { nodes: [], pageInfo: { hasNextPage: null } }]) {
+      const body = response();
+      body.data.repository[name] = value;
+      assert.throws(() => projectMilestones(body, config), /malformed .* milestones connection/);
+    }
+  }
 });

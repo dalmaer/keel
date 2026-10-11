@@ -55,7 +55,7 @@ By hand: one release on the board.
 ## Deliberately open
 
 - **Deadline semantics — settled 2026-10-10:** A milestone due date is `due`, not `after`. Keel defines `after` as the earliest buildable date; the original mapping would hide active work until its deadline. Closing a milestone reports GitHub planning state, never production verification, owner acceptance or lived-in evidence.
-- **Incomplete reads — settled 2026-10-10:** Bounded queries disclose truncated milestone, issue and label coverage. Unavailable or incomplete source data must not report that all work is done.
+- **Incomplete reads — settled 2026-10-10:** Bounded queries reserve separate allowances for open milestones and closed history, and disclose truncated milestone, issue and label coverage. Unavailable or incomplete source data must not report that all work is done.
 
 - **Exit criteria in prose — settled 2026-10-10:** An Exit criteria section takes precedence, then a bullet list, then the whole description. The board discloses the whole-description fallback; mapping tests cover each form.
 
@@ -68,3 +68,4 @@ Owner: select a project with a GitHub milestone release, adopt the proposed read
 - **2026-10-10** — A milestone deadline cannot become `after`: doing so hides work until its due date. The projection uses `due` and keeps source closure separate from acceptance.
 - **2026-10-10** — GitHub's `updatedAt` does not measure time in a status. The night leaves status age unavailable instead of treating unrelated edits as progress.
 - **2026-10-10** — A failed GraphQL response can still charge quota, including when `gh` exits nonzero. Accounting precedes projection validation; cache keys hash the configured owner label to prevent different labels sharing a walk projection.
+- **2026-10-10** — Review found that closed history could consume the entire milestone bound. Open milestones now have a separate 50-record allowance; a separate 20-record recent-history allowance cannot hide active work.

@@ -917,11 +917,11 @@ test('milestone board details are read-only links and escape remote markup, with
   const m = milestone(1, 'OPEN', [issue(1, 'OPEN', ['keel:owner'])]);
   m.title = '</script><img src=x onerror=alert(1)>';
   m.description = '<script>Acme</script>';
-  const plan = projectMilestones(response([m, milestone(2, 'CLOSED')], true), milestoneConfig);
+  const plan = projectMilestones(response([m, milestone(2, 'CLOSED')], { open: true }), milestoneConfig);
   const data = await roadmapItems(root, { read: async () => plan });
   let calls = 0;
   const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
-  const readOptions = { env, guard: async () => null, graphql: async () => { calls++; return response([m], true); } };
+  const readOptions = { env, guard: async () => null, graphql: async () => { calls++; return response([m], { open: true }); } };
   const first = await roadmapItems(root, readOptions), second = await roadmapItems(root, readOptions);
   assert.equal(calls, 1); assert.equal(first.github.cached, false); assert.equal(second.github.cached, true);
   assert.equal(data.items.length, 1); assert.deepEqual(data.items[0].actions, []);
