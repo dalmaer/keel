@@ -6,7 +6,7 @@ import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { run, testsRan, GH_VERBS } from './helpers/run.mjs';
+import { run, testsRan, GH_VERBS, cleanEnv } from './helpers/run.mjs';
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
 
@@ -62,4 +62,28 @@ test('keel\'s gh-reading verbs never run without KEEL_GH: the helper refuses, an
     if (runs && !/KEEL_GH/.test(text)) offenders.push(f);
   }
   assert.deepEqual(offenders, [], 'these run a gh-reading verb and never set KEEL_GH');
+});
+
+
+test('test subprocess isolation removes runner markers and refuses each unisolated external boundary', () => {
+  const input = { NODE_TEST_CONTEXT: 'child-v8', NODE_TEST_ACME: 'marker', ACME: 'preserved' };
+  assert.deepEqual(cleanEnv(input), { ACME: 'preserved' });
+  assert.deepEqual(input, { NODE_TEST_CONTEXT: 'child-v8', NODE_TEST_ACME: 'marker', ACME: 'preserved' });
+  const bin = join(TESTS, '..', 'bin', 'keel.mjs');
+  // Every other isolation field is present, so failure names this boundary.
+  const isolated = { KEEL_GH: '/acme/gh', KEEL_ISOCAN: '/acme/isocan', KEEL_CACHE: '/acme/cache', KEEL_CLAUDE_DIR: '/acme/transcripts' };
+  const cases = [
+    ...['connect', 'sync', 'status', 'disconnect', 'night'].map(verb => [[bin, 'canvas', verb], 'KEEL_ISOCAN', /remote verbs require KEEL_ISOCAN/]),
+    [[bin, 'canvas', 'collect', '--github'], 'KEEL_GH', /canvas --github reads GitHub/],
+    [[bin, 'review', 'acme/storefront#1'], 'KEEL_CACHE', /review writes a read receipt/],
+    [[bin, 'doctor', '--github'], 'KEEL_GH', /remote reconciliation reads GitHub/],
+    [['/acme/reconcile.mjs', '--github'], 'KEEL_GH', /remote reconciliation reads GitHub/],
+    ...['loose-ends', 'retro'].map(verb => [[bin, verb], 'KEEL_CLAUDE_DIR', /reads transcripts/]),
+  ];
+  for (const [args, missing, expected] of cases) {
+    const env = { ...isolated };
+    delete env[missing];
+    // A nonexistent command makes a missed guard fail locally, never contact a service.
+    assert.throws(() => run('/acme/nonexistent-test-command', args, { env }), expected, `${args.join(' ')} without ${missing}`);
+  }
 });

@@ -1,0 +1,23 @@
+{
+  "method": "Focused native function-entry observations; separate from frozen full-corpus counts",
+  "observations": [
+    {
+      "profile": "coverage-32758-1791756227334-0.json",
+      "source": "file:///Users/dionalmaer/code/keel/lib/canvas-sync.mjs",
+      "name": "space",
+      "entryCount": 1
+    },
+    {
+      "profile": "coverage-32758-1791756227334-0.json",
+      "source": "file:///Users/dionalmaer/code/keel/lib/canvas-sync.mjs",
+      "name": "groups",
+      "entryCount": 1
+    },
+    {
+      "profile": "coverage-32759-1791756228401-0.json",
+      "source": "file:///Users/dionalmaer/code/keel/lib/release.mjs",
+      "name": "candidatePractice",
+      "entryCount": 3
+    }
+  ]
+}

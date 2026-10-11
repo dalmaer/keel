@@ -27,29 +27,51 @@ const exists = p => stat(p).then(() => true, () => false);
 test('keel run from its packed tarball inits a project that passes its own check', async t => {
   const tmp = await realpath(await mkdtemp(join(tmpdir(), 'keel-pack-')));
   t.after(() => rm(tmp, { recursive: true, force: true }));
+  const env = { ...ENV, npm_config_cache: join(tmp, 'npm-cache') };
 
-  const pack = run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: KEEL, env: ENV });
+  // Expectations come from the checkout: a practice omitted wholesale from
+  // the tarball must not disappear from both the check and its expectation.
+  const expected = [];
+  let optionalPractice;
+  for (const entry of await readdir(join(KEEL, 'practices'), { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const manifest = `practices/${entry.name}/practice.json`;
+    const spec = JSON.parse(await readFile(join(KEEL, manifest), 'utf8'));
+    expected.push(manifest);
+    for (const f of spec.files ?? []) if (f.from) expected.push(`practices/${entry.name}/files/${f.from}`);
+    if (spec.optional && !optionalPractice) optionalPractice = `practices/${entry.name}/`;
+  }
+  expected.sort();
+  assert.ok(expected.length > 0 && optionalPractice, 'checkout has manifests and an optional practice to probe');
+
+  const pack = run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: KEEL, env });
   assert.equal(pack.status, 0, `npm pack failed:\n${pack.stderr}`);
   const [{ filename }] = JSON.parse(pack.stdout);
   execFileSync('tar', ['xzf', join(tmp, filename), '-C', tmp]);
   const pkg = join(tmp, 'package');
 
-  // Every template a practice names reached the package.
-  const practices = join(pkg, 'practices');
-  const missing = [];
-  for (const name of await readdir(practices)) {
-    const manifest = join(practices, name, 'practice.json');
-    if (!(await exists(manifest))) continue;
-    for (const f of JSON.parse(await readFile(manifest, 'utf8')).files ?? []) {
-      if (f.from && !(await exists(join(practices, name, 'files', f.from)))) missing.push(`${name}: files/${f.from}`);
-    }
-  }
-  assert.deepEqual(missing, [], 'templates npm left out of the package');
+  // Observe the unpacked files, without using packed manifests as the oracle.
+  const present = new Set((await Promise.all(expected.map(async path => await exists(join(pkg, path)) ? path : null))).filter(Boolean));
+  const missing = files => expected.filter(path => !files.has(path));
+  assert.deepEqual(missing(present), [], 'manifests or templates npm left out of the package');
+
+  // Negative controls reuse this pack's inventory; no extra pack or mutation
+  // of the package needed by init below. Missing a whole optional practice
+  // and missing one template must each produce the exact absent paths.
+  const omittedPractice = expected.filter(path => path.startsWith(optionalPractice));
+  const withoutPractice = new Set([...present].filter(path => !path.startsWith(optionalPractice)));
+  assert.ok(omittedPractice.includes(`${optionalPractice}practice.json`) && omittedPractice.length > 1);
+  assert.equal(present.size - withoutPractice.size, omittedPractice.length);
+  assert.deepEqual(missing(withoutPractice), omittedPractice, 'an omitted optional practice is rejected');
+  const template = expected.find(path => path.startsWith(optionalPractice) && path.includes('/files/'));
+  const withoutTemplate = new Set(present);
+  assert.equal(withoutTemplate.delete(template), true, 'the template removal must apply');
+  assert.deepEqual(missing(withoutTemplate), [template], 'an omitted individual template is rejected');
 
   // The tests and their fixtures stay home; only what keel runs on ships.
   assert.ok(!(await exists(join(pkg, 'tests', 'init.test.mjs'))), 'the test suite is not in the package');
 
-  const init = run(process.execPath, [join(pkg, 'bin', 'keel.mjs'), 'init', join(tmp, 'acme'), '--description', 'Acme. A probe.', '--kind', 'node'], { cwd: tmp, env: ENV });
+  const init = run(process.execPath, [join(pkg, 'bin', 'keel.mjs'), 'init', join(tmp, 'acme'), '--description', 'Acme. A probe.', '--kind', 'node'], { cwd: tmp, env });
   assert.equal(init.status, 0, `init from the packed keel failed:\n${init.stdout}${init.stderr}`);
   assert.ok(await exists(join(tmp, 'acme', '.gitignore')), 'the new project has its .gitignore');
 
@@ -63,7 +85,7 @@ test('keel run from its packed tarball inits a project that passes its own check
   assert.ok(view.length > 0, 'the new project reads keel\'s lessons');
   assert.deepEqual(view, viewRows(await readFile(join(KEEL, 'docs', 'lessons.md'), 'utf8'), acmeConfig.stack).rows.map(r => r.n));
 
-  const check = run('npm', ['run', 'check'], { cwd: join(tmp, 'acme'), env: ENV });
+  const check = run('npm', ['run', 'check'], { cwd: join(tmp, 'acme'), env });
   assert.equal(check.status, 0, `the new project's check failed:\n${check.stdout}${check.stderr}`);
   assert.ok(testsRan(check.stdout + check.stderr) > 0, `the gate ran no tests:\n${check.stdout}${check.stderr}`);
 });

@@ -1,0 +1,7983 @@
+{
+  "inventory": {
+    "trackedMjsCandidates": 117,
+    "excludedTestSources": [
+      "practices/ci/files/tests/keel-workflows.test.mjs",
+      "practices/loop/files/tests/loop.test.mjs",
+      "practices/phases/files/tests/keel-generated.test.mjs",
+      "practices/phases/files/tests/roadmap.test.mjs"
+    ],
+    "trackedProductionModules": 113,
+    "observedModules": 102,
+    "absentModules": [
+      "practices/climb/files/scripts/keel/climb.mjs",
+      "practices/climb/files/scripts/keel/robot.mjs",
+      "practices/climb/files/scripts/keel/tend.mjs",
+      "practices/cross-review/files/scripts/keel/cross-review.mjs",
+      "scripts/keel/cross-review.mjs",
+      "scripts/keel/distill.mjs",
+      "scripts/keel/drain.mjs",
+      "scripts/keel/reconcile.mjs",
+      "scripts/keel/robot-rubric.mjs",
+      "scripts/keel/stalls.mjs",
+      "scripts/keel/test-history.mjs"
+    ]
+  },
+  "identicalCanonicalRenderedGroups": [
+    {
+      "members": [
+        "practices/ci/files/scripts/keel/workflows.mjs",
+        "scripts/keel/workflows.mjs"
+      ],
+      "entryPositiveFunctions": 18,
+      "observedFunctions": 18
+    },
+    {
+      "members": [
+        "practices/climb/files/scripts/keel/climb.mjs",
+        "scripts/keel/climb.mjs"
+      ],
+      "entryPositiveFunctions": 12,
+      "observedFunctions": 119
+    },
+    {
+      "members": [
+        "practices/climb/files/scripts/keel/distill.mjs",
+        "scripts/keel/distill.mjs"
+      ],
+      "entryPositiveFunctions": 32,
+      "observedFunctions": 37
+    },
+    {
+      "members": [
+        "practices/climb/files/scripts/keel/robot-policy.mjs",
+        "scripts/keel/robot-policy.mjs"
+      ],
+      "entryPositiveFunctions": 4,
+      "observedFunctions": 4
+    },
+    {
+      "members": [
+        "practices/climb/files/scripts/keel/robot-rubric.mjs",
+        "scripts/keel/robot-rubric.mjs"
+      ],
+      "entryPositiveFunctions": 14,
+      "observedFunctions": 14
+    },
+    {
+      "members": [
+        "practices/climb/files/scripts/keel/robot.mjs",
+        "scripts/keel/robot.mjs"
+      ],
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 50
+    },
+    {
+      "members": [
+        "practices/climb/files/scripts/keel/tend.mjs",
+        "scripts/keel/tend.mjs"
+      ],
+      "entryPositiveFunctions": 34,
+      "observedFunctions": 94
+    },
+    {
+      "members": [
+        "practices/cross-review/files/scripts/keel/cross-review.mjs",
+        "scripts/keel/cross-review.mjs"
+      ],
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/ci.mjs",
+        "scripts/keel/ci.mjs"
+      ],
+      "entryPositiveFunctions": 33,
+      "observedFunctions": 33
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/drain.mjs",
+        "scripts/keel/drain.mjs"
+      ],
+      "entryPositiveFunctions": 34,
+      "observedFunctions": 36
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/hygiene-measures.mjs",
+        "scripts/keel/hygiene-measures.mjs"
+      ],
+      "entryPositiveFunctions": 35,
+      "observedFunctions": 36
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/hygiene-proposals.mjs",
+        "scripts/keel/hygiene-proposals.mjs"
+      ],
+      "entryPositiveFunctions": 15,
+      "observedFunctions": 17
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/improve.mjs",
+        "scripts/keel/improve.mjs"
+      ],
+      "entryPositiveFunctions": 306,
+      "observedFunctions": 316
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/lib.mjs",
+        "scripts/keel/lib.mjs"
+      ],
+      "entryPositiveFunctions": 280,
+      "observedFunctions": 293
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/milestones.mjs",
+        "scripts/keel/milestones.mjs"
+      ],
+      "entryPositiveFunctions": 29,
+      "observedFunctions": 29
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/planning-config.mjs",
+        "scripts/keel/planning-config.mjs"
+      ],
+      "entryPositiveFunctions": 5,
+      "observedFunctions": 5
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/pr-body.mjs",
+        "scripts/keel/pr-body.mjs"
+      ],
+      "entryPositiveFunctions": 28,
+      "observedFunctions": 28
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/quota.mjs",
+        "scripts/keel/quota.mjs"
+      ],
+      "entryPositiveFunctions": 31,
+      "observedFunctions": 32
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/robot-budget.mjs",
+        "scripts/keel/robot-budget.mjs"
+      ],
+      "entryPositiveFunctions": 7,
+      "observedFunctions": 7
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/robot-delivery.mjs",
+        "scripts/keel/robot-delivery.mjs"
+      ],
+      "entryPositiveFunctions": 18,
+      "observedFunctions": 18
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/stalls.mjs",
+        "scripts/keel/stalls.mjs"
+      ],
+      "entryPositiveFunctions": 42,
+      "observedFunctions": 45
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/test-history.mjs",
+        "scripts/keel/test-history.mjs"
+      ],
+      "entryPositiveFunctions": 31,
+      "observedFunctions": 33
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/test-ledger.mjs",
+        "scripts/keel/test-ledger.mjs"
+      ],
+      "entryPositiveFunctions": 194,
+      "observedFunctions": 203
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/time-measures.mjs",
+        "scripts/keel/time-measures.mjs"
+      ],
+      "entryPositiveFunctions": 118,
+      "observedFunctions": 121
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/time-proposal-remeasurement.mjs",
+        "scripts/keel/time-proposal-remeasurement.mjs"
+      ],
+      "entryPositiveFunctions": 17,
+      "observedFunctions": 19
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/time-proposals.mjs",
+        "scripts/keel/time-proposals.mjs"
+      ],
+      "entryPositiveFunctions": 41,
+      "observedFunctions": 42
+    },
+    {
+      "members": [
+        "practices/night/files/scripts/keel/time-receipts.mjs",
+        "scripts/keel/time-receipts.mjs"
+      ],
+      "entryPositiveFunctions": 40,
+      "observedFunctions": 41
+    },
+    {
+      "members": [
+        "practices/phases/files/scripts/keel/generated.mjs",
+        "scripts/keel/generated.mjs"
+      ],
+      "entryPositiveFunctions": 11,
+      "observedFunctions": 13
+    },
+    {
+      "members": [
+        "practices/phases/files/scripts/roadmap.mjs",
+        "scripts/roadmap.mjs"
+      ],
+      "entryPositiveFunctions": 143,
+      "observedFunctions": 145
+    },
+    {
+      "members": [
+        "practices/reconciliation/files/scripts/keel/reconcile.mjs",
+        "scripts/keel/reconcile.mjs"
+      ],
+      "entryPositiveFunctions": 83,
+      "observedFunctions": 84
+    }
+  ],
+  "files": [
+    {
+      "path": "bin/keel.mjs",
+      "sha256": "dea347c73056fbbc8fafb8f35802831346ab5db196027491adf136a1ecc5ff0d",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 1,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/adopt.mjs",
+      "sha256": "6891fc6c84f021039d00781b08d38353330fc11e607ce025227ae0aab60d0aa3",
+      "observed": true,
+      "entryPositiveFunctions": 156,
+      "observedFunctions": 166,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "detectRunner"
+          ],
+          "startOffset": 8434,
+          "endOffset": 8529
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 9142,
+          "endOffset": 9163
+        },
+        {
+          "names": [
+            "quoted"
+          ],
+          "startOffset": 10729,
+          "endOffset": 10747
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 18240,
+          "endOffset": 18313
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 20050,
+          "endOffset": 20137
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 22034,
+          "endOffset": 22043
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 32718,
+          "endOffset": 32805
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 53960,
+          "endOffset": 53971
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 57727,
+          "endOffset": 57755
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 59760,
+          "endOffset": 59771
+        }
+      ]
+    },
+    {
+      "path": "lib/board.mjs",
+      "sha256": "2da64a2124e2d3eca39b1a8daf02f518bed73b4262b3b3553059c971fdb290f9",
+      "observed": true,
+      "entryPositiveFunctions": 225,
+      "observedFunctions": 239,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11966,
+          "endOffset": 11975
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 12178,
+          "endOffset": 12188
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 15163,
+          "endOffset": 15205
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 28553,
+          "endOffset": 28563
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 37234,
+          "endOffset": 37305
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 50688,
+          "endOffset": 50741
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 54042,
+          "endOffset": 54123
+        },
+        {
+          "names": [
+            "none"
+          ],
+          "startOffset": 61230,
+          "endOffset": 61261
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 62855,
+          "endOffset": 62895
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 70816,
+          "endOffset": 70893
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 93811,
+          "endOffset": 93852
+        },
+        {
+          "names": [
+            "runVerb"
+          ],
+          "startOffset": 97206,
+          "endOffset": 97432
+        },
+        {
+          "names": [
+            "openBrowser"
+          ],
+          "startOffset": 101557,
+          "endOffset": 101891
+        },
+        {
+          "names": [
+            "boardServe"
+          ],
+          "startOffset": 101961,
+          "endOffset": 102343
+        }
+      ]
+    },
+    {
+      "path": "lib/canvas-controls.mjs",
+      "sha256": "9e5c78274d0ce63f8359e5b28ca659974a4fd31486e204be60ed6c5075526d44",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 1,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/canvas-night.mjs",
+      "sha256": "e83f4f55392012386ec55e55af094f6dad5ce4b775762f53e18d949c8d040d1e",
+      "observed": true,
+      "entryPositiveFunctions": 30,
+      "observedFunctions": 32,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 8485,
+          "endOffset": 8527
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 9396,
+          "endOffset": 9448
+        }
+      ]
+    },
+    {
+      "path": "lib/canvas-render.mjs",
+      "sha256": "96b5710f2a2c374866b9f7a4a7fc65355d524e3c682bcc1b31be201b75395ac1",
+      "observed": true,
+      "entryPositiveFunctions": 118,
+      "observedFunctions": 123,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4476,
+          "endOffset": 4502
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11149,
+          "endOffset": 11241
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 12455,
+          "endOffset": 12497
+        },
+        {
+          "names": [
+            "browserMain"
+          ],
+          "startOffset": 24757,
+          "endOffset": 26930
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 31468,
+          "endOffset": 31501
+        }
+      ]
+    },
+    {
+      "path": "lib/canvas-retro.mjs",
+      "sha256": "a583a7a33c844710d1a4d7b910d9302d4adfe50bf630ad407e41d5e1cbd959e9",
+      "observed": true,
+      "entryPositiveFunctions": 20,
+      "observedFunctions": 20,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/canvas-snapshot.mjs",
+      "sha256": "47ee4004cb1c79f80df0e1dc209c0e7769dd57c8da967f05fa784a7cfefa317f",
+      "observed": true,
+      "entryPositiveFunctions": 196,
+      "observedFunctions": 200,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 29051,
+          "endOffset": 29108
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 31915,
+          "endOffset": 32018
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 32064,
+          "endOffset": 32159
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 51847,
+          "endOffset": 51857
+        }
+      ]
+    },
+    {
+      "path": "lib/canvas-sync.mjs",
+      "sha256": "d924429b88be346d227b04070d8427fb37ac2b06fc7bd4baa7f30e6e34485d44",
+      "observed": true,
+      "entryPositiveFunctions": 86,
+      "observedFunctions": 95,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "space"
+          ],
+          "startOffset": 6461,
+          "endOffset": 6529
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "startOffset": 6734,
+          "endOffset": 6809
+        },
+        {
+          "names": [
+            "groups"
+          ],
+          "startOffset": 6823,
+          "endOffset": 6917
+        },
+        {
+          "names": [
+            "groupNew"
+          ],
+          "startOffset": 6933,
+          "endOffset": 7072
+        },
+        {
+          "names": [
+            "show"
+          ],
+          "startOffset": 7084,
+          "endOffset": 7179
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 24335,
+          "endOffset": 24345
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 35557,
+          "endOffset": 35567
+        },
+        {
+          "names": [
+            "status"
+          ],
+          "startOffset": 37630,
+          "endOffset": 37662
+        },
+        {
+          "names": [
+            "disconnect"
+          ],
+          "startOffset": 37690,
+          "endOffset": 37726
+        }
+      ]
+    },
+    {
+      "path": "lib/canvas.mjs",
+      "sha256": "2f839b72434642d4f033991d404b3714b24d57bc75550247bf0caa6dd633891b",
+      "observed": true,
+      "entryPositiveFunctions": 13,
+      "observedFunctions": 13,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/ci-adoption.mjs",
+      "sha256": "5075d423455f8e382d2e7fdfd3e62c8bf2b69cbda056f6364d0a09cdd579617b",
+      "observed": true,
+      "entryPositiveFunctions": 23,
+      "observedFunctions": 24,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4971,
+          "endOffset": 4981
+        }
+      ]
+    },
+    {
+      "path": "lib/cli.mjs",
+      "sha256": "9eab0b5ff485bd1b3e43593aea5a5e16867ab6d47bd243d3e083df4db2bc99e8",
+      "observed": true,
+      "entryPositiveFunctions": 146,
+      "observedFunctions": 150,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 26573,
+          "endOffset": 26586
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 33586,
+          "endOffset": 33596
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 43438,
+          "endOffset": 43501
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 50845,
+          "endOffset": 50878
+        }
+      ]
+    },
+    {
+      "path": "lib/distill.mjs",
+      "sha256": "7cdffcf52e588f741980ef492b14dbcf85f7c1993e583d5e048e1faedf5edb2f",
+      "observed": true,
+      "entryPositiveFunctions": 66,
+      "observedFunctions": 74,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7284,
+          "endOffset": 7292
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7336,
+          "endOffset": 7354
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7360,
+          "endOffset": 7368
+        },
+        {
+          "names": [
+            "renderLocal"
+          ],
+          "startOffset": 11125,
+          "endOffset": 11341
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 13363,
+          "endOffset": 13378
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21777,
+          "endOffset": 21827
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21952,
+          "endOffset": 21975
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 25848,
+          "endOffset": 25902
+        }
+      ]
+    },
+    {
+      "path": "lib/doctor.mjs",
+      "sha256": "781308ed2df36a314fdaa247f9d40eb32d03b86e949e1a69e8a3221b1b9e94a0",
+      "observed": true,
+      "entryPositiveFunctions": 71,
+      "observedFunctions": 78,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 6891,
+          "endOffset": 6904
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 6916,
+          "endOffset": 6929
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 13593,
+          "endOffset": 13601
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 14672,
+          "endOffset": 14680
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 18606,
+          "endOffset": 18627
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 23464,
+          "endOffset": 23472
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 23614,
+          "endOffset": 23622
+        }
+      ]
+    },
+    {
+      "path": "lib/evidence.mjs",
+      "sha256": "e7814d43a25abd162ee4090699f8fa376af6439a77036aaad057b4c2c7955734",
+      "observed": true,
+      "entryPositiveFunctions": 29,
+      "observedFunctions": 31,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "onSignal"
+          ],
+          "startOffset": 7723,
+          "endOffset": 7816
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7888,
+          "endOffset": 7907
+        }
+      ]
+    },
+    {
+      "path": "lib/fleet-rehearse.mjs",
+      "sha256": "d6353195de293906105c45f766a6e28aee8adfb8e3b02f2bab740522f30e1bbb",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 1,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/fleet.mjs",
+      "sha256": "8a834a124407097a2bc486da21c54edd3cafaf3d9bc97553aa07942d721f89ac",
+      "observed": true,
+      "entryPositiveFunctions": 135,
+      "observedFunctions": 140,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 24174,
+          "endOffset": 24235
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 30728,
+          "endOffset": 30858
+        },
+        {
+          "names": [
+            "failed"
+          ],
+          "startOffset": 46704,
+          "endOffset": 46772
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 46960,
+          "endOffset": 46996
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 48566,
+          "endOffset": 48594
+        }
+      ]
+    },
+    {
+      "path": "lib/goals.mjs",
+      "sha256": "dc94e0302e171947f9870d5664e925f14025c1de4395907a2c506798111ad68b",
+      "observed": true,
+      "entryPositiveFunctions": 45,
+      "observedFunctions": 46,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 10400,
+          "endOffset": 10432
+        }
+      ]
+    },
+    {
+      "path": "lib/guide.mjs",
+      "sha256": "00d2a509c871f317348fca0feb7c29b18c11fa10ae0833325c3f59b5a7d670db",
+      "observed": true,
+      "entryPositiveFunctions": 25,
+      "observedFunctions": 25,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/hygiene-proposal-actions.mjs",
+      "sha256": "5a718a249d29796f6ea6d1588b88c9efdd7e80dd697bbca7a03cee77dc807a6f",
+      "observed": true,
+      "entryPositiveFunctions": 13,
+      "observedFunctions": 13,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/improve.mjs",
+      "sha256": "a3c8d4a41d6e05311bf0d6a35c375dc83ed1130cd15e708212340f69760d21ab",
+      "observed": true,
+      "entryPositiveFunctions": 16,
+      "observedFunctions": 16,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/init.mjs",
+      "sha256": "90385db77e8513396e6d618d2758fc4e304421cbab259d3b20ad3d8d3eda44f9",
+      "observed": true,
+      "entryPositiveFunctions": 42,
+      "observedFunctions": 42,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/learn.mjs",
+      "sha256": "95fa10362c453425554bc65f35fd43a0ced39ac9885974d02ab7e6c2584e1fce",
+      "observed": true,
+      "entryPositiveFunctions": 120,
+      "observedFunctions": 122,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 18190,
+          "endOffset": 18207
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21112,
+          "endOffset": 21182
+        }
+      ]
+    },
+    {
+      "path": "lib/lessons.mjs",
+      "sha256": "55ff16959afe35bd7b67a7a664fd93d019e5cf025c2555d78f791f30579005dd",
+      "observed": true,
+      "entryPositiveFunctions": 43,
+      "observedFunctions": 45,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "today"
+          ],
+          "startOffset": 3687,
+          "endOffset": 3717
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 14858,
+          "endOffset": 14875
+        }
+      ]
+    },
+    {
+      "path": "lib/lock.mjs",
+      "sha256": "ad13d98fdf0afe789ffe72aacf9d6eb375f398780ad3915bfce8d01219450ecc",
+      "observed": true,
+      "entryPositiveFunctions": 10,
+      "observedFunctions": 10,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/loop-run-status.mjs",
+      "sha256": "45df9b897a8309cbc20182e18fe947f4d479e408431bf21735822da33ed4ce48",
+      "observed": true,
+      "entryPositiveFunctions": 7,
+      "observedFunctions": 7,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/looseends.mjs",
+      "sha256": "82b989cb942d9cf1e9a344122612311e3b7f6482964c1d759d706ba6f9acc791",
+      "observed": true,
+      "entryPositiveFunctions": 103,
+      "observedFunctions": 113,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 8145,
+          "endOffset": 8168
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 8174,
+          "endOffset": 8191
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 10105,
+          "endOffset": 10135
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 12101,
+          "endOffset": 12109
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 12225,
+          "endOffset": 12233
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 13106,
+          "endOffset": 13116
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 19742,
+          "endOffset": 19752
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 24706,
+          "endOffset": 24716
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 27641,
+          "endOffset": 27651
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 33476,
+          "endOffset": 33491
+        }
+      ]
+    },
+    {
+      "path": "lib/migrations.mjs",
+      "sha256": "485f3d2759fdd0d0a00c0bbea998869ecfeaa639900cf91403e864f92a2daaf6",
+      "observed": true,
+      "entryPositiveFunctions": 26,
+      "observedFunctions": 27,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 2637,
+          "endOffset": 2686
+        }
+      ]
+    },
+    {
+      "path": "lib/night.mjs",
+      "sha256": "83deabd2d010a287728b4e927c6da0640fac527f6cac197040848a27b27ee2d0",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 1,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/phases-projects.mjs",
+      "sha256": "3be038490cee6b5050895984807ed9a4ea923ed854527758a95dfe5ee30c2b22",
+      "observed": true,
+      "entryPositiveFunctions": 18,
+      "observedFunctions": 19,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 6200,
+          "endOffset": 6208
+        }
+      ]
+    },
+    {
+      "path": "lib/practices.mjs",
+      "sha256": "9f3298fd05918e9ad56f67427ef2a653477e2485a4ca9afde300595d9f94df06",
+      "observed": true,
+      "entryPositiveFunctions": 73,
+      "observedFunctions": 75,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 17367,
+          "endOffset": 17375
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 28055,
+          "endOffset": 28082
+        }
+      ]
+    },
+    {
+      "path": "lib/project.mjs",
+      "sha256": "21c68dbe7e2d09fd6aa11c1684b9b32a281e68fdb4a72a1ef2da4100505d48ce",
+      "observed": true,
+      "entryPositiveFunctions": 4,
+      "observedFunctions": 4,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/prove.mjs",
+      "sha256": "ca3090492b5e7b99be2e3f23eee37bf46c2b3d50b909efc5161972d11e7ee5d9",
+      "observed": true,
+      "entryPositiveFunctions": 77,
+      "observedFunctions": 80,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 14364,
+          "endOffset": 14374
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21391,
+          "endOffset": 21399
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21703,
+          "endOffset": 21713
+        }
+      ]
+    },
+    {
+      "path": "lib/quota.mjs",
+      "sha256": "0831d8227e73bd49a14983aa362e47de1a652d5285dc6283eedc45d45deef0ef",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 1,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/release.mjs",
+      "sha256": "a4f76e5642e4b43fc013ee9171cc1aec58e297b04661f3b861d5f6dda1f9beaa",
+      "observed": true,
+      "entryPositiveFunctions": 42,
+      "observedFunctions": 46,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4133,
+          "endOffset": 4184
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 10108,
+          "endOffset": 10233
+        },
+        {
+          "names": [
+            "candidatePractice"
+          ],
+          "startOffset": 12032,
+          "endOffset": 12729
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 22902,
+          "endOffset": 22953
+        }
+      ]
+    },
+    {
+      "path": "lib/retro.mjs",
+      "sha256": "1b95bc1598f562337989cdea96dade431ae0cf02cce5c5117cf1cb24367e1d58",
+      "observed": true,
+      "entryPositiveFunctions": 36,
+      "observedFunctions": 42,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4966,
+          "endOffset": 4989
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4995,
+          "endOffset": 5012
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 8679,
+          "endOffset": 8689
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11110,
+          "endOffset": 11118
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11264,
+          "endOffset": 11291
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11310,
+          "endOffset": 11341
+        }
+      ]
+    },
+    {
+      "path": "lib/review.mjs",
+      "sha256": "81c69db7b48adf14fbb0365e9b6947f1fc678813ec50e8ce4200ce6ef2410102",
+      "observed": true,
+      "entryPositiveFunctions": 121,
+      "observedFunctions": 130,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11766,
+          "endOffset": 11776
+        },
+        {
+          "names": [
+            "localConfig"
+          ],
+          "startOffset": 12509,
+          "endOffset": 12729
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 17830,
+          "endOffset": 17840
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21497,
+          "endOffset": 21509
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21515,
+          "endOffset": 21530
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21667,
+          "endOffset": 21678
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 21684,
+          "endOffset": 21699
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 26035,
+          "endOffset": 26045
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 43939,
+          "endOffset": 43961
+        }
+      ]
+    },
+    {
+      "path": "lib/robot-issue.mjs",
+      "sha256": "71038ff933588fb6daead8f54af7426f3cf3472589c9ce496fa3a18e4d41dbdd",
+      "observed": true,
+      "entryPositiveFunctions": 35,
+      "observedFunctions": 36,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 13795,
+          "endOffset": 13826
+        }
+      ]
+    },
+    {
+      "path": "lib/robot-status.mjs",
+      "sha256": "4396ade56cca49d6740193e738000108941fd75601170b4154b524085085fe39",
+      "observed": true,
+      "entryPositiveFunctions": 5,
+      "observedFunctions": 5,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/stacks.mjs",
+      "sha256": "cd2a484a538df52d0a7bb083d29e4edf216daa66eec715a5da0ff1ebbd51a8de",
+      "observed": true,
+      "entryPositiveFunctions": 50,
+      "observedFunctions": 50,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/taken.mjs",
+      "sha256": "8f9d0e93e47c8b7613703bea48eddd04dd4c036ace936cb78c0410a57e2d6887",
+      "observed": true,
+      "entryPositiveFunctions": 7,
+      "observedFunctions": 7,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/test.mjs",
+      "sha256": "e953e925086f6ce88a7fc07a1ad5027e3229cbd6e3253a3405b195dd743cfc9b",
+      "observed": true,
+      "entryPositiveFunctions": 31,
+      "observedFunctions": 35,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7932,
+          "endOffset": 7957
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 10864,
+          "endOffset": 10926
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11046,
+          "endOffset": 11108
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11270,
+          "endOffset": 11319
+        }
+      ]
+    },
+    {
+      "path": "lib/time-proposal-actions.mjs",
+      "sha256": "0bdc04db0340160e0e205603713c02791ef3a0f36e4b9c78c12fb2297e207a64",
+      "observed": true,
+      "entryPositiveFunctions": 5,
+      "observedFunctions": 5,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/time.mjs",
+      "sha256": "b041a57b392a32f175a5a1709961fc58029d7b182dff6d3a330a20a154b4581b",
+      "observed": true,
+      "entryPositiveFunctions": 66,
+      "observedFunctions": 66,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "lib/update.mjs",
+      "sha256": "563e59f62657f35c209b84c5f777096b465c4954b62b71286ef0d69b6f5ded88",
+      "observed": true,
+      "entryPositiveFunctions": 49,
+      "observedFunctions": 54,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7187,
+          "endOffset": 7197
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7653,
+          "endOffset": 7704
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7753,
+          "endOffset": 7761
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 12129,
+          "endOffset": 12149
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 14076,
+          "endOffset": 14086
+        }
+      ]
+    },
+    {
+      "path": "lib/worktree-hygiene.mjs",
+      "sha256": "41fb7f215f1b48b2525c408cb9fbf1011d31cf2cd271c2805394796bcd7f4fa4",
+      "observed": true,
+      "entryPositiveFunctions": 18,
+      "observedFunctions": 18,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/agents-md/files/scripts/keel/contract-hook.mjs",
+      "sha256": "9532d529fed29632f9ac2b4274c71f4cf13ebcf91190d2779f2c12e7fdd0a10f",
+      "observed": true,
+      "entryPositiveFunctions": 16,
+      "observedFunctions": 16,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/ci/files/scripts/keel/workflows.mjs",
+      "sha256": "52198c1ac575fd45ba176439ceae7aa31eda0dab2f70bfb6158cd0322c643d9f",
+      "observed": true,
+      "entryPositiveFunctions": 13,
+      "observedFunctions": 15,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "workflowFiles"
+          ],
+          "startOffset": 4444,
+          "endOffset": 4688
+        },
+        {
+          "names": [
+            "workflowProblems"
+          ],
+          "startOffset": 4775,
+          "endOffset": 5222
+        }
+      ]
+    },
+    {
+      "path": "practices/climb/files/scripts/keel/climb.mjs",
+      "sha256": "4fc3546feb36a87b29fe9c54639ebc24266ad861ae16d520715f625c40937a5c",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/climb/files/scripts/keel/distill.mjs",
+      "sha256": "d82bcb49f3e8608579a8c413d3669015ad59cdfdbe68970c8ee9fcc0c027f441",
+      "observed": true,
+      "entryPositiveFunctions": 32,
+      "observedFunctions": 37,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "concrete"
+          ],
+          "startOffset": 2256,
+          "endOffset": 2296
+        },
+        {
+          "names": [
+            "standardiseFields"
+          ],
+          "startOffset": 6324,
+          "endOffset": 7035
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7279,
+          "endOffset": 7299
+        },
+        {
+          "names": [
+            "familiesOf"
+          ],
+          "startOffset": 9122,
+          "endOffset": 9383
+        },
+        {
+          "names": [
+            "lastThrough"
+          ],
+          "startOffset": 9514,
+          "endOffset": 9656
+        }
+      ]
+    },
+    {
+      "path": "practices/climb/files/scripts/keel/robot-policy.mjs",
+      "sha256": "f1a485a5cc99e6cb6e549ff5e9cac253c2b78a6996feed9791d5a494bf8ba4be",
+      "observed": true,
+      "entryPositiveFunctions": 4,
+      "observedFunctions": 4,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/climb/files/scripts/keel/robot-rubric.mjs",
+      "sha256": "0cc8bb9d19a158e582b414742c34ee0d94b09ad294941ec3626d2b0890e43948",
+      "observed": true,
+      "entryPositiveFunctions": 14,
+      "observedFunctions": 14,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/climb/files/scripts/keel/robot.mjs",
+      "sha256": "5385fd6858aaea4717bee867f3dc61bcb8f5c49030a3da030eb8f69cef31d0d5",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/climb/files/scripts/keel/tend.mjs",
+      "sha256": "d49d8fbb3590baeed2001f6445dfc4f3fa81be7ae82aaeaff3895511f928f9ea",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/cross-review/files/scripts/keel/cross-review.mjs",
+      "sha256": "80e795ff3bdb26fccc68e29155015963b945cc35abf3a1df824cde4515a8a9b3",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/loop/files/scripts/loop.mjs",
+      "sha256": "3f69ba333093b3d4819cb8e262e3040e3fa753bb03349c8dc9c4ef034e3f88e1",
+      "observed": true,
+      "entryPositiveFunctions": 89,
+      "observedFunctions": 117,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "fail"
+          ],
+          "startOffset": 4233,
+          "endOffset": 4305
+        },
+        {
+          "names": [
+            "LoopError"
+          ],
+          "startOffset": 6664,
+          "endOffset": 6744
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 10791,
+          "endOffset": 10912
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11260,
+          "endOffset": 11273
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 11279,
+          "endOffset": 11350
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 22608,
+          "endOffset": 22642
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 22721,
+          "endOffset": 22732
+        },
+        {
+          "names": [
+            "pendingDismissals"
+          ],
+          "startOffset": 24420,
+          "endOffset": 24708
+        },
+        {
+          "names": [
+            "phaseLink"
+          ],
+          "startOffset": 26446,
+          "endOffset": 26639
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 28490,
+          "endOffset": 28558
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 29226,
+          "endOffset": 29295
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 29874,
+          "endOffset": 29888
+        },
+        {
+          "names": [
+            "readJson"
+          ],
+          "startOffset": 30845,
+          "endOffset": 30932
+        },
+        {
+          "names": [
+            "today"
+          ],
+          "startOffset": 30948,
+          "endOffset": 31097
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 32193,
+          "endOffset": 32219
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 33265,
+          "endOffset": 34043
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 34860,
+          "endOffset": 34886
+        },
+        {
+          "names": [
+            "shell"
+          ],
+          "startOffset": 36596,
+          "endOffset": 37529
+        },
+        {
+          "names": [
+            "phases"
+          ],
+          "startOffset": 37538,
+          "endOffset": 38035
+        },
+        {
+          "names": [
+            "projects"
+          ],
+          "startOffset": 38132,
+          "endOffset": 38352
+        },
+        {
+          "names": [
+            "render"
+          ],
+          "startOffset": 38564,
+          "endOffset": 39523
+        },
+        {
+          "names": [
+            "proveUntriaged"
+          ],
+          "startOffset": 45313,
+          "endOffset": 47249
+        },
+        {
+          "names": [
+            "workspace"
+          ],
+          "startOffset": 47329,
+          "endOffset": 47581
+        },
+        {
+          "names": [
+            "stitchOnce"
+          ],
+          "startOffset": 47886,
+          "endOffset": 49535
+        },
+        {
+          "names": [
+            "sleep"
+          ],
+          "startOffset": 50372,
+          "endOffset": 50425
+        },
+        {
+          "names": [
+            "stitch"
+          ],
+          "startOffset": 50793,
+          "endOffset": 50935
+        },
+        {
+          "names": [
+            "applyFields"
+          ],
+          "startOffset": 51015,
+          "endOffset": 52562
+        },
+        {
+          "names": [
+            "main"
+          ],
+          "startOffset": 53016,
+          "endOffset": 64830
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/ci.mjs",
+      "sha256": "0af4960574107b1424314d254ced19e5339f01a27d73db808ef84b8e65b79a48",
+      "observed": true,
+      "entryPositiveFunctions": 33,
+      "observedFunctions": 33,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/night/files/scripts/keel/drain.mjs",
+      "sha256": "04446d1796f5975e6ebf9d1f0d9729260b45b81c93782a9b867ea42784624aff",
+      "observed": true,
+      "entryPositiveFunctions": 34,
+      "observedFunctions": 36,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "parseArgs"
+          ],
+          "startOffset": 11565,
+          "endOffset": 12155
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 12193,
+          "endOffset": 12257
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/hygiene-measures.mjs",
+      "sha256": "a2b0239c0cac593495b7118b399f43268cd92be1c0f16b230f4b2aa311f6cc49",
+      "observed": true,
+      "entryPositiveFunctions": 35,
+      "observedFunctions": 36,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 2561,
+          "endOffset": 2569
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/hygiene-proposals.mjs",
+      "sha256": "2b44be83d4900bd68a32831e89e70e27cf34821460415b4bef8579e0446e4145",
+      "observed": true,
+      "entryPositiveFunctions": 15,
+      "observedFunctions": 17,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7124,
+          "endOffset": 7168
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 9991,
+          "endOffset": 10009
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/improve.mjs",
+      "sha256": "b10832d96abc185564fbc4879e74d0cc0ef632f0d6172d64ab71673516645a59",
+      "observed": true,
+      "entryPositiveFunctions": 306,
+      "observedFunctions": 316,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 9020,
+          "endOffset": 9028
+        },
+        {
+          "names": [
+            "projectSide"
+          ],
+          "startOffset": 13850,
+          "endOffset": 13898
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 29694,
+          "endOffset": 29704
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 39642,
+          "endOffset": 39669
+        },
+        {
+          "names": [
+            "escapesIn"
+          ],
+          "startOffset": 40990,
+          "endOffset": 41106
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 71392,
+          "endOffset": 71443
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 91972,
+          "endOffset": 91984
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 113029,
+          "endOffset": 113049
+        },
+        {
+          "names": [
+            "instrumentsFor"
+          ],
+          "startOffset": 116740,
+          "endOffset": 117105
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 117824,
+          "endOffset": 118022
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/lib.mjs",
+      "sha256": "79bb15534042f070ac1c7e971ed002f2d66662893e9fbf6b37922ab09d468fd4",
+      "observed": true,
+      "entryPositiveFunctions": 280,
+      "observedFunctions": 293,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 6547,
+          "endOffset": 6617
+        },
+        {
+          "names": [
+            "blockBody"
+          ],
+          "startOffset": 6713,
+          "endOffset": 7091
+        },
+        {
+          "names": [
+            "splitKey"
+          ],
+          "startOffset": 7486,
+          "endOffset": 7628
+        },
+        {
+          "names": [
+            "lockDrift"
+          ],
+          "startOffset": 7882,
+          "endOffset": 8873
+        },
+        {
+          "names": [
+            "lockedSkills"
+          ],
+          "startOffset": 10591,
+          "endOffset": 10919
+        },
+        {
+          "names": [
+            "balanced"
+          ],
+          "startOffset": 49543,
+          "endOffset": 49666
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 53079,
+          "endOffset": 53104
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 57416,
+          "endOffset": 57465
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 60808,
+          "endOffset": 60818
+        },
+        {
+          "names": [
+            "rootOf"
+          ],
+          "startOffset": 104918,
+          "endOffset": 104976
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 119918,
+          "endOffset": 119942
+        },
+        {
+          "names": [
+            "pushTitle"
+          ],
+          "startOffset": 120420,
+          "endOffset": 120479
+        },
+        {
+          "names": [
+            "recordText"
+          ],
+          "startOffset": 120820,
+          "endOffset": 120930
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/milestones.mjs",
+      "sha256": "e37492e3518422faea8580916032aa7dcff314e499e627338ede403edb7dc3bb",
+      "observed": true,
+      "entryPositiveFunctions": 29,
+      "observedFunctions": 29,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/night/files/scripts/keel/planning-config.mjs",
+      "sha256": "f47844a4e5e1f2259d67c4e3d8e4a6e43a4cb036ed1f6357438fee801f03ef3e",
+      "observed": true,
+      "entryPositiveFunctions": 5,
+      "observedFunctions": 5,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/night/files/scripts/keel/pr-body.mjs",
+      "sha256": "2e8e8f826bf95501d918c32fe29079c2d0702959a89257a015e73a10a0a84c53",
+      "observed": true,
+      "entryPositiveFunctions": 28,
+      "observedFunctions": 28,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/night/files/scripts/keel/quota.mjs",
+      "sha256": "4cab9ac25032e116b2aca9963576b49b91eb6652a7777815b8377a68c290ae3b",
+      "observed": true,
+      "entryPositiveFunctions": 31,
+      "observedFunctions": 32,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "readPr"
+          ],
+          "startOffset": 10589,
+          "endOffset": 10673
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/robot-budget.mjs",
+      "sha256": "bae6690cf3fb91927a2c1dc09189d295bddacb4f318fda527cb81b04946d61af",
+      "observed": true,
+      "entryPositiveFunctions": 7,
+      "observedFunctions": 7,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/night/files/scripts/keel/robot-delivery.mjs",
+      "sha256": "0ccf8a3ab63f1c5325ef63c98d0aa6eccefa252623ed1a573037d9d515433ccb",
+      "observed": true,
+      "entryPositiveFunctions": 18,
+      "observedFunctions": 18,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "practices/night/files/scripts/keel/stalls.mjs",
+      "sha256": "dec60dadebef72f2e25cc91ae60f47adf869734a4c7ebdc4ca5c32d4e523cdcd",
+      "observed": true,
+      "entryPositiveFunctions": 42,
+      "observedFunctions": 45,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7087,
+          "endOffset": 7105
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 7257,
+          "endOffset": 7320
+        },
+        {
+          "names": [
+            "stallsReporter"
+          ],
+          "startOffset": 12490,
+          "endOffset": 12781
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/test-history.mjs",
+      "sha256": "2e2a873736f6c6235c8eb7356657b967ca2ca26e20d574208652c1d2c885615e",
+      "observed": true,
+      "entryPositiveFunctions": 31,
+      "observedFunctions": 33,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "github"
+          ],
+          "startOffset": 7974,
+          "endOffset": 8129
+        },
+        {
+          "names": [
+            "download"
+          ],
+          "startOffset": 8146,
+          "endOffset": 8332
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/test-ledger.mjs",
+      "sha256": "d4ad925f33d676a360916d0f75b8594b68b5c3964d17ce7740f2c110d00730ce",
+      "observed": true,
+      "entryPositiveFunctions": 194,
+      "observedFunctions": 203,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 32420,
+          "endOffset": 32445
+        },
+        {
+          "names": [
+            "mark"
+          ],
+          "startOffset": 54923,
+          "endOffset": 55020
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 58339,
+          "endOffset": 58411
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 59514,
+          "endOffset": 59534
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 60200,
+          "endOffset": 60222
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 64302,
+          "endOffset": 64342
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 65767,
+          "endOffset": 65779
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 73821,
+          "endOffset": 73838
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 78789,
+          "endOffset": 78797
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/time-measures.mjs",
+      "sha256": "1f0e895dd23a3e4be2abda15c23af7c6ea5337fd8ae553ec0a9528b6a1cddc4f",
+      "observed": true,
+      "entryPositiveFunctions": 118,
+      "observedFunctions": 121,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 3487,
+          "endOffset": 3522
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 3529,
+          "endOffset": 3545
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 3635,
+          "endOffset": 3695
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/time-proposal-remeasurement.mjs",
+      "sha256": "fb2c5da1552e14915e03732ced69112898807abf059f0fb9a12d990fcce2d37b",
+      "observed": true,
+      "entryPositiveFunctions": 17,
+      "observedFunctions": 19,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 5661,
+          "endOffset": 5702
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 5886,
+          "endOffset": 5909
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/time-proposals.mjs",
+      "sha256": "0baf3b0c2fe72ad31042a300e343d8114e50227fc7418290b9e28705ea4b8277",
+      "observed": true,
+      "entryPositiveFunctions": 41,
+      "observedFunctions": 42,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 16424,
+          "endOffset": 16442
+        }
+      ]
+    },
+    {
+      "path": "practices/night/files/scripts/keel/time-receipts.mjs",
+      "sha256": "705ad4b32f3df2c23f41ca5a7849421d1bb0a779445387909732aa0778310972",
+      "observed": true,
+      "entryPositiveFunctions": 40,
+      "observedFunctions": 41,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 10808,
+          "endOffset": 10822
+        }
+      ]
+    },
+    {
+      "path": "practices/phases/files/scripts/keel/generated.mjs",
+      "sha256": "887b30076953ebc406698bf7c8db85f4ca6605e215248bfda4c624dcc6faadb2",
+      "observed": true,
+      "entryPositiveFunctions": 3,
+      "observedFunctions": 8,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "copySource"
+          ],
+          "startOffset": 2943,
+          "endOffset": 3283
+        },
+        {
+          "names": [
+            "env"
+          ],
+          "startOffset": 3297,
+          "endOffset": 3395
+        },
+        {
+          "names": [
+            "probe"
+          ],
+          "startOffset": 3665,
+          "endOffset": 5520
+        },
+        {
+          "names": [
+            "survivors"
+          ],
+          "startOffset": 5587,
+          "endOffset": 5739
+        },
+        {
+          "names": [
+            "projectConfig"
+          ],
+          "startOffset": 5810,
+          "endOffset": 5956
+        }
+      ]
+    },
+    {
+      "path": "practices/phases/files/scripts/roadmap.mjs",
+      "sha256": "136c2404c55d0da8032d96b021050fd61a5a36f36c05f6676bfad01225f10b58",
+      "observed": true,
+      "entryPositiveFunctions": 130,
+      "observedFunctions": 141,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "fail"
+          ],
+          "startOffset": 1507,
+          "endOffset": 1579
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 8451,
+          "endOffset": 8464
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 15080,
+          "endOffset": 15103
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 20611,
+          "endOffset": 20658
+        },
+        {
+          "names": [
+            "include"
+          ],
+          "startOffset": 31669,
+          "endOffset": 31679
+        },
+        {
+          "names": [
+            "nothingNext"
+          ],
+          "startOffset": 32727,
+          "endOffset": 33361
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 46481,
+          "endOffset": 46532
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 47716,
+          "endOffset": 47766
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 48351,
+          "endOffset": 48364
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 48424,
+          "endOffset": 48432
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 49046,
+          "endOffset": 49075
+        }
+      ]
+    },
+    {
+      "path": "practices/reconciliation/files/scripts/keel/reconcile.mjs",
+      "sha256": "847174e42609f6a64c7cdae60d8a5e23ee5f033e5d95eb497053e9adad784e69",
+      "observed": true,
+      "entryPositiveFunctions": 83,
+      "observedFunctions": 84,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 35641,
+          "endOffset": 35651
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/ci.mjs",
+      "sha256": "0af4960574107b1424314d254ced19e5339f01a27d73db808ef84b8e65b79a48",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 10,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "attemptMatches"
+          ],
+          "startOffset": 749,
+          "endOffset": 832
+        },
+        {
+          "names": [
+            "finite"
+          ],
+          "startOffset": 849,
+          "endOffset": 907
+        },
+        {
+          "names": [
+            "ciOptions"
+          ],
+          "startOffset": 916,
+          "endOffset": 2034
+        },
+        {
+          "names": [
+            "actionsClient"
+          ],
+          "startOffset": 2133,
+          "endOffset": 4372
+        },
+        {
+          "names": [
+            "runnerUsage"
+          ],
+          "startOffset": 4381,
+          "endOffset": 5476
+        },
+        {
+          "names": [
+            "readCiUsage"
+          ],
+          "startOffset": 5645,
+          "endOffset": 14611
+        },
+        {
+          "names": [
+            "executed"
+          ],
+          "startOffset": 14989,
+          "endOffset": 15052
+        },
+        {
+          "names": [
+            "testEvidence"
+          ],
+          "startOffset": 15441,
+          "endOffset": 16903
+        },
+        {
+          "names": [
+            "readCiGate"
+          ],
+          "startOffset": 17001,
+          "endOffset": 20770
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/climb.mjs",
+      "sha256": "4fc3546feb36a87b29fe9c54639ebc24266ad861ae16d520715f625c40937a5c",
+      "observed": true,
+      "entryPositiveFunctions": 12,
+      "observedFunctions": 119,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "distillLib"
+          ],
+          "startOffset": 7724,
+          "endOffset": 7785
+        },
+        {
+          "names": [
+            "loopSourceProblem"
+          ],
+          "startOffset": 8923,
+          "endOffset": 9487
+        },
+        {
+          "names": [
+            "requireLoopSource"
+          ],
+          "startOffset": 9489,
+          "endOffset": 9618
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 10307,
+          "endOffset": 10357
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 10674,
+          "endOffset": 10715
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 10898,
+          "endOffset": 10928
+        },
+        {
+          "names": [
+            "better"
+          ],
+          "startOffset": 11128,
+          "endOffset": 11176
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 11270,
+          "endOffset": 11308
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 11635,
+          "endOffset": 11691
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 11910,
+          "endOffset": 12028
+        },
+        {
+          "names": [
+            "betterOf"
+          ],
+          "startOffset": 12162,
+          "endOffset": 12278
+        },
+        {
+          "names": [
+            "ClimbError"
+          ],
+          "startOffset": 12433,
+          "endOffset": 12525
+        },
+        {
+          "names": [
+            "climbProblems"
+          ],
+          "startOffset": 12710,
+          "endOffset": 17440
+        },
+        {
+          "names": [
+            "climbConfigOf"
+          ],
+          "startOffset": 17551,
+          "endOffset": 18368
+        },
+        {
+          "names": [
+            "safeRelative"
+          ],
+          "startOffset": 18370,
+          "endOffset": 18596
+        },
+        {
+          "names": [
+            "on"
+          ],
+          "startOffset": 18609,
+          "endOffset": 18727
+        },
+        {
+          "names": [
+            "git"
+          ],
+          "startOffset": 19079,
+          "endOffset": 19534
+        },
+        {
+          "names": [
+            "sha"
+          ],
+          "startOffset": 19547,
+          "endOffset": 19617
+        },
+        {
+          "names": [
+            "isAncestor"
+          ],
+          "startOffset": 19638,
+          "endOffset": 19736
+        },
+        {
+          "names": [
+            "median"
+          ],
+          "startOffset": 19753,
+          "endOffset": 19874
+        },
+        {
+          "names": [
+            "mean"
+          ],
+          "startOffset": 19889,
+          "endOffset": 19936
+        },
+        {
+          "names": [
+            "fmtMs"
+          ],
+          "startOffset": 19959,
+          "endOffset": 20036
+        },
+        {
+          "names": [
+            "fmtNum"
+          ],
+          "startOffset": 20142,
+          "endOffset": 20243
+        },
+        {
+          "names": [
+            "fmtFor"
+          ],
+          "startOffset": 20345,
+          "endOffset": 20445
+        },
+        {
+          "names": [
+            "fmtPct"
+          ],
+          "startOffset": 20469,
+          "endOffset": 20535
+        },
+        {
+          "names": [
+            "today"
+          ],
+          "startOffset": 20551,
+          "endOffset": 20594
+        },
+        {
+          "names": [
+            "readJson"
+          ],
+          "startOffset": 20597,
+          "endOffset": 20790
+        },
+        {
+          "names": [
+            "readConfig"
+          ],
+          "startOffset": 20810,
+          "endOffset": 20877
+        },
+        {
+          "names": [
+            "readNight"
+          ],
+          "startOffset": 20880,
+          "endOffset": 20965
+        },
+        {
+          "names": [
+            "writeNight"
+          ],
+          "startOffset": 20966,
+          "endOffset": 21306
+        },
+        {
+          "names": [
+            "newestHealth"
+          ],
+          "startOffset": 21506,
+          "endOffset": 21941
+        },
+        {
+          "names": [
+            "healthRows"
+          ],
+          "startOffset": 22056,
+          "endOffset": 22518
+        },
+        {
+          "names": [
+            "distance"
+          ],
+          "startOffset": 22614,
+          "endOffset": 22742
+        },
+        {
+          "names": [
+            "waitingJobs"
+          ],
+          "startOffset": 22845,
+          "endOffset": 22963
+        },
+        {
+          "names": [
+            "choose"
+          ],
+          "startOffset": 23377,
+          "endOffset": 24899
+        },
+        {
+          "names": [
+            "ghPrs"
+          ],
+          "startOffset": 24901,
+          "endOffset": 25698
+        },
+        {
+          "names": [
+            "openHeads"
+          ],
+          "startOffset": 25717,
+          "endOffset": 25831
+        },
+        {
+          "names": [
+            "lastJob"
+          ],
+          "startOffset": 26275,
+          "endOffset": 26903
+        },
+        {
+          "names": [
+            "pick"
+          ],
+          "startOffset": 26912,
+          "endOffset": 28907
+        },
+        {
+          "names": [
+            "signalsOf"
+          ],
+          "startOffset": 29243,
+          "endOffset": 29987
+        },
+        {
+          "names": [
+            "measureIn"
+          ],
+          "startOffset": 30220,
+          "endOffset": 32657
+        },
+        {
+          "names": [
+            "clockedMs"
+          ],
+          "startOffset": 32765,
+          "endOffset": 33095
+        },
+        {
+          "names": [
+            "lastNumber"
+          ],
+          "startOffset": 33241,
+          "endOffset": 33557
+        },
+        {
+          "names": [
+            "preloadsOf"
+          ],
+          "startOffset": 33803,
+          "endOffset": 34251
+        },
+        {
+          "names": [
+            "flakyNow"
+          ],
+          "startOffset": 34386,
+          "endOffset": 35539
+        },
+        {
+          "names": [
+            "measure"
+          ],
+          "startOffset": 35548,
+          "endOffset": 36496
+        },
+        {
+          "names": [
+            "proposalsNow"
+          ],
+          "startOffset": 36623,
+          "endOffset": 37118
+        },
+        {
+          "names": [
+            "packageDirs"
+          ],
+          "startOffset": 37636,
+          "endOffset": 38470
+        },
+        {
+          "names": [
+            "siblingWorktree"
+          ],
+          "startOffset": 38834,
+          "endOffset": 39237
+        },
+        {
+          "names": [
+            "dropWorktree"
+          ],
+          "startOffset": 39238,
+          "endOffset": 39482
+        },
+        {
+          "names": [
+            "worktree"
+          ],
+          "startOffset": 39484,
+          "endOffset": 40134
+        },
+        {
+          "names": [
+            "compareRefs"
+          ],
+          "startOffset": 40453,
+          "endOffset": 42484
+        },
+        {
+          "names": [
+            "stopping"
+          ],
+          "startOffset": 42574,
+          "endOffset": 42920
+        },
+        {
+          "names": [
+            "numbersLine"
+          ],
+          "startOffset": 42942,
+          "endOffset": 43155
+        },
+        {
+          "names": [
+            "resetTo"
+          ],
+          "startOffset": 43271,
+          "endOffset": 43660
+        },
+        {
+          "names": [
+            "compare"
+          ],
+          "startOffset": 43669,
+          "endOffset": 46630
+        },
+        {
+          "names": [
+            "revert"
+          ],
+          "startOffset": 46729,
+          "endOffset": 47644
+        },
+        {
+          "names": [
+            "settle"
+          ],
+          "startOffset": 47795,
+          "endOffset": 49281
+        },
+        {
+          "names": [
+            "parseTest"
+          ],
+          "startOffset": 49419,
+          "endOffset": 49707
+        },
+        {
+          "names": [
+            "changedLines"
+          ],
+          "startOffset": 50893,
+          "endOffset": 52869
+        },
+        {
+          "names": [
+            "waitsOnly"
+          ],
+          "startOffset": 53143,
+          "endOffset": 53931
+        },
+        {
+          "names": [
+            "hygieneCheck"
+          ],
+          "startOffset": 54041,
+          "endOffset": 54412
+        },
+        {
+          "names": [
+            "nightTestFiles"
+          ],
+          "startOffset": 54437,
+          "endOffset": 54576
+        },
+        {
+          "names": [
+            "steadyIn"
+          ],
+          "startOffset": 54827,
+          "endOffset": 57201
+        },
+        {
+          "names": [
+            "steadyLine"
+          ],
+          "startOffset": 57222,
+          "endOffset": 57332
+        },
+        {
+          "names": [
+            "proveSteady"
+          ],
+          "startOffset": 57342,
+          "endOffset": 60236
+        },
+        {
+          "names": [
+            "hashOutput"
+          ],
+          "startOffset": 60442,
+          "endOffset": 61002
+        },
+        {
+          "names": [
+            "outputChanges"
+          ],
+          "startOffset": 61115,
+          "endOffset": 61484
+        },
+        {
+          "names": [
+            "buildChanges"
+          ],
+          "startOffset": 61602,
+          "endOffset": 62847
+        },
+        {
+          "names": [
+            "harmless"
+          ],
+          "startOffset": 62962,
+          "endOffset": 63474
+        },
+        {
+          "names": [
+            "readText"
+          ],
+          "startOffset": 63564,
+          "endOffset": 63734
+        },
+        {
+          "names": [
+            "lessonProposals"
+          ],
+          "startOffset": 63864,
+          "endOffset": 64435
+        },
+        {
+          "names": [
+            "lessonsWorksheet"
+          ],
+          "startOffset": 64755,
+          "endOffset": 66023
+        },
+        {
+          "names": [
+            "lessonsText"
+          ],
+          "startOffset": 66032,
+          "endOffset": 67182
+        },
+        {
+          "names": [
+            "proposeLesson"
+          ],
+          "startOffset": 67512,
+          "endOffset": 70463
+        },
+        {
+          "names": [
+            "loopModule"
+          ],
+          "startOffset": 70631,
+          "endOffset": 70864
+        },
+        {
+          "names": [
+            "findingsAt"
+          ],
+          "startOffset": 70969,
+          "endOffset": 71554
+        },
+        {
+          "names": [
+            "loopPaths"
+          ],
+          "startOffset": 71682,
+          "endOffset": 71852
+        },
+        {
+          "names": [
+            "loopPull"
+          ],
+          "startOffset": 72639,
+          "endOffset": 74620
+        },
+        {
+          "names": [
+            "changedPaths"
+          ],
+          "startOffset": 74935,
+          "endOffset": 75041
+        },
+        {
+          "names": [
+            "under"
+          ],
+          "startOffset": 75057,
+          "endOffset": 75114
+        },
+        {
+          "names": [
+            "rowsChanged"
+          ],
+          "startOffset": 75192,
+          "endOffset": 75701
+        },
+        {
+          "names": [
+            "proposalsProblems"
+          ],
+          "startOffset": 76253,
+          "endOffset": 78425
+        },
+        {
+          "names": [
+            "proposalsGuard"
+          ],
+          "startOffset": 78427,
+          "endOffset": 79658
+        },
+        {
+          "names": [
+            "shown"
+          ],
+          "startOffset": 80359,
+          "endOffset": 80434
+        },
+        {
+          "names": [
+            "gateRun"
+          ],
+          "startOffset": 82444,
+          "endOffset": 82799
+        },
+        {
+          "names": [
+            "baseLedger"
+          ],
+          "startOffset": 84144,
+          "endOffset": 84894
+        },
+        {
+          "names": [
+            "ledgerCheck"
+          ],
+          "startOffset": 84903,
+          "endOffset": 87616
+        },
+        {
+          "names": [
+            "guard"
+          ],
+          "startOffset": 87625,
+          "endOffset": 93817
+        },
+        {
+          "names": [
+            "surfacesOf"
+          ],
+          "startOffset": 93993,
+          "endOffset": 94412
+        },
+        {
+          "names": [
+            "reportOf"
+          ],
+          "startOffset": 94522,
+          "endOffset": 98877
+        },
+        {
+          "names": [
+            "proposalsImpact"
+          ],
+          "startOffset": 98989,
+          "endOffset": 99121
+        },
+        {
+          "names": [
+            "proposalsReport"
+          ],
+          "startOffset": 99365,
+          "endOffset": 103996
+        },
+        {
+          "names": [
+            "proposalsOf"
+          ],
+          "startOffset": 104129,
+          "endOffset": 105092
+        },
+        {
+          "names": [
+            "named"
+          ],
+          "startOffset": 105108,
+          "endOffset": 105151
+        },
+        {
+          "names": [
+            "sameTest"
+          ],
+          "startOffset": 105170,
+          "endOffset": 105228
+        },
+        {
+          "names": [
+            "hygieneReport"
+          ],
+          "startOffset": 105337,
+          "endOffset": 107545
+        },
+        {
+          "names": [
+            "issueOf"
+          ],
+          "startOffset": 107789,
+          "endOffset": 109005
+        },
+        {
+          "names": [
+            "report"
+          ],
+          "startOffset": 109014,
+          "endOffset": 110802
+        },
+        {
+          "names": [
+            "lastResult"
+          ],
+          "startOffset": 111029,
+          "endOffset": 111424
+        },
+        {
+          "names": [
+            "agentVerdict"
+          ],
+          "startOffset": 111990,
+          "endOffset": 113683
+        },
+        {
+          "names": [
+            "errorText"
+          ],
+          "startOffset": 113932,
+          "endOffset": 114373
+        },
+        {
+          "names": [
+            "errorCause"
+          ],
+          "startOffset": 114493,
+          "endOffset": 114977
+        },
+        {
+          "names": [
+            "agentRan"
+          ],
+          "startOffset": 114986,
+          "endOffset": 116388
+        },
+        {
+          "names": [
+            "parseArgs"
+          ],
+          "startOffset": 117652,
+          "endOffset": 118659
+        },
+        {
+          "names": [
+            "cli"
+          ],
+          "startOffset": 118668,
+          "endOffset": 128288
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 128326,
+          "endOffset": 128343
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/cross-review.mjs",
+      "sha256": "80e795ff3bdb26fccc68e29155015963b945cc35abf3a1df824cde4515a8a9b3",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/distill.mjs",
+      "sha256": "d82bcb49f3e8608579a8c413d3669015ad59cdfdbe68970c8ee9fcc0c027f441",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/drain.mjs",
+      "sha256": "04446d1796f5975e6ebf9d1f0d9729260b45b81c93782a9b867ea42784624aff",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/generated.mjs",
+      "sha256": "887b30076953ebc406698bf7c8db85f4ca6605e215248bfda4c624dcc6faadb2",
+      "observed": true,
+      "entryPositiveFunctions": 11,
+      "observedFunctions": 13,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4590,
+          "endOffset": 4598
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 5303,
+          "endOffset": 5311
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/hygiene-measures.mjs",
+      "sha256": "a2b0239c0cac593495b7118b399f43268cd92be1c0f16b230f4b2aa311f6cc49",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 16,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "hygieneOptions"
+          ],
+          "startOffset": 578,
+          "endOffset": 1107
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "startOffset": 1505,
+          "endOffset": 2600
+        },
+        {
+          "names": [
+            "stamp"
+          ],
+          "startOffset": 2616,
+          "endOffset": 2825
+        },
+        {
+          "names": [
+            "pullUrl"
+          ],
+          "startOffset": 2843,
+          "endOffset": 3090
+        },
+        {
+          "names": [
+            "payloadBound"
+          ],
+          "startOffset": 3113,
+          "endOffset": 3254
+        },
+        {
+          "names": [
+            "quotaOf"
+          ],
+          "startOffset": 3272,
+          "endOffset": 3449
+        },
+        {
+          "names": [
+            "draftProjection"
+          ],
+          "startOffset": 3451,
+          "endOffset": 4572
+        },
+        {
+          "names": [
+            "draftsWaiting"
+          ],
+          "startOffset": 4670,
+          "endOffset": 8389
+        },
+        {
+          "names": [
+            "sourcePath"
+          ],
+          "startOffset": 9103,
+          "endOffset": 9418
+        },
+        {
+          "names": [
+            "lineCount"
+          ],
+          "startOffset": 9445,
+          "endOffset": 9535
+        },
+        {
+          "names": [
+            "generatedSource"
+          ],
+          "startOffset": 9628,
+          "endOffset": 11366
+        },
+        {
+          "names": [
+            "largestSections"
+          ],
+          "startOffset": 11459,
+          "endOffset": 12395
+        },
+        {
+          "names": [
+            "localBytes"
+          ],
+          "startOffset": 12473,
+          "endOffset": 13687
+        },
+        {
+          "names": [
+            "canonicalSourceBlob"
+          ],
+          "startOffset": 13868,
+          "endOffset": 14595
+        },
+        {
+          "names": [
+            "longFiles"
+          ],
+          "startOffset": 14697,
+          "endOffset": 21237
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/hygiene-proposals.mjs",
+      "sha256": "2b44be83d4900bd68a32831e89e70e27cf34821460415b4bef8579e0446e4145",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 9,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "hash"
+          ],
+          "startOffset": 271,
+          "endOffset": 344
+        },
+        {
+          "names": [
+            "same"
+          ],
+          "startOffset": 359,
+          "endOffset": 407
+        },
+        {
+          "names": [
+            "hygieneRobotTargetReason"
+          ],
+          "startOffset": 576,
+          "endOffset": 1137
+        },
+        {
+          "names": [
+            "makeHygieneProposal"
+          ],
+          "startOffset": 1145,
+          "endOffset": 3775
+        },
+        {
+          "names": [
+            "checked"
+          ],
+          "startOffset": 3776,
+          "endOffset": 4832
+        },
+        {
+          "names": [
+            "formatHygieneProposal"
+          ],
+          "startOffset": 4840,
+          "endOffset": 5315
+        },
+        {
+          "names": [
+            "parseHygieneProposal"
+          ],
+          "startOffset": 5323,
+          "endOffset": 6534
+        },
+        {
+          "names": [
+            "readHygieneProposals"
+          ],
+          "startOffset": 6700,
+          "endOffset": 10226
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/improve.mjs",
+      "sha256": "b10832d96abc185564fbc4879e74d0cc0ef632f0d6172d64ab71673516645a59",
+      "observed": true,
+      "entryPositiveFunctions": 2,
+      "observedFunctions": 118,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "ImproveError"
+          ],
+          "startOffset": 7542,
+          "endOffset": 7622
+        },
+        {
+          "names": [
+            "today"
+          ],
+          "startOffset": 7640,
+          "endOffset": 7789
+        },
+        {
+          "names": [
+            "days"
+          ],
+          "startOffset": 7804,
+          "endOffset": 7878
+        },
+        {
+          "names": [
+            "list"
+          ],
+          "startOffset": 7893,
+          "endOffset": 7996
+        },
+        {
+          "names": [
+            "plural"
+          ],
+          "startOffset": 8013,
+          "endOffset": 8061
+        },
+        {
+          "names": [
+            "exists"
+          ],
+          "startOffset": 8078,
+          "endOffset": 8121
+        },
+        {
+          "names": [
+            "packageDirs"
+          ],
+          "startOffset": 8483,
+          "endOffset": 9332
+        },
+        {
+          "names": [
+            "stripTest"
+          ],
+          "startOffset": 9352,
+          "endOffset": 9443
+        },
+        {
+          "names": [
+            "unfinished"
+          ],
+          "startOffset": 9464,
+          "endOffset": 9530
+        },
+        {
+          "names": [
+            "once"
+          ],
+          "startOffset": 9620,
+          "endOffset": 9745
+        },
+        {
+          "names": [
+            "phasesOff"
+          ],
+          "startOffset": 10093,
+          "endOffset": 10829
+        },
+        {
+          "names": [
+            "roadmapModule"
+          ],
+          "startOffset": 11058,
+          "endOffset": 11396
+        },
+        {
+          "names": [
+            "milestoneData"
+          ],
+          "startOffset": 11421,
+          "endOffset": 11656
+        },
+        {
+          "names": [
+            "roadmapData"
+          ],
+          "startOffset": 11679,
+          "endOffset": 11888
+        },
+        {
+          "names": [
+            "practiceReading"
+          ],
+          "startOffset": 12156,
+          "endOffset": 13634
+        },
+        {
+          "names": [
+            "projectSide"
+          ],
+          "startOffset": 13850,
+          "endOffset": 13898
+        },
+        {
+          "names": [
+            "projectRecords"
+          ],
+          "startOffset": 14022,
+          "endOffset": 14086
+        },
+        {
+          "names": [
+            "projectPhases"
+          ],
+          "startOffset": 14266,
+          "endOffset": 14493
+        },
+        {
+          "names": [
+            "git"
+          ],
+          "startOffset": 14631,
+          "endOffset": 14909
+        },
+        {
+          "names": [
+            "gitOut"
+          ],
+          "startOffset": 14925,
+          "endOffset": 15134
+        },
+        {
+          "names": [
+            "defaultRef"
+          ],
+          "startOffset": 15267,
+          "endOffset": 15545
+        },
+        {
+          "names": [
+            "commitDays"
+          ],
+          "startOffset": 15661,
+          "endOffset": 16037
+        },
+        {
+          "names": [
+            "lastTouched"
+          ],
+          "startOffset": 16122,
+          "endOffset": 16286
+        },
+        {
+          "names": [
+            "openIssues"
+          ],
+          "startOffset": 16367,
+          "endOffset": 16532
+        },
+        {
+          "names": [
+            "openPrs"
+          ],
+          "startOffset": 16550,
+          "endOffset": 16718
+        },
+        {
+          "names": [
+            "docTexts"
+          ],
+          "startOffset": 16829,
+          "endOffset": 17194
+        },
+        {
+          "names": [
+            "notes"
+          ],
+          "startOffset": 17284,
+          "endOffset": 17514
+        },
+        {
+          "names": [
+            "gateRun"
+          ],
+          "startOffset": 17601,
+          "endOffset": 19035
+        },
+        {
+          "names": [
+            "ghReady"
+          ],
+          "startOffset": 19122,
+          "endOffset": 19719
+        },
+        {
+          "names": [
+            "repoReviews"
+          ],
+          "startOffset": 19886,
+          "endOffset": 20818
+        },
+        {
+          "names": [
+            "crossReviewFinding"
+          ],
+          "startOffset": 21519,
+          "endOffset": 21730
+        },
+        {
+          "names": [
+            "crossReviewTally"
+          ],
+          "startOffset": 22640,
+          "endOffset": 24186
+        },
+        {
+          "names": [
+            "ghJson"
+          ],
+          "startOffset": 24188,
+          "endOffset": 24807
+        },
+        {
+          "names": [
+            "gateWorkflow"
+          ],
+          "startOffset": 25043,
+          "endOffset": 25230
+        },
+        {
+          "names": [
+            "ledgerHistory"
+          ],
+          "startOffset": 25366,
+          "endOffset": 25558
+        },
+        {
+          "names": [
+            "tooFew"
+          ],
+          "startOffset": 25575,
+          "endOffset": 25785
+        },
+        {
+          "names": [
+            "named"
+          ],
+          "startOffset": 25801,
+          "endOffset": 25829
+        },
+        {
+          "names": [
+            "nightNote"
+          ],
+          "startOffset": 25954,
+          "endOffset": 26063
+        },
+        {
+          "names": [
+            "citedNames"
+          ],
+          "startOffset": 26186,
+          "endOffset": 26545
+        },
+        {
+          "names": [
+            "segmentKind"
+          ],
+          "startOffset": 26832,
+          "endOffset": 27645
+        },
+        {
+          "names": [
+            "shellWords"
+          ],
+          "startOffset": 27832,
+          "endOffset": 28240
+        },
+        {
+          "names": [
+            "commandKind"
+          ],
+          "startOffset": 28490,
+          "endOffset": 29106
+        },
+        {
+          "names": [
+            "conductCost"
+          ],
+          "startOffset": 29204,
+          "endOffset": 31231
+        },
+        {
+          "names": [
+            "isFixSubject"
+          ],
+          "startOffset": 32127,
+          "endOffset": 32177
+        },
+        {
+          "names": [
+            "hasProvenBy"
+          ],
+          "startOffset": 32475,
+          "endOffset": 32523
+        },
+        {
+          "names": [
+            "phasesNamed"
+          ],
+          "startOffset": 32754,
+          "endOffset": 33001
+        },
+        {
+          "names": [
+            "phaseOf"
+          ],
+          "startOffset": 33103,
+          "endOffset": 33180
+        },
+        {
+          "names": [
+            "selfProvenance"
+          ],
+          "startOffset": 33298,
+          "endOffset": 33702
+        },
+        {
+          "names": [
+            "escapeEntries"
+          ],
+          "startOffset": 33810,
+          "endOffset": 34344
+        },
+        {
+          "names": [
+            "textAt"
+          ],
+          "startOffset": 34462,
+          "endOffset": 34799
+        },
+        {
+          "names": [
+            "escapesBetween"
+          ],
+          "startOffset": 34903,
+          "endOffset": 37552
+        },
+        {
+          "names": [
+            "ceremonyBetween"
+          ],
+          "startOffset": 37858,
+          "endOffset": 39673
+        },
+        {
+          "names": [
+            "escapesReading"
+          ],
+          "startOffset": 39938,
+          "endOffset": 40853
+        },
+        {
+          "names": [
+            "escapesIn"
+          ],
+          "startOffset": 40990,
+          "endOffset": 41106
+        },
+        {
+          "names": [
+            "escapesByPhase"
+          ],
+          "startOffset": 41214,
+          "endOffset": 41403
+        },
+        {
+          "names": [
+            "unguarded"
+          ],
+          "startOffset": 41505,
+          "endOffset": 41609
+        },
+        {
+          "names": [
+            "placeholderEvidence"
+          ],
+          "startOffset": 41913,
+          "endOffset": 42004
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 42906,
+          "endOffset": 44391
+        },
+        {
+          "names": [
+            "timingEvidence"
+          ],
+          "startOffset": 44421,
+          "endOffset": 45327
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 45509,
+          "endOffset": 45933
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 46090,
+          "endOffset": 46144
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 46288,
+          "endOffset": 46334
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 46619,
+          "endOffset": 47143
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 47349,
+          "endOffset": 48903
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 49077,
+          "endOffset": 49951
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 50088,
+          "endOffset": 50646
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 50944,
+          "endOffset": 52203
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 52478,
+          "endOffset": 53806
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 54295,
+          "endOffset": 55524
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 55637,
+          "endOffset": 55999
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 56130,
+          "endOffset": 57795
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 58008,
+          "endOffset": 60323
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 60502,
+          "endOffset": 61258
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 61848,
+          "endOffset": 64192
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 64769,
+          "endOffset": 66808
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 67016,
+          "endOffset": 67467
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 67676,
+          "endOffset": 68128
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 68331,
+          "endOffset": 69011
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 69156,
+          "endOffset": 69692
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 69845,
+          "endOffset": 71089
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 71259,
+          "endOffset": 72050
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 72481,
+          "endOffset": 72999
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 73146,
+          "endOffset": 73464
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 73580,
+          "endOffset": 73990
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 74117,
+          "endOffset": 74841
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 74966,
+          "endOffset": 76764
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 77257,
+          "endOffset": 78330
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 78497,
+          "endOffset": 79112
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 79278,
+          "endOffset": 80006
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 80133,
+          "endOffset": 80885
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 81223,
+          "endOffset": 82123
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 82328,
+          "endOffset": 84021
+        },
+        {
+          "names": [
+            "run"
+          ],
+          "startOffset": 84188,
+          "endOffset": 84926
+        },
+        {
+          "names": [
+            "within"
+          ],
+          "startOffset": 85032,
+          "endOffset": 85108
+        },
+        {
+          "names": [
+            "beats"
+          ],
+          "startOffset": 85124,
+          "endOffset": 85198
+        },
+        {
+          "names": [
+            "margin"
+          ],
+          "startOffset": 85215,
+          "endOffset": 85316
+        },
+        {
+          "names": [
+            "measure"
+          ],
+          "startOffset": 85404,
+          "endOffset": 87510
+        },
+        {
+          "names": [
+            "proposalText"
+          ],
+          "startOffset": 87605,
+          "endOffset": 97101
+        },
+        {
+          "names": [
+            "propose"
+          ],
+          "startOffset": 97214,
+          "endOffset": 99812
+        },
+        {
+          "names": [
+            "readBounds"
+          ],
+          "startOffset": 99821,
+          "endOffset": 100379
+        },
+        {
+          "names": [
+            "tighten"
+          ],
+          "startOffset": 100468,
+          "endOffset": 101267
+        },
+        {
+          "names": [
+            "esc"
+          ],
+          "startOffset": 101281,
+          "endOffset": 101340
+        },
+        {
+          "names": [
+            "shown"
+          ],
+          "startOffset": 101356,
+          "endOffset": 101401
+        },
+        {
+          "names": [
+            "noProposal"
+          ],
+          "startOffset": 101749,
+          "endOffset": 102105
+        },
+        {
+          "names": [
+            "boundOf"
+          ],
+          "startOffset": 102208,
+          "endOffset": 102297
+        },
+        {
+          "names": [
+            "page"
+          ],
+          "startOffset": 102307,
+          "endOffset": 104587
+        },
+        {
+          "names": [
+            "climbRetireLines"
+          ],
+          "startOffset": 104899,
+          "endOffset": 105659
+        },
+        {
+          "names": [
+            "readBudget"
+          ],
+          "startOffset": 106414,
+          "endOffset": 110325
+        },
+        {
+          "names": [
+            "exitCode"
+          ],
+          "startOffset": 110351,
+          "endOffset": 110456
+        },
+        {
+          "names": [
+            "table"
+          ],
+          "startOffset": 110466,
+          "endOffset": 110717
+        },
+        {
+          "names": [
+            "strip"
+          ],
+          "startOffset": 110739,
+          "endOffset": 110852
+        },
+        {
+          "names": [
+            "improve"
+          ],
+          "startOffset": 111060,
+          "endOffset": 114921
+        },
+        {
+          "names": [
+            "nightPr"
+          ],
+          "startOffset": 115093,
+          "endOffset": 116483
+        },
+        {
+          "names": [
+            "instrumentsFor"
+          ],
+          "startOffset": 116740,
+          "endOffset": 117105
+        },
+        {
+          "names": [
+            "parseArgs"
+          ],
+          "startOffset": 117114,
+          "endOffset": 117782
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 117824,
+          "endOffset": 118022
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/lib.mjs",
+      "sha256": "79bb15534042f070ac1c7e971ed002f2d66662893e9fbf6b37922ab09d468fd4",
+      "observed": true,
+      "entryPositiveFunctions": 3,
+      "observedFunctions": 140,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "sha256"
+          ],
+          "startOffset": 6304,
+          "endOffset": 6359
+        },
+        {
+          "names": [
+            "read"
+          ],
+          "startOffset": 6381,
+          "endOffset": 6499
+        },
+        {
+          "names": [
+            "info"
+          ],
+          "startOffset": 6521,
+          "endOffset": 6618
+        },
+        {
+          "names": [
+            "blockBody"
+          ],
+          "startOffset": 6713,
+          "endOffset": 7091
+        },
+        {
+          "names": [
+            "readLock"
+          ],
+          "startOffset": 7164,
+          "endOffset": 7414
+        },
+        {
+          "names": [
+            "splitKey"
+          ],
+          "startOffset": 7486,
+          "endOffset": 7628
+        },
+        {
+          "names": [
+            "lockDrift"
+          ],
+          "startOffset": 7882,
+          "endOffset": 8873
+        },
+        {
+          "names": [
+            "walk"
+          ],
+          "startOffset": 8990,
+          "endOffset": 9518
+        },
+        {
+          "names": [
+            "skillName"
+          ],
+          "startOffset": 9545,
+          "endOffset": 9639
+        },
+        {
+          "names": [
+            "secondCopies"
+          ],
+          "startOffset": 9882,
+          "endOffset": 10505
+        },
+        {
+          "names": [
+            "lockedSkills"
+          ],
+          "startOffset": 10591,
+          "endOffset": 10919
+        },
+        {
+          "names": [
+            "claudeMdLint"
+          ],
+          "startOffset": 11008,
+          "endOffset": 11382
+        },
+        {
+          "names": [
+            "lessonsTableSplit"
+          ],
+          "startOffset": 11715,
+          "endOffset": 12527
+        },
+        {
+          "names": [
+            "lessonsTableShapes"
+          ],
+          "startOffset": 13152,
+          "endOffset": 15923
+        },
+        {
+          "names": [
+            "cells"
+          ],
+          "startOffset": 16005,
+          "endOffset": 16155
+        },
+        {
+          "names": [
+            "isSeparator"
+          ],
+          "startOffset": 16176,
+          "endOffset": 16250
+        },
+        {
+          "names": [
+            "parseLessons"
+          ],
+          "startOffset": 17117,
+          "endOffset": 18699
+        },
+        {
+          "names": [
+            "lessonsPathOf"
+          ],
+          "startOffset": 18930,
+          "endOffset": 19030
+        },
+        {
+          "names": [
+            "lessonProject"
+          ],
+          "startOffset": 19145,
+          "endOffset": 19237
+        },
+        {
+          "names": [
+            "normaliseShape"
+          ],
+          "startOffset": 19269,
+          "endOffset": 19311
+        },
+        {
+          "names": [
+            "lessonFingerprint"
+          ],
+          "startOffset": 19588,
+          "endOffset": 19683
+        },
+        {
+          "names": [
+            "unsentLessons"
+          ],
+          "startOffset": 19923,
+          "endOffset": 20833
+        },
+        {
+          "names": [
+            "phaseLints"
+          ],
+          "startOffset": 21074,
+          "endOffset": 22339
+        },
+        {
+          "names": [
+            "shapeOf"
+          ],
+          "startOffset": 23363,
+          "endOffset": 23432
+        },
+        {
+          "names": [
+            "frontMatter"
+          ],
+          "startOffset": 23556,
+          "endOffset": 23930
+        },
+        {
+          "names": [
+            "issueNumber"
+          ],
+          "startOffset": 24052,
+          "endOffset": 24125
+        },
+        {
+          "names": [
+            "phaseSections"
+          ],
+          "startOffset": 24758,
+          "endOffset": 25598
+        },
+        {
+          "names": [
+            "readProjectRecords"
+          ],
+          "startOffset": 25927,
+          "endOffset": 26902
+        },
+        {
+          "names": [
+            "recordsDisagree"
+          ],
+          "startOffset": 27145,
+          "endOffset": 27850
+        },
+        {
+          "names": [
+            "statusUnknown"
+          ],
+          "startOffset": 28174,
+          "endOffset": 28815
+        },
+        {
+          "names": [
+            "addDays"
+          ],
+          "startOffset": 28887,
+          "endOffset": 28983
+        },
+        {
+          "names": [
+            "changelogGaps"
+          ],
+          "startOffset": 29385,
+          "endOffset": 29860
+        },
+        {
+          "names": [
+            "issuesNamed"
+          ],
+          "startOffset": 29959,
+          "endOffset": 30320
+        },
+        {
+          "names": [
+            "gateWorkflowOf"
+          ],
+          "startOffset": 30696,
+          "endOffset": 31289
+        },
+        {
+          "names": [
+            "gateWorkflowIn"
+          ],
+          "startOffset": 31764,
+          "endOffset": 32591
+        },
+        {
+          "names": [
+            "healthProblems"
+          ],
+          "startOffset": 33152,
+          "endOffset": 34423
+        },
+        {
+          "names": [
+            "healthDirOf"
+          ],
+          "startOffset": 34541,
+          "endOffset": 34778
+        },
+        {
+          "names": [
+            "healthPage"
+          ],
+          "startOffset": 34914,
+          "endOffset": 34948
+        },
+        {
+          "names": [
+            "healthOutside"
+          ],
+          "startOffset": 35238,
+          "endOffset": 35839
+        },
+        {
+          "names": [
+            "healthDirIn"
+          ],
+          "startOffset": 35946,
+          "endOffset": 36150
+        },
+        {
+          "names": [
+            "healthLints"
+          ],
+          "startOffset": 36536,
+          "endOffset": 37612
+        },
+        {
+          "names": [
+            "platformToolProblems"
+          ],
+          "startOffset": 39298,
+          "endOffset": 39757
+        },
+        {
+          "names": [
+            "platformTools"
+          ],
+          "startOffset": 39836,
+          "endOffset": 40289
+        },
+        {
+          "names": [
+            "isTestFile"
+          ],
+          "startOffset": 40412,
+          "endOffset": 40529
+        },
+        {
+          "names": [
+            "scanSource"
+          ],
+          "startOffset": 40727,
+          "endOffset": 41992
+        },
+        {
+          "names": [
+            "escapeRe"
+          ],
+          "startOffset": 42011,
+          "endOffset": 42056
+        },
+        {
+          "names": [
+            "runnersOf"
+          ],
+          "startOffset": 42711,
+          "endOffset": 44608
+        },
+        {
+          "names": [
+            "commandBefore"
+          ],
+          "startOffset": 44720,
+          "endOffset": 45273
+        },
+        {
+          "names": [
+            "shellMask"
+          ],
+          "startOffset": 45555,
+          "endOffset": 46376
+        },
+        {
+          "names": [
+            "toolMatcher"
+          ],
+          "startOffset": 46619,
+          "endOffset": 48089
+        },
+        {
+          "names": [
+            "bracketPairs"
+          ],
+          "startOffset": 48449,
+          "endOffset": 48899
+        },
+        {
+          "names": [
+            "splitTop"
+          ],
+          "startOffset": 48993,
+          "endOffset": 49524
+        },
+        {
+          "names": [
+            "balanced"
+          ],
+          "startOffset": 49543,
+          "endOffset": 49666
+        },
+        {
+          "names": [
+            "isLiteral"
+          ],
+          "startOffset": 49686,
+          "endOffset": 49753
+        },
+        {
+          "names": [
+            "sense"
+          ],
+          "startOffset": 50116,
+          "endOffset": 50933
+        },
+        {
+          "names": [
+            "skipCondition"
+          ],
+          "startOffset": 51028,
+          "endOffset": 51299
+        },
+        {
+          "names": [
+            "onWhenTrue"
+          ],
+          "startOffset": 51620,
+          "endOffset": 51847
+        },
+        {
+          "names": [
+            "onWhenFalse"
+          ],
+          "startOffset": 51994,
+          "endOffset": 52136
+        },
+        {
+          "names": [
+            "guardRanges"
+          ],
+          "startOffset": 52823,
+          "endOffset": 55739
+        },
+        {
+          "names": [
+            "shellGuardRanges"
+          ],
+          "startOffset": 55917,
+          "endOffset": 57530
+        },
+        {
+          "names": [
+            "platformCalls"
+          ],
+          "startOffset": 57814,
+          "endOffset": 59823
+        },
+        {
+          "names": [
+            "trackedFiles"
+          ],
+          "startOffset": 59926,
+          "endOffset": 60216
+        },
+        {
+          "names": [
+            "platformLints"
+          ],
+          "startOffset": 60427,
+          "endOffset": 61355
+        },
+        {
+          "names": [
+            "climbLine"
+          ],
+          "startOffset": 62033,
+          "endOffset": 62983
+        },
+        {
+          "names": [
+            "closedUnmerged"
+          ],
+          "startOffset": 63834,
+          "endOffset": 63936
+        },
+        {
+          "names": [
+            "climbRetiring"
+          ],
+          "startOffset": 63946,
+          "endOffset": 64408
+        },
+        {
+          "names": [
+            "retireLine"
+          ],
+          "startOffset": 64510,
+          "endOffset": 64765
+        },
+        {
+          "names": [
+            "readClimbNight"
+          ],
+          "startOffset": 64878,
+          "endOffset": 65074
+        },
+        {
+          "names": [
+            "tendLine"
+          ],
+          "startOffset": 65756,
+          "endOffset": 67089
+        },
+        {
+          "names": [
+            "readTendPass"
+          ],
+          "startOffset": 67199,
+          "endOffset": 67391
+        },
+        {
+          "names": [
+            "budgetPasses"
+          ],
+          "startOffset": 70032,
+          "endOffset": 70378
+        },
+        {
+          "names": [
+            "budgetOf"
+          ],
+          "startOffset": 70534,
+          "endOffset": 70740
+        },
+        {
+          "names": [
+            "versionParts"
+          ],
+          "startOffset": 70763,
+          "endOffset": 70832
+        },
+        {
+          "names": [
+            "versionAtMost"
+          ],
+          "startOffset": 70856,
+          "endOffset": 71025
+        },
+        {
+          "names": [
+            "budgetRaw"
+          ],
+          "startOffset": 71248,
+          "endOffset": 71731
+        },
+        {
+          "names": [
+            "budgetSince"
+          ],
+          "startOffset": 72462,
+          "endOffset": 72742
+        },
+        {
+          "names": [
+            "stamp"
+          ],
+          "startOffset": 72758,
+          "endOffset": 72805
+        },
+        {
+          "names": [
+            "stepUse"
+          ],
+          "startOffset": 73287,
+          "endOffset": 74028
+        },
+        {
+          "names": [
+            "budgetUse"
+          ],
+          "startOffset": 74547,
+          "endOffset": 75555
+        },
+        {
+          "names": [
+            "budgetEntry"
+          ],
+          "startOffset": 75641,
+          "endOffset": 76265
+        },
+        {
+          "names": [
+            "budgetLine"
+          ],
+          "startOffset": 76382,
+          "endOffset": 76466
+        },
+        {
+          "names": [
+            "reviewConfigOf"
+          ],
+          "startOffset": 77728,
+          "endOffset": 78634
+        },
+        {
+          "names": [
+            "sameLogin"
+          ],
+          "startOffset": 78743,
+          "endOffset": 78805
+        },
+        {
+          "names": [
+            "normLogin"
+          ],
+          "startOffset": 78825,
+          "endOffset": 78884
+        },
+        {
+          "names": [
+            "IncompleteRead"
+          ],
+          "startOffset": 79053,
+          "endOffset": 79117
+        },
+        {
+          "names": [
+            "reviewFragment"
+          ],
+          "startOffset": 79458,
+          "endOffset": 80243
+        },
+        {
+          "names": [
+            "rateSpend"
+          ],
+          "startOffset": 81037,
+          "endOffset": 81719
+        },
+        {
+          "names": [
+            "graphqlData"
+          ],
+          "startOffset": 81852,
+          "endOffset": 82288
+        },
+        {
+          "names": [
+            "plain"
+          ],
+          "startOffset": 82304,
+          "endOffset": 82444
+        },
+        {
+          "names": [
+            "plainLines"
+          ],
+          "startOffset": 82465,
+          "endOffset": 82562
+        },
+        {
+          "names": [
+            "firstLine"
+          ],
+          "startOffset": 82582,
+          "endOffset": 82630
+        },
+        {
+          "names": [
+            "isStatus"
+          ],
+          "startOffset": 82781,
+          "endOffset": 82824
+        },
+        {
+          "names": [
+            "robotReview"
+          ],
+          "startOffset": 82985,
+          "endOffset": 86604
+        },
+        {
+          "names": [
+            "references"
+          ],
+          "startOffset": 86718,
+          "endOffset": 87071
+        },
+        {
+          "names": [
+            "loginOf"
+          ],
+          "startOffset": 87088,
+          "endOffset": 87120
+        },
+        {
+          "names": [
+            "page"
+          ],
+          "startOffset": 87135,
+          "endOffset": 87313
+        },
+        {
+          "names": [
+            "reviewComments"
+          ],
+          "startOffset": 88011,
+          "endOffset": 90754
+        },
+        {
+          "names": [
+            "windowFragment"
+          ],
+          "startOffset": 91909,
+          "endOffset": 92574
+        },
+        {
+          "names": [
+            "repoReviewQuery"
+          ],
+          "startOffset": 92607,
+          "endOffset": 93248
+        },
+        {
+          "names": [
+            "repoReviewArgs"
+          ],
+          "startOffset": 93338,
+          "endOffset": 93723
+        },
+        {
+          "names": [
+            "prReviewQuery"
+          ],
+          "startOffset": 93836,
+          "endOffset": 94042
+        },
+        {
+          "names": [
+            "moreReviewsArgs"
+          ],
+          "startOffset": 94299,
+          "endOffset": 94879
+        },
+        {
+          "names": [
+            "prReviewArgs"
+          ],
+          "startOffset": 94955,
+          "endOffset": 95172
+        },
+        {
+          "names": [
+            "fromWindow"
+          ],
+          "startOffset": 95700,
+          "endOffset": 97115
+        },
+        {
+          "names": [
+            "mergedMore"
+          ],
+          "startOffset": 97245,
+          "endOffset": 97419
+        },
+        {
+          "names": [
+            "readRepoReviews"
+          ],
+          "startOffset": 98043,
+          "endOffset": 99909
+        },
+        {
+          "names": [
+            "unansweredPrs"
+          ],
+          "startOffset": 100225,
+          "endOffset": 100924
+        },
+        {
+          "names": [
+            "windowPrs"
+          ],
+          "startOffset": 101166,
+          "endOffset": 101940
+        },
+        {
+          "names": [
+            "setupEnvProblems"
+          ],
+          "startOffset": 102462,
+          "endOffset": 103677
+        },
+        {
+          "names": [
+            "gateEnv"
+          ],
+          "startOffset": 103989,
+          "endOffset": 104462
+        },
+        {
+          "names": [
+            "rootOf"
+          ],
+          "startOffset": 104918,
+          "endOffset": 104976
+        },
+        {
+          "names": [
+            "main"
+          ],
+          "startOffset": 105140,
+          "endOffset": 105695
+        },
+        {
+          "names": [
+            "agentGitArgs"
+          ],
+          "startOffset": 107705,
+          "endOffset": 108015
+        },
+        {
+          "names": [
+            "isObject"
+          ],
+          "startOffset": 110959,
+          "endOffset": 111020
+        },
+        {
+          "names": [
+            "agentsProblems"
+          ],
+          "startOffset": 111122,
+          "endOffset": 111754
+        },
+        {
+          "names": [
+            "listedAgents"
+          ],
+          "startOffset": 111886,
+          "endOffset": 111969
+        },
+        {
+          "names": [
+            "authorOf"
+          ],
+          "startOffset": 112084,
+          "endOffset": 112217
+        },
+        {
+          "names": [
+            "prefixAuthors"
+          ],
+          "startOffset": 112521,
+          "endOffset": 112860
+        },
+        {
+          "names": [
+            "reviewerOf"
+          ],
+          "startOffset": 113689,
+          "endOffset": 115167
+        },
+        {
+          "names": [
+            "coAuthorsOf"
+          ],
+          "startOffset": 115501,
+          "endOffset": 115629
+        },
+        {
+          "names": [
+            "trailerBlock"
+          ],
+          "startOffset": 115907,
+          "endOffset": 116221
+        },
+        {
+          "names": [
+            "trailerValues"
+          ],
+          "startOffset": 116312,
+          "endOffset": 116425
+        },
+        {
+          "names": [
+            "personOf"
+          ],
+          "startOffset": 116494,
+          "endOffset": 116630
+        },
+        {
+          "names": [
+            "commitAuthorOf"
+          ],
+          "startOffset": 117100,
+          "endOffset": 117471
+        },
+        {
+          "names": [
+            "pushAuthorsOf"
+          ],
+          "startOffset": 117599,
+          "endOffset": 117789
+        },
+        {
+          "names": [
+            "pushReviewerOf"
+          ],
+          "startOffset": 118474,
+          "endOffset": 120203
+        },
+        {
+          "names": [
+            "pushTitle"
+          ],
+          "startOffset": 120420,
+          "endOffset": 120479
+        },
+        {
+          "names": [
+            "recordText"
+          ],
+          "startOffset": 120820,
+          "endOffset": 120930
+        },
+        {
+          "names": [
+            "recordOf"
+          ],
+          "startOffset": 120939,
+          "endOffset": 121446
+        },
+        {
+          "names": [
+            "byWorkflow"
+          ],
+          "startOffset": 121586,
+          "endOffset": 121676
+        },
+        {
+          "names": [
+            "secretText"
+          ],
+          "startOffset": 121802,
+          "endOffset": 121981
+        },
+        {
+          "names": [
+            "selfReason"
+          ],
+          "startOffset": 122214,
+          "endOffset": 122632
+        },
+        {
+          "names": [
+            "agentOf"
+          ],
+          "startOffset": 122763,
+          "endOffset": 122876
+        },
+        {
+          "names": [
+            "passAgentProblems"
+          ],
+          "startOffset": 123153,
+          "endOffset": 124235
+        },
+        {
+          "names": [
+            "crossReviewerProblems"
+          ],
+          "startOffset": 124860,
+          "endOffset": 127184
+        },
+        {
+          "names": [
+            "codexVerdict"
+          ],
+          "startOffset": 127716,
+          "endOffset": 129082
+        },
+        {
+          "names": [
+            "ruleCauseNotes"
+          ],
+          "startOffset": 129481,
+          "endOffset": 131587
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/milestones.mjs",
+      "sha256": "e37492e3518422faea8580916032aa7dcff314e499e627338ede403edb7dc3bb",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 13,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "gh"
+          ],
+          "startOffset": 1356,
+          "endOffset": 1915
+        },
+        {
+          "names": [
+            "connection"
+          ],
+          "startOffset": 1918,
+          "endOffset": 2186
+        },
+        {
+          "names": [
+            "urlOK"
+          ],
+          "startOffset": 2201,
+          "endOffset": 2309
+        },
+        {
+          "names": [
+            "record"
+          ],
+          "startOffset": 2311,
+          "endOffset": 2548
+        },
+        {
+          "names": [
+            "exitCriteria"
+          ],
+          "startOffset": 2645,
+          "endOffset": 3102
+        },
+        {
+          "names": [
+            "observedQuota"
+          ],
+          "startOffset": 3104,
+          "endOffset": 3338
+        },
+        {
+          "names": [
+            "projectMilestones"
+          ],
+          "startOffset": 3440,
+          "endOffset": 6076
+        },
+        {
+          "names": [
+            "readMilestones"
+          ],
+          "startOffset": 6166,
+          "endOffset": 7652
+        },
+        {
+          "names": [
+            "milestonePlan"
+          ],
+          "startOffset": 7661,
+          "endOffset": 7867
+        },
+        {
+          "names": [
+            "requireLocalPhases"
+          ],
+          "startOffset": 7876,
+          "endOffset": 8177
+        },
+        {
+          "names": [
+            "milestoneNext"
+          ],
+          "startOffset": 8208,
+          "endOffset": 8268
+        },
+        {
+          "names": [
+            "milestoneSummary"
+          ],
+          "startOffset": 8302,
+          "endOffset": 8550
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/planning-config.mjs",
+      "sha256": "f47844a4e5e1f2259d67c4e3d8e4a6e43a4cb036ed1f6357438fee801f03ef3e",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 3,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "planningConfig"
+          ],
+          "startOffset": 81,
+          "endOffset": 910
+        },
+        {
+          "names": [
+            "milestoneSource"
+          ],
+          "startOffset": 942,
+          "endOffset": 998
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/pr-body.mjs",
+      "sha256": "2e8e8f826bf95501d918c32fe29079c2d0702959a89257a015e73a10a0a84c53",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 15,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "PrBodyError"
+          ],
+          "startOffset": 2093,
+          "endOffset": 2152
+        },
+        {
+          "names": [
+            "fail"
+          ],
+          "startOffset": 2168,
+          "endOffset": 2228
+        },
+        {
+          "names": [
+            "text"
+          ],
+          "startOffset": 2243,
+          "endOffset": 2345
+        },
+        {
+          "names": [
+            "cell"
+          ],
+          "startOffset": 2360,
+          "endOffset": 2468
+        },
+        {
+          "names": [
+            "table"
+          ],
+          "startOffset": 2484,
+          "endOffset": 2633
+        },
+        {
+          "names": [
+            "fileTree"
+          ],
+          "startOffset": 2849,
+          "endOffset": 4090
+        },
+        {
+          "names": [
+            "summary"
+          ],
+          "startOffset": 4092,
+          "endOffset": 4960
+        },
+        {
+          "names": [
+            "evidence"
+          ],
+          "startOffset": 4962,
+          "endOffset": 5605
+        },
+        {
+          "names": [
+            "danger"
+          ],
+          "startOffset": 5607,
+          "endOffset": 6975
+        },
+        {
+          "names": [
+            "notes"
+          ],
+          "startOffset": 6977,
+          "endOffset": 7198
+        },
+        {
+          "names": [
+            "impact"
+          ],
+          "startOffset": 7200,
+          "endOffset": 7520
+        },
+        {
+          "names": [
+            "prBody"
+          ],
+          "startOffset": 7652,
+          "endOffset": 7932
+        },
+        {
+          "names": [
+            "parseArgs"
+          ],
+          "startOffset": 7941,
+          "endOffset": 8445
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 8487,
+          "endOffset": 8935
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/quota.mjs",
+      "sha256": "4cab9ac25032e116b2aca9963576b49b91eb6652a7777815b8377a68c290ae3b",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 21,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "quotaFloor"
+          ],
+          "startOffset": 2083,
+          "endOffset": 2278
+        },
+        {
+          "names": [
+            "cacheDir"
+          ],
+          "startOffset": 2413,
+          "endOffset": 2511
+        },
+        {
+          "names": [
+            "exec"
+          ],
+          "startOffset": 2527,
+          "endOffset": 2851
+        },
+        {
+          "names": [
+            "clock"
+          ],
+          "startOffset": 2929,
+          "endOffset": 3103
+        },
+        {
+          "names": [
+            "quotaFile"
+          ],
+          "startOffset": 3243,
+          "endOffset": 3293
+        },
+        {
+          "names": [
+            "rememberQuota"
+          ],
+          "startOffset": 3408,
+          "endOffset": 3864
+        },
+        {
+          "names": [
+            "lastQuota"
+          ],
+          "startOffset": 3936,
+          "endOffset": 4113
+        },
+        {
+          "names": [
+            "probeQuota"
+          ],
+          "startOffset": 4358,
+          "endOffset": 4851
+        },
+        {
+          "names": [
+            "quotaNow"
+          ],
+          "startOffset": 5331,
+          "endOffset": 6127
+        },
+        {
+          "names": [
+            "savingWords"
+          ],
+          "startOffset": 6209,
+          "endOffset": 6337
+        },
+        {
+          "names": [
+            "quotaGuard"
+          ],
+          "startOffset": 6556,
+          "endOffset": 6774
+        },
+        {
+          "names": [
+            "quotaWarning"
+          ],
+          "startOffset": 6863,
+          "endOffset": 7157
+        },
+        {
+          "names": [
+            "keyFile"
+          ],
+          "startOffset": 7175,
+          "endOffset": 7268
+        },
+        {
+          "names": [
+            "cachedRead"
+          ],
+          "startOffset": 7514,
+          "endOffset": 8365
+        },
+        {
+          "names": [
+            "Saving"
+          ],
+          "startOffset": 8508,
+          "endOffset": 8568
+        },
+        {
+          "names": [
+            "orderedRead"
+          ],
+          "startOffset": 8844,
+          "endOffset": 9175
+        },
+        {
+          "names": [
+            "githubRead"
+          ],
+          "startOffset": 9477,
+          "endOffset": 9928
+        },
+        {
+          "names": [
+            "readRepoUnanswered"
+          ],
+          "startOffset": 10178,
+          "endOffset": 10781
+        },
+        {
+          "names": [
+            "quotaShown"
+          ],
+          "startOffset": 10951,
+          "endOffset": 11276
+        },
+        {
+          "names": [
+            "githubReport"
+          ],
+          "startOffset": 11415,
+          "endOffset": 11646
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/reconcile.mjs",
+      "sha256": "847174e42609f6a64c7cdae60d8a5e23ee5f033e5d95eb497053e9adad784e69",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/robot-budget.mjs",
+      "sha256": "bae6690cf3fb91927a2c1dc09189d295bddacb4f318fda527cb81b04946d61af",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 5,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "robotWeek"
+          ],
+          "startOffset": 316,
+          "endOffset": 728
+        },
+        {
+          "names": [
+            "pages"
+          ],
+          "startOffset": 729,
+          "endOffset": 1407
+        },
+        {
+          "names": [
+            "readRobotBudget"
+          ],
+          "startOffset": 1415,
+          "endOffset": 6716
+        },
+        {
+          "names": [
+            "robotAdmission"
+          ],
+          "startOffset": 6724,
+          "endOffset": 8010
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/robot-delivery.mjs",
+      "sha256": "0ccf8a3ab63f1c5325ef63c98d0aa6eccefa252623ed1a573037d9d515433ccb",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 15,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "robotRepo"
+          ],
+          "startOffset": 157,
+          "endOffset": 299
+        },
+        {
+          "names": [
+            "robotSha"
+          ],
+          "startOffset": 325,
+          "endOffset": 408
+        },
+        {
+          "names": [
+            "robotId"
+          ],
+          "startOffset": 433,
+          "endOffset": 482
+        },
+        {
+          "names": [
+            "robotGithub"
+          ],
+          "startOffset": 491,
+          "endOffset": 1747
+        },
+        {
+          "names": [
+            "robotRead"
+          ],
+          "startOffset": 1755,
+          "endOffset": 1962
+        },
+        {
+          "names": [
+            "robotPages"
+          ],
+          "startOffset": 2055,
+          "endOffset": 2472
+        },
+        {
+          "names": [
+            "robotAssociation"
+          ],
+          "startOffset": 2480,
+          "endOffset": 2951
+        },
+        {
+          "names": [
+            "robotAssociationOf"
+          ],
+          "startOffset": 2959,
+          "endOffset": 3292
+        },
+        {
+          "names": [
+            "hash64"
+          ],
+          "startOffset": 3308,
+          "endOffset": 3374
+        },
+        {
+          "names": [
+            "authorization"
+          ],
+          "startOffset": 3376,
+          "endOffset": 3720
+        },
+        {
+          "names": [
+            "robotContinuation"
+          ],
+          "startOffset": 3728,
+          "endOffset": 4170
+        },
+        {
+          "names": [
+            "robotContinuationOf"
+          ],
+          "startOffset": 4178,
+          "endOffset": 4649
+        },
+        {
+          "names": [
+            "robotDeliveryMetadata"
+          ],
+          "startOffset": 4657,
+          "endOffset": 7005
+        },
+        {
+          "names": [
+            "readRobotDelivery"
+          ],
+          "startOffset": 7013,
+          "endOffset": 9205
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/robot-policy.mjs",
+      "sha256": "f1a485a5cc99e6cb6e549ff5e9cac253c2b78a6996feed9791d5a494bf8ba4be",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 3,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "robotPolicy"
+          ],
+          "startOffset": 503,
+          "endOffset": 1915
+        },
+        {
+          "names": [
+            "robotIssueLabels"
+          ],
+          "startOffset": 2002,
+          "endOffset": 2083
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/robot-rubric.mjs",
+      "sha256": "0cc8bb9d19a158e582b414742c34ee0d94b09ad294941ec3626d2b0890e43948",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/robot.mjs",
+      "sha256": "5385fd6858aaea4717bee867f3dc61bcb8f5c49030a3da030eb8f69cef31d0d5",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 50,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "isBot"
+          ],
+          "startOffset": 1348,
+          "endOffset": 1398
+        },
+        {
+          "names": [
+            "sha256"
+          ],
+          "startOffset": 1415,
+          "endOffset": 1470
+        },
+        {
+          "names": [
+            "robotRedact"
+          ],
+          "startOffset": 1499,
+          "endOffset": 1721
+        },
+        {
+          "names": [
+            "robotText"
+          ],
+          "startOffset": 1899,
+          "endOffset": 2168
+        },
+        {
+          "names": [
+            "robotProviders"
+          ],
+          "startOffset": 2177,
+          "endOffset": 2807
+        },
+        {
+          "names": [
+            "robotWriter"
+          ],
+          "startOffset": 2815,
+          "endOffset": 3250
+        },
+        {
+          "names": [
+            "hash64"
+          ],
+          "startOffset": 3266,
+          "endOffset": 3332
+        },
+        {
+          "names": [
+            "currentRobotPolicy"
+          ],
+          "startOffset": 3374,
+          "endOffset": 5299
+        },
+        {
+          "names": [
+            "authorizeLabel"
+          ],
+          "startOffset": 5300,
+          "endOffset": 6172
+        },
+        {
+          "names": [
+            "authorizationReceipt"
+          ],
+          "startOffset": 6173,
+          "endOffset": 7277
+        },
+        {
+          "names": [
+            "authorizeBody"
+          ],
+          "startOffset": 7278,
+          "endOffset": 8323
+        },
+        {
+          "names": [
+            "permissionMarker"
+          ],
+          "startOffset": 8324,
+          "endOffset": 8444
+        },
+        {
+          "names": [
+            "permissionOf"
+          ],
+          "startOffset": 8445,
+          "endOffset": 8993
+        },
+        {
+          "names": [
+            "readRobotPr"
+          ],
+          "startOffset": 8994,
+          "endOffset": 9442
+        },
+        {
+          "names": [
+            "revalidateAuthorization"
+          ],
+          "startOffset": 9443,
+          "endOffset": 10489
+        },
+        {
+          "names": [
+            "stateOf"
+          ],
+          "startOffset": 10490,
+          "endOffset": 11381
+        },
+        {
+          "names": [
+            "publicationOf"
+          ],
+          "startOffset": 11382,
+          "endOffset": 12137
+        },
+        {
+          "names": [
+            "noteMarker"
+          ],
+          "startOffset": 12182,
+          "endOffset": 12372
+        },
+        {
+          "names": [
+            "triagePlans"
+          ],
+          "startOffset": 12526,
+          "endOffset": 12779
+        },
+        {
+          "names": [
+            "prepareRobot"
+          ],
+          "startOffset": 12787,
+          "endOffset": 25958
+        },
+        {
+          "names": [
+            "safeEnv"
+          ],
+          "startOffset": 25975,
+          "endOffset": 26101
+        },
+        {
+          "names": [
+            "git"
+          ],
+          "startOffset": 26103,
+          "endOffset": 26503
+        },
+        {
+          "names": [
+            "robotFetch"
+          ],
+          "startOffset": 26665,
+          "endOffset": 27937
+        },
+        {
+          "names": [
+            "changedPaths"
+          ],
+          "startOffset": 27959,
+          "endOffset": 28073
+        },
+        {
+          "names": [
+            "showAt"
+          ],
+          "startOffset": 28090,
+          "endOffset": 28225
+        },
+        {
+          "names": [
+            "canonicalScripts"
+          ],
+          "startOffset": 28415,
+          "endOffset": 28584
+        },
+        {
+          "names": [
+            "scriptsOf"
+          ],
+          "startOffset": 28604,
+          "endOffset": 28766
+        },
+        {
+          "names": [
+            "robotPathProblems"
+          ],
+          "startOffset": 28909,
+          "endOffset": 30372
+        },
+        {
+          "names": [
+            "mergeProblems"
+          ],
+          "startOffset": 30440,
+          "endOffset": 31165
+        },
+        {
+          "names": [
+            "robotSandbox"
+          ],
+          "startOffset": 31173,
+          "endOffset": 32594
+        },
+        {
+          "names": [
+            "robotClosingProblems"
+          ],
+          "startOffset": 32975,
+          "endOffset": 33773
+        },
+        {
+          "names": [
+            "judgeRobot"
+          ],
+          "startOffset": 33781,
+          "endOffset": 36455
+        },
+        {
+          "names": [
+            "validateRobotPlan"
+          ],
+          "startOffset": 36464,
+          "endOffset": 37068
+        },
+        {
+          "names": [
+            "revalidateIssue"
+          ],
+          "startOffset": 37069,
+          "endOffset": 37568
+        },
+        {
+          "names": [
+            "publicationPlan"
+          ],
+          "startOffset": 37569,
+          "endOffset": 37801
+        },
+        {
+          "names": [
+            "publicationBody"
+          ],
+          "startOffset": 37802,
+          "endOffset": 38028
+        },
+        {
+          "names": [
+            "robotBase"
+          ],
+          "startOffset": 38184,
+          "endOffset": 38615
+        },
+        {
+          "names": [
+            "publishRobot"
+          ],
+          "startOffset": 38623,
+          "endOffset": 48644
+        },
+        {
+          "names": [
+            "robotComment"
+          ],
+          "startOffset": 48652,
+          "endOffset": 49916
+        },
+        {
+          "names": [
+            "publishRobotTriage"
+          ],
+          "startOffset": 49924,
+          "endOffset": 53295
+        },
+        {
+          "names": [
+            "completedRobotReview"
+          ],
+          "startOffset": 53296,
+          "endOffset": 53781
+        },
+        {
+          "names": [
+            "prepareRobotReview"
+          ],
+          "startOffset": 53789,
+          "endOffset": 55422
+        },
+        {
+          "names": [
+            "postRobotReview"
+          ],
+          "startOffset": 55430,
+          "endOffset": 57480
+        },
+        {
+          "names": [
+            "json"
+          ],
+          "startOffset": 57495,
+          "endOffset": 57541
+        },
+        {
+          "names": [
+            "hasOf"
+          ],
+          "startOffset": 57557,
+          "endOffset": 57666
+        },
+        {
+          "names": [
+            "outputs"
+          ],
+          "startOffset": 57668,
+          "endOffset": 57967
+        },
+        {
+          "names": [
+            "robotCli"
+          ],
+          "startOffset": 57975,
+          "endOffset": 69998
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 70064,
+          "endOffset": 70107
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 70115,
+          "endOffset": 70197
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/stalls.mjs",
+      "sha256": "dec60dadebef72f2e25cc91ae60f47adf869734a4c7ebdc4ca5c32d4e523cdcd",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/tend.mjs",
+      "sha256": "d49d8fbb3590baeed2001f6445dfc4f3fa81be7ae82aaeaff3895511f928f9ea",
+      "observed": true,
+      "entryPositiveFunctions": 34,
+      "observedFunctions": 94,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "TendError"
+          ],
+          "startOffset": 2879,
+          "endOffset": 2970
+        },
+        {
+          "names": [
+            "tendProblems"
+          ],
+          "startOffset": 3153,
+          "endOffset": 4360
+        },
+        {
+          "names": [
+            "tendConfigOf"
+          ],
+          "startOffset": 4468,
+          "endOffset": 4805
+        },
+        {
+          "names": [
+            "offLimit"
+          ],
+          "startOffset": 5490,
+          "endOffset": 5571
+        },
+        {
+          "names": [
+            "changesOf"
+          ],
+          "startOffset": 6288,
+          "endOffset": 6574
+        },
+        {
+          "names": [
+            "pathsOf"
+          ],
+          "startOffset": 6705,
+          "endOffset": 6790
+        },
+        {
+          "names": [
+            "sandboxProblems"
+          ],
+          "startOffset": 6800,
+          "endOffset": 12441
+        },
+        {
+          "names": [
+            "packageProblem"
+          ],
+          "startOffset": 13554,
+          "endOffset": 14434
+        },
+        {
+          "names": [
+            "recordBase"
+          ],
+          "startOffset": 14953,
+          "endOffset": 15460
+        },
+        {
+          "names": [
+            "tendSurface"
+          ],
+          "startOffset": 16196,
+          "endOffset": 16452
+        },
+        {
+          "names": [
+            "safeGuideSurface"
+          ],
+          "startOffset": 16723,
+          "endOffset": 17289
+        },
+        {
+          "names": [
+            "guideAt"
+          ],
+          "startOffset": 17440,
+          "endOffset": 18778
+        },
+        {
+          "names": [
+            "git"
+          ],
+          "startOffset": 19239,
+          "endOffset": 19704
+        },
+        {
+          "names": [
+            "sha"
+          ],
+          "startOffset": 19717,
+          "endOffset": 19787
+        },
+        {
+          "names": [
+            "today"
+          ],
+          "startOffset": 19803,
+          "endOffset": 19846
+        },
+        {
+          "names": [
+            "readJson"
+          ],
+          "startOffset": 19848,
+          "endOffset": 20040
+        },
+        {
+          "names": [
+            "readPass"
+          ],
+          "startOffset": 20065,
+          "endOffset": 20114
+        },
+        {
+          "names": [
+            "writePass"
+          ],
+          "startOffset": 20123,
+          "endOffset": 20358
+        },
+        {
+          "names": [
+            "plural"
+          ],
+          "startOffset": 20374,
+          "endOffset": 20416
+        },
+        {
+          "names": [
+            "ghList"
+          ],
+          "startOffset": 21006,
+          "endOffset": 21787
+        },
+        {
+          "names": [
+            "tendPick"
+          ],
+          "startOffset": 21911,
+          "endOffset": 22879
+        },
+        {
+          "names": [
+            "healthRecords"
+          ],
+          "startOffset": 23094,
+          "endOffset": 23834
+        },
+        {
+          "names": [
+            "findingsOf"
+          ],
+          "startOffset": 23970,
+          "endOffset": 25290
+        },
+        {
+          "names": [
+            "improveOf"
+          ],
+          "startOffset": 25399,
+          "endOffset": 25659
+        },
+        {
+          "names": [
+            "recordMeasures"
+          ],
+          "startOffset": 25907,
+          "endOffset": 26900
+        },
+        {
+          "names": [
+            "reconciliationOf"
+          ],
+          "startOffset": 27008,
+          "endOffset": 28601
+        },
+        {
+          "names": [
+            "keelCli"
+          ],
+          "startOffset": 28721,
+          "endOffset": 28997
+        },
+        {
+          "names": [
+            "looseEndsOf"
+          ],
+          "startOffset": 29144,
+          "endOffset": 31195
+        },
+        {
+          "names": [
+            "tendInput"
+          ],
+          "startOffset": 31526,
+          "endOffset": 32263
+        },
+        {
+          "names": [
+            "worksheetText"
+          ],
+          "startOffset": 32625,
+          "endOffset": 33310
+        },
+        {
+          "names": [
+            "openPass"
+          ],
+          "startOffset": 33409,
+          "endOffset": 33824
+        },
+        {
+          "names": [
+            "tendNote"
+          ],
+          "startOffset": 33952,
+          "endOffset": 34848
+        },
+        {
+          "names": [
+            "plain"
+          ],
+          "startOffset": 35079,
+          "endOffset": 35174
+        },
+        {
+          "names": [
+            "frontStatus"
+          ],
+          "startOffset": 35196,
+          "endOffset": 35601
+        },
+        {
+          "names": [
+            "ticked"
+          ],
+          "startOffset": 35690,
+          "endOffset": 36058
+        },
+        {
+          "names": [
+            "entryOf"
+          ],
+          "startOffset": 36289,
+          "endOffset": 36468
+        },
+        {
+          "names": [
+            "showAt"
+          ],
+          "startOffset": 36485,
+          "endOffset": 36620
+        },
+        {
+          "names": [
+            "firstAdded"
+          ],
+          "startOffset": 36641,
+          "endOffset": 36879
+        },
+        {
+          "names": [
+            "treeState"
+          ],
+          "startOffset": 37221,
+          "endOffset": 37805
+        },
+        {
+          "names": [
+            "gitPointer"
+          ],
+          "startOffset": 38109,
+          "endOffset": 38465
+        },
+        {
+          "names": [
+            "gitDirsPrint"
+          ],
+          "startOffset": 38565,
+          "endOffset": 38604
+        },
+        {
+          "names": [
+            "indexFlags"
+          ],
+          "startOffset": 38889,
+          "endOffset": 39013
+        },
+        {
+          "names": [
+            "trackedPrint"
+          ],
+          "startOffset": 39249,
+          "endOffset": 39952
+        },
+        {
+          "names": [
+            "gitDirPrint"
+          ],
+          "startOffset": 40456,
+          "endOffset": 41072
+        },
+        {
+          "names": [
+            "heldProblems"
+          ],
+          "startOffset": 41169,
+          "endOffset": 43000
+        },
+        {
+          "names": [
+            "scriptsChanged"
+          ],
+          "startOffset": 43243,
+          "endOffset": 43807
+        },
+        {
+          "names": [
+            "added"
+          ],
+          "startOffset": 44046,
+          "endOffset": 44312
+        },
+        {
+          "names": [
+            "tendCheck"
+          ],
+          "startOffset": 44721,
+          "endOffset": 47076
+        },
+        {
+          "names": [
+            "tendGuard"
+          ],
+          "startOffset": 47176,
+          "endOffset": 49117
+        },
+        {
+          "names": [
+            "tendCommits"
+          ],
+          "startOffset": 49881,
+          "endOffset": 50643
+        },
+        {
+          "names": [
+            "isDay"
+          ],
+          "startOffset": 51706,
+          "endOffset": 51828
+        },
+        {
+          "names": [
+            "proposalsPageOf"
+          ],
+          "startOffset": 52131,
+          "endOffset": 52340
+        },
+        {
+          "names": [
+            "passDate"
+          ],
+          "startOffset": 52431,
+          "endOffset": 52988
+        },
+        {
+          "names": [
+            "pageProposals"
+          ],
+          "startOffset": 53102,
+          "endOffset": 53163
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 55348,
+          "endOffset": 55372
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 57823,
+          "endOffset": 57928
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 58019,
+          "endOffset": 58038
+        },
+        {
+          "names": [
+            "proposalsPage"
+          ],
+          "startOffset": 59620,
+          "endOffset": 60195
+        },
+        {
+          "names": [
+            "tendPage"
+          ],
+          "startOffset": 60564,
+          "endOffset": 61660
+        },
+        {
+          "names": [
+            "tendReport"
+          ],
+          "startOffset": 61669,
+          "endOffset": 63392
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/test-history.mjs",
+      "sha256": "2e2a873736f6c6235c8eb7356657b967ca2ca26e20d574208652c1d2c885615e",
+      "observed": false,
+      "entryPositiveFunctions": 0,
+      "observedFunctions": 0,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/keel/test-ledger.mjs",
+      "sha256": "d4ad925f33d676a360916d0f75b8594b68b5c3964d17ce7740f2c110d00730ce",
+      "observed": true,
+      "entryPositiveFunctions": 2,
+      "observedFunctions": 85,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "shellWords"
+          ],
+          "startOffset": 9438,
+          "endOffset": 10083
+        },
+        {
+          "names": [
+            "flagsIn"
+          ],
+          "startOffset": 11479,
+          "endOffset": 11871
+        },
+        {
+          "names": [
+            "runnerFlags"
+          ],
+          "startOffset": 12033,
+          "endOffset": 12112
+        },
+        {
+          "names": [
+            "pressureOf"
+          ],
+          "startOffset": 12282,
+          "endOffset": 12691
+        },
+        {
+          "names": [
+            "busySample"
+          ],
+          "startOffset": 12699,
+          "endOffset": 13240
+        },
+        {
+          "names": [
+            "busyBetween"
+          ],
+          "startOffset": 13248,
+          "endOffset": 13730
+        },
+        {
+          "names": [
+            "busyState"
+          ],
+          "startOffset": 13738,
+          "endOffset": 14025
+        },
+        {
+          "names": [
+            "busyCoverage"
+          ],
+          "startOffset": 14033,
+          "endOffset": 14198
+        },
+        {
+          "names": [
+            "busyNote"
+          ],
+          "startOffset": 14223,
+          "endOffset": 14374
+        },
+        {
+          "names": [
+            "assignmentSpans"
+          ],
+          "startOffset": 14618,
+          "endOffset": 15417
+        },
+        {
+          "names": [
+            "failureText"
+          ],
+          "startOffset": 15526,
+          "endOffset": 15787
+        },
+        {
+          "names": [
+            "redactedText"
+          ],
+          "startOffset": 15938,
+          "endOffset": 17745
+        },
+        {
+          "names": [
+            "usualTimes"
+          ],
+          "startOffset": 17848,
+          "endOffset": 18543
+        },
+        {
+          "names": [
+            "writeUsual"
+          ],
+          "startOffset": 18551,
+          "endOffset": 18980
+        },
+        {
+          "names": [
+            "timedCommand"
+          ],
+          "startOffset": 19235,
+          "endOffset": 23203
+        },
+        {
+          "names": [
+            "testsConfigProblems"
+          ],
+          "startOffset": 23356,
+          "endOffset": 25443
+        },
+        {
+          "names": [
+            "pinnable"
+          ],
+          "startOffset": 25548,
+          "endOffset": 25647
+        },
+        {
+          "names": [
+            "stallsPins"
+          ],
+          "startOffset": 25813,
+          "endOffset": 25955
+        },
+        {
+          "names": [
+            "stallsBad"
+          ],
+          "startOffset": 26126,
+          "endOffset": 26271
+        },
+        {
+          "names": [
+            "testsConfigOf"
+          ],
+          "startOffset": 26353,
+          "endOffset": 26570
+        },
+        {
+          "names": [
+            "isRun"
+          ],
+          "startOffset": 26669,
+          "endOffset": 26756
+        },
+        {
+          "names": [
+            "readRuns"
+          ],
+          "startOffset": 26890,
+          "endOffset": 27821
+        },
+        {
+          "names": [
+            "nightOnly"
+          ],
+          "startOffset": 28105,
+          "endOffset": 28185
+        },
+        {
+          "names": [
+            "machineClass"
+          ],
+          "startOffset": 28361,
+          "endOffset": 28414
+        },
+        {
+          "names": [
+            "key"
+          ],
+          "startOffset": 28554,
+          "endOffset": 28631
+        },
+        {
+          "names": [
+            "configOf"
+          ],
+          "startOffset": 28736,
+          "endOffset": 28758
+        },
+        {
+          "names": [
+            "dirOf"
+          ],
+          "startOffset": 28897,
+          "endOffset": 28915
+        },
+        {
+          "names": [
+            "runnerOf"
+          ],
+          "startOffset": 29036,
+          "endOffset": 29060
+        },
+        {
+          "names": [
+            "laneOf"
+          ],
+          "startOffset": 29224,
+          "endOffset": 29317
+        },
+        {
+          "names": [
+            "suiteOf"
+          ],
+          "startOffset": 29445,
+          "endOffset": 29496
+        },
+        {
+          "names": [
+            "seenUnder"
+          ],
+          "startOffset": 29619,
+          "endOffset": 29753
+        },
+        {
+          "names": [
+            "median"
+          ],
+          "startOffset": 29770,
+          "endOffset": 29891
+        },
+        {
+          "names": [
+            "flaky"
+          ],
+          "startOffset": 30220,
+          "endOffset": 31011
+        },
+        {
+          "names": [
+            "slower"
+          ],
+          "startOffset": 31381,
+          "endOffset": 32449
+        },
+        {
+          "names": [
+            "comparable"
+          ],
+          "startOffset": 32594,
+          "endOffset": 32821
+        },
+        {
+          "names": [
+            "lastOutcome"
+          ],
+          "startOffset": 33289,
+          "endOffset": 34043
+        },
+        {
+          "names": [
+            "quote"
+          ],
+          "startOffset": 34184,
+          "endOffset": 34222
+        },
+        {
+          "names": [
+            "isSet"
+          ],
+          "startOffset": 35076,
+          "endOffset": 35161
+        },
+        {
+          "names": [
+            "aloneCommand"
+          ],
+          "startOffset": 35171,
+          "endOffset": 37047
+        },
+        {
+          "names": [
+            "preloads"
+          ],
+          "startOffset": 37151,
+          "endOffset": 37546
+        },
+        {
+          "names": [
+            "shortTree"
+          ],
+          "startOffset": 37566,
+          "endOffset": 37598
+        },
+        {
+          "names": [
+            "named"
+          ],
+          "startOffset": 37614,
+          "endOffset": 37657
+        },
+        {
+          "names": [
+            "hygiene"
+          ],
+          "startOffset": 37742,
+          "endOffset": 39017
+        },
+        {
+          "names": [
+            "busyDescription"
+          ],
+          "startOffset": 39043,
+          "endOffset": 39194
+        },
+        {
+          "names": [
+            "failureMemory"
+          ],
+          "startOffset": 39306,
+          "endOffset": 40836
+        },
+        {
+          "names": [
+            "gitOut"
+          ],
+          "startOffset": 40921,
+          "endOffset": 41103
+        },
+        {
+          "names": [
+            "rootOf"
+          ],
+          "startOffset": 41218,
+          "endOffset": 41329
+        },
+        {
+          "names": [
+            "finishedIdentity"
+          ],
+          "startOffset": 41483,
+          "endOffset": 41843
+        },
+        {
+          "names": [
+            "where"
+          ],
+          "startOffset": 42157,
+          "endOffset": 42720
+        },
+        {
+          "names": [
+            "ignoreRuns"
+          ],
+          "startOffset": 43416,
+          "endOffset": 43589
+        },
+        {
+          "names": [
+            "retainedRecords"
+          ],
+          "startOffset": 43769,
+          "endOffset": 46198
+        },
+        {
+          "names": [
+            "record"
+          ],
+          "startOffset": 46206,
+          "endOffset": 48044
+        },
+        {
+          "names": [
+            "readRetention"
+          ],
+          "startOffset": 48053,
+          "endOffset": 48255
+        },
+        {
+          "names": [
+            "recordStalls"
+          ],
+          "startOffset": 48263,
+          "endOffset": 48797
+        },
+        {
+          "names": [
+            "readStalls"
+          ],
+          "startOffset": 48805,
+          "endOffset": 49322
+        },
+        {
+          "names": [
+            "projectConfig"
+          ],
+          "startOffset": 49324,
+          "endOffset": 50398
+        },
+        {
+          "names": [
+            "configHash"
+          ],
+          "startOffset": 50714,
+          "endOffset": 51052
+        },
+        {
+          "names": [
+            "settingNames"
+          ],
+          "startOffset": 51075,
+          "endOffset": 51139
+        },
+        {
+          "names": [
+            "sha12"
+          ],
+          "startOffset": 51338,
+          "endOffset": 51400
+        },
+        {
+          "names": [
+            "hidden"
+          ],
+          "startOffset": 51507,
+          "endOffset": 51593
+        },
+        {
+          "names": [
+            "settingOf"
+          ],
+          "startOffset": 51858,
+          "endOffset": 52236
+        },
+        {
+          "names": [
+            "narrowed"
+          ],
+          "startOffset": 52336,
+          "endOffset": 52444
+        },
+        {
+          "names": [
+            "fileOwn"
+          ],
+          "startOffset": 52763,
+          "endOffset": 52836
+        },
+        {
+          "names": [
+            "emptyRun"
+          ],
+          "startOffset": 53290,
+          "endOffset": 53409
+        },
+        {
+          "names": [
+            "outcomeOf"
+          ],
+          "startOffset": 53482,
+          "endOffset": 53665
+        },
+        {
+          "names": [
+            "inconclusiveOf"
+          ],
+          "startOffset": 53785,
+          "endOffset": 53987
+        },
+        {
+          "names": [
+            "topLevel"
+          ],
+          "startOffset": 54495,
+          "endOffset": 56838
+        },
+        {
+          "names": [
+            "executed"
+          ],
+          "startOffset": 57013,
+          "endOffset": 57181
+        },
+        {
+          "names": [
+            "pinned"
+          ],
+          "startOffset": 57748,
+          "endOffset": 65055
+        },
+        {
+          "names": [
+            "ledger"
+          ],
+          "startOffset": 65188,
+          "endOffset": 68179
+        },
+        {
+          "names": [
+            "xmlText"
+          ],
+          "startOffset": 68471,
+          "endOffset": 68793
+        },
+        {
+          "names": [
+            "readXml"
+          ],
+          "startOffset": 69521,
+          "endOffset": 71965
+        },
+        {
+          "names": [
+            "junitRunner"
+          ],
+          "startOffset": 72098,
+          "endOffset": 72244
+        },
+        {
+          "names": [
+            "caseOutcome"
+          ],
+          "startOffset": 72377,
+          "endOffset": 72598
+        },
+        {
+          "names": [
+            "msOf"
+          ],
+          "startOffset": 72613,
+          "endOffset": 72694
+        },
+        {
+          "names": [
+            "casesIn"
+          ],
+          "startOffset": 72712,
+          "endOffset": 72814
+        },
+        {
+          "names": [
+            "topOf"
+          ],
+          "startOffset": 73093,
+          "endOffset": 73594
+        },
+        {
+          "names": [
+            "groupOutcome"
+          ],
+          "startOffset": 73718,
+          "endOffset": 73857
+        },
+        {
+          "names": [
+            "junitTests"
+          ],
+          "startOffset": 74314,
+          "endOffset": 76991
+        },
+        {
+          "names": [
+            "sampledAt"
+          ],
+          "startOffset": 77306,
+          "endOffset": 77381
+        },
+        {
+          "names": [
+            "gateStart"
+          ],
+          "startOffset": 77478,
+          "endOffset": 77569
+        },
+        {
+          "names": [
+            "junitRun"
+          ],
+          "startOffset": 77976,
+          "endOffset": 82694
+        },
+        {
+          "names": [
+            "junitArgs"
+          ],
+          "startOffset": 82977,
+          "endOffset": 84407
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/time-measures.mjs",
+      "sha256": "1f0e895dd23a3e4be2abda15c23af7c6ea5337fd8ae553ec0a9528b6a1cddc4f",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 30,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "date"
+          ],
+          "startOffset": 465,
+          "endOffset": 505
+        },
+        {
+          "names": [
+            "finite"
+          ],
+          "startOffset": 522,
+          "endOffset": 555
+        },
+        {
+          "names": [
+            "median"
+          ],
+          "startOffset": 572,
+          "endOffset": 688
+        },
+        {
+          "names": [
+            "dates"
+          ],
+          "startOffset": 704,
+          "endOffset": 785
+        },
+        {
+          "names": [
+            "inWindow"
+          ],
+          "startOffset": 804,
+          "endOffset": 838
+        },
+        {
+          "names": [
+            "same"
+          ],
+          "startOffset": 853,
+          "endOffset": 883
+        },
+        {
+          "names": [
+            "targetKey"
+          ],
+          "startOffset": 903,
+          "endOffset": 925
+        },
+        {
+          "names": [
+            "scope"
+          ],
+          "startOffset": 941,
+          "endOffset": 993
+        },
+        {
+          "names": [
+            "unitOf"
+          ],
+          "startOffset": 1010,
+          "endOffset": 1160
+        },
+        {
+          "names": [
+            "identityOf"
+          ],
+          "startOffset": 1162,
+          "endOffset": 1769
+        },
+        {
+          "names": [
+            "knownEnd"
+          ],
+          "startOffset": 1787,
+          "endOffset": 1838
+        },
+        {
+          "names": [
+            "successful"
+          ],
+          "startOffset": 1859,
+          "endOffset": 1953
+        },
+        {
+          "names": [
+            "coverage"
+          ],
+          "startOffset": 1955,
+          "endOffset": 2238
+        },
+        {
+          "names": [
+            "threshold"
+          ],
+          "startOffset": 2239,
+          "endOffset": 2333
+        },
+        {
+          "names": [
+            "baseline"
+          ],
+          "startOffset": 2334,
+          "endOffset": 2952
+        },
+        {
+          "names": [
+            "candidate"
+          ],
+          "startOffset": 2953,
+          "endOffset": 5910
+        },
+        {
+          "names": [
+            "result"
+          ],
+          "startOffset": 5911,
+          "endOffset": 6463
+        },
+        {
+          "names": [
+            "unavailable"
+          ],
+          "startOffset": 6464,
+          "endOffset": 6655
+        },
+        {
+          "names": [
+            "newest"
+          ],
+          "startOffset": 6671,
+          "endOffset": 6755
+        },
+        {
+          "names": [
+            "completeSuite"
+          ],
+          "startOffset": 6757,
+          "endOffset": 7425
+        },
+        {
+          "names": [
+            "dominance"
+          ],
+          "startOffset": 7444,
+          "endOffset": 7727
+        },
+        {
+          "names": [
+            "inventoryKey"
+          ],
+          "startOffset": 7750,
+          "endOffset": 7854
+        },
+        {
+          "names": [
+            "inventory"
+          ],
+          "startOffset": 7856,
+          "endOffset": 8246
+        },
+        {
+          "names": [
+            "validateTimeTransition"
+          ],
+          "startOffset": 8340,
+          "endOffset": 10555
+        },
+        {
+          "names": [
+            "evaluateTimeEvidence"
+          ],
+          "startOffset": 10564,
+          "endOffset": 17203
+        },
+        {
+          "names": [
+            "group"
+          ],
+          "startOffset": 17204,
+          "endOffset": 17331
+        },
+        {
+          "names": [
+            "combine"
+          ],
+          "startOffset": 17332,
+          "endOffset": 17733
+        },
+        {
+          "names": [
+            "validStalls"
+          ],
+          "startOffset": 17734,
+          "endOffset": 18116
+        },
+        {
+          "names": [
+            "compareEvidence"
+          ],
+          "startOffset": 18117,
+          "endOffset": 22344
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/time-proposal-remeasurement.mjs",
+      "sha256": "fb2c5da1552e14915e03732ced69112898807abf059f0fb9a12d990fcce2d37b",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 7,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "atTime"
+          ],
+          "startOffset": 372,
+          "endOffset": 414
+        },
+        {
+          "names": [
+            "local"
+          ],
+          "startOffset": 416,
+          "endOffset": 663
+        },
+        {
+          "names": [
+            "ancestry"
+          ],
+          "startOffset": 664,
+          "endOffset": 1048
+        },
+        {
+          "names": [
+            "timeProposalDelivery"
+          ],
+          "startOffset": 1056,
+          "endOffset": 1583
+        },
+        {
+          "names": [
+            "checkedTimeTransition"
+          ],
+          "startOffset": 1591,
+          "endOffset": 3822
+        },
+        {
+          "names": [
+            "remeasureTimeProposal"
+          ],
+          "startOffset": 3830,
+          "endOffset": 6652
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/time-proposals.mjs",
+      "sha256": "0baf3b0c2fe72ad31042a300e343d8114e50227fc7418290b9e28705ea4b8277",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 26,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "plain"
+          ],
+          "startOffset": 743,
+          "endOffset": 804
+        },
+        {
+          "names": [
+            "canonical"
+          ],
+          "startOffset": 824,
+          "endOffset": 951
+        },
+        {
+          "names": [
+            "json"
+          ],
+          "startOffset": 966,
+          "endOffset": 999
+        },
+        {
+          "names": [
+            "hash"
+          ],
+          "startOffset": 1014,
+          "endOffset": 1069
+        },
+        {
+          "names": [
+            "text"
+          ],
+          "startOffset": 1084,
+          "endOffset": 1197
+        },
+        {
+          "names": [
+            "stamp"
+          ],
+          "startOffset": 1213,
+          "endOffset": 1273
+        },
+        {
+          "names": [
+            "clone"
+          ],
+          "startOffset": 1289,
+          "endOffset": 1323
+        },
+        {
+          "names": [
+            "validate"
+          ],
+          "startOffset": 1325,
+          "endOffset": 4536
+        },
+        {
+          "names": [
+            "makeTimeProposal"
+          ],
+          "startOffset": 4544,
+          "endOffset": 5322
+        },
+        {
+          "names": [
+            "formatTimeProposal"
+          ],
+          "startOffset": 5330,
+          "endOffset": 5573
+        },
+        {
+          "names": [
+            "location"
+          ],
+          "startOffset": 5574,
+          "endOffset": 6460
+        },
+        {
+          "names": [
+            "parseTimeProposal"
+          ],
+          "startOffset": 6468,
+          "endOffset": 6749
+        },
+        {
+          "names": [
+            "reportHash"
+          ],
+          "startOffset": 6769,
+          "endOffset": 6824
+        },
+        {
+          "names": [
+            "managedReport"
+          ],
+          "startOffset": 6958,
+          "endOffset": 7642
+        },
+        {
+          "names": [
+            "mergeHealthPage"
+          ],
+          "startOffset": 7807,
+          "endOffset": 9923
+        },
+        {
+          "names": [
+            "safePath"
+          ],
+          "startOffset": 9924,
+          "endOffset": 11695
+        },
+        {
+          "names": [
+            "atomic"
+          ],
+          "startOffset": 11696,
+          "endOffset": 12120
+        },
+        {
+          "names": [
+            "lockOwner"
+          ],
+          "startOffset": 12121,
+          "endOffset": 12410
+        },
+        {
+          "names": [
+            "ownerDead"
+          ],
+          "startOffset": 12411,
+          "endOffset": 12572
+        },
+        {
+          "names": [
+            "reap"
+          ],
+          "startOffset": 12573,
+          "endOffset": 13056
+        },
+        {
+          "names": [
+            "locked"
+          ],
+          "startOffset": 13057,
+          "endOffset": 13919
+        },
+        {
+          "names": [
+            "withTimeProposal"
+          ],
+          "startOffset": 13927,
+          "endOffset": 15281
+        },
+        {
+          "names": [
+            "writeHealthReport"
+          ],
+          "startOffset": 15289,
+          "endOffset": 15775
+        },
+        {
+          "names": [
+            "readTimeProposals"
+          ],
+          "startOffset": 15783,
+          "endOffset": 16582
+        },
+        {
+          "names": [
+            "selectableTimeProposal"
+          ],
+          "startOffset": 16590,
+          "endOffset": 17279
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/time-receipts.mjs",
+      "sha256": "705ad4b32f3df2c23f41ca5a7849421d1bb0a779445387909732aa0778310972",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 14,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "record"
+          ],
+          "startOffset": 2983,
+          "endOffset": 3060
+        },
+        {
+          "names": [
+            "canonical"
+          ],
+          "startOffset": 3125,
+          "endOffset": 3255
+        },
+        {
+          "names": [
+            "digest"
+          ],
+          "startOffset": 3309,
+          "endOffset": 3393
+        },
+        {
+          "names": [
+            "safeFile"
+          ],
+          "startOffset": 3468,
+          "endOffset": 3606
+        },
+        {
+          "names": [
+            "posix"
+          ],
+          "startOffset": 3647,
+          "endOffset": 3674
+        },
+        {
+          "names": [
+            "nonnegative"
+          ],
+          "startOffset": 3745,
+          "endOffset": 3803
+        },
+        {
+          "names": [
+            "nodePlan"
+          ],
+          "startOffset": 4234,
+          "endOffset": 6891
+        },
+        {
+          "names": [
+            "suiteCollector"
+          ],
+          "startOffset": 7399,
+          "endOffset": 13461
+        },
+        {
+          "names": [
+            "measuredSummary"
+          ],
+          "startOffset": 13536,
+          "endOffset": 13667
+        },
+        {
+          "names": [
+            "isReceiptPlan"
+          ],
+          "startOffset": 13816,
+          "endOffset": 14778
+        },
+        {
+          "names": [
+            "readReceiptPlan"
+          ],
+          "startOffset": 14880,
+          "endOffset": 15104
+        },
+        {
+          "names": [
+            "stallsEvidence"
+          ],
+          "startOffset": 15479,
+          "endOffset": 16865
+        },
+        {
+          "names": [
+            "isStallsReceipt"
+          ],
+          "startOffset": 16930,
+          "endOffset": 18692
+        }
+      ]
+    },
+    {
+      "path": "scripts/keel/workflows.mjs",
+      "sha256": "52198c1ac575fd45ba176439ceae7aa31eda0dab2f70bfb6158cd0322c643d9f",
+      "observed": true,
+      "entryPositiveFunctions": 18,
+      "observedFunctions": 18,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/profile-benchmark.mjs",
+      "sha256": "1087688f7acd42f1f018b56728d4a127fd5b9053887a3774d14bf48dd25751b9",
+      "observed": true,
+      "entryPositiveFunctions": 9,
+      "observedFunctions": 9,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/profile-entry.mjs",
+      "sha256": "4b567fc30a7f05356e6f93ecca119f5b3b391a877500bd0e9c5366c238659c02",
+      "observed": true,
+      "entryPositiveFunctions": 1,
+      "observedFunctions": 1,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/profile-preload.mjs",
+      "sha256": "009f7ad438f7f0c7f94168f439fafebb2fc4006b24eff3fab66a1d76858a996d",
+      "observed": true,
+      "entryPositiveFunctions": 33,
+      "observedFunctions": 34,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 4000,
+          "endOffset": 4015
+        }
+      ]
+    },
+    {
+      "path": "scripts/profile.mjs",
+      "sha256": "6ea4a23f698b4909528b5628f8fffae43d053450bb8211212c6bb553921c1e50",
+      "observed": true,
+      "entryPositiveFunctions": 5,
+      "observedFunctions": 5,
+      "zeroEntryFunctions": []
+    },
+    {
+      "path": "scripts/render.mjs",
+      "sha256": "0f1970ab1a51f132f424f6d89521f42e0b82c1b35b321e5c20710551c1a9c802",
+      "observed": true,
+      "entryPositiveFunctions": 3,
+      "observedFunctions": 4,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "label"
+          ],
+          "startOffset": 1028,
+          "endOffset": 1074
+        }
+      ]
+    },
+    {
+      "path": "scripts/roadmap.mjs",
+      "sha256": "136c2404c55d0da8032d96b021050fd61a5a36f36c05f6676bfad01225f10b58",
+      "observed": true,
+      "entryPositiveFunctions": 135,
+      "observedFunctions": 143,
+      "zeroEntryFunctions": [
+        {
+          "names": [
+            "fail"
+          ],
+          "startOffset": 1507,
+          "endOffset": 1579
+        },
+        {
+          "names": [
+            "waitsOf"
+          ],
+          "startOffset": 3579,
+          "endOffset": 3602
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 35312,
+          "endOffset": 35322
+        },
+        {
+          "names": [
+            "issueUrl"
+          ],
+          "startOffset": 37229,
+          "endOffset": 37320
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 37599,
+          "endOffset": 37706
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 37735,
+          "endOffset": 37775
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 38922,
+          "endOffset": 38983
+        },
+        {
+          "names": [
+            ""
+          ],
+          "startOffset": 46481,
+          "endOffset": 46532
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Production inventory excludes tracked paths under tests/ and *.test.mjs, including shipped practice test templates; these exclusions are listed explicitly.",
+    "Entry-positive means at least one profile reports first function range count > 0. Denominator is functions observed in profiles, not all functions in the repository.",
+    "V8 function records include anonymous/script-wrapper entries as emitted; no parser-derived source function denominator is claimed. Offsets are UTF-16 code units.",
+    "Deduplication is by exact tracked source URL plus entry start/end offsets; names are retained as a set. Entry counts are not summed into an invocation estimate.",
+    "All regular JSON files under the input directory are examined, including subprocess profiles. No PID or test-process filter is applied. Symlinks are skipped.",
+    "Only exact file:///Users/dionalmaer/code/keel/ URLs for currently tracked production .mjs paths match. Queries, fragments, fixture/mutant copies, worktrees and copied adopter sources are excluded, including code that executed only in those copies.",
+    "Unobserved modules are listed separately; absence is not evidence that every function in them was never executed elsewhere. No absent-module functions enter the denominator.",
+    "Block ranges are ignored and are not claimed as branches. Entry execution is not assertion coverage, behavior verification, mutation sensitivity or test usefulness.",
+    "Per-source statistics keep canonical practice and rendered copies separate. Manifest-related identical-current-byte copies additionally have union-by-offset groups. No overall coverage percentage is emitted.",
+    "Profiles do not prove source hashes at collection time. Current HEAD, working-copy hashes and mismatched offsets are contextual checks only. Do not mix collection revisions; same-URL runtime source replacement cannot be detected reliably.",
+    "Stop collection before analysis: changing or partially written profiles may yield parse/read errors. JSON validity does not prove the complete process set flushed successfully."
+  ]
+}

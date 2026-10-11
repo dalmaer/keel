@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "input": "/private/tmp/keel-test-audit/native-coverage",
+  "headAtAnalysis": "3ef01bef9dd4f4f06b8dfce425712ac118fca4dd",
+  "rawProfileCounts": {
+    "regularFiles": 8493,
+    "jsonFiles": 8493,
+    "nonJsonFiles": 0,
+    "coverageNamedFiles": 8493,
+    "parsedJsonFiles": 8493,
+    "parsedJsonErrors": 0,
+    "nativeProfileFiles": 8493,
+    "nonProfileJsonFiles": 0,
+    "invalidCoverageShapes": 0,
+    "symlinksSkipped": 0,
+    "bytesRead": 1456763208,
+    "scriptRecords": 775871,
+    "matchedScriptRecords": 26651,
+    "profileFilesWithProduction": 1334,
+    "functionRecordsBeforeDeduplication": 803487,
+    "repeatedFunctionRecords": 798149,
+    "blockRangesIgnored": 349483,
+    "diagnosticRewrittenProfileFiles": 0,
+    "distinctPidsFromFilenames": 8230
+  },
+  "adjacentRunLog": {
+    "path": "/private/tmp/keel-test-audit/native-coverage.log",
+    "sha256": "05ee4446b2721181a280fecfa610614c2e1cce71d5c398899e2272e5e070bfb3",
+    "counts": {
+      "tests": 1517,
+      "suites": 0,
+      "pass": 1514,
+      "fail": 3,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "failedLocations": [
+      "tests/cli.test.mjs:117:1",
+      "tests/doctor.test.mjs:530:1",
+      "tests/loop.test.mjs:710:1"
+    ],
+    "association": "Adjacent input-directory .log naming convention; not a complete-process receipt"
+  },
+  "trackedMjsCandidates": 117,
+  "excludedTestSources": [
+    "practices/ci/files/tests/keel-workflows.test.mjs",
+    "practices/loop/files/tests/loop.test.mjs",
+    "practices/phases/files/tests/keel-generated.test.mjs",
+    "practices/phases/files/tests/roadmap.test.mjs"
+  ],
+  "trackedProductionModules": 113,
+  "observedModules": 102,
+  "absentModuleCount": 11,
+  "absentModuleExamples": [
+    "practices/climb/files/scripts/keel/climb.mjs",
+    "practices/climb/files/scripts/keel/robot.mjs",
+    "practices/climb/files/scripts/keel/tend.mjs",
+    "practices/cross-review/files/scripts/keel/cross-review.mjs",
+    "scripts/keel/cross-review.mjs",
+    "scripts/keel/distill.mjs",
+    "scripts/keel/drain.mjs",
+    "scripts/keel/reconcile.mjs",
+    "scripts/keel/robot-rubric.mjs",
+    "scripts/keel/stalls.mjs",
+    "scripts/keel/test-history.mjs"
+  ],
+  "fileQualifiedFunctionSlots": {
+    "entryPositiveFunctions": 4377,
+    "observedFunctions": 5338
+  },
+  "identicalManifestCopyCollapsedSlots": {
+    "entryPositiveFunctions": 4218,
+    "observedFunctions": 4646
+  },
+  "canonicalRenderedPairCount": 30,
+  "identicalCopyGroupCount": 30,
+  "jsonParseErrorCount": 0,
+  "totalErrorCount": 0,
+  "errorExamples": [],
+  "excludedScriptRecords": {
+    "outsideExactRoot": 748134,
+    "inRootButNotTrackedProductionExactUrl": 1086,
+    "missingOrInvalidUrl": 0
+  },
+  "warnings": [
+    "Adjacent collection log reports 3 failed tests; some scenarios stopped early. This is not a fully passing collection."
+  ],
+  "interpretation": "Observed function entry execution only. Unobserved modules excluded from function denominator; no overall percentage, branch or assertion coverage claim.",
+  "fullFileStats": "/private/tmp/keel-test-audit/native-coverage-summary/coverage-file-stats.json",
+  "summaryFile": "/private/tmp/keel-test-audit/native-coverage-summary/coverage-summary.json"
+}

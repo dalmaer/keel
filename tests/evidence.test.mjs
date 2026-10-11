@@ -326,6 +326,39 @@ test('parent exit and timeout clean ordinary descendants that inherit stdout; co
   }
 });
 
+test('measurement cancellation cleans the process group and restores signal listeners', { ...posixExecution, timeout: 10_000 }, async t => {
+  const root = await fixture(t);
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  const realKill = process.kill.bind(process);
+  const killed = [];
+  const kill = t.mock.method(process, 'kill', (pid, signal) => {
+    if (pid < 0 && signal === 'SIGKILL') killed.push(-pid);
+    return realKill(pid, signal);
+  });
+  for (const signal of signals) {
+    // A host listener prevents cancellation from re-raising a real signal at
+    // the test runner. Emitting it exercises the registered production handler.
+    const host = () => {};
+    process.on(signal, host);
+    const before = new Map(signals.map(sig => [sig, process.listeners(sig)]));
+    const exits = process.listeners('exit');
+    const at = killed.length;
+    try {
+      // Self-exit bounds even a broken cleanup implementation's child lifetime.
+      const pending = runMeasurement([process.execPath, '-e', 'setTimeout(() => process.exit(0), 2000)'], root, { env: cleanEnv(), timeoutMs: 1000 });
+      process.emit(signal);
+      const result = await pending;
+      assert.equal(result.error, null, `${signal}: cancellation must settle before the command deadline`);
+      const groups = [...new Set(killed.slice(at))];
+      assert.equal(groups.length, 1, `${signal}: the spawned process group was killed`);
+      for (const pid of groups) assert.equal(await gone(pid), true, `${signal}: group leader ${pid} survived`);
+      for (const sig of signals) assert.deepEqual(process.listeners(sig), before.get(sig), `${signal}: leaked ${sig} listener`);
+      assert.deepEqual(process.listeners('exit'), exits, `${signal}: leaked exit cleanup`);
+    } finally { process.off(signal, host); }
+  }
+  kill.mock.restore();
+});
+
 test('CLI unknown flags and missing selection return machine-readable usage errors', async t => {
   const root = await fixture(t);
   assert.equal(cli(root, ['--wat']).code, 2);

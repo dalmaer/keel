@@ -1,0 +1,57 @@
+[
+  {
+    "mutation": "candidate-unchanged",
+    "file": "tests/release.test.mjs",
+    "pattern": "^a release with no change under practices/",
+    "assertion": "rehearsal keeps the unchanged practice",
+    "exitCode": 1,
+    "signal": null,
+    "error": null,
+    "caughtAtIntendedAssertion": true,
+    "log": "/tmp/keel-test-audit/boundary-candidate-unchanged.log"
+  },
+  {
+    "mutation": "candidate-next-patch",
+    "file": "tests/release.test.mjs",
+    "pattern": "^a release with no change under practices/",
+    "assertion": "rehearsal proposes the next CLI patch",
+    "exitCode": 1,
+    "signal": null,
+    "error": null,
+    "caughtAtIntendedAssertion": true,
+    "log": "/tmp/keel-test-audit/boundary-candidate-next-patch.log"
+  },
+  {
+    "mutation": "candidate-non-self",
+    "file": "tests/release.test.mjs",
+    "pattern": "^release refuses outside keel,",
+    "assertion": "Missing expected exception",
+    "exitCode": 1,
+    "signal": null,
+    "error": null,
+    "caughtAtIntendedAssertion": true,
+    "log": "/tmp/keel-test-audit/boundary-candidate-non-self.log"
+  },
+  {
+    "mutation": "transport-space",
+    "file": "tests/canvas-sync.test.mjs",
+    "pattern": "^public CLI transport uses argument arrays,",
+    "assertion": "space admission queries the exact selected space",
+    "exitCode": 1,
+    "signal": null,
+    "error": null,
+    "caughtAtIntendedAssertion": true,
+    "log": "/tmp/keel-test-audit/boundary-transport-space.log"
+  },
+  {
+    "mutation": "transport-groups",
+    "file": "tests/canvas-sync.test.mjs",
+    "pattern": "^public CLI transport uses argument arrays,",
+    "assertion": "group recovery lists the exact canvas",
+    "exitCode": 1,
+    "signal": null,
+    "error": null,
+    "caughtAtIntendedAssertion": true,
+    "log": "/tmp/keel-test-audit/boundary-transport-groups.log"
+  }
+]

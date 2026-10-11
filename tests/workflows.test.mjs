@@ -106,15 +106,35 @@ async function shipped() {
   return out;
 }
 
+/** Optional controls adoption, not whether an existing rendered file is checked. */
+function renderedWorkflowPaths(workflows, enabled, present) {
+  for (const w of workflows) if (enabled.includes(w.practice)) {
+    assert.ok(present.has(w.path), `configured workflow missing: ${w.path} (${w.practice})`);
+  }
+  return workflows.filter(w => present.has(w.path)).map(w => w.path);
+}
+
+async function renderedWorkflows(workflows) {
+  const cfg = JSON.parse(await readFile(join(KEEL, '.keel/keel.json'), 'utf8'));
+  const present = new Set((await readdir(join(KEEL, '.github/workflows')))
+    .filter(n => /\.ya?ml$/.test(n)).map(n => `.github/workflows/${n}`));
+  const paths = renderedWorkflowPaths(workflows, cfg.practices, present);
+  return new Map(await Promise.all(paths.map(async path => [path, await readFile(join(KEEL, path), 'utf8')])));
+}
+
 test('every workflow keel ships keeps the night shift\'s rules, as a template and as rendered on keel', async () => {
   const all = await shipped();
+  const rendered = await renderedWorkflows(all);
+  const optional = { practice: 'acme', optional: true, path: '.github/workflows/acme.yml' };
+  assert.deepEqual(renderedWorkflowPaths([optional], ['acme'], new Set([optional.path])), [optional.path]);
+  assert.deepEqual(renderedWorkflowPaths([optional], [], new Set([optional.path])), [optional.path], 'an actual file is checked even when its practice is disabled');
+  assert.deepEqual(renderedWorkflowPaths([optional], [], new Set()), [], 'a disabled absent workflow has only its template checked');
+  assert.throws(() => renderedWorkflowPaths([optional], ['acme'], new Set()), /configured workflow missing: .*acme\.yml/, 'configured missing outputs cannot silently skip policy checks');
   assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
-    if (w.optional) continue; // keel does not switch on an optional practice, so has no rendered copy
-    const rendered = await readFile(join(KEEL, w.path), 'utf8');
-    assert.deepEqual(problems(w.name, rendered, w.declared), [], `keel's ${w.path}`);
+    if (rendered.has(w.path)) assert.deepEqual(problems(w.name, rendered.get(w.path), w.declared), [], `keel's ${w.path}`);
   }
   for (const n of (await readdir(join(KEEL, '.github/workflows'))).filter(n => /\.ya?ml$/.test(n))) {
     assert.ok(all.some(w => w.name === n) || Object.hasOwn(LOCAL_WORKFLOWS, n), `keel's ${n} is neither shipped by a practice nor registered locally; it would escape this test`);
@@ -123,7 +143,6 @@ test('every workflow keel ships keeps the night shift\'s rules, as a template an
       assert.ok(Object.hasOwn(PREFIX, n), `${n}: name its own branch prefix in PREFIX`);
       const text = await readFile(join(KEEL, '.github/workflows', n), 'utf8');
       assert.deepEqual(problems(n, text, LOCAL_WORKFLOWS[n].declared), [], `keel's local ${n}`);
-      assert.deepEqual(await shellProblems(n, text), [], `keel's local ${n}`);
     }
   }
 });
@@ -217,9 +236,10 @@ export function reachesBack(text) {
 }
 
 test('no shipped workflow reaches back to keel: no keel repo, no keel token, no clone, no keel CLI (keel\'s own learn aside)', async () => {
-  for (const w of await shipped()) {
+  const all = await shipped(), rendered = await renderedWorkflows(all);
+  for (const w of all) {
     assert.deepEqual(reachesBack(w.template), [], `${w.practice} ${w.path}`);
-    if (!w.optional) assert.deepEqual(reachesBack(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
+    if (rendered.has(w.path)) assert.deepEqual(reachesBack(rendered.get(w.path)), [], `keel's ${w.path}`);
   }
   for (const p of (await load()).values()) assert.ok(!p.secrets.some(s => s.name === 'KEEL_TOKEN'), `${p.name} declares KEEL_TOKEN`);
   // Mutations: each way back is caught.
@@ -260,15 +280,22 @@ export function permissionPath(text) {
 }
 
 test('the night workflows: Actions not allowed to open PRs is a notice naming the setting; any other failure is red', async () => {
+  const all = await shipped(), rendered = await renderedWorkflows(all);
   for (const name of ['keel-night.yml', 'keel-climb.yml', 'keel-tend.yml']) {
-    const w = (await shipped()).find(w => w.name === name);
+    const w = all.find(w => w.name === name);
     assert.deepEqual(permissionPath(w.template), [], name);
-    if (!w.optional) assert.deepEqual(permissionPath(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${name}`);
+    if (rendered.has(w.path)) assert.deepEqual(permissionPath(rendered.get(w.path)), [], `keel's ${name}`);
     const notice = w.template.split('\n').find(l => l.includes('::notice::') && l.includes('Workflow permissions'));
-    assert.ok(permissionPath(w.template.replace(notice, '              echo ok')).length, `${name}: removing the notice fails`);
-    assert.ok(permissionPath(w.template.replace(/grep -qi 'not permitted[^']*'/, "grep -qi 'x'")).length, `${name}: removing the match fails`);
-    assert.ok(permissionPath(w.template.replace(/else\n(\s+)exit "\$code"\n/, 'else\n$1true\n')).length, `${name}: swallowing other failures fails`);
-    assert.ok(permissionPath(w.template.replace('  pull-requests: write\n', '')).length, `${name}: dropping pull-requests: write fails`);
+    for (const [why, changed, expected] of [
+      ['notice removed', w.template.replace(notice, '              echo ok'), /no notice naming the setting/],
+      ['match removed', w.template.replace(/grep -qi 'not permitted[^']*'/, "grep -qi 'x'"), /no match on GitHub/],
+      ['other failures swallowed', w.template.replace(/else\n(\s+)exit "\$code"\n/, 'else\n$1true\n'), /any other failure must stay red/],
+      ['permission removed', w.template.replace('  pull-requests: write\n', ''), /must declare contents: write and pull-requests: write/],
+    ]) {
+      assert.notEqual(changed, w.template, `${name} ${why}: mutation must apply`);
+      const found = permissionPath(changed);
+      assert.ok(found.some(p => expected.test(p)), `${name} ${why}: ${JSON.stringify(found)}`);
+    }
   }
 });
 
@@ -338,21 +365,26 @@ export function installProblems(text) {
 
 test('keel-night, keel-loop, keel-climb and keel-tend install with the config\'s setup, else npm ci, and export its env', async () => {
   const all = await shipped();
+  const rendered = await renderedWorkflows(all);
   for (const name of ['keel-night.yml', 'keel-loop.yml', 'keel-climb.yml', 'keel-tend.yml']) {
     const w = all.find(w => w.name === name);
     assert.deepEqual(installProblems(w.template), [], name);
-    if (!w.optional) assert.deepEqual(installProblems(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
+    if (rendered.has(w.path)) assert.deepEqual(installProblems(rendered.get(w.path)), [], `keel's ${w.path}`);
   }
   // Mutations: each way the install goes wrong is caught.
   const night = all.find(w => w.name === 'keel-night.yml').template;
-  for (const [why, text] of [
-    ['the old fixed install', night.replace(/      - name: Read the config[\s\S]*?          fi\n/, '      - name: Install\n        run: if [ -f package-lock.json ]; then npm ci; fi\n')],
-    ['no default', night.replace(/\n\s+elif \[ -f package-lock\.json \]; then\n\s+npm ci/, '')],
-    ['setup ignored', night.replace('bash -e -c "$SETUP"', 'true')],
-    ['env not exported', night.replace('fs.appendFileSync(process.env.GITHUB_ENV', 'console.log(')],
-    ['setup spliced into the script', night.replace('bash -e -c "$SETUP"', 'bash -e -c "${{ steps.config.outputs.setup }}";')],
-    ['the install after the measure', night.replace(/(      - name: Install\n[\s\S]*?          fi\n)([\s\S]*?)(      # Porcelain)/, '$2$1$3')],
-  ]) assert.ok(installProblems(text).length, `${why}: expected a problem`);
+  for (const [why, text, expected] of [
+    ['the old fixed install', night.replace(/      - name: Read the config[\s\S]*?          fi\n/, '      - name: Install\n        run: if [ -f package-lock.json ]; then npm ci; fi\n'), /setup is not read from \.keel\/keel\.json/],
+    ['no default', night.replace(/\n\s+elif \[ -f package-lock\.json \]; then\n\s+npm ci/, ''), /no setup-else-npm-ci default/],
+    ['setup ignored', night.replace('bash -e -c "$SETUP"', 'true'), /no setup-else-npm-ci default/],
+    ['env not exported', night.replace('fs.appendFileSync(process.env.GITHUB_ENV', 'console.log('), /env is not exported/],
+    ['setup spliced into the script', night.replace('bash -e -c "$SETUP"', 'bash -e -c "${{ steps.config.outputs.setup }}";'), /setup is spliced into a script/],
+    ['the install after the measure', night.replace(/(      - name: Install\n[\s\S]*?          fi\n)([\s\S]*?)(      # Porcelain)/, '$2$1$3'), /the install runs after the measure/],
+  ]) {
+    assert.notEqual(text, night, `${why}: mutation must apply`);
+    const found = installProblems(text);
+    assert.ok(found.some(p => expected.test(p)), `${why}: ${JSON.stringify(found)}`);
+  }
 });
 
 /**
@@ -398,10 +430,20 @@ export function setupTokenProblems(text) {
 
 test('the setupToken secret reaches only the Install step, as GH_TOKEN, and is never printed', async () => {
   const all = await shipped();
+  const rendered = await renderedWorkflows(all);
   for (const name of ['keel-night.yml', 'keel-loop.yml', 'keel-climb.yml', 'keel-tend.yml']) {
     const w = all.find(w => w.name === name);
     assert.deepEqual(setupTokenProblems(w.template), [], name);
-    if (!w.optional) assert.deepEqual(setupTokenProblems(await readFile(join(KEEL, w.path), 'utf8')), [], `keel's ${w.path}`);
+    if (rendered.has(w.path)) {
+      const text = rendered.get(w.path);
+      assert.deepEqual(setupTokenProblems(text), [], `keel's ${w.path}`);
+      if (w.optional) {
+        const leaked = text.replace('bash -e -c "$SETUP"', 'echo "$GH_TOKEN"\n            bash -e -c "$SETUP"');
+        assert.notEqual(leaked, text, `${name}: rendered token mutation must apply`);
+        const found = setupTokenProblems(leaked);
+        assert.ok(found.some(p => /GH_TOKEN is read or printed/.test(p)), `${name}: ${JSON.stringify(found)}`);
+      }
+    }
   }
   // Mutations: each way the token leaks or goes missing is caught.
   const expr = '          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}\n';
@@ -445,14 +487,26 @@ test('every run: block in every workflow parses as bash, and every inline node -
   assert.ok(blocks >= 30 && nodes >= 4, `read ${blocks} run blocks and ${nodes} inline node scripts: the extractor found too few`);
 
   // Mutations: the shapes that broke on GitHub, and a JS slip, are caught.
+  // The clean scan above checks every block. Each mutation needs only its
+  // affected block, extracted from the real template, with its step name kept.
   const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  const stepWorkflow = name => {
+    const matches = runBlocks(night).filter(b => b.step === name);
+    assert.equal(matches.length, 1, `one night step named ${name}`);
+    return `jobs:\n  night:\n    steps:\n      - name: ${name}\n        run: |\n${matches[0].script.split('\n').map(line => `          ${line}`).join('\n')}\n`;
+  };
+  const config = stepWorkflow('Read the config'), install = stepWorkflow('Install');
+  const mutate = (text, from, to) => {
+    const changed = text.replace(from, to);
+    assert.notEqual(changed, text, `syntax mutation must apply: ${from}`);
+    return changed;
+  };
   const comment = '// Only the secret NAME, never its value: the Install step looks it up.';
-  assert.ok(night.includes(comment));
-  const apostrophe = await shellProblems('night', night.replace(comment, "// Only the secret's NAME, never its value."));
-  assert.ok(apostrophe.some(p => /step "Read the config"/.test(p)), `an apostrophe in node -e: ${JSON.stringify(apostrophe)}`);
-  const js = await shellProblems('night', night.replace('const tok = c.setupToken;', 'const tok = c.setupToken +;'));
+  const apostrophe = await shellProblems('night', mutate(config, comment, "// Only the secret's NAME, never its value."));
+  assert.ok(apostrophe.some(p => /step "Read the config".*bash -n/.test(p)), `an apostrophe in node -e: ${JSON.stringify(apostrophe)}`);
+  const js = await shellProblems('night', mutate(config, 'const tok = c.setupToken;', 'const tok = c.setupToken +;'));
   assert.ok(js.some(p => /step "Read the config".*node -e: .*SyntaxError/.test(p)), `broken JS in node -e: ${JSON.stringify(js)}`);
-  const sh = await shellProblems('night', night.replace('elif [ -f package-lock.json ]; then', 'elif [ -f package-lock.json ]'));
+  const sh = await shellProblems('night', mutate(install, 'elif [ -f package-lock.json ]; then', 'elif [ -f package-lock.json ]'));
   assert.ok(sh.some(p => /step "Install".*bash -n/.test(p)), `broken bash: ${JSON.stringify(sh)}`);
   const one = await shellProblems('loop', 'jobs:\n  x:\n    steps:\n      - name: One line\n        run: if true; then echo\n');
   assert.ok(one.some(p => /step "One line".*bash -n/.test(p)), `a one-line run: ${JSON.stringify(one)}`);
@@ -542,6 +596,8 @@ test('the night refreshes an existing PR body by exact number, or creates a new 
       assert.deepEqual(publish, ['pr', 'edit', existingPr, '--body-file', publish[bodyAt + 1]], 'edit preserves the human title');
     } else {
       assert.deepEqual(publish, ['pr', 'create', '--base', 'main', '--head', 'keel-night/2026-10-05', '--title', 'keel night: 2026-10-05', '--body-file', publish[bodyAt + 1]]);
+      assert.equal(r.page, 'docs/health');
+      assert.deepEqual(r.files, ['.keel/bounds.json', 'docs/health/2026-10-05.md'], 'the default health page and bounds, never scratch files');
     }
   }
 });
@@ -581,10 +637,6 @@ test('the night commits its page from the configured health dir (read at run tim
   assert.match(blocks.find(b => b.step === "Open the night's pull request").script, /node scripts\/keel\/pr-body\.mjs --input "\$RUNNER_TEMP\/pr\.json" --files [^\n]*> "\$RUNNER_TEMP\/body\.md"/);
   assert.match(blocks.find(b => b.step === 'Measure').script, /improve\.mjs --report --json --pr-input "\$RUNNER_TEMP\/pr\.json"/);
   for (const b of blocks) for (const n of inlineNode(b.script)) assert.doesNotMatch(n.js, /body|Proposal|keel-impact/, `step "${b.step}" builds a PR body in inline JS`);
-  // The default, with nothing ignored.
-  const def = await nightCommit(t, night, {});
-  assert.equal(def.page, 'docs/health');
-  assert.deepEqual(def.files, ['.keel/bounds.json', 'docs/health/2026-10-05.md']);
   // The configured dir ignored: red, naming the fix, and nothing pushed.
   const lost = await nightCommit(t, night, { ignore: '/docs/health/\n' });
   assert.notEqual(lost.status, 0);
@@ -1204,6 +1256,38 @@ test('#68: climb and tend name the judged commit before any of the agent\'s code
   }
 });
 
+/** Structural jq contract only: this does not execute or emulate jq. */
+function artifactSelectionProblems(body, kind) {
+  const live = code(body).map(l => l.line).join('\n');
+  const query = /--jq "((?:\\.|[^"\\])*)"/.exec(live)?.[1].replace(/\s+/g, ' ') ?? '';
+  const out = [];
+  if (!query.startsWith('[.artifacts[] | select(.expired | not) | ')) out.push(`${kind}: artifact selection must exclude expired entries before sorting`);
+  if (!query.includes('] | sort_by(.created_at) | reverse | ')) out.push(`${kind}: artifact selection must sort created_at newest first`);
+  if (!query.endsWith(' | .[:1][] | .id')) out.push(`${kind}: artifact selection must emit exactly the first eligible ID`);
+  return out;
+}
+
+/** Mutate only this gather step, so its sibling cannot satisfy the guard. */
+function checkArtifactSelectionMutations(text, title, kind, check) {
+  const start = text.indexOf(`      - name: ${title}\n`);
+  assert.ok(start >= 0, title);
+  const next = text.indexOf('\n      - ', start + 1);
+  const step = text.slice(start, next < 0 ? undefined : next);
+  for (const [why, from, to, expected] of [
+    ['expiry filter removed', 'select(.expired | not) | ', '', /must exclude expired entries/],
+    ['only expired entries', 'select(.expired | not)', 'select(.expired)', /must exclude expired entries/],
+    ['sort removed', 'sort_by(.created_at) | ', '', /must sort created_at newest first/],
+    ['oldest first', ' | reverse | ', ' | ', /must sort created_at newest first/],
+    ['two IDs', '.[:1][] | .id', '.[:2][] | .id', /must emit exactly the first eligible ID/],
+    ['all IDs', '.[:1][] | .id', '.[] | .id', /must emit exactly the first eligible ID/],
+  ]) {
+    const changed = text.replace(step, step.replace(from, to));
+    assert.notEqual(changed, text, `${kind} ${why}: mutation must apply`);
+    const found = check(changed);
+    assert.ok(found.some(p => p.startsWith(`${kind}:`) && expected.test(p)), `${kind} ${why}: ${JSON.stringify(found)}`);
+  }
+}
+
 /**
  * The night gathers the newest tend record (phase 38), as it gathers the
  * climb's: the keel-tend artifact, by name, from the default branch only,
@@ -1215,6 +1299,7 @@ export function tendGatherProblems(text) {
   if (at < 0) return ['no "Gather the tend record" step'];
   const next = text.indexOf('\n      - ', at + 1);
   const body = text.slice(at, next < 0 ? undefined : next);
+  out.push(...artifactSelectionProblems(body, 'tend'));
   const measure = text.indexOf('node scripts/keel/improve.mjs --report');
   if (measure >= 0 && at > measure) out.push('the tend record is gathered after improve wrote the page');
   if (!/gh api "repos\/\$REPO\/actions\/artifacts\?name=keel-tend&/.test(body)) out.push('the tend record is not read by name');
@@ -1231,16 +1316,18 @@ test('the night gathers the newest keel-tend record, read-only, from the default
   assert.deepEqual(tendGatherProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's keel-night.yml");
   const t = w.template;
   const step = /\n {6}# The newest tend pass's record[\s\S]*?(?=\n {6}# Before the drain)/.exec(t)[0];
-  for (const [why, text] of [
-    ['a write in the read', t.replace('gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-', 'gh api -X DELETE "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-')],
-    ['unpacked elsewhere', t.replace('-d .keel/tend\n', '-d .keel/elsewhere\n')],
-    ['gathered after the measure', t.replace(step, '').replace('\n      - name: Keep the test ledger', `${step}\n      - name: Keep the test ledger`)],
-    ['no gather at all', t.replace(step, '')],
-    ['red when missing', t.replace('echo "tend: no keel-tend record on $BASE"\n            exit 0', 'echo "tend: no keel-tend record on $BASE"\n            exit 1')],
+  for (const [why, text, expected] of [
+    ['a write in the read', t.replace('gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-', 'gh api -X DELETE "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/tend-'), /tend read writes to GitHub/],
+    ['unpacked elsewhere', t.replace('-d .keel/tend\n', '-d .keel/elsewhere\n'), /not unpacked into \.keel\/tend/],
+    ['gathered after the measure', t.replace(step, '').replace('\n      - name: Keep the test ledger', `${step}\n      - name: Keep the test ledger`), /tend record is gathered after improve/],
+    ['no gather at all', t.replace(step, ''), /no "Gather the tend record" step/],
+    ['red when missing', t.replace('echo "tend: no keel-tend record on $BASE"\n            exit 0', 'echo "tend: no keel-tend record on $BASE"\n            exit 1'), /missing tend record must never be red/],
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
-    assert.ok(tendGatherProblems(text).length, `${why}: expected a problem`);
+    const found = tendGatherProblems(text);
+    assert.ok(found.some(p => expected.test(p)), `${why}: ${JSON.stringify(found)}`);
   }
+  checkArtifactSelectionMutations(t, 'Gather the tend record', 'tend', tendGatherProblems);
 });
 
 /**
@@ -1254,6 +1341,7 @@ export function climbGatherProblems(text) {
   if (at < 0) return ['no "Gather the climb\'s record" step'];
   const next = text.indexOf('\n      - ', at + 1);
   const body = text.slice(at, next < 0 ? undefined : next);
+  out.push(...artifactSelectionProblems(body, 'climb'));
   const measure = text.indexOf('node scripts/keel/improve.mjs --report');
   if (measure >= 0 && at > measure) out.push('the climb record is gathered after improve wrote the page');
   if (!/gh api "repos\/\$REPO\/actions\/artifacts\?name=keel-climb&/.test(body)) out.push('the climb record is not read by name');
@@ -1270,16 +1358,18 @@ test('the night gathers the newest keel-climb record, read-only, from the defaul
   assert.deepEqual(climbGatherProblems(await readFile(join(KEEL, w.path), 'utf8')), [], "keel's keel-night.yml");
   const t = w.template;
   const step = /\n {6}- name: Gather the climb's record\n[\s\S]*?(?=\n {6}# Before the drain)/.exec(t)[0];
-  for (const [why, text] of [
-    ['any branch\'s record', t.replace(' | select(.workflow_run.head_branch == \\"$BASE\\")] | sort_by(.created_at) | reverse | .[:1]', '] | sort_by(.created_at) | reverse | .[:1]')],
-    ['a write in the read', t.replace('gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/climb-', 'gh api -X DELETE "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/climb-')],
-    ['unpacked elsewhere', t.replace('-d .keel/climb\n', '-d .keel/elsewhere\n')],
-    ['gathered after the measure', t.replace(step, '').replace('\n      - name: Keep the test ledger', `${step}\n      - name: Keep the test ledger`)],
-    ['no gather at all', t.replace(step, '')],
+  for (const [why, text, expected] of [
+    ['any branch\'s record', t.replace(' | select(.workflow_run.head_branch == \\"$BASE\\")] | sort_by(.created_at) | reverse | .[:1]', '] | sort_by(.created_at) | reverse | .[:1]'), /climb records from other branches/],
+    ['a write in the read', t.replace('gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/climb-', 'gh api -X DELETE "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/climb-'), /climb read writes to GitHub/],
+    ['unpacked elsewhere', t.replace('-d .keel/climb\n', '-d .keel/elsewhere\n'), /not unpacked into \.keel\/climb/],
+    ['gathered after the measure', t.replace(step, '').replace('\n      - name: Keep the test ledger', `${step}\n      - name: Keep the test ledger`), /climb record is gathered after improve/],
+    ['no gather at all', t.replace(step, ''), /no "Gather the climb's record" step/],
   ]) {
     assert.notEqual(text, t, `${why}: the mutation did not apply`);
-    assert.ok(climbGatherProblems(text).length, `${why}: expected a problem`);
+    const found = climbGatherProblems(text);
+    assert.ok(found.some(p => expected.test(p)), `${why}: ${JSON.stringify(found)}`);
   }
+  checkArtifactSelectionMutations(t, "Gather the climb's record", 'climb', climbGatherProblems);
 });
 
 /**
@@ -2004,21 +2094,19 @@ export function budgetedAgentSteps(text) {
 test('the Budget line\'s step map equals each shipped workflow\'s budgeted claude-code-action step, as a template and as rendered on keel', async () => {
   const { BUDGET_STEPS, BUDGET_PASSES } = await import('../practices/night/files/scripts/keel/lib.mjs');
   const all = await shipped();
+  const rendered = await renderedWorkflows(all);
   const found = {};
   for (const w of all) {
     const names = budgetedAgentSteps(w.template);
     if (w.name === 'keel-robot.yml') {
       const { ROBOT_MODEL_STEPS } = await import('../practices/night/files/scripts/keel/robot-budget.mjs');
       assert.deepEqual(names.map(n => n.agent).sort(), [...ROBOT_MODEL_STEPS].sort(), 'robot accounts for both build and review providers');
-      const rendered = await readFile(join(KEEL, w.path), 'utf8');
-      assert.deepEqual(budgetedAgentSteps(rendered), names);
+      if (rendered.has(w.path)) assert.deepEqual(budgetedAgentSteps(rendered.get(w.path)), names, `keel's ${w.path}`);
       continue;
     }
     assert.ok(names.length <= 1, `${w.path}: one budgeted agent step`);
     if (names.length) found[w.name] = { ...names[0] };
-    if (w.optional || !names.length) continue;
-    const rendered = await readFile(join(KEEL, w.path), 'utf8').catch(() => null);
-    if (rendered !== null) assert.deepEqual(budgetedAgentSteps(rendered), names, `keel's ${w.path}`);
+    if (rendered.has(w.path)) assert.deepEqual(budgetedAgentSteps(rendered.get(w.path)), names, `keel's ${w.path}`);
   }
   assert.deepEqual(found, Object.fromEntries(Object.entries(BUDGET_STEPS).map(([k, v]) => [k, { ...v }])));
   assert.deepEqual(BUDGET_PASSES.map(p => p.workflow).sort(), Object.keys(BUDGET_STEPS).sort());

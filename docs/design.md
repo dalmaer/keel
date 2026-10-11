@@ -277,6 +277,14 @@ generate views from their owners, without another tracking system.
 
 ## Rules keel holds itself to
 
+**Tests earn their cost (11 October 2026, phase 69).** Consolidation preserves
+behavioral contracts and distinct delivery boundaries, with negative controls
+that fail at the intended assertion. Measure subprocess work and wall time
+separately; keep instrumented coverage separate from ordinary timings. Audit
+retained failures as evidence of catches, escapes or test defects, never as a
+reason to delete a historically quiet test. Coverage identifies execution gaps,
+not correctness, and test registration count is not an optimization target.
+
 **Measured cost and checked contracts (10 October 2026, phase 67).** Before
 choosing a different implementation language, measure startup, local residual
 work, child-process elapsed time and directly observed network boundaries.

@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**40 of 69 phases built; 27 owe a walk.** Built means implemented and checked; planned is not available.
+**41 of 70 phases built; 27 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Await a deployed public isocan conditional-edit operation before implementing the stable live pulse. Complete the real browser concurrent-edit walk and provision the dedicated GitHub writer using the project-canvas guide, then verify night/restart behavior. Immutable packed recovery and a deployed historical receipt replay are proven. Preserve the already approved destination, writer, dashboards and weekly automation; do not request their approval again. Scheduled-use evidence is still owed. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-8/13 built; 5 owe a walk.
+9/14 built; 5 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -30,6 +30,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [65. Read this before touching that](phases/65-read-this-before-touching-that.md) | partial, walk owed | 2026-10-09 | — | Two guards an agent should meet before editing: some code has an as-built contract that must be read first (a project's own measured rule), and a test that calls a macOS-only tool passes on the Mac gate and fails on Linux CI. keel maps path patterns to the doc to read first, points agents to it, and lints tests that reach a platform-only tool without saying so. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#52](https://github.com/dalmaer/keel/issues/52) |
 | [67. CLI cost is measured and evidence contracts are checked](phases/67-cli-cost-and-checked-contracts.md) | built | 2026-10-10 | [56](phases/56-keel-knows-where-time-goes.md), [57](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md) | Local and real GitHub cost measured; two production contracts checked without compiling runtime source. |
 | [68. Independent reads do not wait for each other](phases/68-independent-reads.md) | built | 2026-10-10 | [67](phases/67-cli-cost-and-checked-contracts.md) | Fresh GitHub reads overlap with deterministic output; local overlap rejected after measurement. |
+| [69. Tests earn their cost](phases/69-tests-earn-their-cost.md) | built | 2026-10-11 | [55](phases/55-a-test-judges-the-code-not-the-machine.md), [57](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md), [68](phases/68-independent-reads.md) | Removed redundant instrument/process work; retained failure history and coverage led to focused missing-boundary checks. |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
@@ -44,6 +45,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 - **65 done when:** `.keel/keel.json` `"contracts"` maps path patterns to the document to read first; keel's guide block lists them, doctor checks each doc exists, and a pre-edit hook (where the agent supports hooks) names the doc when a matching file is about to change; and a platform-guard lint fails a test that calls a macOS-only (or Windows-only) tool without a platform skip; both on keel and one adopted project.
 - **67 done when:** Repeatable CLI measurements distinguish startup, local residual work, subprocesses and observed network boundaries, and a no-emit type check rejects invalid evidence states in selected production modules.
 - **68 done when:** Reconciliation reads GitHub PRs with bounded concurrency while preserving deterministic observations and failures, and local timing work is measured and optimized only where evidence supports it.
+- **69 done when:** Measured redundant test work is removed without losing distinct behavioral contracts, missing checks found by coverage and history are addressed, and reproducible evidence explains test counts, cost and limits.
 
 ## G1 — Start a project in one command
 

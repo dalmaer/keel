@@ -1,0 +1,27 @@
+{
+  "corpus": "/tmp/keel-test-audit/cancellation-coverage",
+  "profiles": 1,
+  "jsonParseErrors": 0,
+  "profile": "coverage-5234-1791755951863-0.json",
+  "sourceUrl": "file:///Users/dionalmaer/code/keel/lib/evidence.mjs",
+  "onSignal": {
+    "startOffset": 7723,
+    "endOffset": 7816,
+    "entryCount": 3
+  },
+  "handlerClosure": {
+    "startOffset": 7888,
+    "endOffset": 7907,
+    "entryCount": 3
+  },
+  "remainingUnexecutedSourceRange": {
+    "startOffset": 7783,
+    "endOffset": 7814,
+    "count": 0,
+    "meaning": "self-resignal when no other signal listeners remain; source-mapped range, not a branch coverage metric"
+  },
+  "test": "measurement cancellation cleans the process group and restores signal listeners",
+  "testStatus": "Parent reports focused pass; source and profile independently inspected; sidecar ran no tests",
+  "fullCorpusCountsUnchanged": true,
+  "limitation": "process.emit with existing host listener exercises real cleanup but not OS delivery/default self-resignal"
+}

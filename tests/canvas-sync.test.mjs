@@ -228,6 +228,11 @@ test('public CLI transport uses argument arrays, exact IDs, per-call direct home
   const transport = createIsocanTransport({ executable, cwd: f.root, env, timeoutMs: 3000 });
   const caps = await transport.capabilities();
   assert.equal(caps.conditionalWrites, false); assert.equal(caps.groups, true);
+  await transport.space(home, 'space_acme_selected');
+  assert.deepEqual(await read(trace), { args: ['--json', 'share', '--space', 'space_acme_selected'], home }, 'space admission queries the exact selected space at its explicit home');
+  const groupHome = 'https://groups.acme.test';
+  await transport.groups({ home: groupHome, canvasId: 'prj_acme_selected' });
+  assert.deepEqual(await read(trace), { args: ['--json', '--canvas', 'prj_acme_selected', 'canvas', 'group', 'ls'], home: groupHome }, 'group recovery lists the exact canvas at this call\'s home');
   await transport.create({ home, title: 'Acme $(not-a-command)', spaceId: 'space_acme', operationId: 'op_acme', projectKey: 'project_acme' });
   const create = await read(trace);
   assert.equal(create.home, home);

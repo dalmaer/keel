@@ -1,0 +1,86 @@
+{
+  "base": "3ef01bef9dd4f4f06b8dfce425712ac118fca4dd",
+  "dir": "/tmp/keel-test-bench-PFa4t1",
+  "files": [
+    "tests/improve-selftest.test.mjs",
+    "tests/workflows.test.mjs",
+    "tests/package.test.mjs",
+    "tests/helpers.test.mjs"
+  ],
+  "results": [
+    {
+      "variant": "before",
+      "ms": 42188.529833,
+      "status": 0,
+      "summary": [
+        "ℹ tests 39",
+        "ℹ suites 0",
+        "ℹ pass 39",
+        "ℹ fail 0",
+        "ℹ cancelled 0",
+        "ℹ skipped 0",
+        "ℹ todo 0",
+        "ℹ duration_ms 42156.496083"
+      ]
+    },
+    {
+      "variant": "after",
+      "ms": 10459.329542000007,
+      "status": 0,
+      "summary": [
+        "ℹ tests 40",
+        "ℹ suites 0",
+        "ℹ pass 40",
+        "ℹ fail 0",
+        "ℹ cancelled 0",
+        "ℹ skipped 0",
+        "ℹ todo 0",
+        "ℹ duration_ms 10428.067417"
+      ]
+    },
+    {
+      "variant": "after",
+      "ms": 12111.718542000002,
+      "status": 0,
+      "summary": [
+        "ℹ tests 40",
+        "ℹ suites 0",
+        "ℹ pass 40",
+        "ℹ fail 0",
+        "ℹ cancelled 0",
+        "ℹ skipped 0",
+        "ℹ todo 0",
+        "ℹ duration_ms 12078.824375"
+      ]
+    },
+    {
+      "variant": "before",
+      "ms": 44925.438958000006,
+      "status": 0,
+      "summary": [
+        "ℹ tests 39",
+        "ℹ suites 0",
+        "ℹ pass 39",
+        "ℹ fail 0",
+        "ℹ cancelled 0",
+        "ℹ skipped 0",
+        "ℹ todo 0",
+        "ℹ duration_ms 44887.470833"
+      ]
+    }
+  ],
+  "sourceHashes": {
+    "before": {
+      "tests/improve-selftest.test.mjs": "6eed60edf9b74d429cd2ac9c0ddb1f5e1d0e8238477b16ca75440e85f8789a17",
+      "tests/workflows.test.mjs": "81ecf1ce5b130d326e5d372bb984912b635f51149b52504be0ea6136fb9e163d",
+      "tests/package.test.mjs": "9ae388fc263412c5baac8da4337230eb9f1afd1ab280d3f9b4e718f0ffdb5733",
+      "tests/helpers.test.mjs": "2cf88a26f5ce9f11b9a9edc97c46f7a69865ddd3e75135b6823a99a3215c3d81"
+    },
+    "after": {
+      "tests/improve-selftest.test.mjs": "8ef7c97de6d4554be168af0ce61a2c714e946d54e9be2a26a91a958a375c8bf3",
+      "tests/workflows.test.mjs": "72fa012da3852460330bb3d1ee27bda8063d2616cb1b2cd3c3d09966678d47e8",
+      "tests/package.test.mjs": "defb5a97898d757154cf15a72108d387ba70128a96e684765d25e63830ca1312",
+      "tests/helpers.test.mjs": "051e23f08649f3f263acc7da9336779ae0c3cc928256d13d6060280af203d72e"
+    }
+  }
+}

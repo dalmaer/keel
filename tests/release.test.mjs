@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { readFileSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { release, entries, between, prepend, practiceChange, scopeCommits, GATE_CAP, WHATSNEW_HEADER } from '../lib/release.mjs';
+import { release, entries, between, prepend, practiceChange, candidatePractice, scopeCommits, GATE_CAP, WHATSNEW_HEADER } from '../lib/release.mjs';
 import { practiceVersion } from '../lib/practices.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -114,6 +114,7 @@ async function changePractice(dir, line = 'Acme keeps a gate.') {
 
 test('release refuses outside keel, a version that does not increase, and empty notes', async t => {
   const project = await keelLike(t, { self: false });
+  assert.throws(() => candidatePractice(project, ENV), { exitCode: 2, message: /rehearsal runs at home, on keel/ });
   let r = await attempt(release({ root: project, version: '0.1.0', notes: NOTES }));
   assert.equal(r.exitCode, 2);
   assert.match(r.text, /runs only in keel itself/);
@@ -187,6 +188,7 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   assert.equal(r.data.entry.heading, '## v0.1.0 — keel only; practice unchanged at 0.0.0 (2026-10-04)');
   assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['WHATSNEW.md', 'package.json']);
   assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
+  assert.deepEqual(candidatePractice(dir, ENV), { version: '0.0.0', changed: false }, 'rehearsal keeps the unchanged practice, not the newer CLI version');
   // --practice has nothing to version when the practice did not change.
   r = await attempt(release({ root: dir, version: '0.2.0', notes: NOTES, practice: '0.2.0' }, { env: ENV }));
   assert.equal(r.exitCode, 2);
@@ -197,6 +199,12 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   await writeFile(join(dir, 'migrations', '0001-acme.mjs'), "export const id = '0001-acme';\n");
   git(dir, 'add', '-A');
   git(dir, 'commit', '-qm', 'migration');
+  const beforeCandidate = await files(dir);
+  const candidateHead = git(dir, 'rev-parse', 'HEAD');
+  assert.deepEqual(candidatePractice(dir, ENV), { version: '0.1.1', changed: true }, 'rehearsal proposes the next CLI patch when the practice changes');
+  assert.deepEqual(await files(dir), beforeCandidate, 'a candidate is a preview, not a release');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), candidateHead);
+  assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
   r = await release({ root: dir, version: '0.2.0', notes: 'Acme renames a file.' }, { env: ENV, date: '2026-10-05' });
   assert.deepEqual(await versions(dir), { cli: '0.2.0', practice: '0.2.0', config: '0.2.0', lock: '0.2.0' });
   assert.deepEqual(r.data.practice.files, ['migrations/0001-acme.mjs']);
