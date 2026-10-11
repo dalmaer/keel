@@ -40,7 +40,7 @@ test('npm-packed canvas runs locally without an SDK and fails closed at the exec
   await writeFile(fake, `#!/bin/sh
 printf '%s\\n' "$*" >> "$ACME_CALLS"
 if [ "$#" -eq 1 ] && [ "$1" = '--version' ]; then
-  printf '%s\\n' '999.0.0 (acme-unsupported)'
+  printf '%s\\n' '0.1.0 (deadbee, Acme uninspected build)'
   exit 0
 fi
 exit 71
@@ -163,6 +163,137 @@ exit 71
     assert.deepEqual(unsupported.data.changes, []);
     assert.deepEqual((await readFile(calls, 'utf8')).trim().split('\n'), ['--version'], 'an unverified build must receive no identity, home or write calls');
     assert.deepEqual(await tree(root), baseline, 'failed connection changed project state');
+  });
+
+  await t.test('packed connection and interrupted immutable publication recover across CLI processes and preserve human work', async () => {
+    const statePath = join(tmp, 'acme-remote.json');
+    const readState = async () => JSON.parse(await readFile(statePath, 'utf8'));
+    const saveState = state => writeFile(statePath, JSON.stringify(state));
+    await saveState({ items: [], writes: 0, interruptPulse: true });
+    // Synthetic public CLI only: each invocation starts a new process and reads
+    // disk state. Unknown commands fail, so edit/layout/protocol bypasses cannot
+    // accidentally pass. This proves packaging and recovery, not deployment.
+    await writeFile(fake, `#!${process.execPath}
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const args = process.argv.slice(2);
+const digest = text => createHash('sha256').update(text).digest('hex');
+const output = value => process.stdout.write(JSON.stringify(value));
+if (args.join(' ') === '--version') {
+  process.stdout.write('0.1.0 (1565e50, Acme)');
+} else if (args.at(-1) === '--help') {
+  process.stdout.write('--json --canvas --visual --prop --space --note new ls');
+} else {
+  assert.equal(args.shift(), '--json');
+  assert.equal(process.env.ISOCAN_DIRECT, 'https://acme.invalid');
+  const state = JSON.parse(readFileSync(process.env.ACME_REMOTE, 'utf8'));
+  const save = () => writeFileSync(process.env.ACME_REMOTE, JSON.stringify(state));
+  if (args[0] === 'whoami') output({ id: 'actor_acme', home: process.env.ISOCAN_DIRECT });
+  else {
+    assert.equal(args.shift(), '--canvas');
+    assert.equal(args.shift(), 'acme-canvas');
+    const command = args.join(' ');
+    const flag = name => args[args.indexOf(name) + 1];
+    if (command === 'share') output({ owner: 'actor_acme', grants: [] });
+    else if (command === 'canvas show') output({ id: 'acme-canvas', groupMode: 'groups' });
+    else if (command === 'ls') output(state.items);
+    else if (command === 'canvas group ls') output(state.items.filter(i => i.properties.kind === 'group'));
+    else if (args[0] === 'show') output(state.items.find(i => i.id === args[1]));
+    else if (args[0] === 'add' || args.slice(0, 3).join(' ') === 'canvas group new') {
+      const pending = JSON.parse(readFileSync('.keel/canvas/manifest.json', 'utf8')).pending;
+      assert.ok(pending.operationId, 'durable intent must precede the remote write');
+      const group = args[0] !== 'add';
+      assert.equal(pending.kind, group ? 'group' : 'add');
+      const properties = group ? { kind: 'group' } : Object.fromEntries(args.flatMap((arg, index) => {
+        if (arg !== '--prop') return [];
+        const value = args[index + 1], split = value.indexOf('=');
+        return [[value.slice(0, split), value.slice(split + 1)]];
+      }));
+      const source = group ? flag('--note') : readFileSync(args[1], 'utf8');
+      if (group) assert.equal(source, pending.note);
+      else assert.equal(properties['keel.operation'], pending.operationId);
+      const visual = args.includes('--visual') ? readFileSync(flag('--visual'), 'utf8') : null;
+      const id = 'itm_acme_' + (++state.writes), versionId = 'ver_' + id;
+      state.items.push({ id, title: group ? args[3] : flag('--title'), properties,
+        ...(group ? { description: source } : { containerId: flag('--in') }),
+        source, visual, x: 10, comments: [], currentVersionId: versionId,
+        versions: [{ id: versionId, blobHash: digest(source), ...(visual === null ? {} : { visual: { blobHash: digest(visual) } }) }] });
+      const interrupt = state.interruptPulse && properties['keel.key'] === 'pulse';
+      if (interrupt) state.interruptPulse = false;
+      save();
+      // The write landed but its acknowledgement was lost. Keel must recover
+      // from persisted metadata after this process and the caller have exited.
+      if (interrupt) process.stdout.write('Acme interrupted acknowledgement');
+      else output({ itemId: id });
+    } else throw new Error('Unexpected Acme CLI command: ' + command);
+  }
+}
+`, { mode: 0o755 });
+    const invoke = args => cli(args, { ACME_REMOTE: statePath });
+    const configPath = join(root, '.keel/keel.json');
+    const manifestPath = join(root, '.keel/canvas/manifest.json');
+    const readManifest = async () => JSON.parse(await readFile(manifestPath, 'utf8'));
+    const connectArgs = ['connect', '--canvas', 'https://acme.invalid/p/acme-canvas', '--audience', 'owner-only'];
+    const configBefore = JSON.parse(await readFile(configPath, 'utf8'));
+    assert.equal(invoke(connectArgs).status, 3);
+    await assert.rejects(readFile(manifestPath), { code: 'ENOENT' });
+    const connected = invoke([...connectArgs, '--yes']);
+    assert.equal(connected.status, 0, JSON.stringify(connected.data));
+    assert.equal(connected.data.capabilities.version, '0.1.0 (1565e50, Acme)');
+    assert.equal(connected.data.capabilities.conditionalWrites, false);
+    const { canvas, ...rest } = JSON.parse(await readFile(configPath, 'utf8'));
+    assert.deepEqual(rest, configBefore);
+    assert.equal(canvas.mode, 'immutable');
+    assert.equal((await readState()).writes, 0);
+    assert.equal(invoke(['snapshot', '--output', 'connected.json']).status, 0);
+    const bound = JSON.parse(await readFile(join(root, 'connected.json'), 'utf8'));
+    assert.equal(bound.project.key, canvas.projectKey);
+    assert.equal(invoke(['render', '--snapshot', 'connected.json', '--output', 'connected-preview']).status, 0);
+    const syncArgs = ['sync', '--snapshot', 'connected.json', '--yes'];
+    const interrupted = invoke(syncArgs);
+    assert.equal(interrupted.status, 1, JSON.stringify(interrupted.data));
+    assert.match(interrupted.data.error, /invalid JSON/);
+    const pending = await readManifest();
+    assert.equal(pending.pending.key, 'pulse');
+    assert.ok(pending.items.snapshot);
+    assert.equal(pending.lastSuccess, undefined);
+    assert.equal(invoke(['status']).data.pending.operationId, pending.pending.operationId);
+    const landed = await readState();
+    const pulse = landed.items.find(i => i.properties['keel.operation'] === pending.pending.operationId);
+    assert.ok(pulse.visual?.includes('<!doctype html>'));
+    assert.ok(pulse.source.includes('/i/' + pending.items.snapshot.itemId));
+    pulse.x = 930; pulse.comments.push('Acme human comment'); pulse.containerId = null;
+    landed.items.push({ id: 'itm_acme_human', source: 'Acme human note', properties: {} });
+    await saveState(landed);
+    const resumed = invoke(syncArgs);
+    assert.equal(resumed.status, 0, JSON.stringify(resumed.data));
+    const recovered = await readManifest();
+    assert.equal(recovered.pending, null);
+    assert.equal(recovered.items.pulse.itemId, pulse.id);
+    assert.deepEqual(recovered.groups, pending.groups);
+    assert.ok(recovered.lastSuccess);
+    assert.deepEqual(await readState(), landed, 'recovery preserves all items and creates no duplicate');
+    assert.equal(invoke(syncArgs).data.state, 'unchanged');
+    assert.deepEqual(await readState(), landed);
+    // A new source edition appends cards while retaining old ids and human work.
+    bound.project.name = 'Acme revised';
+    await writeFile(join(root, 'connected.json'), JSON.stringify(bound));
+    assert.equal(invoke(syncArgs).status, 0);
+    const updated = await readState();
+    assert.ok(updated.writes > landed.writes);
+    for (const item of landed.items) assert.deepEqual(updated.items.find(i => i.id === item.id), item);
+    const lastSuccess = (await readManifest()).lastSuccess;
+    const currentPulse = updated.items.find(i => i.id === lastSuccess.items.find(i => i.key === 'pulse').itemId);
+    currentPulse.source = 'Acme human content edit';
+    currentPulse.currentVersionId = 'ver_acme_human';
+    currentPulse.versions.push({ id: currentPulse.currentVersionId, blobHash: createHash('sha256').update(currentPulse.source).digest('hex') });
+    await saveState(updated);
+    const conflict = invoke(syncArgs);
+    assert.equal(conflict.status, 1, JSON.stringify(conflict.data));
+    assert.match(conflict.data.error, /content changed|conflict/);
+    assert.deepEqual(await readState(), updated, 'human content is never overwritten');
+    assert.deepEqual((await readManifest()).lastSuccess, lastSuccess);
   });
   assert.deepEqual(await tree(pkg), packedTree, 'runtime mutated the unpacked package');
 });

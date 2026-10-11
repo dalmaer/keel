@@ -1,11 +1,11 @@
 ---
 status: partial
-since: 2026-10-09
+since: 2026-10-10
 goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
-note: "Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Approved private canvas and immutable dashboards are live; conditional live pulse, recovery/human-edit walk and deployed night proof remain."
-evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md"]
+note: "Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Conditional live pulse, browser concurrent-edit walk and deployed night proof remain."
+evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md"]
 ---
 
 # A project's isocan canvas shows what Keel improves
@@ -29,7 +29,7 @@ aggregation follows the per-project walk; no additional tracking authority.
 - [ ] Connect, sync, retry and recovery preserve stable item ids and human edits, with no blind retries after ambiguous creation: `tests/canvas-sync.test.mjs` proves the limited immutable mode; deployed concurrency and the stable live pulse remain.
 - [x] Retro capture is explicit, reviewed and redacted; owner choices remain authoritative and unsupported providers remain unknown: `tests/canvas-retro.test.mjs`.
 - [ ] The existing night publishes its measured snapshot without repeating the gate or invoking a model: `tests/canvas-night.test.mjs` exercises the workflow shell; the deployed credential and restart walk remains.
-- [ ] CLI help, optional practice installation/migration and the packed CLI agree: `npm run check`.
+- [x] CLI help, optional practice installation/migration and the packed CLI agree: `npm run check`.
 - [ ] ⚑ by hand: owner approves home, space, audience and writer access; conductor performs the real isocan walk in spec slice 5, including concurrent-edit protection and restart recovery, and records evidence.
 
 ## Your part
@@ -79,12 +79,13 @@ deployed integration.
 
 ## Next action
 
-Verify interruption/restart recovery and preservation of human edits on the
-approved canvas; establish a deployed conditional-edit contract for a stable
-live pulse. Package/installation proof and the GitHub night credential/recovery
-walk remain. The approved weekly local automation is active; its first scheduled
-run and seven-night sustained-use proof are not yet observed. Do not ask for
-canvas destination or writer approval again.
+Await a deployed public isocan conditional-edit operation before implementing
+the stable live pulse. Complete the real browser concurrent-edit walk and
+provision the dedicated GitHub writer using the project-canvas guide, then
+verify night/restart behavior. Immutable packed recovery and a deployed
+historical receipt replay are proven. Preserve the already approved destination,
+writer, dashboards and weekly automation; do not request their approval again.
+Scheduled-use evidence is still owed.
 
 ## Trajectory
 
@@ -93,3 +94,5 @@ canvas destination or writer approval again.
 - **2026-10-08** — A fresh night checkout loses ignored sync receipts. Restore the latest trusted canvas-enabled attempt, including failed attempts, and refuse missing state; restoring only successful attempts can duplicate an interrupted write.
 
 - **2026-10-09** — Reconciled the October 8 owner approval, live Keel and fleet Loop dashboards, durable acknowledged receipts and weekly local schedule. These prove immutable publication and interactive rendering, not conditional updates, restart recovery, or seven scheduled nights. See the reconciliation evidence.
+
+- **2026-10-10** — The approved writer session was recoverable from the existing automation. The newer inspected CLI needed a pinned compatibility update; its general edit still has no conditional primitive. Packed recovery and a read-only deployed receipt replay now pass, without claiming stable in-place publication.

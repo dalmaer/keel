@@ -81,3 +81,34 @@ See `keel --agent-help canvas` for command details and the [specification](../sp
 for the record schema, metrics and open acceptance work. The [night practice](../../practices/night/README.md)
 describes opt-in publishing from the existing measured report. Scheduling stays
 off until tools, identity and access have been explicitly provisioned.
+
+## Prepare a GitHub night writer
+
+Prepare this separately from a local canvas connection; an approved local
+writer does not provision credentials on GitHub. Keep the original connection
+manifest and referenced history. A fresh runner must restore them, including
+an interrupted attempt, before publishing.
+
+The existing night step expects the following concrete setup through the
+project's approved `setup` mechanism:
+
+1. Install the pinned Keel and inspected isocan executables on `PATH`.
+   Set `KEEL_CANVAS_KEEL_VERSION` and `KEEL_CANVAS_ISOCAN_VERSION` to their
+   exact `--version` output. Keel currently accepts inspected isocan builds
+   `3b46f21`, `b61f7c1` and `1565e50`; native groups are additionally required.
+2. Provision a dedicated, already admitted isocan home directory using the
+   provider's supported identity mechanism. Set `KEEL_CANVAS_ISOCAN_HOME`
+   to that directory. Do not put credentials in the repository, manifest or
+   uploaded artifacts, and do not manufacture an upstream badge identity.
+3. Restore the original `.keel/canvas/manifest.json` and its history into the
+   intended project. Verify its canvas, home, project key and writer match the
+   approved binding. Never bootstrap by reconnecting after an uncertain write.
+4. Only after tools and credentials are provisioned, set the existing
+   binding's `canvas.enabled` to `true` and `canvas.cadence` to `nightly`.
+   Verify owner-only access and perform a manual night/restart walk before
+   relying on unattended publication.
+
+The night consumes its existing report; it does not run a second gate or
+invoke a model to publish. There is no additional model budget, but the owner
+must approve credential provisioning and any additional runner usage. Missing
+credentials fail visibly and retain the last successful publication.
