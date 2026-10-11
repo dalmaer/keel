@@ -1,0 +1,34 @@
+{
+  "label": "before",
+  "head": "abecf778c00ce983fa50e28a874c2348e411450e",
+  "node": "v24.21.0",
+  "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "cpus": 14,
+  "startLoad": [
+    6.1455078125,
+    6.97802734375,
+    12.48876953125
+  ],
+  "startedUtc": "2026-10-11T22:24:52Z",
+  "command": [
+    "npm",
+    "run",
+    "check"
+  ],
+  "sourceHashes": {
+    "package.json": "3d500e3f1693c9f13b6257c7435de878c07d546db129786f62dd0410b624136d",
+    ".keel/keel.json": "741015cd86ab187a5304e156a2a56a237934e51163b232f6bc706febeacd85d0",
+    "tests/climb-guard.test.mjs": "b7e1a1966331cf05392b18f2238866b582599cf6174eef34ba18f125d7dac669",
+    "tests/climb-guard-state.test.mjs": null,
+    "tests/climb-guard-history.test.mjs": null
+  },
+  "workingDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "wallSeconds": 190.49804220796796,
+  "exitCode": 0,
+  "endLoad": [
+    14.748046875,
+    17.18310546875,
+    16.28515625
+  ],
+  "endedUtc": "2026-10-11T22:28:02Z"
+}

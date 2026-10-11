@@ -1,0 +1,23 @@
+{
+  "base": "abecf778c00ce983fa50e28a874c2348e411450e",
+  "originalSha256": "b7e1a1966331cf05392b18f2238866b582599cf6174eef34ba18f125d7dac669",
+  "reconstructedSha256": "b7e1a1966331cf05392b18f2238866b582599cf6174eef34ba18f125d7dac669",
+  "files": [
+    {
+      "path": "tests/climb-guard.test.mjs",
+      "sha256": "7ef76a812d4b696b730bf6643cd0ba5594781f9bc33b6ee01b60d9843bb16115",
+      "pinned": true
+    },
+    {
+      "path": "tests/climb-guard-state.test.mjs",
+      "sha256": "fd85a7256f6fa979a364f58366d28e1ea709c2d19e22c6d1480c11e6eeb62e71",
+      "pinned": true
+    },
+    {
+      "path": "tests/climb-guard-history.test.mjs",
+      "sha256": "504a8bfbcf34ea8829e145bef1dfb07143307cc889648224f0c0d48b88bb4084",
+      "pinned": true
+    }
+  ],
+  "byteExact": true
+}

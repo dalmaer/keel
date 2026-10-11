@@ -155,6 +155,10 @@ absent paths and distinguishes copied execution from confirmed adapter gaps.
 
 ## Further candidates, not automatic deletions
 
+The subsequent [guard scheduling experiment](2026-10-11-guard-scheduling.md)
+tested a three-file split and lower concurrency. Its focused gain did not
+establish a dependable whole-gate gain, so both changes were withdrawn.
+
 Repeated full-tree generated-file probes and the real CLI verb sweep are costly,
 but cover distinct delivery and dispatch boundaries. Consider fixture narrowing
 only with measured savings and retained negative controls. Do not remove them
