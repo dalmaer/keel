@@ -131,6 +131,20 @@ async function observe(key, { env = process.env, prFacts }) {
   // Include revisions/updated time in the freshness token, not observation time.
   return { state: value.state, draft: value.draft, merged_at: value.merged_at, merge_commit_sha: value.merge_commit_sha ?? null, head: value.head?.sha ?? null, base: value.base?.sha ?? null, updated_at: value.updated_at ?? null, html_url: value.html_url || `https://github.com/${key.replace('#', '/pull/')}`, reverted: value.reverted === true };
 }
+async function observeAll(keys, options) {
+  const observations = new Array(keys.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < keys.length) {
+      const index = cursor++;
+      try { observations[index] = { value: await observe(keys[index], options) }; }
+      catch (error) { observations[index] = { error }; }
+    }
+  }
+  // Bound live processes, but publish facts and failures in input order.
+  await Promise.all(Array.from({ length: Math.min(4, keys.length) }, worker));
+  return observations;
+}
 function active(doc) {
   // Local variants may put a standalone current Next action after Trajectory.
   // Fenced code and blockquotes never become current actions.
@@ -199,9 +213,11 @@ export async function reconcile({ root, github = false, env = process.env, prFac
   }
   if (github) {
     out.snapshot.remote = 'observed';
-    for (const key of [...prs].sort()) {
-      try { out.snapshot.prs[key] = await observe(key, { env, prFacts }); }
-      catch (e) { out.unknown.push(issue('github-unavailable', key, e.message)); }
+    const keys = [...prs].sort(), observations = await observeAll(keys, { env, prFacts });
+    for (const [index, key] of keys.entries()) {
+      const { value, error } = observations[index];
+      if (error) out.unknown.push(issue('github-unavailable', key, error.message));
+      else out.snapshot.prs[key] = value;
     }
     if (out.unknown.some(x => x.rule === 'github-unavailable')) out.snapshot.remote = 'incomplete';
   } else if (prs.size) out.notes.push(issue('github-skipped', '', 'Remote lane skipped; merge facts are not verified.'));
@@ -356,10 +372,14 @@ export async function verifyProposal({ root, proposal, github = false, env = pro
       if (actual !== expected) throw Error('Record changed since proposal');
     } catch (e) { out.findings.push(issue('proposal-stale', path, e.message)); }
   }
-  for (const [key, expected] of Object.entries(proposal.expected_prs)) {
+  const keys = Object.keys(proposal.expected_prs);
+  const freshKeys = github ? keys.filter(key => prKey(key) === key) : [];
+  const observations = new Map((await observeAll(freshKeys, { env, prFacts })).map((value, index) => [freshKeys[index], value]));
+  for (const key of keys) {
     if (!github || prKey(key) !== key) { out.unknown.push(issue('github-unavailable', key, 'Fresh remote verification required')); continue; }
-    try { const actual = await observe(key, { env, prFacts }); if (stable(actual) !== stable(expected)) out.findings.push(issue('proposal-stale', key, 'Remote facts changed since proposal')); }
-    catch (e) { out.unknown.push(issue('github-unavailable', key, e.message)); }
+    const { value, error } = observations.get(key);
+    if (error) out.unknown.push(issue('github-unavailable', key, error.message));
+    else if (stable(value) !== stable(proposal.expected_prs[key])) out.findings.push(issue('proposal-stale', key, 'Remote facts changed since proposal'));
   }
   if (!out.findings.length && !out.unknown.length) {
     const current = await reconcile({ root, github, env, prFacts });

@@ -1,0 +1,153 @@
+{
+  "node": "v24.21.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "policy": "five alternating sequential before/after pairs; no warmup discard; same root and fixed observation time; remote state/cache/load uncontrolled",
+  "rows": [
+    {
+      "sample": 0,
+      "name": "before",
+      "ms": 1428.4947920000002,
+      "load": [
+        4.8427734375,
+        5.96435546875,
+        6.35302734375
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0
+    },
+    {
+      "sample": 0,
+      "name": "after",
+      "ms": 724.9924579999999,
+      "load": [
+        4.61474609375,
+        5.8984375,
+        6.3271484375
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0,
+      "sameResult": true
+    },
+    {
+      "sample": 1,
+      "name": "after",
+      "ms": 773.477625,
+      "load": [
+        4.61474609375,
+        5.8984375,
+        6.3271484375
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0
+    },
+    {
+      "sample": 1,
+      "name": "before",
+      "ms": 1383.6711249999998,
+      "load": [
+        4.61474609375,
+        5.8984375,
+        6.3271484375
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0,
+      "sameResult": true
+    },
+    {
+      "sample": 2,
+      "name": "before",
+      "ms": 1448.8324579999999,
+      "load": [
+        4.61474609375,
+        5.8984375,
+        6.3271484375
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0
+    },
+    {
+      "sample": 2,
+      "name": "after",
+      "ms": 736.1954169999999,
+      "load": [
+        4.4052734375,
+        5.83349609375,
+        6.3017578125
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0,
+      "sameResult": true
+    },
+    {
+      "sample": 3,
+      "name": "after",
+      "ms": 726.4747909999996,
+      "load": [
+        4.4052734375,
+        5.83349609375,
+        6.3017578125
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0
+    },
+    {
+      "sample": 3,
+      "name": "before",
+      "ms": 1426.7357090000005,
+      "load": [
+        4.4052734375,
+        5.83349609375,
+        6.3017578125
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0,
+      "sameResult": true
+    },
+    {
+      "sample": 4,
+      "name": "before",
+      "ms": 1377.8761250000007,
+      "load": [
+        4.4052734375,
+        5.83349609375,
+        6.3017578125
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0
+    },
+    {
+      "sample": 4,
+      "name": "after",
+      "ms": 892.0448340000003,
+      "load": [
+        4.4052734375,
+        5.83349609375,
+        6.3017578125
+      ],
+      "remote": "observed",
+      "prs": 2,
+      "unknown": 0,
+      "findings": 0,
+      "sameResult": true
+    }
+  ]
+}
