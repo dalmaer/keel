@@ -35,6 +35,10 @@ PR #107 identified the standard Go `Code generated … DO NOT EDIT.` header, whi
 
 The independent connector review arrived during the final pre-merge check, so PR #107 was held. Its additional findings are addressed before merge: C# generated-file banners retain header-only exclusion; legacy pre-digest proposals retain their lifecycle for the same subject/blob; ordinary alias decisions use and revalidate a canonical page and diff its tracked path; case checks inspect entries in the compared directory rather than its parent. Empty or unprobeable directories conservatively reserve case-only variants; no case behavior is inferred from the parent. Synthetic per-directory mapping tests are not a native Windows walk. Generated regression proofs for this pass use `5ac77ac` as the base. The conductor reran the measure/integration files (43 passing tests) and guide/proposal/CLI files (see final gate for integrated counts). No owner acceptance is inferred from the review.
 
+## Generated-banner grammar
+
+A further review identified Rust bindgen's standard `automatically generated` header. Recognition now covers explicit leading file/code/class generation declarations, including optional `NOTE:`, alongside Go/C# markers. Negations, ordinary value descriptions and later comments remain ineligible as generated-file authority. The tracked Rust-bindings regression has a generated VERIFIED proof against `3f8e2f3`; the four header-family tests and final gate cover the combined behavior.
+
 ## Still owed
 
 The existing owner/pilot requirements of phases 58, 63, 64 and 66 remain unchecked. Phase 50 still requires the public conditional-edit API and its recorded browser/workflow/scheduled-use walks. These corrections neither enable robot spend nor create a real issue, delete worktrees, alter draft PRs, or establish production acceptance or lived-in use. Historical report observations are preserved.
