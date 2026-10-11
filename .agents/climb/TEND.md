@@ -43,7 +43,7 @@ carries, so a pass that only proposes still reaches the owner:
 ## You may never
 
 - change anything outside your surfaces: Markdown under `docs/` (but
-  `docs/evidence/`), a README, `AGENTS.md`, `CLAUDE.md`, and Markdown under
+  `docs/evidence/`), a README, the selected guide `AGENTS.md`, the standard guide files, and Markdown under
   `.agents/`; anything else is refused, cited or not;
 - write or edit anything under `docs/evidence/`;
 - mark a phase `built`, `lived-in` or `accepted`, or tick an acceptance box;

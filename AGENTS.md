@@ -151,6 +151,7 @@ A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
 - **Every command takes `--json`.** Agents drive keel and must never parse prose.
 - **A verb nobody is told about doesn't exist.** `keel --agent-help` ships with
   the CLI, and a test fails when a verb is missing from it.
+- **Use the project's selected guide.** Adoption records `guide` in `.keel/keel.json`; render, doctor and update must use it instead of assuming `AGENTS.md`. Preserve existing prose and safe in-repository symlink aliases.
 - **Never overwrite a project's own work.** Managed files are keel's, seeded
   files are the project's, and drift is signal (design §1). When in doubt, propose.
 - **Tests never read the developer's git settings.** `npm test` loads

@@ -2,7 +2,7 @@
 # render rewrites it).
 #
 # Mention @claude in an issue, a comment or a review, or label an issue
-# `claude`, and Claude works on it here with AGENTS.md as its guide. It opens
+# `claude`, and Claude works on it here with {{guide}} as its guide. It opens
 # a pull request; a person merges. It never pushes main: its tools allow git
 # to read, stage and commit, not to push, and the action publishes its work on
 # a claude/ branch of its own. The action answers only people with write
@@ -71,4 +71,5 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
+            --append-system-prompt "Before working, read .keel/keel.json. If it names a guide, read and follow that file. Otherwise follow the repository's existing agent instructions."
             --allowedTools "Bash(npm run *),Bash(npm test),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Edit,Write,Read,Glob,Grep"

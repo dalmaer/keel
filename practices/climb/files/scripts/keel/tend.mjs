@@ -24,7 +24,7 @@ import { readFileSync, readdirSync, lstatSync, readlinkSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, basename } from 'node:path';
+import { join, basename, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gateEnv, healthDirOf, cells, passAgentProblems, agentGitArgs } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
@@ -219,16 +219,58 @@ export function recordBase(root, given, recorded, record) {
  * "You may" names them (ledger#92). Records and agent-facing text only: any
  * Markdown under docs/ but docs/evidence/ (the phases, the roadmap, the
  * decisions and research reconciliation reads, docs/projects), a README in
- * any directory, AGENTS.md, CLAUDE.md, and Markdown under .agents/. A change
+ * any directory, AGENTS.md, CLAUDE.md, the configured canonical guide from
+ * the trusted base, and Markdown under .agents/. A change
  * anywhere else is refused, whether or not a commit cites a finding.
  */
-export const TEND_SURFACES = Object.freeze(['docs/**/*.md (never docs/evidence/)', 'README.md', 'AGENTS.md', 'CLAUDE.md', '.agents/**/*.md']);
-export const tendSurface = path => (/^docs\/.+\.md$/.test(path) && !path.startsWith('docs/evidence/'))
+export const TEND_SURFACES = Object.freeze(['docs/**/*.md (never docs/evidence/)', 'README.md', 'AGENTS.md', 'CLAUDE.md', 'configured canonical guide (trusted base)', '.agents/**/*.md']);
+export const tendSurface = (path, guide = null) => (path === guide && safeGuideSurface(path)) || (/^docs\/.+\.md$/.test(path) && !path.startsWith('docs/evidence/'))
   || /(^|\/)README\.md$/.test(path) || path === 'AGENTS.md' || path === 'CLAUDE.md' || /^\.agents\/.+\.md$/.test(path);
 
 // ---- small tools ---------------------------------------------------------------
 
-// Under Codex (phase 47), KEEL_AGENT_GIT points the checkout's commands at .keel/agent-git, as climb.mjs's.
+// A selected guide extends the text surfaces, never permission to edit secrets,
+// evidence, installation inputs or the control files that judge the branch.
+const safeGuideSurface = path => typeof path === 'string' && !!path
+  && !/[\\\x00-\x1f]/.test(path) && !posix.isAbsolute(path)
+  && !path.split('/').some(p => !p || p === '.' || p === '..'
+    || ['.git', '.keel', '.ssh', '.aws', '.azure', '.gnupg'].includes(p)
+    || /^(?:\.env|\.?secrets?|\.?credentials?|\.netrc|\.git-credentials)(?:\.|$)/i.test(p))
+  && !/^(?:\.claude\/settings(?:\.local)?\.json|\.codex\/config\.toml|\.mcp\.json)$/.test(path)
+  && !offLimit(path) && !path.startsWith('docs/evidence/')
+  && !INSTALL_FILES.includes(basename(path)) && basename(path) !== 'package.json';
+
+/** Resolve only the trusted base's guide and links, entirely through git.
+ * Installed copies need no keel root library or working-tree config. */
+function guideAt(root, base) {
+  let config;
+  try { config = JSON.parse(showAt(root, base, '.keel/keel.json') ?? '{}'); } catch { return null; }
+  let path = config?.guide ?? 'AGENTS.md', links = 0;
+  if (!safeGuideSurface(path)) return null;
+  let pending = path.split('/'), done = [];
+  while (pending.length) {
+    done.push(pending.shift());
+    path = done.join('/');
+    if (!safeGuideSurface(path)) return null;
+    const mode = entryOf(root, base, path).split(' ')[0];
+    if (mode === '120000') {
+      if (++links > 40) return null;
+      const target = showAt(root, base, path);
+      if (!target || posix.isAbsolute(target) || /[\\\x00-\x1f]/.test(target)) return null;
+      // Refuse an intermediate traversal through an unknown or escaping path.
+      const parts = target.split('/');
+      done.pop();
+      while (parts[0] === '..') { if (!done.length) return null; done.pop(); parts.shift(); }
+      if (parts.includes('..')) return null;
+      const next = posix.normalize(posix.join(done.join('/'), parts.join('/')));
+      if (next === '.' && pending.length) { done = []; continue; }
+      if (!safeGuideSurface(next)) return null;
+      pending = [...next.split('/'), ...pending]; done = [];
+    } else if (pending.length ? mode !== '040000' : !['100644', '100755'].includes(mode)) return null;
+  }
+  return path;
+}
+
 /**
  * The options every keel git command runs with (PR #59): the agent's code (a
  * gate, a build) can write the checkout's git dir, so no hook it planted and
@@ -613,10 +655,12 @@ export function added(before, after, key) {
 export function tendCheck(root, base, head, { findings = null } = {}) {
   const refused = [];
   const changes = changesOf(root, base, head);
+  const guide = guideAt(root, base);
   for (const { status, path } of changes) {
     if (status.startsWith('D')) { refused.push(`${path}: deleted; tend never deletes a tracked file (a branch, a PR or data alike): propose it for the owner instead`); continue; }
     if (path.startsWith('docs/evidence/')) { refused.push(`${path}:${firstAdded(root, base, head, path)}: ${status.startsWith('A') ? 'adds' : 'edits'} evidence; tend never writes evidence (what was checked is a person's or the conductor's record)`); continue; }
-    if (!tendSurface(path)) { refused.push(`${path}: outside tend's surfaces (${TEND_SURFACES.join(', ')}); tend changes records and agent-facing text only, cited or not`); continue; }
+    if (!tendSurface(path, guide)) { refused.push(`${path}: outside tend's surfaces (${TEND_SURFACES.join(', ')}); tend changes records and agent-facing text only, cited or not`); continue; }
+    if (path === guide && !['100644', '100755'].includes(entryOf(root, head, path).split(' ')[0])) { refused.push(`${path}: configured guide must remain a regular file`); continue; }
     const before = showAt(root, base, path), after = showAt(root, head, path);
     const a = frontStatus(after), b = frontStatus(before);
     if (a && NEVER_STATUS.includes(a.status) && a.status !== b?.status) refused.push(`${path}:${a.line}: status ${b?.status ?? '(none)'} → ${a.status}; tend never marks a phase built, lived-in or accepted (it may only propose a step back to partial)`);

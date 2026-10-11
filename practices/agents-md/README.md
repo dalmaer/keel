@@ -3,13 +3,17 @@
 **The failure it prevents.** Working rules copied into each harness's own
 file (`CLAUDE.md`, `.cursorrules`, …), each a fork that can't hear the others.
 
-**The rule.** `AGENTS.md` is the one working guide. `CLAUDE.md` is one line
-pointing at it. Keel owns only the `<!-- keel:begin <id> -->` … `<!-- keel:end
-<id> -->` regions, one per practice; everything else in `AGENTS.md` is the
-project's.
+**The rule.** The selected working guide (`guide` in `.keel/keel.json`,
+`AGENTS.md` by default) is the source of working rules. Adoption prefers an
+existing `AGENTS.md`, then `CLAUDE.md`, or accepts an explicit `--guide`.
+Safe in-repository aliases resolve to one canonical guide. Keel owns only
+its `<!-- keel:begin <id> -->` … `<!-- keel:end <id> -->` regions; the rest
+is the project's prose. Existing independent guides and aliases are preserved.
 
-**Its files.** `AGENTS.md` (seeded skeleton with an empty region per
-practice), `CLAUDE.md` (managed), and the `agents-md` block (⚑ steps).
+**Its files.** The selected guide (seeded skeleton with an empty region per
+practice), an eligible managed `CLAUDE.md` doorway, and the `agents-md` block
+(⚑ steps). A CLAUDE-only project uses `CLAUDE.md` itself; it needs no
+`AGENTS.md` or self-pointing doorway.
 
 **Read this before touching that (phase 65).** `.keel/keel.json`
 `"contracts"` maps path patterns to the document to read before editing a
@@ -23,7 +27,7 @@ the hook entry is added by hand.
 
 **What people are told keeps up (phase 18, lesson 16).** When a change
 alters what a person or an agent would be told — a verb, a flag, a default, a
-feature — the README and `AGENTS.md` change in the same commit. Keel can't
+feature — the README and selected working guide change in the same commit. Keel can't
 know a project's feature list, so the conduct skill's Record step asks it,
 and `keel doctor` notes `readme-behind` when README.md's last commit is older
 than the newest built phase. That note is information: it never fails the

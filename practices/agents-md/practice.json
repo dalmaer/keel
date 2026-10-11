@@ -1,6 +1,6 @@
 {
   "name": "agents-md",
-  "summary": "One working guide, AGENTS.md, that every harness reaches; CLAUDE.md is a doorway to it.",
+  "summary": "One selected working guide that every harness reaches, preserving project prose and safe aliases.",
   "requires": [],
   "files": [
     { "path": "AGENTS.md", "from": "AGENTS.md", "kind": "seeded" },

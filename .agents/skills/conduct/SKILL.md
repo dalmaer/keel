@@ -365,7 +365,7 @@ phase report, most serious first, each typed:
 
 - **check**: anything mechanical (a lint, a test, a guard in a script).
   Mechanical violations get deterministic checks;
-- **AGENTS/skill line**: a judgment call only;
+- **guide/skill line**: a judgment call only;
 - **lesson**: a failure shape, through `keel learn`.
 
 **The owner picks.** Nothing is applied unpicked: candidates live in the

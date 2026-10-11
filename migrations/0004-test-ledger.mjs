@@ -17,7 +17,7 @@
 // idempotent: once both are there, it does not apply.
 export const id = '0004-test-ledger';
 export const to = '0.7.0';
-export const summary = 'node test scripts gain the test ledger reporter (scripts/keel/test-ledger.mjs: every run recorded in .keel/test-runs, a flaky or slower test named at the end of the run), and AGENTS.md the night block\'s markers; any other test script is left alone';
+export const summary = 'node test scripts gain the test ledger reporter (scripts/keel/test-ledger.mjs: every run recorded in .keel/test-runs, a flaky or slower test named at the end of the run), and the selected guide the night block\'s markers; any other test script is left alone';
 
 export const LEDGER = './scripts/keel/test-ledger.mjs';
 /** The two reporter pairs, with the ledger at `ledger` (relative to where the script runs). */
@@ -39,7 +39,8 @@ export function withLedger(script, ledger = LEDGER) {
 }
 
 const night = config => (config?.practices ?? []).includes('night');
-const blockOff = config => (config?.blocksSkipped ?? []).includes('night') || (config?.ejected ?? []).includes('AGENTS.md#night');
+const guidePath = project => project.guide ?? project.config?.guide ?? 'AGENTS.md';
+const blockOff = project => (project.config?.blocksSkipped ?? []).includes('night') || (project.config?.ejected ?? []).map(k => project.guideKey?.(k) ?? k).includes(`${guidePath(project)}#night`);
 
 async function testScript(project) {
   const raw = await project.read('package.json');
@@ -51,8 +52,8 @@ async function testScript(project) {
 }
 
 async function markersOwed(project) {
-  if (blockOff(project.config)) return null;
-  const text = await project.read('AGENTS.md');
+  if (blockOff(project)) return null;
+  const text = await project.read(guidePath(project));
   if (text === null || text.includes(BEGIN)) return null;
   return text;
 }
@@ -81,6 +82,6 @@ export async function up(project) {
     edits.push({ path: 'package.json', content });
   }
   const agents = await markersOwed(project);
-  if (agents !== null) edits.push({ path: 'AGENTS.md', content: `${agents.replace(/\n*$/, '\n')}\n${BEGIN}\n${END}\n` });
+  if (agents !== null) edits.push({ path: guidePath(project), content: `${agents.replace(/\n*$/, '\n')}\n${BEGIN}\n${END}\n` });
   return edits;
 }

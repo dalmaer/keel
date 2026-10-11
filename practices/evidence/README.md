@@ -8,7 +8,7 @@ reported as a person's use. A claim nobody can check is believed anyway.
 Never write expectations as observations.
 
 **Its files.** `docs/templates/evidence.md` (managed); the `evidence` block of
-`AGENTS.md`.
+the selected working guide.
 
 **Lineage.** ledger's evidence notes, made mandatory by ritmo's roadmap check.
 

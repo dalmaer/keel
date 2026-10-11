@@ -201,7 +201,7 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
     lint.push(...await phaseLints(ctx.root, parsePhase, specProblems));
   }
   if (lock.files['CLAUDE.md']) {
-    const claude = claudeMdLint(await read(join(ctx.root, 'CLAUDE.md')));
+    const claude = claudeMdLint(await read(join(ctx.root, 'CLAUDE.md')), ctx.config.guide ?? 'AGENTS.md');
     if (claude) lint.push(claude);
   }
   lint.push(...await secondCopies(ctx.root, await lockedSkills(ctx.root, lock), { self: ctx.config.keel === 'self' }));

@@ -8,12 +8,12 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, appendFile, realpath, chmod, copyFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, lstat, readlink, rm, writeFile, appendFile, realpath, chmod, copyFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { init } from '../lib/init.mjs';
-import { lessons, parseLessons, normaliseShape, fingerprintOf, DATA_LINE, SENT } from '../lib/lessons.mjs';
+import { lessons, practicePaths, parseLessons, normaliseShape, fingerprintOf, DATA_LINE, SENT } from '../lib/lessons.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -305,4 +305,29 @@ test('the stack view moves nothing keel lessons reads: the own table, its finger
   assert.deepEqual(after.items, [], 'keel lessons sends nothing new');
   assert.equal(after.already, before.already);
   assert.equal(parseLessons(await readFile(join(dir, 'docs/lessons.md'), 'utf8')).where, -1, 'a project\'s table keeps four columns');
+});
+
+
+test('guide review: lessons includes canonical guide commits and keeps raw config paths compatible', async t => {
+  const dir = await scratch(t);
+  await mkdir(join(dir, '.keel'));
+  const cfg = { name: 'Acme', repo: PROJECT, guide: 'AGENTS.md', practices: ['agents-md'] };
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(cfg));
+  await writeFile(join(dir, 'CLAUDE.md'), '# Acme\n');
+  await symlink('CLAUDE.md', join(dir, 'AGENTS.md'));
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-qm', 'Acme adoption');
+  await appendFile(join(dir, 'CLAUDE.md'), '\nAcme guide correction.\n');
+  git(dir, 'commit', '-qam', 'guide: Acme correction');
+  const sha = git(dir, 'rev-parse', 'HEAD'), before = await treeHash(dir);
+  const stub = await stubGh(t);
+  const result = await lessons({ dir, to: TO, dryRun: true }, { cliRoot: KEEL, env: stub.env });
+  assert.deepEqual(result.data.items.filter(i => i.kind === 'practice').map(i => i.fingerprint), [`${PROJECT}/commit/${sha}`]);
+  assert.ok(practicePaths(cfg).includes('AGENTS.md'));
+  assert.ok(!practicePaths(cfg).includes('CLAUDE.md'));
+  assert.ok(practicePaths(cfg, dir).includes('CLAUDE.md'));
+  assert.equal(cfg.guide, 'AGENTS.md');
+  assert.equal(await treeHash(dir), before);
+  assert.deepEqual(await stub.calls(), []);
 });

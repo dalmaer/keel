@@ -33,7 +33,7 @@ is needed for exactly three things:
 Everything else is the conductor's to decide, record and commit: a wrong
 design, a proof that can't run as written, two docs that disagree.
 
-`AGENTS.md` applies to everyone, conductor and subagent alike. Invoking
+`{{guide}}` applies to everyone, conductor and subagent alike. Invoking
 `/conduct` is the "land this": the conductor commits and pushes each phase to
 `main` without asking again.
 
@@ -98,7 +98,7 @@ Keep the conductor's own context lean, because it outlives every builder:
 Write the brief to a scratchpad file, so it can be reread, reused if the
 subagent must be restarted, and quoted in the commit.
 
-**Point, don't paste.** The subagent can read the repo, and `AGENTS.md` is
+**Point, don't paste.** The subagent can read the repo, and `{{guide}}` is
 already in its context. Name the phase file, the design sections and the
 lessons by path and heading. In words, the brief carries only what the docs
 *don't* say:
@@ -251,7 +251,7 @@ When the proof holds, and only then, write the record, all in one change:
 - **Lessons**: a new row only if a bug turned out to have a shape.
 - **What people and agents are told**: if the change alters what a person or
   an agent would be told — a verb, a flag, a practice, a default — update
-  the README (if the project has one), AGENTS.md and any agent guide in the
+  the README (if the project has one), {{guide}} and any agent guide in the
   same commit. A test catches the tables; nothing catches the prose but you.
 - **Other phases** this one changed the facts for: `grep -rn` the term across
   `docs/` and fix each mention.
@@ -359,13 +359,13 @@ more times, tool calls over a minute, edits reverted. A docs-only range says
 so in one line; then there is no retro.
 
 Answer the **seven areas** it lists, a line each: navigation, automatable
-checks, missing standards, AGENTS.md health, tool economy, no-op
+checks, missing standards, {{guide}} health, tool economy, no-op
 instructions, information gaps. Then put **at most five candidates** in the
 phase report, most serious first, each typed:
 
 - **check**: anything mechanical (a lint, a test, a guard in a script).
   Mechanical violations get deterministic checks;
-- **AGENTS/skill line**: a judgment call only;
+- **guide/skill line**: a judgment call only;
 - **lesson**: a failure shape, through `keel learn`.
 
 **The owner picks.** Nothing is applied unpicked: candidates live in the

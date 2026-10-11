@@ -63,6 +63,9 @@ A project that uses keel carries `.keel/keel.json`, which records:
   2, `floorMs` 200);
 - anything it does its own way, as a *local variant* with a reason.
 
+Existing agent guides are preserved: adoption selects `AGENTS.md`, then
+`CLAUDE.md`, or an explicit `--guide <path>`. See the [adoption guide](docs/guide/bring-a-project-under-keel.md).
+
 **The practices:**
 
 | Practice | What it gives a project | The failure it prevents |
@@ -72,7 +75,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 | `evidence` | `built` needs an evidence file that says what was actually checked | Claiming what was never run |
 | `lessons` | `docs/lessons.md`: failure *shapes*, each with the guard that now catches it; `docs/keel-lessons.md`, generated: keel's catalogue filtered for the project's `stack` | Paying for the same bug twice, or one keel already paid for |
 | `conduct` | The conductor skill: brief a builder, verify the named proof yourself, record, commit | Trusting a subagent's "tests pass" |
-| `agents-md` | `AGENTS.md` sections for each practice; `CLAUDE.md` as a one-line pointer | Instructions copied per harness, ageing |
+| `agents-md` | Practice sections in the selected agent guide, preserving existing project instructions | Instructions copied per harness, ageing |
 | `ci` | A `check` workflow running the project's own gate, keeping each run's test ledger as an artifact | A green laptop that isn't the build |
 | `night` | `keel-night.yml` measures the project nightly, opens at most one PR, and goes red only when something is broken; a test ledger that remembers every `node --test` run and ends it naming any flaky or slower test | Guards that fire into an empty room; a flaky test rerun until green |
 | `claude` *(optional)* | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
@@ -86,7 +89,7 @@ A project that uses keel carries `.keel/keel.json`, which records:
 
 - **Managed** files are keel's. They are re-rendered on update.
   `.keel/lock.json` records what keel wrote.
-- **Blocks** are the `<!-- keel:begin … -->` regions of `AGENTS.md`. The
+- **Blocks** are the `<!-- keel:begin … -->` regions of the selected agent guide. The
   rest of that file is the project's.
 - **Seeded** files (your phases, goals and lessons) are written once, and
   are yours from then on.

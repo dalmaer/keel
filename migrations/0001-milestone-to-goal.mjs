@@ -192,11 +192,11 @@ export async function converge(project, { parsed, errors, put, label }) {
     for (const n of on) delete local[n];
     config.practices = [...new Set([...config.practices, ...on])]
       .sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
-    const agents = await project.read('AGENTS.md');
+    const agents = await project.read(project.guide ?? project.config.guide ?? 'AGENTS.md');
     if (agents !== null) {
       const missing = on.filter(n => !agents.includes(`<!-- keel:begin ${n} -->`));
       const next = appendBlocks(agents, missing);
-      if (next !== agents) put('AGENTS.md', next);
+      if (next !== agents) put(project.guide ?? project.config.guide ?? 'AGENTS.md', next);
     }
   }
   if (Object.keys(local).length) config.local = local; else delete config.local;

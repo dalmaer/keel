@@ -20,7 +20,7 @@ reviewers with `review: wait` in its front matter (or its issue's
 `keel review <repo>#<n> --gate` exits 0. The default is a push to `main`.
 
 **Its files.** The skill (managed), the doorway symlink (managed), the
-`conduct` block of `AGENTS.md`.
+`conduct` block of the selected working guide.
 
 **Lineage.** Adapted from dglazkov/isocan `.claude/skills/conduct/SKILL.md`
 at `7227f325` (Apache-2.0), for one-file-per-phase projects. The pin is in

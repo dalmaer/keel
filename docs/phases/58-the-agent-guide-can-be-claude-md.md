@@ -1,11 +1,12 @@
 ---
-status: planned
-since: 2026-10-09
+status: partial
+owes: walk
+since: 2026-10-10
 goal: G2
 spec: 2
 depends: []
-note: "A project whose agent guide is CLAUDE.md gets lessons and night local at adoption: both need AGENTS.md by name. keel renders its blocks into the guide the project already has and never creates a second one. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
-evidence: []
+note: "Implemented guide selection across adoption, rendering, updates, drift checks and migrations, preserving prose and safe symlink aliases. The real CLAUDE.md-only adoption and owner read remain owed."
+evidence: ["evidence/2026-10-10-selected-guide.md"]
 issue: 45
 ---
 
@@ -26,9 +27,9 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] Adopt on a project with only CLAUDE.md: lessons and night are on, blocks land in CLAUDE.md, no AGENTS.md is created, and `.keel/keel.json` records `"guide": "CLAUDE.md"`. `tests/adopt.test.mjs`
-- [ ] render, doctor (blocks present, edited, skipped) and update read the configured guide; a symlinked pair counts as one guide. `tests/doctor.test.mjs`, `tests/update.test.mjs`
-- [ ] With both files present and no `guide`, adopt keeps AGENTS.md as today and says so. `tests/adopt.test.mjs`
+- [x] Adopt on a project with only CLAUDE.md: lessons and night are on, blocks land in CLAUDE.md, no AGENTS.md is created, and `.keel/keel.json` records `"guide": "CLAUDE.md"`. `tests/adopt.test.mjs`
+- [x] render, doctor (blocks present, edited, skipped) and update read the configured guide; a symlinked pair counts as one guide. `tests/doctor.test.mjs`, `tests/update.test.mjs`
+- [x] With both files present and no `guide`, adopt keeps AGENTS.md as today and says so. `tests/adopt.test.mjs`
 - [ ] ⚑ by hand: one real project whose guide is CLAUDE.md is adopted, and the owner confirms it has one guide.
 
 ## Your part
@@ -47,7 +48,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/adopt.test.mjs tests/doctor.test.mjs tests/update.test.mjs`; `npm run check`.
+Automated: `node --import ./tests/helpers/hermetic.mjs --test tests/guide.test.mjs tests/adopt.test.mjs tests/doctor.test.mjs tests/update.test.mjs`; `npm run check`.
 By hand: one real adoption.
 
 ## Deliberately open
@@ -56,4 +57,8 @@ By hand: one real adoption.
 
 ## Next action
 
-Brief a builder on the `guide` setting across adopt, render, doctor and update.
+Name a CLAUDE.md-only pilot, adopt it with the reviewed CLI, and have its owner confirm the adoption diff keeps one useful guide (10 minutes).
+
+## Trajectory
+
+- **2026-10-10** — Guide identity includes the resolved in-repository destination and existing lock ownership. Moving block keys without that check would conceal drift or split a symlinked guide; conflicting owners are refused instead of silently migrated.

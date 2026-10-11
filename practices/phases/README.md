@@ -22,7 +22,7 @@ renderer must refuse the edit and name the file, never keep or overwrite it.
 
 **Its files.** `scripts/roadmap.mjs` and its test, the phase contract and
 template, `scripts/keel/generated.mjs` and `tests/keel-generated.test.mjs`
-(managed); `docs/goals.json` (seeded); the `phases` block of `AGENTS.md`.
+(managed); `docs/goals.json` (seeded); the `phases` block of the selected working guide.
 
 **A test keel ships is run.** The two tests above (and the ci practice's
 `tests/keel-workflows.test.mjs`) prove nothing unless the project's gate runs

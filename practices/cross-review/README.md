@@ -37,7 +37,7 @@ OPENAI_API_KEY is not set"):
   them: each validated against the code before it is written, tagged P1
   (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), on the
   line it is about. No style nits, no restating the diff. The
-  agent reads `AGENTS.md`, the project's lessons table,
+  agent reads the selected working guide, the project's lessons table,
   `docs/keel-lessons.md` and the phase the PR names.
 - **What it can do.** Read, and nothing else. Claude's tools are Read,
   Grep, Glob, `gh pr diff` and `gh pr view`; Codex runs in its `read-only`
