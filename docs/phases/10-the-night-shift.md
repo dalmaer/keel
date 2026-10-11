@@ -1,12 +1,12 @@
 ---
 status: partial
 owes: walk
-waits: time
-since: 2026-10-02
+waits: owner
+since: 2026-10-11
 goal: G4
 depends: [6]
-note: "The night shift ships as practices with drain. On keel, the full cycle has run for real: measure, PR #1, gate, self-merge. Owed: seven nights, a deliberately red night, and one adopted project's night."
-evidence: ["evidence/2026-10-02-night-shift.md"]
+note: "The night shift ships as practices with drain. On keel, the full cycle has run for real: measure, PR #1, gate, self-merge. Seven Keel morning queue snapshots and Ledger scheduled runs are recorded; Keel and Ledger queue snapshots are recorded; the named owner acceptance remains."
+evidence: ["evidence/2026-10-02-night-shift.md", "evidence/2026-10-11-coffee-audit.md"]
 issue: 30
 ---
 
@@ -56,9 +56,11 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 
 ## Next action
 
-Let seven nights run on keel and record the queue depth each morning (`keel improve` reads it as `machine_prs`): 3, 4 and 5 Oct are in; the red-night proof is already met (ledger's Loop run, 4 Oct).
+Owner: read the seven morning snapshots now recorded for 3–9 October (Keel night queue: 0, 0, 0, 1, 0, 0, 0) and confirm the walk. Ledger's configured `.keel/health` pages for 5–11 October also show night queues of 0, 0, 1, 1, 1, 0, 0. See the 11 October audit for run links and the later conflicting night PR.
 
 ## Trajectory
 
 - **2026-10-02** — A missing repo setting is a ⚑, like a missing secret: the run gives a notice, not red. Otherwise keel's nightly would have emailed the owner every night about something they'd never been asked for.
 - **2026-10-02** — Drain merges only data PRs (health, inbox, bounds), never an update PR and never a fork's. Update PRs are reviewed, not drained.
+
+- **2026-10-11** — Reconciliation: the seven Keel morning reports already exist; waiting for time was stale. Their night queue counts never exceed one, but snapshots do not prove a continuous invariant or substitute for the named owner read. Ledger has seven morning queue snapshots too (5–11 October), including recovery across failed nights; owner acceptance remains unverified.

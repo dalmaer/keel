@@ -250,14 +250,41 @@ test('strict numeric output and literal top-level JSON selection never turn unav
   assert.match(missing.data.records[0].new.error, /^spawn:/);
 });
 
-test('per-command deadline and combined stdout/stderr bounds', posixExecution, async t => {
+test('per-command deadline stops a real nonterminating command', { ...posixExecution, timeout: 10_000 }, async t => {
   const root = await fixture(t);
   const options = { env: cleanEnv(), timeoutMs: 500, outputBytes: 1024 };
   const timeout = await runMeasurement([process.execPath, '-e', 'setInterval(() => {}, 1000)'], root, options);
   assert.equal(timeout.error, 'timeout');
-  const output = await runMeasurement([process.execPath, '-e', 'process.stderr.write("x".repeat(2048))'], root, options);
-  assert.equal(output.error, 'output-limit');
-  assert.ok(Buffer.byteLength(output.stdout + output.stderr) <= 1024);
+  assert.equal(timeout.stdout, '');
+  assert.equal(timeout.stderr, '');
+});
+
+test('combined stdout/stderr bounds do not race child startup against the deadline', { ...posixExecution, timeout: 10_000 }, async t => {
+  const root = await fixture(t);
+  // Exercise real pipes and process cleanup, but hold the executor's clock:
+  // startup under suite load is not evidence that an output bound is broken.
+  // The real deadline is checked separately above, with the same 500 ms limit.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const [name, stdoutBytes, stderrBytes, error] of [
+    ['stdout overflow', 2048, 0, 'output-limit'],
+    ['stderr overflow', 0, 2048, 'output-limit'],
+    ['combined overflow', 768, 768, 'output-limit'],
+    ['exact combined bound', 512, 512, null],
+  ]) {
+    await t.test(name, async () => {
+      const code = `require('node:fs').writeSync(1, 'x'.repeat(${stdoutBytes})); require('node:fs').writeSync(2, 'y'.repeat(${stderrBytes}));`;
+      const output = await runMeasurement([process.execPath, '-e', code], root, { env: cleanEnv(), timeoutMs: 500, outputBytes: 1024 });
+      assert.equal(output.error, error);
+      assert.equal(Buffer.byteLength(output.stdout + output.stderr), 1024);
+      assert.match(output.stdout, /^x*$/);
+      assert.match(output.stderr, /^y*$/);
+      if (error === null) {
+        assert.equal(output.exitCode, 0);
+        assert.equal(output.stdout.length, stdoutBytes);
+        assert.equal(output.stderr.length, stderrBytes);
+      }
+    });
+  }
 });
 
 // /proc's comm field can contain spaces and parentheses; state follows its

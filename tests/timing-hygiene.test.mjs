@@ -3,11 +3,13 @@
 // October CI escapes, lesson 40): a timed suite's base had to sleep 300 ms,
 // then 1000. A longer sleep still judges the wall clock, only with a wider
 // margin, and every run pays for it. Now a file that times a suite (it runs
-// climb compare or measure) must either be pinned in .keel/keel.json
+// climb compare or measure) must be pinned in .keel/keel.json
 // "tests": { "stalls": [...] }, which runs it paused at random moments in
 // every gate (the test ledger, scripts/keel/stalls.mjs) so a wall-clock wait
-// that creeps back fails there, or give the code its clock with node:test's
-// mock.timers. `keel test <file> --stalls` says whether a file is ready to pin.
+// that creeps back fails there. Giving code its clock with node:test's
+// mock.timers can make it ready to pin, but a source match cannot prove that
+// every timed path (including spawned suites) uses that clock. Keep the pin
+// even when mock timers appear. `keel test <file> --stalls` checks readiness.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -21,18 +23,16 @@ const KEEL = resolve(HERE, '..');
 
 /** A file that times a suite: it runs climb compare or measure. */
 export const timesASuite = text => /\[\s*['"](?:compare|measure)['"]/.test(text);
-/** A file that gives the code its clock: node:test's mock timers. */
-export const onMockTimers = text => /\bmock\.timers\.enable\(/.test(text);
 
 /** What is wrong with one test file (`file` is repo-relative) under the rule, given the pinned files: [string]. */
 export function timingProblems(file, text, pins) {
-  if (!timesASuite(text) || pins.includes(file) || onMockTimers(text)) return [];
-  return [`${file} times a suite (climb compare or measure) and is neither pinned to stalls nor on mock timers: run keel test ${file} --stalls, give each test it names its clock, then pin it in .keel/keel.json "tests": { "stalls": [${JSON.stringify(file)}] }`];
+  if (!timesASuite(text) || pins.includes(file)) return [];
+  return [`${file} times a suite (climb compare or measure) and is not pinned to stalls: source alone cannot establish mock-timer coverage of every timed path; run keel test ${file} --stalls, give each test it names its clock, then pin it in .keel/keel.json "tests": { "stalls": [${JSON.stringify(file)}] }`];
 }
 
 const keelPins = async () => stallsPins(JSON.parse(await readFile(join(KEEL, '.keel/keel.json'), 'utf8')));
 
-test('every test file that times a suite is pinned to stalls or runs under mock timers, and every pin is a test file', async () => {
+test('every test file that times a suite is pinned to stalls, and every pin is a test file', async () => {
   const pins = await keelPins();
   const names = (await readdir(HERE)).filter(n => n.endsWith('.test.mjs') && n !== basename(fileURLToPath(import.meta.url))).sort();
   const timed = [];
@@ -52,19 +52,42 @@ test('the escape: a 600 ms base, which passed the old 300 ms floor and failed on
   for (const ms of [600, 1500]) {
     const p = timingProblems('tests/acme.test.mjs', `${sleeper}const dir = await acme(t, { files: { 't.mjs': sleeper(${ms}) } });\nclimb(dir, ['compare', '--json']);\n`, []);
     assert.equal(p.length, 1, `${ms} ms: ${p.join('\n')}`);
-    assert.match(p[0], /^tests\/acme\.test\.mjs times a suite .* neither pinned to stalls nor on mock timers/);
+    assert.match(p[0], /^tests\/acme\.test\.mjs times a suite .* not pinned to stalls/);
   }
 });
 
-test('mutations: unpinning climb.test.mjs fails the rule; a pin or mock timers pass it; a file that times nothing needs neither', async () => {
+test('mutations: unpinning climb.test.mjs fails even with mock timers; pins and files that time no suite remain exempt', async () => {
   const pins = await keelPins();
   const text = await readFile(join(KEEL, 'tests/climb.test.mjs'), 'utf8');
   assert.ok(pins.includes('tests/climb.test.mjs'), 'climb.test.mjs is pinned');
   const unpinned = timingProblems('tests/climb.test.mjs', text, pins.filter(p => p !== 'tests/climb.test.mjs'));
   assert.equal(unpinned.length, 1, 'unpinned, it is named');
   assert.match(unpinned[0], /keel test tests\/climb\.test\.mjs --stalls/);
-  assert.deepEqual(timingProblems('tests/climb.test.mjs', `${text}\nmock.timers.enable({ apis: ['setTimeout'] });\n`, []), [], 'mock timers');
+  assert.equal(timingProblems('tests/climb.test.mjs', `${text}\nmock.timers.enable({ apis: ['setTimeout'] });\n`, []).length, 1, 'mock timers alone cannot establish coverage');
   assert.deepEqual(timingProblems('tests/acme.test.mjs', "await acme(t, { files: { 't.mjs': 'setTimeout(() => {}, 150);' } });\n", []), [], 'a file that times nothing');
   assert.deepEqual(timingProblems('tests/acme.test.mjs', "climb(dir, ['measure', '--json']);\n", ['tests/acme.test.mjs']), [], 'pinned');
   assert.equal(timingProblems('tests/acme.test.mjs', "climb(dir, ['measure', '--json']);\n// mock.timers is the fix\n", []).length, 1, 'a word about mock timers is not mock timers');
+});
+
+test('issue 64: a mocked test cannot exempt an unrelated real-sleep suite in the same file', () => {
+  const file = 'tests/acme.test.mjs';
+  const mocked = `test('Acme mocked wait', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const done = new Promise(resolve => setTimeout(resolve, 50));
+    t.mock.timers.tick(50);
+    await done;
+  });\n`;
+  assert.deepEqual(timingProblems(file, mocked, []), [], 'mocked tests that time no suite still need no pin');
+  for (const verb of ['compare', 'measure']) {
+    const real = `test('Acme real suite', async t => {
+      const dir = await acme(t, { files: { 't.mjs': 'setTimeout(() => {}, 1500);' } });
+      await climb(dir, ['${verb}', '--json']);
+    });\n`;
+    for (const text of [mocked + real, real + mocked]) {
+      const problems = timingProblems(file, text, []);
+      assert.equal(problems.length, 1, `${verb}: an unrelated mock must not hide the real sleep`);
+      assert.match(problems[0], /keel test tests\/acme\.test\.mjs --stalls/);
+      assert.deepEqual(timingProblems(file, text, [file]), [], 'the mixed file is allowed when pinned');
+    }
+  }
 });

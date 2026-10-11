@@ -6,7 +6,7 @@ goal: G0
 spec: 2
 depends: [33]
 note: "Built: keel test <file> --stalls (scripts/keel/stalls.mjs, shipped by the night practice); files pinned in tests.stalls run with stalls through the test ledger in every gate; keel:inconclusive is recorded as neither pass nor fail; keel's three climb compare tests run on the suite's own clock (KEEL_CLIMB_CLOCK), and its six suite-timing files are pinned. Owes the owner's read of what moved and the gate's time before and after."
-evidence: ["evidence/2026-10-09-stalls.md"]
+evidence: ["evidence/2026-10-09-stalls.md", "evidence/2026-10-11-coffee-audit.md"]
 issue: 42
 ---
 
@@ -14,7 +14,7 @@ issue: 42
 
 ## Done when
 
-`keel test <file> --stalls` names every test that passes plainly and fails when paused at random moments; keel's own tests it names have moved to mock timers or an injected clock, and run with stalls without failing; the timing-hygiene rule says "with stalls or mock timers" instead of a sleep floor; and the practice ships it to the fleet.
+`keel test <file> --stalls` names every test that passes plainly and fails when paused at random moments; keel's own tests it names have moved to mock timers or an injected clock, and run with stalls without failing; the timing-hygiene rule requires stall pins for suite-timing files, using mock or injected clocks to make their assertions independent of wall time, instead of a sleep floor; and the practice ships it to the fleet.
 
 ## Scope
 
@@ -24,7 +24,7 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 - **Pinned**: `.keel/keel.json` `"tests": { "stalls": ["<file>"] }` runs those files with stalls on every gate, from a fresh seed each time, which a failure prints.
 - **Inconclusive**: a test that judges real time on purpose can report itself inconclusive (`t.diagnostic('keel:inconclusive <what it measured>')`); the ledger records it as neither pass nor fail.
 - **keel's own tests**: every test `--stalls` names in keel moves to `mock.timers` or an injected clock; the climb comparison test's 1500 ms sleeper is the first.
-- **The rule**: tests/timing-hygiene.test.mjs (and the practice's lint) stops requiring a sleep of at least 1000 ms and requires that a test using a timing sleep is pinned to stalls or uses mock timers.
+- **The rule**: tests/timing-hygiene.test.mjs requires a stall pin for every file that times a suite. Mock or injected clocks remove timing assumptions; merely mentioning mock timers cannot exempt the whole file. This is a local guard, not a shipped practice lint.
 
 ## Acceptance
 
@@ -80,3 +80,5 @@ By hand: keel's gate time before and after, from the ledger.
 - **2026-10-09** — Two more false greens from Codex's review of PR #57: a pinned test that ran without stalls and was never registered with them was not judged, yet the file passed (now it fails the run, named); and a pin to a folder passed the existence check and was never reached (now a pin must be a file).
 
 - **2026-10-10** — Escape: the pinned-stall retry test assumed a short process would survive until a randomly scheduled pause. An integration run correctly returned inconclusive when it did not. Retry-policy proof now uses controlled observations; real process-stall coverage remains separate. [Hygiene observation](https://github.com/dalmaer/keel/issues/69#issuecomment-6094589560).
+
+- **2026-10-11** — Escape (#64): one mock-timer call exempted unrelated real-time tests in the same file. Suite-timing files now retain their stall pins even with mocks; a source match cannot prove coverage of every timed path. Mixed mocked/real fixtures exercise both test orders and both measure/compare verbs. See the coffee audit.

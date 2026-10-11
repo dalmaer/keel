@@ -58,8 +58,9 @@ It reuses the existing readers, reconciliation and night reports. The canvas
 is a projection; source files and GitHub keep their respective authority.
 [Phase 50](phases/50-project-life-on-isocan.md) tracks implementation and the
 real-project walk. Local snapshot/render and reviewed retro capture work now;
-the optional public-CLI adapter publishes immutable runs. Conditional updates,
-the stable live pulse and recovery/concurrent-edit proof remain unproven. The
+the optional public-CLI adapter publishes immutable runs. Packed restart recovery
+and a read-only replay of a deployed recovery receipt are verified; conditional
+updates, the stable live pulse and the real concurrent-edit walk remain unproven. The
 owner-approved private canvas has live Keel and fleet Loop editions; a weekly
 local report task is active, separate from the unproven GitHub night integration. See the
 [current command guide](guide/project-canvas.md) for supported behavior.
