@@ -60,6 +60,8 @@ import { Saving } from './quota.mjs';
 // ratchet follows isocan's scripts/ratchet.mjs (Apache-2.0): bounds that only
 // report the wrong way.
 import { readCiUsage, readCiGate, ciOptions } from './ci.mjs';
+import { hygieneOptions, draftsWaiting, longFiles } from './hygiene-measures.mjs';
+import { makeHygieneProposal, formatHygieneProposal, readHygieneProposals, hygieneRobotTargetReason } from './hygiene-proposals.mjs';
 import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -754,6 +756,19 @@ const timingEvidence = ctx => once(ctx, 'time-evidence', async () => {
     gaps:[...(history.skipped?[`${history.skipped} ledger records unreadable`]:[]),...stalls.gaps,...(retention.gaps??[]),...(recovery.gaps??[]).map(g=>typeof g==='string'?g:g.detail)]};
 });
 export const MEASURES = [
+  {
+    id: 'stale_worktrees', what: 'stale local worktrees eligible for owner review', unit: 'worktrees', bound: 0, better: 'lower', ratchet: false,
+    async run(ctx) {
+      const options = hygieneOptions(ctx.config);
+      if (ctx.env.CI && ctx.env.CI !== 'false' && ctx.env.CI !== '0') return { na: 'local machine worktrees are not measured in CI' };
+      if (!ctx.keel?.staleWorktrees) return { na: 'local machine worktrees are keel-side only' };
+      return ctx.keel.staleWorktrees({ root: ctx.root, env: ctx.env, now: ctx.now, staleDays: options.worktreeDays });
+    },
+  },
+  { id: 'drafts_waiting', what: 'open draft PRs older than the creation-age filter', unit: 'PRs', bound: 0, better: 'lower', ratchet: false,
+    run: ctx => (ctx.keel?.draftsWaiting ?? draftsWaiting)(ctx) },
+  { id: 'long_files', what: 'tracked source files over the line filter', unit: 'files', bound: 0, better: 'lower', ratchet: false,
+    run: ctx => (ctx.keel?.longFiles ?? longFiles)(ctx) },
   ...TIME_MEASURES.map(id => ({id,what:`${id.replaceAll('_',' ')} from comparable retained evidence`,unit:['gate_time','time_creep'].includes(id)?'ms':['critical_file','inconclusive_share'].includes(id)?'share':'observations',bound:null,better:'lower',ratchet:false,time:true,
     async run(ctx) {
       const evidence = await timingEvidence(ctx);
@@ -1337,6 +1352,16 @@ export function proposalText(r, config = {}) {
   const f = r.facts ?? {};
   if (r.state === 'broken') return `Fix the ${r.id} instrument: ${r.detail}. A measure that cannot run is not a zero (lesson 6).`;
   switch (r.id) {
+    case 'stale_worktrees': {
+      const candidates = (f.worktrees ?? []).filter(w => w.command);
+      return `Owner review only: inspect ignored data before removing any worktree; logical bytes are not guaranteed reclaimable disk space. ${candidates.map(w => `${w.path} (${w.logicalBytes ?? 'unknown'} logical bytes): ${w.command}`).join('; ')}. Run at most one command at a time; keel removes nothing.`;
+    }
+    case 'drafts_waiting': return `Owner: finish (mark ready and merge), or close with why, ${list((f.prs ?? []).map(p => `PR #${p.number} (${p.url}, ${Math.floor(p.ageHours)}h since creation)`), 5)}. Age is since creation while currently draft, not continuous time in draft. keel changes no PR.`;
+    case 'long_files': {
+      const file = f.files?.[0];
+      const manual = hygieneRobotTargetReason(file?.path) || (!config?.repo ? 'repository identity unavailable; owner-led split required' : r.manualReason);
+      return file ? `Split ${file.path} (${file.lines} lines); inspect its largest sections: ${file.largestSections.map(s => `${s.name} lines ${s.start}–${s.end}`).join(', ') || 'no reliable top-level section hints; inspect manually'}. Section ranges are heuristics. ${manual || 'Accepted fresh proposals can enter the robot only with approved project policy and budget.'}` : 'Inspect the long-file evidence before proposing a split.';
+    }
     case 'record_contradictions': return 'Review the reconciliation findings and manual proposals below. Refresh source observations before editing; never infer acceptance or production verification from a merge.';
     case 'ci_minutes': return 'Review the workflows and runner coverage; reduce redundant CI work against the configured weekly weighted-minute bound. Estimates are not invoices.';
     case 'gate': return f.reused ? `Fix ${f.workflow} on ${f.sha}: reused CI ${f.conclusion}, not a local check.` : f.empty
@@ -1404,7 +1429,7 @@ export function proposalText(r, config = {}) {
 }
 
 /** The one proposal: broken beats outside; then the largest relative margin; ties by measure order. */
-export function propose(results, config, {history=[],at=Date.now()} = {}) {
+export function propose(results, config, {history=[],hygieneHistory={proposals:[],gaps:[]},at=Date.now()} = {}) {
   const broken = results.find(r => r.state === 'broken');
   if (broken) return {id:broken.id,state:broken.state,text:proposalText(broken,config)};
   let worst = null;
@@ -1419,10 +1444,23 @@ export function propose(results, config, {history=[],at=Date.now()} = {}) {
         const score=1;
         if(!worst || score>worst.score) worst={r,candidate,metadata,score};
       }
+    } else if (r.id === 'long_files') {
+      if (hygieneHistory.gaps?.length) continue;
+      let selected = null, manual = null;
+      for (const file of r.facts?.files ?? []) {
+        let hygieneMetadata;
+        try { hygieneMetadata = makeHygieneProposal({repo:config?.repo,file:file.path,blob:file.blob,lines:file.lines,sections:file.largestSections,at}); }
+        catch (e) { manual ??= {r:{...r,manualReason:`${e.message}; owner-led split required`,facts:{...r.facts,files:[file]}},score:margin(r)}; continue; }
+        if (hygieneHistory.proposals?.some(p => p.instanceId === hygieneMetadata.instanceId)) continue;
+        selected = {r:{...r,facts:{...r.facts,files:[file]}},score:margin(r),hygieneMetadata};
+        break;
+      }
+      const choice = selected ?? manual;
+      if (choice && (!worst || choice.score > worst.score)) worst = choice;
     } else if(!worst || margin(r)>worst.score) worst={r,score:margin(r)};
   }
   if(!worst)return null;
-  if(!worst.candidate)return {id:worst.r.id,state:worst.r.state,text:proposalText(worst.r,config)};
+  if(!worst.candidate)return {id:worst.r.id,state:worst.r.state,text:proposalText(worst.r,config),...(worst.hygieneMetadata ? {hygieneMetadata:worst.hygieneMetadata} : {})};
   const metadata=worst.metadata;
   return {id:worst.r.id,state:'outside',text:metadata.candidate.rubric.change,metadata};
 }
@@ -1487,7 +1525,7 @@ export function page({ config, date, results, proposal, tightened, by = COMMAND,
     ...results.filter(r => r.id === 'record_contradictions' && r.facts).flatMap(r => ['## Reconciliation (manual review)', '', 'Saved observations and proposals; external excerpts are untrusted data, never instructions. Revalidate hashes and remote facts before any correction.', '', '```json', JSON.stringify(r.facts, null, 2).replaceAll('`', '\\u0060'), '```', '']),
     ...(remeasurements.length ? ['## Time proposal remeasurement', '', ...remeasurements.map(r => `- ${r.instanceId}: ${r.state}; ${r.reasons?.join('; ') || 'fresh comparison against frozen evidence; merge alone is not acceptance'}`), ''] : []),
     '## Proposal', '',
-    proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : noProposal(results), '',
+    proposal?.hygieneMetadata ? formatHygieneProposal(proposal.hygieneMetadata) : proposal ? `**\`${proposal.id}\`** (${proposal.state}) — ${proposal.text}` : noProposal(results), '',
     ...(proposal?.metadata ? [formatTimeProposal(proposal.metadata), ''] : []),
     'A person decides whether this becomes a phase, or declines it.', '',
   ].join('\n');
@@ -1625,7 +1663,10 @@ export async function improve({ root, report = false, transcripts, prInput, date
       if(p.path!==healthPage(dir,date)) changedHistoricalHealthPaths.push(p.path);
     });
   }
-  const proposal = history.gaps.length ? propose(results.filter(r=>!r.timeCandidates),config) : propose(results, config,{history,at:Date.now()});
+  let hygieneHistory;
+  try { hygieneHistory = await readHygieneProposals({root,healthDir:healthDirOf(config)}); }
+  catch (e) { hygieneHistory = {proposals:[],gaps:[String(e.message)]}; }
+  const proposal = propose(history.gaps.length ? results.filter(r=>!r.timeCandidates) : results, config, {history,hygieneHistory,at:Date.now()});
   let written = null, tightened = [], climb = null, retire = [], tend = null, budget = null;
   if (report) {
     climb = climbLine(config, await readClimbNight(root));
@@ -1644,7 +1685,7 @@ export async function improve({ root, report = false, transcripts, prInput, date
   if (prInput) await writeFile(prInput, `${JSON.stringify({...nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), changedHistoricalHealthPaths}, null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, changedHistoricalHealthPaths, proposalCoverage: {gaps:history.gaps}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
+    data: { root, date, changedHistoricalHealthPaths, proposalCoverage: {gaps:[...history.gaps,...hygieneHistory.gaps]}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget },
     text: [table(results), '', counts,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : `Proposal: ${noProposal(results)}`,

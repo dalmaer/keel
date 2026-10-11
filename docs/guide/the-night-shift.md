@@ -401,3 +401,43 @@ installed, so configured-gate observations accumulate even when night reuses
 CI evidence. CI-only projects run their configured check directly. Existing
 project-owned workflows are not rewritten; legacy inner `--run` observations
 remain explicit-command history and are never relabeled as configured gates.
+
+## Hygiene from repository audits
+
+The existing health report also covers `stale_worktrees`, `drafts_waiting` and
+`long_files`. These are observations with proposed actions; a decision or merge
+alone does not establish that the work helped.
+
+Worktrees are measured by the local Keel CLI and are unavailable in CI. The
+report distinguishes local main reachability from recent filesystem activity,
+and logical bytes from physical space that deletion might reclaim. Current,
+primary, locked, dirty or incompletely inspected worktrees are protected. Any
+removal commands are individual suggestions for the owner to inspect and run.
+Keel does not delete worktrees.
+
+Drafts are currently open draft PRs older than the configured age since creation.
+This is not continuous time spent in draft. Reads are bounded, cached and subject
+to the GitHub quota floor; truncated or unavailable coverage remains unknown.
+The owner decides whether to finish or close a draft.
+
+Long-file findings name tracked source files, their measured length, bounded
+history and possible split points from their internal sections. Generated copies,
+vendor code and fixtures are excluded. A split point is a heuristic for review,
+not proof that the code can be separated safely. The proposal is tied to the
+observed source so changed files require a fresh proposal.
+
+These use the existing health page and `keel walk decide` flow. An accepted file
+split can use the robot's recoverable issue flow only with an approved project
+and budget. Keel's robot remains off until that approval. An uncertain issue
+write is recovered through the existing journal rather than repeated.
+
+Filter settings live in `.keel/keel.json` under `hygiene`: `draftHours` defaults
+to 24, `longFileLines` to 1500, and `worktreeDays` to 7. Each is a positive finite
+number. The existing measure count bounds are separate and default to zero;
+these measures do not ratchet. Missing or truncated evidence remains explicit.
+
+Before a new `long_files` hygiene delivery, the observed file must also exist
+with the same blob on GitHub's default branch. Unpublished, changed or unavailable source blocks
+filing. Recovery of an already attempted issue remains read-only and does not
+require the branch to have stayed unchanged. The source check is a snapshot at
+acceptance time, not a guarantee against later branch changes.

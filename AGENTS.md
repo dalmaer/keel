@@ -151,6 +151,14 @@ first; remote writes require an explicit destination and approval. A canvas
 never owns acceptance, merge facts or architecture. Preserve human content and
 report unavailable sources as gaps. See [the integration spec](docs/specs/isocan-project-canvas.md).
 
+## Hygiene proposals
+
+`keel improve` includes bounded worktree, draft-PR and long-file observations.
+Incomplete coverage stays unavailable because missing evidence is not a zero.
+Worktree cleanup and draft decisions are owner actions; accepted file splits use
+the existing robot issue flow only under an approved project budget. Refresh a
+proposal when its source changes; preserve recovery intents after uncertain writes.
+
 ## Robot issues
 
 `keel issue new --agent` previews a rubric-shaped issue before `--yes` creates

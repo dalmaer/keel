@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**40 of 69 phases built; 26 owe a walk.** Built means implemented and checked; planned is not available.
+**40 of 69 phases built; 27 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Await a deployed public isocan conditional-edit operation before implementing the stable live pulse. Complete the real browser concurrent-edit walk and provision the dedicated GitHub writer using the project-canvas guide, then verify night/restart behavior. Immutable packed recovery and a deployed historical receipt replay are proven. Preserve the already approved destination, writer, dashboards and weekly automation; do not request their approval again. Scheduled-use evidence is still owed. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -145,7 +145,7 @@ A lesson learned in any project, or a practice improved upstream, reaches keel, 
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-6/17 built; 10 owe a walk.
+6/17 built; 11 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -165,7 +165,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [54. The robot: an agent works the issues it is handed](phases/54-the-robot-an-agent-works-the-issues-it-is-handed.md) | partial, walk owed | 2026-10-10 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md), [47](phases/47-codex-runs-climb-and-tend.md) | Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner project/budget and three real reviewed/merged issues remain owed. · [#41](https://github.com/dalmaer/keel/issues/41) |
 | [57. Time getting worse becomes a proposal, and a fix](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md) | partial, walk owed | 2026-10-10 | [54](phases/54-the-robot-an-agent-works-the-issues-it-is-handed.md), [56](phases/56-keel-knows-where-time-goes.md) | Implemented bounded timing evidence, resumable fix proposals and installed-night remeasurement. Independent proof and real artifact recovery verified; two owner-approved robot fixes and measured outcomes remain owed. · [#44](https://github.com/dalmaer/keel/issues/44) |
 | [59. The test ledger reads bun and vitest](phases/59-the-test-ledger-reads-bun-and-vitest.md) | partial, walk owed | 2026-10-09 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Built: scripts/keel/test-ledger.mjs --junit reads bun's and vitest's JUnit XML into the node ledger's record (plus runner and a hash of the file), with the same no-tests rule and hygiene block; the runner is in the config hash and the lane; adopt records the runner and proposes the gate line; doctor lints "tests". Owes the walk: a week of records on one bun project and one vitest project, read by the owner. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#46](https://github.com/dalmaer/keel/issues/46) |
-| [66. Hygiene measures from real audits](phases/66-hygiene-measures-from-real-audits.md) | planned | 2026-10-09 | [56](phases/56-keel-knows-where-time-goes.md) | Three time sinks a project found only by auditing its own sessions by hand: stale worktrees holding tens of gigabytes, finished work left as draft PRs for days, and source files too long for an agent to read whole. Each becomes a night measure with a bound and a named fix the robot can take. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#53](https://github.com/dalmaer/keel/issues/53) |
+| [66. Hygiene measures from real audits](phases/66-hygiene-measures-from-real-audits.md) | partial, walk owed | 2026-10-11 | [56](phases/56-keel-knows-where-time-goes.md) | Bounded hygiene measures and recoverable split proposals verified; owner one-fix-each walk and robot budget approval remain. · [#53](https://github.com/dalmaer/keel/issues/53) |
 
 - **10 done when:** Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `keel improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.

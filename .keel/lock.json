@@ -169,9 +169,17 @@
       "practice": "phases",
       "sha256": "887b30076953ebc406698bf7c8db85f4ca6605e215248bfda4c624dcc6faadb2"
     },
+    "scripts/keel/hygiene-measures.mjs": {
+      "practice": "night",
+      "sha256": "b81d28233dd33c570cbb27fff5c279cc3304b4b4f6bf81b4775a80be1f574090"
+    },
+    "scripts/keel/hygiene-proposals.mjs": {
+      "practice": "night",
+      "sha256": "c60b668093d0de0a783942b886b8d0c477956bde26468cf286d8af92eadd1ffa"
+    },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "cf9fd6c9165647ed8e83f748469fbb44e84a07099cc38cf27ab447f1aca64502"
+      "sha256": "3d88bc22b20888a914bdd6586691c5c5c6b87a5482f4d0719a7dfe9ad94f6739"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",

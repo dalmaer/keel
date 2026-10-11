@@ -1,11 +1,12 @@
 ---
-status: planned
-since: 2026-10-09
+status: partial
+owes: walk
+since: 2026-10-11
 goal: G4
 spec: 2
 depends: [56]
-note: "Three time sinks a project found only by auditing its own sessions by hand: stale worktrees holding tens of gigabytes, finished work left as draft PRs for days, and source files too long for an agent to read whole. Each becomes a night measure with a bound and a named fix the robot can take. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
-evidence: []
+note: "Bounded hygiene measures and recoverable split proposals verified; owner one-fix-each walk and robot budget approval remain."
+evidence: ["evidence/2026-10-11-hygiene-audits.md"]
 issue: 53
 ---
 
@@ -25,20 +26,22 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] `stale_worktrees` lists merged or week-old worktrees with sizes, is n/a in CI, and its fix removes nothing itself. `tests/improve-measures.test.mjs`
-- [ ] `drafts_waiting` counts draft PRs past the bound through the cache and quota floor. `tests/improve-measures.test.mjs`
-- [ ] `long_files` names files over the bound, skips generated and vendored ones, and its fix names split points. `tests/improve-measures.test.mjs`
+- [x] `stale_worktrees` lists merged or week-old worktrees with sizes, is n/a in CI, and its fix removes nothing itself. `tests/improve-measures.test.mjs`, `tests/worktree-hygiene.test.mjs`
+- [x] `drafts_waiting` counts draft PRs past the bound through the cache and quota floor. `tests/improve-measures.test.mjs`
+- [x] `long_files` names files over the bound, skips generated and vendored ones, and its fix names split points. `tests/improve-measures.test.mjs`
+- [x] Accepted long-file proposals validate fresh local/default-branch source and approved policy, preserve decisions on report regeneration, and recover uncertain issue writes without duplicates. `tests/hygiene-proposals.test.mjs`
 - [ ] ⚑ by hand: one proposal from each measure accepted and carried out.
 
 ## Your part
 
-- **Ask:** When the night proposes one of these (stale worktrees, a waiting draft, a file to split), accept or decline it, and see it through once for each.
+- **Ask:** Review the individual health proposals, then confirm this phase only after one worktree cleanup, one waiting draft resolution and one file split have actually been carried out.
 - **Why:** These are the sinks a project found only by auditing itself by hand; this makes the audit nightly.
-- **Look at:** The health page's proposal.
-- **Choices:** Accept | Decline
+- **Look at:** [The selective hygiene report](../health/2026-10-11.md), then later health proposals for any category still missing.
+- **Choices:** All three carried out | Still outstanding
+- **Keeps it open:** Still outstanding
 - **Takes:** 5 minutes each.
-- **Then:** Accept: the fix is carried out (by you for worktrees, the robot for a split). Decline: the reason is recorded and the bound may change.
-- **Ready when:** this is built and each measure has fired once.
+- **Then:** All three carried out: record their evidence and mark the phase built. Still outstanding: record what remains and keep the phase open. Individual proposal acceptance or decline does not complete this walk.
+- **Ready when:** an actionable proposal exists for each category and a robot budget is approved for a selected split.
 
 ## Real surfaces
 
@@ -48,13 +51,24 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/improve-measures.test.mjs`; `npm run check`.
+Automated: `node --test tests/improve-measures.test.mjs tests/worktree-hygiene.test.mjs tests/hygiene-proposals.test.mjs`; `npm run check`.
 Over time: one fix from each.
 
 ## Deliberately open
+
+- **Robot source availability — settled 2026-10-11:** Local source freshness alone does not establish availability to the robot. Before a new delivery, verify that GitHub's default-branch file path and blob match the frozen observation; mismatches or unavailable reads block filing. Recover attempted issue writes first, even if source changed afterward. This is an acceptance-time observation, not a promise that the branch cannot change later.
+
+- **Observation and authority — settled 2026-10-11:** Worktree size is logical bytes held, not guaranteed reclaimable physical disk space. Local main reachability establishes merged code only. Current, primary, locked, dirty or incompletely inspected worktrees are protected; bounded filesystem activity and size scans disclose gaps. Commands are one-at-a-time owner advice, never automatic cleanup.
+- **Draft age — settled 2026-10-11:** Count currently open drafts by age since creation, explicitly not continuous time in draft. Bounded cached GitHub reads preserve truncation, quota and access gaps as unavailable.
+- **Thresholds — settled 2026-10-11:** Configured hygiene filters are positive finite values (draft hours, worktree days and file lines); measure count bounds remain separate, default zero with no ratchet. Long-file history and split points are bounded heuristics tied to source revisions.
+- **Accepted split proposals — settled 2026-10-11:** Extend the existing health page and `keel walk decide` flow. An explicitly accepted, fresh file-split proposal can use the existing recoverable robot issue journal only under an approved project policy and budget. Missing approval, changed source or uncertain delivery remains explicit. Worktree and draft decisions record the owner's choice without executing the suggested action.
 
 - **Bounds**: 1500 lines and 24 hours are first guesses. Settled by how many proposals are declined as noise.
 
 ## Next action
 
-After phase 56, brief a builder on the three measures.
+Owner: review the concrete long-file proposal and the two worktree candidates, approve a project/weekly robot allowance before delivering a split, and resolve one genuinely waiting draft when one exists. Record actual outcomes for all three; the current complete draft read found none old enough.
+
+## Trajectory
+
+- **2026-10-11** — The existing health proposal section and robot issue journal already provide durable decisions and recovery; no second tracking store was needed. Protected or unsupported file targets retain manual advice. A real audit found two worktree candidates, no old drafts, and five long files; the fleet-over-time walk stays open. See the evidence.

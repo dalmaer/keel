@@ -162,10 +162,25 @@ keel walk decide --proposal docs/health/2026-10-08.md --accept
 - `--box <n>` when the phase has more than one open walk: boxes count from
   1 down the Acceptance list. A box that names a test or a command is built,
   not walked: it is refused, and nothing is written.
-- `walk decide` writes one line at the end of the page's Proposal section,
+- For ordinary proposals, `walk decide` writes one line at the end of the page's Proposal section,
   `**Decided <date>: accepted|declined** — why`. The board and
   `keel loose-ends` stop listing it. An accepted proposal becomes a phase
   with `keel phase new`.
+
+Long-file hygiene proposals carry a source-bound instance. Use the board's
+**Accept**/**Decline** actions or
+`keel walk decide --proposal <page> --instance <id> --accept` (or `--decline
+"<why>"`). Acceptance validates the current source and approved robot policy
+before filing through the existing issue journal. Robot off, changed source or
+uncertain delivery remains explicit; retry recovers the same intent. The issue
+is work to perform, not proof of acceptance, merge or usefulness. Worktree and
+draft proposals still record a local decision and leave the action to the owner.
+
+Before a new `long_files` hygiene delivery, the observed file must also exist
+with the same blob on GitHub's default branch. Unpublished, changed or unavailable source blocks
+filing. Recovery of an already attempted issue remains read-only and does not
+require the branch to have stayed unchanged. The source check is a snapshot at
+acceptance time, not a guarantee against later branch changes.
 
 ## What you'll see
 
