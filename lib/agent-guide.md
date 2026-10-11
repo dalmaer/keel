@@ -2,7 +2,7 @@
 
 Keel installs phases, derived roadmaps, lessons and evidence in a repo.
 Run in a project (`.keel/keel.json`); init/adopt also run outside one.
-Read the project's selected guide before changing anything.
+Read the guide named by `.keel/keel.json` (`guide`); otherwise AGENTS.md or CLAUDE.md.
 
 Verbs (all take `--json`; parse JSON, never prose):
 

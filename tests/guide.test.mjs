@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { adopt } from '../lib/adopt.mjs';
 import { render, config, practiceVersion } from '../lib/practices.mjs';
@@ -275,4 +275,19 @@ test('guide review: a target that leaves and re-enters still cannot collide with
   await symlink(outside, join(dir, '.agents'));
   await assert.rejects(adoptAt(dir, { guide: 'docs/keel/SKILL.md' }), /guide:.*collides/);
   await absent(dir, '.keel');
+});
+
+test('guide review: leading parent components may not leave and re-enter the repository', async t => {
+  const dir = await acme(t);
+  await mkdir(join(dir, 'docs'));
+  await writeFile(join(dir, 'CLAUDE.md'), '# Acme\n');
+  await symlink(`../../${basename(dir)}/CLAUDE.md`, join(dir, 'docs/escape.md'));
+  await symlink(`../${basename(dir)}/CLAUDE.md`, join(dir, 'escape.md'));
+  for (const guide of ['docs/escape.md', 'escape.md']) {
+    await assert.rejects(adoptAt(dir, { guide }), /guide:.*leaves the repository/);
+    await absent(dir, '.keel');
+    assert.equal(await read(dir, 'CLAUDE.md'), '# Acme\n');
+  }
+  await symlink('../CLAUDE.md', join(dir, 'docs/safe.md'));
+  assert.equal(guideDestination(dir, 'docs/safe.md'), 'CLAUDE.md');
 });

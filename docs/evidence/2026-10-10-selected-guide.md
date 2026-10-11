@@ -78,6 +78,13 @@ returned VERIFIED. Installed standalone tend reads guide identity from the
 trusted base commit, rejects candidate permission grants, and preserves
 existing surfaces and evidence restrictions.
 
+A late review of the preceding revision identified leading parent components
+that leave the repository and normalize back inside. The resolver now checks
+the component walk before normalization. The conductor ran guide and CLI
+tests: 33 passed, exit 0, no hygiene finding; `keel prove tests/guide.test.mjs
+--name "guide review: leading parent" --fix lib/guide.mjs --trailer` returned
+VERIFIED. Cold-start help explicitly points to the config's `guide` field.
+
 ## Acceptance still owed
 
 No live project was adopted on the owner's behalf during this phase. The
