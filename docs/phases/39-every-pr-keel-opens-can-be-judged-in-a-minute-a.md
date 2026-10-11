@@ -5,7 +5,7 @@ goal: G2
 spec: 2
 depends: [6, 22, 32]
 note: "Built and read: pr-body.mjs writes Summary, Evidence, Merge danger for keel update / fleet update PRs and the night's data PR; the night's PR on GitHub had the three sections, and the owner read the fleet's update PRs in that form and approved it (2026-10-06)."
-evidence: ["evidence/2026-10-06-pr-body.md"]
+evidence: ["evidence/2026-10-06-pr-body.md", "evidence/2026-10-11-coffee-audit.md"]
 issue: 17
 ---
 
@@ -33,6 +33,7 @@ The design is [The PR a person reads](../research/2026-10-06-pr-and-retro.md).
   one-way for that project's history and says so.
 - **Callers**: `keel fleet update` / `keel update` (lib/update.mjs), the
   night's data PR (keel-night.yml); phases 35 and 38 use it from the start.
+- A rerun of the same night updates the existing PR body from the newly generated evidence; a failed lookup or body update must not silently leave stale evidence.
 - The keel-impact block (phase 26), when reconciliation is on, stays last.
 
 ## Acceptance
@@ -69,3 +70,5 @@ None.
 - **2026-10-06** — `pr-body.mjs` keeps its own copy of phase 32's surface list, because the night practice does not require phases; a test holds the two equal.
 - **2026-10-06** — Migration 0004 (phase 33) adds AGENTS night markers, which makes the next fleet update a one-way door for every adopted project. Strict, and correct by the rule: say so in the release notes.
 - **2026-10-06** — The owner read the v0.8.x fleet update PRs (duo, cajones, ledger, isocan) in the three-section form and approved it: "the three-section PR format. looks good."
+
+- **2026-10-11** — Escape: the night rerun refreshed PR #105's commit but retained its original description (1,401 tests versus the new report's 1,514). The shell path must publish the regenerated body for both new and existing PRs. The actual description was corrected from the refreshed run, with owner proposal content preserved.

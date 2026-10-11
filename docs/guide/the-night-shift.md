@@ -38,7 +38,9 @@ PRs. The rules come from isocan's night shift, and each one was paid for:
   hold only data and still merge, or closed as superseded; the newest merges
   only when the gate passed on that tree, because a PR opened with
   `GITHUB_TOKEN` runs no CI. Five unread machine PRs at once is the shape
-  this prevents (lesson 9).
+  this prevents (lesson 9). A same-day rerun refreshes the existing PR's
+  description with its new evidence as well as updating the report. A failed
+  PR lookup or description update fails the workflow.
 - **Projects run on their own.** The night runs scripts shipped into the
   project (`scripts/keel/`), never a keel checkout or a keel token.
 

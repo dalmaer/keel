@@ -44,3 +44,21 @@ Keel's [10 October night](https://github.com/dalmaer/keel/actions/runs/380349859
 - Local isocan remains at `1565e501ad7a598c1af784d91971ca7d1773d2e9`. General public conditional item editing remains unproven; the design now distinguishes already verified packed recovery and deployed receipt replay from the outstanding concurrent-edit/live-pulse walk.
 - Existing open follow-ups include #97 (runner-local JUnit freshness), #100 (four fleet-review findings), and #90 (candidate isolation from gate-created dependency state). This audit does not claim they are fixed.
 - No owner acceptance, robot budget, new credentials, fleet release override, model run, destructive worktree cleanup or architecture decision was invented. Phases that owe real use or an owner decision remain partial.
+
+
+## Live refresh and stale PR descriptions
+
+After the first audit commit `908904d703ac73a52c407a22b5756c88b1e18e48`, [check CI 38146506881](https://github.com/dalmaer/keel/actions/runs/38146506881) and [typecheck CI 38146506850](https://github.com/dalmaer/keel/actions/runs/38146506850) passed. Issue #64 was closed.
+
+The existing deterministic night workflow was dispatched once on that revision: [38146891793](https://github.com/dalmaer/keel/actions/runs/38146891793), success. It reran the gate (1,514 tests), refreshed #105 and drained it normally into main at `50c9ff1ea5c1a7dd3a8a08242a47fa8b9277da4b`. The latest report has zero structured contradictions and zero observed flakes; its slow-test value remains unavailable because the newest run was busy. No zero was substituted for missing timing evidence.
+
+The existing hygiene proposal `60fca6d4f7007ed0175324c097ea8cc910f8056acb22c3810f7f2015b517aa5c` was compared as complete parsed JSON before and after the merge: identical, still proposed, exactly one copy. No robot work was authorized. Ledger collection ran from 14:22:21 to 14:25:03 UTC (2 minutes 42 seconds); serial artifact identity reads are an optimization candidate, not a measured speed improvement.
+
+The live rerun exposed an additional defect: `gh pr create` wrote a fresh description only when the PR was new. An existing PR's branch was updated, but its body still claimed the old 1,401-test result. The real #105 body was corrected with `gh pr edit --body-file` from the completed run and report, preserving the three-section format and impact declaration. The workflow correction publishes the same generated body when the PR already exists; lookup and edit failures remain errors.
+
+This follow-up changes the night template and its rendered copy, plus shell-level tests executing the actual workflow blocks in a synthetic Acme repository. It does not change phase acceptance. The automated rerun path with the correction has a shell proof; a future deployed night will exercise the shipped path. The direct `gh pr edit` production surface was exercised on #105. Final gate commands remain `npm run check` and `npm run typecheck`, with results in the follow-up commit.
+
+
+Follow-up proof: `node bin/keel.mjs prove tests/workflows.test.mjs --fix practices/night/files/.github/workflows/keel-night.yml --base 50c9ff1 --trailer` returned **VERIFIED** in the conductor's independent run: red without the change, green with it. The focused builder run passed all 34 workflow tests. The final full gate follows this record.
+
+The successful night has one material access warning: its repository token cannot read private `dalmaer/keel-inbox`, so `learn` preserved the prior counts instead of inventing zeros. `gh secret list --json name` confirmed no configured inbox/fleet credential on Keel; no secret values were read or created. This is a remaining scheduled-inbox credential requirement, not a failed test or a complete lesson collection. The night gate/report/drain succeeded despite this explicitly reported gap.
