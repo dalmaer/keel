@@ -176,6 +176,12 @@ uncertain delivery remains explicit; retry recovers the same intent. The issue
 is work to perform, not proof of acceptance, merge or usefulness. Worktree and
 draft proposals still record a local decision and leave the action to the owner.
 
+Before a new `long_files` hygiene delivery, the observed file must also exist
+with the same blob on GitHub's default branch. Unpublished, changed or unavailable source blocks
+filing. Recovery of an already attempted issue remains read-only and does not
+require the branch to have stayed unchanged. The source check is a snapshot at
+acceptance time, not a guarantee against later branch changes.
+
 ## What you'll see
 
 A working page, not a report; it works offline, in light or dark, from a

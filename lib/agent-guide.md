@@ -1462,8 +1462,8 @@ neither duplicates it nor restores labels. Missing evidence stays unavailable.
 
 For a `long_files` hygiene proposal, use `--instance <id>` with accept/decline.
 JSON includes `hygieneProposal`, `instanceId`, `state`, `decision`, `issue` and
-`reasons`. Acceptance validates the observed source and the approved robot
-policy before using the existing issue journal; robot OFF or missing budget
+`reasons`. Acceptance validates local source and the matching default-branch file/blob on
+GitHub, plus the approved robot policy, before using the existing issue journal; robot OFF or missing budget
 blocks creation. An uncertain write remains recoverable via the same instance,
 without duplicate POSTs. A verified issue is delivery of proposed work, never
 proof that the split was built or useful. Worktree and draft proposals retain

@@ -435,3 +435,9 @@ Filter settings live in `.keel/keel.json` under `hygiene`: `draftHours` defaults
 to 24, `longFileLines` to 1500, and `worktreeDays` to 7. Each is a positive finite
 number. The existing measure count bounds are separate and default to zero;
 these measures do not ratchet. Missing or truncated evidence remains explicit.
+
+Before a new `long_files` hygiene delivery, the observed file must also exist
+with the same blob on GitHub's default branch. Unpublished, changed or unavailable source blocks
+filing. Recovery of an already attempted issue remains read-only and does not
+require the branch to have stayed unchanged. The source check is a snapshot at
+acceptance time, not a guarantee against later branch changes.

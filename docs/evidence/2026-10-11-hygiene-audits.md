@@ -65,3 +65,25 @@ After rendering, conductor verification of `tests/helpers.test.mjs`,
 `tests/practices.test.mjs`, `tests/hygiene-measures.test.mjs` and
 `tests/hygiene-proposals.test.mjs` exited 0, 45 passed. The final integrated gate
 runs after this record; none of these retries is presented as evidence of a flake.
+
+## Default-branch source availability — 2026-10-11
+
+Conductor review found that a matching local blob could still be unpublished or
+feature-branch-only, unavailable to the robot. Before new delivery, the approved
+path now checks GitHub's default-branch contents metadata for HTTP 200, file type,
+exact path and the frozen blob. Missing, changed, malformed or unavailable source
+blocks filing. Recovery of an attempted issue remains first and never reposts.
+
+`keel prove tests/hygiene-proposals.test.mjs --name '^source availability:' --fix
+lib/hygiene-proposal-actions.mjs --base 38dd430 --trailer` exited 0 with VERIFIED:
+red without the correction, green with it. Conductor focused verification of
+`tests/hygiene-proposals.test.mjs` and `tests/helpers.test.mjs` exited 0,
+36 tests passed. Synthetic cases cover missing/unpublished/different source,
+malformed metadata, unavailable reads, ordering and recovery bypass.
+
+A read-only real `gh api repos/dalmaer/keel/contents/tests/workflows.test.mjs`
+metadata lookup returned file type, the exact path, size 173,284 bytes and blob
+`6b298b8ec57c2763971ff3a9b635db704ccb87b6`, matching the saved proposal. No acceptance
+or issue creation was invoked. This checks availability at observation time;
+future default-branch changes remain possible. Final gate/typecheck follow this
+record, before the correction is pushed for independent review.

@@ -29,7 +29,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 - [x] `stale_worktrees` lists merged or week-old worktrees with sizes, is n/a in CI, and its fix removes nothing itself. `tests/improve-measures.test.mjs`, `tests/worktree-hygiene.test.mjs`
 - [x] `drafts_waiting` counts draft PRs past the bound through the cache and quota floor. `tests/improve-measures.test.mjs`
 - [x] `long_files` names files over the bound, skips generated and vendored ones, and its fix names split points. `tests/improve-measures.test.mjs`
-- [x] Accepted long-file proposals validate fresh source and approved policy, preserve decisions on report regeneration, and recover uncertain issue writes without duplicates. `tests/hygiene-proposals.test.mjs`
+- [x] Accepted long-file proposals validate fresh local/default-branch source and approved policy, preserve decisions on report regeneration, and recover uncertain issue writes without duplicates. `tests/hygiene-proposals.test.mjs`
 - [ ] ⚑ by hand: one proposal from each measure accepted and carried out.
 
 ## Your part

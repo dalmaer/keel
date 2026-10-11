@@ -24,7 +24,10 @@ async function fixture(t,{robot={on:true,budgetMinutes:60}}={}) {
   await writeHealthReport({root,path,generated:'# Acme health\n\n## Proposal\n\n'+formatHygieneProposal(proposal)});
   await writeFile(join(root,path),(await readFile(join(root,path),'utf8'))+'\n\n## Owner notes\n\nAcme human content.\n');
   let issue=null,posts=0,fail=false,gets=0;
+  let contents={status:200,data:{type:'file',path:proposal.file,sha:proposal.blob}};
+  const requests=[];
   const github=async r=>{
+    requests.push({method:r.method,path:r.path});
     assert.ok(r.path.startsWith('/repos/acme/anvils/'));
     if(r.method==='POST'){
       posts++;assert.equal(parseHygieneProposal(await readFile(join(root,path),'utf8')).proposal.lifecycle.state,'accepting');
@@ -32,11 +35,12 @@ async function fixture(t,{robot={on:true,budgetMinutes:60}}={}) {
       if(fail)throw Error('Acme lost response');return {status:201,data:issue};
     }
     gets++;if(fail&&issue)return {status:503};
+    if(r.path===`/repos/${repo}/contents/${proposal.file}`)return contents;
     if(r.path.includes('/issues?'))return {status:200,data:issue?[issue]:[]};
     if(r.path.endsWith('/issues/7'))return {status:200,data:issue};
     throw Error('unexpected synthetic endpoint');
   };
-  return {root,config,proposal,github,args:{root,path,expectedInstance:proposal.instanceId,decision:'accept',at,github},get issue(){return issue;},get posts(){return posts;},get gets(){return gets;},set fail(v){fail=v;}};
+  return {root,config,proposal,github,requests,set contents(v){contents=v;},args:{root,path,expectedInstance:proposal.instanceId,decision:'accept',at,github},get issue(){return issue;},get posts(){return posts;},get gets(){return gets;},set fail(v){fail=v;}};
 }
 test('canonical proposal derives rubric and identity, rejects arbitrary body/rubric/policy',async t=>{
   const f=await fixture(t),page=await readFile(join(f.root,path),'utf8');
@@ -115,7 +119,7 @@ test('current threshold and source-derived sections reject fabricated candidate 
 });
 test('uncertain empty recovery preserves intent and never retries a POST',async t=>{
   const f=await fixture(t);let posts=0;
-  const github=async r=>{if(r.method==='POST'){posts++;throw Error('Acme transport uncertain');}return {status:200,data:[]};};
+  const github=async r=>{if(r.path.includes('/contents/'))return f.github(r);if(r.method==='POST'){posts++;throw Error('Acme transport uncertain');}return {status:200,data:[]};};
   const first=await decideHygieneProposal({...f.args,github});assert.equal(first.state,'pending');
   const second=await decideHygieneProposal({...f.args,github});assert.equal(second.state,'pending');assert.equal(posts,1);
 });
@@ -158,7 +162,7 @@ test('a dead health writer is recovered while active or unknown locks are never 
 });
 test('CLI accepts hygiene --instance with synthetic GitHub and resumes without another issue',async t=>{
   const f=await fixture(t),gh=join(f.root,'acme-gh'),state=join(f.root,'acme-api.json');
-  await writeFile(state,JSON.stringify({posts:0,issue:null}));
+  await writeFile(state,JSON.stringify({posts:0,issue:null,contentsReads:0}));
   await writeFile(gh,`#!${process.execPath}
 const fs=require('node:fs'),args=process.argv.slice(2),i=args.indexOf('--method'),method=args[i+1],path=args[i+2];
 if(i<0||!path.startsWith('/repos/acme/anvils/'))throw Error('unexpected synthetic API');
@@ -166,7 +170,8 @@ const file=${JSON.stringify(state)},s=JSON.parse(fs.readFileSync(file,'utf8'));l
 if(method==='POST'){
   if(!fs.readFileSync(${JSON.stringify(join(f.root,path))},'utf8').includes('"state":"accepting"'))throw Error('missing local intent');
   const b=JSON.parse(fs.readFileSync(0,'utf8'));s.posts++;s.issue={number:7,state:'open',body:b.body,labels:b.labels,html_url:'https://github.com/acme/anvils/issues/7',url:'https://api.github.com/repos/acme/anvils/issues/7'};status=201;data=s.issue;
-}else if(method==='GET')data=path.includes('/issues?')?(s.issue?[s.issue]:[]):s.issue;
+}else if(method==='GET'&&path==='/repos/acme/anvils/contents/src/acme.mjs'){s.contentsReads++;data={type:'file',path:'src/acme.mjs',sha:${JSON.stringify(f.proposal.blob)}};}
+else if(method==='GET')data=path.includes('/issues?')?(s.issue?[s.issue]:[]):s.issue;
 else throw Error('unsupported synthetic method');
 fs.writeFileSync(file,JSON.stringify(s));process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));
 `);await chmod(gh,0o755);
@@ -177,15 +182,83 @@ fs.writeFileSync(file,JSON.stringify(s));process.stdout.write('HTTP/2.0 '+status
     const result=invoke(['--instance',f.proposal.instanceId,'--accept']);assert.equal(result.status,0,result.stderr+result.stdout);
     const data=JSON.parse(result.stdout);assert.equal(data.decision,'accepted');assert.equal(data.instanceId,f.proposal.instanceId);
   }
-  assert.equal(JSON.parse(await readFile(state,'utf8')).posts,1);
+  const saved=JSON.parse(await readFile(state,'utf8'));assert.equal(saved.posts,1);assert.equal(saved.contentsReads,1);
 });
 test('acceptance shares generated-header semantics with measurement, not literals inside source',async t=>{
   const f=await fixture(t),file=join(f.root,'src/acme.mjs');
   await writeFile(file,(await readFile(file,'utf8')).replace('  // Acme responsibility','  const warning = "@generated DO NOT EDIT";'));
   const p=makeHygieneProposal({...f.proposal,blob:git(f.root,'hash-object','src/acme.mjs'),at});
+  f.contents={status:200,data:{type:'file',path:p.file,sha:p.blob}}; // Acme publishes these bytes.
   await writeFile(join(f.root,path),'## Proposal\n\n'+formatHygieneProposal(p));
   assert.equal((await decideHygieneProposal({...f.args,expectedInstance:p.instanceId})).decision,'accepted');
   const g=await fixture(t),gfile=join(g.root,'src/acme.mjs');
   await writeFile(gfile,'// @generated\n'+await readFile(gfile,'utf8'));
   assert.match((await decideHygieneProposal(g.args)).reasons.join(' '),/generated source/);assert.equal(g.posts,0);
+});
+
+async function blockedSource(f,args=f.args) {
+  const before=await readFile(join(f.root,path),'utf8');
+  const result=await decideHygieneProposal(args);
+  assert.equal(result.ok,false);assert.equal(result.state,'blocked');assert.equal(result.decision,'proposed');
+  assert.match(result.reasons.join(' '),/source availability:/);assert.equal(result.issue,null);assert.equal(f.posts,0);
+  assert.equal(await readFile(join(f.root,path),'utf8'),before,'blocking must not save an accepting intent');
+  await assert.rejects(readFile(join(f.root,'.keel/robot-issues')),{code:'ENOENT'});
+  return result;
+}
+test('source availability: matching default-branch metadata is read before acceptance intent and POST',async t=>{
+  const f=await fixture(t);let checked=false;
+  const github=async r=>{
+    if(r.path.includes('/contents/')){
+      assert.equal(r.method,'GET');assert.equal(r.path,'/repos/acme/anvils/contents/src/acme.mjs');
+      assert.equal(parseHygieneProposal(await readFile(join(f.root,path),'utf8')).proposal.lifecycle.state,'proposed');checked=true;
+    }
+    if(r.method==='POST')assert.equal(checked,true);
+    return f.github(r);
+  };
+  assert.equal((await decideHygieneProposal({...f.args,github})).decision,'accepted');assert.equal(checked,true);assert.equal(f.posts,1);
+});
+test('source availability: missing default-branch file blocks delivery',async t=>{
+  const f=await fixture(t);f.contents={status:404,data:{message:'Acme missing'}};
+  assert.match((await blockedSource(f)).reasons.join(' '),/404/);
+});
+test('source availability: unpublished worktree and feature-branch-only blobs block delivery',async t=>{
+  for(const committed of [false,true])await t.test(committed?'feature branch commit':'uncommitted worktree',async t=>{
+    const f=await fixture(t),file=join(f.root,'src/acme.mjs');
+    if(committed)git(f.root,'checkout','-qb','acme-feature');
+    await writeFile(file,(await readFile(file,'utf8')).replace('Acme responsibility','Acme unpublished responsibility'));
+    if(committed){git(f.root,'add','src/acme.mjs');git(f.root,'commit','-qm','Acme unpublished feature');}
+    const p=makeHygieneProposal({...f.proposal,blob:git(f.root,'hash-object','src/acme.mjs'),at});
+    await writeFile(join(f.root,path),'## Proposal\n\n'+formatHygieneProposal(p));
+    assert.match((await blockedSource(f,{...f.args,expectedInstance:p.instanceId})).reasons.join(' '),/differs from GitHub default branch/);
+  });
+});
+test('source availability: different default-branch blob blocks a locally unchanged proposal',async t=>{
+  const f=await fixture(t);f.contents={status:200,data:{type:'file',path:f.proposal.file,sha:'f'.repeat(40)}};
+  assert.match((await blockedSource(f)).reasons.join(' '),/differs from GitHub default branch/);
+});
+test('source availability: malformed contents cannot authorize delivery',async t=>{
+  const good={type:'file',path:'src/acme.mjs',sha:'a'.repeat(40)};
+  for(const [name,data] of [
+    ['null',null],['directory array',[]],['directory type',{...good,type:'dir'}],
+    ['wrong path',{...good,path:'src/foreign.mjs'}],['missing sha',{type:'file',path:good.path}],
+    ['symlink',{...good,type:'symlink'}],['symlink target',{...good,target:'../acme.mjs'}],
+    ['submodule',{...good,submodule_git_url:'https://github.com/acme/module'}],
+  ])await t.test(name,async t=>{const f=await fixture(t);f.contents={status:200,data};assert.match((await blockedSource(f)).reasons.join(' '),/invalid default-branch file metadata/);});
+});
+test('source availability: remote unavailable and failed transport preserve the proposal',async t=>{
+  for(const status of [403,503])await t.test(`HTTP ${status}`,async t=>{
+    const f=await fixture(t);f.contents={status};assert.match((await blockedSource(f)).reasons.join(' '),/unavailable/);
+  });
+  const f=await fixture(t),github=async r=>{if(r.path.includes('/contents/'))throw Error('Acme network unavailable');return f.github(r);};
+  assert.match((await blockedSource(f,{...f.args,github})).reasons.join(' '),/read unavailable/);
+});
+test('source availability: attempted recovery bypasses unavailable source without another POST',async t=>{
+  const f=await fixture(t);f.fail=true;
+  assert.equal((await decideHygieneProposal(f.args)).state,'ambiguous');assert.equal(f.posts,1);
+  f.fail=false;await writeFile(join(f.root,'src/acme.mjs'),'// Acme source moved after POST\n');
+  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,robot:{on:false}}));
+  let contentsReads=0;
+  const github=async r=>{if(r.path.includes('/contents/')){contentsReads++;throw Error('Acme source unavailable');}return f.github(r);};
+  for(let i=0;i<2;i++)assert.equal((await decideHygieneProposal({...f.args,github})).state,'recovered');
+  assert.equal(contentsReads,0);assert.equal(f.posts,1);
 });

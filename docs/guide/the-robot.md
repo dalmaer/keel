@@ -193,3 +193,9 @@ this path stays blocked and creates no issue. A changed source needs a refreshed
 proposal; an uncertain prior issue write is recovered before considering any
 new action. Decline records the owner's reason. No decision deletes worktrees,
 changes a draft PR or certifies that a refactor improved the project.
+
+Before a new `long_files` hygiene delivery, the observed file must also exist
+with the same blob on GitHub's default branch. Unpublished, changed or unavailable source blocks
+filing. Recovery of an already attempted issue remains read-only and does not
+require the branch to have stayed unchanged. The source check is a snapshot at
+acceptance time, not a guarantee against later branch changes.
