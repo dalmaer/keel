@@ -73,6 +73,10 @@ rather than ask them to change.
    milestone's description (exit criteria) as a phase's "Done when", and its
    issues as the work, so `keel next`, the board and the night work without
    phase files. Moving to phase files stays a migration the owner may accept.
+   Settled 2026-10-10: preserve deadlines as `due`; `after` means earliest
+   buildable date and would incorrectly postpone active work. Closed source
+   records report planning state, not acceptance or production evidence.
+   Bounded reads disclose incomplete coverage rather than claiming completion.
 7. **A rule says the failure that made it, and a number says when it was
    measured** (phase 64). The project's guide puts it this way: a rule
    without its cause gets "improved" away by the next session. A number in a
