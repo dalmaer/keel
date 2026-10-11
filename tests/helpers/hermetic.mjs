@@ -36,6 +36,7 @@ process.env.GIT_CONFIG_GLOBAL = global;
 process.env.KEEL_CACHE = join(dir, 'keel-cache');
 // Adoption's optional Actions history never reaches the network in hermetic tests.
 process.env.KEEL_CI_OFFLINE = '1';
+process.env.KEEL_MILESTONES_OFFLINE = '1';
 // climb.mjs's pointer to Codex's git dir (keel phase 47): a Codex night that runs keel's own suite must not aim the tests' climb.mjs at it.
 delete process.env.KEEL_AGENT_GIT;
 process.env.GIT_CONFIG_NOSYSTEM = '1';

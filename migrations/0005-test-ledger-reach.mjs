@@ -38,7 +38,8 @@ export const UPLOAD_STEP = [
   '  with: { name: keel-test-runs, path: .keel/test-runs/, include-hidden-files: true, if-no-files-found: ignore, retention-days: 30 }',
 ].join('\n');
 
-const on = (config, name) => (config?.practices ?? []).includes(name);
+const on = (config, name) => (config?.practices ?? []).includes(name)
+  && !(name === 'phases' && config.phases?.source === 'milestones');
 
 async function json(project, path) {
   const raw = await project.read(path);
@@ -76,10 +77,10 @@ async function workspaceEdits(project) {
 }
 
 /** The shipped tests the root's node test script misses, and its edit; null when none is owed. */
-async function shippedEdit(project) {
+export async function shippedEdit(project, shipped = SHIPPED) {
   const config = project.config;
   const want = [];
-  for (const [practice, paths] of Object.entries(SHIPPED)) {
+  for (const [practice, paths] of Object.entries(shipped)) {
     if (!on(config, practice)) continue;
     // Whether on disk yet or not: update renders a practice's managed files after the migrations.
     for (const path of paths) if (!(config.ejected ?? []).includes(path)) want.push(path);

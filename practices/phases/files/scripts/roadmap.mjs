@@ -18,6 +18,21 @@ import { readFile, readdir, writeFile, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Shared by the CLI and installed planning readers. Validate before I/O.
+export function planningConfig(config = {}) {
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const fail = message => { throw Object.assign(new Error(message), { exitCode: 2 }); };
+  if (!object(config)) fail('planning config must be an object');
+  const phases = config.phases === undefined ? {} : config.phases;
+  if (!object(phases)) fail('phases must be an object');
+  const source = Object.hasOwn(phases, 'source') ? phases.source : 'files';
+  if (!['files', 'milestones'].includes(source)) fail('phases.source must be files or milestones');
+  const ownerLabel = Object.hasOwn(phases, 'ownerLabel') ? phases.ownerLabel : 'keel:owner';
+  if (typeof ownerLabel !== 'string' || !ownerLabel.trim()) fail('phases.ownerLabel must be a nonempty label');
+  return { source, ownerLabel };
+}
+export const milestoneSource = config => planningConfig(config).source === 'milestones';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const STATUSES = ['planned', 'designed', 'partial', 'built', 'lived-in', 'superseded'];
 export const DONE = ['built', 'lived-in'];
@@ -535,6 +550,7 @@ export function focus({ phases, goals }, today = localToday()) {
 export async function collect(root = ROOT) {
   const docs = resolve(root, 'docs');
   const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+  if (milestoneSource(config)) fail('GitHub milestones are read-only; use keel next or keel status, not the local file roadmap');
   livedInOf(config);
   const names = (await readdir(resolve(docs, 'phases'))).filter(n => n.endsWith('.md') && n !== 'README.md');
   const raws = await Promise.all(names.map(async file => [file, await readFile(resolve(docs, 'phases', file), 'utf8')]));
@@ -617,6 +633,10 @@ export function render({ config, phases, goals, links = [] }) {
 }
 
 export async function run({ root = ROOT, mode = 'write', today = localToday() } = {}) {
+  if (mode === 'check') {
+    const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+    if (milestoneSource(config)) return 'Local roadmap check inactive: phases.source is milestones; archived local plan preserved (remote coverage is not checked).';
+  }
   const data = await collect(root);
   if (mode === 'json') return JSON.stringify({ ...data, today, next: focus(data, today) }, null, 2);
   if (mode === 'next') {

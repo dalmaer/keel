@@ -185,6 +185,16 @@ dependencies are satisfied, and its *Next action*. Built, lived-in and
 partial phases marked `owes: walk` satisfy dependencies; a phase owing
 only a walk is skipped, as are superseded phases and retired goals.
 
+**Existing milestone plans** (phase 63, settled 10 October 2026). With
+`phases.source: "milestones"`, the plan remains in GitHub. A bounded cached
+reader projects descriptions, issue states, owner-labelled work and deadlines
+into the CLI, board and installed night. Deadlines are `due`, not `after`:
+a deadline does not make work unbuildable beforehand. Closed milestones are
+closed source records, not accepted Keel phases; no source closure establishes
+production verification or lived-in use. The projection is read-only and
+incomplete reads stay visible. Adoption preserves existing local plans and
+proposes this source only when there is no local plan to replace.
+
 ### 6. The night shift (phases 10, 11)
 
 The rules come from isocan's "night shift's pull requests", and each one was

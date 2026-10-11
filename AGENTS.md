@@ -123,6 +123,12 @@ Keep implemented, merged, production-verified and lived-in distinct. A merge
 never checks acceptance. Review correction proposals against fresh source
 facts; preserve historical evidence and the scope of replaced decisions.
 
+For projects configured with `phases.source: "milestones"`, GitHub owns the
+plan and keel reads it. Deadlines are `due`, never `after`; issue or milestone
+closure is source planning state, never acceptance. Edit the plan in GitHub
+and preserve unavailable or incomplete reads as gaps. Loop phase-homing and
+`prove --evidence` cannot write archived local plans for this source.
+
 ## Project canvas
 
 `keel canvas` projects source records onto isocan. Collect and render locally

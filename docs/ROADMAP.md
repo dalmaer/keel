@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**40 of 69 phases built; 24 owe a walk.** Built means implemented and checked; planned is not available.
+**40 of 69 phases built; 25 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Await a deployed public isocan conditional-edit operation before implementing the stable live pulse. Complete the real browser concurrent-edit walk and provision the dedicated GitHub writer using the project-canvas guide, then verify night/restart behavior. Immutable packed recovery and a deployed historical receipt replay are proven. Preserve the already approved destination, writer, dashboards and weekly automation; do not request their approval again. Scheduled-use evidence is still owed. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -69,7 +69,7 @@ From an empty directory, keel init produces a repo whose check passes, whose roa
 
 Existing projects come under keel without losing what is theirs, and a practice change reaches every one of them as a reviewed pull request.
 
-12/20 built; 7 owe a walk.
+12/20 built; 8 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -92,7 +92,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 | [53. A release is rehearsed on the fleet before it is tagged](phases/53-a-release-is-rehearsed-on-the-fleet-before-it.md) | partial, walk owed | 2026-10-09 | [52](phases/52-a-fleet-update-always-leaves-a-pr.md) | Built: keel fleet update --rehearse (phase 52's path with the candidate practice, stopped before the push; at most 4 projects at once, in worker threads) and keel release running it after its gate and before its commit, refusing while a project passes on main and fails with the release; --despite <repo> "<why>" the owner's way past, written into the commit and WHATSNEW. Owes the walk: three rehearsed releases, and the owner's comparison of their fleet rounds with v0.8.23 to v0.8.26. Design: research/2026-10-09-updates-never-block.md. · [#40](https://github.com/dalmaer/keel/issues/40) |
 | [58. The agent guide can be CLAUDE.md](phases/58-the-agent-guide-can-be-claude-md.md) | partial, walk owed | 2026-10-10 | — | Implemented guide selection across adoption, rendering, updates, drift checks and migrations, preserving prose and safe symlink aliases. The real CLAUDE.md-only adoption and owner read remain owed. · [#45](https://github.com/dalmaer/keel/issues/45) |
 | [60. Review after the push, for projects that ship to main](phases/60-review-after-the-push-for-projects-that-ship-to.md) | partial, walk owed | 2026-10-09 | [45](phases/45-agents-are-providers-claude-and-codex-behind-keel-s-rules.md), [46](phases/46-cross-review-runs-its-agent-in-a-read-only-job.md) | Built: "crossReview": { "after": "push" } renders a push-to-main trigger and a daily run into keel-cross-review.yml (none without it); each run reviews main's commits since the last review as one diff, by a provider other than the one its commits' authors and Co-authored-by trailers name; findings are commit comments on the head and one keel:review-after issue per push, read and answered with keel review <repo>@<sha>; at most budget.pushes a day, the rest reviewed together by the next run. Owes the walk: a month of one project's pushes. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#47](https://github.com/dalmaer/keel/issues/47) |
-| [63. Plans can stay as milestones](phases/63-plans-can-stay-as-milestones.md) | planned | 2026-10-09 | [51](phases/51-the-board-whose-turn-it-is.md) | A project that plans with GitHub milestones (named for their ambition, with exit criteria) has no phase files, so adopt turns phases off, and keel next, the board and the night see no plan. keel reads a milestone's exit criteria as a phase's Done when, and its issues as the work, without rewriting the project's plans. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md. · [#50](https://github.com/dalmaer/keel/issues/50) |
+| [63. Plans can stay as milestones](phases/63-plans-can-stay-as-milestones.md) | partial, walk owed | 2026-10-10 | [51](phases/51-the-board-whose-turn-it-is.md) | Read-only milestone plans now feed next, status, the board and the installed night through shared cache/quota controls. Automated and live empty-source transport proofs passed; one real release and its owner read remain owed. · [#50](https://github.com/dalmaer/keel/issues/50) |
 
 - **4 done when:** `keel adopt` on duo and on cajones produces a pull request a person merges, after which each project's own check passes and its `.keel/keel.json` names the practice version.
 - **5 done when:** `keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
@@ -113,7 +113,7 @@ Existing projects come under keel without losing what is theirs, and a practice 
 - **53 done when:** `keel release` rehearses the update on every managed fleet project before it commits and tags, and refuses while a project's check passes on main and fails with the release, unless the owner records why; three releases have gone through it, and the owner has compared their fleet rounds with v0.8.23 to v0.8.26.
 - **58 done when:** `keel adopt` on a project whose guide is CLAUDE.md (and no AGENTS.md) turns lessons and night on, with keel's blocks in CLAUDE.md, and creates no AGENTS.md; render, doctor and update treat that guide as they treat AGENTS.md; and one real project adopted this way keeps a single guide.
 - **60 done when:** On a project with `"crossReview": { "after": "push" }`, every push to main is reviewed by a provider other than its author, as one batch; each finding is posted where the owner reads it, answered fixed, tracked or not valid like any other, and a tracked one is a `keel:agent` issue; nothing about the push waits on it; and a month of one real project's pushes has been reviewed.
-- **63 done when:** On a project with `"phases": { "source": "milestones" }`, `keel next`, the board and the night read its open GitHub milestones as phases (the milestone's description as Done when, its issues as acceptance boxes, its due date as `after`, closed when the milestone closes); nothing is written into the project's plans; and one real project's plan shows on the board this way for a release.
+- **63 done when:** On a project with `"phases": { "source": "milestones" }`, `keel next`, the board and the night read its open GitHub milestones as phases (the milestone's description as Done when, its issues as acceptance boxes, its deadline as `due`, without postponing work, closed when the milestone closes); nothing is written into the project's plans; and one real project's plan shows on the board this way for a release.
 
 ## G3 — Lessons come home
 

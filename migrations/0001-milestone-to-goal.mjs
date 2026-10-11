@@ -63,6 +63,7 @@ async function phaseFiles(project) {
 const frontOf = raw => /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw)?.[1] ?? '';
 
 export async function applies(project) {
+  if (project.config?.phases?.source === 'milestones') return false;
   if (!(await project.exists('docs/milestones.json'))) return false;
   for (const f of await phaseFiles(project)) {
     if (MILESTONE.test(frontOf((await project.read(`docs/phases/${f}`)) ?? ''))) return true;

@@ -59,7 +59,8 @@ stderr as one line beginning `keel:`.
 
 - `status` → `{name, goals: [{id, title, outcome, phases, built, lived, owed}], next}` (`owed`: partial phases that owe a walk)
 - `status`, `next`, `goal …` and `phase …` exit 2 where `phases` is a local
-  variant, except that `status` and `next` read the projects shape.
+  variant, except that `status` and `next` read the projects shape;
+  `status`, `next` and `phase list` also read the milestone source below.
 - `next` → the phase object (`id, file, title, status, since, goal, depends,
   note, evidence, done, next`) or `null` when nothing is left unbuilt. It is
   the same object `node scripts/roadmap.mjs --json` reports as `next`.
@@ -69,6 +70,24 @@ stderr as one line beginning `keel:`.
   `next` is `{id, title, status, word, line}` or `null`; `status` →
   `{name, shape, projects: [{project, phases, built, partial, planned,
   superseded, unknown, file, next, from}]}`. An unknown `<p>` exits 2.
+- With `"phases": {"source": "milestones"}`, `next` →
+  `{source, readOnly, coverage: {complete, gaps}, github, next}`; `status`
+  adds `name` and `phases`, and `phase list` returns `phases` in the same
+  envelope. Each record has `id, title, url, sourceState, status, due, done,
+  doneFrom, boxes, next`; `closed` is GitHub planning state, never `built`.
+  `next: null` with incomplete coverage does not mean all work is finished.
+  `phases.ownerLabel` defaults to `keel:owner`; open issues with that label
+  become read-only owner walks. Truncated ownership data never assigns work to an agent.
+  Invalid source or owner-label settings fail before remote reads or local writes. Reads cap at 50 open and 20 recently updated
+  closed milestones, 50 issues per milestone and 20 labels per issue; every truncated connection is disclosed.
+  GitHub metadata includes cache state, read time and query cost. The cache
+  lasts 10 minutes and optional reads respect the quota floor. Missing milestone
+  exit criteria are a coverage gap, not a usable empty acceptance claim.
+  Loop phase-homing and `prove --evidence <phase>` cannot write archived local
+  plans for this source. Proof runs without evidence writeback remain available.
+  Existing local goals or legacy milestone files suppress discovery. Quota-saving
+  refusals are unavailable readings. On return to file phases, `update` migration
+  0007 repairs missing phase-test wiring independently of earlier migrations.
 - `goal list` → `[{id, title, outcome, phases, built, lived, owed}]`
 - `goal show` → `{goal, phases: [{id, title, status}], built, lived, next}`;
   `next` is the phase object or `null`
@@ -237,7 +256,7 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   `.keel/keel.json` `local` and `docs/keel-adoption.md`); **off** where
   nothing is there (no phases means no phases, evidence or conduct).
 - Phases are on only if every phase file parses with keel's parser and
-  `docs/goals.json` exists. Milestones, missing goals, or built phases without
+  `docs/goals.json` exists. Local milestone-shaped files, missing goals, or built phases without
   evidence stay local; converging is a migration the owner accepts, never
   invented evidence.
 - A managed file or symlink the project already has, differing from keel's,
@@ -307,6 +326,18 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   only by `keel next [--project <p>]` and `keel status` (CLOSED→built,
   PART-DONE→partial, NOT STARTED→planned, RETIRED→superseded; anything else is
   unknown, never guessed). `goal`/`phase` exit 2 there.
+- GitHub milestone plans use `"phases": {"source": "milestones"}` and `repo`.
+  `next`, the board and the installed night read the same bounded, cached
+  source. Adoption proposes it when described milestones exist and no local
+  plan would be replaced. Keel writes no milestones, issues or phase files.
+  `due` is a deadline, never `after`. Issue checkboxes and milestone closure
+  report source planning state, never verified acceptance. Edit this plan in
+  GitHub; local goal and phase mutations and `walk done` are unavailable.
+  Adoption leaves the file-based conductor off. Source-disabled managed files
+  retain dormant drift hashes, and local phase-conversion migrations are skipped.
+  The local roadmap check explicitly reports inactive for this source; local
+  roadmap writes remain refused. Ordinary doctor surveys do not discover
+  milestones over the network.
 - A practice whose `source.path` is a real file in the repo (the repo is its
   upstream) stays local; keel installs no copy beside the original.
 - Phases with no `goal` converge by migration 0003 once every built phase
@@ -627,6 +658,9 @@ first, a model's opinion never: every number comes from a command. It exits
   PART-DONE phases in a project with no `issue:`; `phases_stuck` ages them by
   their phases.md's last commit (there is no `since`). `roadmap_stale`,
   `evidence_placeholders` and `proofs_hold` are `n/a` there.
+- For `phases.source: "milestones"`, the installed night reads the shared
+  milestone adapter; local roadmap/evidence-only measures are unavailable
+  rather than inferred from closed GitHub records.
 - Records, wherever their source exists (else `n/a` with why, never 0):
   `records_disagree` (docs/projects front matter `built` with a phase open,
   or `partial`/`designed` with every phase CLOSED or RETIRED);
@@ -911,6 +945,13 @@ The optional `loop` practice installs `node scripts/loop.mjs` in a project
 with a Loop workspace (`.stitch.json`). Each Loop insight is a finding in
 `docs/loop/`; `docs/LOOP.md` is generated and `tests/loop.test.mjs` checks it.
 **The ranking is ours, not Loop's.**
+
+With `phases.source: "milestones"`, insight collection remains available, but
+local phase-homing (`propose`, `decide`, `prove`, `push`) is unsupported. Rendering
+is explicitly inactive and preserves the archived page; pull/mine skip proofs
+and `afterRender`. Climb excludes its local Loop proposal job for this source.
+Edit the plan in GitHub.
+
 
 - `pull` — files new insights as `untriaged`; never overwrites our fields.
 - `list --json [-d <decision>]` — the findings, without bodies.
@@ -1341,6 +1382,8 @@ the strip; red CI → `broken`; a draft PR on a `keel/update-` branch →
 check", linking the PR, and not listed again by loose-ends). A source that cannot be read is `n/a` with
 why, never missing. An action's `note` is `required` or `optional`: the verb
 takes it as `--note` (walk done, learn decide) or as the why (walk decide).
+Milestone-source items link to GitHub and offer no local phase mutation.
+Source closure never contributes to the local built count.
 A walk item carries `yourPart` (the phase's `## Your part`: `{ask, why, look,
 choices, takes, then, ready, table, box}`, `parts` when several; null when
 the phase has none, and the page marks it "needs plain words"), `ready` and

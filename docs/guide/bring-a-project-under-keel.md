@@ -46,6 +46,37 @@ is reported in the plan; neither existing file is removed. A symlinked pair
 counts as one guide. Render, doctor and update use the same selection, including
 skipped blocks and the contracts table. Existing project prose is preserved.
 
+Projects that plan with GitHub milestones can keep that plan. With
+`"phases": {"source": "milestones"}` and a configured `repo`, keel reads
+milestone descriptions and issues for `next`, the board and the night.
+Adoption proposes this source when it finds described milestones and no
+existing local plan to preserve. It does not create phase files or change
+GitHub milestones and issues. The file-based conductor stays off because it
+requires local phase and goal files; existing project instructions remain yours.
+Switching an existing project to this source preserves dormant managed-file
+hashes, so returning to file plans cannot overwrite edits made in the meantime.
+Local phase-conversion migrations leave archived plans untouched. The local
+roadmap check reports that it is inactive for this source; it does not claim
+the remote plan is verified. Ordinary doctor surveys stay offline. Missing
+milestone exit criteria are reported as a coverage gap.
+
+A milestone deadline is `due`: it never postpones work until that date.
+Issue checkboxes reflect GitHub issue state, and a closed milestone reflects
+GitHub planning state. Neither proves acceptance, production verification
+or lived-in use. Missing access and truncated reads remain visible gaps.
+Keep editing the plan in GitHub; keel's projection is read-only. Open issues
+labelled `keel:owner` become owner walks; set `phases.ownerLabel` to use
+another nonempty label. Invalid source settings fail instead of falling back to local files;
+incomplete ownership data never assigns work to an agent. The reader caches for ten minutes, respects the GitHub quota
+floor and discloses its limits: 50 open and 20 recently updated closed milestones, 50 issues per milestone and
+20 labels per issue. An incomplete read cannot establish that nothing remains.
+Loop phase-homing and `prove --evidence <phase>` cannot write archived local
+plans for this source. Proof runs without evidence writeback remain available.
+Night proposals for missing issues refer to assigning issues to GitHub milestones.
+Quota-saving refusals are unavailable readings, not broken instruments.
+When returning to file phases, run `keel update`: migration 0007 repairs any
+missing phase-test wiring, even when an earlier migration ran under milestones.
+
 What stays local is never a failure. `keel doctor` lists local variants as
 information, and says when one would now switch on if adopted again.
 
