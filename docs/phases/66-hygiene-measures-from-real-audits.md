@@ -53,6 +53,11 @@ Over time: one fix from each.
 
 ## Deliberately open
 
+- **Observation and authority — settled 2026-10-11:** Worktree size is logical bytes held, not guaranteed reclaimable physical disk space. Local main reachability establishes merged code only. Current, primary, locked, dirty or incompletely inspected worktrees are protected; bounded filesystem activity and size scans disclose gaps. Commands are one-at-a-time owner advice, never automatic cleanup.
+- **Draft age — settled 2026-10-11:** Count currently open drafts by age since creation, explicitly not continuous time in draft. Bounded cached GitHub reads preserve truncation, quota and access gaps as unavailable.
+- **Thresholds — settled 2026-10-11:** Configured hygiene filters are positive finite values (draft hours, worktree days and file lines); measure count bounds remain separate, default zero with no ratchet. Long-file history and split points are bounded heuristics tied to source revisions.
+- **Accepted split proposals — settled 2026-10-11:** Extend the existing health page and `keel walk decide` flow. An explicitly accepted, fresh file-split proposal can use the existing recoverable robot issue journal only under an approved project policy and budget. Missing approval, changed source or uncertain delivery remains explicit. Worktree and draft decisions record the owner's choice without executing the suggested action.
+
 - **Bounds**: 1500 lines and 24 hours are first guesses. Settled by how many proposals are declined as noise.
 
 ## Next action

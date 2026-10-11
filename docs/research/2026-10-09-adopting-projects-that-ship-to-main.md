@@ -96,7 +96,11 @@ rather than ask them to change.
    say so.
 9. **Hygiene measures from real audits** (phase 66): stale worktrees and the
    disk they hold, draft PRs left waiting, and files too long for an agent to
-   read whole. Each one names its fix, and the robot can take it.
+   read whole. Each one names its fix; worktree and draft actions remain the
+   owner's, while an accepted, fresh file-split proposal can use the existing
+   robot issue flow under the approved project budget. Settled 2026-10-11:
+   bounded observations retain unknown coverage; draft age means age since
+   creation while currently draft, and worktree size means logical bytes.
 
 ## What it costs
 
