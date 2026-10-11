@@ -66,7 +66,8 @@ GitHub planning state. Neither proves acceptance, production verification
 or lived-in use. Missing access and truncated reads remain visible gaps.
 Keep editing the plan in GitHub; keel's projection is read-only. Open issues
 labelled `keel:owner` become owner walks; set `phases.ownerLabel` to use
-another label. The reader caches for ten minutes, respects the GitHub quota
+another nonempty label. Invalid source settings fail instead of falling back to local files;
+incomplete ownership data never assigns work to an agent. The reader caches for ten minutes, respects the GitHub quota
 floor and discloses its limits: 50 open and 20 recently updated closed milestones, 50 issues per milestone and
 20 labels per issue. An incomplete read cannot establish that nothing remains.
 

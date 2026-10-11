@@ -3,6 +3,7 @@
   "summary": "The night shift: a nightly health page as one PR, its queue drained by machinery, all from scripts in the project's own repo; a red night is a failed workflow.",
   "requires": ["base", "agents-md"],
   "files": [
+    { "path": "scripts/keel/planning-config.mjs", "from": "scripts/keel/planning-config.mjs", "kind": "managed" },
     { "path": ".github/workflows/keel-night.yml", "from": ".github/workflows/keel-night.yml", "kind": "managed" },
     { "path": "scripts/keel/ci.mjs", "from": "scripts/keel/ci.mjs", "kind": "managed" },
     { "path": "scripts/keel/improve.mjs", "from": "scripts/keel/improve.mjs", "kind": "managed" },

@@ -77,7 +77,8 @@ stderr as one line beginning `keel:`.
   doneFrom, boxes, next`; `closed` is GitHub planning state, never `built`.
   `next: null` with incomplete coverage does not mean all work is finished.
   `phases.ownerLabel` defaults to `keel:owner`; open issues with that label
-  become read-only owner walks. Reads cap at 50 open and 20 recently updated
+  become read-only owner walks. Truncated ownership data never assigns work to an agent.
+  Invalid source or owner-label settings fail before remote reads or local writes. Reads cap at 50 open and 20 recently updated
   closed milestones, 50 issues per milestone and 20 labels per issue; every truncated connection is disclosed.
   GitHub metadata includes cache state, read time and query cost. The cache
   lasts 10 minutes and optional reads respect the quota floor. Missing milestone

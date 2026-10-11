@@ -5,7 +5,8 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { githubRead, quotaGuard, rememberQuota } from './quota.mjs';
 
-export const milestoneSource = config => config?.phases?.source === 'milestones';
+import { milestoneSource, planningConfig } from './planning-config.mjs';
+export { milestoneSource };
 export const MILESTONE_QUERY = `query($owner:String!,$name:String!) {
   rateLimit { cost remaining resetAt }
   repository(owner:$owner,name:$name) {
@@ -66,6 +67,7 @@ function observedQuota(response) {
 
 /** Pure mapping seam. GraphQL errors and malformed/missing connections never mean empty. */
 export function projectMilestones(response, config) {
+  const { ownerLabel } = planningConfig(config);
   if (typeof response === 'string') response = JSON.parse(response);
   if (response?.errors !== undefined && !Array.isArray(response.errors)) throw new Error('malformed GraphQL errors');
   if (response?.errors?.length) throw new Error(`GitHub milestones: ${response.errors.map(e => e.message).join('; ')}`);
@@ -77,8 +79,6 @@ export function projectMilestones(response, config) {
     ...connection(data?.repository?.openMilestones, 'open milestones', gaps),
     ...connection(data?.repository?.closedMilestones, 'closed milestones', gaps),
   ].sort((a, b) => a?.number - b?.number);
-  const ownerLabel = config.phases?.ownerLabel ?? 'keel:owner';
-  if (typeof ownerLabel !== 'string' || !ownerLabel.trim()) throw new Error('phases.ownerLabel must be a nonempty label');
   const phases = nodes.map(m => {
     record(m, 'milestone');
     if (m.description !== null && typeof m.description !== 'string') throw new Error('malformed milestone description');
@@ -89,12 +89,14 @@ export function projectMilestones(response, config) {
       const labels = connection(issue.labels, `issue ${issue.number} labels`, gaps);
       if (labels.some(l => typeof l?.name !== 'string')) throw new Error('malformed issue label');
       return { n: i + 1, number: issue.number, text: issue.title, url: issue.url, state: issue.state,
-        checked: issue.state === 'CLOSED', walk: issue.state === 'OPEN' && labels.some(l => l.name === ownerLabel) };
+        checked: issue.state === 'CLOSED', walk: issue.state === 'OPEN' && labels.some(l => l.name === ownerLabel),
+        ownershipKnown: issue.state === 'CLOSED' || labels.some(l => l.name === ownerLabel) || !issue.labels.pageInfo.hasNextPage };
     });
     return { id: m.number, title: m.title, source: 'milestones', readOnly: true, url: m.url, link: m.url,
       sourceState: m.state, status: m.state === 'CLOSED' ? 'closed' : boxes.some(b => b.checked) ? 'partial' : 'planned',
       due: m.dueOn, updatedAt: m.updatedAt ?? null, closedAt: m.closedAt ?? null,
       ...exitCriteria(m.description ?? ''), boxes, evidence: [], depends: [],
+      ownershipComplete: !m.issues.pageInfo.hasNextPage && boxes.every(b => b.ownershipKnown),
       next: m.state === 'CLOSED' ? 'Closed on GitHub (planning state only).' : `Read the milestone and its issues on GitHub: ${m.url}` };
   });
   return { source: 'milestones', readOnly: true, config, phases, goals: [], coverage: { complete: !gaps.length, gaps }, quota };
@@ -102,10 +104,11 @@ export function projectMilestones(response, config) {
 
 /** One bounded query, behind the same cache/floor as all optional CLI reads. */
 export async function readMilestones(config, { env = process.env, fresh = false, graphql, guard, now, spend } = {}) {
+  const { ownerLabel } = planningConfig(config);
   if (!/^[\w.-]+\/[\w.-]+$/.test(config.repo ?? '')) throw new Error('milestones require a known owner/repo in .keel/keel.json');
   const [owner, name] = config.repo.split('/');
-  const identity = createHash('sha256').update(JSON.stringify([config.repo, config.phases?.ownerLabel ?? 'keel:owner'])).digest('hex');
-  const result = await githubRead(env, `milestones-v4-${identity}`, async () => {
+  const identity = createHash('sha256').update(JSON.stringify([config.repo, ownerLabel])).digest('hex');
+  const result = await githubRead(env, `milestones-v5-${identity}`, async () => {
     const raw = await (graphql ? graphql({ query: MILESTONE_QUERY, owner, name }) : gh(['api', 'graphql', '-f', `query=${MILESTONE_QUERY}`, '-f', `owner=${owner}`, '-f', `name=${name}`], env));
     const response = typeof raw === 'string' ? JSON.parse(raw) : raw;
     // A rejected/malformed projection still spent the quota GitHub reported.

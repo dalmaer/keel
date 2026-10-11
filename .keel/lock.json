@@ -167,7 +167,7 @@
     },
     "scripts/keel/generated.mjs": {
       "practice": "phases",
-      "sha256": "cbc958146d40f1be9d7555c0132ddda9eb10da2a56dee6366418083644f2d609"
+      "sha256": "5cdeffb8e93fa8f6e51f1ef8afb9e55eb0dc9cdb2b1fdcd805d6013b81db20e0"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
@@ -179,7 +179,11 @@
     },
     "scripts/keel/milestones.mjs": {
       "practice": "night",
-      "sha256": "81c0b5f53dc8b7d4ec51a9ef6ccd42688792ae8600e5a6b078b5d93e96d09e28"
+      "sha256": "e37492e3518422faea8580916032aa7dcff314e499e627338ede403edb7dc3bb"
+    },
+    "scripts/keel/planning-config.mjs": {
+      "practice": "night",
+      "sha256": "f47844a4e5e1f2259d67c4e3d8e4a6e43a4cb036ed1f6357438fee801f03ef3e"
     },
     "scripts/keel/pr-body.mjs": {
       "practice": "night",
@@ -251,7 +255,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "33b6224915f2e213d4bd8d7e4fd3e992a5c3f47115f599b5f4b692f60d15af54"
+      "sha256": "96e9b70b2a4f739981ea555d17a35bc7792ff6cd01de281b4e3a1bd82be28d83"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",

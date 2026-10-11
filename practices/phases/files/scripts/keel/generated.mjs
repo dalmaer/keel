@@ -1,3 +1,4 @@
+import { milestoneSource } from '../roadmap.mjs';
 // keel's generated-file check (keel practice `phases`; managed: keel render
 // rewrites it). keel's lesson 52: a file declared generated is only a view
 // while its generator rewrites it whole. A generator that appends, or keeps
@@ -33,11 +34,12 @@ export const GENERATORS = Object.freeze([
 
 /** The generated files this project declares, from its .keel/keel.json: GENERATORS filtered. */
 export function generatedFiles(config, list = GENERATORS) {
+  const milestones = milestoneSource(config);
   const on = new Set(config?.practices ?? []);
   const self = config?.keel === 'self';
   // The local roadmap becomes an archive when GitHub owns the selected plan.
   return list.filter(g => (!g.self || self) && (!g.practice || on.has(g.practice))
-    && !(g.path === 'docs/ROADMAP.md' && config?.phases?.source === 'milestones'));
+    && !(g.path === 'docs/ROADMAP.md' && milestones));
 }
 
 /** Never copied: git's own directory, installed packages, and the test ledger's runs. */

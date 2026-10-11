@@ -63,7 +63,8 @@ phase files or local roadmap. `keel next`, `status`, `phase list`, the board
 and the installed night read a bounded, cached GitHub projection. Deadlines
 are `due`, not `after`; issue checks and `closed` milestones are source planning
 state, never acceptance or production evidence. `phases.ownerLabel` defaults
-to `keel:owner`. Incomplete and unavailable sources remain visible. The
+to `keel:owner`. Invalid source or label settings fail before reads or writes.
+Incomplete ownership stays unknown, never an agent assignment. Incomplete and unavailable sources remain visible. The
 canvas currently reports both goal and phase coverage as unsupported rather
 than publishing an archived local plan. Existing local roadmap checks report
 inactive for this source; local roadmap writes remain refused.

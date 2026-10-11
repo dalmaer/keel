@@ -49,7 +49,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs tests/milestone-integration.test.mjs`; `npm run check`.
+Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs tests/milestone-integration.test.mjs tests/milestone-read-context.test.mjs tests/milestone-surfaces.test.mjs tests/milestone-review.test.mjs`; `npm run check`.
 By hand: one release on the board.
 
 ## Deliberately open
@@ -71,3 +71,5 @@ Owner: select a project with a GitHub milestone release, adopt the proposed read
 - **2026-10-10** — Review found that closed history could consume the entire milestone bound. Open milestones now have a separate 50-record allowance; a separate 20-record recent-history allowance cannot hide active work.
 
 - **2026-10-10** — Source selection governs migrations and dormant ownership as well as reads. Archived plans stay untouched, and disabled managed files retain hashes so returning to file plans cannot overwrite intervening edits. Milestone adoption leaves the file-based conductor off. The selected source also takes precedence over a retained local shape.
+
+- **2026-10-11** — Ownership is unknown when issue or label pagination can hide an owner gate. Invalid source settings fail before reads or writes; board refresh shares its root planning read rather than spending quota twice.
