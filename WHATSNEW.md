@@ -5,6 +5,19 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.28 — practice 0.8.28 (2026-10-10)
+
+- **A stalled test run that aborts before any test is parsed has its stderr redacted**, as failure text is. The hygiene output no longer prints a configured credential into a CI log.
+- **Timing evidence:**
+  - Tests are identified from the fields Node 24 sends (file, nesting, report order), so the inventory is complete again where `testId` and `parentId` are missing (Node 24 before 24.16 and 24.19).
+  - Runs from a checkout with uncommitted changes, or from branches that are not ancestors of HEAD, no longer count.
+  - A night that makes no proposal says why, never "every measure is within its bound".
+- **The night finds the project's own gate workflow** (a project gating in `pages.yml` included), matching the check command as a whole word.
+- **CI is reused as the night's gate only when tests ran in it:** a job named for tests whose every step ran. In a run that failed, the steps up to the failure must have run, and that failure is the gate's result. Otherwise the night runs its local gate.
+- **JUnit reports (bun, vitest) are judged fresh for this run**, so a deterministic suite's byte-identical report counts each time.
+- **The guard tells a describe from a test of the same name**, so dropping either is seen.
+- **The robot's Claude can read its brief.** It is granted the brief's own folder only.
+
 ## v0.8.27 — practice 0.8.27 (2026-10-10)
 
 - **The robot works the issues it is handed** (phase 54). An issue labelled `keel:agent` that holds the rubric is worked by the provider the project names, within a weekly budget, as a PR a person merges. Since it landed, the robot also refuses:
