@@ -6,7 +6,7 @@ goal: G0
 spec: 2
 depends: []
 note: "Cause/date advice and bounded evidence re-derivation implemented and verified; owner read of the rendered rules remains."
-evidence: ["evidence/2026-10-11-rules-and-measurements.md"]
+evidence: ["evidence/2026-10-11-phase-review-corrections.md", "evidence/2026-10-11-rules-and-measurements.md"]
 issue: 51
 ---
 
@@ -64,3 +64,5 @@ Owner: read the causes in AGENTS.md (15 minutes), then identify any obsolete rul
 ## Trajectory
 
 - **2026-10-11** — Evidence commands are explicit argv records rather than Markdown command extraction; a read-only Ledger render preview and a real Keel measurement rerun preserved both projects' source files. The lint checks syntax, leaving truth and retirement to the owner. See the evidence record.
+
+- **2026-10-11** — Escape: Markdown examples must not change comment state outside their fences. Advice scanners now preserve fence boundaries, ignore indented measurement examples and retain nested prose. Windows keeps preview/validation coverage while POSIX-only execution assertions are guarded. See the follow-up evidence.

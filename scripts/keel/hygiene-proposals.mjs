@@ -1,5 +1,6 @@
 // Frozen long-file observations in the existing health proposal, never policy.
 import { createHash } from 'node:crypto';
+import { healthDirOf } from './lib.mjs';
 const begin = '<!-- keel:hygiene-proposal:v1 -->', end = '<!-- /keel:hygiene-proposal:v1 -->';
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
@@ -10,23 +11,24 @@ export function hygieneRobotTargetReason(file) {
   if(/^(?:\.github|scripts\/keel|\.keel|\.agents|\.claude|\.codex|practices)\//.test(file)||/^docs\/(?:phases|decisions|evidence|research|projects)\//.test(file)||/(?:^|\/)(?:AGENTS\.md|CLAUDE\.md|package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|\.nvmrc|\.node-version|\.tool-versions)$/.test(file))return 'robot-protected or managed-practice target; owner-led split required';
   return null;
 }
-export function makeHygieneProposal({repo,file,blob,lines,sections=[],at=new Date().toISOString()}) {
+export function makeHygieneProposal({repo,file,blob,rawDigest,lines,sections=[],at=new Date().toISOString()}) {
   if(typeof repo!=='string'||! /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/i.test(repo))throw new Error('hygiene repository identity unavailable');
   repo=repo.toLowerCase();
   // Conservative source identity also keeps issue titles and rubrics free of markup.
   if(typeof file!=='string'||file.length>180||! /^[a-z0-9_.\/-]+$/i.test(file)||file.startsWith('/')||file.split('/').some(p=>!p||p==='.'||p==='..'))throw new Error('unsafe hygiene source file');
   const targetReason=hygieneRobotTargetReason(file);if(targetReason)throw new Error(targetReason);
   if(typeof blob!=='string'||! /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(blob)||!Number.isSafeInteger(lines)||lines<1||lines>1000000)throw new Error('hygiene file observation unavailable');
+  if(rawDigest!==undefined&&(typeof rawDigest!=='string'||!/^[a-f0-9]{64}$/.test(rawDigest)))throw new Error('invalid hygiene working-byte digest');
   if(!Array.isArray(sections)||sections.length>12)throw new Error('hygiene sections exceed bound');
   sections=sections.map(s=>{
     if(typeof s?.name!=='string'||s.name.length>200||/[\x00-\x1f]/.test(s.name)||!Number.isSafeInteger(s.start)||!Number.isSafeInteger(s.end)||s.start<1||s.end<s.start||s.end>lines)throw new Error('invalid hygiene section');
     return {name:s.name,start:s.start,end:s.end};
   });
   if(!Number.isFinite(new Date(at).getTime()))throw new Error('invalid hygiene observation date');
-  const subjectKey=`long_files:${repo}:${file}`,instanceId=hash([subjectKey,blob]);
+  const subjectKey=`long_files:${repo}:${file}`,instanceId=hash(rawDigest===undefined?[subjectKey,blob]:[subjectKey,blob,rawDigest]);
   const title=`Split long source file ${file}`;
   const rubric={version:1,problem:`${file} has ${lines} lines at Git blob ${blob}.`,reproduction:`Inspect tracked source ${file} at blob ${blob}; count lines and review its top-level sections.`,acceptance:`Split ${file} into cohesive modules while preserving public behavior; run the project's relevant tests and configured check. Report the resulting file sizes.`,change:`Refactor only the responsibility split of ${file}. ${sections.length?'Review heuristic split ranges '+sections.map(s=>`${s.start}-${s.end}`).join(', ')+'.':'Identify cohesive top-level split points first.'} Section ranges are heuristic advice, not verified semantic boundaries.`,prerequisites:[],ownerBlockers:[]};
-  return {version:1,measure:'long_files',repo,file,blob,lines,sections,observedAt:new Date(at).toISOString(),subjectKey,instanceId,candidate:{title,rubric},lifecycle:{state:'proposed',decidedAt:null,reason:null,issue:null}};
+  return {version:1,measure:'long_files',repo,file,blob,...(rawDigest===undefined?{}:{rawDigest}),lines,sections,observedAt:new Date(at).toISOString(),subjectKey,instanceId,candidate:{title,rubric},lifecycle:{state:'proposed',decidedAt:null,reason:null,issue:null}};
 }
 function checked(p) {
   const expected=makeHygieneProposal({...p,at:p.observedAt});
@@ -62,15 +64,35 @@ export function parseHygieneProposal(text) {
 
 // Existing dated health pages are the only history. Bounded, read-only, and
 // conservative about gaps: callers must not treat an incomplete read as empty.
-export async function readHygieneProposals({root,healthDir='docs/health'}) {
-  const {realpath,lstat,readdir,readFile}=await import('node:fs/promises');
-  const {resolve,relative,join,sep,isAbsolute}=await import('node:path');
+export async function readHygieneProposals({root,healthDir}) {
+  const {realpath,lstat,readdir,readFile,open}=await import('node:fs/promises');
+  const {constants}=await import('node:fs');
+  const {resolve,relative,join,dirname,sep,isAbsolute}=await import('node:path');
   const proposals=[],gaps=[];
   try {
-    const base=await realpath(root),directory=resolve(base,healthDir),rel=relative(base,directory);
+    const base=await realpath(root);
+    const config=await readFile(join(base,'.keel/keel.json'),'utf8').then(JSON.parse,e=>{if(e.code==='ENOENT')return {};throw e;});
+    const configured=resolve(base,healthDirOf(config));
+    healthDir??=healthDirOf(config);
+    const requested=resolve(base,healthDir),rel=relative(base,requested);
     if(!rel||rel==='..'||rel.startsWith('..'+sep)||isAbsolute(rel))throw new Error('unsafe hygiene health directory');
-    let current=base;
-    for(const part of rel.split(sep)){current=join(current,part);let st;try{st=await lstat(current);}catch(e){if(e.code==='ENOENT')return {proposals,gaps};throw e;}if(st.isSymbolicLink()||!st.isDirectory())throw new Error('unsafe hygiene health directory');}
+    // Resolve only the configured directory (or its canonical spelling), as
+    // the report writer does. A missing child of an escaping alias is a gap.
+    let ancestor=configured,directory;const missing=[];
+    for(;;){
+      try{directory=join(await realpath(ancestor),...missing);break;}
+      catch(e){
+        if(e.code!=='ENOENT')throw e;
+        const st=await lstat(ancestor).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
+        if(st)throw new Error('unsafe hygiene health directory: unresolved alias');
+        missing.unshift(relative(dirname(ancestor),ancestor));ancestor=dirname(ancestor);
+      }
+    }
+    const within=relative(base,directory);
+    if(within==='..'||within.startsWith('..'+sep)||isAbsolute(within))throw new Error('unsafe hygiene health directory resolves outside project');
+    if(requested!==configured&&requested!==directory)throw new Error('hygiene history requires the configured health directory');
+    if(missing.length)return {proposals,gaps};
+    if(!(await lstat(directory)).isDirectory())throw new Error('unsafe hygiene health directory');
     const names=(await readdir(directory)).filter(n=>/^\d{4}-\d{2}-\d{2}\.md$/.test(n)).sort().reverse();
     if(names.length>366)gaps.push('hygiene health history truncated at 366 pages');
     let total=0;
@@ -79,7 +101,18 @@ export async function readHygieneProposals({root,healthDir='docs/health'}) {
         const file=join(directory,name),st=await lstat(file);
         if(!st.isFile()||st.isSymbolicLink()||st.size>1024*1024)throw new Error('unsafe or oversized hygiene health page');
         total+=st.size;if(total>8*1024*1024){gaps.push('hygiene history exceeds 8 MiB read bound');break;}
-        const parsed=parseHygieneProposal(await readFile(file,'utf8'));
+        const handle=await open(file,constants.O_RDONLY|constants.O_NOFOLLOW);
+        let source;
+        try {
+          const before=await handle.stat();
+          if(!before.isFile()||before.dev!==st.dev||before.ino!==st.ino||before.size!==st.size)throw new Error('hygiene health page changed during read');
+          const bytes=Buffer.alloc(st.size+1);let used=0;
+          while(used<bytes.length){const r=await handle.read(bytes,used,bytes.length-used,used);if(!r.bytesRead)break;used+=r.bytesRead;}
+          const after=await handle.stat();
+          if(used!==st.size||after.size!==st.size||after.mtimeMs!==before.mtimeMs)throw new Error('hygiene health page changed during read');
+          source=bytes.subarray(0,used).toString('utf8');
+        }finally{await handle.close();}
+        const parsed=parseHygieneProposal(source);
         gaps.push(...parsed.problems.map(p=>`${name}: ${p}`));
         if(parsed.proposal)proposals.push({...parsed.proposal,path:join(healthDir,name)});
       }catch(e){gaps.push(`${name}: ${e.message}`);}

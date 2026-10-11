@@ -2,7 +2,9 @@ import './helpers/hermetic.mjs';
 import {test} from 'node:test';
 import {run} from './helpers/run.mjs';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,readFile,rm,symlink,chmod} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm,symlink,chmod,rename,lstat} from 'node:fs/promises';
+import fsPromises from 'node:fs/promises';
+import {syncBuiltinESMExports} from 'node:module';
 import {join} from 'node:path';
 import {tmpdir,hostname} from 'node:os';
 import {createHash} from 'node:crypto';
@@ -261,4 +263,231 @@ test('source availability: attempted recovery bypasses unavailable source withou
   const github=async r=>{if(r.path.includes('/contents/')){contentsReads++;throw Error('Acme source unavailable');}return f.github(r);};
   for(let i=0;i<2;i++)assert.equal((await decideHygieneProposal({...f.args,github})).state,'recovered');
   assert.equal(contentsReads,0);assert.equal(f.posts,1);
+});
+
+async function healthAlias(f) {
+  await rename(join(f.root,'docs/health'),join(f.root,'acme-health'));
+  await symlink('../acme-health',join(f.root,'docs/health'));
+  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,health:'docs/health'}));
+  return 'acme-health/2026-10-11.md';
+}
+test('configured health alias: acceptance and report refresh share the canonical page',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f);
+  const accepted=await walkDecide({root:f.root,proposal:path,instance:f.proposal.instanceId,accept:'Acme approved',github:f.github,at});
+  assert.equal(accepted.data.decision,'accepted');assert.equal(f.posts,1);
+  await writeHealthReport({root:f.root,path,generated:'# Acme refreshed\n\n## Proposal\n\n'+formatHygieneProposal(f.proposal)});
+  const text=await readFile(join(f.root,canonical),'utf8');
+  assert.equal(parseHygieneProposal(text).proposal.lifecycle.state,'accepted');assert.match(text,/Acme human content/);
+  assert.equal(await readFile(join(f.root,path),'utf8'),text);assert.ok((await lstat(join(f.root,'docs/health'))).isSymbolicLink());
+  assert.equal((await decideHygieneProposal({...f.args,path:canonical})).state,'recovered');assert.equal(f.posts,1);
+});
+test('configured health alias: canonical and configured paths use the report writer lock',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),lock=join(f.root,'acme-health/.keel-time-proposals.lock');
+  await mkdir(lock);
+  for(const page of [path,canonical])await assert.rejects(decideHygieneProposal({...f.args,path:page,decision:'decline',reason:'Acme keep'}),/writer busy or unknown/);
+  await rm(lock,{recursive:true});
+  const declined=await decideHygieneProposal({...f.args,path:canonical,decision:'decline',reason:'Acme keep'});
+  assert.equal(declined.decision,'declined');assert.equal(f.gets,0);
+  await writeHealthReport({root:f.root,path,generated:'# Acme refreshed\n\n## Proposal\n\n'+formatHygieneProposal(f.proposal)});
+  assert.equal(parseHygieneProposal(await readFile(join(f.root,path),'utf8')).proposal.lifecycle.state,'declined');
+});
+test('configured health alias: external directory and page symlinks remain refused',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),original=await readFile(join(f.root,canonical),'utf8');
+  const outside=await mkdtemp(join(tmpdir(),'acme-outside-health-'));t.after(()=>rm(outside,{recursive:true,force:true}));
+  await writeFile(join(outside,'2026-10-11.md'),original);
+  await rm(join(f.root,'docs/health'));await symlink(outside,join(f.root,'docs/health'));
+  await assert.rejects(decideHygieneProposal(f.args),/outside project/);
+  assert.equal(await readFile(join(outside,'2026-10-11.md'),'utf8'),original);
+  await rm(join(f.root,'docs/health'));await symlink('../acme-health',join(f.root,'docs/health'));
+  await writeFile(join(f.root,'owner.md'),original);await rm(join(f.root,canonical));await symlink('../owner.md',join(f.root,canonical));
+  await assert.rejects(decideHygieneProposal(f.args),/symlink/);
+  assert.equal(await readFile(join(f.root,'owner.md'),'utf8'),original);assert.equal(f.gets,0);assert.equal(f.posts,0);
+});
+test('configured health alias: unconfigured aliases and mid-decision retargets are refused',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f);
+  await symlink('acme-health',join(f.root,'other-health'));
+  await assert.rejects(decideHygieneProposal({...f.args,path:'other-health/2026-10-11.md'}),/configured health page/);
+  const original=await readFile(join(f.root,canonical),'utf8');await mkdir(join(f.root,'acme-other'));
+  await writeFile(join(f.root,'acme-other/2026-10-11.md'),original);
+  const github=async r=>{
+    if(r.path.includes('/contents/')){await rm(join(f.root,'docs/health'));await symlink('../acme-other',join(f.root,'docs/health'));}
+    return f.github(r);
+  };
+  await assert.rejects(decideHygieneProposal({...f.args,github}),/health page changed/);
+  assert.equal(await readFile(join(f.root,canonical),'utf8'),original);
+  assert.equal(await readFile(join(f.root,'acme-other/2026-10-11.md'),'utf8'),original);assert.equal(f.posts,0);
+});
+
+test('canonical source freshness: legacy proposals accept CRLF bytes with the published filtered blob',async t=>{
+  const f=await fixture(t),file=join(f.root,'src/acme.mjs');
+  await writeFile(join(f.root,'.gitattributes'),'src/*.mjs text eol=crlf\n');
+  git(f.root,'config','core.safecrlf','false');
+  await writeFile(file,(await readFile(file,'utf8')).replaceAll('\n','\r\n'));
+  assert.equal(git(f.root,'hash-object','--path=src/acme.mjs','src/acme.mjs'),f.proposal.blob);
+  const result=await decideHygieneProposal(f.args);
+  assert.equal(result.decision,'accepted');assert.equal(f.posts,1);
+});
+test('canonical source freshness: legacy raw blob cannot stand in for filtered Git identity',async t=>{
+  const f=await fixture(t),file=join(f.root,'src/acme.mjs');
+  await writeFile(join(f.root,'.gitattributes'),'src/*.mjs text eol=crlf\n');
+  git(f.root,'config','core.safecrlf','false');
+  await writeFile(file,(await readFile(file,'utf8')).replaceAll('\n','\r\n'));
+  const rawBlob=git(f.root,'hash-object','--no-filters','src/acme.mjs');assert.notEqual(rawBlob,f.proposal.blob);
+  const p=makeHygieneProposal({...f.proposal,blob:rawBlob,at});
+  await writeFile(join(f.root,path),'## Proposal\n\n'+formatHygieneProposal(p));
+  f.contents={status:200,data:{type:'file',path:p.file,sha:p.blob}};
+  const result=await decideHygieneProposal({...f.args,expectedInstance:p.instanceId});
+  assert.equal(result.state,'blocked');assert.match(result.reasons.join(' '),/stale/);assert.equal(f.posts,0);assert.equal(f.gets,0);
+});
+
+test('canonical source freshness: optional rawDigest round-trips without changing legacy records',async t=>{
+  const f=await fixture(t),legacy=formatHygieneProposal(f.proposal),digest=createHash('sha256').update(await readFile(join(f.root,'src/acme.mjs'))).digest('hex');
+  assert.deepEqual(parseHygieneProposal('## Proposal\n\n'+legacy).proposal,f.proposal);
+  assert.equal(Object.hasOwn(f.proposal,'rawDigest'),false);
+  const p=makeHygieneProposal({...f.proposal,rawDigest:digest,at});
+  assert.equal(parseHygieneProposal('## Proposal\n\n'+formatHygieneProposal(p)).proposal.rawDigest,digest);
+  assert.notEqual(p.instanceId,f.proposal.instanceId);assert.equal(p.subjectKey,f.proposal.subjectKey);
+  for(const rawDigest of [null,'bad','f'.repeat(40),23])assert.throws(()=>makeHygieneProposal({...f.proposal,rawDigest}),/digest/);
+  await writeFile(join(f.root,path),'## Proposal\n\n'+formatHygieneProposal(p));
+  assert.equal((await decideHygieneProposal({...f.args,expectedInstance:p.instanceId})).decision,'accepted');assert.equal(f.posts,1);
+});
+test('canonical source freshness: rawDigest blocks changed bytes even when canonical blob stays equal',async t=>{
+  const f=await fixture(t),file=join(f.root,'src/acme.mjs'),bytes=await readFile(file);
+  await writeFile(join(f.root,'.gitattributes'),'src/*.mjs text eol=crlf\n');git(f.root,'config','core.safecrlf','false');
+  const p=makeHygieneProposal({...f.proposal,rawDigest:createHash('sha256').update(bytes).digest('hex'),at});
+  await writeFile(join(f.root,path),'## Proposal\n\n'+formatHygieneProposal(p));
+  await writeFile(file,bytes.toString('utf8').replaceAll('\n','\r\n'));
+  assert.equal(git(f.root,'hash-object','--path=src/acme.mjs','src/acme.mjs'),p.blob);
+  const result=await decideHygieneProposal({...f.args,expectedInstance:p.instanceId});
+  assert.equal(result.state,'blocked');assert.match(result.reasons.join(' '),/working-byte digest/);assert.equal(f.gets,0);assert.equal(f.posts,0);
+});
+
+test('configured health alias: history retains old proposals and board actions without coverage gaps',async t=>{
+  const f=await fixture(t);await healthAlias(f);
+  await symlink('../acme-health',join(f.root,'.keel/health'));
+  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,health:'.keel/health'}));
+  const configured='.keel/health/2026-10-11.md';
+  await writeHealthReport({root:f.root,path:'.keel/health/2026-10-12.md',generated:'# Acme today\n\n## Proposal\n\nNone.\n'});
+  const history=await readHygieneProposals({root:f.root});assert.deepEqual(history.gaps,[]);
+  assert.equal(history.proposals.length,1);assert.equal(history.proposals[0].path,configured);assert.equal(history.proposals[0].instanceId,f.proposal.instanceId);
+  assert.deepEqual((await readHygieneProposals({root:f.root,healthDir:'acme-health'})).gaps,[]);
+  const deps={looseEnds:async()=>({projects:[]}),reviews:async()=>({items:[]}),robotStatus:async()=>({policy:{enabled:false},budget:{state:'off'}}),today:'2026-10-12'};
+  const data=await board({root:f.root},deps),item=data.items.find(i=>i.instanceId===f.proposal.instanceId);
+  assert.ok(item);assert.deepEqual(item.actions[0].args,['--proposal',configured,'--instance',f.proposal.instanceId,'--accept']);
+  assert.equal(data.sources.find(s=>s.source==='health').state,'ok');
+});
+test('configured health alias: history rejects alternate aliases, escaping directories and symlink pages',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),page=await readFile(join(f.root,canonical),'utf8');
+  await symlink('acme-health',join(f.root,'other-health'));
+  assert.match((await readHygieneProposals({root:f.root,healthDir:'other-health'})).gaps.join(' '),/configured health directory/);
+  await rm(join(f.root,canonical));await writeFile(join(f.root,'owner.md'),page);await symlink('../owner.md',join(f.root,canonical));
+  let result=await readHygieneProposals({root:f.root});assert.equal(result.proposals.length,0);assert.match(result.gaps.join(' '),/unsafe/);
+  const outside=await mkdtemp(join(tmpdir(),'acme-history-outside-'));t.after(()=>rm(outside,{recursive:true,force:true}));
+  await writeFile(join(outside,'2026-10-11.md'),page);await rm(join(f.root,'docs/health'));await symlink(outside,join(f.root,'docs/health'));
+  result=await readHygieneProposals({root:f.root});assert.equal(result.proposals.length,0);assert.match(result.gaps.join(' '),/outside project/);
+  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,health:'docs/health/missing'}));
+  assert.match((await readHygieneProposals({root:f.root})).gaps.join(' '),/outside project/);
+});
+test('configured health alias: history preserves page, count and total read bounds',async t=>{
+  const f=await fixture(t);await healthAlias(f);
+  await writeFile(join(f.root,path),'x'.repeat(1024*1024+1));
+  assert.match((await readHygieneProposals({root:f.root})).gaps.join(' '),/oversized/);
+  await rm(join(f.root,path));
+  for(let i=1;i<=9;i++)await writeFile(join(f.root,'acme-health',`2026-11-${String(i).padStart(2,'0')}.md`),'x'.repeat(1024*1024));
+  assert.match((await readHygieneProposals({root:f.root})).gaps.join(' '),/8 MiB/);
+  await Promise.all(Array.from({length:367},(_,i)=>writeFile(join(f.root,'acme-health',new Date(Date.UTC(2028,0,i+1)).toISOString().slice(0,10)+'.md'),'')));
+  assert.match((await readHygieneProposals({root:f.root})).gaps.join(' '),/truncated at 366/);
+});
+test('configured health alias: ordinary walk decide accepts and declines through the configured alias',async t=>{
+  for(const decision of ['accept','decline'])await t.test(decision,async t=>{
+    const f=await fixture(t),canonical=await healthAlias(f);
+    await writeFile(join(f.root,canonical),'# Acme health\n\n## Proposal\n\n**`drafts_waiting`** Finish Acme draft\n\n## Owner notes\n\nAcme keep this.\n');
+    const result=await walkDecide({root:f.root,proposal:path,[decision]:'Acme choice'});
+    assert.equal(result.data.decision,decision==='accept'?'accepted':'declined');
+    const saved=await readFile(join(f.root,canonical),'utf8');assert.match(saved,/Acme choice/);assert.match(saved,/Acme keep this/);
+    assert.ok((await lstat(join(f.root,'docs/health'))).isSymbolicLink());
+    await writeHealthReport({root:f.root,path,generated:'# Acme refreshed\n\n## Proposal\n\n**`drafts_waiting`** New advice\n'});
+    assert.match(await readFile(join(f.root,canonical),'utf8'),/Acme choice/);assert.equal(f.gets,0);
+  });
+});
+test('configured health alias: ordinary walk decide refuses escaping directories and page symlinks',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),text='## Proposal\n\n**`drafts_waiting`** Acme advice\n';
+  const outside=await mkdtemp(join(tmpdir(),'acme-ordinary-outside-'));t.after(()=>rm(outside,{recursive:true,force:true}));
+  await writeFile(join(outside,'2026-10-11.md'),text);await rm(join(f.root,'docs/health'));await symlink(outside,join(f.root,'docs/health'));
+  await assert.rejects(walkDecide({root:f.root,proposal:path,accept:''}),/outside project/);
+  assert.equal(await readFile(join(outside,'2026-10-11.md'),'utf8'),text);
+  await rm(join(f.root,'docs/health'));await symlink('../acme-health',join(f.root,'docs/health'));
+  await writeFile(join(f.root,'owner.md'),text);await rm(join(f.root,canonical));await symlink('../owner.md',join(f.root,canonical));
+  await assert.rejects(walkDecide({root:f.root,proposal:path,decline:'Acme keep'}),/symlink/);
+  assert.equal(await readFile(join(f.root,'owner.md'),'utf8'),text);
+});
+
+test('ordinary proposal paths: non-health regular files remain decidable while other aliases are refused',async t=>{
+  const f=await fixture(t),text='## Proposal\n\n**`legacy`** Acme advice\n\n## Notes\nAcme owner text.\n';
+  for(const [file,decision] of [['proposal.md','accept'],['docs/acme-proposal.md','decline']]){
+    await writeFile(join(f.root,file),text);
+    const result=await walkDecide({root:f.root,proposal:file,[decision]:'Acme decision'});
+    assert.equal(result.data.decision,decision==='accept'?'accepted':'declined');
+    const saved=await readFile(join(f.root,file),'utf8');assert.match(saved,/Acme decision/);assert.match(saved,/Acme owner text/);
+  }
+  await writeFile(join(f.root,'owner-proposal.md'),text);
+  await symlink('owner-proposal.md',join(f.root,'aliased-proposal.md'));
+  await assert.rejects(walkDecide({root:f.root,proposal:'aliased-proposal.md',accept:''}),/configured health page/);
+  await symlink('docs',join(f.root,'aliased-docs'));
+  await assert.rejects(walkDecide({root:f.root,proposal:'aliased-docs/acme-proposal.md',decline:'Acme keep'}),/configured health page/);
+  assert.equal(await readFile(join(f.root,'owner-proposal.md'),'utf8'),text);assert.equal(f.gets,0);
+});
+
+// Intercept the actual filesystem boundary, preserving the real read and its
+// bytes. This also exercises the unfixed implementation during keel prove.
+function afterOrdinaryPageRead(t,paths,change) {
+  const original=fsPromises.readFile,seen=[];
+  t.mock.method(fsPromises,'readFile',async(...args)=>{
+    const bytes=await original(...args);
+    if(paths.includes(String(args[0]))&&seen.length===0){seen.push(String(args[0]));await change();}
+    return bytes;
+  });
+  syncBuiltinESMExports();
+  t.after(()=>{t.mock.restoreAll();syncBuiltinESMExports();});
+  return seen;
+}
+test('ordinary canonical snapshot: retarget after reading cannot overwrite either health page',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),canonicalAbs=await fsPromises.realpath(join(f.root,canonical));
+  const original='## Proposal\n\n**`legacy`** Acme original proposal\n',other='## Proposal\n\n**`legacy`** Acme different proposal\n\nAcme human notes.\n';
+  await writeFile(canonicalAbs,original);await mkdir(join(f.root,'acme-other'));
+  const otherFile=join(f.root,'acme-other/2026-10-11.md');await writeFile(otherFile,other);
+  const seen=afterOrdinaryPageRead(t,[canonicalAbs,join(f.root,path)],async()=>{
+    await rm(join(f.root,'docs/health'));await symlink('../acme-other',join(f.root,'docs/health'));
+  });
+  await assert.rejects(walkDecide({root:f.root,proposal:path,accept:'Acme approved'}),/page changed/);
+  assert.deepEqual(seen,[canonicalAbs],'resolve the canonical page before the first content read');
+  assert.equal(await readFile(canonicalAbs,'utf8'),original);assert.equal(await readFile(otherFile,'utf8'),other);
+});
+test('ordinary canonical snapshot: a concurrent edit is preserved instead of overwritten',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),canonicalAbs=await fsPromises.realpath(join(f.root,canonical));
+  const original='## Proposal\n\n**`legacy`** Acme proposal\n',edited=original+'\nAcme owner added context.\n';
+  await writeFile(canonicalAbs,original);
+  const seen=afterOrdinaryPageRead(t,[canonicalAbs,join(f.root,path)],()=>writeFile(canonicalAbs,edited));
+  await assert.rejects(walkDecide({root:f.root,proposal:path,decline:'Acme keep'}),/page changed/);
+  assert.deepEqual(seen,[canonicalAbs]);assert.equal(await readFile(canonicalAbs,'utf8'),edited);
+});
+test('ordinary canonical snapshot: non-health regular page edits are protected too',async t=>{
+  const f=await fixture(t),file=join(f.root,'acme-proposal.md'),original='## Proposal\n\nAcme plan\n';await writeFile(file,original);
+  const canonicalAbs=await fsPromises.realpath(file),edited=original+'\nAcme additional evidence.\n';
+  const seen=afterOrdinaryPageRead(t,[canonicalAbs,file],()=>writeFile(canonicalAbs,edited));
+  await assert.rejects(walkDecide({root:f.root,proposal:'acme-proposal.md',accept:''}),/page changed/);
+  assert.equal(seen.length,1);assert.equal(await readFile(canonicalAbs,'utf8'),edited);
+});
+test('ordinary canonical diff: alias acceptance and decline report the tracked target changes',async t=>{
+  for(const decision of ['accept','decline'])await t.test(decision,async t=>{
+    const f=await fixture(t),canonical=await healthAlias(f);
+    await writeFile(join(f.root,canonical),'## Proposal\n\n**`legacy`** Acme plan\n');
+    git(f.root,'add','-A');git(f.root,'commit','-qm','Acme tracked health alias');
+    const result=await walkDecide({root:f.root,proposal:path,[decision]:'Acme owner choice'});
+    assert.equal(result.data.proposal,path,'retain the requested path for display');
+    assert.match(result.data.diff,/diff --git a\/acme-health\/2026-10-11\.md b\/acme-health\/2026-10-11\.md/);
+    assert.match(result.data.diff,/\+\*\*Decided .*Acme owner choice/);
+    assert.match(await readFile(join(f.root,canonical),'utf8'),/Acme owner choice/);
+    assert.equal(f.gets,0);
+  });
 });

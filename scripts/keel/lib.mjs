@@ -2185,9 +2185,9 @@ export function codexVerdict({ outcome, message, elapsedSec, minutes }) {
  * clause. This checks attribution syntax, not the truth of the explanation.
  */
 export function ruleCauseNotes(text, path = 'AGENTS.md') {
-  const lines = (text ?? '').replace(/<!--[\s\S]*?-->/g, s => s.replace(/[^\n]/g, ' ')).split('\n');
+  const lines = (text ?? '').split('\n');
   const notes = [];
-  let fence = null, item = null;
+  let fence = null, item = null, comment = false;
   const flush = () => {
     if (item && !/\(why:\s*[^\s)][^)]*\)|\blesson\s+\d+\b|\bissues?\s+#?\d+\b|https:\/\/[^\s)]+\/issues\/\d+\b|\b[\w.-]+\/[\w.-]+#\d+\b|\bbecause\s+\S+/i.test(item.text)) {
       notes.push({ rule: 'rule-without-cause', path, line: item.line, message: `line ${item.line}: ${item.title} — name the failure or lesson that made this rule (why: …); advice, not a failure` });
@@ -2195,12 +2195,36 @@ export function ruleCauseNotes(text, path = 'AGENTS.md') {
     item = null;
   };
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i], mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
+    const raw = lines[i], mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(raw);
     if (fence) {
       if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
       continue;
     }
-    if (mark) { flush(); fence = mark[1]; continue; }
+    if (!comment && mark) { flush(); fence = mark[1]; continue; }
+    // Comment delimiters inside a fence are examples, not Markdown state.
+    let line = '';
+    for (let at = 0; at < raw.length;) {
+      if (comment) {
+        const end = raw.indexOf('-->', at);
+        const next = end < 0 ? raw.length : end + 3;
+        line += ' '.repeat(next - at);
+        comment = end < 0;
+        at = next;
+      } else if (raw.startsWith('<!--', at)) {
+        comment = true;
+      } else {
+        let next = at + (raw[at] === '\\' ? 2 : 1);
+        if (raw[at] === '`') {
+          const ticks = /^`+/.exec(raw.slice(at))[0].length;
+          next = at + ticks;
+          for (const close of raw.slice(next).matchAll(/`+/g)) {
+            if (close[0].length === ticks) { next += close.index + ticks; break; }
+          }
+        }
+        line += raw.slice(at, next);
+        at = next;
+      }
+    }
     const start = /^(?: {0,3}(?:[-+*]|\d+[.)])\s+)?\*\*([^*\n]+?[.!])\*\*(?:\s|$)/.exec(line);
     if (start) { flush(); item = { line: i + 1, title: start[1], text: line }; }
     else if (!line.trim() || /^\s*(?:#{1,6}\s|\*\*|[-+*]\s|\d+[.)]\s|\|)/.test(line)) flush();

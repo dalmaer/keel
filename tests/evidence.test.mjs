@@ -7,6 +7,8 @@ import { run, cleanEnv } from './helpers/run.mjs';
 import { rederive, runMeasurement, LIMITS } from '../lib/evidence.mjs';
 
 const BIN = resolve('bin/keel.mjs');
+// Execution requires POSIX process-group cleanup; parsing and previews are portable.
+const posixExecution = { skip: process.platform === 'win32' ? 'execution requires POSIX process groups' : false };
 const CHILD = resolve('tests/helpers/evidence-child.mjs');
 const record = (more = {}) => ({ id: 'acme-count', argv: [process.execPath, '-e', 'console.log(12)'], cwd: '.', value: 10, unit: 'characters', date: '2024-02-29', ...more });
 const fence = records => '\n```keel-measurements\n' + JSON.stringify(records) + '\n```\n';
@@ -54,11 +56,19 @@ test('CLI preview, execution and unavailable receipts preserve history and liter
   assert.equal(preview.data.mode, 'preview');
   assert.equal(preview.data.records[0].new, null);
   assert.deepEqual(preview.data.limits, LIMITS);
-  const executed = cli(root, ['--yes']);
-  assert.equal(executed.code, 0);
-  assert.equal(executed.data.records[0].new.value, '$(touch acme-marker);*'.length);
-  assert.deepEqual(executed.data.records[0].old, { value: 10, unit: 'characters', date: '2024-02-29' });
-  assert.match(executed.data.records[0].new.date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(preview.data.records[0].old, { value: 10, unit: 'characters', date: '2024-02-29' });
+  if (process.platform === 'win32') {
+    const rejected = cli(root, ['--yes']);
+    assert.equal(rejected.code, 2);
+    assert.match(rejected.data.error, /execution requires POSIX process groups/);
+  }
+  await t.test('execution preserves literal argv and dates the new receipt', posixExecution, () => {
+    const executed = cli(root, ['--yes']);
+    assert.equal(executed.code, 0);
+    assert.equal(executed.data.records[0].new.value, '$(touch acme-marker);*'.length);
+    assert.deepEqual(executed.data.records[0].old, preview.data.records[0].old);
+    assert.match(executed.data.records[0].new.date, /^\d{4}-\d{2}-\d{2}$/);
+  });
   assert.equal(await readFile(join(root, 'docs/evidence/acme.md'), 'utf8'), before);
   await assert.rejects(readFile(join(root, 'acme-marker')), { code: 'ENOENT' });
 });
@@ -141,7 +151,7 @@ test('only explicit fences execute: ignores prose, ordinary fences and nested ex
   await writeFile(join(root, 'docs/evidence/acme.md'), examples);
   await assert.rejects(rederive({ root, phase: 64 }), /no explicit/);
   await writeFile(join(root, 'docs/phases/64-acme.md'), phase() + fence([record()]));
-  assert.equal(cli(root, ['--yes']).data.records.length, 1);
+  assert.equal(cli(root).data.records.length, 1);
 });
 
 test('PR104: malformed external config cannot authorize archived measurement execution', async t => {
@@ -162,9 +172,9 @@ test('PR104: inline code comment markers cannot hide real measurements or expose
   const root = await fixture(t);
   for (const prose of ['Use `<!--` literally.', 'Use ``a ` <!-- b`` literally.', 'Use `<!-- -->` and `<!--` literally.']) {
     await writeFile(join(root, 'docs/evidence/acme.md'), prose + '\n' + fence([record()]));
-    const result = cli(root, ['--yes']);
+    const result = cli(root);
     assert.equal(result.code, 0, JSON.stringify(result.data));
-    assert.equal(result.data.records[0].new.value, 12);
+    assert.equal(result.data.records[0].new, null);
   }
   // Unmatched code delimiters and a real comment after a code span remain prose.
   for (const prose of ['Use `<!--', 'Use ``a ` <!--', 'Use `<!--` then <!--']) {
@@ -193,27 +203,31 @@ test('PR104: ordinary fences inside comments cannot change real fence state', as
   for (const hidden of ['```markdown\n', '~~~~text\n', '```text\nAcme\n```\n']) {
     const text = '<!-- Acme comment\n' + hidden + '--> <!-- another comment -->\n' + fence([live]);
     await writeFile(join(root, 'docs/evidence/acme.md'), text);
-    const result = cli(root, ['--yes']);
+    const result = cli(root);
     assert.equal(result.code, 0, JSON.stringify(result.data));
     assert.deepEqual(result.data.records.map(r => r.id), ['acme-live']);
-    assert.equal(result.data.records[0].new.value, 12);
+    assert.equal(result.data.records[0].new, null);
   }
   // An opening comment marker in an ordinary fenced example stays literal too.
   await writeFile(join(root, 'docs/evidence/acme.md'), '\n```text\n<!--\n```\n' + fence([live]));
-  assert.equal(cli(root, ['--yes']).code, 0);
+  assert.equal(cli(root).code, 0);
 });
 
 test('PR104: literal HTML comment markers in measurement JSON preserve exact argv', async t => {
   const literal = '<!-- Acme --> followed by <!--';
   const argv = [process.execPath, '-e', 'const marker = "<!--"; console.log(process.argv[1].length + marker.length)', literal];
   const root = await fixture(t, [record({ argv })]);
-  const result = cli(root, ['--yes']);
+  const result = cli(root);
   assert.equal(result.code, 0, JSON.stringify(result.data));
   assert.deepEqual(result.data.records[0].argv, argv);
-  assert.equal(result.data.records[0].new.value, literal.length + 4);
+  await t.test('execution preserves comment markers in argv', posixExecution, () => {
+    const executed = cli(root, ['--yes']);
+    assert.equal(executed.code, 0, JSON.stringify(executed.data));
+    assert.equal(executed.data.records[0].new.value, literal.length + 4);
+  });
 });
 
-test('strict numeric output and literal top-level JSON selection never turn unavailable into zero', async t => {
+test('strict numeric output and literal top-level JSON selection never turn unavailable into zero', posixExecution, async t => {
   const cases = [
     ['console.log(0)', undefined, 0], ['console.log(" -1.25e2 ")', undefined, -125],
     ['console.log("")', undefined, null], ['console.log("12 characters")', undefined, null],
@@ -236,7 +250,7 @@ test('strict numeric output and literal top-level JSON selection never turn unav
   assert.match(missing.data.records[0].new.error, /^spawn:/);
 });
 
-test('per-command deadline and combined stdout/stderr bounds', async t => {
+test('per-command deadline and combined stdout/stderr bounds', posixExecution, async t => {
   const root = await fixture(t);
   const options = { env: cleanEnv(), timeoutMs: 500, outputBytes: 1024 };
   const timeout = await runMeasurement([process.execPath, '-e', 'setInterval(() => {}, 1000)'], root, options);
@@ -270,7 +284,7 @@ async function gone(pid) {
   }
   return false;
 }
-test('parent exit and timeout clean ordinary descendants that inherit stdout; completion is bounded', { timeout: 10_000 }, async t => {
+test('parent exit and timeout clean ordinary descendants that inherit stdout; completion is bounded', { ...posixExecution, timeout: 10_000 }, async t => {
   const root = await fixture(t);
   for (const mode of ['exit', 'wait']) {
     const pidFile = join(root, `acme-${mode}.pid`);

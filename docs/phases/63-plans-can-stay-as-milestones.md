@@ -6,7 +6,7 @@ goal: G2
 spec: 2
 depends: [51]
 note: "Read-only milestone plans now feed next, status, the board and the installed night through shared cache/quota controls. Automated and live empty-source transport proofs passed; one real release and its owner read remain owed."
-evidence: ["evidence/2026-10-10-milestone-plans.md"]
+evidence: ["evidence/2026-10-11-phase-review-corrections.md", "evidence/2026-10-10-milestone-plans.md"]
 issue: 50
 ---
 
@@ -79,3 +79,5 @@ Owner: select a project with a GitHub milestone release, adopt the proposed read
 - **2026-10-11** — Source selection also gates Loop triage, its climb job and proof evidence writes. Installed gates preserve archival views; night proposals name GitHub milestones. Guarded reads sharing a cache are ordered within one process so concurrent fleet reads cannot all use the same pre-query balance.
 
 - **2026-10-11** — A goals-only or legacy milestone file is already a local plan. Quota protection is an unavailable observation, not a broken instrument. Phase-test repair has its own migration identity so CI/night work performed under milestones cannot consume the later return-to-files repair.
+
+- **2026-10-11** — Escape: Source coverage gaps cannot be dismissed as work. Loose ends now ignore legacy marks on gaps and reject new marks, so later incomplete or unavailable milestone reads remain visible. See the follow-up evidence.

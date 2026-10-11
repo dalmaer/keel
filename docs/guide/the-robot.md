@@ -187,7 +187,7 @@ Two real proposal-to-fix walks remain required before this loop is lived-in.
 
 Long-file hygiene proposals also use this journal, through
 `keel walk decide --proposal <health-page> --instance <id> --accept`. Their
-source blob and line count must still match, and robot delivery requires an
+canonical Git blob, line count and recorded working-byte digest must still match, and robot delivery requires an
 approved project policy with a positive weekly allowance. When robot is off,
 this path stays blocked and creates no issue. A changed source needs a refreshed
 proposal; an uncertain prior issue write is recovered before considering any
