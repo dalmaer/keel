@@ -444,3 +444,12 @@ test('escapes notes the fix: commits since the release that carry no Proven-by: 
   assert.match(m.detail, new RegExp(`; 3 of 4 fix: commits without a Proven-by: trailer \\(${bare}, ${prose}, ${folded}\\); ceremony`));
   assert.ok(m.facts.escapes.every(e => !('proven' in e)), 'the escapes keep their shape');
 });
+
+test('phase 66 hygiene measures register separate count bounds and selftest outside with isolated evidence', async () => {
+  const hygiene = MEASURES.filter(m => ['stale_worktrees', 'drafts_waiting', 'long_files'].includes(m.id));
+  assert.equal(hygiene.length, 3);
+  assert.ok(hygiene.every(m => m.bound === 0 && m.ratchet === false));
+  const result = await selftest({measures:hygiene,env:{...ENV,CI:'true',KEEL_GIT:'/nonexistent/acme-git',KEEL_GH:'/nonexistent/acme-gh'}});
+  assert.equal(result.exitCode, 0, result.text);
+  for (const measure of result.data.measures) assert.equal(propose([measure], {repo:'acme/storefront'}).id, measure.id);
+});

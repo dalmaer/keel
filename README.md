@@ -176,7 +176,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel init`, `keel adopt` | Start a project, or bring one under keel |
 | `keel render` | Write the practices onto the project; `--check` only compares |
 | `keel doctor` | What the project changed of keel's files, and practice rules broken. Changes nothing without `--fix` |
-| `keel improve` | Is the practice working here? Measures against bounds, one proposal; `--report` writes the health page |
+| `keel improve` | Measures against bounds, including worktree/draft/file hygiene; `--report` writes the health page and its proposal |
 | `keel time [--weeks N]` | Retained weekly gate/test timing, load coverage, failure memory and local worked-around test summaries |
 | `keel test <file> --stalls` | Run test files paused at random moments, and without; name each test that judges the wall clock rather than the code |
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |

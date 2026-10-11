@@ -808,6 +808,38 @@ is Keel's workflow history (`ci.historyRepo` override); `.keel/ci-history.json`
 can supply validated reader results offline (`KEEL_CI_OFFLINE=1`). See the night
 shift guide for cache format, API bounds, attribution and cadence assumptions.
 
+### Repository hygiene
+
+`keel improve` and its installed night measure `stale_worktrees`,
+`drafts_waiting` and `long_files`, with count bounds of zero and no ratchet.
+Filter thresholds are separate from those count bounds, in `.keel/keel.json`:
+
+```json
+{"hygiene":{"draftHours":24,"longFileLines":1500,"worktreeDays":7}}
+```
+
+Values must be positive finite numbers. Missing keys use these defaults;
+malformed settings leave the instrument unavailable/broken, never healthy zero.
+Worktrees require the local CLI and are n/a in CI. Local main reachability and
+filesystem/HEAD activity are separate facts; logical bytes do not promise
+reclaimable disk space. Current, primary, locked, dirty and incompletely
+inspected trees are protected. Commands are individual owner suggestions and
+never execute during measurement or proposal acceptance.
+
+Drafts are currently open drafts whose creation age exceeds `draftHours`, not
+continuous draft duration. The one bounded query reads at most 100 open PRs,
+uses the shared cache and quota floor, and retains coverage/read-time/spend facts.
+Truncation or unavailable access is unknown, never an empty successful audit.
+
+Long files are tracked source above `longFileLines`, excluding generated copies,
+vendor code and fixtures. Findings include bounded growth history and heuristic
+section ranges. A source blob identifies the observation. The existing health
+page and board own the proposal; acceptance never means the refactor was built,
+merged or useful. Approved file-split work uses the existing recoverable robot
+issue flow; source changes require refreshing the proposal and robot delivery
+requires the project's approved policy and budget. Manual worktree/draft choices
+remain manual. No acceptance path deletes worktrees or changes PR state.
+
 <!-- topic: time | timing history and machine context -->
 
 `keel time [--weeks N] [--json]` reports retained weekly gate wall times,
@@ -1427,6 +1459,15 @@ is needed. The target is the local repository. Acceptance persists before POST
 and retries recover the same issue. OFF creates an unlabelled issue. Enabled but
 unqueued remains `accepting` with its verified link and owner label step; retry
 neither duplicates it nor restores labels. Missing evidence stays unavailable.
+
+For a `long_files` hygiene proposal, use `--instance <id>` with accept/decline.
+JSON includes `hygieneProposal`, `instanceId`, `state`, `decision`, `issue` and
+`reasons`. Acceptance validates the observed source and the approved robot
+policy before using the existing issue journal; robot OFF or missing budget
+blocks creation. An uncertain write remains recoverable via the same instance,
+without duplicate POSTs. A verified issue is delivery of proposed work, never
+proof that the split was built or useful. Worktree and draft proposals retain
+the ordinary local-decision behavior. Hygiene proposals do not support `--map`.
 
 `keel walk decide --proposal <page> --instance <id> --map <file.json>` is exclusive
 of accept/decline and is supported only for `critical_file` proposals. It records

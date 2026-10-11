@@ -184,3 +184,12 @@ baseline remains frozen. The night compares only explicitly clean, matched-selec
 observations whose revisions contain the verified merge; it reports
 inside, outside or unavailable. A merge itself is not evidence of improvement.
 Two real proposal-to-fix walks remain required before this loop is lived-in.
+
+Long-file hygiene proposals also use this journal, through
+`keel walk decide --proposal <health-page> --instance <id> --accept`. Their
+source blob and line count must still match, and robot delivery requires an
+approved project policy with a positive weekly allowance. When robot is off,
+this path stays blocked and creates no issue. A changed source needs a refreshed
+proposal; an uncertain prior issue write is recovered before considering any
+new action. Decline records the owner's reason. No decision deletes worktrees,
+changes a draft PR or certifies that a refactor improved the project.
