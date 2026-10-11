@@ -115,6 +115,20 @@ const LIMITS = Object.freeze({ minutes: [5, 180], margin: [0.01, 0.5], attempts:
 /** Misses in a row that end a night (protocol rule 5). */
 export const MISSES = 3;
 
+/** Loop's proposal job only understands local file planning; collection stays separate. */
+function loopSourceProblem(config) {
+  const phases = config?.phases;
+  if (phases === undefined) return null;
+  if (!phases || typeof phases !== 'object' || Array.isArray(phases)) return 'loop job unavailable: phases must be an object; local phase triage is unsupported';
+  const source = Object.hasOwn(phases, 'source') ? phases.source : 'files';
+  return source === 'files' ? null : `loop job unavailable: phases.source ${JSON.stringify(source)} does not support local phase triage; no Loop proposal job or model spend. Insight collection remains available.`;
+}
+
+function requireLoopSource(config) {
+  const problem = loopSourceProblem(config);
+  if (problem) throw new ClimbError(problem);
+}
+
 /**
  * The jobs. Each: its number, which way is better, the health-page measures
  * that send a night to it first (the night's improve.mjs ids), how its number
@@ -172,7 +186,7 @@ export const JOBS = Object.freeze({
     measures: Object.freeze(['loop_untriaged']),
     kind: 'proposals',
     onlyWhenOutside: true,
-    command: () => 'node scripts/loop.mjs pull, then propose for each untriaged finding',
+    command: config => { requireLoopSource(config); return 'node scripts/loop.mjs pull, then propose for each untriaged finding'; },
   }),
 });
 
@@ -395,6 +409,10 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   if (!c) return { job: null, date, reason: 'climb is off: .keel/keel.json has no "climb"' };
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
   if (c.schedule === 'weekly' && !force && day !== WEEKLY_DAY) return { job: null, date, reason: 'not tonight: climb is weekly, on Mondays (UTC)' };
+  const problem = c.jobs.includes('loop') ? loopSourceProblem(config) : null;
+  const unavailable = problem ? [{ job: 'loop', reason: problem }] : [];
+  const jobs = c.jobs.filter(job => job !== 'loop' || !problem);
+  if (!jobs.length) return { job: null, date, reason: problem, unavailable };
   const waiting = waitingJobs(openHeads(root, env));
   // Three closed unmerged in a row (newest three of every state: a merge or an open one breaks it): the job proposes its own retirement (the health page says so) and waits for the owner.
   const retired = climbRetiring(ghPrs(root, env, 'all', 'headRefName,number,createdAt,mergedAt,state'), c.jobs);
@@ -403,9 +421,10 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   const lastRun = await lastJob(root, lastNight);
   const last = lastRun?.job ?? null;
   // The proposals jobs' own signals, read from the repo: rows since the last distill, Loop's untriaged findings.
-  const signals = await signalsOf(root, config, c.jobs);
-  const chosen = choose({ jobs: c.jobs, rows: [...(health?.rows ?? []), ...signals], waiting, last, retiring });
+  const signals = await signalsOf(root, config, jobs);
+  const chosen = choose({ jobs, rows: [...(health?.rows ?? []), ...signals], waiting, last, retiring });
   const out = { ...chosen, date, health: health?.file ?? null, last: lastRun, waiting: [...waiting].filter(j => c.jobs.includes(j)), retiring: retired, minutes: c.minutes, margin: c.margin, attempts: c.attempts };
+  if (unavailable.length) out.unavailable = unavailable;
   if (chosen.job) Object.assign(out, { branch: `${PREFIX}${chosen.job}/${date}`, command: JOBS[chosen.job].command(config), number: JOBS[chosen.job].number });
   return out;
 }
@@ -424,7 +443,7 @@ export async function signalsOf(root, config, jobs) {
     const w = await lessonsWorksheet(root, config).catch(e => (e instanceof ClimbError ? null : Promise.reject(e)));
     if (w) out.push(row('lessons_since_distill', w.since.rows.length, `${w.path} since the last distill pass`));
   }
-  if (jobs.includes('loop')) {
+  if (jobs.includes('loop') && !loopSourceProblem(config)) {
     const f = await findingsAt(root).catch(e => (e instanceof ClimbError ? null : Promise.reject(e)));
     if (f) out.push(row('loop_untriaged', f.filter(x => x.decision === 'untriaged').length, `${FINDINGS_DIR}/`));
   }
@@ -530,6 +549,7 @@ export async function proposalsNow(root, config, job) {
     const w = await lessonsWorksheet(root, config);
     return { job, command: JOBS.lessons.command(config), runs: 1, times: [w.since.rows.length], median: w.since.rows.length, spread: 0 };
   }
+  requireLoopSource(config);
   const f = await findingsAt(root);
   const n = f.filter(x => x.decision === 'untriaged').length;
   return { job, command: JOBS.loop.command(config), runs: 1, times: [n], median: n, spread: 0 };
@@ -1170,6 +1190,7 @@ const OURS = ['decision', 'rank', 'phase', 'project', 'lesson', 'note'];
  * decided tonight, or a decided finding changed, is refused.
  */
 export async function proposalsProblems({ root, config, job, base, head }) {
+  if (job === 'loop' && loopSourceProblem(config)) return [loopSourceProblem(config)];
   const out = [];
   const changed = changedPaths(root, base, head);
   if (job === 'lessons') {
@@ -1339,10 +1360,12 @@ export async function ledgerCheck({ root, config, env = process.env, gate, base:
 export async function guard({ root, config, env = process.env, base, job }) {
   on(config);
   const night = await readNight(root);
+  job ??= night?.job;
+  const problem = job === 'loop' ? loopSourceProblem(config) : null;
+  if (problem) return { ok: false, job, refused: [problem], problems: [problem] };
   const trusted = recordBase(root, base, night?.base, NIGHT);
   if (trusted.problem) return { ok: false, job: job ?? night?.job, refused: [trusted.problem], problems: [trusted.problem] };
   base = trusted.base;
-  job ??= night?.job;
   if (!base) throw new ClimbError('guard needs --base <ref> (or an open night)');
   if (job !== undefined && !Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
   const head = sha(root, 'HEAD'), b = sha(root, base);

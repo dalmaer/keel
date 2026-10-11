@@ -70,6 +70,12 @@ another nonempty label. Invalid source settings fail instead of falling back to 
 incomplete ownership data never assigns work to an agent. The reader caches for ten minutes, respects the GitHub quota
 floor and discloses its limits: 50 open and 20 recently updated closed milestones, 50 issues per milestone and
 20 labels per issue. An incomplete read cannot establish that nothing remains.
+Loop phase-homing and `prove --evidence <phase>` cannot write archived local
+plans for this source. Proof runs without evidence writeback remain available.
+Night proposals for missing issues refer to assigning issues to GitHub milestones.
+Quota-saving refusals are unavailable readings, not broken instruments.
+When returning to file phases, run `keel update`: migration 0007 repairs any
+missing phase-test wiring, even when an earlier migration ran under milestones.
 
 What stays local is never a failure. `keel doctor` lists local variants as
 information, and says when one would now switch on if adopted again.

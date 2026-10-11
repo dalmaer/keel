@@ -151,7 +151,7 @@
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
-      "sha256": "8356714b5b8698233344f0f7059ce4ba89d2504977e70d3393b6484691b70130"
+      "sha256": "4fc3546feb36a87b29fe9c54639ebc24266ad861ae16d520715f625c40937a5c"
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
@@ -167,11 +167,11 @@
     },
     "scripts/keel/generated.mjs": {
       "practice": "phases",
-      "sha256": "5cdeffb8e93fa8f6e51f1ef8afb9e55eb0dc9cdb2b1fdcd805d6013b81db20e0"
+      "sha256": "887b30076953ebc406698bf7c8db85f4ca6605e215248bfda4c624dcc6faadb2"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "791568a944d99f37fdccf77a0f7134737bda8f0f7380b7dc3843d26bf925383e"
+      "sha256": "cf9fd6c9165647ed8e83f748469fbb44e84a07099cc38cf27ab447f1aca64502"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -191,7 +191,7 @@
     },
     "scripts/keel/quota.mjs": {
       "practice": "night",
-      "sha256": "3ecf85f64924d722561488ecc17fe32fe3c8967c3acfe16b9b36c1065f491028"
+      "sha256": "4cab9ac25032e116b2aca9963576b49b91eb6652a7777815b8377a68c290ae3b"
     },
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",
@@ -259,7 +259,7 @@
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
-      "sha256": "6a0214981d99c79ac13e6c3eab57ed9f6465713bb3f0ad1dca6d372e082da645"
+      "sha256": "f9a373e17a4abb543a5aae3fbb1df13b02803fa60b598113e01c6f78ec5ea06c"
     },
     "tests/keel-workflows.test.mjs": {
       "practice": "ci",

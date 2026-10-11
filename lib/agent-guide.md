@@ -83,6 +83,11 @@ stderr as one line beginning `keel:`.
   GitHub metadata includes cache state, read time and query cost. The cache
   lasts 10 minutes and optional reads respect the quota floor. Missing milestone
   exit criteria are a coverage gap, not a usable empty acceptance claim.
+  Loop phase-homing and `prove --evidence <phase>` cannot write archived local
+  plans for this source. Proof runs without evidence writeback remain available.
+  Existing local goals or legacy milestone files suppress discovery. Quota-saving
+  refusals are unavailable readings. On return to file phases, `update` migration
+  0007 repairs missing phase-test wiring independently of earlier migrations.
 - `goal list` → `[{id, title, outcome, phases, built, lived, owed}]`
 - `goal show` → `{goal, phases: [{id, title, status}], built, lived, next}`;
   `next` is the phase object or `null`
@@ -940,6 +945,13 @@ The optional `loop` practice installs `node scripts/loop.mjs` in a project
 with a Loop workspace (`.stitch.json`). Each Loop insight is a finding in
 `docs/loop/`; `docs/LOOP.md` is generated and `tests/loop.test.mjs` checks it.
 **The ranking is ours, not Loop's.**
+
+With `phases.source: "milestones"`, insight collection remains available, but
+local phase-homing (`propose`, `decide`, `prove`, `push`) is unsupported. Rendering
+is explicitly inactive and preserves the archived page; pull/mine skip proofs
+and `afterRender`. Climb excludes its local Loop proposal job for this source.
+Edit the plan in GitHub.
+
 
 - `pull` — files new insights as `untriaged`; never overwrites our fields.
 - `list --json [-d <decision>]` — the findings, without bodies.

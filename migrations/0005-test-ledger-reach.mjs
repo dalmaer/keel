@@ -77,10 +77,10 @@ async function workspaceEdits(project) {
 }
 
 /** The shipped tests the root's node test script misses, and its edit; null when none is owed. */
-async function shippedEdit(project) {
+export async function shippedEdit(project, shipped = SHIPPED) {
   const config = project.config;
   const want = [];
-  for (const [practice, paths] of Object.entries(SHIPPED)) {
+  for (const [practice, paths] of Object.entries(shipped)) {
     if (!on(config, practice)) continue;
     // Whether on disk yet or not: update renders a practice's managed files after the migrations.
     for (const path of paths) if (!(config.ejected ?? []).includes(path)) want.push(path);

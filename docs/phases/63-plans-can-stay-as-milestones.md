@@ -49,10 +49,12 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs tests/milestone-integration.test.mjs tests/milestone-read-context.test.mjs tests/milestone-surfaces.test.mjs tests/milestone-review.test.mjs`; `npm run check`.
+Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs tests/milestone-integration.test.mjs tests/milestone-read-context.test.mjs tests/milestone-surfaces.test.mjs tests/milestone-review.test.mjs tests/milestone-consumer-corrections.test.mjs tests/phase63-consumers.test.mjs tests/phase63-climb-loop.test.mjs tests/phase63-late-findings.test.mjs tests/migrations-phase-guard-reach.test.mjs`; `npm run check`.
 By hand: one release on the board.
 
 ## Deliberately open
+
+- **Other planning writers — settled 2026-10-11:** Loop collection remains available, but local phase-homing, its climb job and local rendered plan checks are inactive for milestone plans. Proof runs remain available without phase-evidence writeback. A future milestone-aware triage workflow must be designed explicitly; archived local plans are never a fallback.
 
 - **Deadline semantics — settled 2026-10-10:** A milestone due date is `due`, not `after`. Keel defines `after` as the earliest buildable date; the original mapping would hide active work until its deadline. Closing a milestone reports GitHub planning state, never production verification, owner acceptance or lived-in evidence.
 - **Incomplete reads — settled 2026-10-10:** Bounded queries reserve separate allowances for open milestones and closed history, and disclose truncated milestone, issue and label coverage. Unavailable or incomplete source data must not report that all work is done.
@@ -73,3 +75,7 @@ Owner: select a project with a GitHub milestone release, adopt the proposed read
 - **2026-10-10** — Source selection governs migrations and dormant ownership as well as reads. Archived plans stay untouched, and disabled managed files retain hashes so returning to file plans cannot overwrite intervening edits. Milestone adoption leaves the file-based conductor off. The selected source also takes precedence over a retained local shape.
 
 - **2026-10-11** — Ownership is unknown when issue or label pagination can hide an owner gate. Invalid source settings fail before reads or writes; board refresh shares its root planning read rather than spending quota twice.
+
+- **2026-10-11** — Source selection also gates Loop triage, its climb job and proof evidence writes. Installed gates preserve archival views; night proposals name GitHub milestones. Guarded reads sharing a cache are ordered within one process so concurrent fleet reads cannot all use the same pre-query balance.
+
+- **2026-10-11** — A goals-only or legacy milestone file is already a local plan. Quota protection is an unavailable observation, not a broken instrument. Phase-test repair has its own migration identity so CI/night work performed under milestones cannot consume the later return-to-files repair.

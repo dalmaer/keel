@@ -40,7 +40,7 @@ test('the list: each practice\'s files only when it is on; keel\'s own files onl
   const paths = config => generatedFiles(config).map(g => g.path);
   assert.deepEqual(paths({ practices: ['phases'] }), ['docs/ROADMAP.md']);
   assert.deepEqual(paths({ practices: ['phases', 'loop', 'lessons'] }), ['docs/ROADMAP.md', 'docs/LOOP.md']);
-  assert.deepEqual(paths({ practices: ['phases', 'loop', 'lessons'], phases: { source: 'milestones' } }), ['docs/LOOP.md']);
+  assert.deepEqual(paths({ practices: ['phases', 'loop', 'lessons'], phases: { source: 'milestones' } }), []);
   assert.deepEqual(paths({ practices: ['phases', 'lessons'], keel: 'self' }), ['docs/ROADMAP.md', 'docs/keel-lessons.md', 'docs/patterns.md', 'docs/INBOX.md']);
   assert.ok(GENERATORS.every(g => Object.isFrozen(g) && g.path && g.args.length));
 });

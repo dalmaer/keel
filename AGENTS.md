@@ -126,7 +126,8 @@ facts; preserve historical evidence and the scope of replaced decisions.
 For projects configured with `phases.source: "milestones"`, GitHub owns the
 plan and keel reads it. Deadlines are `due`, never `after`; issue or milestone
 closure is source planning state, never acceptance. Edit the plan in GitHub
-and preserve unavailable or incomplete reads as gaps.
+and preserve unavailable or incomplete reads as gaps. Loop phase-homing and
+`prove --evidence` cannot write archived local plans for this source.
 
 ## Project canvas
 

@@ -77,6 +77,9 @@ rather than ask them to change.
    buildable date and would incorrectly postpone active work. Closed source
    records report planning state, not acceptance or production evidence.
    Bounded reads disclose incomplete coverage rather than claiming completion.
+   Settled 2026-10-11: local Loop phase-homing and proof evidence writeback
+   remain unsupported for milestone plans; insight collection may continue.
+   Archived local plans are not a fallback planning source.
 7. **A rule says the failure that made it, and a number says when it was
    measured** (phase 64). The project's guide puts it this way: a rule
    without its cause gets "improved" away by the next session. A number in a

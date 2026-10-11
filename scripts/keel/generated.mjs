@@ -37,9 +37,9 @@ export function generatedFiles(config, list = GENERATORS) {
   const milestones = milestoneSource(config);
   const on = new Set(config?.practices ?? []);
   const self = config?.keel === 'self';
-  // The local roadmap becomes an archive when GitHub owns the selected plan.
+  // The local roadmap and Loop triage page are inactive archives when GitHub owns the plan.
   return list.filter(g => (!g.self || self) && (!g.practice || on.has(g.practice))
-    && !(g.path === 'docs/ROADMAP.md' && milestones));
+    && !(['docs/ROADMAP.md', 'docs/LOOP.md'].includes(g.path) && milestones));
 }
 
 /** Never copied: git's own directory, installed packages, and the test ledger's runs. */

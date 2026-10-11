@@ -67,4 +67,5 @@ to `keel:owner`. Invalid source or label settings fail before reads or writes.
 Incomplete ownership stays unknown, never an agent assignment. Incomplete and unavailable sources remain visible. The
 canvas currently reports both goal and phase coverage as unsupported rather
 than publishing an archived local plan. Existing local roadmap checks report
-inactive for this source; local roadmap writes remain refused.
+inactive for this source; local roadmap writes remain refused. Loop phase-homing
+and proof evidence writeback are unsupported; no archived plan is updated.

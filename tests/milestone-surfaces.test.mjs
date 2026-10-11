@@ -73,7 +73,7 @@ test('milestone check bypasses malformed archived inputs; local readers and writ
   for (const mode of ['write', 'next', 'json']) await assert.rejects(run({ root, mode }), /read-only/);
   assert.deepEqual(await archive(root), before);
   const paths = generatedFiles({ ...milestoneConfig, practices: ['phases', 'loop'] }).map(g => g.path);
-  assert.deepEqual(paths, ['docs/LOOP.md'], 'only the inactive roadmap is excluded');
+  assert.deepEqual(paths, [], 'the inactive roadmap and Loop page are excluded');
 });
 
 test('empty milestone descriptions keep readable records but disclose missing exit criteria', () => {

@@ -69,6 +69,8 @@ Existing agent guides are preserved: adoption selects `AGENTS.md`, then
 Projects can also keep GitHub milestones as their plan with
 `"phases": {"source": "milestones"}`. Keel projects them into `next`, the
 board and the night without editing GitHub or claiming acceptance from closure.
+Local phase-homing in Loop and proof writeback are inactive for that source;
+archived phase files remain unchanged.
 
 **The practices:**
 

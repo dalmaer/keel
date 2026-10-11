@@ -1,4 +1,5 @@
 import { milestoneSource, readMilestones, milestoneSummary } from './milestones.mjs';
+import { Saving } from './quota.mjs';
 // keel improve, shipped: is the practice working here? Numbers first, one
 // proposal last, and nothing changed (keel docs/design.md §6, "The night
 // shift"). keel practice `night`; managed: keel render rewrites it.
@@ -180,7 +181,13 @@ const roadmapModule = ctx => once(ctx, 'roadmap-module', async () => {
   return import(pathToFileURL(path).href);
 });
 
-const milestoneData = ctx => once(ctx, 'milestones', () => readMilestones(ctx.config, { env: ctx.env, ...(ctx.keel?.milestones ?? {}) }));
+const milestoneData = ctx => once(ctx, 'milestones', async () => {
+  try { return await readMilestones(ctx.config, { env: ctx.env, ...(ctx.keel?.milestones ?? {}) }); }
+  catch (e) {
+    if (e instanceof Saving) return { na: e.message };
+    throw e;
+  }
+});
 
 const roadmapData = ctx => once(ctx, 'roadmap', async () => {
   const { collect } = await roadmapModule(ctx);
@@ -872,6 +879,7 @@ export const MEASURES = [
       if (!ctx.config.repo) return { na: 'no repo in .keel/keel.json, so there is nowhere to open an issue' };
       if (milestoneSource(ctx.config)) {
         const data = await milestoneData(ctx);
+        if (data.na) return data;
         if (!data.coverage.complete) return { na: milestoneSummary(data), facts: { coverage: data.coverage, github: data.github } };
         const ids = data.phases.filter(p => p.status !== 'closed' && !p.boxes.length).map(p => p.id);
         return { value: ids.length, detail: `${milestoneSummary(data)}; ${ids.length} open milestones without issues`, facts: { source: 'milestones', ids, coverage: data.coverage, github: data.github } };
@@ -894,6 +902,7 @@ export const MEASURES = [
       if (off) return { na: off };
       if (milestoneSource(ctx.config)) {
         const data = await milestoneData(ctx);
+        if (data.na) return data;
         return { na: 'GitHub milestone updatedAt is not status age; ' + milestoneSummary(data), facts: { source: 'milestones', coverage: data.coverage, github: data.github } };
       }
       if (shapeOf(ctx.config) === 'projects') {
@@ -1334,7 +1343,9 @@ export function proposalText(r, config = {}) {
       ? `Make \`${f.command}\` run the project's tests: it passed while running none (lesson 14).`
       : `Make the gate pass: \`${f.command}\` exits ${f.status}. Start from its first failure.`;
     case 'roadmap_stale': return `Regenerate the roadmap (\`npm run roadmap\`) and commit it; the check says: ${f.message}`;
-    case 'phases_without_issue': return f.shape === 'projects'
+    case 'phases_without_issue': return f.source === 'milestones'
+      ? `Create issues on ${config.repo} and assign them to GitHub milestones ${list(f.ids.map(id => `#${id}`), 10)}.`
+      : f.shape === 'projects'
       ? `Open an issue on ${config.repo} for ${list(f.projects, 6)} and set \`issue:\` in each project's primary doc front matter (open phases ${list(f.ids, 6)}).`
       : `Open issues on ${config.repo} for phases ${list(f.ids, 10)} and set \`issue:\` in each one's front matter.`;
     case 'phases_stuck': {

@@ -24,7 +24,7 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { repoReviewArgs, prReviewArgs, readRepoReviews, unansweredPrs, graphqlData } from './lib.mjs';
 
 export const QUOTA_FLOOR = 1000;
@@ -150,6 +150,19 @@ export async function cachedRead(env, key, fn, { fresh = false, ttl = GH_TTL, no
 /** Thrown when a read was skipped to save the owner's quota: its message says so, with what is left. */
 export class Saving extends Error { constructor(message) { super(message); this.saving = true; } }
 
+// Optional reads sharing quota must check it after the previous read publishes
+// its charge. Key by the shared store, not an env object's identity. A rejected
+// read releases its successor too; unrelated stores do not wait on one another.
+const readQueues = new Map();
+async function orderedRead(env, read) {
+  const key = resolve(cacheDir(env));
+  const result = (readQueues.get(key) ?? Promise.resolve()).then(read);
+  const tail = result.then(() => {}, () => {});
+  readQueues.set(key, tail);
+  try { return await result; }
+  finally { if (readQueues.get(key) === tail) readQueues.delete(key); }
+}
+
 /**
  * A GitHub read the board and loose-ends share: kept GH_TTL in keel's cache
  * (cachedRead), read again only when older or `fresh`; when it must be read
@@ -157,11 +170,14 @@ export class Saving extends Error { constructor(message) { super(message); this.
  * asked and Saving is thrown. { value, at, cached }.
  */
 export async function githubRead(env, key, fn, { fresh = false, guard, now } = {}) {
-  return cachedRead(env, key, async () => {
+  const read = () => cachedRead(env, key, async () => {
     const why = guard ? await guard() : null;
     if (why) throw new Saving(why);
     return fn();
   }, { fresh, now });
+  // Keep cache lookup inside the ordering too: concurrent reads of the same
+  // key can reuse the first result without another guard or query.
+  return guard ? orderedRead(env, read) : read();
 }
 
 /**
