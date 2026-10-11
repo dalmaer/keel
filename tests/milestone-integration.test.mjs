@@ -156,3 +156,29 @@ test('full migration pipeline keeps night and CI work without wiring dormant pha
   const doctor = await diagnose(root);
   assert.ok(!doctor.lint.some(row => row.rule === 'shipped-test-unrun' && /roadmap|keel-generated/.test(row.path)));
 });
+
+test('milestone source wins over a retained projects shape in CLI reads and doctor', async t => {
+  const config = { ...fileConfig, phases: { source: 'milestones', shape: 'projects' } };
+  const root = await scratch(t, config);
+  await render(root);
+  const archive = '# Acme archive\n\n## Phase 99 — Archived plan\n\n**Status: MYSTERY.**\n';
+  await put(root, 'docs/projects/old/phases.md', archive);
+  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  await readMilestones(config, { env, fresh: true, guard: async () => null, graphql: async () => response([milestone(1)]) });
+  for (const verb of ['next', 'status']) {
+    const result = run(process.execPath, [resolve('bin/keel.mjs'), verb, '--json'], { cwd: root, env });
+    assert.equal(result.status, 0, result.stderr);
+    const data = JSON.parse(result.stdout);
+    assert.equal(data.source, 'milestones');
+    assert.equal(data.next.id, 1);
+    assert.equal(data.next.title, 'Acme release');
+    assert.equal(data.shape, undefined);
+  }
+  const mutation = run(process.execPath, [resolve('bin/keel.mjs'), 'goal', 'add', 'Acme', '--outcome', 'Acme ships.', '--json'], { cwd: root, env });
+  assert.equal(mutation.status, 2);
+  assert.match(mutation.stdout + mutation.stderr, /read-only/);
+  assert.ok(!(await diagnose(root)).lint.some(row => row.path?.startsWith('docs/projects/old/')));
+  assert.equal(await readFile(join(root, 'docs/projects/old/phases.md'), 'utf8'), archive);
+  await put(root, '.keel/keel.json', { ...config, phases: { shape: 'projects' } });
+  assert.ok((await diagnose(root)).lint.some(row => row.rule === 'off-vocabulary' && row.path.startsWith('docs/projects/old/')));
+});
