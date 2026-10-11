@@ -35,7 +35,9 @@ export const GENERATORS = Object.freeze([
 export function generatedFiles(config, list = GENERATORS) {
   const on = new Set(config?.practices ?? []);
   const self = config?.keel === 'self';
-  return list.filter(g => (!g.self || self) && (!g.practice || on.has(g.practice)));
+  // The local roadmap becomes an archive when GitHub owns the selected plan.
+  return list.filter(g => (!g.self || self) && (!g.practice || on.has(g.practice))
+    && !(g.path === 'docs/ROADMAP.md' && config?.phases?.source === 'milestones'));
 }
 
 /** Never copied: git's own directory, installed packages, and the test ledger's runs. */

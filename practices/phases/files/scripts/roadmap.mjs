@@ -618,6 +618,10 @@ export function render({ config, phases, goals, links = [] }) {
 }
 
 export async function run({ root = ROOT, mode = 'write', today = localToday() } = {}) {
+  if (mode === 'check') {
+    const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+    if (config.phases?.source === 'milestones') return 'Local roadmap check inactive: phases.source is milestones; archived local plan preserved (remote coverage is not checked).';
+  }
   const data = await collect(root);
   if (mode === 'json') return JSON.stringify({ ...data, today, next: focus(data, today) }, null, 2);
   if (mode === 'next') {

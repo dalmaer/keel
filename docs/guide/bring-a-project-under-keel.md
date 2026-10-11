@@ -55,7 +55,10 @@ GitHub milestones and issues. The file-based conductor stays off because it
 requires local phase and goal files; existing project instructions remain yours.
 Switching an existing project to this source preserves dormant managed-file
 hashes, so returning to file plans cannot overwrite edits made in the meantime.
-Local phase-conversion migrations leave archived plans untouched.
+Local phase-conversion migrations leave archived plans untouched. The local
+roadmap check reports that it is inactive for this source; it does not claim
+the remote plan is verified. Ordinary doctor surveys stay offline. Missing
+milestone exit criteria are reported as a coverage gap.
 
 A milestone deadline is `due`: it never postpones work until that date.
 Issue checkboxes reflect GitHub issue state, and a closed milestone reflects

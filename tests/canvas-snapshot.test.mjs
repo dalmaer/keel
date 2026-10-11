@@ -278,3 +278,12 @@ test('milestone source is an explicit canvas gap, never a local built or empty p
   assert.equal(s.entities.filter(e => e.kind === 'phase').length, 0);
   assert.equal(metric(s, 'phases-reported-built').value, null);
 });
+
+test('milestone canvas suppresses archived goals and phases and discloses unsupported coverage for both', async t => {
+  const root = await fixture(t, { phases: { source: 'milestones' } });
+  const before = await Promise.all(['docs/goals.json', phasePath].map(p => readFile(join(root, p), 'utf8')));
+  const s = await snapshot({ root, now: NOW, env: { ...process.env, KEEL_GH: '/no-real-gh' } });
+  assert.deepEqual(s.entities.filter(e => ['goal', 'phase'].includes(e.kind)), []);
+  for (const source of ['goals', 'phases']) assert.equal(coverage(s, source).status, 'unsupported');
+  assert.deepEqual(await Promise.all(['docs/goals.json', phasePath].map(p => readFile(join(root, p), 'utf8'))), before);
+});

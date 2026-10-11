@@ -12,9 +12,12 @@ import { GENERATORS, generatedFiles, survivors, projectConfig } from '../scripts
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-test('each generated file is rewritten whole by its generator: a line appended to it does not survive', async () => {
-  const list = generatedFiles(await projectConfig(ROOT));
-  assert.ok(list.some(g => g.path === 'docs/ROADMAP.md'), 'the phases practice declares docs/ROADMAP.md generated');
+test('each generated file is rewritten whole by its generator: a line appended to it does not survive', async t => {
+  const config = await projectConfig(ROOT);
+  const list = generatedFiles(config);
+  const localPlan = config.practices?.includes('phases') && config.phases?.source !== 'milestones';
+  assert.equal(list.some(g => g.path === 'docs/ROADMAP.md'), !!localPlan, 'only an active local plan declares docs/ROADMAP.md generated');
+  if (config.phases?.source === 'milestones') t.diagnostic('Local roadmap generator inactive: milestones selected; archived plan is not probed.');
   assert.deepEqual(await survivors(ROOT, list), []);
 });
 
@@ -37,6 +40,7 @@ test('the list: each practice\'s files only when it is on; keel\'s own files onl
   const paths = config => generatedFiles(config).map(g => g.path);
   assert.deepEqual(paths({ practices: ['phases'] }), ['docs/ROADMAP.md']);
   assert.deepEqual(paths({ practices: ['phases', 'loop', 'lessons'] }), ['docs/ROADMAP.md', 'docs/LOOP.md']);
+  assert.deepEqual(paths({ practices: ['phases', 'loop', 'lessons'], phases: { source: 'milestones' } }), ['docs/LOOP.md']);
   assert.deepEqual(paths({ practices: ['phases', 'lessons'], keel: 'self' }), ['docs/ROADMAP.md', 'docs/keel-lessons.md', 'docs/patterns.md', 'docs/INBOX.md']);
   assert.ok(GENERATORS.every(g => Object.isFrozen(g) && g.path && g.args.length));
 });

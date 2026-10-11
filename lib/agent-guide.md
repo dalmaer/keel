@@ -80,7 +80,8 @@ stderr as one line beginning `keel:`.
   become read-only owner walks. Reads cap at 50 open and 20 recently updated
   closed milestones, 50 issues per milestone and 20 labels per issue; every truncated connection is disclosed.
   GitHub metadata includes cache state, read time and query cost. The cache
-  lasts 10 minutes and optional reads respect the quota floor.
+  lasts 10 minutes and optional reads respect the quota floor. Missing milestone
+  exit criteria are a coverage gap, not a usable empty acceptance claim.
 - `goal list` → `[{id, title, outcome, phases, built, lived, owed}]`
 - `goal show` → `{goal, phases: [{id, title, status}], built, lived, next}`;
   `next` is the phase object or `null`
@@ -328,6 +329,9 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   GitHub; local goal and phase mutations and `walk done` are unavailable.
   Adoption leaves the file-based conductor off. Source-disabled managed files
   retain dormant drift hashes, and local phase-conversion migrations are skipped.
+  The local roadmap check explicitly reports inactive for this source; local
+  roadmap writes remain refused. Ordinary doctor surveys do not discover
+  milestones over the network.
 - A practice whose `source.path` is a real file in the repo (the repo is its
   upstream) stays local; keel installs no copy beside the original.
 - Phases with no `goal` converge by migration 0003 once every built phase
