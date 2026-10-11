@@ -36,6 +36,16 @@ that correction.
 `npm run check` is the final integrated gate; its outcome is recorded in the
 commit body. `npm run typecheck` checks the selected production contracts.
 
+## Review correction
+
+PR #102 identified a broken lessons link when the selected guide sits under
+`docs/`. Template rendering now rebases only the seed link destination against
+the guide directory; the displayed repository path and project-owned prose
+remain intact. Init and adoption regression assertions cover nested and root
+guides. `keel prove tests/guide.test.mjs --name "init supports CLAUDE" --fix
+lib/practices.mjs --trailer` returned VERIFIED: the test failed without the
+fix and passed with it.
+
 ## Acceptance still owed
 
 No live project was adopted on the owner's behalf during this phase. The

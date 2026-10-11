@@ -71,6 +71,8 @@ test('custom guide and explicit AGENTS override seed only the chosen guide', asy
     await writeFile(join(dir, 'CLAUDE.md'), '# Acme legacy\n');
     await adoptAt(dir, { guide });
     assert.match(await read(dir, guide), /keel:begin agents-md/);
+    assert.ok((await read(dir, guide)).includes(guide === 'AGENTS.md'
+      ? '[`docs/lessons.md`](docs/lessons.md)' : '[`docs/lessons.md`](lessons.md)'));
     assert.equal(await read(dir, 'CLAUDE.md'), '# Acme legacy\n');
     if (guide !== 'AGENTS.md') await absent(dir, 'AGENTS.md');
   }
@@ -131,6 +133,8 @@ test('init supports CLAUDE and custom paths without a duplicate', async t => {
     await init({ dir, guide, name: 'Acme', description: 'Acme makes anvils.', kind: 'node' }, { version });
     await absent(dir, 'AGENTS.md');
     assert.match(await read(dir, guide), /Acme makes anvils/);
+    assert.ok((await read(dir, guide)).includes(guide === 'CLAUDE.md'
+      ? '[`docs/lessons.md`](docs/lessons.md)' : '[`docs/lessons.md`](lessons.md)'));
     assert.deepEqual((await diagnose(dir)).drift, []);
   }
 });
