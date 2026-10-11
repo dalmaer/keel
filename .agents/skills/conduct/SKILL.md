@@ -10,6 +10,8 @@ argument-hint: "[status | <phase number> | one]"
 
 # conduct: one phase, verified, recorded, committed
 
+Keel lesson references name the [Keel catalogue](https://github.com/dalmaer/keel/blob/main/docs/lessons.md), not this project’s local lesson numbers.
+
 The phases in `docs/phases/` are the contract. Each one is a file. Its front
 matter owns its status, and its sections say **Done when**, **Acceptance**,
 **Proof**, **Deliberately open** and **Next action**. `docs/goals.json` says
@@ -23,7 +25,7 @@ record, run the gate once on that final tree, and commit. Then it goes on to
 the next phase. (A phase of a file or two may be built by the conductor
 itself: see *Small phases* in §1.)
 
-**The default is unattended.** The conductor stops for a person, and a person
+**The default is unattended.** (why: Stopping for routine implementation choices leaves the agreed work unfinished.) The conductor stops for a person, and a person
 is needed for exactly three things:
 
 - a token or a login;
@@ -85,11 +87,11 @@ Keep the conductor's own context lean, because it outlives every builder:
 
 **Three gates before any code:**
 
-- **The docs agree.** If the phase's Proof, its Acceptance and the design
+- **The docs agree.** (why: Contradictory contracts let a build satisfy one document and violate another.) If the phase's Proof, its Acceptance and the design
   disagree, fix the docs first, as their own commit. Building on a
   contradiction produces something that satisfies one document and not the other.
-- **Its dependencies are built.** `depends:` says which phases. Conduct an unbuilt one first; a partial one marked `owes: walk` counts as built here (its rest is a walk, not work), as for `keel next`.
-- **⚑ steps are asked, not done.** List them to the user with the price, and
+- **Its dependencies are built.** (why: An unbuilt prerequisite makes downstream proof depend on a promise.) `depends:` says which phases. Conduct an unbuilt one first; a partial one marked `owes: walk` counts as built here (its rest is a walk, not work), as for `keel next`.
+- **⚑ steps are asked, not done.** (why: External resources and spending create obligations for the owner.) List them to the user with the price, and
   get a yes for each. Before stopping to ask, do every part that doesn't need
   the answer, so the ask is the only thing left.
 
@@ -98,7 +100,7 @@ Keep the conductor's own context lean, because it outlives every builder:
 Write the brief to a scratchpad file, so it can be reread, reused if the
 subagent must be restarted, and quoted in the commit.
 
-**Point, don't paste.** The subagent can read the repo, and `AGENTS.md` is
+**Point, don't paste.** (why: Keel lesson 5: repeated context and verification cost more than they catch.) The subagent can read the repo, and `AGENTS.md` is
 already in its context. Name the phase file, the design sections and the
 lessons by path and heading. In words, the brief carries only what the docs
 *don't* say:
@@ -149,7 +151,7 @@ another build.
 
 Spawn the subagent with the Agent tool (`general-purpose`), in the background.
 
-**Small phases.** A phase of a file or two (a seed, a doc, one small script
+**Small phases.** (why: A second session can cost more context than a change of one or two files needs.) A phase of a file or two (a seed, a doc, one small script
 and its test) may be built by the conductor itself, without a brief or a
 subagent. Everything after the build is unchanged: verify the named proof,
 write the record, run the gate. Say so in the evidence and the commit body:
@@ -170,7 +172,7 @@ as written, from the repo root, and read exit codes, not tails.
 - `git pull --ff-only` **first**, if there is a remote.
 - Then mark the phase's new files intent-to-add: `git add -N <new files>`.
   Anything that measures with `git ls-files` can't see an untracked file
-  locally, and it will fail the same check in CI after the commit (lesson 10).
+  locally, and it will fail the same check in CI after the commit (Keel lesson 10).
   Never stage before an autostash pull: the pull hands staged changes back unstaged.
 - `git status --short`: only the phase's files changed, no leftovers, no
   `.env`, nothing under `docs/phases/`.
@@ -193,7 +195,7 @@ as written, from the repo root, and read exit codes, not tails.
 - Read the diff for a facade, and for real data carried into fixtures.
   Fixtures are synthetic: "Acme", always.
 
-**Work that fails goes back down.** Send it to the same subagent with
+**Work that fails goes back down.** (why: Parallel fixes by the conductor and builder can overwrite each other.) Send it to the same subagent with
 `SendMessage`, so it keeps its context. Include the exact command, the exact
 output, and the line of the Proof it violates. Don't fix code yourself; the
 conductor edits documents (except in a small phase it built itself).
@@ -276,7 +278,7 @@ tree the gate just checked in §3; if anything changes after it, run it again.
   wall time. It carries the gate's result line from §3 (`npm run check`: exit
   code, test count), which the evidence can't, since the evidence is
   written before the gate runs.
-- **A fix is proven by its test failing without it.** A `fix:` commit
+- **A fix is proven by its test failing without it.** (why: Keel lesson 38: a check can stay green without evaluating its claim.) A `fix:` commit
   carries a `Proven-by:` trailer, from `keel prove <test> --fix <the fix's
   files> --trailer`: it runs the test in a scratch copy with the fix
   reverted, then in another with it, and never touches the tree. Only
@@ -297,7 +299,7 @@ Land on `main`, no pull request (unless the phase waits for review, below):
 4. Push, and follow CI on that exact commit while preparing the next brief.
    With no remote, stop at the local commit: there is no push and no CI.
 
-**Reviews.** Every PR the conductor opens or merges (a phase that waits for
+**Reviews.** (why: An unanswered finding hides whether it was fixed, tracked or rejected.) Every PR the conductor opens or merges (a phase that waits for
 review, `keel fleet update`'s PRs, a climb or tend PR): when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered.
 Read them with `keel review <repo>#<n>` (`--wait` first when the PR is new:
 reviewers post minutes after CI). The three replies:
@@ -342,7 +344,7 @@ what it printed, what changed course). Don't wait for a reply.
 
 ## 5. Retro
 
-**Reviews first.** For each PR this phase opened or merged (§4): when a PR
+**Reviews first.** (why: A retrospective must not bury unresolved review findings.) For each PR this phase opened or merged (§4): when a PR
 has reviews, validate each comment against the code first, then answer it
 with one of the three replies; never leave one unanswered.
 
@@ -368,7 +370,7 @@ phase report, most serious first, each typed:
 - **guide/skill line**: a judgment call only;
 - **lesson**: a failure shape, through `keel learn`.
 
-**The owner picks.** Nothing is applied unpicked: candidates live in the
+**The owner picks.** (why: Keel lesson 51: advice is not the person’s decision.) Nothing is applied unpicked: candidates live in the
 report, not the repo, until the owner picks one; a picked check is built as
 its own small change (or a phase). Never run a retro from the night or a
 climb: unattended, it finds false positives and keeps fixing them.
@@ -387,9 +389,9 @@ report lists every ask in one place, each in one sentence with its price.
 
 Two things look like stops and aren't. Decide them, record them, and go on:
 
-- **The design is wrong.** Change the design doc (or, if the project has none,
+- **The design is wrong.** (why: Quietly changing acceptance erases the contract used to judge the build.) Change the design doc (or, if the project has none,
   the phase) as its own commit, with the reason, then re-brief. A phase can be superseded; it can't be quietly redefined.
-- **The proof can't run as written.** Fix the Proof, say why in the commit,
+- **The proof can't run as written.** (why: A substitute proof may never check the original claim.) Fix the Proof, say why in the commit,
   continue. Never mark a phase built against a proof other than the one it named.
 
 If in doubt, ask: is the missing thing a credential, money or a hand? If not,

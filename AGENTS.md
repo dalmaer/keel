@@ -44,21 +44,30 @@ specific failure, recorded in [`docs/lessons.md`](docs/lessons.md).
 **Status lives in the thing it describes.** Edit the phase's front matter,
 then run `npm run roadmap`. Never hand-edit the roadmap; CI fails when it is
 stale — status written in two places drifts.
+(why: Keel lesson 2: two authoritative status copies drift.)
 
 **A phase ends in a testable outcome, named before it starts.** *Done when*
 is one sentence someone else could check. *Proof* is the exact commands.
+(why: A result with no named check can be called done without being tested.)
 
 **Decisions postponed are recorded, not improvised.** *Deliberately open*
 names them. Settle one in place, dated, saying what settled it.
+(why: An unrecorded postponement becomes the next session’s accidental decision.)
 <!-- keel:end phases -->
 
 <!-- keel:begin evidence -->
 **`built` is not the last word.** The statuses run `planned → designed →
 partial → built → lived-in`. Built and lived-in need an evidence file. Never
 invent evidence.
+(why: Keel lesson 29: reaching the end of a run does not establish success.)
 <!-- keel:end evidence -->
 
 For keel, `lived-in` means keel was used on real projects and it held.
+
+Date measured observations and retain the command that produced them: old
+numbers lose context as the code changes. `keel evidence rederive <phase>`
+previews explicit measurement records; `--yes` runs them under bounds and
+compares old and new values without rewriting historical evidence.
 
 <!-- keel:begin conduct -->
 **Conduct the walk.** `/conduct` (the skill in `.agents/skills/conduct`) briefs
@@ -67,16 +76,19 @@ phases*), verifies the proof itself, writes the record and commits each phase
 to `main`, then runs a retro when the phase changed more than docs (the owner
 picks from its candidates). Builders test by file. The conductor runs `npm run check` once on
 the integrated tree — a green subset hides a red suite, and checking at every level costs more than it catches.
+(why: Keel lessons 4 and 5: a green subset hides failures, while repeated full gates waste work.)
 
 **A fix is proven by its test failing without it.** A `fix:` commit
 carries a `Proven-by:` trailer from `keel prove <test> --fix <files>
 --trailer`: VERIFIED, or the reason it is not.
+(why: Keel lesson 38: a check can stay green without evaluating its claim.)
 
 **Answer every review.** When a PR has reviews, validate each comment against
 the code first, then answer it with one of the three replies: fixed (the
 commit), tracked (the issue or version) or not valid (why), with
 `keel review <repo>#<n> --close <id> …`; never leave one unanswered. Not a
 gate: an open thread never blocks a merge.
+(why: An unanswered finding leaves the next reader unable to tell whether it was fixed or rejected.)
 <!-- keel:end conduct -->
 
 <!-- keel:begin night -->
@@ -84,6 +96,7 @@ gate: an open thread never blocks a merge.
 hygiene block (`scripts/keel/test-ledger.mjs`): a test that was flaky on one
 clean tree, or got slower than its last runs, with the command to run it
 alone. Fix it or file it. Never rerun until green — a rerun hides the flake.
+(why: A passing retry loses the evidence of an intermittent failure.)
 <!-- keel:end night -->
 
 **CI evidence names its source.** A configured gate may reuse recent CI only
@@ -97,12 +110,14 @@ stays unavailable. See [the night guide](docs/guide/the-night-shift.md).
 a shape, and say where it was paid for. Read the table
 (`docs/lessons.md`) and keel's lessons for this stack (`docs/keel-lessons.md`,
 generated) before adding a guard.
+(why: Keel lesson 37: guarding only one reproduction leaves the same failure possible elsewhere.)
 <!-- keel:end lessons -->
 
 <!-- keel:begin agents-md -->
 **⚑ steps are asked, with the price.** Creating repos, setting secrets,
 enabling Pages, filing issues on another repo, scheduling model spend: each
 one waits for the owner's yes.
+(why: External resources and recurring spend create obligations only the owner can accept.)
 
 keel's files are listed in `.keel/lock.json`; `keel doctor` says if you
 changed one. Everything else is yours.

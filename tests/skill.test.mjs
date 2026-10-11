@@ -160,7 +160,7 @@ test('the conduct skill ends real work with a retro: the worksheet, the seven ar
   assert.match(five, /\*\*check\*\*/);
   assert.match(five, /\*\*guide\/skill line\*\*/);
   assert.match(five, /\*\*lesson\*\*[\s\S]*keel learn/);
-  assert.match(five, /\*\*The owner picks\.\*\* Nothing is applied unpicked/);
+  assert.match(five, /\*\*The owner picks\.\*\* (?:\(why: [^)\n]+\) )?Nothing is applied unpicked/);
   assert.match(five, /Never run a retro from the night or a\s+climb/);
   // The sections before it are intact.
   for (const n of [0, 1, 2, 3, 4]) assert.ok(text.includes(`\n## ${n}.`), `§${n} kept`);
@@ -248,7 +248,7 @@ test('the conduct skill treats owes: walk as done for /conduct <N>, and leaves a
 test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-by: trailer from keel prove', async () => {
   const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
   const commit = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## 5.'));
-  assert.match(commit, /\*\*A fix is proven by its test failing without it\.\*\* A `fix:` commit\s+carries a `Proven-by:` trailer, from `keel prove <test> --fix <the fix's\s+files> --trailer`/);
+  assert.match(commit, /\*\*A fix is proven by its test failing without it\.\*\* (?:\(why: [^)\n]+\) )?A `fix:` commit\s+carries a `Proven-by:` trailer, from `keel prove <test> --fix <the fix's\s+files> --trailer`/);
   assert.match(commit, /Only\s+VERIFIED proves the fix\. NOT WORKING means the test does not catch the bug/);
   assert.match(commit, /never touches the tree/);
   assert.match(commit, /Never write the\s+trailer by hand/);

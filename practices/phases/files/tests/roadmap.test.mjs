@@ -570,3 +570,97 @@ test('a walk with no Your part is a note from --check, never a failure; a filled
     assert.equal(JSON.parse(await run({ root, mode: 'json' })).phases[0].yourPart, null);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('measurement advice associates real dates with paragraphs and enclosing headings only', async () => {
+  const { measurementNotes } = await import('../scripts/roadmap.mjs');
+  const notes = text => measurementNotes(text, 'docs/evidence/acme.md');
+  assert.equal(notes('The run took 12 ms.')[0].rule, 'undated-number');
+  for (const text of [
+    'The run took 12 ms (2026-10-11, `node measure.mjs`).',
+    'Measured 2024-02-29.\nThe result was 12 ms.',
+    '# 2026-10-11\n\n## Result\n\nThe run took 12 ms.',
+    '| 12 ms | 2026-10-11 |',
+  ]) assert.deepEqual(notes(text), [], text);
+  for (const date of ['2026-02-30', '2026-02-29', '2026-13-01']) assert.equal(notes(`12 ms (${date}).`).length, 1, date);
+  assert.equal(notes('2026-10-11\n\n12 ms.').length, 1, 'a different paragraph is not a date');
+  assert.equal(notes('## 2026-10-11\n\n12 ms.\n\n## Another run\n\n14 ms.').length, 1, 'sibling heading ends date scope');
+  assert.equal(notes('12 ms.\n\n| 2026-10-11 | unrelated row |').length, 1);
+  assert.equal(notes('---\nsince: 2026-10-11\n---\n12 ms.').length, 1, 'status date is not measurement date');
+});
+
+test('measurement advice ignores nonmeasurements and documents its small heuristic', async () => {
+  const { measurementNotes } = await import('../scripts/roadmap.mjs');
+  const notes = text => measurementNotes(text, 'docs/research/acme.md');
+  assert.deepEqual(notes([
+    '```sh', 'sleep 20 s', '```', '~~~text', '10 ms', '~~~',
+    '`node measure.mjs --timeout 10 ms`',
+    '<!-- 40 ms -->', 'See https://acme.test/12ms and `acme-12ms`.',
+    'The timeout is 20 minutes.', 'Target: 95%.', 'budget = 12 minutes',
+    'The result must be below 12 ms.', 'HTTP failures returned 404s.',
+    '- **Takes:** 5 minutes.',
+  ].join('\n\n')), []);
+  assert.equal(notes('The run took 1,234.5 ms and saved 12%.')[0].message.includes('1,234.5 ms, 12%'), true);
+  assert.match(notes('The change was -12.5 points.')[0].message, /-12\.5 points/);
+  assert.equal(notes('The run took 10 ms on October 11, 2026.').length, 1, 'natural-language dates are not inferred');
+  assert.equal(notes('The run took `10 ms`.').length, 0, 'inline code measurements are intentionally outside the heuristic');
+  assert.deepEqual(measurementNotes('## Scope\n\nAllow 10 minutes.\n\n## Next action\n\nSpend 5 minutes.', 'docs/phases/01-acme.md'), []);
+  assert.equal(measurementNotes('## Proof\n\nObserved 12 points.', 'docs/phases/01-acme.md').length, 1);
+});
+
+test('roadmap measurement advice scans evidence/research and phase proof, stays JSON and never fails the check', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  try {
+    await mkdir(join(root, '.keel'));
+    for (const dir of ['phases', 'evidence', 'research']) await mkdir(join(root, 'docs', dir), { recursive: true });
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
+    await writeFile(join(root, 'docs/phases/00-start.md'), phase().replace('A command.', 'Observed 12 ms.'));
+    await writeFile(join(root, 'docs/evidence/acme.md'), 'Observed 20%.');
+    await writeFile(join(root, 'docs/research/acme.md'), '## 2026-10-11\n\nObserved 10 points.');
+    await run({ root });
+    assert.match(await run({ root, mode: 'check' }), /undated-number docs\/evidence\/acme.md/);
+    const data = JSON.parse(await run({ root, mode: 'json' }));
+    assert.deepEqual(data.measurementNotes.map(n => n.path), ['docs/phases/00-start.md', 'docs/evidence/acme.md']);
+    assert.deepEqual(data.problems, []);
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', phases: { source: 'milestones' } }));
+    await writeFile(join(root, 'docs/phases/00-start.md'), 'malformed archived phase');
+    assert.match(await run({ root, mode: 'check' }), /inactive/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('measurement advice does not walk symlinks, unrelated docs or nested trees', async () => {
+  const { measurementAdvice } = await import('../scripts/roadmap.mjs');
+  const { symlink } = await import('node:fs/promises');
+  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  try {
+    await mkdir(join(root, 'docs/evidence/nested'), { recursive: true });
+    await writeFile(join(root, 'docs/evidence/real.md'), 'Observed 12 ms.');
+    await writeFile(join(root, 'docs/evidence/nested/ignored.md'), 'Observed 20 ms.');
+    await writeFile(join(root, 'docs/unrelated.md'), 'Observed 30 ms.');
+    await symlink('real.md', join(root, 'docs/evidence/alias.md'));
+    await symlink('evidence', join(root, 'docs/research'));
+    assert.deepEqual((await measurementAdvice(root)).map(n => n.path), ['docs/evidence/real.md']);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('PR104: bound prose does not hide an undated observation on the same line', async () => {
+  const { measurementNotes } = await import('../scripts/roadmap.mjs');
+  for (const text of [
+    'The run took 500 ms, below the budget.',
+    'The budget run took 500 ms.',
+    'The run took 500 ms against a budget of 1000 ms.',
+    'The budget is 1000 ms, but the run took 500 ms.',
+    'The run took 500 ms (< 1000 ms limit).',
+  ]) {
+    const notes = measurementNotes(text, 'docs/evidence/acme.md');
+    assert.equal(notes.length, 1, text);
+    assert.match(notes[0].message, /500 ms has no valid date/, text);
+    assert.doesNotMatch(notes[0].message, /1000 ms/, 'the bound itself is not an observation');
+    assert.deepEqual(measurementNotes(`${text} Measured 2026-10-11.`, 'docs/evidence/acme.md'), []);
+  }
+  for (const text of ['The timeout is 20 minutes.', 'Target: 95%.', 'budget = 12 minutes',
+    'The result must be below 12 ms.', 'At most 50 ms.', 'latency <= 50 ms',
+    'A 50 ms budget.', '- **Takes:** 5 minutes.']) {
+    assert.deepEqual(measurementNotes(text, 'docs/evidence/acme.md'), [], text);
+  }
+});

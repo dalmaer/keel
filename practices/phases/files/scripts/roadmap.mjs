@@ -14,7 +14,7 @@
 // roadmap does not: a phase just drafted by `keel phase new` still lists.
 // It notes, never refuses, a phase with an open ⚑ walk and no ## Your part
 // (yourPartNotes): the owner's ask in plain words is advice to write.
-import { readFile, readdir, writeFile, stat } from 'node:fs/promises';
+import { readFile, readdir, writeFile, stat, lstat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -632,12 +632,98 @@ export function render({ config, phases, goals, links = [] }) {
   return lines.join('\n');
 }
 
+/** Unit-bearing prose is advice, never acceptance. A real ISO calendar date
+ * in the same paragraph/table row, or an enclosing ATX heading, dates it.
+ * A heading ends at a sibling/ancestor heading. Front matter, fences, inline
+ * code, comments, URLs and explicit bound/configuration expressions are ignored.
+ * This deliberately does not infer dates from filenames, `since`, nearby
+ * unrelated paragraphs or natural-language dates, nor execute any command.
+ */
+export function measurementNotes(text, path) {
+  const clean = text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, s => s.replace(/[^\n]/g, ' '))
+    .replace(/<!--[\s\S]*?-->/g, s => s.replace(/[^\n]/g, ' '));
+  const lines = clean.split('\n'), notes = [], headings = [];
+  let fence = null, paragraph = [];
+  let phaseSection = !path.startsWith('docs/phases/');
+  const dated = s => [...s.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].some(m => isDate(m[0]));
+  const prose = s => s.replace(/(`+)[\s\S]*?\1/g, '').replace(/https?:\/\/[^\s)>]+/g, '').replace(/\]\([^)]*\)/g, ']');
+  const flush = () => {
+    if (!phaseSection || dated(paragraph.map(p => p.text).join(' ')) || headings.some(h => h.dated)) { paragraph = []; return; }
+    for (const { text: line, line: number } of paragraph) {
+      // Classify each figure, not the whole line: an observation can compare
+      // itself with a budget. Within its clause, the last explicit bound or
+      // observation cue wins; a trailing "ms budget" also names a bound.
+      // This is prose advice, not a natural-language parser: implicit intent
+      // and unfamiliar observation verbs can still be ambiguous.
+      const matches = [...line.matchAll(/(?<![\w.,/#-])[+-]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:ms|%)|\s+(?:milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|points?))(?![\w/])/gi)].filter(m => {
+        const before = line.slice(0, m.index).split(/[,;!?]|\.(?=\s)|\b(?:but|while|whereas|and)\b/i).at(-1);
+        const after = line.slice(m.index + m[0].length);
+        const bound = /\b(?:thresholds?|timeouts?|budgets?|limits?|bounds?|targets?|defaults?|floor|deadline|margin|at most|at least|maximum|minimum|up to|must|should)\b|<=|>=|[<>≤≥]|\*\*Takes:/gi;
+        const observed = /\b(?:observed|measured|actual|took|elapsed|returned|saved|ran|finished|completed|used)\b/gi;
+        const boundAt = [...before.matchAll(bound)].at(-1)?.index ?? -1;
+        const observedAt = [...before.matchAll(observed)].at(-1)?.index ?? -1;
+        if (boundAt > observedAt) return false;
+        if (observedAt >= 0) return true;
+        return !/^\s*(?:[-*]\s+)?[\w.-]+\s*[:=]\s*$/.test(before)
+          && !/^\s+(?:threshold|timeout|budget|limit|bound|target|default|floor|deadline|margin)\b/i.test(after);
+      });
+      if (matches.length) notes.push({ rule: 'undated-number', path, line: number, message: `line ${number}: ${matches.map(m => m[0]).join(', ')} has no valid date in its paragraph or enclosing heading; date the observation and name its re-derivation command when known (advice, not a failure)` });
+    }
+    paragraph = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i], mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(raw);
+    if (fence) {
+      if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
+      continue;
+    }
+    if (mark) { flush(); fence = mark[1]; continue; }
+    const line = prose(raw), heading = /^(#{1,6})\s+(.+)/.exec(line);
+    if (heading) {
+      flush();
+      if (path.startsWith('docs/phases/') && heading[1].length <= 2) phaseSection = heading[1].length === 2 && /^(?:Proof|Evidence|Trajectory)\s*$/i.test(heading[2]);
+      while (headings.length && headings.at(-1).level >= heading[1].length) headings.pop();
+      headings.push({ level: heading[1].length, dated: dated(heading[2]) });
+      // Heading measurements are observations too.
+      paragraph.push({ text: heading[2], line: i + 1 }); flush();
+    } else if (!line.trim()) flush();
+    else if (/^\s*(?:\||[-+*]\s|\d+[.)]\s)/.test(line)) {
+      flush(); paragraph.push({ text: line, line: i + 1 });
+      if (/^\s*\|/.test(line)) flush();
+    } else paragraph.push({ text: line, line: i + 1 });
+  }
+  flush();
+  return notes;
+}
+
+/** Only the three documented directories, regular Markdown files, no recursion
+ * or symlink traversal. Phase figures are checked only in Proof, Evidence and
+ * Trajectory sections. Missing optional evidence/research directories are OK.
+ */
+export async function measurementAdvice(root) {
+  const notes = [];
+  if (!(await lstat(resolve(root, 'docs')).catch(e => e.code === 'ENOENT' ? null : Promise.reject(e)))?.isDirectory()) return notes;
+  for (const dir of ['docs/phases', 'docs/evidence', 'docs/research']) {
+    if (!(await lstat(resolve(root, dir)).catch(e => e.code === 'ENOENT' ? null : Promise.reject(e)))?.isDirectory()) continue;
+    for (const file of (await readdir(resolve(root, dir), { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (!file.isFile() || !file.name.endsWith('.md') || file.name === 'README.md') continue;
+      const path = `${dir}/${file.name}`;
+      notes.push(...measurementNotes(await readFile(resolve(root, path), 'utf8'), path));
+    }
+  }
+  return notes;
+}
+
 export async function run({ root = ROOT, mode = 'write', today = localToday() } = {}) {
   if (mode === 'check') {
     const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
     if (milestoneSource(config)) return 'Local roadmap check inactive: phases.source is milestones; archived local plan preserved (remote coverage is not checked).';
   }
   const data = await collect(root);
+  if (mode === 'check' || mode === 'json') {
+    data.measurementNotes = await measurementAdvice(root);
+    data.notes.push(...data.measurementNotes.map(n => `${n.rule} ${n.path}:${n.line}: ${n.message}`));
+  }
   if (mode === 'json') return JSON.stringify({ ...data, today, next: focus(data, today) }, null, 2);
   if (mode === 'next') {
     const p = focus(data, today);

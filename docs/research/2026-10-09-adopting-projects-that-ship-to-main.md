@@ -85,6 +85,9 @@ rather than ask them to change.
    without its cause gets "improved" away by the next session. A number in a
    doc is a dated observation, and the command that re-derives it is worth
    more than the number.
+   Settled 2026-10-11: re-derivation executes only explicit structured argv
+   measurement records after `--yes`, never commands inferred from prose.
+   Bounded execution compares dated values and preserves historical evidence.
 8. **Read this before touching that** (phase 65). A map from path patterns
    to the document an agent must read first (an as-built contract). keel's
    guide and doctor point to it, and so does a pre-edit hook where the agent

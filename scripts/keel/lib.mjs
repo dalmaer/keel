@@ -2176,3 +2176,36 @@ export function codexVerdict({ outcome, message, elapsedSec, minutes }) {
   if (outcome === 'success') return { ok: false, line: `Codex did not start: the agent step succeeded after ${took} with no final message, before its ${minutes}-minute budget; ${check}. Nothing is judged or posted.` };
   return { ok: false, line: `Codex ${said ? 'stopped with an error' : 'did not start'}: the agent step ended ${outcome || 'without an outcome'} after ${took}, before its ${minutes}-minute budget, ${said ? 'with a final message' : 'with no final message'}; ${check}. Nothing is judged or posted.` };
 }
+
+
+/** Advisory rule grammar: a paragraph/list item starts with a bold sentence
+ * ending in . or !. Labels, inline bold, tables, comments and fenced examples
+ * are not rules. A cause belongs to that item (until blank, heading or next
+ * item): (why: nonempty text), lesson N, an issue reference, or a because
+ * clause. This checks attribution syntax, not the truth of the explanation.
+ */
+export function ruleCauseNotes(text, path = 'AGENTS.md') {
+  const lines = (text ?? '').replace(/<!--[\s\S]*?-->/g, s => s.replace(/[^\n]/g, ' ')).split('\n');
+  const notes = [];
+  let fence = null, item = null;
+  const flush = () => {
+    if (item && !/\(why:\s*[^\s)][^)]*\)|\blesson\s+\d+\b|\bissues?\s+#?\d+\b|https:\/\/[^\s)]+\/issues\/\d+\b|\b[\w.-]+\/[\w.-]+#\d+\b|\bbecause\s+\S+/i.test(item.text)) {
+      notes.push({ rule: 'rule-without-cause', path, line: item.line, message: `line ${item.line}: ${item.title} — name the failure or lesson that made this rule (why: …); advice, not a failure` });
+    }
+    item = null;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i], mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
+      continue;
+    }
+    if (mark) { flush(); fence = mark[1]; continue; }
+    const start = /^(?: {0,3}(?:[-+*]|\d+[.)])\s+)?\*\*([^*\n]+?[.!])\*\*(?:\s|$)/.exec(line);
+    if (start) { flush(); item = { line: i + 1, title: start[1], text: line }; }
+    else if (!line.trim() || /^\s*(?:#{1,6}\s|\*\*|[-+*]\s|\d+[.)]\s|\|)/.test(line)) flush();
+    else if (item) item.text += ` ${line.trim()}`;
+  }
+  flush();
+  return notes;
+}
