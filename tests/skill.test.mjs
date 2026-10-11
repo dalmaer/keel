@@ -61,7 +61,7 @@ test(`the keel skill stays short (≤ ${BUDGET} words) and names no verb but --a
   assert.match(body, /git clone https:\/\/github\.com\/dalmaer\/keel/);
   assert.match(body, /npm install -g/);
   assert.match(body, /npx -y github:dalmaer\/keel --agent-help/, 'a way in with nothing installed (phase 23)');
-  assert.match(body, /AGENTS\.md/);
+  assert.match(body, /Read `\{\{guide\}\}`/, 'the doorway names the selected guide when rendered');
   assert.match(body, /docs\/ROADMAP\.md/);
   assert.deepEqual(verbMentions(body), []);
 });

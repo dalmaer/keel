@@ -33,10 +33,18 @@ accepts later, or a decision to leave it local.
 The same rule decides the smaller cases. A file the project already has
 where keel would write one is **keep-local**, and makes its practice local.
 A project with its own CI workflow keeps `ci` local, because keel would
-otherwise add a second workflow running the same gate. `AGENTS.md` keeps
+otherwise add a second workflow running the same gate. The selected agent guide keeps
 every byte; keel's sections are appended under a heading of their own, and
 any rule the file already states in its own words is skipped rather than
 said twice.
+
+Keel uses the guide the project already has: `AGENTS.md` when present, otherwise
+`CLAUDE.md`, otherwise a new `AGENTS.md`. `--guide <repo-relative-path>` selects
+another guide explicitly, and adoption records it as `guide` in
+`.keel/keel.json`. With both files present, the default stays `AGENTS.md` and
+is reported in the plan; neither existing file is removed. A symlinked pair
+counts as one guide. Render, doctor and update use the same selection, including
+skipped blocks and the contracts table. Existing project prose is preserved.
 
 What stays local is never a failure. `keel doctor` lists local variants as
 information, and says when one would now switch on if adopted again.
@@ -49,7 +57,7 @@ must read before changing it (an as-built contract), name it in
 "contracts": [{ "paths": ["src/index/**"], "read": "docs/engine/indexing.md", "why": "the index format is measured" }]
 ```
 
-`keel render` then lists the contracts as a table in `AGENTS.md`, and adds a
+`keel render` then lists the contracts as a table in the selected guide, and adds a
 Claude Code hook that names the document before an edit to a matching file.
 The hook never blocks an edit. `keel doctor` notes a document that is
 missing or a pattern that matches no file.
@@ -87,7 +95,7 @@ Each flag, by why you'd pass it:
   example `--env ACME_AUTOSYNC=0`, so a keel run never syncs or pushes.
 - `--with <practice>`, repeatable. Asks for an optional practice. On a
   project already adopted it adds only that practice: its files, its
-  `AGENTS.md` section and its lock rows, and every other byte stays. If the
+  guide section and its lock rows, and every other byte stays. If the
   project has its own version, adopt exits 1, says why, and writes nothing:
   retire the project's own version first.
 

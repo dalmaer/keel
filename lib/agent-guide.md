@@ -211,8 +211,11 @@ cd acme-notes && keel next
   `docs/phases/00-first-thing-that-runs.md`, `docs/evidence/README.md`, and a
   README.md with a "How to run it" section to fill (project-owned from then
   on); `--kind node` also names package.json. It renders the practices, puts
-  the description into AGENTS.md once, generates the roadmap, and makes one
+  the description into the selected guide once, generates the roadmap, and makes one
   commit on `main` naming the practice version.
+- `--guide <repo-relative-path>` selects the guide (`AGENTS.md` by default),
+  records it in config, and avoids creating a second guide. The same path
+  safety and ownership checks apply as for adoption.
 - Phase 0's Done when, Acceptance and Proof are a generic draft. Replace them
   with the first thing a person could check, as their own commit, then
   conduct it.
@@ -240,11 +243,18 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   is **keep-local** and makes its practice local. A same-stem sibling
   (`scripts/roadmap.ts`) counts. Existing workflows keep `ci` local: keel never
   adds a second workflow running the same gate.
-- AGENTS.md keeps every byte; missing blocks of on practices are appended under
-  `## The keel practice` — except a block whose first bold sentence AGENTS.md
+- The selected guide keeps every byte; missing blocks of on practices are appended under
+  `## The keel practice` — except a block whose first bold sentence the guide
   already states in its own prose (case and spacing aside): it is listed in
   `.keel/keel.json` `blocksSkipped`, render never asks for its markers, and
   doctor shows it as information.
+- `--guide <repo-relative-path>` selects the agent guide. Otherwise use
+  `AGENTS.md` if present, then `CLAUDE.md`, then seed `AGENTS.md`. Adoption
+  records `guide` in `.keel/keel.json`; render, doctor and update honor it.
+  With both files present the default is AGENTS.md, disclosed in the plan.
+  A symlink pair counts as one guide. Existing guides are never deleted or
+  duplicated automatically; unsafe paths and conflicting managed ownership
+  are refused before writing.
 - Optional practices (`loop`, `claude`) are off unless `--with <practice>`
   names them or `.keel/keel.json` already has them on; a project with its own
   version is still local. For `claude` that is a workflow running

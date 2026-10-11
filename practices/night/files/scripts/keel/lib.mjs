@@ -193,10 +193,10 @@ export async function lockedSkills(root, lock) {
 }
 
 /** CLAUDE.md as more than a pointer to AGENTS.md: a lint, or null. */
-export function claudeMdLint(text) {
+export function claudeMdLint(text, guide = 'AGENTS.md') {
   const lines = text === null ? 0 : text.split('\n').filter(l => l.trim()).length;
   return lines > CLAUDE_MD_LINES
-    ? { rule: 'claude-md-pointer', path: 'CLAUDE.md', message: `CLAUDE.md has ${lines} non-empty lines; it should be a pointer to AGENTS.md (at most ${CLAUDE_MD_LINES}), so there is one guide` }
+    ? { rule: 'claude-md-pointer', path: 'CLAUDE.md', message: `CLAUDE.md has ${lines} non-empty lines; it should be a pointer to ${guide} (at most ${CLAUDE_MD_LINES}), so there is one guide` }
     : null;
 }
 

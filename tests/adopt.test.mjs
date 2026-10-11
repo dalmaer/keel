@@ -224,7 +224,7 @@ test('a bare project: phases off, so is what needs them; ci on and runs its gate
   assert.equal(status(data, '.github/workflows/check.yml'), 'create');
 });
 
-test('a managed file or symlink the project has its own version of makes its practice local, never overwritten', async t => {
+test('a CLAUDE guide is retained while a conflicting skill directory makes conduct local', async t => {
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-own', scripts: { check: 'node -e 0' } }));
   await writeFile(join(dir, 'CLAUDE.md'), 'Acme\'s own pointer.\n');
@@ -232,11 +232,13 @@ test('a managed file or symlink the project has its own version of makes its pra
   await mkdir(join(dir, 'docs', 'phases'), { recursive: true });
   await writeFile(join(dir, 'docs/phases/00-x.md'), '---\nstatus: planned\nsince: 2026-01-01\nnote: "x"\n---\n# X\n');
   const { data } = await adopt({ dir }, { version: VERSION });
-  assert.equal(states(data)['agents-md'], 'local');
+  assert.equal(states(data)['agents-md'], 'on');
+  assert.equal(data.config.guide, 'CLAUDE.md');
   assert.equal(status(data, 'CLAUDE.md'), 'keep-local');
   assert.equal(states(data).conduct, 'local');
   assert.equal(status(data, '.claude/skills/conduct'), 'conflict');
-  assert.equal(await readFile(join(dir, 'CLAUDE.md'), 'utf8'), 'Acme\'s own pointer.\n');
+  assert.ok((await readFile(join(dir, 'CLAUDE.md'), 'utf8')).startsWith('Acme\'s own pointer.\n'));
+  assert.equal(await lstat(join(dir, 'AGENTS.md')).catch(() => null), null);
   assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isDirectory());
 });
 

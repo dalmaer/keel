@@ -38,6 +38,6 @@ npm install -g <dir>
 
 ## Before you change anything
 
-Read `AGENTS.md`; it is this project's working guide. Never edit
+Read `{{guide}}`; it is this project's working guide. Never edit
 `docs/ROADMAP.md`, which is generated. `{{check}}` is the gate. Outward steps
 (repos, secrets, issues on another repo, model spend) wait for the owner's yes.
