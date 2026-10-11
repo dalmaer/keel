@@ -377,3 +377,16 @@ test('lessons and doctor advise on the selected guide without making advice a fa
   assert.match(result.text, /rule-without-cause GUIDE.md/);
   assert.equal(result.data.ruleNotes[0].rule, 'rule-without-cause');
 });
+
+test('PR104: successful lessons --yes keeps collected rule advice in text and JSON', async t => {
+  const { dir } = await acme(t);
+  const stub = await stubGh(t);
+  await appendFile(join(dir, 'AGENTS.md'), '\n**Check the result.** Run the command.\n');
+  const result = await send(dir, stub.env);
+  assert.equal(result.exitCode, 0, result.text);
+  assert.ok(result.data.filed.length > 0, 'exercise a successful send, not the no-op branch');
+  const note = result.data.notes.find(n => n.includes('rule-without-cause'));
+  assert.ok(note, 'JSON retains the collected advice');
+  assert.ok(result.text.includes(`note: ${note}`), 'successful text must carry the same advice');
+  assert.equal(result.data.ruleNotes[0].rule, 'rule-without-cause');
+});

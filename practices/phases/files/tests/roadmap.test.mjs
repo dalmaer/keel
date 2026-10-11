@@ -642,3 +642,25 @@ test('measurement advice does not walk symlinks, unrelated docs or nested trees'
     assert.deepEqual((await measurementAdvice(root)).map(n => n.path), ['docs/evidence/real.md']);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('PR104: bound prose does not hide an undated observation on the same line', async () => {
+  const { measurementNotes } = await import('../scripts/roadmap.mjs');
+  for (const text of [
+    'The run took 500 ms, below the budget.',
+    'The budget run took 500 ms.',
+    'The run took 500 ms against a budget of 1000 ms.',
+    'The budget is 1000 ms, but the run took 500 ms.',
+    'The run took 500 ms (< 1000 ms limit).',
+  ]) {
+    const notes = measurementNotes(text, 'docs/evidence/acme.md');
+    assert.equal(notes.length, 1, text);
+    assert.match(notes[0].message, /500 ms has no valid date/, text);
+    assert.doesNotMatch(notes[0].message, /1000 ms/, 'the bound itself is not an observation');
+    assert.deepEqual(measurementNotes(`${text} Measured 2026-10-11.`, 'docs/evidence/acme.md'), []);
+  }
+  for (const text of ['The timeout is 20 minutes.', 'Target: 95%.', 'budget = 12 minutes',
+    'The result must be below 12 ms.', 'At most 50 ms.', 'latency <= 50 ms',
+    'A 50 ms budget.', '- **Takes:** 5 minutes.']) {
+    assert.deepEqual(measurementNotes(text, 'docs/evidence/acme.md'), [], text);
+  }
+});

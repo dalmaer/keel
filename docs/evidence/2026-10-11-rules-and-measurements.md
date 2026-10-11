@@ -69,3 +69,24 @@ cover unfinished comments and ordinary fences hidden inside comments. The
 conductor checks the correction with `keel prove tests/evidence.test.mjs --name
 '^PR104:' --fix lib/evidence.mjs --base ccb3dcb --trailer`; its generated verdict
 belongs to the fix commit, followed by the final gate on this record.
+
+## Late review corrections — 2026-10-11
+
+The connector's late findings were validated against the code: malformed string
+practice lists could bypass the local-plan boundary; successful lesson sends
+omitted collected advice from text; a budget word hid an observed number on the
+same line; Linux zombies could fail the descendant test despite having stopped.
+The first three now have conductor-generated VERIFIED regression proofs against
+`984b1e5` (`tests/evidence.test.mjs`, `tests/lessons.test.mjs`, and
+`tests/roadmap.test.mjs`, each filtered to `^PR104:`). Matched inline code also
+keeps comment markers literal. The Linux test recognizes only zombie state as
+terminated, retaining failures for running/sleeping/stopped states; synthetic
+Linux status cases and the real macOS process-tree test passed. This is not a
+claim of a live Linux PID-1 container walk.
+
+Conductor focused verification: `node --import ./tests/helpers/hermetic.mjs
+--test tests/evidence.test.mjs tests/roadmap.test.mjs tests/lessons.test.mjs`,
+exit 0, 67 passed. The revised per-figure heuristic reports 68 corpus notes
+(42 evidence, 26 research), compared with the earlier 59; historical documents
+remain unchanged. Unfamiliar observation/intent phrasing can still be ambiguous.
+The final integrated gate and selected typecheck run after this record.

@@ -635,7 +635,7 @@ export function render({ config, phases, goals, links = [] }) {
 /** Unit-bearing prose is advice, never acceptance. A real ISO calendar date
  * in the same paragraph/table row, or an enclosing ATX heading, dates it.
  * A heading ends at a sibling/ancestor heading. Front matter, fences, inline
- * code, comments, URLs and explicit thresholds/configuration lines are ignored.
+ * code, comments, URLs and explicit bound/configuration expressions are ignored.
  * This deliberately does not infer dates from filenames, `since`, nearby
  * unrelated paragraphs or natural-language dates, nor execute any command.
  */
@@ -650,11 +650,23 @@ export function measurementNotes(text, path) {
   const flush = () => {
     if (!phaseSection || dated(paragraph.map(p => p.text).join(' ')) || headings.some(h => h.dated)) { paragraph = []; return; }
     for (const { text: line, line: number } of paragraph) {
-      // Intent/bounds are not observations. Kept line-scoped so an adjacent
-      // measured result is still checked. Quoted command arguments are code.
-      if (/\b(?:thresholds?|timeouts?|budgets?|limits?|bounds?|targets?|defaults?|floor|deadline|margin|at most|at least|maximum|minimum|up to|must|should)\b|(?:<=|>=|[<>≤≥])|\*\*Takes:/i.test(line)
-          || /^\s*(?:[-*]\s+)?[\w.-]+\s*[:=]\s*\d/.test(line)) continue;
-      const matches = [...line.matchAll(/(?<![\w.,/#-])[+-]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:ms|%)|\s+(?:milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|points?))(?![\w/])/gi)];
+      // Classify each figure, not the whole line: an observation can compare
+      // itself with a budget. Within its clause, the last explicit bound or
+      // observation cue wins; a trailing "ms budget" also names a bound.
+      // This is prose advice, not a natural-language parser: implicit intent
+      // and unfamiliar observation verbs can still be ambiguous.
+      const matches = [...line.matchAll(/(?<![\w.,/#-])[+-]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:ms|%)|\s+(?:milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|points?))(?![\w/])/gi)].filter(m => {
+        const before = line.slice(0, m.index).split(/[,;!?]|\.(?=\s)|\b(?:but|while|whereas|and)\b/i).at(-1);
+        const after = line.slice(m.index + m[0].length);
+        const bound = /\b(?:thresholds?|timeouts?|budgets?|limits?|bounds?|targets?|defaults?|floor|deadline|margin|at most|at least|maximum|minimum|up to|must|should)\b|<=|>=|[<>≤≥]|\*\*Takes:/gi;
+        const observed = /\b(?:observed|measured|actual|took|elapsed|returned|saved|ran|finished|completed|used)\b/gi;
+        const boundAt = [...before.matchAll(bound)].at(-1)?.index ?? -1;
+        const observedAt = [...before.matchAll(observed)].at(-1)?.index ?? -1;
+        if (boundAt > observedAt) return false;
+        if (observedAt >= 0) return true;
+        return !/^\s*(?:[-*]\s+)?[\w.-]+\s*[:=]\s*$/.test(before)
+          && !/^\s+(?:threshold|timeout|budget|limit|bound|target|default|floor|deadline|margin)\b/i.test(after);
+      });
       if (matches.length) notes.push({ rule: 'undated-number', path, line: number, message: `line ${number}: ${matches.map(m => m[0]).join(', ')} has no valid date in its paragraph or enclosing heading; date the observation and name its re-derivation command when known (advice, not a failure)` });
     }
     paragraph = [];

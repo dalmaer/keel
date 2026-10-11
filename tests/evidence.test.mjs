@@ -126,7 +126,7 @@ test('selected source and shape reject before reading archived files; shared pla
   const root = await fixture(t);
   await rm(join(root, 'docs'), { recursive: true });
   for (const config of [{ phases: { source: 'milestones' } }, { phases: { shape: 'projects' } }, { local: { phases: 'Acme custom' } }]) {
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ practices: ['base'], ...config }));
     await assert.rejects(rederive({ root, phase: 64 }), /selected planning source or shape is unsupported/);
   }
   for (const phases of [{ source: 'typo' }, { ownerLabel: '' }]) {
@@ -142,6 +142,37 @@ test('only explicit fences execute: ignores prose, ordinary fences and nested ex
   await assert.rejects(rederive({ root, phase: 64 }), /no explicit/);
   await writeFile(join(root, 'docs/phases/64-acme.md'), phase() + fence([record()]));
   assert.equal(cli(root, ['--yes']).data.records.length, 1);
+});
+
+test('PR104: malformed external config cannot authorize archived measurement execution', async t => {
+  const root = await fixture(t, [record({ argv: [process.execPath, '-e', 'require("node:fs").writeFileSync("acme-marker", "executed"); console.log(12)'] })]);
+  const configs = [null, [], 'Acme', 42, true,
+    ...[undefined, null, [], 'base,phases', {}, ['phases', null], ['']].map(practices => ({ practices, local: { phases: 'Acme local plan' } })),
+    ...[null, [], 'phases'].map(local => ({ practices: ['phases'], local }))];
+  for (const config of configs) {
+    await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+    const result = cli(root, ['--yes']);
+    assert.equal(result.code, 2, JSON.stringify(config));
+    assert.match(result.data.error, /config must be an object|practices must be a nonempty array|local must be an object/);
+    await assert.rejects(readFile(join(root, 'acme-marker')), { code: 'ENOENT' });
+  }
+});
+
+test('PR104: inline code comment markers cannot hide real measurements or expose commented ones', async t => {
+  const root = await fixture(t);
+  for (const prose of ['Use `<!--` literally.', 'Use ``a ` <!-- b`` literally.', 'Use `<!-- -->` and `<!--` literally.']) {
+    await writeFile(join(root, 'docs/evidence/acme.md'), prose + '\n' + fence([record()]));
+    const result = cli(root, ['--yes']);
+    assert.equal(result.code, 0, JSON.stringify(result.data));
+    assert.equal(result.data.records[0].new.value, 12);
+  }
+  // Unmatched code delimiters and a real comment after a code span remain prose.
+  for (const prose of ['Use `<!--', 'Use ``a ` <!--', 'Use `<!--` then <!--']) {
+    await writeFile(join(root, 'docs/evidence/acme.md'), prose + '\n' + fence([record()]) + '\n-->');
+    const result = cli(root, ['--yes']);
+    assert.equal(result.code, 2);
+    assert.match(result.data.error, /no explicit keel-measurements/);
+  }
 });
 
 test('PR104: commented and unclosed-comment measurements never execute', async t => {
@@ -215,9 +246,26 @@ test('per-command deadline and combined stdout/stderr bounds', async t => {
   assert.ok(Buffer.byteLength(output.stdout + output.stderr) <= 1024);
 });
 
+// /proc's comm field can contain spaces and parentheses; state follows its
+// final ')'. Zombies cannot execute but may await an uncooperative PID 1.
+const zombie = text => /^\s+Z\s/.test(text.slice(text.lastIndexOf(')') + 1));
+
+test('PR104: Linux zombie detection never accepts a running, sleeping or stopped descendant', () => {
+  for (const state of ['R', 'S', 'D', 'T', 't', 'I']) assert.equal(zombie(`123 (Acme ) child) ${state} 1 2 3`), false);
+  assert.equal(zombie('123 (Acme ) child) Z 1 2 3'), true);
+  assert.equal(zombie(''), false);
+});
+
 async function gone(pid) {
   for (let i = 0; i < 100; i++) {
     try { process.kill(pid, 0); } catch (error) { if (error.code === 'ESRCH') return true; throw error; }
+    if (process.platform === 'linux') {
+      const status = await readFile(`/proc/${pid}/stat`, 'utf8').catch(error => {
+        if (['ENOENT', 'ESRCH', 'EACCES', 'EPERM'].includes(error.code)) return '';
+        throw error;
+      });
+      if (zombie(status)) return true;
+    }
     await new Promise(resolve => setTimeout(resolve, 20));
   }
   return false;
