@@ -1,4 +1,5 @@
 {
+  "ci_minutes": null,
   "record_contradictions": 0,
   "gate": 0,
   "flaky_tests": 0,
@@ -9,7 +10,7 @@
   "phases_stuck": 0,
   "evidence_placeholders": 0,
   "proofs_hold": 0,
-  "escapes": 0,
+  "escapes": 1,
   "records_disagree": 0,
   "status_unknown": 0,
   "changelog_gaps": 0,
