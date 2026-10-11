@@ -85,6 +85,13 @@ tests: 33 passed, exit 0, no hygiene finding; `keel prove tests/guide.test.mjs
 --name "guide review: leading parent" --fix lib/guide.mjs --trailer` returned
 VERIFIED. Cold-start help explicitly points to the config's `guide` field.
 
+The final tend compatibility correction accepts safe hidden guides and
+intermediate aliases to the repository root, preserving protected configuration,
+secret and evidence exclusions. The conductor ran consumer and tend tests:
+14 passed, exit 0, with the stall check green and no hygiene finding.
+`keel prove tests/guide-consumers.test.mjs --name "guide consumers: tend accepts"
+--fix practices/climb/files/scripts/keel/tend.mjs --trailer` returned VERIFIED.
+
 ## Acceptance still owed
 
 No live project was adopted on the owner's behalf during this phase. The

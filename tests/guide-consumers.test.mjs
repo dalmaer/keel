@@ -89,3 +89,27 @@ test('guide consumers: tend refuses escaping and cyclic aliases and a canonical 
   git(dir, ['add', '-A']); git(dir, ['commit', '-qm', 'Acme\n\nTend: acme']);
   assert.ok(m.tendCheck(dir, base, 'HEAD').refused.some(s => s.includes('must remain a regular file')));
 });
+
+test('guide consumers: tend accepts hidden guides without granting protected hidden paths', async t => {
+  for (const guide of ['.cursorrules', '.guides/WORKING.md']) {
+    const dir = await acme(t, { config: { guide }, files: { [guide]: '# Acme\n' } });
+    const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+    const base = git(dir, ['rev-parse', 'HEAD']);
+    const head = await commit(dir, { [guide]: '# Acme updated\n' }, 'Acme\n\nTend: acme');
+    assert.deepEqual(m.tendCheck(dir, base, head).refused, []);
+    for (const path of ['.env.local', '.aws/credentials', '.claude/settings.json', '.codex/config.toml', '.git/config', '.keel/keel.json']) {
+      assert.equal(m.tendSurface(path, path), false, path);
+    }
+  }
+});
+
+test('guide consumers: tend accepts a safe intermediate alias to the repository root', async t => {
+  const dir = await acme(t, { config: { guide: 'docs/root/WORKING.md' }, files: { 'WORKING.md': '# Acme\n' } });
+  await mkdir(join(dir, 'docs'), { recursive: true });
+  await symlink('..', join(dir, 'docs/root'));
+  git(dir, ['add', 'docs/root']); git(dir, ['commit', '-qm', 'Acme root alias']);
+  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const head = await commit(dir, { 'WORKING.md': '# Acme updated\n' }, 'Acme\n\nTend: acme');
+  assert.deepEqual(m.tendCheck(dir, base, head).refused, []);
+});

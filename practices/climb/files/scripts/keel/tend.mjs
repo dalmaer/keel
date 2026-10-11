@@ -234,7 +234,9 @@ export const tendSurface = (path, guide = null) => (path === guide && safeGuideS
 const safeGuideSurface = path => typeof path === 'string' && !!path
   && !/[\\\x00-\x1f]/.test(path) && !posix.isAbsolute(path)
   && !path.split('/').some(p => !p || p === '.' || p === '..'
-    || (p.startsWith('.') && p !== '.agents') || /^(?:secrets?|credentials?)(?:\.|$)/i.test(p))
+    || ['.git', '.keel', '.ssh', '.aws', '.azure', '.gnupg'].includes(p)
+    || /^(?:\.env|\.?secrets?|\.?credentials?|\.netrc|\.git-credentials)(?:\.|$)/i.test(p))
+  && !/^(?:\.claude\/settings(?:\.local)?\.json|\.codex\/config\.toml|\.mcp\.json)$/.test(path)
   && !offLimit(path) && !path.startsWith('docs/evidence/')
   && !INSTALL_FILES.includes(basename(path)) && basename(path) !== 'package.json';
 
@@ -261,6 +263,7 @@ function guideAt(root, base) {
       while (parts[0] === '..') { if (!done.length) return null; done.pop(); parts.shift(); }
       if (parts.includes('..')) return null;
       const next = posix.normalize(posix.join(done.join('/'), parts.join('/')));
+      if (next === '.' && pending.length) { done = []; continue; }
       if (!safeGuideSurface(next)) return null;
       pending = [...next.split('/'), ...pending]; done = [];
     } else if (pending.length ? mode !== '040000' : !['100644', '100755'].includes(mode)) return null;
