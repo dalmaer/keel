@@ -63,7 +63,7 @@
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",
-      "sha256": "ffb313c1e766d848119b6a8b8c3626e2cefac15832ccaf05af5a56d0db520f48"
+      "sha256": "f46357eaff9eba226cb0df0095824dd33b2bd542c14a07f7d593f9a284fcb92e"
     },
     ".github/workflows/keel-climb.yml": {
       "practice": "climb",

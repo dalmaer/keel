@@ -27,6 +27,16 @@ test('guide consumers: hidden managed briefs and skills render the selected guid
   }
 });
 
+test('guide consumers: Claude invocation loads the configured guide without changing mention mode', async () => {
+  const all = await practices.load();
+  const f = all.get('claude').files.find(f => f.path === '.github/workflows/claude.yml');
+  const text = practices.fill(f.template, { name: 'Acme', repo: 'acme/acme', guide: 'WORKING.md' }, f.path);
+  const args = text.split('claude_args: |')[1];
+  assert.match(args, /--append-system-prompt "Before working, read \.keel\/keel\.json\. If it names a guide, read and follow that file\./);
+  assert.match(args, /--allowedTools/);
+  assert.doesNotMatch(text, /^\s+prompt(?:_file)?:/m, 'a direct prompt would switch the mention workflow into automation mode');
+});
+
 test('guide consumers: standalone tend accepts the trusted canonical guide and denies candidate grants', async t => {
   const dir = await acme(t, { config: { guide: 'WORKING.md' }, files: { 'WORKING.md': '# Acme\n', 'OTHER.md': '# Other\n' } });
   const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);

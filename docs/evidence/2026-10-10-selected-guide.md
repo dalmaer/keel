@@ -92,6 +92,17 @@ secret and evidence exclusions. The conductor ran consumer and tend tests:
 `keel prove tests/guide-consumers.test.mjs --name "guide consumers: tend accepts"
 --fix practices/climb/files/scripts/keel/tend.mjs --trailer` returned VERIFIED.
 
+The Claude mention workflow now appends an instruction to load the config
+and follow its named guide. The instruction reads the guide field at runtime;
+no arbitrary path is interpolated into action arguments. Appending preserves
+mention mode, unlike setting a direct prompt ([official action migration
+guide](https://github.com/anthropics/claude-code-action/blob/main/docs/migration-guide.md)).
+The conductor ran consumer and workflow tests: 41 passed, exit 0, no hygiene
+finding; `keel prove tests/guide-consumers.test.mjs --name "guide consumers:
+Claude invocation" --fix practices/claude/files/.github/workflows/claude.yml
+--trailer` returned VERIFIED. This checks the rendered invocation; no live
+model run or new spend is claimed.
+
 ## Acceptance still owed
 
 No live project was adopted on the owner's behalf during this phase. The
