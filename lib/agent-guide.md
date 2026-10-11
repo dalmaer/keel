@@ -1500,7 +1500,8 @@ Each record needs a unique `id`, nonempty string `argv` array, repository-relati
 `cwd`, finite numeric `value`, nonempty `unit`, and real ISO calendar `date`.
 Optional `jsonField` selects one top-level numeric property from JSON stdout;
 otherwise the whole trimmed stdout must be a finite number. Missing/null output
-is unavailable, never zero. No command is extracted from prose or backticks.
+is unavailable, never zero. No command is extracted from prose or backticks. HTML comments outside code
+fences hide measurements; comment markers inside fenced JSON stay literal.
 
 Preview is the default: it validates every record, reference and directory,
 then returns commands and old observations without running them. `--yes` runs

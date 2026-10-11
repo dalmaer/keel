@@ -144,6 +144,44 @@ test('only explicit fences execute: ignores prose, ordinary fences and nested ex
   assert.equal(cli(root, ['--yes']).data.records.length, 1);
 });
 
+test('PR104: commented and unclosed-comment measurements never execute', async t => {
+  const root = await fixture(t);
+  const hidden = record({ argv: [process.execPath, '-e', 'require("node:fs").writeFileSync("acme-marker", "executed"); console.log(12)'] });
+  for (const end of ['\n-->\n', '']) {
+    await writeFile(join(root, 'docs/evidence/acme.md'), 'Acme draft <!--\n' + fence([hidden]) + end);
+    const result = cli(root, ['--yes']);
+    assert.equal(result.code, 2);
+    assert.match(result.data.error, /no explicit keel-measurements/);
+    await assert.rejects(readFile(join(root, 'acme-marker')), { code: 'ENOENT' });
+  }
+});
+
+test('PR104: ordinary fences inside comments cannot change real fence state', async t => {
+  const root = await fixture(t);
+  const live = record({ id: 'acme-live' });
+  for (const hidden of ['```markdown\n', '~~~~text\n', '```text\nAcme\n```\n']) {
+    const text = '<!-- Acme comment\n' + hidden + '--> <!-- another comment -->\n' + fence([live]);
+    await writeFile(join(root, 'docs/evidence/acme.md'), text);
+    const result = cli(root, ['--yes']);
+    assert.equal(result.code, 0, JSON.stringify(result.data));
+    assert.deepEqual(result.data.records.map(r => r.id), ['acme-live']);
+    assert.equal(result.data.records[0].new.value, 12);
+  }
+  // An opening comment marker in an ordinary fenced example stays literal too.
+  await writeFile(join(root, 'docs/evidence/acme.md'), '\n```text\n<!--\n```\n' + fence([live]));
+  assert.equal(cli(root, ['--yes']).code, 0);
+});
+
+test('PR104: literal HTML comment markers in measurement JSON preserve exact argv', async t => {
+  const literal = '<!-- Acme --> followed by <!--';
+  const argv = [process.execPath, '-e', 'const marker = "<!--"; console.log(process.argv[1].length + marker.length)', literal];
+  const root = await fixture(t, [record({ argv })]);
+  const result = cli(root, ['--yes']);
+  assert.equal(result.code, 0, JSON.stringify(result.data));
+  assert.deepEqual(result.data.records[0].argv, argv);
+  assert.equal(result.data.records[0].new.value, literal.length + 4);
+});
+
 test('strict numeric output and literal top-level JSON selection never turn unavailable into zero', async t => {
   const cases = [
     ['console.log(0)', undefined, 0], ['console.log(" -1.25e2 ")', undefined, -125],

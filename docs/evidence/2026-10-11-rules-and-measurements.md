@@ -59,3 +59,13 @@ preview. No production adoption or lived-in use is claimed. Windows can preview
 records but cannot execute them: POSIX process groups provide the implemented
 ordinary-descendant cleanup. Measurement programs retain the caller's permissions;
 time/output limits are not a sandbox.
+
+## Review correction — 2026-10-11
+
+PR #104 identified an executable fence inside an HTML comment. The parser now
+tracks comment state outside code fences; retired/commented records stay inert,
+while literal comment markers in JSON argv remain exact. Regression cases also
+cover unfinished comments and ordinary fences hidden inside comments. The
+conductor checks the correction with `keel prove tests/evidence.test.mjs --name
+'^PR104:' --fix lib/evidence.mjs --base ccb3dcb --trailer`; its generated verdict
+belongs to the fix commit, followed by the final gate on this record.
