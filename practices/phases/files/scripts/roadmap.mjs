@@ -640,10 +640,10 @@ export function render({ config, phases, goals, links = [] }) {
  * unrelated paragraphs or natural-language dates, nor execute any command.
  */
 export function measurementNotes(text, path) {
-  const clean = text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, s => s.replace(/[^\n]/g, ' '))
-    .replace(/<!--[\s\S]*?-->/g, s => s.replace(/[^\n]/g, ' '));
+  const clean = text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, s => s.replace(/[^\n]/g, ' '));
   const lines = clean.split('\n'), notes = [], headings = [];
-  let fence = null, paragraph = [];
+  let fence = null, paragraph = [], comment = false, indented = false;
+  const lists = [];
   let phaseSection = !path.startsWith('docs/phases/');
   const dated = s => [...s.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].some(m => isDate(m[0]));
   const prose = s => s.replace(/(`+)[\s\S]*?\1/g, '').replace(/https?:\/\/[^\s)>]+/g, '').replace(/\]\([^)]*\)/g, ']');
@@ -672,13 +672,58 @@ export function measurementNotes(text, path) {
     paragraph = [];
   };
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i], mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(raw);
+    // Tabs advance to the next four-column stop, including mixed indentation.
+    const raw = lines[i].replace(/^[ \t]+/, whitespace => {
+      let columns = 0;
+      for (const char of whitespace) columns += char === '\t' ? 4 - columns % 4 : 1;
+      return ' '.repeat(columns);
+    });
+    const mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(raw);
     if (fence) {
       if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
       continue;
     }
-    if (mark) { flush(); fence = mark[1]; continue; }
-    const line = prose(raw), heading = /^(#{1,6})\s+(.+)/.exec(line);
+    if (!comment) {
+      if (!raw.trim()) { flush(); continue; }
+      const indent = /^ */.exec(raw)[0].length;
+      while (lists.length && indent < lists.at(-1)) lists.pop();
+      const base = lists.at(-1) ?? 0;
+      // Code cannot interrupt a paragraph. Inside a list, indentation is
+      // relative to the item's content, so nested prose remains visible.
+      if (indent >= base + 4 && (indented || !paragraph.length)) {
+        flush(); indented = true; continue;
+      }
+      indented = false;
+      const list = /^ *(?:[-+*]|\d+[.)])( +)/.exec(raw);
+      if (list) lists.push(list[0].length);
+      if (mark) { flush(); fence = mark[1]; continue; }
+    }
+    // Only prose can open a comment. Fence contents (and indented examples)
+    // are literal, and must never swallow a later real closing fence.
+    let visible = '';
+    for (let at = 0; at < raw.length;) {
+      if (comment) {
+        const end = raw.indexOf('-->', at);
+        const next = end < 0 ? raw.length : end + 3;
+        visible += ' '.repeat(next - at);
+        comment = end < 0;
+        at = next;
+      } else if (raw.startsWith('<!--', at)) {
+        comment = true;
+      } else {
+        let next = at + (raw[at] === '\\' ? 2 : 1);
+        if (raw[at] === '`') {
+          const ticks = /^`+/.exec(raw.slice(at))[0].length;
+          next = at + ticks;
+          for (const close of raw.slice(next).matchAll(/`+/g)) {
+            if (close[0].length === ticks) { next += close.index + ticks; break; }
+          }
+        }
+        visible += raw.slice(at, next);
+        at = next;
+      }
+    }
+    const line = prose(visible), heading = /^(#{1,6})\s+(.+)/.exec(line);
     if (heading) {
       flush();
       if (path.startsWith('docs/phases/') && heading[1].length <= 2) phaseSection = heading[1].length === 2 && /^(?:Proof|Evidence|Trajectory)\s*$/i.test(heading[2]);

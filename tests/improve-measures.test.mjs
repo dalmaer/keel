@@ -8,8 +8,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
+import { createHash } from 'node:crypto';
+import { parseHygieneProposal } from '../practices/night/files/scripts/keel/hygiene-proposals.mjs';
 import {
-  MEASURES, selftest, measure, propose, tighten, conductCost, commandKind, exitCode, FIXTURE,
+  MEASURES, selftest, measure, improve, propose, tighten, conductCost, commandKind, exitCode, FIXTURE,
 } from '../lib/improve.mjs';
 import { KEEL, BIN, ENV, keel, byId, scratch, project, snapshot, ghStub, setConfig } from './helpers/improve.mjs';
 
@@ -452,4 +454,42 @@ test('phase 66 hygiene measures register separate count bounds and selftest outs
   const result = await selftest({measures:hygiene,env:{...ENV,CI:'true',KEEL_GIT:'/nonexistent/acme-git',KEEL_GH:'/nonexistent/acme-gh'}});
   assert.equal(result.exitCode, 0, result.text);
   for (const measure of result.data.measures) assert.equal(propose([measure], {repo:'acme/storefront'}).id, measure.id);
+});
+
+
+test('long-file report preserves raw freshness and refreshes when canonical blob is unchanged', async t => {
+  const root = await scratch(t);
+  const env = {...ENV, KEEL_GIT:'git', KEEL_GH:'/nonexistent/acme-gh', CI:''};
+  const git = args => {
+    const result = run('git', args, {cwd:root, env, timeout:5000});
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  git(['init', '--initial-branch=main']);
+  await mkdir(join(root, '.keel'));
+  await mkdir(join(root, 'src'));
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({name:'Acme', repo:'acme/storefront', hygiene:{longFileLines:10}}));
+  await writeFile(join(root, '.gitattributes'), 'src/anvils.mjs text eol=crlf\n');
+  const source = `export function anvils() {\n${'  // Acme anvils\n'.repeat(15)}}\n`;
+  const sourcePath = join(root, 'src/anvils.mjs');
+  await writeFile(sourcePath, source.replaceAll('\n', '\r\n'));
+  git(['add', '.']); git(['commit', '-m', 'Acme canonical source']);
+  const published = git(['rev-parse', 'HEAD:src/anvils.mjs']);
+  const deps = {env, measures:MEASURES.filter(m => m.id === 'long_files')};
+  const first = await improve({root, report:true, date:'2026-10-11'}, deps);
+  const frozen = parseHygieneProposal(await readFile(join(root, first.data.report), 'utf8'));
+  assert.deepEqual(frozen.problems, []);
+  assert.equal(frozen.proposal.blob, published);
+  assert.equal(frozen.proposal.rawDigest, createHash('sha256').update(await readFile(sourcePath)).digest('hex'), 'the actual working digest must survive the measure, proposal hook and saved health page');
+  assert.equal(first.data.proposal.hygieneMetadata.rawDigest, frozen.proposal.rawDigest);
+  // A byte-only checkout conversion leaves GitHub's canonical blob identical.
+  await writeFile(sourcePath, source);
+  const refreshed = await improve({root, report:true, date:'2026-10-12'}, deps);
+  assert.ok(refreshed.data.proposal, 'same canonical blob must not suppress changed raw evidence');
+  const next = parseHygieneProposal(await readFile(join(root, refreshed.data.report), 'utf8'));
+  assert.deepEqual(next.problems, []);
+  assert.equal(next.proposal.blob, published);
+  assert.notEqual(next.proposal.rawDigest, frozen.proposal.rawDigest);
+  assert.notEqual(next.proposal.instanceId, frozen.proposal.instanceId);
+  assert.equal((await improve({root, date:'2026-10-13'}, deps)).data.proposal, null, 'an unchanged raw and canonical instance is still deduplicated');
 });

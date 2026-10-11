@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, lstat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, lstat, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { run } from './helpers/run.mjs';
 import { adopt } from '../lib/adopt.mjs';
 import { render, config, practiceVersion } from '../lib/practices.mjs';
 import { diagnose, doctor } from '../lib/doctor.mjs';
@@ -290,4 +291,198 @@ test('guide review: leading parent components may not leave and re-enter the rep
   }
   await symlink('../CLAUDE.md', join(dir, 'docs/safe.md'));
   assert.equal(guideDestination(dir, 'docs/safe.md'), 'CLAUDE.md');
+});
+
+test('late review: seeded guide encodes rebased lessons destinations', async t => {
+  const dir = await acme(t);
+  const lessons = "docs/acme lessons (#1)%/lessons.md";
+  await mkdir(join(dir, 'docs/acme lessons (#1)%'), { recursive: true });
+  await mkdir(join(dir, '.keel'));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ lessons }));
+  await writeFile(join(dir, lessons), '| # | Lesson |\n| --- | --- |\n| 1 | Acme preserves its work. |\n');
+  await adoptAt(dir, { guide: 'docs/team/rules.md' });
+  const text = await read(dir, 'docs/team/rules.md');
+  assert.ok(text.includes('[`' + lessons + '`](../acme%20lessons%20%28%231%29%25/lessons.md)'), text);
+  assert.equal(await read(dir, lessons), '| # | Lesson |\n| --- | --- |\n| 1 | Acme preserves its work. |\n');
+});
+
+test('late review: adoption report and its aliases are reserved before writes', async t => {
+  for (const mode of ['direct', 'guide-alias', 'report-alias', 'parent', 'child']) {
+    const dir = await acme(t), pkg = await read(dir, 'package.json');
+    await mkdir(join(dir, 'docs'));
+    let guide = 'docs/keel-adoption.md';
+    const prose = '# Acme human rules\n';
+    if (mode === 'parent') guide = 'docs';
+    else if (mode === 'child') guide += '/rules.md';
+    else if (mode === 'report-alias') {
+      guide = 'rules.md';
+      await writeFile(join(dir, guide), prose);
+      await symlink('../rules.md', join(dir, 'docs/keel-adoption.md'));
+    } else {
+      await writeFile(join(dir, guide), prose);
+      if (mode === 'guide-alias') {
+        await symlink('docs/keel-adoption.md', join(dir, 'rules.md'));
+        guide = 'rules.md';
+      }
+    }
+    for (const dryRun of [true, false]) {
+      await assert.rejects(adoptAt(dir, { guide, dryRun }), /guide:/);
+      await absent(dir, '.keel');
+      await absent(dir, 'AGENTS.md');
+      assert.equal(await read(dir, 'package.json'), pkg);
+      if (!['parent', 'child'].includes(mode)) assert.equal(await read(dir, guide), prose);
+    }
+  }
+});
+
+test('late review: guide collision checks follow filesystem case semantics', async t => {
+  const dir = await acme(t), pkg = await read(dir, 'package.json');
+  const insensitive = await lstat(join(dir, 'PACKAGE.JSON')).then(() => true, () => false);
+  // Existing and not-yet-created targets, including ancestor collisions.
+  const { validateGuideTargets, load } = await import('../lib/practices.mjs');
+  const practices = await load();
+  for (const guide of ['Package.json', 'Scripts/ROADMAP.mjs', 'Scripts/ROADMAP.mjs/child', 'RENOVATE.JSON']) {
+    if (insensitive) {
+      assert.throws(() => validateGuideTargets({ guide }, practices, dir), /guide:.*collides/);
+      await assert.rejects(adoptAt(dir, { guide }), /guide:.*collides/);
+    } else {
+      assert.doesNotThrow(() => validateGuideTargets({ guide }, practices, dir));
+    }
+    await absent(dir, '.keel');
+    assert.equal(await read(dir, 'package.json'), pkg);
+  }
+});
+
+test('late review: invalid guide usage returns CLI status 2 without writes', async t => {
+  const { main } = await import('../lib/cli.mjs');
+  for (const verb of ['init', 'adopt']) for (const guide of ['', '/tmp/acme.md', '../acme.md', '.git/config', '.keel/lock.json']) {
+    const dir = await acme(t);
+    if (verb === 'init') await rm(join(dir, 'package.json'));
+    let output = '';
+    const args = [verb, dir, '--guide', guide, '--json', ...(verb === 'init' ? ['--description', 'Acme makes anvils.'] : [])];
+    assert.equal(await main(args, { out: s => { output += s; }, err: s => assert.fail(s) }), 2, `${verb}: ${guide}`);
+    assert.match(JSON.parse(output).error, /guide/);
+    await absent(dir, '.git'); await absent(dir, '.keel');
+  }
+});
+
+test('late review: Windows native symlink traversal is checked before resolution', async t => {
+  const dir = await acme(t);
+  await mkdir(join(dir, 'acme/docs'), { recursive: true });
+  await writeFile(join(dir, 'acme/CLAUDE.md'), '# Acme\n');
+  await symlink('..\\..\\acme\\CLAUDE.md', join(dir, 'acme/docs/escape.md'));
+  await symlink('..\\CLAUDE.md', join(dir, 'acme/docs/safe.md'));
+  await symlink('child\\..\\CLAUDE.md', join(dir, 'acme/docs/traverse.md'));
+  // Run the real resolver using Node's win32 path implementation and real
+  // symlink bytes. Only filesystem drive mapping is adapted for this host.
+  const script = `
+    import assert from 'node:assert/strict';
+    import fs from 'node:fs';
+    import path from 'node:path';
+    import { registerHooks } from 'node:module';
+    const host = ${JSON.stringify(dir)}, w = path.win32;
+    const mapped = p => path.join(host, w.relative('C:\\\\', p).split(w.sep).join('/'));
+    globalThis.guideWindowsPath = w;
+    globalThis.guideWindowsFs = {
+      ...fs,
+      lstatSync: p => fs.lstatSync(mapped(p)),
+      readlinkSync: p => fs.readlinkSync(mapped(p)),
+      readdirSync: p => fs.readdirSync(mapped(p)),
+      realpathSync: p => w.resolve('C:\\\\', path.relative(fs.realpathSync(host), fs.realpathSync(mapped(p))).split(path.sep).join(w.sep)),
+    };
+    registerHooks({ resolve(specifier, context, next) {
+      if (context.parentURL === ${JSON.stringify(new URL('../lib/guide.mjs', import.meta.url).href)} && ['node:fs', 'node:path'].includes(specifier)) {
+        const source = specifier === 'node:path'
+          ? 'export const { resolve, relative, dirname, basename, isAbsolute, sep } = globalThis.guideWindowsPath;'
+          : 'export const { lstatSync, readlinkSync, realpathSync, readFileSync, readdirSync } = globalThis.guideWindowsFs;';
+        return { url: 'data:text/javascript,' + encodeURIComponent(source), shortCircuit: true };
+      }
+      return next(specifier, context);
+    }});
+    const { guideDestination } = await import(${JSON.stringify(new URL('../lib/guide.mjs', import.meta.url).href)});
+    assert.equal(guideDestination('C:/acme', 'docs/safe.md'), 'CLAUDE.md');
+    assert.throws(() => guideDestination('C:/acme', 'docs/escape.md'), /leaves the repository/);
+    assert.throws(() => guideDestination('C:/acme', 'docs/traverse.md'), /unsafe symlink traversal/);
+  `;
+  const result = run(process.execPath, ['--input-type=module', '-e', script]);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('late review: init rejects case collisions before creating an absent root', async t => {
+  const parent = await acme(t);
+  const insensitive = await lstat(join(parent, 'PACKAGE.JSON')).then(() => true, () => false);
+  if (!insensitive) return t.skip('requires a case-insensitive filesystem');
+  for (const existing of [true, false]) for (const guide of ['Package.json', 'Readme.md', 'DOCS/roadmap.md', 'Scripts/ROADMAP.mjs']) {
+    const dir = join(parent, 'new-acme');
+    if (existing) await mkdir(dir);
+    await assert.rejects(init({ dir, guide, description: 'Acme makes anvils.' }, { version }), /guide:.*collides/);
+    await absent(dir, '.git'); await absent(dir, '.keel');
+    if (existing) await rm(dir, { recursive: true });
+    else await absent(parent, 'new-acme');
+  }
+});
+
+test('late review: hardlinked practice targets cannot become guides', async t => {
+  const dir = await acme(t), pkg = await read(dir, 'package.json');
+  await link(join(dir, 'package.json'), join(dir, 'rules.md'));
+  await assert.rejects(adoptAt(dir, { guide: 'rules.md' }), /guide:.*collides/);
+  assert.equal(await read(dir, 'package.json'), pkg);
+  await absent(dir, '.keel');
+});
+
+test('late review: guide locks retain identity across filesystem case aliases', async t => {
+  const dir = await acme(t);
+  const insensitive = await lstat(join(dir, 'PACKAGE.JSON')).then(() => true, () => false);
+  if (!insensitive) return t.skip('requires a case-insensitive filesystem');
+  await adoptAt(dir);
+  const cfg = JSON.parse(await read(dir, '.keel/keel.json'));
+  cfg.guide = 'agents.md';
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(cfg));
+  assert.equal((await render(dir, { check: true })).ok, true);
+  assert.deepEqual((await diagnose(dir)).drift, []);
+  assert.ok((await readLock(dir)).files['AGENTS.md#night']);
+  const text = await read(dir, 'AGENTS.md');
+  await writeFile(join(dir, 'AGENTS.md'), text.replace('**A hygiene note is work.**', '**Acme keeps this edit.**'));
+  await assert.rejects(render(dir), /refusing to overwrite/);
+});
+
+test('late review: metadata case aliases cannot select existing config or git pointers', async t => {
+  const dir = await acme(t);
+  const insensitive = await lstat(join(dir, 'PACKAGE.JSON')).then(() => true, () => false);
+  if (!insensitive) return t.skip('requires a case-insensitive filesystem');
+  await mkdir(join(dir, '.git'));
+  await mkdir(join(dir, '.keel'));
+  const cfg = '{}\n', git = '[core]\n\trepositoryformatversion = 0\n';
+  await writeFile(join(dir, '.git/config'), git);
+  await writeFile(join(dir, '.keel/keel.json'), cfg);
+  for (const guide of ['.GIT/config', '.KEEL/keel.json', '.KeEl/lock.json']) {
+    assert.throws(() => guideDestination(dir, guide), /reserved repository metadata/);
+    await assert.rejects(adoptAt(dir, { guide }), /reserved repository metadata/);
+    assert.equal(await read(dir, '.git/config'), git);
+    assert.equal(await read(dir, '.keel/keel.json'), cfg);
+    await absent(dir, '.keel/lock.json');
+  }
+  await rm(join(dir, '.git'), { recursive: true });
+  await writeFile(join(dir, '.git'), 'gitdir: acme-worktree\n');
+  await symlink('.GIT', join(dir, 'rules.md'));
+  for (const guide of ['.GIT', 'rules.md']) assert.throws(() => guideDestination(dir, guide), /reserved repository metadata/);
+  assert.equal(await read(dir, '.git'), 'gitdir: acme-worktree\n');
+});
+
+test('late review: absent metadata case aliases are reserved before init writes', async t => {
+  const parent = await acme(t);
+  const insensitive = await lstat(join(parent, 'PACKAGE.JSON')).then(() => true, () => false);
+  if (!insensitive) return t.skip('requires a case-insensitive filesystem');
+  for (const existing of [true, false]) for (const guide of ['.GIT/config', '.KEEL/keel.json', '.KeEl/lock.json', 'docs/.GIT/config']) {
+    const dir = join(parent, 'new-acme');
+    if (existing) await mkdir(dir);
+    await assert.rejects(init({ dir, guide, description: 'Acme makes anvils.' }, { version }), /reserved repository metadata/);
+    await absent(dir, '.git'); await absent(dir, '.keel'); await absent(dir, 'docs');
+    if (existing) await rm(dir, { recursive: true });
+    else await absent(parent, 'new-acme');
+  }
+  for (const guide of ['.GIT/config', '.KEEL/keel.json']) {
+    await assert.rejects(adoptAt(parent, { guide }), /reserved repository metadata/);
+    await absent(parent, '.git'); await absent(parent, '.keel');
+  }
 });

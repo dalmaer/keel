@@ -1449,7 +1449,7 @@ export function propose(results, config, {history=[],hygieneHistory={proposals:[
       let selected = null, manual = null;
       for (const file of r.facts?.files ?? []) {
         let hygieneMetadata;
-        try { hygieneMetadata = makeHygieneProposal({repo:config?.repo,file:file.path,blob:file.blob,lines:file.lines,sections:file.largestSections,at}); }
+        try { hygieneMetadata = makeHygieneProposal({repo:config?.repo,file:file.path,blob:file.blob,rawDigest:file.rawDigest,lines:file.lines,sections:file.largestSections,at}); }
         catch (e) { manual ??= {r:{...r,manualReason:`${e.message}; owner-led split required`,facts:{...r.facts,files:[file]}},score:margin(r)}; continue; }
         if (hygieneHistory.proposals?.some(p => p.instanceId === hygieneMetadata.instanceId)) continue;
         selected = {r:{...r,facts:{...r.facts,files:[file]}},score:margin(r),hygieneMetadata};

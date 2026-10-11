@@ -6,7 +6,7 @@ goal: G2
 spec: 2
 depends: []
 note: "Implemented guide selection across adoption, rendering, updates, drift checks and migrations, preserving prose and safe symlink aliases. The real CLAUDE.md-only adoption and owner read remain owed."
-evidence: ["evidence/2026-10-10-selected-guide.md"]
+evidence: ["evidence/2026-10-11-phase-review-corrections.md", "evidence/2026-10-10-selected-guide.md"]
 issue: 45
 ---
 
@@ -62,3 +62,5 @@ Name a CLAUDE.md-only pilot, adopt it with the reviewed CLI, and have its owner 
 ## Trajectory
 
 - **2026-10-10** — Guide identity includes the resolved in-repository destination and existing lock ownership. Moving block keys without that check would conceal drift or split a symlinked guide; conflicting owners are refused instead of silently migrated.
+
+- **2026-10-11** — Escape: Guide collision checks must use filesystem identity, including case and hardlink aliases, before init or adoption writes. The adoption report is reserved; nested lesson links are encoded and invalid paths are usage errors. Native-separator traversal has synthetic win32 coverage, not a native Windows walk. See the follow-up evidence.

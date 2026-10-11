@@ -6,7 +6,7 @@ goal: G4
 spec: 2
 depends: [56]
 note: "Bounded hygiene measures and recoverable split proposals verified; owner one-fix-each walk and robot budget approval remain."
-evidence: ["evidence/2026-10-11-hygiene-audits.md"]
+evidence: ["evidence/2026-10-11-phase-review-corrections.md", "evidence/2026-10-11-hygiene-audits.md"]
 issue: 53
 ---
 
@@ -72,3 +72,5 @@ Owner: review the concrete long-file proposal and the two worktree candidates, a
 ## Trajectory
 
 - **2026-10-11** — The existing health proposal section and robot issue journal already provide durable decisions and recovery; no second tracking store was needed. Protected or unsupported file targets retain manual advice. A real audit found two worktree candidates, no old drafts, and five long files; the fleet-over-time walk stays open. See the evidence.
+
+- **2026-10-11** — Escape: Published Git identity can differ from working bytes under line-ending conversion or clean filters. Proposals now keep the canonical blob and a separate raw digest. Generated markers are limited to leading headers; configured in-repository health aliases retain their report/decision identity. See the follow-up evidence.

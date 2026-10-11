@@ -424,7 +424,10 @@ Long-file findings name tracked source files, their measured length, bounded
 history and possible split points from their internal sections. Generated copies,
 vendor code and fixtures are excluded. A split point is a heuristic for review,
 not proof that the code can be separated safely. The proposal is tied to the
-observed source so changed files require a fresh proposal.
+observed source so changed files require a fresh proposal. Its Git blob applies
+the repository's path filters (including line-ending conversion); a separate
+SHA-256 digest preserves exact working-byte freshness. Filter failures leave
+coverage unavailable. Generated-file markers count only in a leading header.
 
 These use the existing health page and `keel walk decide` flow. An accepted file
 split can use the robot's recoverable issue flow only with an approved project

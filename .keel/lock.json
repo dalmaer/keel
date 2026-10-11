@@ -171,19 +171,19 @@
     },
     "scripts/keel/hygiene-measures.mjs": {
       "practice": "night",
-      "sha256": "b81d28233dd33c570cbb27fff5c279cc3304b4b4f6bf81b4775a80be1f574090"
+      "sha256": "1cc41ec19ac63487721f963abb483c7c9aa036b64b9809e8fc8eaf244a17b6be"
     },
     "scripts/keel/hygiene-proposals.mjs": {
       "practice": "night",
-      "sha256": "c60b668093d0de0a783942b886b8d0c477956bde26468cf286d8af92eadd1ffa"
+      "sha256": "2b44be83d4900bd68a32831e89e70e27cf34821460415b4bef8579e0446e4145"
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "3d88bc22b20888a914bdd6586691c5c5c6b87a5482f4d0719a7dfe9ad94f6739"
+      "sha256": "ee8e1a4cb0f2c446f26232cca6b2d2ee69e2935232ecc36228337e35c56ba138"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "5f3dfca4f585b8f466ef52ddd9c3f864d2b443a23959dce91fe1b8e6d3a706aa"
+      "sha256": "79bb15534042f070ac1c7e971ed002f2d66662893e9fbf6b37922ab09d468fd4"
     },
     "scripts/keel/milestones.mjs": {
       "practice": "night",
@@ -263,7 +263,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "16dd79796faa3786d045c68d9fc20cd2de4eb971827040c77bf420743f590c86"
+      "sha256": "136c2404c55d0da8032d96b021050fd61a5a36f36c05f6676bfad01225f10b58"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",

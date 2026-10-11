@@ -833,7 +833,8 @@ Truncation or unavailable access is unknown, never an empty successful audit.
 
 Long files are tracked source above `longFileLines`, excluding generated copies,
 vendor code and fixtures. Findings include bounded growth history and heuristic
-section ranges. A source blob identifies the observation. The existing health
+section ranges. A path-filtered Git blob identifies the published source; new
+proposals also freeze a raw working-byte digest. Filter failures are unavailable. The existing health
 page and board own the proposal; acceptance never means the refactor was built,
 merged or useful. Approved file-split work uses the existing recoverable robot
 issue flow; source changes require refreshing the proposal and robot delivery

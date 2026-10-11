@@ -11,7 +11,9 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
-import { looseEnds, encodeDir, parseSession, MARKS } from '../lib/looseends.mjs';
+import { looseEnds, mark, encodeDir, parseSession, MARKS } from '../lib/looseends.mjs';
+import { readMilestones } from '../practices/night/files/scripts/keel/milestones.mjs';
+import { response } from './helpers/milestones.mjs';
 import { formatProposal } from '../lib/learn.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -373,6 +375,34 @@ test('offline: GitHub not checked, and the rest still listed', async t => {
   assert.ok(!project(d, 'acme/app').items.some(i => i.kind === 'pr' || i.kind === 'repo'));
   assert.ok(item(d, 'acme/app', `session:${w.ids.question}`));
   assert.match(keel(w, [], { ...w.env, KEEL_GH: w.gh.offline }).out, /^acme\/app — .*\(GitHub not checked: /m);
+});
+
+test('PR103: source gaps ignore persisted marks and reject new marks without writing', async t => {
+  const w = await world(t);
+  await mkdir(join(w.app, '.keel'), { recursive: true });
+  const config = { name: 'Acme', repo: 'acme/app', practices: ['base'], phases: { source: 'milestones' } };
+  const options = { home: w.home, env: w.env };
+  for (const source of ['open', 'closed', 'unavailable']) {
+    await writeFile(join(w.app, '.keel/keel.json'), JSON.stringify({ ...config, ...(source === 'unavailable' ? { repo: 'invalid' } : {}) }));
+    if (source !== 'unavailable') await readMilestones(config, {
+      env: w.env, fresh: true, guard: async () => null,
+      graphql: async () => response([], { [source]: true }),
+    });
+    const fingerprint = source === 'unavailable' ? 'milestones:unavailable' : 'milestones:coverage';
+    for (const move of ['drop', 'park', 'resume']) {
+      const saved = JSON.stringify({ marks: [{ fingerprint, kind: 'gap', move, reason: 'Acme legacy mark', until: '2999-01-01' }] });
+      await writeFile(join(w.app, MARKS), saved);
+      const result = await looseEnds(options);
+      const gap = item(result.data, 'acme/app', fingerprint);
+      assert.ok(gap, `${source} gap survives ${move}`);
+      assert.equal(gap.state, null);
+      assert.equal(gap.mark, undefined);
+      assert.equal(result.data.hidden, 0);
+      assert.match(result.text, source === 'unavailable' ? /Milestones unavailable/ : /Milestone coverage incomplete/);
+      await assert.rejects(mark({ ...options, id: gap.id, move, reason: 'Acme new mark', ...(move === 'park' ? { until: '2999-01-01' } : {}) }), /source gaps cannot be marked/);
+      assert.equal(await readFile(join(w.app, MARKS), 'utf8'), saved);
+    }
+  }
 });
 
 test('marks persist across runs: drop never comes back, park comes back after its date, resume goes first', async t => {
