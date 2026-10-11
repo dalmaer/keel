@@ -269,3 +269,12 @@ test('withHistory enriches entirely in memory, leaves inputs untouched and repla
   assert.throws(() => withHistory(current, [baseline], { windowDays: 0 }), /windowDays/);
   assert.throws(() => withHistory(current, [baseline, { ...baseline, warnings: ['different'] }]), /conflicting history/);
 });
+
+test('milestone source is an explicit canvas gap, never a local built or empty plan', async t => {
+  const root = await fixture(t, { phases: { source: 'milestones' } }, { [phasePath]: phase('built') });
+  const s = await snapshot({ root, now: new Date(NOW) });
+  assert.equal(coverage(s, 'phases').status, 'unsupported');
+  assert.match(coverage(s, 'phases').reason, /milestones/);
+  assert.equal(s.entities.filter(e => e.kind === 'phase').length, 0);
+  assert.equal(metric(s, 'phases-reported-built').value, null);
+});

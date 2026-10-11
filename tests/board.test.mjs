@@ -907,3 +907,32 @@ test('board time proposal actions bind instance and explicit acceptance files an
   }
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('milestone board details are read-only links and escape remote markup, with incomplete coverage visible', async t => {
+  const { projectMilestones } = await import('../practices/night/files/scripts/keel/milestones.mjs');
+  const { milestoneConfig, milestone, issue, response } = await import('./helpers/milestones.mjs');
+  const { boardView, roadmapItems } = await import('../lib/board.mjs');
+  const root = await acme(); t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(milestoneConfig));
+  const m = milestone(1, 'OPEN', [issue(1, 'OPEN', ['keel:owner'])]);
+  m.title = '</script><img src=x onerror=alert(1)>';
+  m.description = '<script>Acme</script>';
+  const plan = projectMilestones(response([m, milestone(2, 'CLOSED')], true), milestoneConfig);
+  const data = await roadmapItems(root, { read: async () => plan });
+  let calls = 0;
+  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const readOptions = { env, guard: async () => null, graphql: async () => { calls++; return response([m], true); } };
+  const first = await roadmapItems(root, readOptions), second = await roadmapItems(root, readOptions);
+  assert.equal(calls, 1); assert.equal(first.github.cached, false); assert.equal(second.github.cached, true);
+  assert.equal(data.items.length, 1); assert.deepEqual(data.items[0].actions, []);
+  assert.equal(data.items[0].link, m.issues.nodes[0].url);
+  assert.equal(data.phases[2].status, 'closed');
+  assert.match(data.progress.headline, /coverage incomplete/);
+  const html = boardView().drill(data.phases[1]);
+  assert.doesNotMatch(html, /<script>|<img/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /not verified acceptance/);
+  assert.match(html, /Due/);
+  assert.match(html, /https:\/\/github.com\/acme\/anvils\/milestone\/1/);
+  await assert.rejects(walkDone({ root, phase: 1, note: 'Acme saw it' }), /read-only/);
+});

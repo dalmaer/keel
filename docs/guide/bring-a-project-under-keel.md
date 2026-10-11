@@ -46,6 +46,23 @@ is reported in the plan; neither existing file is removed. A symlinked pair
 counts as one guide. Render, doctor and update use the same selection, including
 skipped blocks and the contracts table. Existing project prose is preserved.
 
+Projects that plan with GitHub milestones can keep that plan. With
+`"phases": {"source": "milestones"}` and a configured `repo`, keel reads
+milestone descriptions and issues for `next`, the board and the night.
+Adoption proposes this source when it finds described milestones and no
+existing local plan to preserve. It does not create phase files or change
+GitHub milestones and issues.
+
+A milestone deadline is `due`: it never postpones work until that date.
+Issue checkboxes reflect GitHub issue state, and a closed milestone reflects
+GitHub planning state. Neither proves acceptance, production verification
+or lived-in use. Missing access and truncated reads remain visible gaps.
+Keep editing the plan in GitHub; keel's projection is read-only. Open issues
+labelled `keel:owner` become owner walks; set `phases.ownerLabel` to use
+another label. The reader caches for ten minutes, respects the GitHub quota
+floor and discloses its limits: 50 milestones, 50 issues per milestone and
+20 labels per issue. An incomplete read cannot establish that nothing remains.
+
 What stays local is never a failure. `keel doctor` lists local variants as
 information, and says when one would now switch on if adopted again.
 

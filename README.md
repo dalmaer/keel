@@ -66,6 +66,10 @@ A project that uses keel carries `.keel/keel.json`, which records:
 Existing agent guides are preserved: adoption selects `AGENTS.md`, then
 `CLAUDE.md`, or an explicit `--guide <path>`. See the [adoption guide](docs/guide/bring-a-project-under-keel.md).
 
+Projects can also keep GitHub milestones as their plan with
+`"phases": {"source": "milestones"}`. Keel projects them into `next`, the
+board and the night without editing GitHub or claiming acceptance from closure.
+
 **The practices:**
 
 | Practice | What it gives a project | The failure it prevents |

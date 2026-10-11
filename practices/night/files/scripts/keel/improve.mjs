@@ -1,3 +1,4 @@
+import { milestoneSource, readMilestones, milestoneSummary } from './milestones.mjs';
 // keel improve, shipped: is the practice working here? Numbers first, one
 // proposal last, and nothing changed (keel docs/design.md §6, "The night
 // shift"). keel practice `night`; managed: keel render rewrites it.
@@ -158,6 +159,7 @@ const once = (ctx, key, fn) => {
  * files do not, and say so.
  */
 function phasesOff({ config }, { projects = false } = {}) {
+  if (milestoneSource(config)) return projects ? null : 'GitHub milestones are read-only planning records; no local roadmap or acceptance evidence';
   if (shapeOf(config) === 'projects') return projects ? null : 'phases are in the projects shape (docs/projects/<p>/phases.md): no keel roadmap or evidence files to read';
   const local = config.local ?? {};
   if ((config.practices ?? []).includes('phases')) return null;
@@ -178,6 +180,8 @@ const roadmapModule = ctx => once(ctx, 'roadmap-module', async () => {
   return import(pathToFileURL(path).href);
 });
 
+const milestoneData = ctx => once(ctx, 'milestones', () => readMilestones(ctx.config, { env: ctx.env, ...(ctx.keel?.milestones ?? {}) }));
+
 const roadmapData = ctx => once(ctx, 'roadmap', async () => {
   const { collect } = await roadmapModule(ctx);
   try { return await collect(ctx.root); } catch (e) { throw new Error(`the roadmap cannot be read: ${e.message}`); }
@@ -196,7 +200,7 @@ const practiceReading = ctx => once(ctx, 'doctor', async () => {
   const lock = await readLock(ctx.root);
   if (!lock) return { na: `no ${LOCK}: nothing records what keel wrote here` };
   const { drift, lint } = await lockDrift(ctx.root);
-  if ((ctx.config.practices ?? []).includes('phases')) {
+  if (!milestoneSource(ctx.config) && (ctx.config.practices ?? []).includes('phases')) {
     const { parsePhase, specProblems } = await roadmapModule(ctx);
     lint.push(...await phaseLints(ctx.root, parsePhase, specProblems));
   }
@@ -866,6 +870,12 @@ export const MEASURES = [
       const off = phasesOff(ctx, { projects: true });
       if (off) return { na: off };
       if (!ctx.config.repo) return { na: 'no repo in .keel/keel.json, so there is nowhere to open an issue' };
+      if (milestoneSource(ctx.config)) {
+        const data = await milestoneData(ctx);
+        if (!data.coverage.complete) return { na: milestoneSummary(data), facts: { coverage: data.coverage, github: data.github } };
+        const ids = data.phases.filter(p => p.status !== 'closed' && !p.boxes.length).map(p => p.id);
+        return { value: ids.length, detail: `${milestoneSummary(data)}; ${ids.length} open milestones without issues`, facts: { source: 'milestones', ids, coverage: data.coverage, github: data.github } };
+      }
       if (shapeOf(ctx.config) === 'projects') {
         // A project's issue is its primary doc's `issue:`; its open phases are followed there.
         const open = (await projectPhases(ctx)).filter(p => OPEN.includes(p.status) && !p.issue);
@@ -882,6 +892,10 @@ export const MEASURES = [
     async run(ctx) {
       const off = phasesOff(ctx, { projects: true });
       if (off) return { na: off };
+      if (milestoneSource(ctx.config)) {
+        const data = await milestoneData(ctx);
+        return { na: 'GitHub milestone updatedAt is not status age; ' + milestoneSummary(data), facts: { source: 'milestones', coverage: data.coverage, github: data.github } };
+      }
       if (shapeOf(ctx.config) === 'projects') {
         // No `since` per phase here: a phase is as old as its phases.md's last commit.
         const stuck = [];

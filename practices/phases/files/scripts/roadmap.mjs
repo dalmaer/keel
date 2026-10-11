@@ -535,6 +535,7 @@ export function focus({ phases, goals }, today = localToday()) {
 export async function collect(root = ROOT) {
   const docs = resolve(root, 'docs');
   const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+  if (config.phases?.source === 'milestones') fail('GitHub milestones are read-only; use keel next or keel status, not the local file roadmap');
   livedInOf(config);
   const names = (await readdir(resolve(docs, 'phases'))).filter(n => n.endsWith('.md') && n !== 'README.md');
   const raws = await Promise.all(names.map(async file => [file, await readFile(resolve(docs, 'phases', file), 'utf8')]));

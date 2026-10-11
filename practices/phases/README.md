@@ -55,3 +55,13 @@ practice came from, where each keeps a version of its own:
   RETIRED→superseded; DONE and status kept in headings are linted, never
   guessed. isocan generates its own roadmap; keel writes none for this shape.
   Whether keel ever writes these files is deliberately open.
+
+**GitHub milestone plans (phase 63).** Set `phases.source` to `milestones`
+with a configured `repo`, or review adoption's proposal when it finds described
+milestones and no local plan. Keel keeps this practice local and installs no
+phase files or local roadmap. `keel next`, `status`, `phase list`, the board
+and the installed night read a bounded, cached GitHub projection. Deadlines
+are `due`, not `after`; issue checks and `closed` milestones are source planning
+state, never acceptance or production evidence. `phases.ownerLabel` defaults
+to `keel:owner`. Incomplete and unavailable sources remain visible. The
+canvas currently reports this source as unsupported rather than an empty plan.

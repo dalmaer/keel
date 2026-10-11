@@ -1,11 +1,12 @@
 ---
-status: planned
-since: 2026-10-09
+status: partial
+since: 2026-10-10
+owes: walk
 goal: G2
 spec: 2
 depends: [51]
-note: "A project that plans with GitHub milestones (named for their ambition, with exit criteria) has no phase files, so adopt turns phases off, and keel next, the board and the night see no plan. keel reads a milestone's exit criteria as a phase's Done when, and its issues as the work, without rewriting the project's plans. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
-evidence: []
+note: "Read-only milestone plans now feed next, status, the board and the installed night through shared cache/quota controls. Automated and live empty-source transport proofs passed; one real release and its owner read remain owed."
+evidence: ["evidence/2026-10-10-milestone-plans.md"]
 issue: 50
 ---
 
@@ -26,9 +27,9 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Acceptance
 
-- [ ] Milestones with descriptions and issues map to phases: Done when, boxes, walks, `due` and status, as above. `tests/roadmap.test.mjs`
-- [ ] `keel next`, the board and the night use them on a project with `source: milestones`, through the cache and the quota floor; nothing is written to GitHub. `tests/board.test.mjs`
-- [ ] Adopt proposes `source: milestones` for a project with described milestones. `tests/adopt.test.mjs`
+- [x] Milestones with descriptions and issues map to phases: Done when, boxes, walks, `due` and status, as above. `tests/milestones.test.mjs`
+- [x] `keel next`, the board and the night use them on a project with `source: milestones`, through the cache and the quota floor; nothing is written to GitHub. `tests/board.test.mjs`
+- [x] Adopt proposes `source: milestones` for a project with described milestones. `tests/adopt.test.mjs`
 - [ ] ⚑ by hand: one project's release seen on the board as phases, read by its owner.
 
 ## Your part
@@ -48,7 +49,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Proof
 
-Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs`; `npm run check`.
+Automated: `node --test tests/roadmap.test.mjs tests/board.test.mjs tests/adopt.test.mjs tests/milestones.test.mjs`; `npm run check`.
 By hand: one release on the board.
 
 ## Deliberately open
@@ -56,8 +57,14 @@ By hand: one release on the board.
 - **Deadline semantics — settled 2026-10-10:** A milestone due date is `due`, not `after`. Keel defines `after` as the earliest buildable date; the original mapping would hide active work until its deadline. Closing a milestone reports GitHub planning state, never production verification, owner acceptance or lived-in evidence.
 - **Incomplete reads — settled 2026-10-10:** Bounded queries disclose truncated milestone, issue and label coverage. Unavailable or incomplete source data must not report that all work is done.
 
-- **Exit criteria in prose**: not every description lists them. Without a list, the whole description is the Done when, and the board says so.
+- **Exit criteria in prose — settled 2026-10-10:** An Exit criteria section takes precedence, then a bullet list, then the whole description. The board discloses the whole-description fallback; mapping tests cover each form.
 
 ## Next action
 
-Build the bounded read-only milestone adapter, then walk a real milestone project with its owner.
+Owner: select a project with a GitHub milestone release, adopt the proposed read-only source and spend 10 minutes checking that its board reads as the plan. Keel, Ledger, isocan and duo currently have no milestones, so no pilot or acceptance is claimed.
+
+## Trajectory
+
+- **2026-10-10** — A milestone deadline cannot become `after`: doing so hides work until its due date. The projection uses `due` and keeps source closure separate from acceptance.
+- **2026-10-10** — GitHub's `updatedAt` does not measure time in a status. The night leaves status age unavailable instead of treating unrelated edits as progress.
+- **2026-10-10** — A failed GraphQL response can still charge quota, including when `gh` exits nonzero. Accounting precedes projection validation; cache keys hash the configured owner label to prevent different labels sharing a walk projection.

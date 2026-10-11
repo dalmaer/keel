@@ -848,3 +848,29 @@ test('adoption and adding practices estimate only newly created workflows from p
     assert.equal(partial.data.ciCost.monthlyWeightedMinutes, null);
   }
 });
+
+test('milestone adoption proposes read-only source, preserves local plans and discloses unavailable versus empty', async t => {
+  const { survey } = await import('../lib/adopt.mjs');
+  const { targets } = await import('../lib/practices.mjs');
+  const { projectMilestones } = await import('../practices/night/files/scripts/keel/milestones.mjs');
+  const { milestoneConfig, milestone, response } = await import('./helpers/milestones.mjs');
+  const root = await scratch(t), practices = await load();
+  await mkdir(join(root, '.keel'));
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/anvils' }));
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'acme', scripts: { test: 'node --test' } }));
+  const opts = { version: VERSION, practices, milestoneRead: async () => projectMilestones(response([milestone()]), milestoneConfig) };
+  const result = await survey(root, opts);
+  assert.equal(result.config.phases.source, 'milestones');
+  assert.equal(result.practices.find(p => p.name === 'phases').state, 'local');
+  assert.ok(!targets(result.config, practices).some(f => f.path === 'scripts/roadmap.mjs' || f.path.startsWith('docs/phases/')));
+  const explicit = { ...result.config, practices: [...new Set([...result.config.practices, 'base', 'agents-md', 'phases', 'evidence'])] };
+  assert.ok(!targets(explicit, practices).some(f => f.path === 'scripts/roadmap.mjs' || f.path.startsWith('docs/phases/') || f.path === 'docs/goals.json'));
+  const empty = await survey(root, { ...opts, milestoneRead: async () => projectMilestones(response(), milestoneConfig) });
+  assert.equal(empty.milestoneDiscovery.state, 'complete');
+  assert.equal(empty.config.phases, undefined);
+  const unavailable = await survey(root, { ...opts, milestoneRead: async () => { throw new Error('Acme offline'); } });
+  assert.equal(unavailable.milestoneDiscovery.state, 'unavailable');
+  assert.match(unavailable.practices.find(p => p.name === 'phases').why, /Acme offline/);
+  const local = await copyFixture(t, 'acme-groove');
+  await survey(local, { ...opts, milestoneRead: async () => { assert.fail('local plans must never trigger discovery'); } });
+});
