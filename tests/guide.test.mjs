@@ -486,3 +486,82 @@ test('late review: absent metadata case aliases are reserved before init writes'
     await absent(parent, '.git'); await absent(parent, '.keel');
   }
 });
+
+test('PR107: collision probes use each directory entry policy and preserve unknown safety', () => {
+  // Synthetic per-directory Windows lookup, not a native Windows walk. This
+  // generic filesystem resolves every component using its containing directory's
+  // flag; it can represent combinations the host filesystem cannot create.
+  const script = `
+    import assert from 'node:assert/strict';
+    import { win32 as w } from 'node:path';
+    import { registerHooks } from 'node:module';
+    let serial = 0, root;
+    const directory = (sensitive, entries = {}) => ({ sensitive, entries, ino: ++serial });
+    const file = (ino = ++serial) => ({ ino });
+    function lookup(path) {
+      let node = root;
+      for (const part of w.resolve(path).slice(3).split(w.sep).filter(Boolean)) {
+        if (!node.entries) throw Object.assign(new Error('not a directory'), { code: 'ENOTDIR' });
+        const name = Object.keys(node.entries).find(name => name === part)
+          ?? (!node.sensitive && Object.keys(node.entries).find(name => name.toLowerCase() === part.toLowerCase()));
+        if (!name) throw Object.assign(new Error('missing ' + path), { code: 'ENOENT' });
+        node = node.entries[name];
+      }
+      return node;
+    }
+    globalThis.casePaths = w;
+    globalThis.caseFs = {
+      readdirSync(path) {
+        const node = lookup(path);
+        if (!node.entries) throw Object.assign(new Error('not a directory'), { code: 'ENOTDIR' });
+        return Object.keys(node.entries);
+      },
+      lstatSync(path) {
+        const node = lookup(path);
+        return { dev: 1, ino: node.ino, isFile: () => !node.entries, isDirectory: () => !!node.entries, isSymbolicLink: () => false };
+      },
+      realpathSync: path => { lookup(path); return w.resolve(path); },
+      readlinkSync() { throw new Error('fixture has no symlinks'); },
+      readFileSync() { throw new Error('unexpected content read'); },
+    };
+    registerHooks({ resolve(specifier, context, next) {
+      if (context.parentURL === ${JSON.stringify(new URL('../lib/guide.mjs', import.meta.url).href)} && ['node:fs', 'node:path'].includes(specifier)) {
+        const source = specifier === 'node:path'
+          ? 'export const { resolve, relative, dirname, basename, isAbsolute, sep } = globalThis.casePaths;'
+          : 'export const { lstatSync, readlinkSync, realpathSync, readFileSync, readdirSync } = globalThis.caseFs;';
+        return { url: 'data:text/javascript,' + encodeURIComponent(source), shortCircuit: true };
+      }
+      return next(specifier, context);
+    }});
+    const { guideTargetsOverlap: overlap, validateGuideName } = await import(${JSON.stringify(new URL('../lib/guide.mjs', import.meta.url).href)});
+    for (const parentSensitive of [true, false]) for (const sensitive of [true, false]) {
+      root = directory(parentSensitive, { Acme: directory(sensitive, { 'package.json': file() }) });
+      assert.equal(overlap('C:/Acme', 'Package.json', 'package.json'), !sensitive, 'existing file uses repository policy');
+      assert.equal(overlap('C:/Acme', 'Rules.md', 'rules.md'), !sensitive, 'absent file uses repository policy');
+      if (sensitive) assert.doesNotThrow(() => validateGuideName('.KEEL/config', 'C:/Acme'));
+      else assert.throws(() => validateGuideName('.KEEL/config', 'C:/Acme'), /reserved/);
+    }
+    root = directory(false, { Acme: directory(true, {
+      'package.json': file(),
+      Docs: directory(false, { 'notes.md': file() }),
+      docs: directory(false, { 'notes.md': file() }),
+      Strict: directory(true, { 'notes.md': file() }),
+      Empty: directory(true),
+      Numeric: directory(true, { '123': file() }),
+    }) });
+    assert.equal(overlap('C:/Acme', 'Docs/Rules.md', 'docs/rules.md'), false, 'insensitive children must not fold distinct parent entries');
+    assert.equal(overlap('C:/Acme', 'Docs/Rules.md', 'Docs/rules.md'), true, 'child policy differs from parent');
+    assert.equal(overlap('C:/Acme', 'Strict/Rules.md', 'Strict/rules.md'), false, 'known sensitive child preserves valid variants');
+    assert.equal(overlap('C:/Acme', 'Docs/Rules.md/child', 'Docs/rules.md'), true, 'ancestor collision');
+    for (const folder of ['Empty', 'Numeric', 'Absent']) {
+      assert.equal(overlap('C:/Acme', folder + '/Rules.md', folder + '/rules.md'), true, folder + ' remains unknown');
+      assert.equal(overlap('C:/Acme', folder + '/guide.md', folder + '/other.md'), false, 'unknown only reserves case collisions');
+      assert.throws(() => validateGuideName(folder + '/.KEEL/config', 'C:/Acme'), /reserved/);
+    }
+    const hardlink = file();
+    root.entries.Acme.entries.Twins = directory(true, { Notes: hardlink, notes: hardlink });
+    assert.equal(overlap('C:/Acme', 'Twins/Rules.md', 'Twins/rules.md'), false, 'two stored spellings establish sensitivity even for hardlinks');
+  `;
+  const result = run(process.execPath, ['--input-type=module', '-e', script]);
+  assert.equal(result.status, 0, result.stderr);
+});

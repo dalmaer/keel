@@ -9,7 +9,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
-import { parseHygieneProposal } from '../practices/night/files/scripts/keel/hygiene-proposals.mjs';
+import { parseHygieneProposal, makeHygieneProposal, formatHygieneProposal } from '../practices/night/files/scripts/keel/hygiene-proposals.mjs';
 import {
   MEASURES, selftest, measure, improve, propose, tighten, conductCost, commandKind, exitCode, FIXTURE,
 } from '../lib/improve.mjs';
@@ -492,4 +492,41 @@ test('long-file report preserves raw freshness and refreshes when canonical blob
   assert.notEqual(next.proposal.rawDigest, frozen.proposal.rawDigest);
   assert.notEqual(next.proposal.instanceId, frozen.proposal.instanceId);
   assert.equal((await improve({root, date:'2026-10-13'}, deps)).data.proposal, null, 'an unchanged raw and canonical instance is still deduplicated');
+});
+
+
+test('legacy long-file lifecycle suppresses same canonical source after raw digest upgrade',async t=>{
+  const root=await scratch(t),repo='acme/storefront';
+  const env={...ENV,KEEL_GIT:'git',KEEL_GH:'/nonexistent/acme-gh',CI:''};
+  const git=args=>{const r=run('git',args,{cwd:root,env,timeout:5000});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
+  git(['init','--initial-branch=main']);
+  await mkdir(join(root,'.keel'));await mkdir(join(root,'src'));await mkdir(join(root,'docs/health'),{recursive:true});
+  const config={name:'Acme',repo,hygiene:{longFileLines:10}};
+  await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
+  await writeFile(join(root,'src/anvils.mjs'),`export function anvils() {\n${'  // Acme anvils\n'.repeat(15)}}\n`);
+  git(['add','.']);git(['commit','-m','Acme legacy proposal source']);
+  const measures=MEASURES.filter(m=>m.id==='long_files');
+  const [reading]=await measure({root,config,env,measures});
+  const modern=propose([reading],config).hygieneMetadata;
+  assert.match(modern.rawDigest,/^[a-f0-9]{64}$/);
+  const legacy=makeHygieneProposal({...modern,rawDigest:undefined,at:modern.observedAt});
+  assert.notEqual(legacy.instanceId,modern.instanceId,'fixture recreates the upgrade identity difference');
+  const oldPage=join(root,'docs/health/2026-10-10.md');
+  for(const state of ['proposed','accepting','accepted','declined']){
+    const existing={...legacy,lifecycle:{state,decidedAt:state==='proposed'?null:'2026-10-10T12:00:00Z',reason:state==='declined'?'Owner declined':null,issue:state==='accepted'?{repo,number:7,url:`https://github.com/${repo}/issues/7`}:null}};
+    const text='## Proposal\n\n'+formatHygieneProposal(existing)+'\n';
+    await writeFile(oldPage,text);
+    const r=await improve({root,report:true,date:'2026-10-11'},{env,measures});
+    assert.equal(r.data.proposal,null,`legacy ${state} must suppress the new digest-bearing instance`);
+    assert.equal(await readFile(oldPage,'utf8'),text,'upgrade must not rewrite the existing owner decision');
+  }
+  const facts=reading.facts.files[0];
+  const change={...modern,rawDigest:modern.rawDigest==='b'.repeat(64)?'c'.repeat(64):'b'.repeat(64)};
+  const newer=makeHygieneProposal({...change,at:modern.observedAt});
+  assert.ok(propose([reading],config,{hygieneHistory:{proposals:[newer],gaps:[]}}),'nonlegacy changed raw bytes must remain a new observation');
+  for(const patch of [{file:'src/other.mjs'},{repo:'acme/other'},{blob:'f'.repeat(40)}]){
+    const unrelated=makeHygieneProposal({...legacy,...patch,at:legacy.observedAt});
+    assert.ok(propose([reading],config,{hygieneHistory:{proposals:[unrelated],gaps:[]}}),'legacy suppression must match both subject and canonical blob');
+  }
+  assert.equal(facts.blob,legacy.blob);
 });

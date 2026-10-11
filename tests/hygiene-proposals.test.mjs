@@ -3,6 +3,8 @@ import {test} from 'node:test';
 import {run} from './helpers/run.mjs';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,readFile,rm,symlink,chmod,rename,lstat} from 'node:fs/promises';
+import fsPromises from 'node:fs/promises';
+import {syncBuiltinESMExports} from 'node:module';
 import {join} from 'node:path';
 import {tmpdir,hostname} from 'node:os';
 import {createHash} from 'node:crypto';
@@ -434,4 +436,58 @@ test('ordinary proposal paths: non-health regular files remain decidable while o
   await symlink('docs',join(f.root,'aliased-docs'));
   await assert.rejects(walkDecide({root:f.root,proposal:'aliased-docs/acme-proposal.md',decline:'Acme keep'}),/configured health page/);
   assert.equal(await readFile(join(f.root,'owner-proposal.md'),'utf8'),text);assert.equal(f.gets,0);
+});
+
+// Intercept the actual filesystem boundary, preserving the real read and its
+// bytes. This also exercises the unfixed implementation during keel prove.
+function afterOrdinaryPageRead(t,paths,change) {
+  const original=fsPromises.readFile,seen=[];
+  t.mock.method(fsPromises,'readFile',async(...args)=>{
+    const bytes=await original(...args);
+    if(paths.includes(String(args[0]))&&seen.length===0){seen.push(String(args[0]));await change();}
+    return bytes;
+  });
+  syncBuiltinESMExports();
+  t.after(()=>{t.mock.restoreAll();syncBuiltinESMExports();});
+  return seen;
+}
+test('ordinary canonical snapshot: retarget after reading cannot overwrite either health page',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),canonicalAbs=await fsPromises.realpath(join(f.root,canonical));
+  const original='## Proposal\n\n**`legacy`** Acme original proposal\n',other='## Proposal\n\n**`legacy`** Acme different proposal\n\nAcme human notes.\n';
+  await writeFile(canonicalAbs,original);await mkdir(join(f.root,'acme-other'));
+  const otherFile=join(f.root,'acme-other/2026-10-11.md');await writeFile(otherFile,other);
+  const seen=afterOrdinaryPageRead(t,[canonicalAbs,join(f.root,path)],async()=>{
+    await rm(join(f.root,'docs/health'));await symlink('../acme-other',join(f.root,'docs/health'));
+  });
+  await assert.rejects(walkDecide({root:f.root,proposal:path,accept:'Acme approved'}),/page changed/);
+  assert.deepEqual(seen,[canonicalAbs],'resolve the canonical page before the first content read');
+  assert.equal(await readFile(canonicalAbs,'utf8'),original);assert.equal(await readFile(otherFile,'utf8'),other);
+});
+test('ordinary canonical snapshot: a concurrent edit is preserved instead of overwritten',async t=>{
+  const f=await fixture(t),canonical=await healthAlias(f),canonicalAbs=await fsPromises.realpath(join(f.root,canonical));
+  const original='## Proposal\n\n**`legacy`** Acme proposal\n',edited=original+'\nAcme owner added context.\n';
+  await writeFile(canonicalAbs,original);
+  const seen=afterOrdinaryPageRead(t,[canonicalAbs,join(f.root,path)],()=>writeFile(canonicalAbs,edited));
+  await assert.rejects(walkDecide({root:f.root,proposal:path,decline:'Acme keep'}),/page changed/);
+  assert.deepEqual(seen,[canonicalAbs]);assert.equal(await readFile(canonicalAbs,'utf8'),edited);
+});
+test('ordinary canonical snapshot: non-health regular page edits are protected too',async t=>{
+  const f=await fixture(t),file=join(f.root,'acme-proposal.md'),original='## Proposal\n\nAcme plan\n';await writeFile(file,original);
+  const canonicalAbs=await fsPromises.realpath(file),edited=original+'\nAcme additional evidence.\n';
+  const seen=afterOrdinaryPageRead(t,[canonicalAbs,file],()=>writeFile(canonicalAbs,edited));
+  await assert.rejects(walkDecide({root:f.root,proposal:'acme-proposal.md',accept:''}),/page changed/);
+  assert.equal(seen.length,1);assert.equal(await readFile(canonicalAbs,'utf8'),edited);
+});
+test('ordinary canonical diff: alias acceptance and decline report the tracked target changes',async t=>{
+  for(const decision of ['accept','decline'])await t.test(decision,async t=>{
+    const f=await fixture(t),canonical=await healthAlias(f);
+    await writeFile(join(f.root,canonical),'## Proposal\n\n**`legacy`** Acme plan\n');
+    git(f.root,'add','-A');git(f.root,'commit','-qm','Acme tracked health alias');
+    const result=await walkDecide({root:f.root,proposal:path,[decision]:'Acme owner choice'});
+    assert.equal(result.data.proposal,path,'retain the requested path for display');
+    assert.match(result.data.diff,/diff --git a\/acme-health\/2026-10-11\.md b\/acme-health\/2026-10-11\.md/);
+    assert.match(result.data.diff,/\+\*\*Decided .*Acme owner choice/);
+    assert.match(await readFile(join(f.root,canonical),'utf8'),/Acme owner choice/);
+    assert.equal(f.gets,0);
+  });
 });

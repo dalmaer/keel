@@ -275,7 +275,9 @@ keel adopt ../acme-app             # then on a branch, for a PR a person merges
   With both files present the default is AGENTS.md, disclosed in the plan.
   A symlink pair counts as one guide. Existing guides are never deleted or
   duplicated automatically; unsafe paths and conflicting managed ownership
-  are refused before writing.
+  are refused before writing. Case behavior is checked inside each directory;
+  if an empty or unprobeable directory leaves it unknown, case-only target
+  variants are conservatively reserved. Choose an unambiguous guide name.
 - Optional practices (`loop`, `claude`) are off unless `--with <practice>`
   names them or `.keel/keel.json` already has them on; a project with its own
   version is still local. For `claude` that is a workflow running
