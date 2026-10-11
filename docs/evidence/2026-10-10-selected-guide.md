@@ -46,6 +46,18 @@ guides. `keel prove tests/guide.test.mjs --name "init supports CLAUDE" --fix
 lib/practices.mjs --trailer` returned VERIFIED: the test failed without the
 fix and passed with it.
 
+A second review also identified a physical target collision through a directory
+alias, a missed lesson commit through a guide alias, a rejected safe intermediate
+alias to the repository root, and the nested guide's README link. These are
+validated source defects. The conductor independently ran guide, lessons,
+adoption, rendering, init, doctor and update tests: 134 passed, zero failed,
+exit 0, with no hygiene finding. Both `keel prove tests/guide.test.mjs --name
+"^guide review:"` and the equivalent `tests/lessons.test.mjs` run (with the four
+changed production files named by `--fix`) returned VERIFIED: red without the
+corrections, green with them. The guide proof initially could not load against
+the old module because the test imported a new helper; it now checks public
+behavior without that import. The owner acceptance is unchanged.
+
 ## Acceptance still owed
 
 No live project was adopted on the owner's behalf during this phase. The

@@ -189,3 +189,82 @@ test('reverse symlink, conflicting aliases, and unrelated block lock identities'
   assert.equal((await config(dir)).guide, 'AGENTS.md');
   assert.ok((await readLock(dir)).files['other.md#custom']);
 });
+
+
+test('guide review: physical guide collisions reject before writes and safe directory links survive', async t => {
+  const dir = await acme(t);
+  await mkdir(join(dir, 'docs'));
+  await symlink('docs', join(dir, '.agents'));
+  for (const guide of ['docs/skills/keel/SKILL.md', 'docs/skills/keel', 'docs/skills/keel/SKILL.md/child']) {
+    await assert.rejects(adoptAt(dir, { guide }), /guide:.*collides/);
+    await absent(dir, '.keel');
+    await absent(dir, 'docs/skills');
+  }
+  await adoptAt(dir, { guide: 'docs/team.md' });
+  assert.equal((await render(dir, { check: true })).ok, true);
+  assert.deepEqual((await diagnose(dir)).drift, []);
+  await render(dir);
+  assert.ok((await lstat(join(dir, '.agents'))).isSymbolicLink());
+  assert.ok((await lstat(join(dir, '.claude/skills/keel'))).isSymbolicLink());
+});
+
+test('guide review: root intermediate aliases resolve while invalid links remain rejected', async t => {
+  const dir = await acme(t), outside = await acme(t);
+  await mkdir(join(dir, 'docs'));
+  await symlink('..', join(dir, 'docs/root'));
+  await writeFile(join(dir, 'CLAUDE.md'), '# Acme rules\n');
+  assert.equal(guideDestination(dir, 'docs/root/CLAUDE.md'), 'CLAUDE.md');
+  assert.equal(guideDestination(dir, 'docs/root/new.md'), 'new.md');
+  await symlink(outside, join(dir, 'escape'));
+  await symlink('cycle', join(dir, 'cycle'));
+  await symlink('missing', join(dir, 'dangling'));
+  for (const guide of ['docs/root', 'docs/root/escape/file.md', 'docs/root/cycle/file.md', 'docs/root/dangling/file.md']) {
+    assert.throws(() => guideDestination(dir, guide), /guide:|ELOOP/);
+  }
+  await adoptAt(dir, { guide: 'docs/root/CLAUDE.md' });
+  assert.equal((await config(dir)).guide, 'docs/root/CLAUDE.md');
+  assert.deepEqual((await diagnose(dir)).drift, []);
+});
+
+test('guide review: nested init guide links resolve to README and lessons', async t => {
+  const dir = await acme(t); await rm(join(dir, 'package.json'));
+  await init({ dir, guide: 'docs/team/rules.md', name: 'Acme', description: 'Acme makes anvils.', kind: 'node' }, { version });
+  const guide = await read(dir, 'docs/team/rules.md');
+  assert.ok(guide.includes('[README.md](../../README.md#how-to-run-it)'));
+  assert.ok(guide.includes('[`docs/lessons.md`](../lessons.md)'));
+  assert.deepEqual((await diagnose(dir)).drift, []);
+});
+
+
+test('guide review: noncolliding dangling and unsafe practice links retain adoption ownership', async t => {
+  for (const link of ['missing', 'conduct', '../../../outside']) {
+    const dir = await acme(t);
+    await mkdir(join(dir, '.claude/skills'), { recursive: true });
+    await symlink(link, join(dir, '.claude/skills/conduct'));
+    const result = await adoptAt(dir);
+    assert.equal(result.data.practices.find(p => p.name === 'conduct').state, 'off');
+    assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isSymbolicLink());
+    assert.equal((await render(dir, { check: true })).ok, true);
+    assert.deepEqual((await diagnose(dir)).drift, []);
+    await assert.rejects(adoptAt(dir, { guide: '.claude/skills/conduct/rules.md' }), /guide:|ELOOP/);
+  }
+});
+
+test('guide review: collision lookup follows dangling destinations but leaves unsupported targets to survey', async t => {
+  const dir = await acme(t);
+  await mkdir(join(dir, '.claude/skills'), { recursive: true });
+  await symlink('../../future', join(dir, '.claude/skills/conduct'));
+  await assert.rejects(adoptAt(dir, { guide: 'future/rules.md' }), /guide:.*collides/);
+  await absent(dir, '.keel');
+  await writeFile(join(dir, 'plain'), 'Acme');
+  assert.throws(() => guideDestination(dir, 'plain/child'), /guide:/);
+});
+
+test('guide review: a target that leaves and re-enters still cannot collide with the guide', async t => {
+  const dir = await acme(t), outside = await acme(t);
+  await mkdir(join(dir, 'docs'));
+  await symlink(join(dir, 'docs'), join(outside, 'skills'));
+  await symlink(outside, join(dir, '.agents'));
+  await assert.rejects(adoptAt(dir, { guide: 'docs/keel/SKILL.md' }), /guide:.*collides/);
+  await absent(dir, '.keel');
+});
