@@ -27,6 +27,10 @@ A read-only production `longFiles` audit at 2026-10-11T08:15:56Z returned five l
 
 The first integrated gate found one failure among 1,496 tests: ordinary proposal decisions outside the health directory were incorrectly restricted by the alias fix. The correction retains the existing strict regular-file path first and permits the configured health alias through its separate canonical check. A new regression preserves ordinary non-health files and refuses other aliases. The full gate is repeated because the implementation changed; the initial failure is not treated as a flake.
 
+## Follow-up review
+
+PR #107 identified the standard Go `Code generated … DO NOT EDIT.` header, which must remain excluded while ordinary later comments stay eligible. The correction has a generated VERIFIED regression against `6bbf0f6`, including a tracked `.pb.go` file and the absence of a split proposal. The final gate runs again on this recorded correction.
+
 ## Still owed
 
 The existing owner/pilot requirements of phases 58, 63, 64 and 66 remain unchecked. Phase 50 still requires the public conditional-edit API and its recorded browser/workflow/scheduled-use walks. These corrections neither enable robot spend nor create a real issue, delete worktrees, alter draft PRs, or establish production acceptance or lived-in use. Historical report observations are preserved.

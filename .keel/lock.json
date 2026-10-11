@@ -171,7 +171,7 @@
     },
     "scripts/keel/hygiene-measures.mjs": {
       "practice": "night",
-      "sha256": "1cc41ec19ac63487721f963abb483c7c9aa036b64b9809e8fc8eaf244a17b6be"
+      "sha256": "e91fa5152291d3985d113bf7264c6a092d23da4bdb93cbdd3e3038d99cdf1338"
     },
     "scripts/keel/hygiene-proposals.mjs": {
       "practice": "night",
