@@ -21,7 +21,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 - **Rules with causes**: each block in `practices/*/files` (AGENTS blocks, the skill) carries, per rule, a `(why: lesson N)`, an issue, or a one-sentence cause. A `keel lessons` lint (`rule-without-cause`) notes any without one. Keel's own blocks are filled in first.
 - **Dated numbers**: in `docs/phases/*.md` evidence and `docs/research/*.md`, a measurement in the form `<number> (<YYYY-MM-DD>, <command>)` or under a dated heading. A `roadmap --check` note (`undated-number`) flags a figure with a unit (ms, s, minutes, %, points) and no date nearby. It is advice, never a failure.
-- **Re-derivation**: `keel evidence rederive <phase>` reruns each recorded command and shows old against new.
+- **Re-derivation**: `keel evidence rederive <phase>` previews explicit structured measurement records; `--yes` runs their argument arrays directly and shows dated old and new values without rewriting history.
 
 ## Acceptance
 
@@ -50,6 +50,8 @@ Automated: `node --test tests/lessons.test.mjs tests/practices.test.mjs tests/ro
 By hand: the owner's read of the rules.
 
 ## Deliberately open
+
+- **Executable evidence — settled 2026-10-11:** Only fenced `keel-measurements` JSON records name executable measurements. Each record specifies an id, argv array, repository-relative cwd, original numeric value, unit and measurement date; an optional JSON field selects numeric output. Prose and backticks are never executable. Default is a preview; `--yes` explicitly runs the previewed commands without a shell, under timeout and output limits. Invalid records or escaping paths reject the run before execution; failed or unparseable results stay unavailable. Historical evidence is never overwritten.
 
 - **What counts as a number**: units only, to keep the note quiet. Settled by how many false notes it gives on keel's own docs.
 
