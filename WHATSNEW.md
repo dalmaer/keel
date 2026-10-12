@@ -5,6 +5,23 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.29 — practice 0.8.29 (2026-10-12)
+
+- **A phase being built is claimed** (phase 70). `keel phase claim <n>` pushes one shared branch, `claims/phase-<n>`, so of two sessions claiming at once exactly one gets it; `--release` gives it back. `keel next` now lists every ready phase as free or claimed, and by whom, and exits 2 rather than calling anything free when the claims can't be read. The conduct skill claims before it builds, and a claim idle for seven days is the owner's item on the board.
+  - **Breaking:** `keel next --json` is now `{next, free, claimed, behind, claims}`. The phase object that was the top level is under `next`.
+  - Known limit: two sessions in the same working tree are both told they hold a claim (keel#119).
+- **A review that keeps going comes to the owner** (phase 71). `keel review` counts a PR's review rounds, and at the limit (`"review": {"rounds": N}` in `.keel/keel.json`, 3 when unset) exits 3 on an open PR with the choice: merge with the rest tracked, split, or close. `keel review <pr> --class security|overwrite|approval|other <ids>` sorts a finding without answering it. `--gate` is unchanged. The conduct skill stops pushing fixes at the limit.
+  - A cross-review whose findings GitHub refused inline now carries them in its summary as one finding that owes an answer; before, it read as a status and owed nothing.
+  - Known limit: the limit for another repository's PR comes from the local checkout, or is three (keel#118).
+- **The agent guide can be `CLAUDE.md`** (phase 58). A project that keeps its guide in `CLAUDE.md` can adopt and update without gaining an `AGENTS.md`.
+- **Plans can stay as milestones** (phase 63). A project that plans in GitHub milestones can keep them: `keel next`, `keel status`, the board and the night read them, read-only.
+- **A rule says the failure that made it, and a number says when** (phase 64). The phase check advises on a measurement with no date, and `keel evidence rederive <phase>` re-runs a recorded number and compares, without rewriting the old evidence.
+- **Hygiene measures from real audits** (phase 66). The night measures more of what the audits found by hand, and proposes a split of an oversized file as a recoverable proposal.
+- **Night:** a rerun refreshes the evidence in its PR instead of leaving the first run's.
+- **Faster:** independent GitHub reads overlap (phase 68), and keel's own redundant test work is gone (phase 69).
+
+Released without the review gate (24 practice commits unchecked): #99 is Renovate's one-line Node pin to 24.21.0 in keel-robot-route.yml, read by hand and matching .nvmrc; every other practice commit passed the review gate
+
 ## v0.8.28 — practice 0.8.28 (2026-10-10)
 
 - **A stalled test run that aborts before any test is parsed has its stderr redacted**, as failure text is. The hygiene output no longer prints a configured credential into a CI log.
