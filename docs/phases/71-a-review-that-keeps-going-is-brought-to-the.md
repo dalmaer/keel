@@ -22,7 +22,7 @@ The design is [Claims, and reviews that end](../research/2026-10-12-claims-and-r
 - **A round**: one push answered by a reviewer with at least one finding, counted from the reviews `keel review` already reads.
 - **The limit**: `"review": {"rounds": 3}` in `.keel/keel.json`; three when unset.
 - **Past the limit**: `keel review <pr>` exits 3 and prints the choice. Under "merge with the rest tracked" it lists each open finding as **fix first** (a security hole, overwrites the owner's files, or skips an approval) or **track** (needs an issue with its known limit).
-- **The class**: the session answering a finding names its kind: `--close <id> … --class security|overwrite|approval|other`. keel records and shows it, and never infers it from the text.
+- **The class**: a session that has read a finding names its kind with `keel review <pr> --class security|overwrite|approval|other <ids>`, which records the class and leaves the finding unanswered. `--close` takes `--class` too. keel records and shows it, and never infers it from the text.
 - **The board**: a PR past its limit is the owner's item, with the round count and open findings.
 - **The skill**: the conduct skill stops pushing fixes at the limit and reports. It never merges.
 
@@ -32,7 +32,8 @@ Not in scope: keel merging anything, or judging a finding's class.
 
 - [ ] `keel review` counts rounds: a push with findings is one, a push the reviewer passed is none, and two reviewers on one push are one round. `tests/review-rounds.test.mjs`
 - [ ] At the limit, `keel review <pr>` exits 3 with the three choices; under it, exit codes are as before. `"review": {"rounds": N}` changes the limit, and a bad value is refused naming the key. `tests/review-rounds.test.mjs`
-- [ ] `--class` is recorded with the answer and shown in the list; an open finding with no class is listed as unsorted, never as "track". `tests/review-rounds.test.mjs`
+- [ ] `--class` alone records the class and leaves the finding unanswered: `--gate` still fails on it. With `--close` it is recorded with the answer. `tests/review-rounds.test.mjs`
+- [ ] A finding that arrives in the round that reaches the limit, classed and unanswered, is listed under "fix first" or "track"; an open finding with no class is listed as unsorted, never as "track". `tests/review-rounds.test.mjs`
 - [ ] The board shows a PR past its limit as the owner's, and the conduct skill names the rule. `tests/board.test.mjs`, `tests/skill.test.mjs`
 - [ ] ⚑ by hand: the next keel PR to pass three rounds reaches the owner with a sorted list, and the owner says whether the list was enough to decide.
 
@@ -60,7 +61,7 @@ By hand: one real PR past the limit, read by the owner.
 
 - **Three** is a guess from one day's PRs. Settled by the first few PRs that reach it.
 - **Whether the limit also holds the release's review gate**: no, for now. `keel review --gate` still asks only that every comment is answered and the head is reviewed. Revisited after the owner's walk.
-- **Known limit**: the class is the answering session's word. A finding wrongly marked "other" is tracked instead of fixed; the owner reads the list before merging. A reviewer that reviews every push makes three rounds pass in an hour; the limit counts rounds, not time.
+- **Known limit**: the class is the classifying session's word. A finding wrongly marked "other" is tracked instead of fixed; the owner reads the list before merging. A reviewer that reviews every push makes three rounds pass in an hour; the limit counts rounds, not time.
 
 ## Next action
 

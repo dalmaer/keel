@@ -46,9 +46,13 @@ shared file, no server.
   succeeds only if the ref does not exist), and the server lets exactly one
   through.
 - The claim is a commit of its own, on the default branch's head, whose
-  message names the provider, the machine and the time. Two sessions never
-  make the same commit, so the loser's push is refused, not a no-op, and it
-  reads the winner's commit to say who holds the phase.
+  message names the provider, the machine, the time and a random token made
+  fresh for each attempt. The token is what makes two claims differ: without
+  it, two sessions with one git identity, on one machine, in the same second,
+  make the same commit, and git reports the second push as up to date. With
+  it the loser's push is refused, and it reads the winner's commit to say who
+  holds the phase. A session knows it holds a claim by finding its own token
+  on the remote ref.
 - The work goes on `<provider>/phase-<n>`, as now. An open PR whose branch
   names the phase is a claim too, so work that began before this phase
   counts.
@@ -101,11 +105,17 @@ choice laid out:
   to its own PR.
 - **Close.**
 
-**Who sorts the findings.** The session answering a finding says which kind
-it is when it closes it: `--close <id> --tracked <issue> --class
-security|overwrite|approval|other`. keel records that and shows it. keel
-never infers the class from the text; a person or the answering session
-decides, and the owner sees the decision.
+**Who sorts the findings.** A session that has read a finding says which
+kind it is: `keel review <pr> --class security|overwrite|approval|other
+<ids>`. That records the class and nothing else: the finding stays
+unanswered. It has to be separate from `--close`, because a finding that
+arrives in the third round is open exactly when the owner needs it sorted,
+and closing it would mean claiming a fix, a tracking issue or "not valid"
+before the owner has decided. `--close` takes `--class` too, for a finding
+sorted as it is answered. The class is kept in a marked reply that keel does
+not count as an answer. keel records the class and shows it. It never infers
+the class from the text; a person or the session decides, and the owner sees
+the decision.
 
 **The board** shows a PR past its limit as the owner's item, with the round
 count and the open findings.
@@ -120,7 +130,7 @@ three with a sorted list, not at round ten.
 
 - A reviewer that reviews every push (the Codex app) makes rounds pass
   quickly. The limit counts rounds, not time.
-- The class is the answering session's word. A finding wrongly marked
+- The class is the classifying session's word. A finding wrongly marked
   "other" is tracked instead of fixed; the owner reads the list before
   merging.
 
