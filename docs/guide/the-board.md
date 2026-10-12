@@ -20,7 +20,10 @@ it waits on, in the order you read them:
   asked you, a step marked "⚑ yours" (a repo to keep or delete, lessons to
   send home), a phase claim (`keel phase claim`) nobody has pushed to for
   seven days: release it by hand (the item says how) or leave it, because
-  keel never releases a claim for you.
+  keel never releases a claim for you. A PR at its review-round limit
+  (three rounds unless `.keel/keel.json` says otherwise) is yours too, with
+  its round count and open findings: merge with the rest tracked, split it,
+  or close it. A fleet project's PR uses three whatever that project sets.
 - **Broken**: a red CI on a fleet project's default branch, a draft keel
   update PR ("acme/ledger: keel update v0.8.26 fails ledger's check": the
   fleet kept an update whose check failed; its description says what to

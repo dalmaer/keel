@@ -115,19 +115,28 @@ treated as yours: the next update simply takes keel's file.
    existing repo. Adopt switches on only what the repo already satisfies.
    Everything else is recorded as a local variant with a proposal, never
    overwritten and never faked.
-2. **Work.** Phases are the plan. `keel next` names the next one and its
-   next action. In Claude Code, `/conduct` walks them: one phase at a time,
-   proof verified, one commit each.
-3. **Overnight.** The project's own nightly runs `scripts/keel/improve.mjs`.
+2. **Work.** Phases are the plan. `keel next` lists the phases that are
+   ready, and which of them another session already holds. A session takes
+   one with `keel phase claim <n>` before it builds, so two sessions never
+   build the same phase. In Claude Code, `/conduct` walks them: one phase at
+   a time, claimed first, proof verified, one commit each.
+3. **Review.** A reviewer reads the PR (with the cross-review practice on,
+   the other provider does), and `keel review` makes
+   sure every comment is validated and answered. A review that is still
+   drawing findings after three rounds stops there: `keel review` hands you
+   the choice (merge with the rest tracked, split, or close) with the open
+   findings sorted. See [Conduct a phase](docs/guide/conduct-a-phase.md) for
+   the whole path.
+4. **Overnight.** The project's own nightly runs `scripts/keel/improve.mjs`.
    It writes a dated health page, opens one PR with it, and proposes one
    change. You read it in the morning.
-4. **Lessons go home.** `keel lessons` files the project's new lessons, its
+5. **Lessons go home.** `keel lessons` files the project's new lessons, its
    edits to keel's files, and practice-shaped commits as issues on keel's
    inbox (a private repo, so a private project's lessons stay private),
    each exactly once.
-5. **At home.** `keel learn` turns those issues, and any upstream source that
+6. **At home.** `keel learn` turns those issues, and any upstream source that
    moved, into proposals. A person decides. `keel release` cuts a version.
-6. **Out again.** `keel fleet update` opens the update PR in each project
+7. **Out again.** `keel fleet update` opens the update PR in each project
    that's behind. `keel update` runs it: the CLI first, then migrations,
    re-render, the project's own gate, and a byte-for-byte restore if
    anything fails.
@@ -201,7 +210,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel canvas` | Project lifecycle snapshots and isocan canvas publishing; preview changes before applying them |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 | `keel issue new --agent` | Preview a rubric issue; `--yes` creates it, unlabelled while robot is OFF |
-| `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read. Not a gate |
+| `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read; `--class` sorts a finding without answering it. At three review rounds on an open PR it exits 3 and gives you the choice. Not a gate |
 | `keel board` | Whose turn it is: every open item as yours, broken, the agent's or waiting on time, gathered from the roadmap, loose ends, reviews, the health page, the inbox and the fleet. A page on 127.0.0.1, or `--json` |
 | `keel walk done\|decide` | Settle the owner's turn: `done` checks a phase's ⚑ walk and writes the read into its evidence (built when nothing is left open); `decide` accepts or declines a health proposal; time proposals require `--instance`, create/recover their issue on acceptance, and support reviewed `--map` transitions. Leaves a diff to commit |
 
