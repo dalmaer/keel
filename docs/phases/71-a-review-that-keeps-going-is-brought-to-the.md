@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: owner
 since: 2026-10-12
 goal: G0
 spec: 2
 depends: [48]
-note: "Specified 2026-10-12 from the ten-round review of #59: past three rounds keel review gives the owner the choice, findings sorted by the merge rule."
-evidence: []
+note: "Built 2026-10-12: keel review counts rounds, exits 3 at the limit with findings sorted by the merge rule, and --class sorts a finding without answering it. The owner's read of the first real PR past three rounds remains."
+evidence: ["evidence/2026-10-12-review-rounds.md"]
 issue: 114
 ---
 
@@ -65,4 +67,4 @@ By hand: one real PR past the limit, read by the owner.
 
 ## Next action
 
-⚑ Owner: the walk in Your part, on the next keel PR that passes three review rounds. The build is done and its five automated boxes are proven by `tests/review-rounds.test.mjs`, `tests/board.test.mjs` and `tests/skill.test.mjs`; the status and the evidence file wait for the conductor.
+⚑ Owner: the walk in Your part, on the next keel PR that passes three review rounds. The build is done and its five automated boxes are proven by `tests/review-rounds.test.mjs`, `tests/board.test.mjs` and `tests/skill.test.mjs`.
