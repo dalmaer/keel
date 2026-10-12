@@ -8,7 +8,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { claim, nextFree, readClaims, providerOf, phaseOfBranch, claimMessage } from '../lib/claim.mjs';
+import { claim, nextFree, readClaims, claimItems, providerOf, phaseOfBranch, claimMessage } from '../lib/claim.mjs';
 import { collect } from '../practices/phases/files/scripts/roadmap.mjs';
 import { run } from './helpers/run.mjs';
 
@@ -476,4 +476,66 @@ test('two claims racing in the same checkout: the loser never removes or overwri
   // Release removes the claim and its token, and nothing else.
   assert.equal((await claim({ root: x.a, phase: '1', release: true }, { env })).data.released, true);
   assert.deepEqual(await readdir(dir), ['aside']);
+});
+
+// Review of #117: the default branch is what the remote advertises, never a cached HEAD or a branch that happens to be called main.
+test('the remote\'s default is develop and an old main calls the phase built: phases and claims are read from develop, whatever this checkout\'s cached HEAD says, and another checkout\'s claim is not released', async t => {
+  const x = await acme(t);
+  // The origin moves its default to develop. Both clones still have origin/HEAD -> origin/main cached from the clone.
+  git(x.b, 'push', '-q', 'origin', 'main:refs/heads/develop');
+  git(x.origin, 'symbolic-ref', 'HEAD', 'refs/heads/develop');
+  assert.equal(git(x.a, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'), 'origin/main', 'the cache is stale');
+  // a claims phase 1: the claim commit sits on develop's head, not main's.
+  const won = keel(['phase', 'claim', '1', '--provider', 'claude', '--json'], x.a, x.env('acme-laptop'));
+  assert.equal(won.code, 0, won.out + won.err);
+  const sha = remoteClaim(x.origin, 1);
+  // The old main goes on to call phase 1 built; develop, the default, does not.
+  const file = join(x.b, 'docs/phases/01-anvil.md');
+  await writeFile(file, (await readFile(file, 'utf8')).replace('status: planned', 'status: built').replace('evidence: []', 'evidence: ["evidence/acme-0.md"]').replace('- [ ]', '- [x]'));
+  git(x.b, 'commit', '-q', '-am', 'phase 1: built on the old main');
+  git(x.b, 'push', '-q', 'origin', 'main');
+  assert.equal(git(x.origin, 'rev-parse', `${sha}^`), git(x.origin, 'rev-parse', 'refs/heads/develop'));
+  assert.notEqual(git(x.origin, 'rev-parse', 'refs/heads/develop'), git(x.origin, 'rev-parse', 'refs/heads/main'));
+
+  // keel next, with the stale cached HEAD and then with none: phase 1 is still claimed, not "built", and nothing is read from main.
+  for (const cached of ['stale', 'absent']) {
+    if (cached === 'absent') git(x.a, 'remote', 'set-head', 'origin', '-d');
+    const r = keel(['next', '--json'], x.a, x.env('acme-laptop'));
+    assert.equal(r.code, 0, cached + r.out + r.err);
+    const next = r.json();
+    assert.deepEqual([next.claims.branch, next.free.map(p => p.id), next.claimed.map(c => c.id), next.behind], ['develop', [2], [1], []], cached);
+  }
+  // b's tree calls phase 1 built, and so does main. Neither is the default branch: b may not release a's live claim.
+  for (const cached of ['stale', 'absent']) {
+    if (cached === 'absent') git(x.b, 'remote', 'set-head', 'origin', '-d');
+    const r = keel(['phase', 'claim', '1', '--release'], x.b, x.env('acme-desktop'));
+    assert.equal(r.code, 1, cached + r.out + r.err);
+    assert.match(r.out, /not by this checkout: keel never releases another session's claim/, cached);
+    assert.equal(remoteClaim(x.origin, 1), sha, `${cached}: the claim is still there`);
+  }
+  // The board's read of what was last fetched has no cached HEAD to go by now: the gap is said, not guessed from a branch called main.
+  const cachedRead = await claimItems(x.a, { env: x.env() });
+  assert.match(cachedRead.na ?? '', /^the claims could not be read: this checkout does not know origin's default branch \(git remote set-head origin -a\)/);
+  // A fresh read asks the remote.
+  assert.deepEqual((await claimItems(x.a, { env: x.env(), fresh: true })).items, []);
+  // Once develop says built, the claim has ended.
+  git(x.b, 'push', '-q', 'origin', 'main:refs/heads/develop');
+  assert.deepEqual(keel(['next', '--json'], x.a, x.env('acme-laptop')).json().behind, [1]);
+});
+
+test('when the remote\'s advertised default branch cannot be resolved, the claims could not be read (exit 2): nothing is free, claimed or released', async t => {
+  const x = await acme(t);
+  assert.equal(keel(['phase', 'claim', '1', '--provider', 'claude', '--json'], x.a, x.env('acme-laptop')).code, 0);
+  const sha = remoteClaim(x.origin, 1);
+  // The origin's HEAD names a branch that is not there. Its branches still fetch, and main and the cached origin/HEAD are still here to guess from.
+  git(x.origin, 'symbolic-ref', 'HEAD', 'refs/heads/gone');
+  const r = keel(['next', '--json'], x.b, x.env('acme-desktop'));
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.deepEqual(Object.keys(r.json()), ['error']);
+  assert.match(r.json().error, /^the claims could not be read: origin advertises no default branch \(its HEAD names no branch that exists\)\. No phase is listed as free\.$/);
+  assert.equal(keel(['next'], x.b, x.env('acme-desktop')).out, '');
+  assert.equal(keel(['phase', 'claim', '2', '--provider', 'codex', '--json'], x.b, x.env('acme-desktop')).code, 2);
+  assert.equal(remoteClaim(x.origin, 2), null);
+  for (const clone of [x.a, x.b]) assert.equal(keel(['phase', 'claim', '1', '--release', '--json'], clone, x.env('acme-laptop')).code, 2);
+  assert.equal(remoteClaim(x.origin, 1), sha);
 });
