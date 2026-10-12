@@ -36,17 +36,27 @@ That rule lives in one session's memory, not in keel.
 
 ## Phase 70: a phase being built is claimed
 
-**The claim is a pushed branch.** `keel phase claim <n>` creates
-`<provider>/phase-<n>` (the provider's prefix, `claude/` or `codex/`, as
-cross-review already reads it) from the default branch and pushes it before
-any work starts. A branch is the one thing every session, provider and
-machine can see with git alone: no GitHub API, no shared file, no server.
+**The claim is one shared branch per phase.** `keel phase claim <n>` pushes
+`claims/phase-<n>` before any work starts. A branch is the one thing every
+session, provider and machine can see with git alone: no GitHub API, no
+shared file, no server.
 
-- An open PR whose branch names the phase is a claim too, so work that began
-  before this phase counts.
-- `keel phase claim` refuses when the phase is claimed, naming the branch,
-  who pushed it and when. `--release` deletes a claim that was never built on.
-- A claim ends when its PR merges or closes, or its branch is deleted.
+- The name is the same for every provider, so two claims of one phase meet
+  on one ref. The push is create-only (`--force-with-lease=<ref>:`, which
+  succeeds only if the ref does not exist), and the server lets exactly one
+  through.
+- The claim is a commit of its own, on the default branch's head, whose
+  message names the provider, the machine and the time. Two sessions never
+  make the same commit, so the loser's push is refused, not a no-op, and it
+  reads the winner's commit to say who holds the phase.
+- The work goes on `<provider>/phase-<n>`, as now. An open PR whose branch
+  names the phase is a claim too, so work that began before this phase
+  counts.
+- `keel phase claim` refuses when the phase is claimed, naming who claimed
+  it and when. `--release` deletes the claim when no work branch or PR for
+  the phase exists.
+- A claim ends when the phase is built on the default branch, or it is
+  released.
 
 **`keel next` offers the free set.** It fetches, then lists every phase that
 is ready (its `depends:` are built) and unclaimed, the first as before and
@@ -61,7 +71,8 @@ on the board as the owner's item: release it, or leave it. keel never
 releases someone else's claim by itself.
 
 **What this would have changed:** the second session's `keel next` would
-have shown phase 54 as claimed by `claude/phase-54-robot` (PR #59).
+have shown phase 54 as claimed, by the open PR #59 on
+`claude/phase-54-robot`.
 
 **Known limits:**
 
@@ -115,7 +126,7 @@ three with a sorted list, not at round ten.
 
 ## Order and cost
 
-70 first: it is small (a branch, a fetch and a filter) and it prevents the
+70 first: it is small (a create-only push, a fetch and a filter) and it prevents the
 most expensive failure, a whole phase built twice. 71 next; it needs phase 48
 (the review gate), which is built.
 
