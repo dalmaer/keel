@@ -87,7 +87,12 @@ process.stdout.write(fs.readFileSync(${JSON.stringify(list)}, 'utf8'));
 `, { mode: 0o755 });
   const prs = async value => value === null ? rm(list, { force: true }) : writeFile(list, JSON.stringify(value));
   await prs([]);
-  const env = (machine = 'acme-host') => ({ ...process.env, KEEL_GH: gh, KEEL_MACHINE: machine, KEEL_PROVIDER: '' });
+  // A session's environment, said whole: its provider and session id are the test's, never those of the agent running the suite.
+  const env = (machine = 'acme-host', { provider = 'claude', session = '' } = {}) => {
+    const e = { ...process.env, KEEL_GH: gh, KEEL_MACHINE: machine, KEEL_PROVIDER: provider, KEEL_SESSION: session };
+    for (const k of Object.keys(e)) if (/^(CLAUDE|CODEX_)/.test(k)) delete e[k];
+    return e;
+  };
   return { dir, origin, a, b, env, prs };
 }
 
@@ -103,6 +108,7 @@ test('keel phase claim pushes claims/phase-<n>, its own commit on the default br
   assert.equal(first.code, 0, first.out + first.err);
   const won = first.json();
   assert.deepEqual([won.ok, won.claimed, won.held, won.branch], [true, true, true, 'claims/phase-1']);
+  assert.match(won.token, /^[0-9a-f]{32}$/, 'the token is handed to the claimer');
   // The branch is on the origin, one commit past main, with main's tree, and its message says who, where, when, and a token.
   const sha = remoteClaim(x.origin, 1);
   assert.equal(sha, won.sha);
@@ -133,8 +139,7 @@ test('keel phase claim pushes claims/phase-<n>, its own commit on the default br
   const built = keel(['phase', 'claim', '0', '--provider', 'claude', '--json'], x.a, x.env());
   assert.equal(built.code, 1);
   assert.match(keel(['phase', 'claim', '0', '--provider', 'claude'], x.a, x.env()).out, /^Phase 0 is built: nothing in it is left to claim\.\n$/);
-  const env = x.env();
-  for (const k of Object.keys(env)) if (k.startsWith('CODEX_') || k.startsWith('CLAUDE')) delete env[k];
+  const env = x.env('acme-host', { provider: '' });
   const nobody = keel(['phase', 'claim', '2', '--json'], x.a, env);
   assert.equal(nobody.code, 2);
   assert.match(nobody.json().error, /who is claiming\? --provider/);
@@ -248,7 +253,7 @@ test('keel next lists every ready, unclaimed phase and shows a claimed one as cl
   assert.equal(next.next.id, 2);
   assert.deepEqual(next.free.map(p => p.id), [2]);
   assert.deepEqual(next.claimed, [{ id: 1, title: 'Build the anvil', file: '01-anvil.md', status: 'planned',
-    holder: { by: 'branch', branch: 'claims/phase-1', provider: 'claude', machine: 'acme-laptop', at: won.holder.at, mine: false, pr: null, work: [] } }]);
+    holder: { by: 'branch', branch: 'claims/phase-1', provider: 'claude', machine: 'acme-laptop', at: won.holder.at, mine: false, here: false, pr: null, work: [] } }]);
   for (const list of [next.free, next.claimed]) assert.ok(!list.some(p => p.id === 3), 'phase 3 depends on 2, which is not built: in neither list');
   const text = keel(['next'], x.b, x.env('acme-desktop')).out;
   assert.match(text, /^2\. Build the rocket \[planned\]/);
@@ -259,7 +264,7 @@ test('keel next lists every ready, unclaimed phase and shows a claimed one as cl
   // Work pushed on another provider's branch for a claimed phase is reported with the claim (the collision the claim cannot stop).
   git(x.b, 'push', '-q', 'origin', 'HEAD:refs/heads/codex/phase-1');
   assert.deepEqual(keel(['next', '--json'], x.a, x.env()).json().claimed[0].holder.work, ['codex/phase-1']);
-  assert.match(keel(['next'], x.a, x.env()).out, /claims\/phase-1, this checkout\); work on codex\/phase-1\n/);
+  assert.match(keel(['next'], x.a, x.env()).out, /claims\/phase-1, this session\); work on codex\/phase-1\n/);
 
   // Both claimed: nothing is free, and next is null.
   assert.equal(keel(['phase', 'claim', '2', '--provider', 'codex', '--json'], x.b, x.env('acme-desktop')).code, 0);
@@ -311,7 +316,7 @@ test('--release deletes a claim with no work branch or PR, and refuses one that 
   claimIt(1);
   const theirs = keel(['phase', 'claim', '1', '--release'], x.b, x.env('acme-desktop'));
   assert.equal(theirs.code, 1);
-  assert.match(theirs.out, /^Phase 1 is claimed by claude on acme-laptop since \S+ \(claims\/phase-1\), not by this checkout: keel never releases another session's claim\. The owner can: git push origin --delete claims\/phase-1\n$/);
+  assert.match(theirs.out, /^Phase 1 is claimed by claude on acme-laptop since \S+ \(claims\/phase-1\), not by this session: keel never releases another session's claim\. The owner can: git push origin --delete claims\/phase-1\n$/);
   assert.ok(remoteClaim(x.origin, 1));
 
   // A pushed work branch: refused.
@@ -409,7 +414,7 @@ test('a phase marked built only in one checkout does not let it release another 
   await markBuilt(x.b);
   const foreign = keel(['phase', 'claim', '1', '--release'], x.b, x.env('acme-desktop'));
   assert.equal(foreign.code, 1, foreign.out + foreign.err);
-  assert.match(foreign.out, /^Phase 1 is claimed by claude on acme-laptop since \S+ \(claims\/phase-1\), PR #7, not by this checkout: keel never releases another session's claim\./);
+  assert.match(foreign.out, /^Phase 1 is claimed by claude on acme-laptop since \S+ \(claims\/phase-1\), PR #7, not by this session: keel never releases another session's claim\./);
   assert.equal(remoteClaim(x.origin, 1), sha, 'the claim is still there');
   // The holder marking it built locally does not skip the work checks either: the open PR still holds the claim. The refusal names the owner's way out.
   await markBuilt(x.a);
@@ -510,7 +515,7 @@ test('the remote\'s default is develop and an old main calls the phase built: ph
     if (cached === 'absent') git(x.b, 'remote', 'set-head', 'origin', '-d');
     const r = keel(['phase', 'claim', '1', '--release'], x.b, x.env('acme-desktop'));
     assert.equal(r.code, 1, cached + r.out + r.err);
-    assert.match(r.out, /not by this checkout: keel never releases another session's claim/, cached);
+    assert.match(r.out, /not by this session: keel never releases another session's claim/, cached);
     assert.equal(remoteClaim(x.origin, 1), sha, `${cached}: the claim is still there`);
   }
   // The board's read of what was last fetched has no cached HEAD to go by now: the gap is said, not guessed from a branch called main.
@@ -538,4 +543,92 @@ test('when the remote\'s advertised default branch cannot be resolved, the claim
   assert.equal(remoteClaim(x.origin, 2), null);
   for (const clone of [x.a, x.b]) assert.equal(keel(['phase', 'claim', '1', '--release', '--json'], clone, x.env('acme-laptop')).code, 2);
   assert.equal(remoteClaim(x.origin, 1), sha);
+});
+
+// keel#119: a token under the tree's git dir says the claim was made from this tree, not by whom. Ownership is the session's.
+test('a second session started in the same working tree after a claim landed is refused like another checkout: by provider, by session id, and without the token', async t => {
+  const x = await acme(t);
+  const A = x.env('acme-laptop', { provider: 'claude', session: 'acme-session-a' });
+  const won = keel(['phase', 'claim', '1', '--json'], x.a, A);
+  assert.equal(won.code, 0, won.out + won.err);
+  const { token, sha } = won.json();
+
+  // B, the same provider, another session, the same tree: refused (exit 1), naming the holder; not "held".
+  const B = x.env('acme-laptop', { provider: 'claude', session: 'acme-session-b' });
+  let r = keel(['phase', 'claim', '1', '--json'], x.a, B);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.deepEqual([r.json().ok, r.json().refused, r.json().held], [false, true, undefined]);
+  assert.deepEqual([r.json().holder.provider, r.json().holder.machine, r.json().holder.mine, r.json().holder.here], ['claude', 'acme-laptop', false, true]);
+  assert.match(keel(['phase', 'claim', '1'], x.a, B).out, /^Phase 1 is claimed: claude on acme-laptop since \S+ \(claims\/phase-1, this working tree, another session\)\. Take another free phase \(keel next\), or stop\. If the claim is yours, say so with the token keel printed when it was made: keel phase claim 1 --token <token>\n$/);
+  // keel next shows it to B as claimed, not as its own.
+  const seen = keel(['next', '--json'], x.a, B).json();
+  assert.deepEqual([seen.next.id, seen.claimed.map(c => [c.id, c.holder.mine, c.holder.here])], [2, [[1, false, true]]]);
+  // C, a different provider in the same tree, with or without a session id, and whatever it names: refused.
+  for (const C of [x.env('acme-laptop', { provider: 'codex' }), x.env('acme-laptop', { provider: 'codex', session: 'acme-session-a' })]) {
+    r = keel(['phase', 'claim', '1', '--json'], x.a, C);
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.json().refused, true);
+  }
+  assert.equal(keel(['phase', 'claim', '1', '--provider', 'codex', '--json'], x.a, B).code, 1, 'the provider it names is checked before it is told anything');
+  // A session with no id cannot be shown to be the claimer of a claim that recorded one.
+  assert.equal(keel(['phase', 'claim', '1', '--json'], x.a, x.env('acme-laptop', { provider: 'claude' })).code, 1);
+  assert.match(keel(['phase', 'claim', '2'], x.a, A).out, /\nToken: [0-9a-f]{32} \(this session needs no flag; another session in this working tree resumes or releases the claim only with --token\)\n$/);
+  assert.equal(keel(['phase', 'claim', '2', '--release', '--json'], x.a, A).code, 0);
+
+  // --release follows the same rule: B and C release nothing, and are told how the claimer would.
+  for (const other of [B, x.env('acme-laptop', { provider: 'codex' })]) {
+    r = keel(['phase', 'claim', '1', '--release'], x.a, other);
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.match(r.out, /^Phase 1 is claimed by claude on acme-laptop since \S+ \(claims\/phase-1, this working tree, another session\), not by this session: keel never releases another session's claim\. If the claim is yours, say so with the token keel printed when it was made: keel phase claim 1 --release --token <token>\. The owner can: git push origin --delete claims\/phase-1\n$/);
+    assert.equal(remoteClaim(x.origin, 1), sha);
+  }
+  // A wrong token is refused; it does not fall back to anything else, even for the claimer's own session.
+  assert.equal(keel(['phase', 'claim', '1', '--token', 'f'.repeat(32), '--json'], x.a, A).code, 1);
+  assert.equal(keel(['phase', 'claim', '1', '--release', '--token', 'f'.repeat(32), '--json'], x.a, B).code, 1);
+  assert.equal(keel(['phase', 'claim', '1', '--token', 'not a token', '--json'], x.a, B).code, 2);
+  // The token made in this tree proves nothing from another checkout.
+  assert.equal(keel(['phase', 'claim', '1', '--token', token, '--json'], x.b, A).code, 1);
+  assert.equal(remoteClaim(x.origin, 1), sha);
+
+  // A itself, with no flag: still held, and the session it was all along.
+  const again = keel(['phase', 'claim', '1', '--json'], x.a, A).json();
+  assert.deepEqual([again.ok, again.held, again.claimed, again.holder.mine], [true, true, false, true]);
+  assert.match(keel(['next'], x.a, A).out, /claims\/phase-1, this session\)/);
+  // A restarted under a new session id shows the token it was given: held, then released.
+  const restarted = x.env('acme-laptop', { provider: 'claude', session: 'acme-session-a2' });
+  assert.equal(keel(['phase', 'claim', '1', '--json'], x.a, restarted).code, 1);
+  assert.deepEqual(keel(['phase', 'claim', '1', '--token', token, '--json'], x.a, restarted).json().held, true);
+  r = keel(['phase', 'claim', '1', '--release', '--token', token, '--json'], x.a, restarted);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.equal(remoteClaim(x.origin, 1), null);
+});
+
+test('one session claims, loses the read-back, resumes and releases in its own tree with no extra flag; with no session id at all, only the provider tells sessions apart', async t => {
+  const x = await acme(t);
+  // The common case, with a session id, through the lost read-back: the same session is told it holds the claim.
+  const A = x.env('acme-laptop', { provider: 'claude', session: 'acme-session-a' });
+  await assert.rejects(claim({ root: x.a, phase: '1' }, { env: A, afterPush: async () => { git(x.a, 'remote', 'set-url', 'origin', join(x.dir, 'gone.git')); } }), /may or may not be claimed/);
+  git(x.a, 'remote', 'set-url', 'origin', x.origin);
+  assert.equal((await claim({ root: x.a, phase: '1' }, { env: x.env('acme-laptop', { provider: 'claude', session: 'acme-session-b' }) })).data.refused, true, 'another session does not inherit the claim the lost read-back left');
+  assert.equal((await claim({ root: x.a, phase: '1' }, { env: A })).data.held, true);
+  assert.equal((await claim({ root: x.a, phase: '1', release: true }, { env: A })).data.released, true);
+
+  // No session id anywhere (an agent that exposes none): claim, resume and release still work with no flag.
+  const plain = x.env('acme-laptop', { provider: 'codex' });
+  assert.equal(keel(['phase', 'claim', '2', '--json'], x.a, plain).code, 0);
+  assert.equal(keel(['phase', 'claim', '2', '--json'], x.a, plain).json().held, true);
+  // The known limit: a second session of the same provider, also with no id, is not told apart...
+  assert.equal(keel(['phase', 'claim', '2', '--json'], x.a, x.env('acme-laptop', { provider: 'codex' })).json().held, true);
+  // ...but another provider is, and so is a caller that names none.
+  assert.equal(keel(['phase', 'claim', '2', '--json'], x.a, x.env('acme-laptop', { provider: 'claude', session: 'acme-session-a' })).code, 1);
+  assert.equal(keel(['phase', 'claim', '2', '--release', '--json'], x.a, x.env('acme-laptop', { provider: '' })).code, 1);
+  assert.equal(keel(['phase', 'claim', '2', '--release', '--json'], x.a, plain).code, 0);
+  assert.equal(remoteClaim(x.origin, 2), null);
+});
+
+test('the session is KEEL_SESSION, else the id Claude Code sets; nothing else is guessed', async () => {
+  const { sessionOf } = await import('../lib/claim.mjs');
+  assert.equal(sessionOf({ CLAUDE_CODE_SESSION_ID: 'acme-1' }), 'acme-1');
+  assert.equal(sessionOf({ CLAUDE_CODE_SESSION_ID: 'acme-1', KEEL_SESSION: 'acme-2' }), 'acme-2');
+  assert.equal(sessionOf({ CODEX_HOME: '/acme', CLAUDECODE: '1' }), null);
 });

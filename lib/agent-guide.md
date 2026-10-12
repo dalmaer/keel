@@ -109,8 +109,10 @@ stderr as one line beginning `keel:`.
 - `phase new` → `{ok, id, file, path, goal, depends}`
 - `phase list` → the roadmap's phase objects, as `next` reports one
 - `phase claim` → `{ok, phase, title, branch, remote, held, claimed, sha,
-  holder}`; refused (exit 1): `{ok: false, refused: true, holder}`;
-  `--release` → `{ok, released: true}`, or refused with `work`
+  token, holder}` (`token` only when this call made the claim); refused
+  (exit 1): `{ok: false, refused: true, holder}`; `--release` → `{ok,
+  released: true}`, or refused with `work`. `holder.mine`: the caller's own;
+  `holder.here`: made from this working tree, by whichever session
 - `render` → `{root, check, ok, differs: [path or path#block], entries}`
 - `init` → `{ok, dir, config, commit, message, files, secrets}`; with
   `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
@@ -194,8 +196,16 @@ keel goal retire G1 --reason "Nobody exports" --phases supersede --yes
   An open PR whose branch names the phase (`claude/phase-<n>-…`) is a claim
   too. Claimed by someone else: exit 1, naming who and since when; take
   another free phase from `keel next`, or stop. Asked again by its holder:
-  exit 0, `held`. A claim ends when the phase is built on the default branch.
-  `--release` deletes this checkout's claim when no work branch or open PR
+  exit 0, `held`. A claim is its session's, not its working tree's: a caller
+  in the same tree holds it only if it names the claim's provider and has
+  the session id recorded with the claim (`KEEL_SESSION`, else Claude Code's
+  `CLAUDE_CODE_SESSION_ID`), or passes `--token <t>`, the token printed when
+  the claim was made (a restarted session's way back; a wrong token is
+  refused). Any other caller in that tree is refused like another checkout.
+  Known limit: a claim made with no session id (Codex sets none keel knows)
+  is held by any session of its provider in that tree.
+  A claim ends when the phase is built on the default branch.
+  `--release` deletes the caller's own claim when no work branch or open PR
   names the phase; another session's claim is never released (exit 1), and
   one idle for seven days is the owner's item on the board. Unread claims
   (no remote, a failed fetch, gh failing): exit 2. It is advice with a
