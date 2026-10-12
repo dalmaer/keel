@@ -194,6 +194,22 @@ test('at the limit keel review exits 3 with the three choices; under it the exit
   assert.equal(keel(dir, merged, ['#3', '--json']).json().choice, null);
 });
 
+test('--wait at the limit does not wait for the reviewer: an unreviewed head exits 3 on the first read', async t => {
+  // Half a minute of waiting is configured, and the head D was never reviewed.
+  const dir = await project(t, { reviewers: ['acme-reviewer'], wait: 0.5 });
+  const gh = await stubGh(t, { threads: threeRounds(), reviews: [] });
+  const r = keel(dir, gh, ['#3', '--wait', '--json']);
+  assert.equal(r.code, 3);
+  const d = r.json();
+  assert.deepEqual([d.rounds.reached, d.waited, d.notReviewed], [true, null, ['acme-reviewer']]);
+  assert.equal((await gh.calls()).length, 2, 'one read of the PR and its reviews: no poll');
+  // Under the limit --wait still waits (and times out, exit 1) as before.
+  const under = await stubGh(t, { threads: threeRounds().slice(0, 2), reviews: [] });
+  const w = keel(await project(t, { reviewers: ['acme-reviewer'], wait: 0.002 }), under, ['#3', '--wait', '--json']);
+  assert.equal(w.code, 1);
+  assert.equal(w.json().waited.timedOut, true);
+});
+
 test('keel review --gate is unchanged by the limit: 0 when answered and the head reviewed, 1 when not, and no choice', async t => {
   const dir = await project(t);
   const done = await stubGh(t, { threads: threeRounds(), reviews: [onHead] });
@@ -327,6 +343,27 @@ test('--class on a review body posts a marked comment that links it and still do
   const d = keel(dir, gh, ['#3', '--json']).json();
   assert.deepEqual(d.comments.map(x => [x.id, x.kind, x.answered, x.class]), [['PRR_1', 'review', false, 'overwrite']]);
   assert.equal(keel(dir, gh, ['#3', '--gate']).code, 1);
+});
+
+test('--class again with the same kind posts nothing, on a review body and on a thread, though the classifier is in the conversation', async t => {
+  const dir = await project(t);
+  // The classifier (acme-agent) has already spoken in the conversation, and its class reply on a review body is one more comment there.
+  const gh = await stubGh(t, { me: 'acme-agent', writes: true, reviews: [onHead], threads: [finding('PRRT_1', A)],
+    bodies: [{ id: 'PRR_1', databaseId: 7, author: 'acme-reviewer', body: 'The whole plan overwrites the owner\'s anvil.', commit: A }],
+    comments: [{ id: 'IC_hello', databaseId: 60, author: 'acme-agent', body: 'Acme agent here, reading the review.' }] });
+  keel(dir, gh, ['#3']);
+  const first = keel(dir, gh, ['#3', '--class', 'overwrite', 'PRR_1,PRRT_1', '--json']);
+  assert.equal(first.code, 0, first.err);
+  assert.deepEqual(first.json().classed.map(x => [x.id, x.replied, x.already]), [['PRR_1', true, undefined], ['PRRT_1', true, undefined]]);
+  assert.equal(writesIn(await gh.calls()).length, 2);
+  const again = keel(dir, gh, ['#3', '--class', 'overwrite', 'PRR_1,PRRT_1', '--json']);
+  assert.equal(again.code, 0, again.err);
+  assert.deepEqual(again.json().classed.map(x => [x.id, x.replied, x.already]), [['PRR_1', false, true], ['PRRT_1', false, true]]);
+  assert.equal(writesIn(await gh.calls()).length, 2, 'no second reply on either');
+  // Another kind is a new decision: it is posted, and the newest class is the one read.
+  assert.equal(keel(dir, gh, ['#3', '--class', 'other', 'PRR_1']).code, 0);
+  assert.equal(writesIn(await gh.calls()).length, 3);
+  assert.deepEqual(keel(dir, gh, ['#3', '--json']).json().comments.map(x => [x.id, x.answered, x.class]).sort(), [['PRRT_1', false, 'overwrite'], ['PRR_1', false, 'other']]);
 });
 
 test('--class refuses a kind that is not one of the four, no ids, an id it has not read, and a push; nothing is posted', async t => {
