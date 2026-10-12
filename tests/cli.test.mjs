@@ -139,7 +139,8 @@ test('--json parses for every verb and flag; human text never mixes in', async t
     // GraphQL (keel review, loose-ends' review read) gets an answer with no PRs and no threads.
     const noThreads = { pageInfo: { hasNextPage: false }, nodes: [] };
     const graphql = JSON.stringify({ data: { repository: { pullRequest: { number: 1, title: 'Acme', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', headRefOid: 'abc1234', reviewThreads: noThreads, comments: noThreads }, open: noThreads, merged: noThreads } } });
-    await writeFile(emptyGh, `#!${process.execPath}\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
+    // keel review reads the PR's repo's own .keel/keel.json for its round limit, with --reviewer too (keel#118): acme/app has none.
+    await writeFile(emptyGh, `#!${process.execPath}\nif (process.argv.some(a => a.endsWith('/contents/.keel/keel.json'))) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
     await writeFile(join(dir, 'fleet.json'), '[]\n');
     // walk decide records a decision on a health page's proposal: a synthetic one, outside the health directory.
     await writeFile(join(dir, 'acme-health.md'), '# Acme health\n\n## Proposal\n\n**`acme_measure`** (outside) — Acme proposes.\n');

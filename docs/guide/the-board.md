@@ -23,7 +23,10 @@ it waits on, in the order you read them:
   keel never releases a claim for you. A PR at its review-round limit
   (three rounds unless `.keel/keel.json` says otherwise) is yours too, with
   its round count and open findings: merge with the rest tracked, split it,
-  or close it. A fleet project's PR uses three whatever that project sets.
+  or close it. A fleet project's PR is held to that project's own limit, read
+  with the fleet. When its config cannot be read, the board says so beside
+  its sources and holds that project's PRs to no limit: they stay under
+  Broken by their unanswered comments, and none is assumed to be at three.
 - **Broken**: a red CI on a fleet project's default branch, a draft keel
   update PR ("acme/ledger: keel update v0.8.26 fails ledger's check": the
   fleet kept an update whose check failed; its description says what to

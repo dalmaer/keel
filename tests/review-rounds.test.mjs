@@ -29,8 +29,9 @@ const [A, B, C, D] = ['a', 'b', 'c', 'd'].map(x => `${x}1`.repeat(20));
  * [{databaseId, author, body}]}] (commit: the push its first comment was made
  * on), comments (conversation), bodies (reviews: {id, databaseId, author,
  * body, commit, state}), reviews (REST: {user, commit_id, state}), writes
- * (posts and mutations allowed). A reply is also a review with no body, as on
- * GitHub. Every call is logged; a write the test did not allow exits 1.
+ * (posts and mutations allowed), contents (the PR's repo's .keel/keel.json;
+ * absent: 404; contentsDown: the read fails). A reply is also a review with
+ * no body, as on GitHub. Every call is logged; a write the test did not allow exits 1.
  */
 async function stubGh(t, state) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-rounds-gh-'));
@@ -72,6 +73,10 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
 } else if (argv[0] === 'api' && /\\/pulls\\/\\d+\\/reviews/.test(argv[1])) {
   const pg = Number((/[?&]page=(\\d+)/.exec(argv[1]) ?? [])[1] ?? 1);
   console.log(JSON.stringify(pg > 1 ? [] : s.reviews.map(r => ({ user: { login: r.user }, state: r.state ?? 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-10T10:00:00Z' }))));
+} else if (argv[0] === 'api' && argv[1].endsWith('/contents/.keel/keel.json')) {
+  if (s.contentsDown) { console.error('gh: Server Error (HTTP 502)'); process.exit(1); }
+  if (!s.contents) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }
+  console.log(JSON.stringify({ content: Buffer.from(JSON.stringify(s.contents)).toString('base64') }));
 } else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
   await chmod(path, 0o755);
@@ -286,6 +291,44 @@ test('"review": {"rounds": N} changes the limit, 3 when unset; a bad value is re
   }
   assert.equal(reviewConfigOf({ review: { rounds: 1 } }).problem, undefined);
   assert.match(reviewConfigOf({ review: { round: 3 } }).problem, /unknown key "round" \(reviewers, wait, rounds\)/);
+});
+
+// keel#118: the limit is the PR's repository's, whoever names the reviewer and wherever keel runs.
+test('with --reviewer the round limit and the wait are the PR\'s repository\'s own, never this checkout\'s; only the reviewer list is replaced', async t => {
+  // This checkout (acme/app) stops at one round and waits 9 minutes; the PR is acme/other's.
+  const here = await project(t, { reviewers: ['acme-local'], rounds: 1, wait: 9 });
+  const five = await stubGh(t, { threads: threeRounds(), reviews: [onHead], contents: { repo: 'acme/other', review: { reviewers: ['acme-theirs'], rounds: 5, wait: 7 } } });
+  const r = keel(here, five, ['acme/other#3', '--reviewer', 'acme-reviewer', '--json']);
+  assert.equal(r.code, 0, 'three rounds under acme/other\'s five: not the owner\'s yet');
+  const d = r.json();
+  assert.deepEqual([d.rounds.limit, d.rounds.reached, d.wait, d.reviewers, d.reviewersFrom], [5, false, 7, ['acme-reviewer'], '--reviewer']);
+  assert.ok((await five.calls()).some(c => c[1] === 'repos/acme/other/contents/.keel/keel.json'), 'the target\'s config was read');
+  // The other way: this checkout allows five, the PR's repo two.
+  const loose = await project(t, { rounds: 5 });
+  const two = await stubGh(t, { threads: threeRounds().slice(0, 2), reviews: [onHead], contents: { repo: 'acme/other', review: { rounds: 2 } } });
+  const tight = keel(loose, two, ['acme/other#3', '--reviewer', 'acme-reviewer']);
+  assert.equal(tight.code, 3);
+  assert.match(tight.out, /Review round 2 of 2/);
+  // The same answer as without --reviewer.
+  assert.equal(keel(loose, two, ['acme/other#3', '--json']).json().rounds.limit, 2);
+  // The PR's repo has no .keel/keel.json: the defaults (three rounds, ten minutes), not this checkout's one.
+  const none = await stubGh(t, { threads: threeRounds().slice(0, 2), reviews: [onHead] });
+  const plain = keel(here, none, ['acme/other#3', '--reviewer', 'acme-reviewer', '--json']);
+  assert.equal(plain.code, 0);
+  assert.deepEqual([plain.json().rounds.limit, plain.json().wait], [3, 10]);
+  // An invalid or unreadable target config is refused as it is without --reviewer: exit 2, never this checkout's limit.
+  for (const flags of [[], ['--reviewer', 'acme-reviewer']]) {
+    const bad = keel(loose, await stubGh(t, { threads: threeRounds(), reviews: [onHead], contents: { review: { rounds: 0 } } }), ['acme/other#3', ...flags]);
+    assert.equal(bad.code, 2, flags.join(' '));
+    assert.match(bad.err, /acme\/other's \.keel\/keel\.json: "review" "rounds" must be a whole number of review rounds, 1 or more/);
+    const down = keel(loose, await stubGh(t, { threads: threeRounds(), reviews: [onHead], contentsDown: true }), ['acme/other#3', ...flags]);
+    assert.equal(down.code, 2, flags.join(' '));
+    assert.match(down.err, /GitHub could not be read \(acme\/other's \.keel\/keel\.json\)/);
+  }
+  // The project's own PR is read from the file here, with no call for it.
+  const own = await stubGh(t, { threads: threeRounds(), reviews: [onHead] });
+  assert.equal(keel(loose, own, ['#3', '--reviewer', 'acme-reviewer', '--json']).json().rounds.limit, 5);
+  assert.ok(!(await own.calls()).some(c => String(c[1]).includes('/contents/')));
 });
 
 // ---- the class --------------------------------------------------------------------

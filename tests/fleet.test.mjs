@@ -224,6 +224,18 @@ test('a gate workflow named in config (.keel/keel.json gateWorkflow) is the gate
   assert.match(rowOf(await go(await home(t, LIST), await stubGh(t, st)), 'acme/fresh').ci.unreadable, /"gateWorkflow" must be/);
 });
 
+// keel#118: the board holds a fleet repo's PRs to that repo's own review-round limit, from this read.
+test('each adopted row carries its review-round limit, validated: its own "review".rounds, three when unset, the problem when the config is bad', async t => {
+  const st = state();
+  st.repos['acme/fresh'].files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', review: { reviewers: ['acme-reviewer'], rounds: 5 } });
+  st.repos['acme/quiet'].files['.keel/keel.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', review: { rounds: 0 } });
+  const r = await go(await home(t, LIST), await stubGh(t, st));
+  assert.deepEqual(rowOf(r, 'acme/fresh').review, { rounds: 5 });
+  assert.deepEqual(rowOf(r, 'acme/behind').review, { rounds: 3 });
+  assert.match(rowOf(r, 'acme/quiet').review.problem, /"review" "rounds" must be a whole number of review rounds, 1 or more/);
+  assert.equal(rowOf(r, 'acme/plain').review, undefined, 'not adopted: no config to read');
+});
+
 test('health is read from the project\'s configured dir (.keel/keel.json `health`), not docs/health', async t => {
   const st = state();
   const fresh = st.repos['acme/fresh'];
