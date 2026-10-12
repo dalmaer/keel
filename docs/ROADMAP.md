@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**41 of 70 phases built; 27 owe a walk.** Built means implemented and checked; planned is not available.
+**41 of 72 phases built; 27 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Await a deployed public isocan conditional-edit operation before implementing the stable live pulse. Complete the real browser concurrent-edit walk and provision the dedicated GitHub writer using the project-canvas guide, then verify night/restart behavior. Immutable packed recovery and a deployed historical receipt replay are proven. Preserve the already approved destination, writer, dashboards and weekly automation; do not request their approval again. Scheduled-use evidence is still owed. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-9/14 built; 5 owe a walk.
+9/16 built; 5 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -31,6 +31,8 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [67. CLI cost is measured and evidence contracts are checked](phases/67-cli-cost-and-checked-contracts.md) | built | 2026-10-10 | [56](phases/56-keel-knows-where-time-goes.md), [57](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md) | Local and real GitHub cost measured; two production contracts checked without compiling runtime source. |
 | [68. Independent reads do not wait for each other](phases/68-independent-reads.md) | built | 2026-10-10 | [67](phases/67-cli-cost-and-checked-contracts.md) | Fresh GitHub reads overlap with deterministic output; local overlap rejected after measurement. |
 | [69. Tests earn their cost](phases/69-tests-earn-their-cost.md) | built | 2026-10-11 | [55](phases/55-a-test-judges-the-code-not-the-machine.md), [57](phases/57-time-getting-worse-becomes-a-proposal-and-a-fix.md), [68](phases/68-independent-reads.md) | Removed redundant instrument/process work; retained failure history and coverage led to focused missing-boundary checks. |
+| [70. A phase being built is claimed, and keel next hands out what is free](phases/70-a-phase-being-built-is-claimed-and-keel-next.md) | planned | 2026-10-12 | — | Specified 2026-10-12 from the phase 54 collision: one shared create-only branch per phase is the claim, and keel next lists what is ready and unclaimed. · [#113](https://github.com/dalmaer/keel/issues/113) |
+| [71. A review that keeps going is brought to the owner after three rounds](phases/71-a-review-that-keeps-going-is-brought-to-the.md) | planned | 2026-10-12 | [48](phases/48-a-release-is-reviewed-before-the-fleet-sees-it.md) | Specified 2026-10-12 from the ten-round review of #59: past three rounds keel review gives the owner the choice, findings sorted by the merge rule. · [#114](https://github.com/dalmaer/keel/issues/114) |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
@@ -46,6 +48,8 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 - **67 done when:** Repeatable CLI measurements distinguish startup, local residual work, subprocesses and observed network boundaries, and a no-emit type check rejects invalid evidence states in selected production modules.
 - **68 done when:** Reconciliation reads GitHub PRs with bounded concurrency while preserving deterministic observations and failures, and local timing work is measured and optimized only where evidence supports it.
 - **69 done when:** Measured redundant test work is removed without losing distinct behavioral contracts, missing checks found by coverage and history are addressed, and reproducible evidence explains test counts, cost and limits.
+- **70 done when:** A session claims a phase before building it, in a way every other session, provider and machine can see with git alone; `keel next` offers only phases that are ready and unclaimed; and the conduct skill claims before it builds.
+- **71 done when:** keel counts a PR's review rounds, and past the limit (three by default) `keel review` stops the fix-and-push loop and gives the owner the choice (merge with the rest tracked, split, or close), with each open finding sorted by the merge rule.
 
 ## G1 — Start a project in one command
 
