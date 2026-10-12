@@ -447,3 +447,33 @@ test('a phase the default branch calls "built", or "partial" owing a "walk", in 
   const state = await readClaims({ root: x.a, config: JSON.parse(await readFile(join(x.a, '.keel/keel.json'), 'utf8')), env: x.env() });
   assert.deepEqual([await state.ended(1), await state.ended(2), await state.ended(3), await state.ended(0)], [true, true, true, true]);
 });
+
+// Review of #117: two claim commands in ONE checkout. Each keeps its own token; the loser must not take the winner's with it.
+test('two claims racing in the same checkout: the loser never removes or overwrites the winner\'s token, so the winner still holds and can release', async t => {
+  const x = await acme(t);
+  const env = x.env('acme-laptop');
+  const again = async n => (await claim({ root: x.a, phase: String(n), provider: 'claude' }, { env })).data;
+  // The first has written its token and pauses before its push; the second, in the same checkout, claims and wins; the first then loses.
+  let second;
+  const first = await claim({ root: x.a, phase: '1', provider: 'claude' }, { env, beforePush: async () => { second = await claim({ root: x.a, phase: '1', provider: 'claude' }, { env }); } });
+  assert.deepEqual([second.data.ok, second.data.claimed, first.data.refused], [true, true, true]);
+  assert.equal(remoteClaim(x.origin, 1), second.data.sha);
+  // The claim on the remote is this checkout's: held, not "another session's".
+  let now = await again(1);
+  assert.deepEqual([now.ok, now.held, now.holder?.mine], [true, true, true], JSON.stringify(now));
+  assert.equal(keel(['next', '--json'], x.a, x.env('acme-laptop')).json().claimed[0].holder.mine, true);
+  // Only the claim's own token is kept: the first attempt's losing one is gone, the winner's is the one file left.
+  const dir = `${resolve(x.a, git(x.a, 'rev-parse', '--git-path', 'keel-claims/phase-1'))}.d`;
+  const { readdir, rename } = await import('node:fs/promises');
+  const kept = await readdir(dir);
+  assert.equal(kept.length, 1);
+  assert.match(git(x.origin, 'log', '-1', '--format=%B', second.data.sha), new RegExp(`^Token: ${kept[0]}$`, 'm'));
+  // A token in the first build's one shared file is still this checkout's.
+  await rename(join(dir, kept[0]), join(dir, 'aside'));
+  assert.equal((await again(1)).refused, true, 'no token: not ours');
+  await writeFile(resolve(x.a, git(x.a, 'rev-parse', '--git-path', 'keel-claims/phase-1')), `${kept[0]}\n`);
+  assert.equal((await again(1)).held, true);
+  // Release removes the claim and its token, and nothing else.
+  assert.equal((await claim({ root: x.a, phase: '1', release: true }, { env })).data.released, true);
+  assert.deepEqual(await readdir(dir), ['aside']);
+});
