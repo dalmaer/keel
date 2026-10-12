@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, lstat, link } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, lstat, link, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -8,7 +8,7 @@ import { run } from './helpers/run.mjs';
 import { adopt } from '../lib/adopt.mjs';
 import { render, config, practiceVersion } from '../lib/practices.mjs';
 import { diagnose, doctor } from '../lib/doctor.mjs';
-import { guideDestination } from '../lib/guide.mjs';
+import { guideDestination, guideTargetsOverlap } from '../lib/guide.mjs';
 import { readLock } from '../lib/lock.mjs';
 import { init } from '../lib/init.mjs';
 import { update } from '../lib/update.mjs';
@@ -564,4 +564,20 @@ test('PR107: collision probes use each directory entry policy and preserve unkno
   `;
   const result = run(process.execPath, ['--input-type=module', '-e', script]);
   assert.equal(result.status, 0, result.stderr);
+});
+
+// keel#120: an execute-only directory can be entered by name and not listed. Root lists it anyway, and Windows has no such mode.
+test('a directory that cannot be listed is unknown case behaviour: case-only variants are reserved, and nothing aborts', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'keel-guide-'));
+  const locked = join(dir, 'locked');
+  try {
+    await mkdir(locked);
+    await writeFile(join(locked, 'guide.md'), 'x');
+    await chmod(locked, 0o111);
+    assert.equal(guideTargetsOverlap(dir, 'locked/Rules.md', 'locked/rules.md'), true, 'case-only variants are reserved');
+    assert.equal(guideTargetsOverlap(dir, 'locked/guide.md', 'locked/other.md'), false, 'unknown only reserves case collisions');
+  } finally {
+    await chmod(locked, 0o755).catch(() => {});
+    await rm(dir, { recursive: true, force: true });
+  }
 });
