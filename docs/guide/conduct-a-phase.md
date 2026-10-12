@@ -60,7 +60,8 @@ In Claude Code, the skill is `/conduct`:
 The conductor's own commands are the project's, not keel's:
 
 ```bash
-keel next            # what to conduct, and its next action
+keel next            # what to conduct, and its next action; what is free, what is claimed
+keel phase claim <N> # before building: the phase is yours, or someone holds it
 npm run check        # the gate, once, on the final tree with the record in it
 keel retro --since <the commit before the phase>   # the retro worksheet, after the commit
 ```

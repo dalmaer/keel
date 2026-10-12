@@ -170,9 +170,9 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 
 | Verb | What it does |
 | --- | --- |
-| `keel status`, `keel next` | Where the project stands; the next phase and its next action |
+| `keel status`, `keel next` | Where the project stands; the next free phase, and which ready ones are claimed |
 | `keel goal list\|show\|add\|retire` | Goals as outcomes. Progress is derived from phases, never stored |
-| `keel phase new\|list` | Scaffold the next free phase under a goal |
+| `keel phase new\|list\|claim` | Scaffold the next free phase under a goal; claim a phase before building it |
 | `keel init`, `keel adopt` | Start a project, or bring one under keel |
 | `keel render` | Write the practices onto the project; `--check` only compares |
 | `keel doctor` | What the project changed of keel's files, and practice rules broken. Changes nothing without `--fix` |

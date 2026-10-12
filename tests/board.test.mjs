@@ -972,6 +972,62 @@ test('board time proposal actions bind instance and explicit acceptance files an
  }finally{await rm(root,{recursive:true,force:true});}
 });
 
+// Phase 70: a claim nobody has pushed to for seven days is the owner's to release or leave. keel releases nothing.
+test('a claim idle for seven days is the owner\'s item; a fresher one, one with a recent push, and one whose phase is built are not', async t => {
+  const { claim } = await import('../lib/claim.mjs');
+  const root = await acme({ git: true });
+  const origin = `${root}-origin.git`;
+  t.after(() => Promise.all([root, origin, `${root}-gh`].map(d => rm(d, { recursive: true, force: true }))));
+  const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  execFileSync('git', ['clone', '-q', '--bare', root, origin]);
+  git('remote', 'add', 'origin', origin);
+  git('fetch', '-q', 'origin');
+  git('remote', 'set-head', 'origin', 'main');
+  // The claims are made through keel, which asks gh for the open PRs: a stub with none. The board itself asks gh nothing here.
+  const gh = `${root}-gh`;
+  await writeFile(gh, `#!${process.execPath}\nconsole.log('[]');\n`, { mode: 0o755 });
+  const env = { ...process.env, KEEL_GH: gh, KEEL_MACHINE: 'acme-laptop' };
+  const now = new Date('2026-10-20T12:00:00Z'), ago = days => new Date(+now - days * 86_400_000);
+  const read = async (more = {}) => (await board({ root }, { ...deps(root), env, now, ...more }));
+  const claimsOf = data => data.items.filter(i => i.source === 'claims');
+
+  // No claim: the source is read (there is a remote) and has nothing.
+  let data = await read();
+  assert.deepEqual(claimsOf(data), []);
+  assert.deepEqual(data.sources.find(s => s.source === 'claims'), { source: 'claims', state: 'ok', count: 0, why: 'as last fetched; --fresh fetches' });
+  assert.equal(data.sources.at(-1).source, 'claims', 'after the sources the board already had');
+
+  // Phase 4 claimed eight days ago, phase 7 six days ago, phase 9 eight days ago with a push to its work branch yesterday.
+  for (const [n, days] of [[4, 8], [7, 6], [9, 8]]) assert.equal((await claim({ root, phase: String(n), provider: 'claude' }, { env, now: ago(days) })).data.ok, true);
+  const tip = execFileSync('git', ['-C', root, 'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'acme work'], { encoding: 'utf8', env: { ...env, GIT_COMMITTER_DATE: ago(1).toISOString() } }).trim();
+  git('push', '-q', 'origin', `${tip}:refs/heads/claude/phase-9`);
+  data = await read({ fresh: true });
+  const mine = claimsOf(data);
+  assert.deepEqual(mine.map(i => [i.waits, i.kind, i.phase, i.title]), [['owner', 'claim', 4, 'phase 4: claimed by claude on acme-laptop, idle 8 days']]);
+  assert.match(mine[0].why, /^claims\/phase-4 since 2026-10-12, no push since 2026-10-12\. Release it \(git push origin --delete claims\/phase-4\) or leave it: keel never releases another session's claim\.$/);
+  assert.deepEqual(mine[0].actions, [], 'the board offers no button: the owner releases it by hand, or leaves it');
+  assert.ok(titles(data, 'owner').includes(mine[0].title));
+  assert.match(boardText(data), /phase 4: claimed by claude on acme-laptop, idle 8 days/);
+  assert.deepEqual(data.sources.find(s => s.source === 'claims'), { source: 'claims', state: 'ok', count: 1 });
+  // A day later phase 7 is idle seven days too; phase 9's push still counts.
+  assert.deepEqual(claimsOf(await read({ now: new Date(+now + 86_400_000) })).map(i => i.phase), [4, 7]);
+  // The board released nothing.
+  assert.equal(git('ls-remote', 'origin', 'refs/heads/claims/*').split('\n').length, 3);
+
+  // Phase 4 is built on the default branch: its claim has ended, and is nobody's item.
+  const file = join(root, 'docs/phases/04-build.md');
+  await writeFile(file, (await readFile(file, 'utf8')).replace('status: planned', 'status: built').replace('evidence: []', 'evidence: ["evidence/acme-0.md"]').replace('- [ ]', '- [x]'));
+  git('commit', '-q', '-am', 'phase 4: built');
+  git('push', '-q', 'origin', 'main');
+  assert.deepEqual(claimsOf(await read({ fresh: true, now: new Date(+now + 86_400_000) })).map(i => i.phase), [7]);
+
+  // --fresh with the origin gone: the source is n/a with why, never an empty list.
+  git('remote', 'set-url', 'origin', `${origin}-gone`);
+  const gone = (await read({ fresh: true })).sources.find(s => s.source === 'claims');
+  assert.equal(gone.state, 'n/a');
+  assert.match(gone.why, /^the claims could not be read: git fetch origin failed/);
+});
+
 test('milestone board details are read-only links and escape remote markup, with incomplete coverage visible', async t => {
   const { projectMilestones } = await import('../practices/night/files/scripts/keel/milestones.mjs');
   const { milestoneConfig, milestone, issue, response } = await import('./helpers/milestones.mjs');

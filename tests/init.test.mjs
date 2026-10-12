@@ -164,7 +164,9 @@ test('keel next inside the new project names phase 0', async t => {
   assert.equal(keel(['init', '--description', DESCRIPTION], dir).code, 0);
   const r = keel(['next', '--json'], join(dir));
   assert.equal(r.code, 0, r.err);
-  const next = JSON.parse(r.out);
+  const { next, free, claims } = JSON.parse(r.out);
+  // A new project has no remote yet: nowhere to hold a claim, so what is ready is free.
+  assert.deepEqual([free.map(p => p.id), claims.read], [[0], false]);
   assert.equal(next.id, 0);
   assert.equal(next.title, PHASE0_TITLE);
   assert.equal(next.status, 'planned');
@@ -172,7 +174,7 @@ test('keel next inside the new project names phase 0', async t => {
   assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs` \(documents only: run `npm run roadmap:check`, not the whole gate\); then \/conduct\./);
   // A subdirectory finds it too.
   await mkdir(join(dir, 'src'));
-  assert.equal(JSON.parse(keel(['next', '--json'], join(dir, 'src')).out).id, 0);
+  assert.equal(JSON.parse(keel(['next', '--json'], join(dir, 'src')).out).next.id, 0);
 });
 
 test('init refuses a directory that is already a keel project, and says update', async t => {
