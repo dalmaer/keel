@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: time
 since: 2026-10-12
 goal: G0
 spec: 2
 depends: []
-note: "Specified 2026-10-12 from the phase 54 collision: one shared create-only branch per phase is the claim, and keel next lists what is ready and unclaimed."
-evidence: []
+note: "Built 2026-10-12: keel phase claim pushes one shared create-only branch per phase, and keel next lists what is ready and unclaimed. The owner's week of two sessions remains."
+evidence: ["evidence/2026-10-12-claims.md"]
 issue: 113
 ---
 
@@ -67,4 +69,4 @@ By hand: a week of two sessions on keel.
 
 ## Next action
 
-Build `keel phase claim` and the claimed and free lists in `keel next`, with `tests/claim.test.mjs` on two clones of one origin.
+⚑ Owner: the walk in Your part, after a week of two sessions on keel. The build is done and its automated boxes are proven by `tests/claim.test.mjs`, `tests/skill.test.mjs` and `tests/board.test.mjs`.
