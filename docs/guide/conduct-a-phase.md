@@ -38,6 +38,43 @@ phase names (a real device, a decision assigned to a person). A wrong
 design or a proof that can't run as written is not a stop: the conductor
 fixes the document, says why in the commit, and goes on.
 
+### From a free phase to a merged one
+
+The whole path, with what stops each of the two failures it was built
+around: a phase built twice, and a review that never ends.
+
+1. **Find a free phase.** `keel next` fetches, then lists every phase whose
+   dependencies are built: the free ones first, then the claimed ones with
+   who holds each. If it can't read the claims (no network, `gh` failing) it
+   exits 2 and lists nothing as free.
+2. **Claim it.** `keel phase claim <n>` pushes one shared branch,
+   `claims/phase-<n>`. The server accepts that push only when the branch
+   does not exist, so of two sessions claiming at once exactly one gets it,
+   and the other is told who holds it: take another phase, or stop. An open
+   PR whose branch names the phase counts as a claim too.
+3. **Build and prove it**, as above, on `<provider>/phase-<n>`.
+4. **Open the PR; it is reviewed.** With the cross-review practice on,
+   Claude reviews what Codex wrote, and Codex what Claude wrote. Each comment
+   is validated against the code, then answered: fixed, tracked in an issue,
+   or not valid. See [Reviews and PRs](reviews-and-prs.md).
+5. **Stop at three rounds.** A round is a push a reviewer answered with at
+   least one finding. At the limit (three, or `"review": {"rounds": N}` in
+   `.keel/keel.json`), `keel review <pr>` exits 3 and the session stops
+   pushing fixes. It sorts each open finding with `keel review <pr> --class
+   security|overwrite|approval|other <ids>`, which leaves the finding
+   unanswered, and reports. The choice is yours: merge with the rest
+   tracked (after fixing what is a security hole, overwrites your files or
+   skips an approval), split the PR, or close it.
+6. **Merge.** A person merges; keel never does. The claim ends when the
+   phase is built on the default branch.
+7. **Your walk.** A phase whose building is done and whose ⚑ box is your
+   read shows on the board as yours.
+
+The claim is a record every session can see, not a lock: a session that
+never runs `keel next` or the conduct skill is not stopped. Two sessions
+sharing one working tree are not told apart. A claim nobody has pushed to
+for seven days shows on the board as yours to release or leave.
+
 **A retro after real work.** When a phase's commit changed more than
 `docs/`, the conductor runs `keel retro` and answers its seven areas,
 ending in at most five candidates (a check, an AGENTS or skill line, or a
