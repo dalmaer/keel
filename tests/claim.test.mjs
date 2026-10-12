@@ -367,3 +367,83 @@ test('readClaims and nextFree read in process what the CLI reads', async t => {
   const free = await nextFree({ root: x.b, data: await collect(x.b) }, { env: x.env() });
   assert.deepEqual([free.data.next.id, free.data.claimed.map(c => c.id)], [1, [2]]);
 });
+
+// Review of #117: the connection drops after git accepted the claim. The claim is on the remote; the checkout must still know it is its own.
+test('a push that lands and a read-back that fails keeps the token: the error says the claim may have been made, and asking again finds it held', async t => {
+  const x = await acme(t);
+  const env = x.env('acme-laptop');
+  await assert.rejects(claim({ root: x.a, phase: '1', provider: 'claude' }, { env, afterPush: async () => { git(x.a, 'remote', 'set-url', 'origin', join(x.dir, 'gone.git')); } }), e => {
+    assert.equal(e.exitCode, 2);
+    assert.match(e.message, /^phase 1 may or may not be claimed: the push was accepted, and origin could not be read afterwards \(.+\)\. Nothing is assumed\. Check: git ls-remote origin refs\/heads\/claims\/phase-1, or run keel phase claim 1 again/);
+    return true;
+  });
+  // The claim was made.
+  const sha = remoteClaim(x.origin, 1);
+  assert.ok(sha, 'the push landed');
+  // Back online: the claim on the remote is this checkout's own, not "another session's".
+  git(x.a, 'remote', 'set-url', 'origin', x.origin);
+  const again = await claim({ root: x.a, phase: '1', provider: 'claude' }, { env });
+  assert.deepEqual([again.data.ok, again.data.held, again.data.claimed, again.data.holder.mine], [true, true, false, true]);
+  assert.equal(remoteClaim(x.origin, 1), sha);
+  // And it can release it.
+  assert.equal((await claim({ root: x.a, phase: '1', release: true }, { env })).data.released, true);
+  // A read-back that shows another winner still removes the loser's token: the loser is refused, not "held".
+  let other;
+  const lost = await claim({ root: x.a, phase: '2', provider: 'claude' }, { env, beforePush: async () => { other = await claim({ root: x.b, phase: '2', provider: 'codex' }, { env: x.env('acme-desktop') }); } });
+  assert.deepEqual([other.data.ok, lost.data.refused], [true, true]);
+  assert.equal((await claim({ root: x.a, phase: '2', provider: 'claude' }, { env })).data.refused, true);
+});
+
+// Review of #117: a checkout's own tree saying "built" is not the default branch saying it.
+test('a phase marked built only in one checkout does not let it release another session\'s claim, or skip the work checks', async t => {
+  const x = await acme(t);
+  assert.equal(keel(['phase', 'claim', '1', '--provider', 'claude', '--json'], x.a, x.env('acme-laptop')).code, 0);
+  await x.prs([{ number: 7, headRefName: 'claude/phase-1', author: { login: 'acme-builder' }, createdAt: '2026-10-11T08:00:00Z', state: 'OPEN' }]);
+  const sha = remoteClaim(x.origin, 1);
+  const markBuilt = async clone => {
+    const file = join(clone, 'docs/phases/01-anvil.md');
+    await writeFile(file, (await readFile(file, 'utf8')).replace('status: planned', 'status: built').replace('evidence: []', 'evidence: ["evidence/acme-0.md"]').replace('- [ ]', '- [x]'));
+    git(clone, 'commit', '-q', '-am', 'phase 1: built, not merged');
+  };
+  // b marks phase 1 built locally and does not push. The claim is live, with an open PR, and is not b's.
+  await markBuilt(x.b);
+  const foreign = keel(['phase', 'claim', '1', '--release'], x.b, x.env('acme-desktop'));
+  assert.equal(foreign.code, 1, foreign.out + foreign.err);
+  assert.match(foreign.out, /^Phase 1 is claimed by claude on acme-laptop since \S+ \(claims\/phase-1\), PR #7, not by this checkout: keel never releases another session's claim\./);
+  assert.equal(remoteClaim(x.origin, 1), sha, 'the claim is still there');
+  // The holder marking it built locally does not skip the work checks either: the open PR still holds the claim. The refusal names the owner's way out.
+  await markBuilt(x.a);
+  const own = keel(['phase', 'claim', '1', '--release'], x.a, x.env('acme-laptop'));
+  assert.equal(own.code, 1, own.out + own.err);
+  assert.equal(own.out, 'Phase 1 has work on it: open PR #7. The claim stays until the phase is built on origin/main or the work is gone. The owner can: git push origin --delete claims/phase-1\n');
+  assert.equal(remoteClaim(x.origin, 1), sha);
+  // Local completion is still a reason not to make a new claim.
+  assert.match(keel(['phase', 'claim', '1', '--provider', 'codex'], x.b, x.env('acme-desktop')).out, /^Phase 1 is built: nothing in it is left to claim\.\n$/);
+  // Once it is built on the default branch, the claim has ended and anyone may clear the leftover.
+  git(x.a, 'push', '-q', 'origin', 'main');
+  assert.equal(keel(['phase', 'claim', '1', '--release', '--json'], x.b, x.env('acme-desktop')).code, 0);
+  assert.equal(remoteClaim(x.origin, 1), null);
+});
+
+// Review of #117: the roadmap parser accepts JSON-quoted front matter, so the default branch may say status: "built".
+test('a phase the default branch calls "built", or "partial" owing a "walk", in quotes has ended: it is never listed as free', async t => {
+  const x = await acme(t);
+  for (const [n, name] of [[1, '01-anvil.md'], [2, '02-rocket.md']]) assert.equal(keel(['phase', 'claim', String(n), '--provider', 'claude', '--json'], x.a, x.env()).code, 0, name);
+  const rewrite = async (name, from, to) => { const file = join(x.b, 'docs/phases', name); await writeFile(file, (await readFile(file, 'utf8')).replace(from, to)); };
+  await rewrite('01-anvil.md', 'status: planned', 'status: "built"');
+  await rewrite('01-anvil.md', 'evidence: []', 'evidence: ["evidence/acme-0.md"]');
+  await rewrite('01-anvil.md', '- [ ]', '- [x]');
+  await rewrite('02-rocket.md', 'status: planned', 'status: "partial"\nowes: "walk"');
+  await rewrite('02-rocket.md', '- [ ] Lands. `tests/anvil.test.mjs`', '- [x] Lands. `tests/anvil.test.mjs`\n- [ ] ⚑ by hand: the owner rides it.');
+  // Phase 3 is quoted too, in a file the roadmap would reject (built, its box unchecked): its status is still read.
+  await rewrite('03-sled.md', 'status: planned', 'status: "built"');
+  git(x.b, 'commit', '-q', '-am', 'phases 1 and 2: quoted');
+  git(x.b, 'push', '-q', 'origin', 'main');
+  // a has not pulled: both are ready in its tree, and both have ended on the default branch. Neither free nor claimed.
+  const r = keel(['next', '--json'], x.a, x.env());
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.deepEqual([r.json().free.map(p => p.id), r.json().claimed.map(c => c.id), r.json().behind], [[], [], [1, 2]]);
+  assert.match(keel(['phase', 'claim', '1', '--provider', 'codex'], x.a, x.env()).out, /^Phase 1 is built on origin\/main: nothing in it is left to claim\.\n$/);
+  const state = await readClaims({ root: x.a, config: JSON.parse(await readFile(join(x.a, '.keel/keel.json'), 'utf8')), env: x.env() });
+  assert.deepEqual([await state.ended(1), await state.ended(2), await state.ended(3), await state.ended(0)], [true, true, true, true]);
+});
