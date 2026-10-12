@@ -1491,8 +1491,18 @@ export function graphqlData(stdout, spend) {
 const plain = line => String(line).replace(/<[^>]*>/g, ' ').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`#>|]/g, '').replace(/\s+/g, ' ').trim();
 const plainLines = body => String(body ?? '').replace(/<!--[\s\S]*?-->/g, '').split('\n').map(plain).filter(Boolean);
 const firstLine = body => plainLines(body)[0]?.slice(0, 140) ?? '';
-/** A bot's status board (a sticky comment it edits in place, opened by a hidden <!-- marker -->): listed, never owed an answer. */
-const isStatus = body => /^\s*<!--/.test(String(body ?? ''));
+/**
+ * The line a cross-review summary carries when its findings are in the body
+ * (GitHub refused them inline, cross-review.mjs summaryReview): how many.
+ */
+export const fallbackFindingsMark = n => `<!-- keel:cross-review findings ${n} -->`;
+/** Whether a body is such a summary: the cross-review's marker first, and the line naming one finding or more. */
+const carriesFindings = body => /^\s*<!-- keel:cross-review -->/.test(String(body ?? '')) && /^<!-- keel:cross-review findings [1-9]\d* -->[ \t\r]*$/m.test(String(body));
+/**
+ * A bot's status board (a sticky comment it edits in place, opened by a hidden <!-- marker -->): listed, never owed an answer.
+ * Not one: a cross-review summary carrying its findings, which are answered there and count as a finding on its push.
+ */
+const isStatus = body => /^\s*<!--/.test(String(body ?? '')) && !carriesFindings(body);
 // Robot author and reviewer share the Actions identity. Only the exact posted
 // envelope, tied to this PR's canonical delivery association, is an exception.
 function robotReview(pr, review) {
@@ -1629,7 +1639,8 @@ export const classOnly = body => /^\s*<!-- keel:class (?:security|overwrite|appr
  * (commits) a reviewer answered with at least one finding. A finding is a
  * review thread someone other than the PR's author opened (counted on the
  * commit its first comment was made on), or a review body that owes an answer
- * (reviewComments' rule; an approval's body and a status board are none).
+ * (reviewComments' rule; an approval's body and a status board are none, and
+ * a cross-review summary is a status board unless it carries its findings).
  * Two reviewers on one push are one round; a push the reviewer passed is
  * none. A finding whose commit GitHub did not name is not counted.
  * { count, pushes } with the pushes in the order first seen.

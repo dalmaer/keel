@@ -12,6 +12,8 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { prGate, classText, classOfFlag } from '../lib/review.mjs';
+// keel's own rendered copy: the practice's source sits apart from the lib.mjs it imports (render:check keeps the two the same).
+import { summaryReview, MARKER } from '../scripts/keel/cross-review.mjs';
 import { reviewRounds, reviewComments, reviewConfigOf, reviewRoundLimit, byMergeRule, classMark, classOf, classOnly, reviewFragment, windowFragment, REVIEW_ROUNDS } from '../practices/night/files/scripts/keel/lib.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -160,6 +162,39 @@ test('reviewRounds: a review body that owes an answer is a finding on its commit
   assert.ok(/tail: comments\(last: \d+\) \{ totalCount nodes \{ [^\n]* originalCommit \{ oid \} \} \} \} \}\n/.test(windowFragment()));
   // A conversation comment has no commit: the window asks it of thread comments only.
   assert.equal(windowFragment().split('originalCommit').length, 2);
+});
+
+test('a cross-review summary that carries its findings in the body (GitHub refused them inline) is a finding on its push and owes an answer; one with none is neither', () => {
+  const diff = ['diff --git a/src/lid.js b/src/lid.js', 'index 1111111..2222222 100644', '--- a/src/lid.js', '+++ b/src/lid.js', '@@ -10,2 +10,3 @@', '   const hinge = lid.hinge;', '+  if (!hinge) return;', '   return lid;', ''].join('\n');
+  const message = (summary, findings) => `${summary}\n\n\`\`\`json\n${JSON.stringify(findings)}\n\`\`\`\n`;
+  const found = [{ path: 'src/lid.js', line: 11, severity: 'P1', body: 'An unhinged lid returns nothing.' }];
+  const posted = (commit, findings, inline) => summaryReview({ message: message('Checked the lid.', findings), agent: 'codex', pr: { headRefOid: commit }, minutes: 15, diff, inline });
+  const node = (commit, review, i) => ({ id: `PRR_${i}`, databaseId: i, author: { login: 'acme-reviewer' }, body: review.body, state: 'COMMENTED', commit: { oid: commit }, submittedAt: '2026-10-10T09:00:00Z', url: `u${i}` });
+  const pr = reviews => ({ number: 3, author: { login: 'acme-owner' }, reviewThreads: { pageInfo: {}, nodes: [] }, comments: { pageInfo: {}, nodes: [] }, reviews: { pageInfo: {}, nodes: reviews } });
+
+  // Three pushes, each reviewed with findings GitHub would not take inline: no threads, the findings in the summary.
+  const fallback = [A, B, C].map((commit, i) => node(commit, posted(commit, found, false), i + 1));
+  for (const r of fallback) {
+    assert.ok(r.body.startsWith(`${MARKER}\n`), 'still the cross-review\'s marked summary');
+    assert.match(r.body, /\n<!-- keel:cross-review findings 1 -->\nGitHub refused the inline comments; the findings \(1\), to answer here:\n- `src\/lid\.js:11` \*\*P1\*\* An unhinged lid/);
+  }
+  assert.deepEqual(reviewRounds(pr(fallback)), { count: 3, pushes: [A, B, C] });
+  // The same body in the list: owed an answer, not a status board, so the read and the rounds agree.
+  assert.deepEqual(reviewComments(pr(fallback), ['acme-reviewer']).map(c => [c.kind, c.status, c.answered]), [['review', false, false], ['review', false, false], ['review', false, false]]);
+  const answered = { ...pr(fallback.slice(0, 1)), comments: { pageInfo: {}, nodes: [{ id: 'IC_1', author: { login: 'acme-owner' }, body: '**Fixed** in abc1234.\n\nu1', createdAt: '2026-10-11T09:00:00Z' }] } };
+  assert.deepEqual(reviewComments(answered, ['acme-reviewer']).map(c => [c.status, c.answered]), [[false, true]]);
+
+  // A summary with no findings is a status board, inline or not: no round, nothing owed.
+  for (const none of [posted(A, [], true), posted(A, [], false), posted(A, found, true)]) {
+    assert.doesNotMatch(none.body, /keel:cross-review findings/);
+    assert.equal(reviewRounds(pr([node(A, none, 9)])).count, 0);
+    assert.deepEqual(reviewComments(pr([node(A, none, 9)]), ['acme-reviewer']).map(c => [c.status, c.answered]), [[true, true]]);
+  }
+  // The indicator counts only in a marked summary, on a line of its own, naming one finding or more.
+  const hand = body => reviewRounds(pr([node(A, { body }, 9)])).count;
+  assert.equal(hand(`${MARKER}\nSummary.\n<!-- keel:cross-review findings 0 -->\n`), 0);
+  assert.equal(hand(`${MARKER}\nSummary. > <!-- keel:cross-review findings 2 --> quoted\n`), 0);
+  assert.equal(hand(`${MARKER}\nSummary.\n<!-- keel:cross-review findings 2 -->\n- one\n`), 1);
 });
 
 // ---- the limit --------------------------------------------------------------------

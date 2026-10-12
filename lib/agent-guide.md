@@ -1321,7 +1321,10 @@ one round. It is counted from the same read. The limit is `"review":
 `"rounds"`). At the limit the read of an open PR exits 3 and prints the
 choice: **merge with the rest tracked** (each open finding as *fix first*,
 *track* or *unsorted*), **split**, or **close**. Stop pushing fixes and
-report it; keel merges nothing. Under the limit, output and exit codes are
+report it; keel merges nothing. `--wait` returns at once at the limit: it
+does not wait for the reviewer. A cross-review summary whose findings are in
+its body (GitHub refused them inline; it carries `<!-- keel:cross-review
+findings N -->`) is a finding on its push and owes an answer. Under the limit, output and exit codes are
 as before, and `--gate` is never changed by the limit.
 
     keel review <r>#<n> --class security|overwrite|approval|other <id>[,<id>…]
