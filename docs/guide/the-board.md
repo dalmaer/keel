@@ -18,7 +18,9 @@ it waits on, in the order you read them:
 - **Yours**: walks owed (a phase whose building is done and whose ⚑ box is
   your read), the night's proposal, lessons to decide, a question a session
   asked you, a step marked "⚑ yours" (a repo to keep or delete, lessons to
-  send home).
+  send home), a phase claim (`keel phase claim`) nobody has pushed to for
+  seven days: release it by hand (the item says how) or leave it, because
+  keel never releases a claim for you.
 - **Broken**: a red CI on a fleet project's default branch, a draft keel
   update PR ("acme/ledger: keel update v0.8.26 fails ledger's check": the
   fleet kept an update whose check failed; its description says what to

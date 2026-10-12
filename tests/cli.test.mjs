@@ -34,12 +34,19 @@ async function copyTree(dir) {
   return dir;
 }
 
-test('keel next --json equals the roadmap script\'s next', () => {
-  const ours = keel(['next', '--json']);
-  assert.equal(ours.code, 0, ours.err);
-  const script = run(process.execPath, ['scripts/roadmap.mjs', '--json'], { cwd: KEEL });
-  assert.equal(script.status, 0, script.stderr);
-  assert.deepEqual(JSON.parse(ours.out), JSON.parse(script.stdout).next);
+test('keel next --json: its next equals the roadmap script\'s next, and is the first of the free list', async () => {
+  // A copy with no git remote: keel next fetches the claims where there is one (phase 70), and no test reads the live origin.
+  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'keel-next-')));
+  try {
+    const ours = keel(['next', '--json'], dir);
+    assert.equal(ours.code, 0, ours.err);
+    const script = run(process.execPath, ['scripts/roadmap.mjs', '--json'], { cwd: dir });
+    assert.equal(script.status, 0, script.stderr);
+    const data = JSON.parse(ours.out);
+    assert.deepEqual(data.next, JSON.parse(script.stdout).next);
+    assert.deepEqual(data.next, data.free[0] ?? null);
+    assert.deepEqual([data.claimed, data.claims.read], [[], false]);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test('every registered verb and flag is announced in the cold start', async () => {
@@ -141,7 +148,7 @@ test('--json parses for every verb and flag; human text never mixes in', async t
     await writeFile(join(dir, 'acme-rubric.json'), JSON.stringify({ version: 1, problem: 'Acme loses rows.', reproduction: 'Run Acme regression.', acceptance: 'Both rows remain.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] }));
     const needs = { issue: ['new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'acme-rubric.json'], walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
-      'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'],
+      'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'], 'phase claim': ['0'],
       prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
     const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
@@ -181,7 +188,8 @@ Measure the count.
     // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
       const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
-      assert.equal(r.code, name === 'issue' ? 3 : 0, `${name}: ${r.err}${r.out}`);
+      // phase claim needs a remote to push to, and this copy has none: exit 2, as JSON (tests/claim.test.mjs covers the verb).
+      assert.equal(r.code, name === 'issue' ? 3 : name === 'phase claim' ? 2 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
       if (name === 'evidence rederive') {
@@ -271,7 +279,7 @@ test('installs from a checkout with no build step, on a machine that has never s
     assert.match(help.out, /keel --agent-help/);
     const next = keel(['next', '--json'], project, bin, env);
     assert.equal(next.code, 0, next.err);
-    assert.deepEqual(JSON.parse(next.out), JSON.parse(keel(['next', '--json']).out));
+    assert.deepEqual(JSON.parse(next.out), JSON.parse(keel(['next', '--json'], project).out), 'the installed bin and the checkout\'s agree');
   } finally { await rm(tmp, { recursive: true, force: true }); }
 });
 

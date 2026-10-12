@@ -55,7 +55,8 @@ Where things stand, and what to do next:
 
 ```bash
 keel status          # each goal's built count, and the next phase
-keel next            # the next phase: its file, its Done when, its next action
+keel next            # the next free phase: its file, its Done when, its next action
+keel phase claim 3   # say phase 3 is taken, before building it
 keel phase list      # every phase, as the roadmap reads it
 keel goal list       # every goal, with progress counted from its phases
 keel goal show G1    # one goal: its phases, its counts, its next phase
@@ -63,7 +64,24 @@ keel goal show G1    # one goal: its phases, its counts, its next phase
 
 `keel next` is the one an agent should run first: it picks the first
 unfinished phase whose dependencies are built, so it never sends you to work
-that is blocked. A partial phase whose building is done and whose rest is a
+that is blocked. Where the project has a git remote it fetches first, and
+lists every such phase: the free ones (the first in full, the rest under it)
+and the claimed ones, each with who holds it. If the fetch fails it says the
+claims could not be read and exits 2: it never guesses that everything is
+free.
+
+`keel phase claim <n>` is how a session says a phase is taken, so two
+sessions do not build the same one. It pushes one shared branch,
+`claims/phase-<n>`, that the server accepts only if it does not exist yet: of
+two sessions claiming at once, one is refused and told who holds the phase
+and since when. An open PR whose branch names the phase (`claude/phase-3`)
+counts as a claim too. The claim ends when the phase is built on the default
+branch; `keel phase claim <n> --release` gives it back earlier, when no work
+branch or PR for the phase exists. keel never releases another session's
+claim. It is advice with a record, not a lock: a session that never asks is
+not stopped.
+
+A partial phase whose building is done and whose rest is a
 walk (a run on a real surface, an owner's read, a week of nights) says
 `owes: walk` in its front matter: its dependents may proceed and `keel next`
 skips it, while it stays partial until the walk is done. Beside it,

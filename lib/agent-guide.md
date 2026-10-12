@@ -7,9 +7,9 @@ Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
 Verbs (all take `--json`; parse JSON, never prose):
 
 - `keel status` — goals, built counts, the next phase
-- `keel next` — next phase: file, done-when, next action; `--project <p>`
+- `keel next` — next free phase; ready ones, free or claimed; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
-- `keel phase new|list` — scaffold or list phases under goals
+- `keel phase new|list|claim` — scaffold, list or claim phases
 - `keel render` — render practices; `--check` reads only, exit 1 on differences
 - `keel init [dir] --description "<paragraph>"` — new project; `--github` exit 3
 - `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
@@ -62,9 +62,18 @@ stderr as one line beginning `keel:`.
 - `status`, `next`, `goal …` and `phase …` exit 2 where `phases` is a local
   variant, except that `status` and `next` read the projects shape;
   `status`, `next` and `phase list` also read the milestone source below.
-- `next` → the phase object (`id, file, title, status, since, goal, depends,
-  note, evidence, done, next`) or `null` when nothing is left unbuilt. It is
-  the same object `node scripts/roadmap.mjs --json` reports as `next`.
+- `next` → `{next, free, claimed, behind, claims}`. `free` is every phase
+  that is ready (not built, not dated, its `depends:` satisfied) and
+  unclaimed, as phase objects (`id, file, title, status, since, goal, depends,
+  note, evidence, done, next`, as `node scripts/roadmap.mjs --json` reports
+  one); `next` is the first of them, or `null`. `claimed` is the ready phases
+  someone holds: `[{id, title, file, status, holder: {by: branch|pr, branch,
+  provider, machine, at, mine, pr: {number, url, branch, author} | null,
+  work: [branches]}}]`. `behind` is ready phases already built on the default
+  branch that this checkout has not pulled. `claims` is `{read: true, remote,
+  branch, prs}` or, with no git remote, `{read: false, why}` (every ready
+  phase is then in `free`). It fetches first; a failed fetch or an unreadable
+  PR list exits 2 with `{error}`, and no phase is listed as free.
 - In the projects shape (`"phases": {"shape": "projects"}`): `next` →
   `{shape: "projects", projects: [{project, file, next, from, unknown}]}`;
   `next --project <p>` → `{shape, project, file, next, from, unknown, where}`;
@@ -99,6 +108,9 @@ stderr as one line beginning `keel:`.
   exit 3, `{ok: false, needs: "yes", plan}`
 - `phase new` → `{ok, id, file, path, goal, depends}`
 - `phase list` → the roadmap's phase objects, as `next` reports one
+- `phase claim` → `{ok, phase, title, branch, remote, held, claimed, sha,
+  holder}`; refused (exit 1): `{ok: false, refused: true, holder}`;
+  `--release` → `{ok, released: true}`, or refused with `work`
 - `render` → `{root, check, ok, differs: [path or path#block], entries}`
 - `init` → `{ok, dir, config, commit, message, files, secrets}`; with
   `--github` and no `--yes`, exit 3 and `{ok: false, needs: "yes", plan:
@@ -174,6 +186,20 @@ keel goal retire G1 --reason "Nobody exports" --phases supersede --yes
   the goal moves to the roadmap's Retired section, still counted, never next
   focus. Unbuilt phases need `--phases supersede` (status superseded, note
   "Goal <id> retired: <reason>") or `--phases move:<Gm>`, and `--yes`.
+- `phase claim <n>` says a phase is taken before anyone builds it. It
+  pushes one shared branch, `claims/phase-<n>`, create-only: of two sessions
+  claiming at once the server takes one. The claim is its own commit on the
+  default branch's head, naming the provider (`--provider`, `KEEL_PROVIDER`,
+  else the agent it runs under), the machine, the time and a fresh token.
+  An open PR whose branch names the phase (`claude/phase-<n>-…`) is a claim
+  too. Claimed by someone else: exit 1, naming who and since when; take
+  another free phase from `keel next`, or stop. Asked again by its holder:
+  exit 0, `held`. A claim ends when the phase is built on the default branch.
+  `--release` deletes this checkout's claim when no work branch or open PR
+  names the phase; another session's claim is never released (exit 1), and
+  one idle for seven days is the owner's item on the board. Unread claims
+  (no remote, a failed fetch, gh failing): exit 2. It is advice with a
+  record, not a lock: a session that never asks is not stopped.
 - `phase new` writes `NN-<slug>.md` from `docs/templates/phase.md`: status
   planned, since today, `spec: 2` (when the template has it), note "Drafted
   by keel phase new.", sections as the template has them. The draft lists,
@@ -1415,7 +1441,10 @@ PRs, home and the fleet → `broken`), `health` (the newest page's undecided
 proposal → `owner`), `inbox` (lessons proposed → `owner`), `fleet` (home only:
 the strip; red CI → `broken`; a draft PR on a `keel/update-` branch →
 `broken`, kind `update`, "<repo>: keel update <version> fails <name>'s
-check", linking the PR, and not listed again by loose-ends). A source that cannot be read is `n/a` with
+check", linking the PR, and not listed again by loose-ends), `claims` (only
+with a git remote: a `claims/phase-<n>` branch with no push for seven days →
+`owner`, kind `claim`, no action: release it by hand or leave it; read as
+last fetched, `--fresh` fetches). A source that cannot be read is `n/a` with
 why, never missing. An action's `note` is `required` or `optional`: the verb
 takes it as `--note` (walk done, learn decide) or as the why (walk decide).
 Milestone-source items link to GitHub and offer no local phase mutation.

@@ -29,14 +29,14 @@ Not in scope: locking. A session that skips `keel next` and the skill is not sto
 
 ## Acceptance
 
-- [ ] `keel phase claim <n>` pushes `claims/phase-<n>`, and a second claim of the same phase, from another clone, is refused naming the holder. `tests/claim.test.mjs`
-- [ ] Two providers that both fetched before either pushed, each from its own clone, race the claim: exactly one succeeds, and the other is told who holds it. `tests/claim.test.mjs`
-- [ ] Two claims with the same git identity and a frozen clock still differ: exactly one succeeds. `tests/claim.test.mjs`
-- [ ] An open PR whose branch names the phase counts as a claim; a merged or closed one does not, and a claim ends when its phase is built on the default branch. `tests/claim.test.mjs`
-- [ ] `keel next` lists every ready, unclaimed phase and shows a claimed one as claimed; a phase whose `depends:` are not built is in neither list. `tests/claim.test.mjs`
-- [ ] When the fetch fails, `keel next` says the claims could not be read (exit 2), and never lists a phase as free. `tests/claim.test.mjs`
-- [ ] `--release` deletes a claim with no work branch or PR, and refuses one that has either. `tests/claim.test.mjs`
-- [ ] The conduct skill claims before it builds, and the board shows a claim idle for seven days as the owner's. `tests/skill.test.mjs`, `tests/board.test.mjs`
+- [x] `keel phase claim <n>` pushes `claims/phase-<n>`, and a second claim of the same phase, from another clone, is refused naming the holder. `tests/claim.test.mjs`
+- [x] Two providers that both fetched before either pushed, each from its own clone, race the claim: exactly one succeeds, and the other is told who holds it. `tests/claim.test.mjs`
+- [x] Two claims with the same git identity and a frozen clock still differ: exactly one succeeds. `tests/claim.test.mjs`
+- [x] An open PR whose branch names the phase counts as a claim; a merged or closed one does not, and a claim ends when its phase is built on the default branch. `tests/claim.test.mjs`
+- [x] `keel next` lists every ready, unclaimed phase and shows a claimed one as claimed; a phase whose `depends:` are not built is in neither list. `tests/claim.test.mjs`
+- [x] When the fetch fails, `keel next` says the claims could not be read (exit 2), and never lists a phase as free. `tests/claim.test.mjs`
+- [x] `--release` deletes a claim with no work branch or PR, and refuses one that has either. `tests/claim.test.mjs`
+- [x] The conduct skill claims before it builds, and the board shows a claim idle for seven days as the owner's. `tests/skill.test.mjs`, `tests/board.test.mjs`
 - [ ] ⚑ by hand: the owner runs two sessions on keel for a week and neither builds a phase the other holds.
 
 ## Your part

@@ -244,6 +244,22 @@ test('the conduct skill treats owes: walk as done for /conduct <N>, and leaves a
   assert.match(skill, /keeps its own phases \(`"local"`\s+names `phases`\) follows its own roadmap's rules for both/);
 });
 
+// Phase 70: two sessions built phase 54 at once. The claim comes before the build.
+test('the conduct skill claims a phase before it builds: keel phase claim first, a refusal means another phase or stop, never release another\'s claim', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const orient = skill.slice(skill.indexOf('\n## 0.'), skill.indexOf('\n## 1.'));
+  assert.match(orient, /\*\*Claim the phase before you build it\.\*\* \(why: [^)\n]+\)/);
+  assert.match(orient, /the first step for a phase is `keel phase claim <N>`, before the brief/);
+  assert.match(orient, /A refusal names who holds the phase: take another free\s+phase, or stop/);
+  assert.match(orient, /never release a claim that\s+is not yours: a stale one is the owner's, on the board/);
+  assert.match(orient, /If the claims could\s+not be read, stop and say so/);
+  // The claim is said before the brief and before the gates that precede any code.
+  assert.ok(skill.indexOf('**Claim the phase before you build it.**') < skill.indexOf('**Three gates before any code:**'));
+  assert.ok(skill.indexOf('**Claim the phase before you build it.**') < skill.indexOf('\n## 1. Brief'));
+  // keel's own copy says it too (render --self).
+  assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('the first step for a phase is `keel phase claim <N>`'));
+});
+
 // Phase 62: a fix is proven by its test failing without it, and the commit says so.
 test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-by: trailer from keel prove', async () => {
   const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');

@@ -69,6 +69,16 @@ The roadmap command is the project's, never assumed. Read it first:
   phase files' front matter: the lowest-numbered phase not built whose
   `depends:` are built.
 
+**Claim the phase before you build it.** (why: Two sessions built one phase at once, and one of them was thrown away.) With keel's roadmap and a remote,
+the first step for a phase is `keel phase claim <N>`, before the brief: it
+pushes `claims/phase-<N>`, a branch every session and provider can see.
+`keel next` lists the phases that are ready and unclaimed, and the claimed
+ones with their holder. A refusal names who holds the phase: take another free
+phase, or stop. Never build a claimed phase, and never release a claim that
+is not yours: a stale one is the owner's, on the board. If the claims could
+not be read, stop and say so. When the phase is committed to `main`,
+`keel phase claim <N> --release` clears the branch.
+
 Then read, in this order:
 
 1. the phase file;
