@@ -71,9 +71,15 @@ around: a phase built twice, and a review that never ends.
    read shows on the board as yours.
 
 The claim is a record every session can see, not a lock: a session that
-never runs `keel next` or the conduct skill is not stopped. Two sessions
-sharing one working tree are not told apart. A claim nobody has pushed to
-for seven days shows on the board as yours to release or leave.
+never runs `keel next` or the conduct skill is not stopped. A claim belongs
+to the session that made it, not to its working tree: a second session
+started in the same tree is refused like any other, unless it names the same
+provider and has the same session id, or shows the token keel printed when
+the claim was made (`keel phase claim <N> --token <token>`). The session id
+is `KEEL_SESSION`, else the one Claude Code sets; an agent that sets neither
+(Codex, as far as keel knows) is told apart by its provider only, so two of
+its sessions sharing one tree are not told apart. A claim nobody has pushed
+to for seven days shows on the board as yours to release or leave.
 
 **A retro after real work.** When a phase's commit changed more than
 `docs/`, the conductor runs `keel retro` and answers its seven areas,
