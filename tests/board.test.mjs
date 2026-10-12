@@ -14,6 +14,7 @@ import { timeSummary } from '../lib/time.mjs';
 import { formatProposal } from '../lib/learn.mjs';
 import { makeTimeProposal, formatTimeProposal, writeHealthReport, parseTimeProposal } from '../practices/night/files/scripts/keel/time-proposals.mjs';
 import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
+import { unansweredPrs, fromWindow } from '../practices/night/files/scripts/keel/lib.mjs';
 import { run as roadmap } from '../practices/phases/files/scripts/roadmap.mjs';
 import { run } from './helpers/run.mjs';
 
@@ -166,6 +167,69 @@ test('unanswered reviews are broken only on the owner\'s or an agent\'s PRs; any
   // Who the owner is unknown: every PR stays broken, never hidden.
   const blind = await reviewItems([{ repo: 'acme/app' }], { today: TODAY, read: async () => mixed });
   assert.ok(blind.items.every(i => i.waits === 'broken'));
+});
+
+// Phase 71: a review that keeps going is the owner's, not one more thing to fix.
+test('a PR past its review-round limit is the owner\'s item, with the round count and its open findings; under the limit it stays broken', async () => {
+  const state = {
+    prs: [{ number: 7, title: 'Acme anvils', state: 'open', url: 'u7', author: 'acme-owner', unanswered: 2, oldest: '2026-10-01' },
+      { number: 8, title: 'Acme skates', state: 'open', url: 'u8', author: 'acme-owner', unanswered: 1, oldest: '2026-10-01' }],
+    // #7 is at three rounds; #8 at two; #9 at four with nothing unanswered a day yet; #10 is someone else's.
+    rounds: [{ number: 7, title: 'Acme anvils', url: 'u7', author: 'acme-owner', rounds: 3, open: 3, fixFirst: 1, track: 1, unsorted: 1 },
+      { number: 8, title: 'Acme skates', url: 'u8', author: 'acme-owner', rounds: 2, open: 1, fixFirst: 0, track: 0, unsorted: 1 },
+      { number: 9, title: 'Acme rockets', url: 'u9', author: 'app/claude', rounds: 4, open: 1, fixFirst: 0, track: 1, unsorted: 0 },
+      { number: 10, title: 'Paul\'s idea', url: 'u10', author: 'pkinlan', rounds: 5, open: 0, fixFirst: 0, track: 0, unsorted: 0 }],
+  };
+  const r = await reviewItems([{ repo: 'acme/app' }], { today: TODAY, me: 'acme-owner', read: async () => state });
+  const by = Object.fromEntries(r.items.map(i => [i.title, i]));
+  assert.deepEqual(r.items.map(i => [i.waits, i.title]), [
+    ['owner', 'acme/app#7: review round 3 of 3, 3 open findings'],
+    ['owner', 'acme/app#9: review round 4 of 3, 1 open finding'],
+    ['external', 'acme/app#10: review round 5 of 3, 0 open findings'],
+    ['broken', 'acme/app#8: 1 review comment unanswered'],
+  ], 'a PR at the limit is listed once, as the owner\'s; one under it is as before');
+  const item = by['acme/app#7: review round 3 of 3, 3 open findings'];
+  assert.deepEqual([item.kind, item.source, item.read, item.link, item.rounds, item.limit, item.open], ['review', 'reviews', 'keel review acme/app#7', 'u7', 3, 3, 3]);
+  assert.match(item.why, /^Acme anvils\. The review reached its limit, so no more fixes are pushed\. Choose: merge with the rest tracked \(1 to fix first, 1 to track, 1 unsorted\), split it, or close it\.$/);
+  assert.match(by['acme/app#10: review round 5 of 3, 0 open findings'].why, /^Someone else's PR \(pkinlan\)/);
+  // The repo's own limit: "review": {"rounds": 2} brings #8 to the owner too; 5 leaves only #10 past it.
+  const tight = await reviewItems([{ repo: 'acme/app', rounds: 2 }], { today: TODAY, me: 'acme-owner', read: async () => state });
+  assert.ok(tight.items.some(i => i.waits === 'owner' && i.title === 'acme/app#8: review round 2 of 2, 1 open finding'));
+  assert.equal(tight.items.filter(i => i.waits === 'broken').length, 0);
+  const loose = await reviewItems([{ repo: 'acme/app', rounds: 5 }], { today: TODAY, me: 'acme-owner', read: async () => state });
+  assert.deepEqual(loose.items.map(i => i.waits), ['external', 'broken', 'broken']);
+
+  // On the board itself: the owner's column, from the project's own "review".rounds.
+  const root = await acme();
+  try {
+    const seen = [];
+    const data = await board({ root }, { ...deps(root), reviews: list => { seen.push(...list); return reviewItems(list, { today: TODAY, read: async ({ repo }) => repo === 'acme/app' ? state : [] }); } });
+    assert.ok(titles(data, 'owner').includes('acme/app#7: review round 3 of 3, 3 open findings'));
+    assert.ok(!titles(data, 'broken').some(t => t.startsWith('acme/app#7')));
+    assert.equal(seen.find(x => x.repo === 'acme/app').rounds, 3, 'three when the project names none');
+    assert.match(boardText(data), /acme\/app#7: review round 3 of 3, 3 open findings/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('the repo-wide read counts each open PR\'s rounds and sorts its open findings, from the window it already reads', () => {
+  const [A, B, C] = ['a', 'b', 'c'].map(x => `${x}1`.repeat(20));
+  const c = (author, body, commit) => ({ databaseId: 1, author: { login: author }, body, createdAt: `${TODAY}T09:00:00Z`, url: 'u', originalCommit: { oid: commit } });
+  const thread = (id, ...nodes) => ({ id, isResolved: false, tail: { totalCount: nodes.length, nodes } });
+  const pr = (number, threads, state = 'OPEN') => ({ keelWindow: 'PullRequest', number, title: `Acme ${number}`, url: `u${number}`, state, mergedAt: state === 'MERGED' ? `${TODAY}T00:00:00Z` : null, updatedAt: `${TODAY}T00:00:00Z`, author: { login: 'acme-owner' },
+    reviewThreads: { pageInfo: { hasNextPage: false }, nodes: threads }, comments: { pageInfo: { hasPreviousPage: false }, nodes: [] }, reviews: { pageInfo: { hasPreviousPage: false }, nodes: [] } });
+  const mark = kind => `<!-- keel:class ${kind} -->\nClassed.`;
+  const three = [
+    thread('T1', c('acme-reviewer', 'No brakes.', A), c('acme-owner', 'Fixed in abc1234.', B)),
+    thread('T2', c('acme-reviewer', 'No bell.', B), c('acme-owner', mark('security'), C)),
+    thread('T3', c('acme-reviewer', 'No paint.', C), c('acme-owner', mark('other'), C)),
+    thread('T4', c('acme-second', 'No horn.', C)),
+  ];
+  const full = nodes => nodes.map(n => fromWindow(n).pr);
+  const repository = { open: { pageInfo: { hasNextPage: false }, nodes: full([pr(7, three), pr(8, [])]) }, merged: { pageInfo: { hasNextPage: false }, nodes: full([pr(6, three, 'MERGED')]) } };
+  const got = unansweredPrs(repository, [], TODAY);
+  // Found today, so the day-old count has none of them; the rounds do. A merged PR has no loop left to stop.
+  assert.deepEqual(got.prs, []);
+  assert.deepEqual(got.rounds, [{ number: 7, title: 'Acme 7', url: 'u7', author: 'acme-owner', rounds: 3, open: 3, fixFirst: 1, track: 1, unsorted: 1 }]);
 });
 
 test('a source that cannot be read is n/a with why, never missing', async () => {

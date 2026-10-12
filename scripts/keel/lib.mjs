@@ -53,6 +53,9 @@
 //   reviewConfigOf(config), reviewFragment, reviewComments(pr, reviewers)
 //                            a PR's review comments and which are answered
 //                            (keel review and reviews_unanswered: one rule);
+//                            reviewRoundLimit, reviewRounds(pr), classMark, classOf, byMergeRule:
+//                            its review rounds, and each open finding's class
+//                            (keel review's limit and the board, phase 71);
 //                            repoReviewArgs, readRepoReviews, windowPrs, unansweredPrs:
 //                            the repo-wide read, page by page (the night and
 //                            keel loose-ends); IncompleteRead: never a count;
@@ -1397,23 +1400,32 @@ export const budgetLine = entries => entries.length ? `Budget: ${entries.map(bud
 // comment is right is the answerer's judgement, recorded in the reply.
 
 export const REVIEW_WAIT = 10;
+/** Review rounds before a PR is the owner's to decide (phase 71): a guess from one day's PRs. */
+export const REVIEW_ROUNDS = 3;
 export const REVIEW_LABEL = 'keel:wait-for-review';
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$/;
 
-/** .keel/keel.json "review": { reviewers, wait } with defaults (none named, 10 minutes), or { problem }. */
+/**
+ * .keel/keel.json "review": { reviewers, wait } with defaults (none named, 10
+ * minutes), or { problem }. "rounds" is checked here and read by
+ * reviewRoundLimit.
+ */
 export function reviewConfigOf(config) {
   const r = config?.review;
   if (r === undefined) return { reviewers: [], wait: REVIEW_WAIT };
   const bad = why => ({ problem: `.keel/keel.json "review" ${why}` });
-  if (!r || typeof r !== 'object' || Array.isArray(r)) return bad('must be an object: {"reviewers": ["<login>"], "wait": <minutes>}');
-  const extra = Object.keys(r).find(k => !['reviewers', 'wait'].includes(k));
-  if (extra) return bad(`has an unknown key "${extra}" (reviewers, wait)`);
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return bad('must be an object: {"reviewers": ["<login>"], "wait": <minutes>, "rounds": <n>}');
+  const extra = Object.keys(r).find(k => !['reviewers', 'wait', 'rounds'].includes(k));
+  if (extra) return bad(`has an unknown key "${extra}" (reviewers, wait, rounds)`);
   const reviewers = r.reviewers ?? [];
   if (!Array.isArray(reviewers) || reviewers.some(x => typeof x !== 'string' || !LOGIN.test(x))) return bad('"reviewers" must be a list of GitHub logins');
   const wait = r.wait ?? REVIEW_WAIT;
   if (typeof wait !== 'number' || !Number.isFinite(wait) || wait <= 0 || wait > 120) return bad('"wait" must be minutes, more than 0 and at most 120');
+  if (r.rounds !== undefined && !(Number.isSafeInteger(r.rounds) && r.rounds >= 1)) return bad('"rounds" must be a whole number of review rounds, 1 or more');
   return { reviewers, wait };
 }
+/** The review-round limit of a config reviewConfigOf accepted: "review".rounds, 3 when unset. */
+export const reviewRoundLimit = config => (Number.isSafeInteger(config?.review?.rounds) && config.review.rounds >= 1 ? config.review.rounds : REVIEW_ROUNDS);
 
 /** A login as both APIs agree on it: REST says `codex[bot]`, GraphQL `codex`. */
 export const sameLogin = (a, b) => normLogin(a) === normLogin(b) && normLogin(a) !== '';
@@ -1433,7 +1445,7 @@ export class IncompleteRead extends Error {
 export const reviewFragment = ({ threads = 100, replies = 100, comments = 100, reviews = 100 } = {}) => `fragment KeelReview on PullRequest {
   number title url state mergedAt updatedAt headRefName headRefOid body repository { nameWithOwner } headRepository { nameWithOwner } author { __typename login }
   reviewThreads(first: ${threads}) { pageInfo { hasNextPage } nodes { id isResolved path line
-    comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url } } } }
+    comments(first: ${replies}) { pageInfo { hasNextPage } nodes { databaseId author { login } body createdAt url originalCommit { oid } } } } }
   comments(first: ${comments}) { pageInfo { hasNextPage } nodes { id databaseId author { __typename login } body createdAt url } }
   reviews(first: ${reviews}) { pageInfo { hasNextPage endCursor } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
 }`;
@@ -1543,6 +1555,11 @@ const page = (conn, what, pr) => {
  * by a later conversation comment from someone else that quotes a line of it,
  * links it, or names its id. Throws IncompleteRead when any list is longer
  * than its page: a comment not read is never counted as answered.
+ *
+ * Each carries `class` (phase 71): the kind its newest class mark names, or
+ * null. A reply that is only a class mark (keel review --class) is never an
+ * answer: it is left out before the newest comment decides, so a finding can
+ * be sorted while it is still open.
  */
 export function reviewComments(pr, reviewers = []) {
   if (!pr || typeof pr !== 'object' || !pr.reviewThreads || !Array.isArray(pr.reviewThreads.nodes)) throw new Error('the pull request came back without its review threads');
@@ -1551,10 +1568,14 @@ export function reviewComments(pr, reviewers = []) {
   const isNamed = login => reviewers.some(r => sameLogin(r, login));
   const out = [];
   for (const t of page(pr.reviewThreads, 'review threads', pr)) {
-    const comments = page(t?.comments, 'comments in a review thread', pr) ?? [];
-    const first = comments[0];
+    const every = page(t?.comments, 'comments in a review thread', pr) ?? [];
+    const first = every[0];
     if (!first) continue;
     const by = loginOf(first);
+    // Whoever could answer it may sort it: never the finding's own author or a named reviewer (their text is not keel's record).
+    const sorts = c => c !== first && !sameLogin(loginOf(c), by) && !isNamed(loginOf(c));
+    const comments = every.filter(c => !(sorts(c) && classOnly(c.body)));
+    const klass = every.filter(sorts).map(c => classOf(c.body)).filter(Boolean).at(-1) ?? null;
     // The newest comment decides: a reviewer's follow-up reopens it.
     const last = loginOf(comments.at(-1));
     const answered = comments.length > 1 && !sameLogin(last, by) && !isNamed(last);
@@ -1562,7 +1583,7 @@ export function reviewComments(pr, reviewers = []) {
     const lastAnswer = comments.findLastIndex(c => !sameLogin(loginOf(c), by) && !isNamed(loginOf(c)));
     const since = answered || lastAnswer < 0 ? first : comments[lastAnswer + 1];
     out.push({ kind: 'thread', id: t.id, databaseId: first.databaseId, author: by, at: since.createdAt, path: t.path ?? null, line: t.line ?? null,
-      text: firstLine(first.body), url: first.url, resolved: !!t.isResolved, answered });
+      text: firstLine(first.body), url: first.url, resolved: !!t.isResolved, answered, class: klass });
   }
   const reviews = (page(pr.reviews, 'reviews', pr) ?? []).filter(r => String(r?.body ?? '').trim() && (robotReview(pr, r) || !(pr.author?.login && sameLogin(loginOf(r), pr.author.login))));
   if (!reviewers.length && !reviews.length) return out;
@@ -1571,12 +1592,73 @@ export function reviewComments(pr, reviewers = []) {
   const entry = (kind, c, at) => {
     const robot = kind === 'review' ? robotReview(pr, c) : null;
     const by = loginOf(c), status = robot ? robot.status : isStatus(c.body), after = Date.parse(at);
-    const replied = convo.some(o => Date.parse(o.createdAt) > after && !sameLogin(loginOf(o), by) && !isNamed(loginOf(o)) && references(o.body, c));
-    return { kind, id: c.id, databaseId: c.databaseId, author: by, at, path: null, line: null, text: firstLine(robot ? robot.text : c.body), url: c.url, resolved: false, status, answered: status || replied };
+    const later = convo.filter(o => Date.parse(o.createdAt) > after && !sameLogin(loginOf(o), by) && !isNamed(loginOf(o)) && references(o.body, c));
+    // A comment that is only a class mark sorts it and answers nothing.
+    const replied = later.some(o => !classOnly(o.body));
+    return { kind, id: c.id, databaseId: c.databaseId, author: by, at, path: null, line: null, text: firstLine(robot ? robot.text : c.body), url: c.url, resolved: false, status, answered: status || replied,
+      class: later.map(o => classOf(o.body)).filter(Boolean).at(-1) ?? null };
   };
   for (const r of reviews) out.push(entry('review', r, r.submittedAt));
   for (const c of convo) if (isNamed(loginOf(c))) out.push(entry('comment', c, c.createdAt));
   return out;
+}
+
+// ---- rounds and classes (phase 71) -------------------------------------------
+//
+// A review that keeps going is brought to the owner. A round is one push (a
+// head commit) that a reviewer answered with at least one finding; the limit
+// is .keel/keel.json "review".rounds. Past it the owner chooses, with each
+// open finding sorted by the merge rule: fix first what is a security hole,
+// overwrites the owner's files or skips an approval; track the rest. The
+// kind is the classifying session's word, kept in a marked reply; keel never
+// infers it from a finding's text.
+
+export const REVIEW_CLASSES = ['security', 'overwrite', 'approval', 'other'];
+/** The classes the merge rule fixes before a merge; `other` is tracked. */
+export const FIX_FIRST = ['security', 'overwrite', 'approval'];
+/** The hidden mark that records a finding's class, on a line of its own. */
+export const classMark = kind => `<!-- keel:class ${kind} -->`;
+const CLASS_LINE = /^<!-- keel:class (security|overwrite|approval|other) -->[ \t\r]*$/gm;
+/** The class a comment records: its last mark on a line of its own (a quoted line is not one), or null. */
+export const classOf = body => [...String(body ?? '').matchAll(CLASS_LINE)].at(-1)?.[1] ?? null;
+/** Whether a comment is only a class mark (it opens with one): it sorts a finding and answers nothing. */
+export const classOnly = body => /^\s*<!-- keel:class (?:security|overwrite|approval|other) -->[ \t\r]*(?:\n|$)/.test(String(body ?? ''));
+
+/**
+ * A PR's review rounds, from the read keel review already makes: the pushes
+ * (commits) a reviewer answered with at least one finding. A finding is a
+ * review thread someone other than the PR's author opened (counted on the
+ * commit its first comment was made on), or a review body that owes an answer
+ * (reviewComments' rule; an approval's body and a status board are none).
+ * Two reviewers on one push are one round; a push the reviewer passed is
+ * none. A finding whose commit GitHub did not name is not counted.
+ * { count, pushes } with the pushes in the order first seen.
+ */
+export function reviewRounds(pr) {
+  const author = pr?.author?.login;
+  const pushes = new Set();
+  for (const t of pr?.reviewThreads?.nodes ?? []) {
+    const first = t?.comments?.nodes?.[0];
+    if (first?.originalCommit?.oid && !(author && sameLogin(loginOf(first), author))) pushes.add(first.originalCommit.oid);
+  }
+  for (const r of pr?.reviews?.nodes ?? []) {
+    if (!r?.commit?.oid || !String(r.body ?? '').trim() || r.state === 'APPROVED') continue;
+    const robot = robotReview(pr, r);
+    if (!robot && author && sameLogin(loginOf(r), author)) continue;
+    if (robot ? robot.status : isStatus(r.body)) continue;
+    pushes.add(r.commit.oid);
+  }
+  return { count: pushes.size, pushes: [...pushes] };
+}
+
+/**
+ * The open findings among reviewComments' list, sorted by the merge rule:
+ * { fixFirst, track, unsorted }. One with no class is unsorted, never tracked:
+ * nobody has said it is safe to leave.
+ */
+export function byMergeRule(comments) {
+  const open = comments.filter(c => !c.answered);
+  return { fixFirst: open.filter(c => FIX_FIRST.includes(c.class)), track: open.filter(c => c.class === 'other'), unsorted: open.filter(c => !REVIEW_CLASSES.includes(c.class)) };
 }
 
 /**
@@ -1606,7 +1688,7 @@ const NODE = 'databaseId author { __typename login } body createdAt url';
 export const windowFragment = () => `fragment KeelReviewWindow on PullRequest {
   keelWindow: __typename number title url state mergedAt updatedAt headRefName headRefOid body repository { nameWithOwner } headRepository { nameWithOwner } author { __typename login }
   reviewThreads(first: ${WINDOW_THREADS}) { pageInfo { hasNextPage } nodes { id isResolved path line
-    tail: comments(last: ${WINDOW_TAIL}) { totalCount nodes { ${NODE} } } } }
+    tail: comments(last: ${WINDOW_TAIL}) { totalCount nodes { ${NODE} originalCommit { oid } } } } }
   comments(last: ${WINDOW_CONVO}) { pageInfo { hasPreviousPage } nodes { id ${NODE} } }
   reviews(last: ${WINDOW_BODIES}) { pageInfo { hasPreviousPage } nodes { id databaseId author { __typename login } commit { oid } body state submittedAt url } }
 }`;
@@ -1724,15 +1806,24 @@ export async function readRepoReviews(read, date, { readPr, reviewers = [] } = {
  * last REVIEW_DAYS days) with comments unanswered for a day or more, by
  * calendar day against `date` (YYYY-MM-DD). Throws on a malformed read, and
  * IncompleteRead on one with pull requests left unread: never a zero.
+ * `rounds` (phase 71): each open PR with a review round or more, its count
+ * and its open findings of any age by the merge rule, for the board.
  */
 export function unansweredPrs(repository, reviewers, date) {
   const { open, merged } = windowPrs(repository, date);
-  const prs = [];
+  const prs = [], rounds = [];
   for (const pr of [...open, ...merged]) {
-    const left = reviewComments(pr, reviewers).filter(c => !c.answered && /^\d{4}-\d{2}-\d{2}/.test(c.at ?? '') && c.at.slice(0, 10) <= addDays(date, -1));
+    const comments = reviewComments(pr, reviewers);
+    const round = pr.state === 'MERGED' ? { count: 0 } : reviewRounds(pr);
+    if (round.count) {
+      const sorted = byMergeRule(comments);
+      rounds.push({ number: pr.number, title: pr.title, url: pr.url, author: pr.author ? `${pr.author.__typename === 'Bot' ? 'app/' : ''}${pr.author.login}` : null, rounds: round.count,
+        open: comments.filter(c => !c.answered).length, fixFirst: sorted.fixFirst.length, track: sorted.track.length, unsorted: sorted.unsorted.length });
+    }
+    const left = comments.filter(c => !c.answered && /^\d{4}-\d{2}-\d{2}/.test(c.at ?? '') && c.at.slice(0, 10) <= addDays(date, -1));
     if (left.length) prs.push({ number: pr.number, title: pr.title, state: pr.state === 'MERGED' ? 'merged' : 'open', url: pr.url, author: pr.author ? `${pr.author.__typename === 'Bot' ? 'app/' : ''}${pr.author.login}` : null, unanswered: left.length, oldest: left.map(c => c.at.slice(0, 10)).sort()[0] });
   }
-  return { prs, open: open.length, merged: merged.length };
+  return { prs, open: open.length, merged: merged.length, rounds };
 }
 
 /**

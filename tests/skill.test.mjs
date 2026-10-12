@@ -217,6 +217,27 @@ test('the conduct skill says: in keel, a practice change lands as a claude/ PR, 
   assert.equal(reviewerOf({ config, head: 'codex/fix' }).reviewer, 'claude');
 });
 
+// Phase 71: at the round limit the conductor stops pushing fixes and reports; it never merges.
+test('the conduct skill says: at the review-round limit stop pushing fixes, sort the open findings, report the choice, never merge', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const four = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## ', skill.indexOf('\n## 4.') + 1));
+  const at = four.indexOf('**A review that keeps going is the owner\'s.**');
+  assert.ok(at > four.indexOf('Not a gate: an open thread never refuses a merge'), 'in §4, after the answering rule');
+  const rule = four.slice(at, four.indexOf('\n\n', at));
+  assert.match(rule, /\(why: [^)\n]+\)/);
+  assert.match(rule, /A round is one push a reviewer answered with a finding/);
+  assert.match(rule, /`keel review <repo>#<n>` exits 3/);
+  // The config key, in two parts (the gh-verb scan of test sources reads a quoted verb beside the CLI's name as a run of it).
+  assert.match(rule, /exits 3[\s\S]*round limit \(three unless `[^`]+` `"\w+": \{"rounds": N\}`/);
+  assert.ok(rule.includes('`"review": {"rounds": N}`'));
+  assert.match(rule, /stop pushing fixes/);
+  assert.match(rule, /`keel review <repo>#<n> --class security\|overwrite\|approval\|other <ids>`\s+\(it records the kind and answers nothing\)/);
+  assert.match(rule, /report the choice it prints\s+to the owner: merge with the rest tracked, split, or close/);
+  assert.match(rule, /Never merge it\s+yourself/);
+  // keel's own copy is rendered from it.
+  assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes(rule));
+});
+
 // ledger #60, #73, #74: the conduct skill assumes nothing a project with its own roadmap lacks, and agrees with the AGENTS block.
 test('the conduct skill reads the project\'s roadmap command, says whose check guards a stale status, and the AGENTS block names the small-phase exception', async () => {
   const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
