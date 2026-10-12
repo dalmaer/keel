@@ -93,6 +93,30 @@ phase's issue labelled `keel:wait-for-review`. Such a phase lands through a
 PR, and merges only when `keel review <repo>#<n> --gate` exits 0: every
 comment answered, and each named reviewer has reviewed the head commit.
 
+### A review that keeps going is brought to you
+
+On 2026-10-10 one PR went about ten rounds of fix, push, new findings. keel
+now counts a PR's **rounds**: a round is one push a reviewer answered with
+at least one finding. A push the reviewer passed is not a round, and two
+reviewers on one push are one. At the limit (three, or `"review":
+{"rounds": N}` in `.keel/keel.json`) `keel review <repo>#<n>` exits 3 and
+lays out your choice:
+
+- **Merge with the rest tracked.** Each open finding is listed as *fix
+  first* (a security hole, overwrites your files, or skips an approval) or
+  *track* (it needs an issue with its known limit). One nobody has sorted is
+  listed as *unsorted*, never as *track*.
+- **Split.** Land what is settled; move what still draws findings to its
+  own PR.
+- **Close.**
+
+The session that read a finding says which kind it is, with `keel review
+<repo>#<n> --class security|overwrite|approval|other <ids>`. That records
+the kind and nothing else: the finding stays unanswered. keel never guesses
+the kind from the text, so read the list before you merge. The board shows
+such a PR in your column, and the conduct skill stops pushing fixes there.
+keel never merges it. `keel review --gate` is not changed by the limit.
+
 ### Claude reviews what Codex writes (optional)
 
 Codex reviews every PR, Claude Code's included, and on 6 October its

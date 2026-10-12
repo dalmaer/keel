@@ -186,7 +186,14 @@ export async function githubRead(env, key, fn, { fresh = false, guard, now } = {
  * comments unanswered a day or more (unansweredPrs), each query's rateLimit
  * in `spend`.
  */
-export async function readRepoUnanswered({ repo, reviewers = [] }, { env = process.env, today, spend, timeout = 15_000 } = {}) {
+export const readRepoUnanswered = async (x, opts) => (await readRepoReviewState(x, opts)).prs;
+
+/**
+ * The same one read, with what the board also shows (phase 71): { prs,
+ * rounds }, `rounds` each open PR with a review round or more (its count and
+ * open findings). keel loose-ends and the board keep it under one cache key.
+ */
+export async function readRepoReviewState({ repo, reviewers = [] }, { env = process.env, today, spend, timeout = 15_000 } = {}) {
   const graphql = async args => {
     const r = await exec(env.KEEL_GH || 'gh', args, env, timeout);
     if (!r.ok) throw new Error(r.why);
@@ -194,7 +201,8 @@ export async function readRepoUnanswered({ repo, reviewers = [] }, { env = proce
   };
   const read = async vars => (await graphql(repoReviewArgs(repo, vars)))?.repository;
   const readPr = async number => (await graphql(prReviewArgs(repo, number)))?.repository?.pullRequest;
-  return unansweredPrs(await readRepoReviews(read, today, { readPr, reviewers }), reviewers, today).prs;
+  const { prs, rounds } = unansweredPrs(await readRepoReviews(read, today, { readPr, reviewers }), reviewers, today);
+  return { prs, rounds };
 }
 
 /**

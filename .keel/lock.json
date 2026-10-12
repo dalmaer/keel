@@ -43,7 +43,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "0e99b93b85dc463c6655648a703db0cd68dd4e8f0a6d22cde2bd0b93c19ed092"
+      "sha256": "1f24434a2e8996e352205045672e41ebf0d54c9ed010fbf8c0de995a6543532e"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -155,7 +155,7 @@
     },
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
-      "sha256": "80e795ff3bdb26fccc68e29155015963b945cc35abf3a1df824cde4515a8a9b3"
+      "sha256": "0c666c476ac1ac7c5fb36c60a2d1d7287dbc38ecbcd440f3942a08a8e0094d0b"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -183,7 +183,7 @@
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
-      "sha256": "79bb15534042f070ac1c7e971ed002f2d66662893e9fbf6b37922ab09d468fd4"
+      "sha256": "a9ecc432189eed5e5e5f0ff8d06c1f199c0e32a8232d99ce95791e904a5c20bc"
     },
     "scripts/keel/milestones.mjs": {
       "practice": "night",
@@ -199,7 +199,7 @@
     },
     "scripts/keel/quota.mjs": {
       "practice": "night",
-      "sha256": "4cab9ac25032e116b2aca9963576b49b91eb6652a7777815b8377a68c290ae3b"
+      "sha256": "28df0b963beceea8c773e6dacdbc2d97226a5132374a418eb5edb9aa5a73e452"
     },
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",

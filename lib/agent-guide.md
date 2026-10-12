@@ -1312,11 +1312,43 @@ phase lands through a PR, not a push to main, and merges when `keel review
 <r>#<n> --gate` exits 0: every comment answered and each named reviewer has
 reviewed the head commit (1 until then).
 
+**A review that keeps going is the owner's (exit 3).** A round is one push
+(commit) a reviewer answered with at least one finding: a thread someone
+other than the PR's author opened on that commit, or a review body that owes
+an answer. A push the reviewer passed is none; two reviewers on one push are
+one round. It is counted from the same read. The limit is `"review":
+{"rounds": N}` in `.keel/keel.json` (3 unset; a bad value exits 2 naming
+`"rounds"`). At the limit the read of an open PR exits 3 and prints the
+choice: **merge with the rest tracked** (each open finding as *fix first*,
+*track* or *unsorted*), **split**, or **close**. Stop pushing fixes and
+report it; keel merges nothing. `--wait` returns at once at the limit: it
+does not wait for the reviewer. A cross-review summary whose findings are in
+its body (GitHub refused them inline; it carries `<!-- keel:cross-review
+findings N -->`) is a finding on its push and owes an answer. Under the limit, output and exit codes are
+as before, and `--gate` is never changed by the limit.
+
+    keel review <r>#<n> --class security|overwrite|approval|other <id>[,<id>…]
+    keel review <r>#<n> --close <id> --fixed <commit> --class security
+
+`--class` records a finding's kind by the merge rule (`security`,
+`overwrite` the owner's files, skips an `approval`: fix first; `other`:
+track, with an issue naming its known limit) and **leaves it unanswered**:
+its reply opens with `<!-- keel:class <kind> -->`, which no read counts as
+an answer, so `--gate` still fails on it. With `--close` the class rides
+under the answer. It needs a fresh read, as `--close` does. The kind is
+yours to say after reading the finding; keel never infers it from the text,
+and one with no class is listed *unsorted*, never *track*.
+
 `--json` → `{repo, number, title, url, state, head, reviewers, reviewersFrom,
 wait, reviewed: [{reviewer, head, newest}], notReviewed, waited, gate,
 comments: [{kind: thread|review|comment, id, author, at, path, line, text,
-url, resolved, status?, answered}], unanswered, answered, ok}`; `--close --json` → `{repo, number,
-answer, value, reply, closed: [{id, kind, answer, replied, resolved}]}`.
+url, resolved, status?, answered, class}], unanswered, answered, ok, rounds:
+{count, limit, reached, pushes}, choice}` (`choice` null, or at the limit
+`{fixFirst, track, unsorted}`, each `[{id, class, author, where, text}]`);
+`--close --json` → `{repo, number,
+answer, value, class?, reply, closed: [{id, kind, answer, replied, resolved}]}`;
+`--class --json` → `{repo, number, class, classed: [{id, kind, class,
+replied, answered, already?}]}`.
 
 **A push reviewed after it landed** (phase 60, `"crossReview": {"after":
 "push"}`): `keel review <owner/repo>@<sha>` (7 to 40 hex; `@<sha>` for the
@@ -1411,7 +1443,9 @@ Sources: `roadmap` (a walk owed → `owner`/`time`/`external` by the phase's
 `waits:`; buildable phases → `agent`; a phase dated `after:` a day to come →
 `time`), `loose-ends` ("⚑ yours", a session's question, a phase's ⚑ next
 action → `owner`; the rest by kind), `reviews` (unanswered comments on open
-PRs, home and the fleet → `broken`), `health` (the newest page's undecided
+PRs, home and the fleet → `broken`; a PR at its review-round limit → `owner`
+in place of that, "<repo>#<n>: review round 3 of 3, 2 open findings", with
+`rounds`, `limit`, `open`), `health` (the newest page's undecided
 proposal → `owner`), `inbox` (lessons proposed → `owner`), `fleet` (home only:
 the strip; red CI → `broken`; a draft PR on a `keel/update-` branch →
 `broken`, kind `update`, "<repo>: keel update <version> fails <name>'s
