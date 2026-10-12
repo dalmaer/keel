@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: owner
 since: 2026-10-12
 goal: G0
 spec: 2
 depends: [48]
-note: "Specified 2026-10-12 from the ten-round review of #59: past three rounds keel review gives the owner the choice, findings sorted by the merge rule."
-evidence: []
+note: "Built 2026-10-12: keel review counts rounds, exits 3 at the limit with findings sorted by the merge rule, and --class sorts a finding without answering it. The owner's read of the first real PR past three rounds remains."
+evidence: ["evidence/2026-10-12-review-rounds.md"]
 issue: 114
 ---
 
@@ -30,11 +32,11 @@ Not in scope: keel merging anything, or judging a finding's class.
 
 ## Acceptance
 
-- [ ] `keel review` counts rounds: a push with findings is one, a push the reviewer passed is none, and two reviewers on one push are one round. `tests/review-rounds.test.mjs`
-- [ ] At the limit, `keel review <pr>` exits 3 with the three choices; under it, exit codes are as before. `"review": {"rounds": N}` changes the limit, and a bad value is refused naming the key. `tests/review-rounds.test.mjs`
-- [ ] `--class` alone records the class and leaves the finding unanswered: `--gate` still fails on it. With `--close` it is recorded with the answer. `tests/review-rounds.test.mjs`
-- [ ] A finding that arrives in the round that reaches the limit, classed and unanswered, is listed under "fix first" or "track"; an open finding with no class is listed as unsorted, never as "track". `tests/review-rounds.test.mjs`
-- [ ] The board shows a PR past its limit as the owner's, and the conduct skill names the rule. `tests/board.test.mjs`, `tests/skill.test.mjs`
+- [x] `keel review` counts rounds: a push with findings is one, a push the reviewer passed is none, and two reviewers on one push are one round. `tests/review-rounds.test.mjs`
+- [x] At the limit, `keel review <pr>` exits 3 with the three choices; under it, exit codes are as before. `"review": {"rounds": N}` changes the limit, and a bad value is refused naming the key. `tests/review-rounds.test.mjs`
+- [x] `--class` alone records the class and leaves the finding unanswered: `--gate` still fails on it. With `--close` it is recorded with the answer. `tests/review-rounds.test.mjs`
+- [x] A finding that arrives in the round that reaches the limit, classed and unanswered, is listed under "fix first" or "track"; an open finding with no class is listed as unsorted, never as "track". `tests/review-rounds.test.mjs`
+- [x] The board shows a PR past its limit as the owner's, and the conduct skill names the rule. `tests/board.test.mjs`, `tests/skill.test.mjs`
 - [ ] ⚑ by hand: the next keel PR to pass three rounds reaches the owner with a sorted list, and the owner says whether the list was enough to decide.
 
 ## Your part
@@ -65,4 +67,4 @@ By hand: one real PR past the limit, read by the owner.
 
 ## Next action
 
-Count rounds in `keel review` from the reviews it already reads, with `tests/review-rounds.test.mjs` on a stubbed gh.
+⚑ Owner: the walk in Your part, on the next keel PR that passes three review rounds. The build is done and its five automated boxes are proven by `tests/review-rounds.test.mjs`, `tests/board.test.mjs` and `tests/skill.test.mjs`.

@@ -327,6 +327,14 @@ the id list from a query. A valid finding is fixed in its own commit before the 
 Not a gate: an open thread never refuses a merge, and the night counts what
 is left (`reviews_unanswered`).
 
+**A review that keeps going is the owner's.** (why: One PR went ten review rounds of fix-and-push before anyone decided.) A round is one push a reviewer answered with a finding. When `keel review <repo>#<n>` exits 3 the PR
+is at its round limit (three unless `.keel/keel.json` `"review": {"rounds": N}`
+says otherwise): stop pushing fixes. Sort each open finding you have read
+with `keel review <repo>#<n> --class security|overwrite|approval|other <ids>`
+(it records the kind and answers nothing), then report the choice it prints
+to the owner: merge with the rest tracked, split, or close. Never merge it
+yourself.
+
 **A phase that waits for review** (opt-in, for a change the owner is nervous
 about): its front matter says `review: wait`, or its issue carries the label
 `keel:wait-for-review` (`gh issue view <n> --json labels`). It lands through a

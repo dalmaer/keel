@@ -72,7 +72,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict, reviewerOf, listedAgents, pushReviewerOf, commitAuthorOf, secretText, PUSH_LABEL, pushTitle, recordText, recordOf, byWorkflow } from './lib.mjs';
+import { isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict, reviewerOf, listedAgents, pushReviewerOf, commitAuthorOf, secretText, PUSH_LABEL, pushTitle, recordText, recordOf, byWorkflow, fallbackFindingsMark } from './lib.mjs';
 
 export const KEY = 'crossReview';
 export const LIMITS = Object.freeze({ minutes: [5, 60] });
@@ -88,7 +88,12 @@ export const PR_ACTIONS = Object.freeze(['opened', 'ready_for_review']);
 /** Who may ask with `/review`: GitHub's author_association for write access. */
 export const ASKERS = Object.freeze(['OWNER', 'MEMBER', 'COLLABORATOR']);
 export const COMMAND = '/review';
-/** The summary review's first line: a hidden marker, so keel review lists it as status (no answer owed). */
+/**
+ * The summary review's first line: a hidden marker, so keel review lists it
+ * as status (no answer owed). When the findings are in the body (GitHub
+ * refused them inline) a second line says so (lib.mjs fallbackFindingsMark):
+ * that summary owes an answer and counts as a finding on its push.
+ */
 export const MARKER = '<!-- keel:cross-review -->';
 /** The review event, always. */
 export const EVENT = 'COMMENT';
@@ -572,7 +577,7 @@ export function summaryReview({ result, message, agent = 'claude', author = null
     ...(author && author === agent ? ['', `Reviewed by ${agent}, its own provider: ${reason || 'no other is available'}.`] : []),
     ...(problem ? ['', `Its findings could not be read: ${problem}; none is posted inline.`] : []),
     ...(dropped.length ? ['', `Dropped (${dropped.length}, not posted inline):`, ...dropped.map(d => `- ${where(d)}: ${d.why}`)] : []),
-    ...(!inline && kept.length ? ['', `GitHub refused the inline comments; the findings (${kept.length}), to answer here:`, ...kept.map(f => `- \`${f.path}:${f.line}\` **${f.severity}** ${f.body.replace(/\s+/g, ' ')}`)] : []),
+    ...(!inline && kept.length ? ['', fallbackFindingsMark(kept.length), `GitHub refused the inline comments; the findings (${kept.length}), to answer here:`, ...kept.map(f => `- \`${f.path}:${f.line}\` **${f.severity}** ${f.body.replace(/\s+/g, ' ')}`)] : []),
   ];
   const review = { event: EVENT, commit_id: pr.headRefOid, body: [MARKER, head, '', body, ...notes, ''].join('\n') };
   if (inline && kept.length) review.comments = kept.map(f => ({ path: f.path, line: f.line, side: 'RIGHT', body: findingBody(f) }));
