@@ -1208,7 +1208,7 @@ step?, error?}], resting: [{repo, why}], fails: [repo], skipped?}`.
 `keel release` runs it before it commits.
 
 `--json` → `{ok, root, cli, at, ms, rows: [{repo, role, kind, note,
-unreadable?, branch, adopted, practice: {version, behind, unrecorded, pending, possiblyPending},
+unreadable?, branch, adopted, review: {rounds} | {problem}, practice: {version, behind, unrecorded, pending, possiblyPending},
 health: {last, age, state}, ci: {state, workflow, rule, conclusion, at}, lessons:
 {project, rows, unsent}, machinePrs: {total, queues, heads, drafts: [{number,
 head}]}} | {repo, role:
@@ -1330,7 +1330,11 @@ so it is not owed an answer and `--close` will not take it.
 **Reviewers** come from `.keel/keel.json` `"review": {"reviewers":
 ["<login>"], "wait": <minutes>}` (default: none named, 10 minutes; a bad
 value exits 2): the project here when its `repo` is the PR's, else the PR's
-repo's own `.keel/keel.json` on GitHub; `--reviewer <login>` overrides. With
+repo's own `.keel/keel.json` on GitHub. `--reviewer <login>` replaces the
+reviewer list and nothing else: `wait` and the round limit stay the PR's
+repository's own, never this checkout's, and its config is read (and refused
+when invalid or unreadable, exit 2; none at all is the defaults) exactly as
+without `--reviewer`. With
 none named, conversation comments are not read and nothing is waited for. `codex` and
 `codex[bot]` are the same login.
 
@@ -1481,7 +1485,11 @@ Sources: `roadmap` (a walk owed → `owner`/`time`/`external` by the phase's
 action → `owner`; the rest by kind), `reviews` (unanswered comments on open
 PRs, home and the fleet → `broken`; a PR at its review-round limit → `owner`
 in place of that, "<repo>#<n>: review round 3 of 3, 2 open findings", with
-`rounds`, `limit`, `open`), `health` (the newest page's undecided
+`rounds`, `limit`, `open`; the limit is each repo's own: home's from its
+config, a fleet repo's from the fleet read's `review`, at no further read.
+One that could not be read is a gap in the source's `why`, "review-round
+limit not read, so none is applied: <repo>: <why>", and that repo's PRs stay
+listed by their unanswered comments, never held to an assumed three), `health` (the newest page's undecided
 proposal → `owner`), `inbox` (lessons proposed → `owner`), `fleet` (home only:
 the strip; red CI → `broken`; a draft PR on a `keel/update-` branch →
 `broken`, kind `update`, "<repo>: keel update <version> fails <name>'s

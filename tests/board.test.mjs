@@ -8,6 +8,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as boardModule from '../lib/board.mjs';
 import { board, boardText, reviewItems, walkDone, walkDecide, serve, pageHtml, boardView } from '../lib/board.mjs';
 import vm from 'node:vm';
 import { timeSummary } from '../lib/time.mjs';
@@ -208,6 +209,62 @@ test('a PR past its review-round limit is the owner\'s item, with the round coun
     assert.ok(!titles(data, 'broken').some(t => t.startsWith('acme/app#7')));
     assert.equal(seen.find(x => x.repo === 'acme/app').rounds, 3, 'three when the project names none');
     assert.match(boardText(data), /acme\/app#7: review round 3 of 3, 3 open findings/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+// keel#118: a fleet repo's PRs are held to that repo's own limit, read by the fleet read the board already makes.
+test('a fleet repo\'s review-round limit is its own, from the fleet read; one that could not be read is a gap, never three', async () => {
+  const { fleetRoundLimit } = boardModule;
+  const row = over => ({ repo: 'acme/site', role: 'managed', adopted: true, review: { rounds: 3 }, ...over });
+  assert.deepEqual(fleetRoundLimit(row({ review: { rounds: 5 } })), { rounds: 5 });
+  assert.deepEqual(fleetRoundLimit(row({ adopted: false, review: undefined })), { rounds: 3 }, 'no .keel/keel.json: the defaults, as keel review says');
+  for (const [bad, why] of [
+    [undefined, /^the fleet could not be read$/],
+    [row({ unreadable: 'HTTP 404' }), /^unreadable: HTTP 404$/],
+    [row({ adopted: { unreadable: 'HTTP 502' }, review: undefined }), /^its \.keel\/keel\.json is unreadable: HTTP 502$/],
+    [row({ review: { problem: '.keel/keel.json "review" "rounds" must be a whole number of review rounds, 1 or more' } }), /"rounds" must be a whole number/],
+    [row({ review: undefined }), /carries no review config/],
+  ]) {
+    const got = fleetRoundLimit(bad);
+    assert.equal(got.rounds, null);
+    assert.match(got.roundsGap, why);
+  }
+
+  // Four rounds on a PR of acme/site, and two comments unanswered a day.
+  const state = { prs: [{ number: 4, title: 'Acme site', state: 'open', url: 'u4', author: 'acme-owner', unanswered: 2, oldest: '2026-10-01' }],
+    rounds: [{ number: 4, title: 'Acme site', url: 'u4', author: 'acme-owner', rounds: 4, open: 2, fixFirst: 0, track: 0, unsorted: 2 }] };
+  const root = await acme();
+  try {
+    const run = async fleet => {
+      const seen = [];
+      const data = await board({ root }, { ...deps(root), fleet, reviews: list => { seen.push(...list); return reviewItems(list, { today: TODAY, me: 'acme-owner', read: async ({ repo }) => repo === 'acme/site' ? state : [] }); } });
+      return { data, site: seen.find(x => x.repo === 'acme/site'), reviews: data.sources.find(s => s.source === 'reviews') };
+    };
+    const rows = site => async () => ({ rows: [fleetData.rows[0], { ...fleetData.rows[1], ...site }] });
+    // acme/site allows five: four rounds are not the owner's yet, whatever keel's own limit is.
+    const five = await run(rows({ review: { rounds: 5 } }));
+    assert.equal(five.site.rounds, 5);
+    assert.deepEqual(titles(five.data, 'owner').filter(t => t.startsWith('acme/site#')), []);
+    assert.ok(titles(five.data, 'broken').includes('acme/site#4: 2 review comments unanswered'));
+    assert.equal(five.reviews.why, undefined);
+    // It allows two: the owner's.
+    const two = await run(rows({ review: { rounds: 2 } }));
+    assert.ok(titles(two.data, 'owner').includes('acme/site#4: review round 4 of 2, 2 open findings'));
+    // Its config is invalid, or the fleet could not be read at all: a gap that is said, and no limit assumed.
+    for (const [fleet, why] of [
+      [rows({ review: { problem: '.keel/keel.json "review" "rounds" must be a whole number of review rounds, 1 or more' } }), /review-round limit not read, so none is applied: acme\/site: .*"rounds" must be a whole number/],
+      [async () => { throw new Error('gh: HTTP 401'); }, /review-round limit not read, so none is applied: acme\/site: the fleet could not be read: gh: HTTP 401/],
+    ]) {
+      const gap = await run(fleet);
+      assert.deepEqual([gap.site.rounds, typeof gap.site.roundsGap], [null, 'string']);
+      assert.match(gap.reviews.why, why);
+      assert.deepEqual(titles(gap.data, 'owner').filter(t => t.startsWith('acme/site#')), [], 'not promoted on an assumed three');
+      assert.ok(titles(gap.data, 'broken').includes('acme/site#4: 2 review comments unanswered'), 'still listed, as before');
+    }
+    // The fleet is read once for the strip and the limits.
+    let reads = 0;
+    await run(async () => { reads++; return fleetData; });
+    assert.equal(reads, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
