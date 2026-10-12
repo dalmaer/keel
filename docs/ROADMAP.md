@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**41 of 72 phases built; 29 owe a walk.** Built means implemented and checked; planned is not available.
+**42 of 73 phases built; 29 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Await a deployed public isocan conditional-edit operation before implementing the stable live pulse. Complete the real browser concurrent-edit walk and provision the dedicated GitHub writer using the project-canvas guide, then verify night/restart behavior. Immutable packed recovery and a deployed historical receipt replay are proven. Preserve the already approved destination, writer, dashboards and weekly automation; do not request their approval again. Scheduled-use evidence is still owed. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -195,7 +195,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-1/6 built; 3 owe a walk.
+2/7 built; 3 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -205,6 +205,7 @@ Keel can show, with numbers across the fleet, whether projects it manages ship m
 | [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md) | partial | 2026-10-10 | [2](phases/02-the-keel-cli.md), [10](phases/10-the-night-shift.md), [26](phases/26-reconciliation.md), [40](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Conditional live pulse, browser concurrent-edit walk and deployed night proof remain. |
 | [56. keel knows where time goes](phases/56-keel-knows-where-time-goes.md) | partial, walk owed (time) | 2026-10-09 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Timing context, usual times, failure memory, root-gate trends and bounded local transcript reporting are implemented. Linux CI capture is verified; the owner's two-week usefulness read remains open. · [#43](https://github.com/dalmaer/keel/issues/43) |
 | [61. CI cost is a measure, and adoption says what keel adds](phases/61-ci-cost-is-a-measure-and-adoption-says-what.md) | partial, walk owed | 2026-10-09 | [43](phases/43-each-budgeted-pass-shows-what-it-used.md) | Implemented: bounded CI usage estimates, exact clean default-branch CI reuse and adoption cost previews. Real API accounting, estimates and clean committed CI reuse verified; the owner’s month on a metered project remains owed. · [#48](https://github.com/dalmaer/keel/issues/48) |
+| [72. Session handoffs improve through bounded measured trials](phases/72-session-handoffs-improve-through-bounded.md) | built | 2026-10-12 | [40](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md), [67](phases/67-cli-cost-and-checked-contracts.md) | Explicit session trials, bounded admission, safe handoffs, paired audit and policy rollback implemented; packed lifecycle verified. Real-world savings and host lifecycle adapters remain unproven. |
 
 - **12 done when:** `keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
 - **13 done when:** A dated research page compares the fleet before and after adoption on measures fixed in advance (red-streak length, time from lesson to guard, phases moved per week, conduct cost per phase) and says plainly what it found.
@@ -212,6 +213,7 @@ Keel can show, with numbers across the fleet, whether projects it manages ship m
 - **50 done when:** An adopted project has a persistent isocan canvas showing its complete Keel lifecycle, with source-linked measures of fixes and improvement that survive repeated synchronization without changing source acceptance or overwriting human work.
 - **56 done when:** Every recorded run carries how busy the machine was; a slow run on a busy machine is never counted as a slower test; each test's usual time, its failures' text and the gate's wall time over weeks are in `keel time --json`; and the tests agents worked around on this machine are reported locally.
 - **61 done when:** The night reports each workflow's weighted minutes for the last 7 days (each job rounded up to a minute, configurable defaults Linux ×1, Windows ×2 and macOS ×10) against a bound the project sets; the night's gate measure reuses the result of the project's own CI on the same commit instead of running the gate again; `keel adopt --dry-run` states the weighted minutes a month keel's workflows would add; and one metered project has run a month with them.
+- **72 done when:** The CLI admits bounded comparable session trials, records safe handoffs and explicit outcomes, audits better/worse/inconclusive evidence, and promotes or rolls back only the experiment's approved policy while preserving its history.
 
 ## Updating this roadmap
 

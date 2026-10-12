@@ -29,7 +29,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
-- `keel retro` — session friction; `capture` previews an explicit record
+- `keel retro` — worksheet; `capture` records; `sessions` trials
 - `keel evidence rederive <phase>` — preview measurements; `--yes` reruns them
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
 - `keel release <x.y.z> --notes <file>` — review, version, tag
@@ -1608,6 +1608,117 @@ chooses candidates or publishes transcripts, commands or private local pointers.
 Invalid records exit 2. JSON includes `schema`, `operation`, `changes`,
 `coverage`, `warnings`, `exitCode` and the reviewed record. The ordinary
 worksheet above remains read-only. See `keel --agent-help canvas` for publishing.
+
+
+### Bounded session trials (explicit records)
+
+`keel retro sessions <status|start|begin|finish|handoff|audit|apply|rollback>
+[--experiment <id>] [--record <file>] [--yes] [--json]` records local trials.
+Mutations preview without `--yes` (exit 0). Invalid records or locked/corrupt
+storage exit 2. `status` without an experiment and `keel improve --sessions
+--json` list the same experiment audits read-only; gaps mean unavailable data.
+`improve --sessions` takes no other options except `--json` and runs no gate.
+No experiment means off. Records are bounded JSON files (16 KiB); unknown fields
+are rejected. IDs match `[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}`. Text fields are nonempty,
+one-line strings, at most 1024 characters; pointer lists have at most 32 entries.
+Never supply transcripts, credentials, claim tokens or private application data.
+
+`start --record` requires this exact envelope (synthetic example):
+
+```json
+{"version":1,"id":"acme","provider":"Acme","model":"Acme-1","cohort":"Acme-small","baseline":{"contextTokens":null,"atBoundary":true,"maxHandoffs":2},"candidate":{"contextTokens":40000,"atBoundary":true,"maxHandoffs":2},"minPairs":3,"minImprovement":0.1,"maxRuns":10,"budgetMinutes":200,"reserveMinutes":20,"automatic":false}
+```
+
+Only `contextTokens` may differ (null disables a threshold, otherwise positive
+integer). `atBoundary` is boolean; `maxHandoffs` is an integer 0–16. `minPairs`
+is an integer >=3, `maxRuns` is an integer >2*minPairs and <=1000, leaving monitor
+capacity. `minImprovement` is a fraction >0 and <1; budget and reserve are finite
+positive minutes, reserve <= budget. The immutable envelope is scoped to this
+project/provider/model/cohort. `automatic` authorizes deterministic changes only
+to the experiment's effective policy. It grants no spending or launch permission.
+
+`begin --experiment acme --record` reserves a run before work:
+
+```json
+{"id":"run1","provider":"Acme","model":"Acme-1","cohort":"Acme-small","task":"Acme argument validation","taskClass":"Acme-test","sourceRevision":"acme-start","evidence":["docs/evidence/acme-admission.md"]}
+```
+
+Every run, including monitors, requires the first run’s `taskClass`; assignments repeat ABBA. Follow
+the returned policy snapshot. Incomplete runs retain their full reservation.
+Total budget counts summed agent minutes, including builder, review, failed
+attempts, handoff and reload; parallel minutes are added, not elapsed wall time.
+Any overrun blocks further admissions and positive audit/apply, while finish still records the actual cost; adverse outcomes remain worse. After promotion, new runs have
+`stage: monitor`, use the effective policy and do not alter the paired denominator.
+
+`finish --experiment acme --record` requires all fields below:
+
+```json
+{"runId":"run1","totalMinutes":10,"costUsd":null,"costSource":null,"accepted":true,"verified":true,"policyApplied":true,"lostDecisions":0,"duplicateActions":0,"regressions":0,"rework":0,"contextPeakTokens":null,"sourceRevision":"acme-result","acceptanceEvidence":"docs/evidence/acme-result.md#acceptance","evidence":["docs/evidence/acme-full-workflow.md"]}
+```
+
+`totalMinutes` is finite >0. Cost is null with null source, or finite >=0 with
+an explicit measured source pointer. `accepted`, `verified`, `policyApplied`
+are boolean or null. `policyApplied: true` explicitly attests the reserved
+policy was followed; assignment alone is not evidence. Unknown or unapplied
+policy blocks a positive verdict. Quality counts and context peak are integer
+>=0 or null. Context means observed occupancy, never cumulative tokens.
+Acceptance requires `acceptanceEvidence`; otherwise that pointer can be null.
+`evidence` must be nonempty in every admission, finish and handoff.
+
+`handoff --experiment acme --record` requires these exact fields:
+
+```json
+{"id":"handoff1","runId":"run1","goal":"Acme goal","remainingAcceptance":["Acme proof"],"decisions":{"ownerChoices":["keep public API"],"suggestions":["consider a later API change"]},"revision":"acme-working-revision","dirtyPaths":["lib/acme.mjs"],"proof":["node --test tests/acme.test.mjs"],"evidence":["docs/evidence/acme-proof.md"],"activeJobs":[],"nextAction":"Verify Acme proof","claim":"claims/phase-72","remainingBudget":10,"contextTokens":null,"boundaryReached":true,"safeBoundary":true,"uncertainWrites":false}
+```
+
+`remainingAcceptance`, `dirtyPaths`, `proof`, `activeJobs`, and both decision
+lists may be empty. `claim` is a pointer or null, never a claim token.
+`remainingBudget` is finite >=0. Current `contextTokens` is integer >=0 or null;
+the three boundary/write flags are booleans. A receipt requires a due policy,
+a safe boundary, certain writes and available handoff allowance. It never
+transfers claims, stops jobs or creates/relaunches sessions. The caller performs
+the lifecycle. Repeated run, finish and handoff identities are refused; inspect
+status to recover rather than retrying under a new id.
+
+`status --experiment acme --record` optionally reads a current observation:
+
+```json
+{"runId":"run1","contextTokens":40000,"boundaryReached":false,"safeBoundary":true,"uncertainWrites":false}
+```
+
+The read-only recommendation is `due`, `defer` (triggered but unsafe), `not-due`,
+`unknown` (threshold occupancy unavailable), or `limit`. Task boundary triggers
+only when policy `atBoundary` is true. Threshold crossing requests the next
+safe boundary, never interruption. Status without an observation reports unknown;
+old peaks/receipts are not live telemetry. Handoff output records the due
+recommendation used for that receipt. `automaticRotation` is always false.
+
+`audit` reports paired sample IDs, policy snapshots, evidence, numerator,
+denominator, excluded/incomplete reasons, monitors, budget and transitions.
+Every admitted trial must complete; every pair must meet the minute margin and
+be accepted, verified, policyApplied and no worse on quality. Failed, expensive
+or missing observations cannot be discarded to manufacture a winner. Unknown
+cost/context alone does not block a minutes verdict; unknown quality/compliance
+does. Audit `source: explicit-records`, coverage `kind: manual-attestation`
+means the CLI validates schemas and arithmetic, not evidence contents, truth of
+acceptance, measured cost or provider telemetry. This is no causal savings claim.
+
+`apply` recomputes under the write lock and requires better. `rollback` selects
+baseline for safety; both preview unless `--yes`. With automatic true, finish
+promotes on better and rolls back a candidate when accepted/verified is false,
+quality exceeds the minimum observed corresponding counter among accepted,
+verified, policy-applied same-taskClass trial baselines, or minutes exceed the
+worst such baseline times `(1 + minImprovement)`. Unknown monitor quality or
+policy compliance is inconclusive, never success. Monitor evidence never
+changes the original pair denominator. Rollback latches baseline; even manual
+apply then requires a new experiment rather than reusing old wins. Remaining
+allowance and all observations survive; existing run snapshots never change.
+
+Storage is `.keel/session-trials/<id>/state.json`: bounded atomic replacements
+retain the immutable envelope and append-only logical event history (20,000 events, 4 MiB maximum). Repeated identical apply/rollback selections add no event. Writers
+share an exclusive local lock with no age-based reclaim. Uncertain/interrupted
+writes and corrupt storage require inspection; no retries erase receipts.
+No config, phase acceptance, fleet skill, scheduler or provider process changes.
 
 <!-- topic: evidence | preview and rederive dated measurements without rewriting history -->
 

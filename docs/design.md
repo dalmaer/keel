@@ -248,6 +248,17 @@ working here?" with numbers:
 
 It writes a page. It proposes one change. It never makes it.
 
+### Session handoff trials (phase 72, 12 October 2026)
+
+The [session handoff specification](specs/session-handoff-trials.md) extends
+`retro` with explicit, bounded observations and exposes the same audit through
+`improve --sessions`. A project may opt into deterministic threshold tuning
+inside one immutable experiment envelope. This differs from the general retro:
+no unpicked advice is applied, and no skill, permission or spending limit is
+rewritten. Accepted, verified outcomes and complete costs judge the trial;
+missing coverage is inconclusive. Promotion and rollback retain the evidence.
+The CLI records safe handoffs; the calling host controls agent lifecycles.
+
 ### 7. The fleet (phase 12)
 
 `fleet.json` on keel lists the projects keel manages. `keel fleet` reads each

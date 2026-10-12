@@ -38,6 +38,18 @@ phase names (a real device, a decision assigned to a person). A wrong
 design or a proof that can't run as written is not a stop: the conductor
 fixes the document, says why in the commit, and goes on.
 
+### Measuring handoffs
+
+For an approved experiment, follow the [session handoff guide](session-handoff-trials.md).
+Reserve a run before its work and use the returned policy snapshot. Keep a
+compact handoff at a safe boundary, including owner choices, proof, current
+revision and dirty paths, active jobs, remaining budget and exact next action.
+The receiving session checks current records and its phase claim before writing.
+Finish with the whole task's measured cost and evidence-backed outcome, including
+failed work and reload overhead. The deterministic audit can tune the threshold
+inside its envelope; it cannot launch sessions or accept a phase. This is an
+explicit CLI protocol, not an installed automatic provider hook.
+
 ### From a free phase to a merged one
 
 The whole path, with what stops each of the two failures it was built

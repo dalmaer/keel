@@ -64,6 +64,15 @@ work, and turns it into at most five candidates for the owner.
 It never runs from the night or a climb: unattended, a retro finds false
 positives and keeps fixing them.
 
+### Bounded session experiments
+
+`keel retro sessions` is a separate, explicit recording protocol for
+[session handoff trials](session-handoff-trials.md). Its deterministic audit can
+select a policy inside an approved envelope. It does not run the worksheet from
+the night, apply general retro suggestions, or infer acceptance from a merge.
+Mutations preview until `--yes`; read-only audits also appear in
+`keel improve --sessions --json`.
+
 ## The commands
 
 ```bash
@@ -110,8 +119,9 @@ id, commit or session.
 
 - Loose ends never runs the commands it suggests, and never writes a chat's
   words to a file.
-- The retro never writes anything, never quotes the transcript, and never
-  applies a candidate.
+- The retro worksheet never writes anything, never quotes the transcript, and
+  never applies a candidate. Explicit capture and session-trial commands have
+  their own preview/write contracts.
 
 ## See also
 

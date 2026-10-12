@@ -168,6 +168,18 @@ extends `climb` and stays off until the owner approves a project and weekly
 `robot.budgetMinutes` allowance covering both build and other-provider review.
 A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
 
+## Session handoff trials
+
+Use `keel retro sessions` for an explicitly configured handoff experiment and
+`keel improve --sessions --json` for its read-only audit. See
+[the session handoff guide](docs/guide/session-handoff-trials.md). Reserve each
+run before work, follow its returned policy, keep actual builder/reviewer and
+handoff costs, and record unknown measurements as unknown. Acceptance comes
+from its evidence, never a merge. A handoff preserves owner decisions, current
+revision, dirty paths, active jobs and next action; it does not transfer a phase
+claim. Revalidate ownership on resume. Automatic tuning only selects within
+the experiment's envelope; it never enlarges a budget or changes unrelated rules.
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for

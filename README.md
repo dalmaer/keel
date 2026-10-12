@@ -163,6 +163,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Reviews and PRs](docs/guide/reviews-and-prs.md) | a PR from keel arrived, or a reviewer commented on one |
 | [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
+| [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |
 
@@ -191,6 +192,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
 | `keel lessons` | Send what this project learned home to keel |
 | `keel drain <prefix>` | Keep one open PR per machine queue (the nightly runs this) |
+| `keel retro sessions` | Reserve and record bounded handoff trials; audit, promote and roll back within an explicit envelope (`keel improve --sessions` reads the same evidence) |
 | `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
 | `keel evidence rederive <phase>` | Preview structured measurements from a phase’s evidence; `--yes` reruns them and compares dated old/new values without rewriting history |
 | `keel prove <test> --fix <path>...` | A fix is proven by its test failing without it: runs the test with the fix reverted in a scratch copy of the repository, then with it, and prints VERIFIED, NOT WORKING or INCONCLUSIVE; `--trailer` gives the `Proven-by:` line a `fix:` commit carries. Never touches your tree |
