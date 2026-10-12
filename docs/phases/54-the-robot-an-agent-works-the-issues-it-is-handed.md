@@ -6,8 +6,8 @@ since: 2026-10-10
 goal: G4
 spec: 2
 depends: [45, 47]
-note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner project/budget and three real reviewed/merged issues remain owed."
-evidence: ["evidence/2026-10-10-robot.md"]
+note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner approved Keel with 60 combined agent minutes/week on 2026-10-12; three real reviewed/merged issues remain owed."
+evidence: ["evidence/2026-10-10-robot.md", "evidence/2026-10-12-robot-pilot.md"]
 issue: 41
 ---
 
@@ -80,7 +80,7 @@ By hand: three issues worked on a real project, read by the owner.
 
 ## Next action
 
-The owner chooses one project and a weekly allowance covering build plus other-provider review, confirms both providers' credentials, then enables the robot and labels three small eligible issues. Read each PR and its review, merge only when satisfied, and record the operational walk. Keel remains OFF until that approval.
+Run the owner-approved Keel pilot with 60 combined build/review agent minutes per week: Claude builds and Codex reviews. Both credential names exist; real runs must establish authentication. Queue the prepared issues one at a time, starting with #60, then #63 and a scoped child of #94. The owner reads and merges each PR; record three actual outcomes before claiming the operational walk complete.
 
 ## Trajectory
 
@@ -103,3 +103,5 @@ The owner chooses one project and a weekly allowance covering build plus other-p
 - **2026-10-10** — A lease protects the branch, not a concurrently edited PR description. Continuations now preserve that description and publish exact-head bot comments; review readers retain historical findings against their own verified delivery. Agent closing directives are inert, with only the trusted task reference active.
 
 - **2026-10-10** — Retry identity spans a logical run, not just its newest attempt; reuse a verified earlier build without dropping any attempt's usage. Review freshness also includes full content, and a trusted-runtime judge must reject candidate runtime selectors.
+
+- **2026-10-12** — The owner approved Keel as the pilot with 60 combined build/review agent minutes per week. Configuration enables the existing workflow; activation does not establish provider authentication, successful delivery, review or acceptance.

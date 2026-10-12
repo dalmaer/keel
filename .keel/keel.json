@@ -63,5 +63,9 @@
   },
   "ci": {
     "gateWorkflow": "check.yml"
+  },
+  "robot": {
+    "on": true,
+    "budgetMinutes": 60
   }
 }
