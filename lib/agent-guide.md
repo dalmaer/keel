@@ -28,7 +28,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
 - `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
 - `keel walk done|decide` — settle a walk or proposal
-- `keel canvas` — snapshot, render, connect, sync, status, disconnect, night
+- `keel canvas` — snapshot, render, connect, sync, status, live, rebase, disconnect, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
 - `keel evidence rederive <phase>` — preview measurements; `--yes` reruns them
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
@@ -1851,14 +1851,34 @@ All forms take `--json`. Snapshot and render work without isocan installed.
   plans by default; only `--yes` permits remote publication.
 - `keel canvas night --report <file> [--yes]` consumes an existing night report.
   It does not rerun the gate, measure instruments or invoke a model.
-- `keel canvas status` reads binding and sync state.
+- `keel canvas status` reads binding and sync state. A recorded refusal on the
+  live card makes it `state: "conflict"`, exit 1, with `attention`.
+- `keel canvas live [--keep <N> | --no-keep] [--off] [--yes]` previews moving
+  the binding to live mode (or back with `--off`) and its retention; `--yes`
+  writes the binding only. `--keep` is 2 to 1000 versions of the live card.
+- `keel canvas rebase [--onto <version-id>] [--yes]` previews what a person left
+  on a refused live card; `--yes` needs `--onto` with the current version id
+  shown, and records it as the base. It writes nothing remote.
 - `keel canvas disconnect [--yes]` previews disabling publication, then applies
   with `--yes`; the remote canvas remains.
 
 `KEEL_ISOCAN` names an executable (a wrapper is allowed), never a shell command.
 Publishing depends on the installed adapter's capability checks. Limited mode
-publishes immutable run cards. It has no conditional in-place updates, stable
-live pulse, atomic publication or automatic retention. Native groups require
+(`canvas.mode: "immutable"`, the default) publishes immutable run cards. It has
+no in-place updates, stable live pulse or retention. Live mode needs an
+inspected isocan build with `edit --if-version` (`7bb1f4e`). It keeps one
+pulse item and updates it with one conditional edit per change. Sync JSON then
+adds `live` (`key`, `itemId`, `versionId`, `status` applied or replayed) and
+`retention`. A person's edit wins: on a conflict keel writes nothing more to
+that card, never sends an unconditional edit, and returns `state: "conflict"`,
+exit 1, with `attention` (`reason` version or metadata, `expectedVersionId`,
+`currentVersionId`, `title`, `properties`, `next`). It stays refused until
+`keel canvas rebase --onto <version-id> --yes`; do not re-base for the owner.
+An older home answers unsupported: nothing is written, the binding returns to
+immutable, exit 2. A timeout leaves `state: "pending"`; run `sync --yes` again,
+which resends the same op id. A failed prune is a warning, not a failure.
+Neither mode has atomic multi-card publication: a sync can stop between cards.
+Native groups require
 the inspected current checkout; the older global CLI is unsupported. Only
 verified owner-only access is supported; wider audiences are refused.
 Coverage gaps remain visible; unknown facts are never successful outcomes.

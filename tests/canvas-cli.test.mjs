@@ -297,3 +297,49 @@ test('snapshot lifecycle input flags reject unsafe paths, bad JSON and invalid w
   assert.equal(w.cli(['canvas', 'sync', '--artifact', 'bad.json']).code, 2);
   assert.ok(!(await readdir(w.root)).includes('remote-calls'));
 });
+
+test('live and rebase preview first, validate flags before transport, and change only the binding', async t => {
+  const w = await world(t);
+  for (const args of [['live', '--keep'], ['live', '--keep', '1'], ['live', '--keep', '1001'], ['live', '--keep', '3', '--off'], ['live', '--keep', '3', '--no-keep'], ['live', '--onto', 'ver_acme'], ['rebase', '--yes'], ['rebase', '--keep', '3'], ['rebase', '--onto']]) {
+    const r = w.cli(['canvas', ...args]);
+    assert.equal(r.code, 2, JSON.stringify({ args, r }));
+  }
+  assert.ok(!(await readdir(w.root)).includes('remote-calls'));
+  assert.deepEqual(parseCanvasArgs('live', ['--keep', '14', '--yes']), { keep: 14, yes: true });
+  assert.deepEqual(parseCanvasArgs('live', ['--no-keep']), { noKeep: true });
+  await writeFile(w.env.KEEL_ISOCAN, `#!/bin/sh
+printf '%s\\n' "$*" >> "$ACME_CALLS"
+case "$*" in
+  --version) printf '0.1.0 (7bb1f4e, Acme)\\n' ;;
+  'edit --help') printf '%s\\n' '--visual --if-version --if-meta --title --prop --rm-prop --op-id' ;;
+  *--help*) printf '%s\\n' '--json --canvas --visual --prop --space --note new ls --keep --force' ;;
+  '--json whoami') printf '%s\\n' '{"id":"acme-writer","home":"https://acme.invalid"}' ;;
+  *' share') printf '%s\\n' '{"owner":"acme-writer","grants":[]}' ;;
+  *'canvas show') printf '%s\\n' '{"id":"acme-canvas","groupMode":"groups"}' ;;
+  *) exit 71 ;;
+esac
+`, { mode: 0o755 });
+  const connected = w.cli(['canvas', 'connect', '--canvas', 'https://acme.invalid/p/acme-canvas', '--audience', 'owner-only', '--yes']);
+  assert.equal(connected.code, 0, JSON.stringify(connected.data));
+  assert.equal(connected.data.binding.mode, 'immutable', 'a new connection is never live by itself');
+  assert.equal(connected.data.capabilities.conditionalWrites, true);
+  const before = await readFile(join(w.root, '.keel/keel.json'), 'utf8');
+  const preview = w.cli(['canvas', 'live', '--keep', '14']);
+  assert.equal(preview.code, 3, JSON.stringify(preview.data));
+  assert.deepEqual(preview.data.changes.map(c => c.action), ['set-mode', 'set-retention', 'create-live-on-first-sync']);
+  assert.match(preview.data.warnings.join('\n'), /No atomic multi-card publication/);
+  assert.equal(await readFile(join(w.root, '.keel/keel.json'), 'utf8'), before);
+  assert.equal(w.cli(['canvas', 'live', '--keep', '14', '--yes']).code, 0);
+  const status = w.cli(['canvas', 'status']);
+  assert.deepEqual([status.data.binding.mode, status.data.binding.keepVersions], ['live', 14]);
+  assert.match(status.data.warnings.join('\n'), /Live pulse/);
+  assert.equal(w.cli(['canvas', 'rebase']).data.state, 'unchanged');
+  // The flag is --onto because --version is keel's own; it must reach the adapter.
+  const onto = w.cli(['canvas', 'rebase', '--onto', 'ver_acme', '--yes']);
+  assert.deepEqual([onto.code, onto.data.operation, onto.data.state], [0, 'rebase', 'unchanged']);
+  assert.equal(w.cli(['canvas', 'live', '--off', '--yes']).data.state, 'immutable');
+  const config = JSON.parse(await readFile(join(w.root, '.keel/keel.json'), 'utf8'));
+  assert.deepEqual([config.canvas.mode, config.canvas.keepVersions, config.name], ['immutable', undefined, 'Acme']);
+  const calls = await readFile(w.env.ACME_CALLS, 'utf8');
+  assert.doesNotMatch(calls.split('\n').filter(line => !line.includes('--help')).join('\n'), /\b(?:add|edit|delete|create|rm|prune)\b/);
+});

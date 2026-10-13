@@ -4,8 +4,8 @@ since: 2026-10-10
 goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
-note: "Local collection, interactive render, reviewed retro capture and immutable sync are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Conditional live pulse, browser concurrent-edit walk and deployed night proof remain."
-evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md"]
+note: "Local collection, interactive render, reviewed retro capture, immutable sync and the conditional live pulse are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Live mode is proven on a fake transport and a throwaway local daemon only: the deployed concurrent-edit walk, GitHub writer and night proof remain."
+evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md"]
 ---
 
 # A project's isocan canvas shows what Keel improves
@@ -26,9 +26,9 @@ aggregation follows the per-project walk; no additional tracking authority.
 
 - [x] All lifecycle sources, both phase shapes, stable identities and unknown coverage are normalized without inventing facts: `tests/canvas-snapshot.test.mjs`. Dependency/review/queue/fleet adapters consume explicit saved artifacts; missing artifacts stay unknown.
 - [x] Metrics distinguish fixes, declined/stale findings, acceptance, merge, production verification and lived-in evidence; source links and accessible filters work: `tests/canvas-render.test.mjs` and the local Keel browser walk.
-- [ ] Connect, sync, retry and recovery preserve stable item ids and human edits, with no blind retries after ambiguous creation: `tests/canvas-sync.test.mjs` proves the limited immutable mode; deployed concurrency and the stable live pulse remain.
+- [x] Connect, sync, retry and recovery preserve stable item ids and human edits, with no blind retries after ambiguous creation: `tests/canvas-sync.test.mjs` proves immutable mode and the stable live pulse (applied, conflict by version and by metadata, replayed, unsupported, op id reuse, retention) on a fake transport. Deployed concurrency is not an automated proof; it is owed in the by-hand item below.
 - [x] Retro capture is explicit, reviewed and redacted; owner choices remain authoritative and unsupported providers remain unknown: `tests/canvas-retro.test.mjs`.
-- [ ] The existing night publishes its measured snapshot without repeating the gate or invoking a model: `tests/canvas-night.test.mjs` exercises the workflow shell; the deployed credential and restart walk remains.
+- [ ] The existing night publishes its measured snapshot without repeating the gate or invoking a model: `tests/canvas-night.test.mjs` exercises the workflow shell and a live journal's export and restore; the deployed credential and restart walk remains, in either mode.
 - [x] CLI help, optional practice installation/migration and the packed CLI agree: `npm run check`.
 - [ ] ⚑ by hand: owner approves home, space, audience and writer access; conductor performs the real isocan walk in spec slice 5, including concurrent-edit protection and restart recovery, and records evidence.
 
@@ -40,6 +40,10 @@ that decision is settled and must not be asked again. Canvas
 The weekly local report task is approved and active (Monday 08:00 Denver).
 GitHub night credentials and scheduled access are a separate, unprovisioned
 surface; prepare its concrete setup before requesting any new credential.
+
+Moving that approved canvas from immutable to live mode is a new decision and
+is the owner's: it changes how the existing pulse card is written. Nothing
+moves it until the owner runs `keel canvas live --yes`.
 
 ## Real surfaces
 
@@ -74,18 +78,31 @@ deployed integration.
   never treat read/check/write as CAS. The stable live pulse, atomic publication
   and remote retention remain open requirements, not silently reduced scope.
 - **Settled 2026-10-08:** private home/space/audience and writer approved and used. Immutable editions retain history; automated retention remains open. No public sharing or GitHub night credentials are implied.
+- **Settled 2026-10-13, by isocan `7bb1f4e` shipping `edit --if-version`:** the
+  stable live pulse is a second mode beside immutable, entered only by the
+  previewed `keel canvas live --yes`. A person's edit wins: a conflict is
+  recorded and stays refused until the owner runs `keel canvas rebase --onto
+  <version-id> --yes`; keel never adopts a person's version as its base by
+  itself. An older home returns the binding to immutable. Retention of the live
+  card's versions is optional (`--keep`), off by default. Still open: atomic
+  multi-card publication (isocan has none; not simulated) and retention of
+  immutable run cards.
 - Historical retros and unsupported local variants may lack usable data. Show
   coverage gaps; do not backfill invented outcomes. Settle per adapter in slice 3.
 
 ## Next action
 
-Await a deployed public isocan conditional-edit operation before implementing
-the stable live pulse. Complete the real browser concurrent-edit walk and
-provision the dedicated GitHub writer using the project-canvas guide, then
-verify night/restart behavior. Immutable packed recovery and a deployed
-historical receipt replay are proven. Preserve the already approved destination,
-writer, dashboards and weekly automation; do not request their approval again.
-Scheduled-use evidence is still owed.
+Walk live mode on the approved canvas. ⚑ The owner decides when: install the
+inspected isocan `7bb1f4e` build for the approved writer, run `keel canvas
+live` (preview), then `--yes`, then one `keel canvas sync --yes`, and confirm
+in the browser that the existing pulse was updated in place and no second pulse
+appeared. Then the concurrent-edit walk: edit and rename the pulse in the
+browser, sync, and see the refusal, the untouched card and `keel canvas rebase`.
+Record it as evidence. Until that walk the approved binding stays immutable,
+and its dashboards and weekly automation are unchanged; do not request their
+approval again. After it, provision the dedicated GitHub writer using the
+project-canvas guide and verify night/restart behavior, including a restored
+pending edit. Scheduled-use evidence (seven nights) is still owed.
 
 ## Trajectory
 
@@ -96,3 +113,5 @@ Scheduled-use evidence is still owed.
 - **2026-10-09** — Reconciled the October 8 owner approval, live Keel and fleet Loop dashboards, durable acknowledged receipts and weekly local schedule. These prove immutable publication and interactive rendering, not conditional updates, restart recovery, or seven scheduled nights. See the reconciliation evidence.
 
 - **2026-10-10** — The approved writer session was recoverable from the existing automation. The newer inspected CLI needed a pinned compatibility update; its general edit still has no conditional primitive. Packed recovery and a read-only deployed receipt replay now pass, without claiming stable in-place publication.
+
+- **2026-10-13** — isocan shipped the conditional edit (`7bb1f4e`), so the live pulse stopped waiting. Inspecting it changed the design twice: with an op id the CLI skips its own stale check and its conflict reason is the same for version and metadata, so keel classifies the refusal itself; and the answer's title and properties are a later re-read, so keel records what it wrote as the next base, not what came back. A local-daemon walk found that `--version` could not name a version to re-base onto (it is keel's own flag); the flag is `--onto`. Nothing was written to a real canvas.

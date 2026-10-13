@@ -447,3 +447,59 @@ test('actual connect and full sync journal survives night export and fresh-root 
   assert.ok(after.manifest.history.length >= bundle.manifest.history.length);
   for (const entry of bundle.manifest.history) assert.equal(await readFile(join(fresh, '.keel/canvas/history', entry.path), 'utf8'), bundle.files[entry.path]);
 });
+
+test('a live journal with an unresolved conditional edit survives export and fresh restore; the retry reuses its op id and bytes', async t => {
+  const { createHash } = await import('node:crypto');
+  const { canvasSync, REGIONS } = await import('../lib/canvas-sync.mjs');
+  const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+  const at = '2026-10-08T07:00:00Z', operationId = 'op_acmeweek42pulse0001';
+  const cardHash = source => hash(JSON.stringify(['pulse', 'Acme pulse', hash(source), null]));
+  const before = '# Acme pulse\n\nweek 41\n', source = '# Acme pulse\n\nweek 42\n';
+  const meta = { title: 'Acme pulse', properties: { 'keel.project': 'acme', 'keel.key': 'pulse', 'keel.operation': 'acme_add', 'keel.hash': cardHash(before), file: 'acme.md' } };
+  const base = initialManifest(), groups = new Map();
+  for (const region of REGIONS) {
+    const r = { kind: 'group', operationId: `op_${region.key}`, key: region.key, title: region.title, note: `Acme ${region.key}`, sourceHash: hash(`Acme ${region.key}`), at, state: 'acknowledged', itemId: `group_${region.key}`, versionId: `version_${region.key}` };
+    base.groups[region.key] = r;
+    groups.set(r.itemId, { id: r.itemId, title: r.title, description: r.note, properties: { kind: 'group' }, currentVersionId: r.versionId, versions: [{ id: r.versionId, blobHash: r.sourceHash }] });
+  }
+  base.items.pulse = { kind: 'add', operationId: 'acme_add', key: 'pulse', title: 'Acme pulse', hash: cardHash(before), sourceHash: hash(before), visualHash: null, state: 'acknowledged', at, acknowledgedAt: at, itemId: 'item_pulse', versionId: 'version_1', live: true, meta };
+  const pending = { kind: 'edit', operationId, key: 'pulse', itemId: 'item_pulse', title: 'Acme pulse', hash: cardHash(source), sourceHash: hash(source), visualHash: null, ifVersion: 'version_1', ifMeta: meta,
+    properties: { 'keel.hash': cardHash(source), 'keel.operation': operationId }, content: { source, visual: null }, state: 'pending', at };
+  const goLive = async root => writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', canvas: { ...binding, mode: 'live', enabled: true, cadence: 'nightly' } }));
+  const first = await recoveryFixture(t, { manifest: base }); await goLive(first.root);
+  const failed = await night({ ...first, report, yes: true, now: '2026-10-08T08:00:00Z', ...localPipeline, sync: async () => {
+    await writeFile(join(first.root, '.keel/canvas/manifest.json'), JSON.stringify({ ...base, pending }));
+    throw new Error('ambiguous fake transport response');
+  } });
+  assert.equal(failed.exitCode, 1);
+  const path = join(first.output, 'recovery.json'), bundle = JSON.parse(await readFile(path, 'utf8'));
+  assert.equal(bundle.binding.mode, 'live');
+  assert.deepEqual(bundle.manifest.pending, pending, 'the op id, base and exact bytes travel with the receipt');
+
+  // Bytes may only ride on the one pending edit: anywhere else is not a journal keel wrote.
+  const tampered = join(first.output, 'tampered.json');
+  await writeFile(tampered, JSON.stringify({ ...bundle, manifest: { ...bundle.manifest, items: { pulse: { ...base.items.pulse, content: pending.content } } } }));
+  const refusing = await recoveryFixture(t, { seed: false }); await goLive(refusing.root);
+  assert.equal((await night({ ...refusing, env: { ...refusing.env, KEEL_CANVAS_RECOVERY: tampered }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline })).exitCode, 1);
+
+  // The fresh checkout still says immutable (the owner moved to live after it
+  // was committed): the same destination, and the pending act is still retried.
+  const fresh = await recoveryFixture(t, { seed: false });
+  const landed = { id: 'item_pulse', title: 'Acme pulse', currentVersionId: 'version_2', properties: { ...meta.properties, ...pending.properties }, versions: [{ id: 'version_1', blobHash: hash(before) }, { id: 'version_2', blobHash: hash(source) }] };
+  const edits = [];
+  const transport = { capabilities: async () => ({ groups: true, metadataRecovery: true, conditionalWrites: true }), canvas: async () => ({ id: binding.canvasId }),
+    identity: async home => ({ id: binding.actorId, home }), access: async () => ({ owner: binding.actorId, grants: [] }),
+    list: async () => [landed], show: async (_binding, id) => groups.get(id) ?? landed, add: async () => { throw Error('must not add'); },
+    edit: async (_binding, edit) => {
+      edits.push({ ...edit, bytes: await readFile(edit.sourcePath, 'utf8') });
+      return { status: 'replayed', itemId: 'item_pulse', versionId: 'version_2', opId: edit.operationId, seq: 4, title: landed.title, properties: landed.properties };
+    } };
+  const recovered = await night({ ...fresh, env: { ...fresh.env, KEEL_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
+    sync: options => canvasSync({ root: options.root, yes: true, cards: [{ key: 'pulse', title: 'Acme pulse', source }] }, { transport }) });
+  assert.equal(recovered.exitCode, 0, JSON.stringify(recovered));
+  assert.deepEqual(edits.map(e => [e.operationId, e.ifVersion, e.ifMeta, e.bytes]), [[operationId, 'version_1', meta, source]]);
+  const saved = JSON.parse(await readFile(join(fresh.root, '.keel/canvas/manifest.json')));
+  assert.equal(saved.pending, null);
+  assert.deepEqual([saved.items.pulse.itemId, saved.items.pulse.versionId, saved.items.pulse.status], ['item_pulse', 'version_2', 'replayed']);
+  assert.ok(!(await readFile(join(fresh.output, 'recovery.json'), 'utf8')).includes('"content"'), 'resolved receipts carry no card bytes');
+});

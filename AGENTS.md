@@ -149,7 +149,8 @@ and preserve unavailable or incomplete reads as gaps. Loop phase-homing and
 `keel canvas` projects source records onto isocan. Collect and render locally
 first; remote writes require an explicit destination and approval. A canvas
 never owns acceptance, merge facts or architecture. Preserve human content and
-report unavailable sources as gaps. See [the integration spec](docs/specs/isocan-project-canvas.md).
+report unavailable sources as gaps. A live pulse changes only through isocan's
+conditional edit; a refusal waits for the owner, never re-base it for them. See [the integration spec](docs/specs/isocan-project-canvas.md).
 
 ## Hygiene proposals
 

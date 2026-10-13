@@ -1,9 +1,11 @@
 # A project's Keel life on an isocan canvas
 
-**Implementation in progress, 8 October 2026.** Local snapshot/render, reviewed
+**Implementation in progress, 13 October 2026.** Local snapshot/render, reviewed
 retro capture, immutable publication and opt-in night recovery are implemented.
-The stable live pulse, deployed write guarantees and owner-approved remote walk
-remain incomplete; this document retains their full acceptance requirements.
+The stable live pulse is implemented on isocan `7bb1f4e`'s conditional edit and
+proven on a fake transport and a throwaway local daemon. Deployed write
+guarantees, atomic publication and the owner-approved remote walk remain
+incomplete; this document retains their full acceptance requirements.
 Implementation is tracked
 in [phase 50](../phases/50-project-life-on-isocan.md). This spec covers every
 Keel-managed project, including projects with isocan's `docs/projects/*` shape;
@@ -230,6 +232,8 @@ All commands support `--json`; stdout is machine-readable, diagnostics stderr.
 | `keel canvas render --snapshot <file> --output <dir>` | deterministic Markdown, HTML and manifest; no external requests |
 | `keel canvas sync [--dry-run]` | plan by default; `--yes` applies approved managed content changes with a receipt |
 | `keel canvas status` | binding, last success, pending changes, conflicts and coverage; read-only |
+| `keel canvas live [--keep <N>] [--off]` | preview moving the binding between immutable and live mode, and retention; `--yes` writes the binding only |
+| `keel canvas rebase [--onto <version-id>]` | preview a refused live card; `--yes` records the named current version as the base, with no remote write |
 | `keel canvas disconnect` | preview; `--yes` disables publishing, leaves remote canvas intact |
 
 Exit 0 success/no changes; 1 conflicts, stale required sources or transport
@@ -278,6 +282,12 @@ the installed isocan version. If absent, publish immutable run cards and leave
 the curated pulse untouched; expose the latest successful run via the sync
 receipt until isocan supports safe conditional advancement. This is an explicit
 limited mode, not fulfillment of the complete live-pulse acceptance test.
+
+**13 October 2026:** isocan `7bb1f4e` exposes that primitive as `edit
+--if-version --if-meta --op-id`. Live mode uses it for the pulse only, after an
+explicit previewed switch. A refusal is recorded and waits for the owner;
+nothing is adopted as a new base without them. Atomic multi-card publication
+is still unavailable and is not simulated.
 
 Expired login, deleted canvas, revoked access, moved home, missing artifacts,
 rate limits and offline GitHub retain the last success and expose a gap. Do not
