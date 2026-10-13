@@ -89,6 +89,13 @@ journal already published, and only if exactly one remote card still carries
 its operation, unchanged; a binding that has never published creates exactly
 one. Zero, duplicate or changed matches stop with nothing created or edited.
 
+If a person edits or renames that pulse before its first live sync (before or
+after `keel canvas live --yes`), the sync refuses and names the way out, which
+is the same as for any refused live card: `keel canvas rebase`, then
+`keel canvas rebase --onto <version-id> --yes`. That re-base is the adoption.
+The `live` preview lists such a card as `rebase-before-first-sync`. Several
+cards carrying the pulse's operation still need manual investigation.
+
 Each update is one conditional edit. It carries the version and the exact
 title and properties keel recorded last time, and an op id that is written to
 the pending receipt before the call:

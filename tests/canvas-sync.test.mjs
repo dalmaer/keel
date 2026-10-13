@@ -760,3 +760,40 @@ test('an applied edit a person changes before keel reads it back is not reported
   assert.deepEqual(journal.lastSuccess, before, 'the last complete publication is still the earlier one');
   assert.equal(f.remote.prunes.length, 0);
 });
+
+test('a pulse a person changes after live is enabled, before its first live sync, is recovered by an explicit re-base that keeps their version', async t => {
+  const f = await liveFixture(t); await f.goLive();
+  const pulse = await f.pulse(), journal = await read(manifestPath(f.root));
+  pulse.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); pulse.currentVersionId = 'ver_person'; pulse.title = 'A person renamed this';
+  const frozen = snapshotOf(f.remote);
+  await assert.rejects(f.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+  assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).exitCode, 3, 'the refusal has a way out');
+  const preview = await canvasRebase({ root: f.root }, { transport: f.transport });
+  assert.deepEqual([preview.data.state, preview.data.changes[0].action, preview.data.changes[0].awaitingAdoption, preview.data.changes[0].recorded.versionId, preview.data.changes[0].current.versionId, preview.data.changes[0].current.title],
+    ['planned', 'rebase-live', true, journal.items.pulse.versionId, 'ver_person', 'A person renamed this']);
+  assert.deepEqual(await read(manifestPath(f.root)), journal, 'a preview records nothing');
+  await assert.rejects(canvasRebase({ root: f.root, yes: true, onto: journal.items.pulse.versionId }, { transport: f.transport }), { code: 'conflict' });
+  assert.equal((await canvasRebase({ root: f.root, yes: true, onto: 'ver_person' }, { transport: f.transport })).data.state, 'rebased');
+  assert.equal(snapshotOf(f.remote), frozen, 'neither the refusal nor the re-base wrote anything remote');
+  assert.equal(f.remote.edits.length, 0); assert.equal(f.remote.adds, 2);
+  const out = await f.publish(pulseAt(41));
+  assert.equal(out.data.state, 'published');
+  assert.deepEqual(out.data.live.map(l => [l.itemId, l.status]), [[pulse.id, 'applied']]);
+  assert.deepEqual([f.remote.edits[0].ifVersion, f.remote.edits[0].ifMeta.title, f.remote.edits[0].title], ['ver_person', 'A person renamed this', 'Acme pulse']);
+  assert.ok(pulse.versions.some(v => v.id === 'ver_person'), 'the person\'s version is still in the stack');
+  assert.equal(pulse.versions.length, 3); assert.equal(f.remote.adds, 2, 'no second pulse card');
+  assert.equal((await read(manifestPath(f.root))).items.pulse.itemId, journal.items.pulse.itemId);
+
+  // The same edit made BEFORE the owner enables live: the switch still goes
+  // through, says a re-base is needed, and the same recovery applies.
+  const g = await liveFixture(t);
+  (await g.pulse()).title = 'A person renamed this first';
+  const enabling = await g.goLive();
+  assert.equal(enabling.data.state, 'live');
+  assert.deepEqual(enabling.data.changes.map(c => c.action), ['set-mode', 'rebase-before-first-sync']);
+  await assert.rejects(g.publish(pulseAt(41)), { code: 'conflict' });
+  const current = (await g.pulse()).currentVersionId;
+  assert.equal((await canvasRebase({ root: g.root, yes: true, onto: current }, { transport: g.transport })).data.state, 'rebased');
+  assert.equal((await g.publish(pulseAt(41))).data.state, 'published');
+  assert.equal(g.remote.adds, 2); assert.equal(g.remote.edits[0].ifMeta.title, 'A person renamed this first');
+});
