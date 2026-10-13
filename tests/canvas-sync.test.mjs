@@ -62,7 +62,7 @@ async function fixture(t) {
       if (remote.beforeAdd) await remote.beforeAdd(card);
       const itemId = `itm_card_${remote.adds}`;
       const version = { id: `ver_${itemId}`, blobHash: digest(await readFile(card.sourcePath, 'utf8')), ...(card.visualPath ? { visual: { blobHash: digest(await readFile(card.visualPath, 'utf8')) } } : {}) };
-      remote.items.set(itemId, { id: itemId, currentVersionId: version.id, versions: [version], title: card.title, properties: card.properties, containerId: card.groupId, x: 10, comments: [] });
+      remote.items.set(itemId, { id: itemId, currentVersionId: version.id, versions: [version], title: card.title, properties: { ...card.properties, file: 'acme.md' }, containerId: card.groupId, x: 10, comments: [] });
       if (remote.afterAdd) await remote.afterAdd();
       return { itemId };
     },
@@ -387,9 +387,9 @@ test('resource scanning allows renderer code but refuses actual external/local r
 const pulseAt = week => { const next = cards(); next[1].source += `Week ${week}.\n`; return next; };
 const liveFixture = async t => {
   const f = await fixture(t); await f.attach();
+  // The fake tags a file-backed card on add, as isocan does; the recorded
+  // metadata must carry that tag or every adoption would look changed.
   await f.publish(cards());
-  // isocan itself tags a file-backed card on add; adoption must carry that.
-  (await f.pulse()).properties = { ...(await f.pulse()).properties, file: 'acme.md' };
   return f;
 };
 const snapshotOf = remote => JSON.stringify([...remote.items.values()].map(i => [i.id, i.title, i.currentVersionId, i.versions.length, i.properties]));
@@ -796,4 +796,56 @@ test('a pulse a person changes after live is enabled, before its first live sync
   assert.equal((await canvasRebase({ root: g.root, yes: true, onto: current }, { transport: g.transport })).data.state, 'rebased');
   assert.equal((await g.publish(pulseAt(41))).data.state, 'published');
   assert.equal(g.remote.adds, 2); assert.equal(g.remote.edits[0].ifMeta.title, 'A person renamed this first');
+});
+
+test('a property a person adds before the first live sync refuses adoption and is recovered by re-base, with the property kept', async t => {
+  const f = await liveFixture(t); await f.goLive();
+  const pulse = await f.pulse(), journal = await read(manifestPath(f.root));
+  pulse.properties = { ...pulse.properties, reviewed: 'yes' };
+  const frozen = snapshotOf(f.remote);
+  await assert.rejects(f.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /A person changed the pulse card.*keel canvas rebase --onto <version-id> --yes/); return true; });
+  assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.edits.length, 0); assert.equal(f.remote.adds, 2);
+  assert.deepEqual(await read(manifestPath(f.root)), journal, 'the changed metadata did not become the base');
+  const preview = await canvasRebase({ root: f.root }, { transport: f.transport });
+  assert.deepEqual([preview.exitCode, preview.data.changes[0].awaitingAdoption, preview.data.changes[0].current.properties.reviewed], [3, true, 'yes']);
+  assert.equal((await canvasRebase({ root: f.root, yes: true, onto: pulse.currentVersionId }, { transport: f.transport })).data.state, 'rebased');
+  assert.equal(snapshotOf(f.remote), frozen, 're-basing writes nothing remote');
+  assert.equal((await f.publish(cards())).data.state, 'unchanged', 'keel\'s content is still on the card: nothing to send');
+  assert.equal(f.remote.edits.length, 0);
+  assert.equal((await f.publish(pulseAt(41))).data.state, 'published');
+  assert.equal(f.remote.edits[0].ifMeta.properties.reviewed, 'yes');
+  assert.deepEqual(Object.keys(f.remote.edits[0].properties).sort(), ['keel.hash', 'keel.operation'], 'keel sets only its own properties');
+  assert.equal(pulse.properties.reviewed, 'yes', 'the person\'s property survives keel\'s edit');
+  assert.equal(pulse.properties.file, 'acme.md'); assert.equal(f.remote.adds, 2);
+});
+
+test('a receipt from before keel recorded full metadata is never assumed unchanged: adoption needs the explicit re-base', async t => {
+  const f = await liveFixture(t);
+  const old = await read(manifestPath(f.root));
+  delete old.items.pulse.meta; for (const r of old.receipts) delete r.meta;
+  await writeFile(manifestPath(f.root), JSON.stringify(old));
+  const enabling = await f.goLive();
+  assert.deepEqual(enabling.data.changes.map(c => [c.action, c.reason]), [['set-mode', undefined], ['rebase-before-first-sync', 'unrecorded-metadata']]);
+  const pulse = await f.pulse(), frozen = snapshotOf(f.remote);
+  for (const next of [cards(), pulseAt(41)]) await assert.rejects(f.publish(next), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /before keel recorded its full metadata.*keel canvas rebase --onto <version-id> --yes/); return true; });
+  assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.edits.length, 0); assert.equal(f.remote.adds, 2);
+  const preview = await canvasRebase({ root: f.root }, { transport: f.transport });
+  assert.deepEqual([preview.exitCode, preview.data.changes[0].awaitingAdoption, preview.data.changes[0].unrecordedMetadata, preview.data.changes[0].current.versionId], [3, true, true, pulse.currentVersionId]);
+  assert.equal((await canvasRebase({ root: f.root, yes: true, onto: pulse.currentVersionId }, { transport: f.transport })).data.state, 'rebased');
+  assert.equal(snapshotOf(f.remote), frozen);
+  const out = await f.publish(pulseAt(41));
+  assert.equal(out.data.state, 'published'); assert.deepEqual(out.data.live.map(l => l.status), ['applied']);
+  assert.equal(f.remote.edits.length, 1); assert.equal(f.remote.adds, 2); assert.equal(pulse.versions.length, 2);
+});
+
+test('a receipt with recorded, unchanged metadata adopts on the first live sync with no extra step, against the recorded base', async t => {
+  const f = await liveFixture(t);
+  const journal = await read(manifestPath(f.root)), pulse = await f.pulse();
+  assert.deepEqual(journal.items.pulse.meta, { title: 'Acme pulse', properties: pulse.properties }, 'immutable publication records the card\'s full metadata as read back');
+  assert.equal(journal.items.pulse.live, undefined);
+  assert.deepEqual((await f.goLive()).data.changes.map(c => c.action), ['set-mode', 'adopt-live-on-first-sync']);
+  assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).data.state, 'unchanged', 'nothing to re-base');
+  assert.equal((await f.publish(pulseAt(41))).data.state, 'published');
+  assert.deepEqual(f.remote.edits[0].ifMeta, journal.items.pulse.meta, 'the condition is what keel recorded, not what it finds');
+  assert.equal(f.remote.edits.length, 1); assert.equal(f.remote.adds, 2);
 });

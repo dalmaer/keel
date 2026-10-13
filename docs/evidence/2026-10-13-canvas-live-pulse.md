@@ -56,8 +56,10 @@ node --import ./tests/helpers/hermetic.mjs --test \
   tests/canvas-package.test.mjs
 ```
 
-Exit 0: 118 tests passed, zero failed; the test ledger reported no flaky or
-slower test. The fake transport models the home's decision (conflict, replay
+Exit 0 at `6fec758`: 118 tests passed, zero failed; the test ledger reported
+no flaky or slower test. After the two review fixes below the same seven
+files hold 122 tests; they ran inside `npm run check`, not as a separate
+focused run. The fake transport models the home's decision (conflict, replay
 by op id, unsupported) and has no unconditional edit method. No test uses the
 network.
 
@@ -67,6 +69,34 @@ read-back check, "an applied edit a person changes before keel reads it back"
 failed. Both were restored.
 
 `npm run check` is the integrated gate; its result goes in the commit body.
+
+### Review fixes, same day (PR #126)
+
+Both were found by review, not by the tests above, and neither was walked
+against the real CLI; the fake transport is their only proof.
+
+1. `fab59cc`: a pulse a person changed after live was enabled and before its
+   first live sync had no way out. `keel canvas rebase` now adopts it.
+   `keel prove tests/canvas-sync.test.mjs --name "before its first live sync"
+   --fix lib/canvas-sync.mjs`: VERIFIED, red at `6fec758`, green with the fix.
+2. The following commit: adoption compared only keel's three properties, the
+   title and the hashes, so a property a person added before the first live
+   sync became the conditional base and the edit succeeded. Immutable
+   publication now records the pulse's full metadata as read back, adoption
+   compares all of it, and a receipt without it requires the explicit re-base.
+   Three tests, each red at `fab59cc`: "a property a person adds before the
+   first live sync refuses adoption…", "a receipt from before keel recorded
+   full metadata is never assumed unchanged…", "a receipt with recorded,
+   unchanged metadata adopts on the first live sync with no extra step…".
+
+Keel's edit sends `--prop keel.hash` and `--prop keel.operation`, `--title`
+only when keel's title differs, and never `--rm-prop`: it cannot remove or
+overwrite a property it did not set. The first test asserts the person's
+property is still on the card after keel's edit.
+
+The local-daemon walk in the table below predates both fixes. Its pulse was
+published by the build before recorded metadata, so on the current code that
+same walk would stop at the first live sync and need one re-base.
 
 ## By hand
 

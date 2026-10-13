@@ -1859,7 +1859,8 @@ All forms take `--json`. Snapshot and render work without isocan installed.
 - `keel canvas rebase [--onto <version-id>] [--yes]` previews what a person left
   on a refused live card; `--yes` needs `--onto` with the current version id
   shown, and records it as the base. It writes nothing remote. It also
-  recovers a pulse a person changed before its first live sync.
+  adopts a pulse a person changed before its first live sync, or one published
+  before keel recorded its properties (`unrecordedMetadata`); sync refuses both.
 - `keel canvas disconnect [--yes]` previews disabling publication, then applies
   with `--yes`; the remote canvas remains.
 

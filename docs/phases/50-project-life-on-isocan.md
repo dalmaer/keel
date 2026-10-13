@@ -94,7 +94,11 @@ deployed integration.
 
 Walk live mode on the approved canvas. ⚑ The owner decides when: install the
 inspected isocan `7bb1f4e` build for the approved writer, run `keel canvas
-live` (preview), then `--yes`, then one `keel canvas sync --yes`, and confirm
+live` (preview), then `--yes`. The approved binding's pulse receipt predates
+recorded metadata, so the preview will say `unrecorded-metadata` and the first
+sync will refuse: look at the pulse card in the browser, then run `keel canvas
+rebase` and `keel canvas rebase --onto <version-id> --yes` once. Then one
+`keel canvas sync --yes`, and confirm
 in the browser that the existing pulse was updated in place and no second pulse
 appeared. Then the concurrent-edit walk: edit and rename the pulse in the
 browser, sync, and see the refusal, the untouched card and `keel canvas rebase`.
@@ -117,3 +121,5 @@ pending edit. Scheduled-use evidence (seven nights) is still owed.
 - **2026-10-13** — isocan shipped the conditional edit (`7bb1f4e`), so the live pulse stopped waiting. Inspecting it changed the design twice: with an op id the CLI skips its own stale check and its conflict reason is the same for version and metadata, so keel classifies the refusal itself; and the answer's title and properties are a later re-read, so keel records what it wrote as the next base, not what came back. A local-daemon walk found that `--version` could not name a version to re-base onto (it is keel's own flag); the flag is `--onto`. Nothing was written to a real canvas.
 
 - **2026-10-13** — Review of PR #126 found a pulse with no way out: changed by a person after live was enabled and before its first live sync, it was refused by sync and skipped by re-base. Re-base now also adopts such a card; recording a base when live is enabled was rejected because it leaves the same edit made before the switch stranded.
+
+- **2026-10-13** — A second review finding: adoption compared three keel properties, the title and the hashes, so a property a person added before the first live sync rode in as the base. Publication now records the pulse's full metadata and adoption compares all of it. A receipt without it is not assumed unchanged, which costs the approved binding one explicit re-base on its way to live.

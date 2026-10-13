@@ -86,15 +86,31 @@ keel canvas live --off --yes --json     # back to immutable run cards
 Moving to live writes `canvas.mode` (and `canvas.keepVersions`) in
 `.keel/keel.json` and nothing else. The first live sync adopts the pulse this
 journal already published, and only if exactly one remote card still carries
-its operation, unchanged; a binding that has never published creates exactly
-one. Zero, duplicate or changed matches stop with nothing created or edited.
+its operation with everything keel recorded at publication still exactly
+there: version, both faces, title and **every property**, including ones keel
+did not set. A binding that has never published creates exactly one. Zero,
+duplicate or changed matches stop with nothing created or edited.
 
-If a person edits or renames that pulse before its first live sync (before or
-after `keel canvas live --yes`), the sync refuses and names the way out, which
-is the same as for any refused live card: `keel canvas rebase`, then
+If a person edits, renames or re-tags that pulse before its first live sync
+(before or after `keel canvas live --yes`), the sync refuses and names the way
+out, which is the same as for any refused live card: `keel canvas rebase`, then
 `keel canvas rebase --onto <version-id> --yes`. That re-base is the adoption.
 The `live` preview lists such a card as `rebase-before-first-sync`. Several
 cards carrying the pulse's operation still need manual investigation.
+
+**A pulse published before 13 October 2026 needs that one explicit re-base.**
+Its receipt has no recorded properties, so keel cannot show that nobody
+re-tagged the card, and it does not assume so. The `live` preview says
+`reason: "unrecorded-metadata"`; the first sync refuses until the owner has
+looked at the card and re-based. The approved Keel canvas is in this state.
+When keel's own content is still on the card, the re-base republishes nothing;
+the next changed pulse is edited on top.
+
+Keel's edit sets two properties, `keel.hash` and `keel.operation`, and never
+removes or overwrites a property it did not set. After a re-base onto a card a
+person renamed or rewrote, the next sync does replace what they see: a new
+version with keel's content, and keel's title. Their version stays in the
+stack unless retention later prunes it. The re-base preview says this.
 
 Each update is one conditional edit. It carries the version and the exact
 title and properties keel recorded last time, and an op id that is written to
