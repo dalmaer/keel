@@ -1853,11 +1853,15 @@ All forms take `--json`. Snapshot and render work without isocan installed.
   It does not rerun the gate, measure instruments or invoke a model.
 - `keel canvas status` reads binding and sync state. A recorded refusal on the
   live card makes it `state: "conflict"`, exit 1, with `attention`.
-- `keel canvas live [--keep <N> | --no-keep] [--off] [--yes]` previews moving
-  the binding to live mode (or back with `--off`) and its retention; `--yes`
-  writes the binding only. `--keep` is 2 to 1000 versions of the live card.
-- `keel canvas rebase [--onto <version-id>] [--yes]` previews what a person left
-  on a refused live card; `--yes` needs `--onto` with the current version id
+- `keel canvas live [--card <key>]... [--keep <N> | --no-keep] [--off] [--yes]`
+  previews moving the binding to live mode (or back with `--off`), its live
+  card keys and its retention; `--yes` writes the binding only. `--card`
+  (repeatable, 1 to 16) is the whole list, stored as `canvas.liveKeys`; without
+  it the list is unchanged, and it defaults to `pulse`. A live card is matched
+  by key, so a caller must send the same key each time; its title may change.
+  `--keep` is 2 to 1000 versions of each live card.
+- `keel canvas rebase [--card <key>] [--onto <version-id>] [--yes]` previews what a person left
+  on a refused live card (name one with `--card` when several are refused); `--yes` needs `--onto` with the current version id
   shown, and records it as the base. It writes nothing remote. It also
   adopts a pulse a person changed before its first live sync, or one published
   before keel recorded its properties (`unrecordedMetadata`); sync refuses both.

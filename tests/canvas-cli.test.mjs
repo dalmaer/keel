@@ -300,13 +300,15 @@ test('snapshot lifecycle input flags reject unsafe paths, bad JSON and invalid w
 
 test('live and rebase preview first, validate flags before transport, and change only the binding', async t => {
   const w = await world(t);
-  for (const args of [['live', '--keep'], ['live', '--keep', '1'], ['live', '--keep', '1001'], ['live', '--keep', '3', '--off'], ['live', '--keep', '3', '--no-keep'], ['live', '--onto', 'ver_acme'], ['rebase', '--yes'], ['rebase', '--keep', '3'], ['rebase', '--onto']]) {
+  for (const args of [['live', '--keep'], ['live', '--keep', '1'], ['live', '--keep', '1001'], ['live', '--keep', '3', '--off'], ['live', '--keep', '3', '--no-keep'], ['live', '--onto', 'ver_acme'], ['live', '--card'], ['live', '--card', 'has space'], ['live', '--card', 'a', '--card', 'a'], ['live', '--card', 'a', '--off'], ['rebase', '--card', 'a', '--card', 'b'], ['rebase', '--card', 'has space'], ['rebase', '--yes'], ['rebase', '--keep', '3'], ['rebase', '--onto']]) {
     const r = w.cli(['canvas', ...args]);
     assert.equal(r.code, 2, JSON.stringify({ args, r }));
   }
   assert.ok(!(await readdir(w.root)).includes('remote-calls'));
   assert.deepEqual(parseCanvasArgs('live', ['--keep', '14', '--yes']), { keep: 14, yes: true });
   assert.deepEqual(parseCanvasArgs('live', ['--no-keep']), { noKeep: true });
+  assert.deepEqual(parseCanvasArgs('live', ['--card', 'loop-across-projects', '--card', 'pulse']), { cards: ['loop-across-projects', 'pulse'] });
+  assert.deepEqual(parseCanvasArgs('rebase', ['--card', 'loop-across-projects', '--onto', 'ver_acme', '--yes']), { card: 'loop-across-projects', onto: 'ver_acme', yes: true });
   await writeFile(w.env.KEEL_ISOCAN, `#!/bin/sh
 printf '%s\\n' "$*" >> "$ACME_CALLS"
 case "$*" in
@@ -332,7 +334,11 @@ esac
   assert.equal(w.cli(['canvas', 'live', '--keep', '14', '--yes']).code, 0);
   const status = w.cli(['canvas', 'status']);
   assert.deepEqual([status.data.binding.mode, status.data.binding.keepVersions], ['live', 14]);
-  assert.match(status.data.warnings.join('\n'), /Live pulse/);
+  assert.match(status.data.warnings.join('\n'), /Live cards: each card key the binding lists/);
+  const listed = w.cli(['canvas', 'live', '--card', 'loop-across-projects']);
+  assert.deepEqual([listed.code, listed.data.changes.map(c => c.action)], [3, ['set-live-cards', 'create-live-on-first-sync']]);
+  assert.equal(w.cli(['canvas', 'live', '--card', 'loop-across-projects', '--yes']).data.binding.liveKeys[0], 'loop-across-projects');
+  assert.equal(w.cli(['canvas', 'live', '--card', 'pulse', '--yes']).code, 0);
   assert.equal(w.cli(['canvas', 'rebase']).data.state, 'unchanged');
   // The flag is --onto because --version is keel's own; it must reach the adapter.
   const onto = w.cli(['canvas', 'rebase', '--onto', 'ver_acme', '--yes']);

@@ -142,9 +142,35 @@ version on top of that one and restores keel's title; the person's version
 stays in the card's version stack. To leave their card alone for good, use
 `keel canvas live --off`: later syncs then add new run cards beside it.
 
+### Name which cards are live
+
+By default the only live card is the one keyed `pulse`. A binding can name
+others, for a caller that publishes its own cards through `canvasSync`:
+
+```sh
+keel canvas live --card loop-across-projects --json        # preview
+keel canvas live --card loop-across-projects --yes --json
+```
+
+`--card` is repeatable and gives the **whole** list (1 to 16 keys): a key left
+out, `pulse` included, is published as immutable run cards again. The list is
+`canvas.liveKeys` in `.keel/keel.json`. Without `--card` the list is unchanged.
+
+A live card is found by its **key**, so the caller must send the same key
+every time. A key with a date in it is a new card each week, live or not. The
+title may change freely: keel sends its own new title in the same conditional
+edit as the content and records it, so next time it is the expected title and
+not a person's rename.
+
+A live key with no card yet creates exactly one on the first live sync. Keel
+never adopts a card published under another key: earlier dated editions stay
+on the canvas as history. Everything else about a live card is the same as for
+the pulse: conflict, re-base, retention. When more than one live card is
+refused, re-base them one at a time with `keel canvas rebase --card <key>`.
+
 Retention is off unless `--keep <N>` (2 to 1000) is set. When on, keel runs
-`isocan version prune <pulse> --keep N --force` after a confirmed `applied` or
-`replayed`, for the live card only. Pruned versions are gone for good. A failed
+`isocan version prune <card> --keep N --force` after a confirmed `applied` or
+`replayed`, for each live card and no other. Pruned versions are gone for good. A failed
 prune is a warning in the result; the publication still stands.
 
 Limits that remain: cards are written one at a time. There is **no atomic
