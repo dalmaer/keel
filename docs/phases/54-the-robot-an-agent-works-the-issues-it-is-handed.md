@@ -1,12 +1,12 @@
 ---
 status: partial
 owes: walk
-waits: owner
-since: 2026-10-10
+waits: external
+since: 2026-10-14
 goal: G4
 spec: 2
 depends: [45, 47]
-note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner approved Keel with 60 combined agent minutes/week on 2026-10-12; three real reviewed/merged issues remain owed."
+note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner approved Keel with 60 combined agent minutes/week on 2026-10-12; first enabled run failed at the runner isolation prerequisite before model work; three real reviewed/merged issues remain owed."
 evidence: ["evidence/2026-10-10-robot.md", "evidence/2026-10-12-robot-pilot.md"]
 issue: 41
 ---
@@ -80,7 +80,13 @@ By hand: three issues worked on a real project, read by the owner.
 
 ## Next action
 
-Run the owner-approved Keel pilot with 60 combined build/review agent minutes per week: Claude builds and Codex reviews. Both credential names exist; real runs must establish authentication. Queue the prepared issues one at a time, starting with #60, then #63 and a scoped child of #94. The owner reads and merges each PR; record three actual outcomes before claiming the operational walk complete.
+Resolve the runner isolation prerequisite first: the enabled #60 run failed with
+`bwrap: setting up uid map: Permission denied` before model work. Preserve the
+sandbox requirement; verify a supported runner configuration before retrying
+#60 under the already approved 60 combined build/review agent minutes per week.
+Then queue #63 and a scoped child of #94 one at a time. The owner reads and
+merges each PR; record three actual outcomes before claiming the operational
+walk complete. Earlier green OFF-policy runs do not prove enabled operation.
 
 ## Trajectory
 
@@ -105,3 +111,5 @@ Run the owner-approved Keel pilot with 60 combined build/review agent minutes pe
 - **2026-10-10** — Retry identity spans a logical run, not just its newest attempt; reuse a verified earlier build without dropping any attempt's usage. Review freshness also includes full content, and a trusted-runtime judge must reject candidate runtime selectors.
 
 - **2026-10-12** — The owner approved Keel as the pilot with 60 combined build/review agent minutes per week. Configuration enables the existing workflow; activation does not establish provider authentication, successful delivery, review or acceptance.
+
+- **2026-10-14** — Fresh GitHub reconciliation confirms the first enabled run stopped at the isolation prerequisite, not a provider or task failure. Repair runner support before queuing more work; approval remains valid. [Evidence](../evidence/2026-10-12-robot-pilot.md).
