@@ -1029,3 +1029,53 @@ test('an add that lands and then times out in live mode recovers as the live car
   assert.equal((await read(manifestPath(g.root))).items.pulse.meta, undefined);
   assert.equal(g.remote.adds, 2); assert.equal(g.remote.edits.length, 0); assert.equal(tagged.properties.reviewed, 'yes');
 });
+
+test('a live key dropped after a property-only edit, with no sync in between, retires the card; an unlisted receipt never re-enters the live branch', async t => {
+  for (const way of ['--off', '--card other']) await t.test(way, async t => {
+    const f = await loopFixture(t); await f.goLive({ cards: [LOOP] });
+    await f.publish(week('2026-10-12'));
+    const owned = (await read(manifestPath(f.root))).items[LOOP], card = f.remote.items.get(owned.itemId);
+    card.properties = { ...card.properties, reviewed: 'yes' };
+    const frozen = snapshotOf(f.remote), adds = f.remote.adds;
+    const left = way === '--off' ? await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport }) : await f.goLive({ cards: ['pulse'] });
+    assert.deepEqual(left.data.changes.filter(c => c.action === 'retire-live-card').map(c => [c.key, c.itemId]), [[LOOP, card.id]]);
+    assert.equal(snapshotOf(f.remote), frozen);
+    const journal = await read(manifestPath(f.root));
+    assert.equal(journal.items[LOOP], undefined); assert.equal(journal.retired[0].itemId, card.id);
+    const next = await f.publish(week('2026-10-19'));
+    assert.deepEqual([next.data.state, next.exitCode], ['published', 0]);
+    assert.equal(f.remote.adds, adds + 2, 'a new card beside theirs, and the dated one'); assert.equal(f.remote.edits.length, 0);
+    assert.equal(card.properties.reviewed, 'yes'); assert.equal(card.versions.length, 1);
+    const after = await read(manifestPath(f.root));
+    assert.ok(Object.values(after.items).every(i => !i.conflict)); assert.equal(after.items[LOOP].live, undefined);
+    assert.equal((await canvasStatus({ root: f.root })).data.state, 'connected');
+  });
+  // Even a journal that was not retired (the list edited by hand): a receipt
+  // whose key is not listed is an ordinary run card, and records no conflict.
+  await t.test('receipt still marked live, key no longer listed', async t => {
+    const f = await loopFixture(t); await f.goLive({ cards: [LOOP] });
+    await f.publish(week('2026-10-12'));
+    const card = f.remote.items.get((await read(manifestPath(f.root))).items[LOOP].itemId);
+    card.properties = { ...card.properties, reviewed: 'yes' };
+    const config = await read(configPath(f.root));
+    await writeFile(configPath(f.root), JSON.stringify({ ...config, canvas: { ...config.canvas, liveKeys: ['pulse'] } }));
+    const adds = f.remote.adds;
+    const next = await f.publish(week('2026-10-19'));
+    assert.deepEqual([next.data.state, next.data.attention], ['published', undefined]);
+    assert.deepEqual(next.data.changes.map(c => [c.action, c.key]), [['add-immutable', LOOP], ['add-immutable', 'controls-2026-10-19']]);
+    assert.equal(f.remote.adds, adds + 2); assert.equal(f.remote.edits.length, 0); assert.equal(card.versions.length, 1);
+    assert.ok(Object.values((await read(manifestPath(f.root))).items).every(i => !i.conflict));
+  });
+  // The mirror: a key ADDED to the list whose existing card has a
+  // property-only edit is not adopted; it waits for the explicit re-base.
+  await t.test('key added to the list after a property-only edit', async t => {
+    const f = await loopFixture(t);
+    await f.publish(week('2026-10-12'));
+    const card = f.remote.items.get((await read(manifestPath(f.root))).items[LOOP].itemId);
+    card.properties = { ...card.properties, reviewed: 'yes' };
+    const enabling = await f.goLive({ cards: [LOOP] });
+    assert.deepEqual(enabling.data.changes.filter(c => c.key === LOOP).map(c => [c.action, c.reason]), [['rebase-before-first-sync', 'changed']]);
+    await assert.rejects(f.publish(week('2026-10-19')), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+    assert.equal(f.remote.edits.length, 0); assert.equal(card.versions.length, 1); assert.equal(card.properties.reviewed, 'yes');
+  });
+});

@@ -147,6 +147,9 @@ keel stops tracking that card: it stays on the canvas exactly as the person
 left it, its receipts stay in the journal under `retired`, `status` stops
 reporting the conflict, and the next sync publishes a new card beside it.
 A live card nobody touched is not retired; publication continues from it.
+Touched means anything keel recorded is different: content, title, or any
+property, including one a person only added. A card whose key is no longer
+listed is never treated as live again, so it cannot pick up a new conflict.
 
 ### Name which cards are live
 
