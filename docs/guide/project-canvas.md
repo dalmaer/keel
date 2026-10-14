@@ -168,7 +168,10 @@ title may change freely: keel sends its own new title in the same conditional
 edit as the content and records it, so next time it is the expected title and
 not a person's rename.
 
-A live key with no card yet creates exactly one on the first live sync. Keel
+A live key with no card yet creates exactly one on the first live sync. If
+that creation lands and its answer is lost, the next sync finds the card by
+its operation and records it as the live card, with no re-base, as long as
+every property on it is one keel set or a file tag from that same creation. Keel
 never adopts a card published under another key: earlier dated editions stay
 on the canvas as history. Everything else about a live card is the same as for
 the pulse: conflict, re-base, retention. When more than one live card is

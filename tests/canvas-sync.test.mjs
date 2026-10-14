@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { canvasConnect, canvasSync, canvasStatus, canvasDisconnect, canvasLive, canvasRebase, createIsocanTransport, connect, sync, loadCanvasHistory, REGIONS, LIMITATIONS, CanvasError } from '../lib/canvas-sync.mjs';
 import { snapshot } from '../lib/canvas-snapshot.mjs';
@@ -62,7 +62,7 @@ async function fixture(t) {
       if (remote.beforeAdd) await remote.beforeAdd(card);
       const itemId = `itm_card_${remote.adds}`;
       const version = { id: `ver_${itemId}`, blobHash: digest(await readFile(card.sourcePath, 'utf8')), ...(card.visualPath ? { visual: { blobHash: digest(await readFile(card.visualPath, 'utf8')) } } : {}) };
-      remote.items.set(itemId, { id: itemId, currentVersionId: version.id, versions: [version], title: card.title, properties: { ...card.properties, file: 'acme.md' }, containerId: card.groupId, x: 10, comments: [] });
+      remote.items.set(itemId, { id: itemId, currentVersionId: version.id, versions: [version], title: card.title, properties: { ...card.properties, sourcePath: basename(card.sourcePath), file: basename(card.sourcePath), ...(card.visualPath ? { visualFile: basename(card.visualPath) } : {}) }, containerId: card.groupId, x: 10, comments: [] });
       if (remote.afterAdd) await remote.afterAdd();
       return { itemId };
     },
@@ -387,7 +387,8 @@ test('resource scanning allows renderer code but refuses actual external/local r
 const pulseAt = week => { const next = cards(); next[1].source += `Week ${week}.\n`; return next; };
 const liveFixture = async t => {
   const f = await fixture(t); await f.attach();
-  // The fake tags a file-backed card on add, as isocan does; the recorded
+  // The fake tags a file-backed card on add (sourcePath, file, visualFile), as
+  // isocan 7bb1f4e was seen to on a local daemon; the recorded
   // metadata must carry that tag or every adoption would look changed.
   await f.publish(cards());
   return f;
@@ -440,7 +441,7 @@ test('moving to live is previewed and writes only the binding; the first live pu
   const sent = f.remote.edits[0];
   assert.equal(sent.ifVersion, journal.items.pulse.versionId);
   assert.equal(sent.ifMeta.title, 'Acme pulse');
-  assert.equal(sent.ifMeta.properties.file, 'acme.md', 'the expected metadata is what the card carries, not only what keel set');
+  assert.match(sent.ifMeta.properties.file, /\.md$/, 'the expected metadata is what the card carries, not only what keel set');
   assert.equal(sent.title, undefined, 'an unchanged title is not rewritten');
   const after = await read(manifestPath(f.root));
   assert.equal(after.items.pulse.itemId, journal.items.pulse.itemId, 'one stable item id');
@@ -816,7 +817,7 @@ test('a property a person adds before the first live sync refuses adoption and i
   assert.equal(f.remote.edits[0].ifMeta.properties.reviewed, 'yes');
   assert.deepEqual(Object.keys(f.remote.edits[0].properties).sort(), ['keel.hash', 'keel.operation'], 'keel sets only its own properties');
   assert.equal(pulse.properties.reviewed, 'yes', 'the person\'s property survives keel\'s edit');
-  assert.equal(pulse.properties.file, 'acme.md'); assert.equal(f.remote.adds, 2);
+  assert.match(pulse.properties.file, /\.md$/); assert.equal(f.remote.adds, 2);
 });
 
 test('a receipt from before keel recorded full metadata is never assumed unchanged: adoption needs the explicit re-base', async t => {
@@ -997,4 +998,34 @@ test('live --off after a person edited a live card retires it: status clears and
   const before = h.remote.adds;
   assert.equal((await h.publish(week('2026-10-19'))).data.state, 'published');
   assert.equal(h.remote.adds, before + 2); assert.equal(h.remote.edits.length, 0); assert.equal(card.title, 'Loop, kept by a person');
+});
+
+test('an add that lands and then times out in live mode recovers as the live card with its full metadata, and needs no re-base', async t => {
+  const f = await fixture(t); await f.attach(); await f.goLive();
+  f.remote.afterAdd = async () => { if (f.remote.adds === 2) throw new CanvasError('timeout', 'timeout', 1); };
+  await assert.rejects(f.publish(cards()), { code: 'timeout' });
+  f.remote.afterAdd = null;
+  const pending = (await read(manifestPath(f.root))).pending;
+  assert.deepEqual([pending.kind, pending.key, pending.live], ['add', 'pulse', true]);
+  const resumed = await f.publish(cards());
+  assert.equal(resumed.exitCode, 0); assert.equal(f.remote.adds, 2, 'no second pulse');
+  const journal = await read(manifestPath(f.root)), pulse = await f.pulse();
+  assert.equal(journal.pending, null);
+  assert.equal(journal.items.pulse.live, true);
+  assert.deepEqual(journal.items.pulse.meta, { title: 'Acme pulse', properties: pulse.properties }, 'the same record the uninterrupted path writes');
+  assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).data.state, 'unchanged');
+  const next = await f.publish(pulseAt(41));
+  assert.equal(next.data.state, 'published'); assert.deepEqual(next.data.live.map(l => l.status), ['applied']);
+  assert.equal(f.remote.adds, 2); assert.equal(f.remote.edits.length, 1); assert.equal(pulse.versions.length, 2);
+
+  // The card sat unobserved between landing and recovery. A property that is
+  // neither keel's nor isocan's own file tag is not assumed to be nobody's.
+  const g = await fixture(t); await g.attach(); await g.goLive();
+  g.remote.afterAdd = async () => { if (g.remote.adds === 2) throw new CanvasError('timeout', 'timeout', 1); };
+  await assert.rejects(g.publish(cards()), { code: 'timeout' });
+  g.remote.afterAdd = null;
+  const tagged = g.remote.items.get('itm_card_2'); tagged.properties = { ...tagged.properties, reviewed: 'yes' };
+  await assert.rejects(g.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+  assert.equal((await read(manifestPath(g.root))).items.pulse.meta, undefined);
+  assert.equal(g.remote.adds, 2); assert.equal(g.remote.edits.length, 0); assert.equal(tagged.properties.reviewed, 'yes');
 });
