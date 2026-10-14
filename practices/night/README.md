@@ -351,7 +351,11 @@ is never overwritten: a differing artifact journal requires manual resolution.
 After bootstrap, artifact restore provides the state for fresh CI checkouts.
 
 The recovery envelope matches project key, home, canvas, writer, audience,
-space, privacy and publication mode. It contains only the validated sync
+space and privacy. Publication mode says how that destination is written, not
+which one it is: an envelope saved as `immutable` or `live` still belongs after
+the owner moves the binding. An unresolved live-pulse edit travels in `pending`
+with its op id and exact bytes, so a fresh checkout retries the same act and
+never a new one. The envelope contains only the validated sync
 manifest, its hash-verified referenced history files, and bounded observation
 history: the newest sample per UTC day for 90 days, at most 90 samples. Missing
 intervals remain unknown. The complete sync journal and its referenced files
