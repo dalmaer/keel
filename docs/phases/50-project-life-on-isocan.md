@@ -5,7 +5,7 @@ goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
 note: "Local collection, interactive render, reviewed retro capture, immutable sync and the conditional live pulse are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Live mode is proven on a fake transport and a throwaway local daemon only: the deployed concurrent-edit walk, GitHub writer and night proof remain."
-evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md"]
+evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md", "evidence/2026-10-13-canvas-live-cards.md"]
 ---
 
 # A project's isocan canvas shows what Keel improves
@@ -41,9 +41,10 @@ The weekly local report task is approved and active (Monday 08:00 Denver).
 GitHub night credentials and scheduled access are a separate, unprovisioned
 surface; prepare its concrete setup before requesting any new credential.
 
-Moving that approved canvas from immutable to live mode is a new decision and
-is the owner's: it changes how the existing pulse card is written. Nothing
-moves it until the owner runs `keel canvas live --yes`.
+Moving that approved canvas from immutable to live mode was a new decision
+and the owner's. The owner approved it on 2026-10-13, for one "Loop across
+projects" card updated in place each week. Nothing moves the binding until
+the owner runs `keel canvas live --card <key> --yes` there.
 
 ## Real surfaces
 
@@ -92,21 +93,31 @@ deployed integration.
 
 ## Next action
 
-Walk live mode on the approved canvas. ⚑ The owner decides when: install the
-inspected isocan `7bb1f4e` build for the approved writer, run `keel canvas
-live` (preview), then `--yes`. The approved binding's pulse receipt predates
-recorded metadata, so the preview will say `unrecorded-metadata` and the first
-sync will refuse: look at the pulse card in the browser, then run `keel canvas
-rebase` and `keel canvas rebase --onto <version-id> --yes` once. Then one
-`keel canvas sync --yes`, and confirm
-in the browser that the existing pulse was updated in place and no second pulse
-appeared. Then the concurrent-edit walk: edit and rename the pulse in the
-browser, sync, and see the refusal, the untouched card and `keel canvas rebase`.
-Record it as evidence. Until that walk the approved binding stays immutable,
-and its dashboards and weekly automation are unchanged; do not request their
-approval again. After it, provision the dedicated GitHub writer using the
-project-canvas guide and verify night/restart behavior, including a restored
-pending edit. Scheduled-use evidence (seven nights) is still owed.
+Move the approved canvas's weekly "Loop across projects" report to one live
+card. The owner approved this on 2026-10-13. That binding is published by the
+weekly script, which calls `canvasSync` with its own keys, not by `keel canvas
+sync`. Three steps, in the reporting workspace, after this work is released
+there:
+
+1. Change the script's key for that card from a dated one to the fixed key
+   `loop-across-projects`. The title may keep its date.
+2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved
+   writer: `keel canvas live --card loop-across-projects` (preview), then the
+   same with `--yes`. No card has that key yet, so nothing is adopted and no
+   re-base is needed; the dated editions stay on the canvas as history.
+3. Let one weekly run create the card and the next one edit it in place.
+   Confirm both in the browser, then edit the card as a person and see the
+   next run refuse. Record it as evidence.
+
+If `pulse` is also kept in `--card` and that journal has a pulse published
+before 2026-10-13, its receipt has no recorded metadata: the preview says
+`unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id>
+--yes` after the owner has looked at the card.
+
+After that, provision the dedicated GitHub writer using the project-canvas
+guide and verify night/restart behavior, including a restored pending edit.
+Scheduled-use evidence (seven nights) is still owed. Do not ask again for the
+destination, writer or dashboards.
 
 ## Trajectory
 
@@ -123,3 +134,5 @@ pending edit. Scheduled-use evidence (seven nights) is still owed.
 - **2026-10-13** — Review of PR #126 found a pulse with no way out: changed by a person after live was enabled and before its first live sync, it was refused by sync and skipped by re-base. Re-base now also adopts such a card; recording a base when live is enabled was rejected because it leaves the same edit made before the switch stranded.
 
 - **2026-10-13** — A second review finding: adoption compared three keel properties, the title and the hashes, so a property a person added before the first live sync rode in as the base. Publication now records the pulse's full metadata and adoption compares all of it. A receipt without it is not assumed unchanged, which costs the approved binding one explicit re-base on its way to live.
+
+- **2026-10-13** — The owner approved live for the approved canvas, and that showed live mode could not reach it: only a card keyed `pulse` was ever live, and that binding is published by a weekly script with its own dated keys. A binding now names its live card keys. The script must send one fixed key, because a live card is found by key; a new key has no card to adopt, so the earlier re-base cost does not apply to it. keel#127's two stuck states were fixed in the same work.

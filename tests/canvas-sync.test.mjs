@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { canvasConnect, canvasSync, canvasStatus, canvasDisconnect, canvasLive, canvasRebase, createIsocanTransport, connect, sync, loadCanvasHistory, REGIONS, LIMITATIONS, CanvasError } from '../lib/canvas-sync.mjs';
 import { snapshot } from '../lib/canvas-snapshot.mjs';
@@ -62,7 +62,7 @@ async function fixture(t) {
       if (remote.beforeAdd) await remote.beforeAdd(card);
       const itemId = `itm_card_${remote.adds}`;
       const version = { id: `ver_${itemId}`, blobHash: digest(await readFile(card.sourcePath, 'utf8')), ...(card.visualPath ? { visual: { blobHash: digest(await readFile(card.visualPath, 'utf8')) } } : {}) };
-      remote.items.set(itemId, { id: itemId, currentVersionId: version.id, versions: [version], title: card.title, properties: { ...card.properties, file: 'acme.md' }, containerId: card.groupId, x: 10, comments: [] });
+      remote.items.set(itemId, { id: itemId, currentVersionId: version.id, versions: [version], title: card.title, properties: { ...card.properties, sourcePath: basename(card.sourcePath), file: basename(card.sourcePath), ...(card.visualPath ? { visualFile: basename(card.visualPath) } : {}) }, containerId: card.groupId, x: 10, comments: [] });
       if (remote.afterAdd) await remote.afterAdd();
       return { itemId };
     },
@@ -387,7 +387,8 @@ test('resource scanning allows renderer code but refuses actual external/local r
 const pulseAt = week => { const next = cards(); next[1].source += `Week ${week}.\n`; return next; };
 const liveFixture = async t => {
   const f = await fixture(t); await f.attach();
-  // The fake tags a file-backed card on add, as isocan does; the recorded
+  // The fake tags a file-backed card on add (sourcePath, file, visualFile), as
+  // isocan 7bb1f4e was seen to on a local daemon; the recorded
   // metadata must carry that tag or every adoption would look changed.
   await f.publish(cards());
   return f;
@@ -440,7 +441,7 @@ test('moving to live is previewed and writes only the binding; the first live pu
   const sent = f.remote.edits[0];
   assert.equal(sent.ifVersion, journal.items.pulse.versionId);
   assert.equal(sent.ifMeta.title, 'Acme pulse');
-  assert.equal(sent.ifMeta.properties.file, 'acme.md', 'the expected metadata is what the card carries, not only what keel set');
+  assert.match(sent.ifMeta.properties.file, /\.md$/, 'the expected metadata is what the card carries, not only what keel set');
   assert.equal(sent.title, undefined, 'an unchanged title is not rewritten');
   const after = await read(manifestPath(f.root));
   assert.equal(after.items.pulse.itemId, journal.items.pulse.itemId, 'one stable item id');
@@ -816,7 +817,7 @@ test('a property a person adds before the first live sync refuses adoption and i
   assert.equal(f.remote.edits[0].ifMeta.properties.reviewed, 'yes');
   assert.deepEqual(Object.keys(f.remote.edits[0].properties).sort(), ['keel.hash', 'keel.operation'], 'keel sets only its own properties');
   assert.equal(pulse.properties.reviewed, 'yes', 'the person\'s property survives keel\'s edit');
-  assert.equal(pulse.properties.file, 'acme.md'); assert.equal(f.remote.adds, 2);
+  assert.match(pulse.properties.file, /\.md$/); assert.equal(f.remote.adds, 2);
 });
 
 test('a receipt from before keel recorded full metadata is never assumed unchanged: adoption needs the explicit re-base', async t => {
@@ -848,4 +849,233 @@ test('a receipt with recorded, unchanged metadata adopts on the first live sync 
   assert.equal((await f.publish(pulseAt(41))).data.state, 'published');
   assert.deepEqual(f.remote.edits[0].ifMeta, journal.items.pulse.meta, 'the condition is what keel recorded, not what it finds');
   assert.equal(f.remote.edits.length, 1); assert.equal(f.remote.adds, 2);
+});
+
+// ---- A binding names which card keys are live (a caller's own cards) ----
+const LOOP = 'loop-across-projects';
+const week = date => [
+  { key: LOOP, title: `Loop across projects · ${date}`, region: 'loop', source: `# Loop across projects\n\nWeek of ${date}.\n`, visual: `<!doctype html><p>Acme ${date}</p>` },
+  { key: `controls-${date}`, title: `Acme controls ${date}`, region: 'health', source: `# Acme controls ${date}\n` },
+];
+const loopFixture = async t => {
+  const f = await fixture(t); await f.attach();
+  // History from before: one dated edition per week, each its own card.
+  await f.publish([{ key: 'loop-fleet-report-2026-10-05', title: 'Loop across projects · 2026-10-05', region: 'loop', source: '# Loop\n\nWeek of 2026-10-05.\n' }]);
+  return f;
+};
+
+test('live --card is previewed, validated and replaces the list; without it the default stays the pulse alone', async t => {
+  const f = await loopFixture(t);
+  Object.assign(f.caps, { version: '0.1.0 (7bb1f4e, 2026-10-13)', conditionalWrites: true, retention: true });
+  for (const cards of [[], ['has space'], [LOOP, LOOP], ['-'.repeat(161)], Array.from({ length: 17 }, (_, i) => `card-${i}`)]) await assert.rejects(canvasLive({ root: f.root, cards, yes: true }, { transport: f.transport }), { exitCode: 2 });
+  await assert.rejects(canvasLive({ root: f.root, cards: [LOOP], off: true, yes: true }, { transport: f.transport }), { exitCode: 2 });
+  const preview = await canvasLive({ root: f.root, cards: [LOOP] }, { transport: f.transport });
+  assert.equal(preview.exitCode, 3);
+  assert.deepEqual(preview.data.changes, [{ action: 'set-mode', from: 'immutable', to: 'live' }, { action: 'set-live-cards', from: ['pulse'], to: [LOOP] }, { action: 'create-live-on-first-sync', key: LOOP }]);
+  assert.equal((await read(configPath(f.root))).canvas.liveKeys, undefined, 'a preview writes nothing');
+  const applied = await f.goLive({ cards: [LOOP] });
+  assert.deepEqual([applied.data.state, applied.data.binding.liveKeys], ['live', [LOOP]]);
+  assert.deepEqual((await read(configPath(f.root))).canvas.liveKeys, [LOOP]);
+  assert.equal(f.remote.adds, 1); assert.equal(f.remote.edits.length, 0);
+  // No --card: the list is left alone.
+  assert.equal((await f.goLive({ keep: 5 })).data.changes.some(c => c.action === 'set-live-cards'), false);
+  assert.deepEqual((await read(configPath(f.root))).canvas.liveKeys, [LOOP]);
+  // A hand-edited list keel cannot read is refused, never guessed at.
+  const config = await read(configPath(f.root));
+  await writeFile(configPath(f.root), JSON.stringify({ ...config, canvas: { ...config.canvas, liveKeys: 'loop' } }));
+  await assert.rejects(f.publish(week('2026-10-12')), { code: 'state' });
+  // Default: a binding with no list keeps today's behaviour.
+  const g = await liveFixture(t);
+  const plain = await g.goLive();
+  assert.deepEqual(plain.data.changes.map(c => c.action), ['set-mode', 'adopt-live-on-first-sync']);
+  assert.equal((await read(configPath(g.root))).canvas.liveKeys, undefined);
+});
+
+test('a caller-supplied live key is created exactly once, then edited in place week after week with keel\'s own changing title; an unlisted key in the same sync is still a new card', async t => {
+  const f = await loopFixture(t); await f.goLive({ cards: [LOOP] });
+  const legacy = f.remote.items.get('itm_card_1'), legacyBefore = JSON.stringify(legacy);
+  const first = await f.publish(week('2026-10-12'));
+  assert.equal(first.data.state, 'published');
+  assert.deepEqual(first.data.changes.filter(c => c.action !== 'create-group').map(c => [c.action, c.key]), [['add-live', LOOP], ['add-immutable', 'controls-2026-10-12']]);
+  assert.equal(f.remote.adds, 3); assert.equal(f.remote.edits.length, 0);
+  const created = (await read(manifestPath(f.root))).items[LOOP], card = f.remote.items.get(created.itemId);
+  assert.equal(created.live, true); assert.deepEqual(created.meta, { title: 'Loop across projects · 2026-10-12', properties: card.properties });
+  assert.notEqual(created.itemId, legacy.id, 'a differently-keyed older edition is never adopted');
+
+  const second = await f.publish(week('2026-10-19'));
+  assert.equal(second.data.state, 'published');
+  assert.deepEqual(second.data.changes.map(c => [c.action, c.key]), [['edit-live', LOOP], ['add-immutable', 'controls-2026-10-19']]);
+  assert.deepEqual(second.data.live.map(l => [l.key, l.itemId, l.status]), [[LOOP, created.itemId, 'applied']]);
+  assert.equal(f.remote.adds, 4, 'only the unlisted key added a card'); assert.equal(f.remote.edits.length, 1);
+  assert.deepEqual([f.remote.edits[0].ifVersion, f.remote.edits[0].ifMeta.title, f.remote.edits[0].title], [created.versionId, 'Loop across projects · 2026-10-12', 'Loop across projects · 2026-10-19']);
+  assert.equal(card.title, 'Loop across projects · 2026-10-19'); assert.equal(card.versions.length, 2);
+
+  // Keel's own retitle last week is the recorded base, not a person's rename.
+  const third = await f.publish(week('2026-10-26'));
+  assert.equal(third.data.state, 'published'); assert.equal(third.exitCode, 0);
+  assert.deepEqual([f.remote.edits[1].ifMeta.title, f.remote.edits[1].title], ['Loop across projects · 2026-10-19', 'Loop across projects · 2026-10-26']);
+  assert.equal(card.versions.length, 3); assert.equal(f.remote.adds, 5);
+  const journal = await read(manifestPath(f.root));
+  assert.equal(journal.items[LOOP].itemId, created.itemId, 'one stable item id');
+  assert.equal(journal.items[LOOP].conflict, undefined);
+  assert.equal([...f.remote.items.values()].filter(i => i.properties?.['keel.key'] === LOOP).length, 1, 'exactly one card for the live key');
+  assert.equal(JSON.stringify(legacy), legacyBefore, 'the dated editions stay on the canvas as history');
+  assert.equal((await f.publish(week('2026-10-26'))).data.state, 'unchanged');
+  // The pulse is not in this binding's list, so here it is a run card again.
+  await f.publish([...week('2026-10-26'), ...cards()]);
+  const adds = f.remote.adds;
+  await f.publish([...week('2026-10-26'), ...pulseAt(41)]);
+  assert.equal(f.remote.adds, adds + 1); assert.equal(f.remote.edits.length, 2);
+});
+
+test('a person\'s edit to a caller-supplied live card refuses, stays refused, and is re-based by naming the card', async t => {
+  const f = await loopFixture(t); await f.goLive({ cards: [LOOP], keep: 3 });
+  await f.publish(week('2026-10-12'));
+  const card = f.remote.items.get((await read(manifestPath(f.root))).items[LOOP].itemId), base = card.currentVersionId;
+  card.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); card.currentVersionId = 'ver_person'; card.title = 'Loop, annotated by a person';
+  const adds = f.remote.adds, frozen = snapshotOf(f.remote);
+  for (const date of ['2026-10-19', '2026-10-26']) {
+    const refused = await f.publish(week(date));
+    assert.deepEqual([refused.data.state, refused.exitCode, refused.data.attention[0].key, refused.data.attention[0].reason, refused.data.attention[0].expectedVersionId, refused.data.attention[0].currentVersionId, refused.data.attention[0].title],
+      ['conflict', 1, LOOP, 'version', base, 'ver_person', 'Loop, annotated by a person']);
+  }
+  assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.adds, adds, 'no card is added around the refused one'); assert.equal(f.remote.edits.length, 0);
+  assert.equal((await canvasStatus({ root: f.root })).data.attention[0].key, LOOP);
+  assert.equal((await canvasRebase({ root: f.root, card: 'pulse' }, { transport: f.transport })).data.state, 'unchanged');
+  const preview = await canvasRebase({ root: f.root, card: LOOP }, { transport: f.transport });
+  assert.deepEqual([preview.exitCode, preview.data.changes[0].key, preview.data.changes[0].current.versionId], [3, LOOP, 'ver_person']);
+  assert.equal((await canvasRebase({ root: f.root, card: LOOP, onto: 'ver_person', yes: true }, { transport: f.transport })).data.state, 'rebased');
+  assert.equal(snapshotOf(f.remote), frozen);
+  const resumed = await f.publish(week('2026-10-19'));
+  assert.equal(resumed.data.state, 'published');
+  assert.deepEqual([f.remote.edits[0].ifVersion, f.remote.edits[0].ifMeta.title, f.remote.edits[0].title], ['ver_person', 'Loop, annotated by a person', 'Loop across projects · 2026-10-19']);
+  assert.ok(card.versions.some(v => v.id === 'ver_person'));
+  assert.deepEqual(resumed.data.retention, [{ key: LOOP, itemId: card.id, keep: 3, dropped: 0 }]);
+});
+
+test('live --off after a person edited a live card retires it: status clears and the next sync publishes beside their untouched card', async t => {
+  const f = await liveFixture(t); await f.goLive();
+  await f.publish(pulseAt(41));
+  const pulse = await f.pulse();
+  pulse.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); pulse.currentVersionId = 'ver_person'; pulse.title = 'A person keeps this one';
+  assert.equal((await f.publish(pulseAt(42))).data.state, 'conflict');
+  assert.equal((await canvasStatus({ root: f.root })).data.state, 'conflict');
+  const journal = await read(manifestPath(f.root)), frozen = snapshotOf(f.remote), adds = f.remote.adds;
+  const preview = await canvasLive({ root: f.root, off: true }, { transport: f.transport });
+  assert.equal(preview.exitCode, 3);
+  assert.deepEqual(preview.data.changes.map(c => [c.action, c.key, c.itemId]), [['set-mode', undefined, undefined], ['retire-live-card', 'pulse', pulse.id]]);
+  assert.deepEqual(await read(manifestPath(f.root)), journal, 'a preview retires nothing');
+  assert.equal((await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport })).data.state, 'immutable');
+  assert.equal(snapshotOf(f.remote), frozen, 'turning live off writes nothing remote');
+  const after = await read(manifestPath(f.root));
+  assert.equal(after.items.pulse, undefined, 'keel no longer owns the card a person kept');
+  assert.deepEqual([after.retired.length, after.retired[0].itemId, after.retired[0].conflict.currentVersionId], [1, pulse.id, 'ver_person']);
+  assert.deepEqual(after.receipts, journal.receipts, 'its receipts are kept');
+  const status = await canvasStatus({ root: f.root });
+  assert.deepEqual([status.data.state, status.exitCode, status.data.attention], ['connected', 0, undefined]);
+  const out = await f.publish(pulseAt(42));
+  assert.equal(out.data.state, 'published'); assert.deepEqual(out.data.changes.map(c => [c.action, c.key]), [['add-immutable', 'pulse']]);
+  assert.equal(f.remote.adds, adds + 1); assert.equal(f.remote.edits.length, 1);
+  assert.deepEqual([pulse.title, pulse.currentVersionId, pulse.versions.length], ['A person keeps this one', 'ver_person', 3], 'their card is exactly as they left it');
+  assert.notEqual((await read(manifestPath(f.root))).items.pulse.itemId, pulse.id);
+  assert.equal((await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport })).data.state, 'unchanged');
+
+  // A live card nobody touched is not retired: publication continues from it.
+  const g = await liveFixture(t); await g.goLive();
+  await g.publish(pulseAt(41));
+  const kept = (await read(manifestPath(g.root))).items.pulse;
+  assert.deepEqual((await canvasLive({ root: g.root, off: true, yes: true }, { transport: g.transport })).data.changes.map(c => c.action), ['set-mode']);
+  assert.equal((await read(manifestPath(g.root))).items.pulse.itemId, kept.itemId);
+  assert.equal((await g.publish(pulseAt(41))).data.state, 'unchanged'); assert.equal(g.remote.adds, 2);
+
+  // Dropping a key from the list is the same step for that one card.
+  const h = await loopFixture(t); await h.goLive({ cards: [LOOP] });
+  await h.publish(week('2026-10-12'));
+  const card = h.remote.items.get((await read(manifestPath(h.root))).items[LOOP].itemId);
+  card.title = 'Loop, kept by a person';
+  const dropped = await h.goLive({ cards: ['pulse'] });
+  assert.deepEqual(dropped.data.changes.filter(c => c.action === 'retire-live-card').map(c => c.key), [LOOP]);
+  const before = h.remote.adds;
+  assert.equal((await h.publish(week('2026-10-19'))).data.state, 'published');
+  assert.equal(h.remote.adds, before + 2); assert.equal(h.remote.edits.length, 0); assert.equal(card.title, 'Loop, kept by a person');
+});
+
+test('an add that lands and then times out in live mode recovers as the live card with its full metadata, and needs no re-base', async t => {
+  const f = await fixture(t); await f.attach(); await f.goLive();
+  f.remote.afterAdd = async () => { if (f.remote.adds === 2) throw new CanvasError('timeout', 'timeout', 1); };
+  await assert.rejects(f.publish(cards()), { code: 'timeout' });
+  f.remote.afterAdd = null;
+  const pending = (await read(manifestPath(f.root))).pending;
+  assert.deepEqual([pending.kind, pending.key, pending.live], ['add', 'pulse', true]);
+  const resumed = await f.publish(cards());
+  assert.equal(resumed.exitCode, 0); assert.equal(f.remote.adds, 2, 'no second pulse');
+  const journal = await read(manifestPath(f.root)), pulse = await f.pulse();
+  assert.equal(journal.pending, null);
+  assert.equal(journal.items.pulse.live, true);
+  assert.deepEqual(journal.items.pulse.meta, { title: 'Acme pulse', properties: pulse.properties }, 'the same record the uninterrupted path writes');
+  assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).data.state, 'unchanged');
+  const next = await f.publish(pulseAt(41));
+  assert.equal(next.data.state, 'published'); assert.deepEqual(next.data.live.map(l => l.status), ['applied']);
+  assert.equal(f.remote.adds, 2); assert.equal(f.remote.edits.length, 1); assert.equal(pulse.versions.length, 2);
+
+  // The card sat unobserved between landing and recovery. A property that is
+  // neither keel's nor isocan's own file tag is not assumed to be nobody's.
+  const g = await fixture(t); await g.attach(); await g.goLive();
+  g.remote.afterAdd = async () => { if (g.remote.adds === 2) throw new CanvasError('timeout', 'timeout', 1); };
+  await assert.rejects(g.publish(cards()), { code: 'timeout' });
+  g.remote.afterAdd = null;
+  const tagged = g.remote.items.get('itm_card_2'); tagged.properties = { ...tagged.properties, reviewed: 'yes' };
+  await assert.rejects(g.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+  assert.equal((await read(manifestPath(g.root))).items.pulse.meta, undefined);
+  assert.equal(g.remote.adds, 2); assert.equal(g.remote.edits.length, 0); assert.equal(tagged.properties.reviewed, 'yes');
+});
+
+test('a live key dropped after a property-only edit, with no sync in between, retires the card; an unlisted receipt never re-enters the live branch', async t => {
+  for (const way of ['--off', '--card other']) await t.test(way, async t => {
+    const f = await loopFixture(t); await f.goLive({ cards: [LOOP] });
+    await f.publish(week('2026-10-12'));
+    const owned = (await read(manifestPath(f.root))).items[LOOP], card = f.remote.items.get(owned.itemId);
+    card.properties = { ...card.properties, reviewed: 'yes' };
+    const frozen = snapshotOf(f.remote), adds = f.remote.adds;
+    const left = way === '--off' ? await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport }) : await f.goLive({ cards: ['pulse'] });
+    assert.deepEqual(left.data.changes.filter(c => c.action === 'retire-live-card').map(c => [c.key, c.itemId]), [[LOOP, card.id]]);
+    assert.equal(snapshotOf(f.remote), frozen);
+    const journal = await read(manifestPath(f.root));
+    assert.equal(journal.items[LOOP], undefined); assert.equal(journal.retired[0].itemId, card.id);
+    const next = await f.publish(week('2026-10-19'));
+    assert.deepEqual([next.data.state, next.exitCode], ['published', 0]);
+    assert.equal(f.remote.adds, adds + 2, 'a new card beside theirs, and the dated one'); assert.equal(f.remote.edits.length, 0);
+    assert.equal(card.properties.reviewed, 'yes'); assert.equal(card.versions.length, 1);
+    const after = await read(manifestPath(f.root));
+    assert.ok(Object.values(after.items).every(i => !i.conflict)); assert.equal(after.items[LOOP].live, undefined);
+    assert.equal((await canvasStatus({ root: f.root })).data.state, 'connected');
+  });
+  // Even a journal that was not retired (the list edited by hand): a receipt
+  // whose key is not listed is an ordinary run card, and records no conflict.
+  await t.test('receipt still marked live, key no longer listed', async t => {
+    const f = await loopFixture(t); await f.goLive({ cards: [LOOP] });
+    await f.publish(week('2026-10-12'));
+    const card = f.remote.items.get((await read(manifestPath(f.root))).items[LOOP].itemId);
+    card.properties = { ...card.properties, reviewed: 'yes' };
+    const config = await read(configPath(f.root));
+    await writeFile(configPath(f.root), JSON.stringify({ ...config, canvas: { ...config.canvas, liveKeys: ['pulse'] } }));
+    const adds = f.remote.adds;
+    const next = await f.publish(week('2026-10-19'));
+    assert.deepEqual([next.data.state, next.data.attention], ['published', undefined]);
+    assert.deepEqual(next.data.changes.map(c => [c.action, c.key]), [['add-immutable', LOOP], ['add-immutable', 'controls-2026-10-19']]);
+    assert.equal(f.remote.adds, adds + 2); assert.equal(f.remote.edits.length, 0); assert.equal(card.versions.length, 1);
+    assert.ok(Object.values((await read(manifestPath(f.root))).items).every(i => !i.conflict));
+  });
+  // The mirror: a key ADDED to the list whose existing card has a
+  // property-only edit is not adopted; it waits for the explicit re-base.
+  await t.test('key added to the list after a property-only edit', async t => {
+    const f = await loopFixture(t);
+    await f.publish(week('2026-10-12'));
+    const card = f.remote.items.get((await read(manifestPath(f.root))).items[LOOP].itemId);
+    card.properties = { ...card.properties, reviewed: 'yes' };
+    const enabling = await f.goLive({ cards: [LOOP] });
+    assert.deepEqual(enabling.data.changes.filter(c => c.key === LOOP).map(c => [c.action, c.reason]), [['rebase-before-first-sync', 'changed']]);
+    await assert.rejects(f.publish(week('2026-10-19')), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+    assert.equal(f.remote.edits.length, 0); assert.equal(card.versions.length, 1); assert.equal(card.properties.reviewed, 'yes');
+  });
 });
