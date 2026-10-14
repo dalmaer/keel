@@ -1859,7 +1859,9 @@ All forms take `--json`. Snapshot and render work without isocan installed.
   (repeatable, 1 to 16) is the whole list, stored as `canvas.liveKeys`; without
   it the list is unchanged, and it defaults to `pulse`. A live card is matched
   by key, so a caller must send the same key each time; its title may change.
-  `--keep` is 2 to 1000 versions of each live card.
+  `--keep` is 2 to 1000 versions of each live card. A card a person changed
+  that leaves live (`--off`, or dropped from `--card`) shows as
+  `retire-live-card`: keel stops tracking it and the next sync adds one beside it.
 - `keel canvas rebase [--card <key>] [--onto <version-id>] [--yes]` previews what a person left
   on a refused live card (name one with `--card` when several are refused); `--yes` needs `--onto` with the current version id
   shown, and records it as the base. It writes nothing remote. It also

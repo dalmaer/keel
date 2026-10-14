@@ -951,3 +951,50 @@ test('a person\'s edit to a caller-supplied live card refuses, stays refused, an
   assert.ok(card.versions.some(v => v.id === 'ver_person'));
   assert.deepEqual(resumed.data.retention, [{ key: LOOP, itemId: card.id, keep: 3, dropped: 0 }]);
 });
+
+test('live --off after a person edited a live card retires it: status clears and the next sync publishes beside their untouched card', async t => {
+  const f = await liveFixture(t); await f.goLive();
+  await f.publish(pulseAt(41));
+  const pulse = await f.pulse();
+  pulse.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); pulse.currentVersionId = 'ver_person'; pulse.title = 'A person keeps this one';
+  assert.equal((await f.publish(pulseAt(42))).data.state, 'conflict');
+  assert.equal((await canvasStatus({ root: f.root })).data.state, 'conflict');
+  const journal = await read(manifestPath(f.root)), frozen = snapshotOf(f.remote), adds = f.remote.adds;
+  const preview = await canvasLive({ root: f.root, off: true }, { transport: f.transport });
+  assert.equal(preview.exitCode, 3);
+  assert.deepEqual(preview.data.changes.map(c => [c.action, c.key, c.itemId]), [['set-mode', undefined, undefined], ['retire-live-card', 'pulse', pulse.id]]);
+  assert.deepEqual(await read(manifestPath(f.root)), journal, 'a preview retires nothing');
+  assert.equal((await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport })).data.state, 'immutable');
+  assert.equal(snapshotOf(f.remote), frozen, 'turning live off writes nothing remote');
+  const after = await read(manifestPath(f.root));
+  assert.equal(after.items.pulse, undefined, 'keel no longer owns the card a person kept');
+  assert.deepEqual([after.retired.length, after.retired[0].itemId, after.retired[0].conflict.currentVersionId], [1, pulse.id, 'ver_person']);
+  assert.deepEqual(after.receipts, journal.receipts, 'its receipts are kept');
+  const status = await canvasStatus({ root: f.root });
+  assert.deepEqual([status.data.state, status.exitCode, status.data.attention], ['connected', 0, undefined]);
+  const out = await f.publish(pulseAt(42));
+  assert.equal(out.data.state, 'published'); assert.deepEqual(out.data.changes.map(c => [c.action, c.key]), [['add-immutable', 'pulse']]);
+  assert.equal(f.remote.adds, adds + 1); assert.equal(f.remote.edits.length, 1);
+  assert.deepEqual([pulse.title, pulse.currentVersionId, pulse.versions.length], ['A person keeps this one', 'ver_person', 3], 'their card is exactly as they left it');
+  assert.notEqual((await read(manifestPath(f.root))).items.pulse.itemId, pulse.id);
+  assert.equal((await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport })).data.state, 'unchanged');
+
+  // A live card nobody touched is not retired: publication continues from it.
+  const g = await liveFixture(t); await g.goLive();
+  await g.publish(pulseAt(41));
+  const kept = (await read(manifestPath(g.root))).items.pulse;
+  assert.deepEqual((await canvasLive({ root: g.root, off: true, yes: true }, { transport: g.transport })).data.changes.map(c => c.action), ['set-mode']);
+  assert.equal((await read(manifestPath(g.root))).items.pulse.itemId, kept.itemId);
+  assert.equal((await g.publish(pulseAt(41))).data.state, 'unchanged'); assert.equal(g.remote.adds, 2);
+
+  // Dropping a key from the list is the same step for that one card.
+  const h = await loopFixture(t); await h.goLive({ cards: [LOOP] });
+  await h.publish(week('2026-10-12'));
+  const card = h.remote.items.get((await read(manifestPath(h.root))).items[LOOP].itemId);
+  card.title = 'Loop, kept by a person';
+  const dropped = await h.goLive({ cards: ['pulse'] });
+  assert.deepEqual(dropped.data.changes.filter(c => c.action === 'retire-live-card').map(c => c.key), [LOOP]);
+  const before = h.remote.adds;
+  assert.equal((await h.publish(week('2026-10-19'))).data.state, 'published');
+  assert.equal(h.remote.adds, before + 2); assert.equal(h.remote.edits.length, 0); assert.equal(card.title, 'Loop, kept by a person');
+});

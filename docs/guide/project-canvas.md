@@ -139,8 +139,14 @@ keel canvas rebase --onto <version-id> --yes --json
 
 Re-basing writes nothing remote. The next sync sends keel's pulse as a new
 version on top of that one and restores keel's title; the person's version
-stays in the card's version stack. To leave their card alone for good, use
-`keel canvas live --off`: later syncs then add new run cards beside it.
+stays in the card's version stack.
+
+To leave their card alone for good, use `keel canvas live --off` (or drop its
+key from `--card`). The preview lists it as `retire-live-card`. With `--yes`,
+keel stops tracking that card: it stays on the canvas exactly as the person
+left it, its receipts stay in the journal under `retired`, `status` stops
+reporting the conflict, and the next sync publishes a new card beside it.
+A live card nobody touched is not retired; publication continues from it.
 
 ### Name which cards are live
 
