@@ -280,3 +280,30 @@ test('each shipped structural guide and conduct rule carries its cause with Keel
   const seed = await readFile(join(KEEL, 'practices/agents-md/files/AGENTS.md'), 'utf8');
   assert.match(seed, /Keel catalogue/);
 });
+
+test('the optional personas practice installs the runner and an example persona, renders clean, and the runner runs in the project', async () => {
+  const dir = await temp('personas');
+  try {
+    await mkdir(join(dir, '.keel'), { recursive: true });
+    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...ACME, practices: ['base', 'agents-md', 'night', 'personas'] }, null, 2) + '\n');
+    const rendered = node(KEEL, RENDER, '--into', dir);
+    assert.equal(rendered.status, 0, rendered.stderr);
+    const source = join(KEEL, 'practices/personas/files');
+    assert.equal(await readFile(join(dir, 'scripts/keel/persona.mjs'), 'utf8'), await readFile(join(source, 'scripts/keel/persona.mjs'), 'utf8'), 'the runner, managed');
+    assert.equal(await readFile(join(dir, '.agents/personas/performance.md'), 'utf8'), await readFile(join(source, '.agents/personas/performance.md'), 'utf8'), 'the example, seeded');
+    const lock = await readFile(join(dir, '.keel/lock.json'), 'utf8');
+    assert.ok(lock.includes('scripts/keel/persona.mjs'), 'the lock knows the runner');
+    assert.ok(!lock.includes('.agents/personas/performance.md'), "a seeded example is the project's, not in the lock");
+    const check = node(KEEL, RENDER, '--into', dir, '--check');
+    assert.equal(check.status, 0, check.stderr);
+    // The project's own copy runs with no keel: the example's placeholders read broken, never met.
+    const ran = node(dir, 'scripts/keel/persona.mjs', 'run', '--all', '--json');
+    assert.equal(ran.status, 2, ran.stderr);
+    const data = JSON.parse(ran.stdout);
+    assert.deepEqual(data.personas[0].goals.map(g => [g.name, g.state]), [['entry bundle size', 'broken'], ['interaction latency', 'broken']]);
+    assert.match(await readFile(join(dir, data.personas[0].page), 'utf8'), /Measured by `node scripts\/keel\/persona\.mjs run`/);
+    // The runner uses the night's lib.mjs: the practice requires night.
+    assert.deepEqual((await load()).get('personas').requires, ['night']);
+    assert.ok(optionalPractices().includes('personas'), 'personas is only ever asked for');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

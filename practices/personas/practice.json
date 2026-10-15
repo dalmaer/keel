@@ -1,0 +1,11 @@
+{
+  "name": "personas",
+  "summary": "Personas: goals a project sets itself, each a number its own command prints and a bound. `scripts/keel/persona.mjs run --all` measures them, writes docs/reviews/<date>-<persona>.md and nothing else, and turns each missed goal into a candidate item for the night's plan. Personas measure; they never build.",
+  "optional": true,
+  "requires": ["night"],
+  "source": { "repo": "dglazkov/isocan", "path": "scripts/persona-run.mjs", "commit": "7bde1a85", "license": "Apache-2.0" },
+  "files": [
+    { "path": "scripts/keel/persona.mjs", "from": "scripts/keel/persona.mjs", "kind": "managed" },
+    { "path": ".agents/personas/performance.md", "from": ".agents/personas/performance.md", "kind": "seeded" }
+  ]
+}
