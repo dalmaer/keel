@@ -5,6 +5,18 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.30 — practice 0.8.30 (2026-10-15)
+
+- **A night with a plan you can shape** (phases 73–78, the "nightwatch"). Each night now writes its plan before it runs: keel's default plan (tonight's measures, the climb job it would pick, the robot's next issue, Loop findings to triage, personas' missed goals), or the one you shaped. The health page gains "Tonight's plan", and `docs/night/<date>.json` records how each item ended.
+  - **`keel goodnight`** (and the conduct skill's `/goodnight`) shows what was settled today, what is left open, the default plan and a few things to try; `add`, `drop`, `edit`, `budget` and `skip` shape a draft; `--yes` saves it to the `keel-night-plan` branch. At most five build items, each naming the number it moves; a "will not touch" list.
+  - **Climb and the robot build only what the plan names**, refuse changes to "will not touch" paths, and record each outcome on the plan branch. Without a plan they work as before.
+  - **Personas** (new optional `personas` practice, `--with personas`): `.agents/personas/<name>.md` declares goals as numbers with the command that measures them; `keel persona run` writes a review page, and missed goals feed the plan.
+  - **The morning**: a new `keel-morning` workflow (after each pass, and daily at 17:07 UTC) writes the final record once the builds are done or at `readyBy`, and with `"morning": {"assignee": "<login>"}` set, opens one "Good morning, <date>" issue assigned to you, so GitHub emails it. With a canvas set for nightly publishing and `night-plan` listed live, the plan card updates after each pass.
+  - **Loop findings** you add in `/goodnight` that name a number become robot issues with a drafted rubric, created only when you say "that's the plan".
+- **A canvas card stays one card** (phase 50): `keel canvas live --card <key>` names live cards, updated in place with isocan's conditional edit; a person's edit stops updates until `keel canvas rebase`.
+- **Claims and review rounds**: a claim belongs to the session that made it (`--token` to resume elsewhere); a PR's round limit comes from its own repository; guide validation treats an unlistable directory as unknown.
+- Node 24.22.0.
+
 ## v0.8.29 — practice 0.8.29 (2026-10-12)
 
 - **A phase being built is claimed** (phase 70). `keel phase claim <n>` pushes one shared branch, `claims/phase-<n>`, so of two sessions claiming at once exactly one gets it; `--release` gives it back. `keel next` now lists every ready phase as free or claimed, and by whom, and exits 2 rather than calling anything free when the claims can't be read. The conduct skill claims before it builds, and a claim idle for seven days is the owner's item on the board.
