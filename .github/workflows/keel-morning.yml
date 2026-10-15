@@ -78,6 +78,7 @@ jobs:
       ready: ${{ steps.decide.outputs.ready }}
       sent: ${{ steps.decide.outputs.sent }}
       assignee: ${{ steps.decide.outputs.assignee }}
+      plan: ${{ steps.decide.outputs.plan }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

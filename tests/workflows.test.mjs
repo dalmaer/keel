@@ -2590,6 +2590,35 @@ test('keel-morning republishes the plan card after each pass when the canvas is 
   assert.ok((await cardStep(t, loose, { canvas: live, creds: false })).calls.some(c => c[1] === 'morning'), 'the guard above is what stops it');
 });
 
+/**
+ * Every `needs.<job>.outputs.<name>` a workflow reads is one that job
+ * exports (its `outputs:` block). GitHub reads an unexported output as an
+ * empty string, so a job gated on it silently never runs (review of #151:
+ * the card job read needs.decide.outputs.plan, which decide did not export).
+ */
+export function neededOutputProblems(text) {
+  const out = [];
+  const jobs = Object.fromEntries(jobsOf(text).map(j => [j.id, j.text]));
+  const exported = id => new Set([...((/\n {4}outputs:\n((?: {6}(?:[\w-]+: |#).*\n)+)/.exec(jobs[id] ?? '')?.[1] ?? '').matchAll(/^ {6}([\w-]+):/gm))].map(m => m[1]));
+  for (const [, job, name] of text.matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)) {
+    if (!jobs[job]) out.push(`needs.${job}.outputs.${name}: no job ${job}`);
+    else if (!exported(job).has(name)) out.push(`needs.${job}.outputs.${name}: ${job} does not export ${name}`);
+  }
+  return [...new Set(out)];
+}
+
+test('every needs.<job>.outputs.<name> a shipped workflow reads is exported by that job (#151)', async () => {
+  const all = await shipped(), rendered = await renderedWorkflows(all);
+  for (const w of all) {
+    assert.deepEqual(neededOutputProblems(w.template), [], w.name);
+    if (rendered.has(w.path)) assert.deepEqual(neededOutputProblems(rendered.get(w.path)), [], `${w.name}, keel's rendered copy`);
+  }
+  const morning = all.find(w => w.name === 'keel-morning.yml').template;
+  const dropped = morning.replace('      plan: ${{ steps.decide.outputs.plan }}\n', '');
+  assert.notEqual(dropped, morning, 'the mutation applies');
+  assert.deepEqual(neededOutputProblems(dropped), ['needs.decide.outputs.plan: decide does not export plan']);
+});
+
 test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, decides read-only, and only its send job writes issues; a failed send is red', async () => {
   const all = await shipped(), rendered = await renderedWorkflows(all);
   const w = all.find(w => w.name === 'keel-morning.yml');
