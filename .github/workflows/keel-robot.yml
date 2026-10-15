@@ -397,6 +397,10 @@ jobs:
     outputs:
       pr: ${{ steps.publish.outputs.pr }}
       head: ${{ steps.publish.outputs.head }}
+      # The publication step's own outcome (phase 76): the review follows a
+      # published PR even when a later step of this job (the plan's ticks)
+      # fails; that failure still leaves this job, and the run, red.
+      published: ${{ steps.publish.outcome }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -463,7 +467,7 @@ jobs:
     outputs:
       complete: ${{ steps.review.outputs.complete }}
     needs: publish
-    if: always() && needs.publish.result == 'success' && needs.publish.outputs.pr != ''
+    if: always() && needs.publish.outputs.published == 'success' && needs.publish.outputs.pr != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

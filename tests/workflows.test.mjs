@@ -2403,3 +2403,34 @@ test('climb and the robot read tonight\'s plan before they choose, keep it befor
     }
   }
 });
+
+test('a robot PR published on a night whose plan ticks fail still gets its other-provider review, and the run is still red', async t => {
+  const robot = await readFile(join(KEEL, 'practices/climb/files/.github/workflows/keel-robot.yml'), 'utf8');
+  const jobs = jobsByName(robot);
+  // The review follows the publication step's own outcome, never the whole publish job's.
+  assert.match(jobs.publish, /\n {6}published: \$\{\{ steps\.publish\.outcome \}\}\n/);
+  assert.match(jobs.publish, /\n {6}- name: Publish verified candidate or explicit blocked outcome\n {8}id: publish\n/);
+  const condition = /\n {4}if: (.+)\n/.exec(jobs['review-agent'])?.[1];
+  assert.doesNotMatch(condition, /needs\.publish\.result/, 'the review never waits on the tick step');
+  const runs = (publish, outputs) => Function('needs', 'always', `return ${condition.replaceAll(' == ', ' === ').replaceAll(' != ', ' !== ')};`)({ publish: { result: publish, outputs } }, () => true);
+  assert.equal(runs('failure', { published: 'success', pr: '7' }), true, 'only the record failed: the PR is reviewed (mutation: needs.publish.result == \'success\' skips it)');
+  assert.equal(runs('success', { published: 'success', pr: '7' }), true);
+  assert.equal(runs('failure', { published: 'failure', pr: '' }), false, 'publication failed: no review');
+  assert.equal(runs('success', { published: 'success', pr: '' }), false, 'nothing published: no review');
+  // The tick step may not hide its failure: no continue-on-error, so a failed record leaves the job, and the run, red.
+  const tick = jobs.publish.split(/\n(?= {6}- )/).find(s => s.includes('- name: Tick tonight\'s plan'));
+  assert.ok(tick, 'the publisher ticks');
+  assert.doesNotMatch(tick, /continue-on-error/);
+  // And it does fail when the plan branch cannot be reached: the record's error is the step's exit.
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-tick-fails-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme'), temp = join(base, 'tmp');
+  await mkdir(join(temp, 'plan'), { recursive: true });
+  await cp(join(KEEL, 'practices/night/files/scripts/keel'), join(dir, 'scripts/keel'), { recursive: true });
+  for (const args of [['init', '-q', '-b', 'main'], ['remote', 'add', 'origin', join(base, 'no-such-origin.git')]]) assert.equal(run('git', args, { cwd: dir }).status, 0);
+  await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ nightPlan: { used: true, applies: true, date: '2026-10-15', item: 'robot-12', ticks: [], willNotTouch: [] } }));
+  const block = runBlocks(robot).find(b => b.step === 'Tick tonight\'s plan');
+  const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: temp, DAY: '2026-10-15', PUBLISHED: 'success', JUDGED: 'success', PR: '7', REPO: 'acme/anvils', RUN: 'https://github.com/acme/anvils/actions/runs/5' } });
+  assert.notEqual(r.status, 0, `a failed record is red: ${r.stdout}${r.stderr}`);
+  assert.match(r.stderr + r.stdout, /cannot read the plan branch keel-night-plan/);
+});

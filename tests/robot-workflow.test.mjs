@@ -46,7 +46,8 @@ test('robot recovery explicitly schedules review after successful publication de
  const review=text.split('\n  review-agent:\n')[1].split(/\n  [a-z-]+:\n/)[0];
  // A recovered publication can succeed with judge skipped. Without an explicit
  // status function, Actions inserts success() and suppresses its downstream review.
- assert.match(review,/^    if: always\(\) && needs\.publish\.result == 'success' && needs\.publish\.outputs\.pr != ''$/m);
+ // Phase 76 (PR #145 review): the publication step's own outcome, so a failed plan tick after it never suppresses the review.
+ assert.match(review,/^    if: always\(\) && needs\.publish\.outputs\.published == 'success' && needs\.publish\.outputs\.pr != ''$/m);
  assert.match(review,/^    needs: publish$/m);
 });
 
