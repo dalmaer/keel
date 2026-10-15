@@ -295,3 +295,25 @@ test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-
   assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('carries a `Proven-by:` trailer'));
   assert.match(await readFile(join(KEEL, 'AGENTS.md'), 'utf8'), /A `fix:` commit\s+carries a `Proven-by:` trailer/);
 });
+
+// Phase 74: /goodnight shapes tonight's plan, only when the owner asks, and writes only on "that's the plan".
+test('the conduct skill\'s /goodnight runs only when asked, shows the opening, shapes by the owner\'s words, and writes only on "that\'s the plan"', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  assert.match(parseSkill(skill).front.description, /"\/goodnight", when the owner asks to shape tonight's plan/, 'it triggers on /goodnight');
+  const at = skill.indexOf('\n## /goodnight');
+  assert.ok(at > 0, 'a /goodnight section');
+  const end = skill.indexOf('\n## ', at + 1);
+  const night = skill.slice(at, end < 0 ? undefined : end);
+  assert.match(night, /\*\*Run it only when the owner asks\.\*\* \(why: [^)\n]+\)/);
+  assert.match(night, /Never offer a plan unasked/);
+  assert.match(night, /\*\*Show the opening\.\*\* \(why: [^)\n]+\) Run `keel goodnight`/);
+  assert.match(night, /\*\*Shape it by the owner's words\.\*\* \(why: [^)\n]+\)[\s\S]*?Use their words as they said them/);
+  assert.match(night, /never work around it/);
+  assert.match(night, /\*\*Write it only on "that's the plan"\.\*\* \(why: [^)\n]+\) Run `keel goodnight --yes` only\s+when the owner says that's the plan/);
+  assert.match(night, /Anything else,\s+including silence or leaving, writes nothing/);
+  // --yes is said in that one step only: nowhere else does the skill write the plan.
+  assert.equal(skill.match(/keel goodnight --yes/g).length, 1);
+  assert.ok(night.includes('keel goodnight --yes'));
+  // keel's own copy says it too (render --self).
+  assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('**Write it only on "that\'s the plan".**'));
+});

@@ -192,7 +192,8 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   is written.
 - **Its rules.** A build item names its number first (a measure the night
   already takes, its bound and which way is better); one that does not is
-  triage. At most five build items a night, counted with the robot's open
+  triage. A build names the pass that builds it: never lane `night`, which only
+  measures. At most five build items a night, counted with the robot's open
   PRs; the rest wait. Any field the design does not name is refused by name.
 - **Tonight** is the UTC date the night runs on. The night runs at 07:23 UTC,
   so a plan made before 07:23 UTC is for that morning's night and one made
@@ -201,8 +202,8 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
 - **Where it travels.** The night reads the branch `keel-night-plan` (one
   file, `.keel/night/plan.json`): a valid plan dated for tonight is used;
   none, another night's, or a refused one means the default plan, and the
-  step's log says which and why. The night never pushes that branch; shaping
-  it is phase 74's work (`/goodnight`).
+  step's log says which and why. The night never pushes that branch; the
+  owner does, with `keel goodnight --yes` (below).
 - **Ticking.** Each pass ticks its own item. The night ticks its measure
   item; `keel night tick` refuses an id the plan does not hold and a move back
   from `done`. Until phase 76, climb and the robot still choose their own work,
@@ -210,6 +211,55 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
 - **The record.** The night's PR commits the plan as it ended,
   `docs/night/<date>.json`, which the drain treats as data; the health page's
   "Tonight's plan" section shows each item, its number and its outcome.
+
+### Goodnight: you shape tonight's plan
+
+Without you, the night runs keel's default plan. When you want to say what
+tonight is for, ask for it: `/goodnight` in a session (the conduct skill runs
+the commands below and talks them through), or the commands yourself. Nothing
+offers a plan unasked (phase 74; isocan's night watch gave the rules).
+
+```bash
+keel goodnight                                   # the opening; changes nothing
+keel goodnight add persona-perf--bundle-size     # one of the things to try
+keel goodnight add --title "Anvil search back under 300 ms" --measure slow_tests --bound 12 --better lower --lane climb:test-time --budget 40
+keel goodnight drop loop-broken-link
+keel goodnight edit climb-test-time --title "Only the search tests tonight"
+keel goodnight budget climb-test-time 30
+keel goodnight skip lib/anvil.mjs                # will not touch: a path or an item's id
+keel goodnight --yes                             # "that's the plan": write it and push it
+```
+
+- **The opening** says what was settled today (PRs merged, phases whose
+  status moved, Loop findings decided), what was left open (open PRs, and
+  from the board the unanswered reviews and your items), tonight's plan (your
+  draft, else keel's default plan), and up to three things to try: a
+  persona's missed goal the plan had no room for, an accepted Loop finding
+  whose note names a measure in backticks, and the health page's proposal as
+  a build for the climb job that measures it. "Today" is since the last plan
+  pushed (as this checkout last fetched it), or the last 24 hours. A source it
+  cannot read, or read only in part, is a "not read" line, never an empty or
+  partial list shown as whole, and the plan keeps it: any board source your
+  items come from (the roadmap, loose ends, reviews, the health page, the
+  inbox, claims). The inbox is keel's own, so elsewhere it is quiet. Personas are read
+  from their newest review pages, not run.
+- **Shaping** changes a draft, `.keel/night/draft.json`, never written through
+  a link, started from the default plan. Your words are kept as you wrote
+  them. Refused, naming why, with the draft left as it was: a sixth build
+  item (counted with the robot's open PRs), a build item with no number (a
+  measure the night takes, its bound and which way is better), and an item
+  naming something settled today (a merged `#n` or a moved `phase n` in its
+  title, a decided Loop finding, a merged robot PR). A build with no `--lane`
+  takes the climb job that measures its number, or is refused. A climb lane
+  is always one of the jobs this project runs (`climb.jobs` in
+  `.keel/keel.json`), and none when climb is off.
+- **Saying it.** `keel goodnight --yes` checks the plan again, fills in what
+  was settled and left open, writes `.keel/night/plan.json` shaped by the
+  owner, and force-pushes it to `keel-night-plan`: one commit holding that one
+  file, made from git's object store, so your working tree, your index and
+  every other branch (main above all) are untouched. That push is the only
+  summons. The branch is never merged. Exit 1 if the plan was written but the
+  push failed: the night then runs the default plan.
 
 ### The morning
 

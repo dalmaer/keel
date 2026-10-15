@@ -1,6 +1,6 @@
 ---
 name: conduct
-description: Walk this project's phases with the conductor pattern — read where it stands, brief a subagent on the next phase, verify the named proof yourself, record what changed course, move the status, commit the phase whole to main, and go on until a step needs a person. Use for "/conduct", "conduct the next phase", "do phase 3", "where do we stand", or "keep going".
+description: Walk this project's phases with the conductor pattern — read where it stands, brief a subagent on the next phase, verify the named proof yourself, record what changed course, move the status, commit the phase whole to main, and go on until a step needs a person. Use for "/conduct", "conduct the next phase", "do phase 3", "where do we stand", or "keep going"; and for "/goodnight", when the owner asks to shape tonight's plan.
 argument-hint: "[status | <phase number> | one]"
 ---
 
@@ -414,6 +414,32 @@ Two things look like stops and aren't. Decide them, record them, and go on:
 
 If in doubt, ask: is the missing thing a credential, money or a hand? If not,
 it's yours.
+
+## /goodnight
+
+`/goodnight` is the owner saying what tonight is for. It is not a phase and
+not the walk: it shapes the plan the night runs (`keel goodnight`; keel's
+`--agent-help night` has the detail).
+
+**Run it only when the owner asks.** (why: A plan offered unasked is keel choosing the night, which the default plan already does without a person.) Only `/goodnight`, or the owner's own words asking for it,
+starts it. Never offer a plan unasked: not at the end of a walk, not when the
+owner says they are stopping, not on a closed session. Without it the night
+runs keel's default plan, and that is fine.
+
+1. **Show the opening.** (why: The owner chooses from what keel read; a summary from memory hides what changed today.) Run `keel goodnight` and give the owner what it
+   says: settled today, left open, tonight's plan and the things to try. Say
+   any `not read:` line as it is; never fill a gap with a guess.
+2. **Shape it by the owner's words.** (why: An item reworded by the agent is no longer the promise the owner made.) Each change they ask for is one
+   command: `keel goodnight add <id>` (a thing to try) or `add --title "<their
+   words>"`, `drop <id>`, `edit <id> --title "<their words>"`, `budget <id>
+   <minutes>`, `skip <path-or-id>`. Use their words as they said them. A
+   refusal names why (a sixth build item, a build with no number, something
+   settled today): tell them, and let them choose; never work around it.
+   Show the draft after each change.
+3. **Write it only on "that's the plan".** (why: The push is the summons; a plan the owner never agreed to would run as theirs.) Run `keel goodnight --yes` only
+   when the owner says that's the plan, or plainly the same. Anything else,
+   including silence or leaving, writes nothing, and the night runs the
+   default plan. Then say what was pushed, and stop.
 
 ## Things that have gone wrong before
 
