@@ -7,10 +7,10 @@ Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
 Verbs (all take `--json`; parse JSON, never prose):
 
 - `keel status` — goals, built counts, the next phase
-- `keel next` — next free phase; ready ones, free or claimed; `--project <p>`
+- `keel next` — next free phase; ready, free or claimed; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress (`docs/goals.json`)
 - `keel phase new|list|claim` — scaffold, list or claim phases
-- `keel render` — render practices; `--check` reads only, exit 1 on differences
+- `keel render` — render practices; `--check` reads only (exit 1)
 - `keel init [dir] --description "<paragraph>"` — new project; `--github` exit 3
 - `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
 - `keel doctor` — drift and practice lints; `--fix <path> restore|eject` (exit 3)
@@ -18,22 +18,23 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel lessons` — send lessons, drift, practice commits home as issues; exit 3
 - `keel learn` — lessons → proposals and decisions
 - `keel improve` — measures, bounds, one proposal; `--report` a health page
-- `keel time` — weekly gate/test medians, load and failure memory
+- `keel time` — weekly gate/test medians, load, failure memory
 - `keel test <file> --stalls` — names tests that judge the wall clock
 - `keel drain <prefix>` — newest passing PR per queue; exit 3
+- `keel night plan|tick` — tonight's plan; tick it
 - `keel fleet` — fleet practice, health, CI
 - `keel fleet update` — update PRs for projects behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
 - `keel issue new --agent` — rubric issue preview; `--yes` creates it
-- `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
-- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
+- `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers
+- `keel board` — whose turn: a 127.0.0.1 page, or `--json`; `--fresh`
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, status, live, rebase, disconnect, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
-- `keel evidence rederive <phase>` — preview measurements; `--yes` reruns them
+- `keel evidence rederive <phase>` — preview measurements; `--yes` reruns
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
 - `keel release <x.y.z> --notes <file>` — review, version, tag
-- `keel help` — the verbs
+- `keel help` — verbs
 - `keel --agent-help` — cold start; `<topic>` or `all` for details
 - `keel --version` — CLI, commit and practice versions
 
@@ -50,7 +51,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -995,7 +996,7 @@ prefix is touched.
 
 - Each older PR, oldest first: merged (squash, branch kept) when every file
   is data (`docs/health/` and the dated pages in the configured `health` directory,
-  `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`; for `keel-loop/`, `docs/loop/` and `docs/LOOP.md`
+  the night's plan records `docs/night/<date>.json`, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`; for `keel-loop/`, `docs/loop/` and `docs/LOOP.md`
   instead) and GitHub says `MERGEABLE`; otherwise closed with a
   comment naming the newest and saying how to recover it. A merge that fails
   becomes that close.
@@ -1010,6 +1011,49 @@ The `night` practice ships it into each project as `scripts/keel/drain.mjs`
 keel-night/` after the night's PR is opened, and `keel-loop.yml` drains
 `keel-loop/`. Run from keel, `keel drain keel/update-v` closes older update
 PRs (never merges one: they are not data).
+
+<!-- topic: night | tonight's plan: written before the night runs, ticked as it goes -->
+
+Every night has one plan, `.keel/night/plan.json` (schema 1; a working file
+that ignores itself), written before anything runs. The night commits it as it
+ended as `docs/night/<date>.json` in its data-only PR, and the health page shows
+it under "Tonight's plan". The design is
+`docs/research/2026-10-14-nightwatch.md`, "One plan per night".
+
+- `keel night plan [--date <YYYY-MM-DD>]` writes keel's default plan: the
+  night's measure item, the newest earlier health page's proposal (review), the
+  climb job `climb.mjs pick` would choose (build, with its measure's number and
+  budget), the robot's next admissible `keel:agent` issue (oldest whose rubric
+  parses, no owner blocker or prerequisite; it names no number, so triage) and
+  Loop's untriaged findings (triage, at most five). Deterministic, no model:
+  the same inputs make the same bytes. `--date` defaults to the night it is
+  for: the UTC date of the next 07:23 UTC run (before 07:23 UTC, today's).
+  `--json` → `{ok, path, from: "default", plan}`. An input it cannot read (gh,
+  a health page, a Loop finding, a practice script) is exit 2 naming it, and
+  nothing is written.
+- `keel night tick <id> --status <s> [--note "<text>"] [--link <url>]` moves
+  one item: `planned|running|done|failed|skipped|left-alone`. Exit 2, nothing
+  written, for an id the plan does not hold, an unknown status, or a move back
+  from `done` (done again only mends its note). `--json` → `{ok, path, date,
+  item, from}`.
+
+The plan: `{schema: 1, date, shapedBy: default|owner, readyBy: null|<time with
+zone>, willNotTouch, settledToday, leftOpen, items}`; each item `{id, title,
+kind: measure|build|triage|review, source: default|owner|persona:<name>|loop:<slug>|health:<measure>|robot:#<n>,
+number: null|{measure, bound, better}, lane: climb:<job>|robot:#<n>|loop|persona:<name>|night,
+budget: null|{minutes}, status, result: null|{note, link}}`. Any other field is
+refused by name; a build item with no `number` is refused (the default plan
+makes it triage instead); at most five build items, counted with the robot's
+open `keel/robot-<n>` PRs (one whose issue a build item names in its lane is
+that item).
+
+In a project, `node scripts/keel/night-plan.mjs` is the same module
+(`plan`, `tick`, `check`, and `tonight`, the night's step). `keel-night.yml`
+reads the plan branch `keel-night-plan` (never pushes it): a valid plan dated
+for the run's UTC date is used; none, another night's or a refused one means
+the default plan, and the step says which and why. improve `--report` ticks the
+measure items and writes the record. Until phase 76, climb and the robot still
+choose their own work.
 
 <!-- topic: loop | Stitch Loop's findings: a project script, not a keel verb; an agent proposes, a person decides -->
 

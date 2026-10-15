@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile, cp, realpath } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -160,6 +161,51 @@ test('--report writes that day\'s page and the bounds, nothing else; the one pro
   assert.deepEqual(r2.json().proposal, d1.proposal);
   assert.equal(await readFile(join(dir, d1.report), 'utf8'), pageText, 'the same day overwrites its own page, identically');
   assert.equal((await readdir(join(dir, 'docs', 'health'))).length, 2);
+});
+
+test('--report with tonight\'s plan: the measure item is ticked, the plan as it ended is docs/night/<date>.json, and the page shows each item and its outcome', async t => {
+  const dir = await project(t);
+  const env = { ...ENV, KEEL_GH: await ghStub(t) };
+  // improve dates its page by the local date; the night's runner is UTC, where the two agree.
+  const d = new Date(), date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // The project's own copy makes the default plan (no climb, robot or Loop here: the measure item alone).
+  const made = run(process.execPath, ['scripts/keel/night-plan.mjs', 'plan', '--date', date, '--json'], { cwd: dir, env });
+  assert.equal(made.status, 0, made.stdout + made.stderr);
+  // An owner's review item beside it, which no pass has ticked yet.
+  const planPath = join(dir, '.keel', 'night', 'plan.json');
+  const plan = JSON.parse(await readFile(planPath, 'utf8'));
+  plan.items.push({ id: 'acme-review', title: 'Read the Acme checkout flow', kind: 'review', source: 'owner', number: null, lane: 'night', budget: null, status: 'planned', result: null });
+  await writeFile(planPath, JSON.stringify(plan));
+  const r = keel(['improve', '--report', '--json'], dir, env);
+  assert.ok([0, 1].includes(r.code), r.out + r.err);
+  const data = r.json();
+  assert.equal(data.nightRecord, `docs/night/${date}.json`);
+  const ended = JSON.parse(await readFile(join(dir, data.nightRecord), 'utf8'));
+  assert.deepEqual(ended, JSON.parse(await readFile(planPath, 'utf8')), 'the record is the working plan as it ended');
+  const measureItem = ended.items.find(i => i.id === 'measures');
+  assert.equal(measureItem.status, 'done');
+  assert.match(measureItem.result.note, /^\d+ ok, \d+ outside, \d+ n\/a, 0 broken$/);
+  assert.equal(measureItem.result.link, data.report);
+  assert.equal(ended.items.find(i => i.id === 'acme-review').status, 'planned', 'improve ticks only the night\'s measure items');
+  const pageText = await readFile(join(dir, data.report), 'utf8');
+  assert.match(pageText, /^## Tonight's plan$/m);
+  assert.match(pageText, new RegExp(`^\\| measures: Measure the practice \\(no health page yet\\) \\| measure \\| night \\| — \\| done \\| \\d+ ok, .* — ${data.report.replace(/[.]/g, '\\.')} \\|$`, 'm'));
+  assert.match(pageText, /^\| acme-review: Read the Acme checkout flow \| review \| night \| — \| planned \| — \|$/m);
+  assert.match(pageText, new RegExp(`The record: \`docs/night/${date}\\.json\``));
+  assert.ok(pageText.indexOf("## Tonight's plan") < pageText.indexOf('<!-- keel:health-report:end -->'), 'the section is the generated report\'s, rewritten each night');
+  assert.deepEqual(data.nightPlan.items.map(i => [i.id, i.status]), [['measures', 'done'], ['acme-review', 'planned']]);
+  // A working plan dated for another night is not tonight's: not ticked, not recorded, and the page says so.
+  await rm(join(dir, 'docs', 'night'), { recursive: true });
+  await writeFile(planPath, JSON.stringify({ ...plan, date: '2020-01-01' }));
+  const other = keel(['improve', '--report', '--json'], dir, env).json();
+  assert.equal(other.nightRecord, null);
+  assert.ok(!existsSync(join(dir, 'docs', 'night')), 'no record');
+  assert.match(await readFile(join(dir, other.report), 'utf8'), /## Tonight's plan\n\n\.keel\/night\/plan\.json is dated 2020-01-01, not \d{4}-\d{2}-\d{2}: not tonight's plan/);
+  // No working plan: no section (a project before phase 73's night, or improve run by hand).
+  await rm(planPath);
+  const none = keel(['improve', '--report', '--json'], dir, env).json();
+  assert.equal(none.nightPlan, null);
+  assert.doesNotMatch(await readFile(join(dir, none.report), 'utf8'), /Tonight's plan/);
 });
 
 test('the proposal: broken first, then the largest relative margin, ties by measure order', () => {

@@ -169,10 +169,50 @@ shows what it would merge or close and exits 3; add `--yes` to act.
 `--gate-passed` is for the workflow, which passes it only when the gate
 passed on the newest PR's tree.
 
+### Tonight's plan
+
+Every night has one plan, written before anything runs, so the morning can
+say what the night meant to do and what came of it (phase 73; the design is
+[Nightwatch](../research/2026-10-14-nightwatch.md)).
+
+```bash
+keel night plan                     # keel's default plan for the next night, to .keel/night/plan.json
+keel night plan --date 2026-10-15   # for a named night (UTC)
+keel night tick climb-test-time --status done --note "12% faster" --link https://github.com/acme/anvils/pull/21
+```
+
+- **The default plan** is what keel would do anyway, written down: the
+  night's measure item, the newest earlier health page's proposal (to
+  review), the climb job `climb.mjs pick` would choose, the robot's next
+  admissible `keel:agent` issue and Loop's untriaged findings (to triage).
+  No model, no person; the same inputs make the same plan. An input it cannot
+  read (gh, a health page, a Loop finding) is exit 2, naming it, and nothing
+  is written.
+- **Its rules.** A build item names its number first (a measure the night
+  already takes, its bound and which way is better); one that does not is
+  triage. At most five build items a night, counted with the robot's open
+  PRs; the rest wait. Any field the design does not name is refused by name.
+- **Tonight** is the UTC date the night runs on. The night runs at 07:23 UTC,
+  so a plan made before 07:23 UTC is for that morning's night and one made
+  after is for the next. In California, an evening plan is for the next UTC
+  date; in Berlin, too.
+- **Where it travels.** The night reads the branch `keel-night-plan` (one
+  file, `.keel/night/plan.json`): a valid plan dated for tonight is used;
+  none, another night's, or a refused one means the default plan, and the
+  step's log says which and why. The night never pushes that branch; shaping
+  it is phase 74's work (`/goodnight`).
+- **Ticking.** Each pass ticks its own item. The night ticks its measure
+  item; `keel night tick` refuses an id the plan does not hold and a move back
+  from `done`. Until phase 76, climb and the robot still choose their own work,
+  so their items stay `planned` unless something ticks them.
+- **The record.** The night's PR commits the plan as it ended,
+  `docs/night/<date>.json`, which the drain treats as data; the health page's
+  "Tonight's plan" section shows each item, its number and its outcome.
+
 ## What you'll see
 
-The night's PR, `keel-night/<date>`, holds the health page and any bound
-that tightened. Its body is Summary, Evidence and Merge danger
+The night's PR, `keel-night/<date>`, holds the health page, tonight's plan
+record and any bound that tightened. Its body is Summary, Evidence and Merge danger
 ([Reviews and PRs](reviews-and-prs.md)) with the page's proposal as its
 note. Merging it is safe: it is data, and the drain would merge it anyway.
 

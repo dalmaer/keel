@@ -150,7 +150,9 @@ test('--json parses for every verb and flag; human text never mixes in', async t
     const needs = { issue: ['new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'acme-rubric.json'], walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'], 'phase claim': ['0'],
-      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'] };
+      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'],
+      // night tick runs after night plan (the registry's order), which wrote the copy's plan (tests/night-plan.test.mjs covers both).
+      'night tick': ['measures', '--status', 'running'] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
     const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
     // Evidence previews a synthetic record, independent of this checkout's historical measurements.
