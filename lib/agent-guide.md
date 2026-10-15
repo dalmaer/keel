@@ -18,6 +18,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel lessons` — send lessons, drift, practice commits home as issues; exit 3
 - `keel learn` — lessons → proposals and decisions
 - `keel improve` — measures, bounds, one proposal; `--report` a health page
+- `keel persona run` — measure a project's own goals
 - `keel time` — weekly gate/test medians, load and failure memory
 - `keel test <file> --stalls` — names tests that judge the wall clock
 - `keel drain <prefix>` — newest passing PR per queue; exit 3
@@ -26,9 +27,9 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
 - `keel issue new --agent` — rubric issue preview; `--yes` creates it
 - `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers them
-- `keel board` — whose turn it is: a 127.0.0.1 page, or `--json`; `--fresh`
+- `keel board` — whose turn it is: a local page; `--fresh`
 - `keel walk done|decide` — settle a walk or proposal
-- `keel canvas` — snapshot, render, connect, sync, status, live, rebase, disconnect, night
+- `keel canvas` — snapshot, render, connect, sync, live, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
 - `keel evidence rederive <phase>` — preview measurements; `--yes` reruns them
 - `keel prove <test> --fix <path>...` — does the test fail without the fix?
@@ -50,7 +51,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -878,6 +879,33 @@ merged or useful. Approved file-split work uses the existing recoverable robot
 issue flow; source changes require refreshing the proposal and robot delivery
 requires the project's approved policy and budget. Manual worktree/draft choices
 remain manual. No acceptance path deletes worktrees or changes PR state.
+
+<!-- topic: persona | goals a project sets itself, measured: met, missed or broken -->
+
+`keel persona run <name>` (or `--all`) reads `.agents/personas/<name>.md`
+(the optional `personas` practice; `scripts/keel/persona.mjs run` is the same
+module in a project). Front matter: `name`, `description`, and `goal:` entries,
+each `- name:`, `at most:` or `at least:` (a number, optional unit: `100ms`),
+`measured by:` (a command printing exactly one number) and optional
+`baseline: <number>, <YYYY-MM-DD>[, <commit>]`. Claude Code's `model`,
+`effort`, `color` and `tools` are kept; any other key, a goal with no command
+or a bound that is not a number is refused, naming it (exit 2).
+
+Each command runs with `sh -c` in the project root, the gate's environment
+(`.keel/keel.json` `env`, no `NODE_TEST_*`) and a 10-minute timeout. A goal
+is `met`, `missed`, or `broken` (failed, timed out, or printed anything but
+one number; never zero). The run writes `docs/reviews/<date>-<persona>.md`
+and nothing else, and refuses (exit 1, nothing written) when a persona file
+changed while it ran, or when a page, `docs` or `docs/reviews` is a symlink
+or a page has another hard link: it never writes through a link. Exit 0 all met, 1 a goal missed, 2 a goal broken.
+
+`--json` → `{date, met, missed, broken, personas: [{name, page, goals:
+[{id, name, measure, command, kind, bound, unit, better, baseline, state,
+value, detail?}], candidates}]}`. `measure` is `persona:<name>:<goal>`.
+`candidates` are the night plan's items: a missed goal `{id, title, kind:
+"build", source: "persona:<name>", number: {measure, bound, better}, lane:
+null, status: "planned"}`; a broken one the same with `kind: "review"` and
+`number: null`. Personas measure; they never build.
 
 <!-- topic: time | timing history and machine context -->
 

@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-14
 goal: G4
 spec: 2
 depends: [11]
-note: "Specified 2026-10-14 from isocan's personas: goals a project sets itself, measured each night, a missed goal becomes a candidate plan item."
-evidence: []
+note: "Built 2026-10-14: the parser, keel persona run, planCandidates and the optional personas practice. Gap: the default plan (phase 73) does not list the candidates yet, and the night does not run personas; the owner's read of a real review page is open."
+evidence: ["evidence/2026-10-14-personas.md"]
 issue: 133
 ---
 
@@ -29,10 +29,10 @@ Not in scope: a persona that calls a model (isocan's small tier) — a later dec
 
 ## Acceptance
 
-- [ ] A persona file parses into goals, and an unknown key, a goal with no command, or a bound that is not a number is refused, naming it. `tests/persona.test.mjs`
-- [ ] `keel persona run` measures each goal, marks met, missed or broken, writes the review page, and writes nothing else. `tests/persona.test.mjs`
+- [x] A persona file parses into goals, and an unknown key, a goal with no command, or a bound that is not a number is refused, naming it. `tests/persona.test.mjs`
+- [x] `keel persona run` measures each goal, marks met, missed or broken, writes the review page, and writes nothing else. `tests/persona.test.mjs`
 - [ ] A missed goal appears in the next default plan as a candidate item naming its number; a broken one as a review item. `tests/persona.test.mjs`, `tests/night-plan.test.mjs`
-- [ ] The optional practice installs the runner and an example persona and renders clean. `tests/practices.test.mjs`
+- [x] The optional practice installs the runner and an example persona and renders clean. `tests/practices.test.mjs`
 - [ ] ⚑ by hand: the owner reads one persona's review page from a real project and says whether its goals are the right ones.
 
 ## Your part
@@ -59,7 +59,12 @@ By hand: the owner's read of one review page.
 
 - **Personas that spend tokens**: not in this phase.
 - **Known limit**: a goal is only as good as its command; keel checks it prints one number, not that it measures the right thing.
+- **Settled 2026-10-14, how a goal's command runs** (settled by the build): as keel already runs a project's own commands (`"climb".build`, `"climb".perf.command`): `sh -c` (spawnSync with `shell`) in the project root, with the gate's environment (`gateEnv`: `NODE_TEST_*` stripped, `.keel/keel.json` `env` merged) and a 10-minute timeout. The command is the project's own committed text, run verbatim; nothing is interpolated into it. It must print exactly one number on stdout and nothing else (stricter than perf's last line), or the goal is broken.
+- **Settled 2026-10-14, the example is never met by accident** (settled by the build): the seeded `.agents/personas/performance.md` has a bundle-size and a latency goal whose commands print a message to stderr and exit 1, so a fresh install reads `broken` until the project fills them in. It has no baseline: a baseline nobody measured is fiction.
+- **Settled 2026-10-14, persona goals are not yet in the night's MEASURES** (settled by the build): `personaMeasures(root)` gives each goal as a `persona:<name>:<goal>` measure that `improve.mjs`'s `measure()` takes (tested), bounded by the persona file (a rule measure). Adding them to `MEASURES` is left to the integration after phase 73: `tighten` would copy each bound into `.keel/bounds.json` (two homes for one bound), `--selftest` holds every measure to reading outside on keel's fixture, and phase 73 is changing `improve.mjs` in parallel.
+- **Known limit**: the run refuses a changed persona file and writes only its page, but a goal's command can itself write files; keel does not police the project's own command.
+- **Known limit**: on timeout the shell is killed; a grandchild it started may outlive it.
 
 ## Next action
 
-Write the persona parser and `keel persona run`, with `tests/persona.test.mjs`.
+After phase 73 merges: list `planCandidates` items in `keel night plan`'s default plan (`tests/night-plan.test.mjs`), and have the night run `keel persona run --all` before the plan is made.
