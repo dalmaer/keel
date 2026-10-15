@@ -239,10 +239,10 @@ export function planCandidates({ name, goals }) {
   for (const g of goals) {
     const base = { id: `persona-${name}--${g.id}`, source: `persona:${name}` };
     if (g.state === 'missed') {
-      items.push({ ...base, title: `${g.name}: back to ${g.kind} ${g.bound}${g.unit} (measured ${g.value}${g.unit})`, kind: 'build',
+      items.push({ ...base, title: planTitle(`${g.name}: back to ${g.kind} ${g.bound}${g.unit} (measured ${g.value}${g.unit})`), kind: 'build',
         number: { measure: g.measure, bound: g.bound, better: g.better }, lane: `persona:${name}`, status: 'planned' });
     } else if (g.state === 'broken') {
-      items.push({ ...base, title: `${g.name}: its command is broken (\`${g.command}\`: ${g.detail})`, kind: 'review', number: null, lane: `persona:${name}`, status: 'planned' });
+      items.push({ ...base, title: planTitle(`${g.name}: its command is broken (\`${g.command}\`: ${g.detail})`), kind: 'review', number: null, lane: `persona:${name}`, status: 'planned' });
     }
   }
   return items;
@@ -250,6 +250,17 @@ export function planCandidates({ name, goals }) {
 
 const cell = s => String(s).replaceAll('|', '\\|').replaceAll('\n', ' ');
 const VERDICT = { met: 'met', missed: '**missed**', broken: '**broken**' };
+
+/**
+ * The night plan's title limit (night-plan.mjs validatePlan: one line, at
+ * most 300 characters, no control character). A long command or error is cut
+ * with an ellipsis here; the review page's Broken section keeps them whole.
+ */
+export const PLAN_TITLE_MAX = 300;
+export const planTitle = s => {
+  const line = String(s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return line.length > PLAN_TITLE_MAX ? `${line.slice(0, PLAN_TITLE_MAX - 1).trimEnd()}…` : line;
+};
 
 /** The review page: what each goal read, against its bound and baseline, and what goes to the next night. */
 export function reviewPage({ persona, goals, date, commit, by = COMMAND }) {

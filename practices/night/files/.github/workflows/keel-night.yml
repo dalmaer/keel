@@ -142,8 +142,16 @@ jobs:
           git ls-remote --exit-code --heads origin keel-night-plan > /dev/null || found=$?
           ARGS=()
           if [ "$found" = 0 ]; then
-            if git fetch -q --no-tags origin "+refs/heads/keel-night-plan:refs/remotes/origin/keel-night-plan" &&
-              git show "refs/remotes/origin/keel-night-plan:.keel/night/plan.json" > "$RUNNER_TEMP/branch-plan.json" 2> /dev/null; then
+            # The branch is there: a fetch that fails is a plan the night could
+            # not read (red), never "no plan file"; only a fetched branch with no
+            # plan file is the default plan.
+            fetched=0
+            git fetch -q --no-tags origin "+refs/heads/keel-night-plan:refs/remotes/origin/keel-night-plan" || fetched=$?
+            if [ "$fetched" != 0 ]; then
+              echo "::error::git fetch could not read the plan branch keel-night-plan (exit $fetched); tonight runs the default plan."
+              ARGS=(--branch-unread "git fetch exit $fetched")
+              code=2
+            elif git show "refs/remotes/origin/keel-night-plan:.keel/night/plan.json" > "$RUNNER_TEMP/branch-plan.json" 2> /dev/null; then
               ARGS=(--branch-plan "$RUNNER_TEMP/branch-plan.json")
             else
               echo "plan: keel-night-plan holds no .keel/night/plan.json"
