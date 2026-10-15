@@ -150,7 +150,7 @@ test('--json parses for every verb and flag; human text never mixes in', async t
     const needs = { issue: ['new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'acme-rubric.json'], walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
       review: ['acme/app#1', '--reviewer', 'acme-reviewer'], 'goal show': ['G0'], 'goal add': ['Acme works', '--outcome', 'Acme works.'],
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'], 'phase claim': ['0'],
-      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'],
+      prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'], 'persona run': ['--all'],
       // night tick runs after night plan (the registry's order), which wrote the copy's plan (tests/night-plan.test.mjs covers both).
       'night tick': ['measures', '--status', 'running'] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
@@ -183,7 +183,10 @@ Measure the count.
 `);
     const measurement = { id: 'acme-count', argv: [process.execPath, '-e', 'console.log(12)'], cwd: '.', value: 10, unit: 'characters', date: '2026-10-11' };
     await writeFile(join(measuring, 'docs/evidence/acme.md'), '\n```keel-measurements\n' + JSON.stringify([measurement]) + '\n```\n');
-    const cwdOf = name => name === 'prove' ? proving : name === 'evidence rederive' ? measuring : dir;
+    // persona run measures a synthetic Acme persona whose goal is met (tests/persona.test.mjs covers the verb).
+    await mkdir(join(measuring, '.agents/personas'), { recursive: true });
+    await writeFile(join(measuring, '.agents/personas/acme.md'), '---\ngoal:\n  - name: anvils\n    at most: 3\n    measured by: echo 2\n---\n');
+    const cwdOf = name => name === 'prove' ? proving : ['evidence rederive', 'persona run'].includes(name) ? measuring : dir;
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     // canvas status reads local binding/receipts only; any accidental transport call

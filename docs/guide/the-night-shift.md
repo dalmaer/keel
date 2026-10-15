@@ -486,3 +486,39 @@ with the same blob on GitHub's default branch. Unpublished, changed or unavailab
 filing. Recovery of an already attempted issue remains read-only and does not
 require the branch to have stayed unchanged. The source check is a snapshot at
 acceptance time, not a guarantee against later branch changes.
+
+## Personas: goals a project sets itself
+
+The night's measures are keel's. A persona holds the project's own: "the
+entry bundle stays under 250 kB", "an interaction stays under 100 ms". Turn
+on the optional practice with `keel adopt --with personas`; it installs
+`scripts/keel/persona.mjs` and an example `.agents/personas/performance.md`.
+
+A persona is a lens in prose, with goals in its front matter. Each goal is a
+name, a bound (`at most:` or `at least:`), the command that prints the number
+(`measured by:`), and once someone has taken a first reading, a `baseline:`.
+The example's two commands are placeholders that exit 1 with a message, so
+until you replace them the run says `broken`: an example is never met by
+accident. A key keel does not know, a goal with no command, or a bound that is
+not a number is refused, naming it.
+
+```bash
+keel persona run performance     # one persona
+keel persona run --all --json    # every one; what the night will read
+node scripts/keel/persona.mjs run --all   # the same, from the project's own copy
+```
+
+Each command runs as the project's other commands do: `sh -c` in the project
+root, the gate's environment, a ten-minute timeout. It must print exactly one
+number. A command that fails, times out or prints anything else is `broken`,
+never zero: "nothing measured" must not read as "nothing wrong". The run
+writes `docs/reviews/<date>-<persona>.md` and nothing else, and refuses,
+writing nothing, if a persona file changed while it ran, because a runner that
+can change its goal can pass by lowering the bar. It exits 0 when every goal
+is met, 1 when one is missed, 2 when one is broken.
+
+Personas measure; they never build. Each missed goal becomes a candidate item
+for the night's plan, a `build` item naming its number
+(`persona:<name>:<goal>`), and each broken one a `review` item; which pass
+builds is the plan's choice. A goal is only as good as its command: keel
+checks that it prints one number, not that the number is the right one.

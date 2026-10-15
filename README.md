@@ -86,6 +86,7 @@ archived phase files remain unchanged.
 | `night` | `keel-night.yml` measures the project nightly, opens at most one PR, and goes red only when something is broken; a test ledger that remembers every `node --test` run and ends it naming any flaky or slower test | Guards that fire into an empty room; a flaky test rerun until green |
 | `claude` *(optional)* | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
+| `personas` *(optional)* | Goals the project sets itself (a number, a bound, the command that prints it), measured into a dated review page; a missed goal becomes a candidate for the night's plan | Standards stated once and never measured again |
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 | `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR | A speed-up nobody measured against noise; a test quietly gone |
@@ -187,6 +188,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel render` | Write the practices onto the project; `--check` only compares |
 | `keel doctor` | What the project changed of keel's files, and practice rules broken. Changes nothing without `--fix` |
 | `keel improve` | Measures against bounds, including worktree/draft/file hygiene; `--report` writes the health page and its proposal |
+| `keel persona run [<name>\|--all]` | Measure the goals a project sets itself in `.agents/personas/<name>.md`: each command's one number against its bound, met, missed or broken; writes `docs/reviews/<date>-<persona>.md` and nothing else |
 | `keel time [--weeks N]` | Retained weekly gate/test timing, load coverage, failure memory and local worked-around test summaries |
 | `keel test <file> --stalls` | Run test files paused at random moments, and without; name each test that judges the wall clock rather than the code |
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
