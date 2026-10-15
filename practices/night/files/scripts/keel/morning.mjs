@@ -147,13 +147,14 @@ export async function finalPlan({ root, date }) {
   if (!read.length) return { plan: null, from: null, sources };
   const isRecord = p => p.from.endsWith(record);
   const base = read.find(isRecord) ?? read.find(p => p.from.startsWith(PLAN_BRANCH)) ?? read[0];
+  // The highest-ranked tick from any place, the base's own included; a tie
+  // goes to the first place in `places` order (the plan branch, then the
+  // records, then the working plan), so a later done after a recorded
+  // failure, or a mended note on a done item, is never lost to the base.
   const items = base.plan.items.map(it => {
-    let best = it;
-    for (const p of read) {
-      const other = p.plan.items.find(o => o.id === it.id && o.kind === it.kind);
-      if (other && rank(other.status) > rank(best.status)) best = other;
-    }
-    return best;
+    const ticks = read.map(p => p.plan.items.find(o => o.id === it.id && o.kind === it.kind)).filter(Boolean);
+    const top = Math.max(...ticks.map(o => rank(o.status)));
+    return ticks.find(o => rank(o.status) === top);
   });
   return { plan: { ...base.plan, items }, from: base.from, sources };
 }

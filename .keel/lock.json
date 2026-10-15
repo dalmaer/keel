@@ -195,7 +195,7 @@
     },
     "scripts/keel/morning.mjs": {
       "practice": "night",
-      "sha256": "7f796206af6bbc0f9c324b758c56663706a2c0de9246dd6d25991b3e77ecc343"
+      "sha256": "5b9af697126cde63df1cbf74ecc4ca82987b49382f088c2b76cde3c7b2e45b8c"
     },
     "scripts/keel/night-plan.mjs": {
       "practice": "night",

@@ -351,6 +351,24 @@ test('the plan card is the plan alone (no clock), and --card is refused, naming 
   }
 });
 
+test('equal-rank ticks: the plan branch wins a tie, so a later done after a recorded failure, and a mended note or link on a done item, reach the brief', async t => {
+  const withItem = (plan, id, over) => ({ ...plan, items: plan.items.map(i => (i.id === id ? { ...i, ...over } : i)) });
+  // The record says failed; the plan branch, ticked later, says done (both terminal).
+  const p = await project(t);
+  await writeFile(join(p.root, `docs/night/${NIGHT}.json`), `${JSON.stringify(withItem(finished(), 'perf-bundle', { status: 'failed', result: { note: 'the first try timed out' } }), null, 2)}\n`);
+  const later = (await finalPlan({ root: p.root, date: NIGHT })).plan.items.find(i => i.id === 'perf-bundle');
+  assert.deepEqual([later.status, later.result], ['done', { note: 'Split the vendor chunk', link: PR }]);
+  // Both done; the plan branch mends the note and link (night-plan.mjs allows done → done).
+  const mended = await project(t, { branch: withItem(finished(), 'perf-bundle', { result: { note: 'Split the vendor chunk, 19 kB under', link: 'https://github.com/acme/anvils/pull/22' } }) });
+  await writeFile(join(mended.root, `docs/night/${NIGHT}.json`), `${JSON.stringify(finished(), null, 2)}\n`);
+  const fixed = (await finalPlan({ root: mended.root, date: NIGHT })).plan.items.find(i => i.id === 'perf-bundle');
+  assert.deepEqual(fixed.result, { note: 'Split the vendor chunk, 19 kB under', link: 'https://github.com/acme/anvils/pull/22' });
+  // A higher rank still beats the branch: its running never undoes a recorded done.
+  const behind = await project(t, { branch: withItem(finished(), 'perf-bundle', { status: 'running', result: null }) });
+  await writeFile(join(behind.root, `docs/night/${NIGHT}.json`), `${JSON.stringify(finished(), null, 2)}\n`);
+  assert.equal((await finalPlan({ root: behind.root, date: NIGHT })).plan.items.find(i => i.id === 'perf-bundle').status, 'done');
+});
+
 test('the brief\'s repo: in a GitHub Actions run, the run\'s own repository; anywhere else, the project\'s config, never a stray GITHUB_REPOSITORY', async t => {
   const { repoOf } = morningModule;
   assert.equal(typeof repoOf, 'function');
