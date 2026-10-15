@@ -67,5 +67,8 @@
   "robot": {
     "on": true,
     "budgetMinutes": 60
+  },
+  "morning": {
+    "assignee": "dalmaer"
   }
 }
