@@ -192,7 +192,8 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   is written.
 - **Its rules.** A build item names its number first (a measure the night
   already takes, its bound and which way is better); one that does not is
-  triage. At most five build items a night, counted with the robot's open
+  triage. A build names the pass that builds it: never lane `night`, which only
+  measures. At most five build items a night, counted with the robot's open
   PRs; the rest wait. Any field the design does not name is refused by name.
 - **Tonight** is the UTC date the night runs on. The night runs at 07:23 UTC,
   so a plan made before 07:23 UTC is for that morning's night and one made

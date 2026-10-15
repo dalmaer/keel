@@ -1107,7 +1107,7 @@ kind: measure|build|triage|review, source: default|owner|persona:<name>|loop:<sl
 number: null|{measure, bound, better}, lane: climb:<job>|robot:#<n>|loop|persona:<name>|night,
 budget: null|{minutes}, status, result: null|{note, link}}`. Any other field is
 refused by name; a build item with no `number` is refused (the default plan
-makes it triage instead); at most five build items, counted with the robot's
+makes it triage instead), and so is one in lane `night` (the night only measures); at most five build items, counted with the robot's
 open `keel/robot-<n>` PRs (one whose issue a build item names in its lane is
 that item).
 

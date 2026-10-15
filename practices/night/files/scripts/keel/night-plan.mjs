@@ -161,6 +161,8 @@ export function validatePlan(plan, { openRobotPrs = [] } = {}) {
     }
     if (item.kind === 'build') {
       if (item.number === undefined || item.number === null) bad(`${where}: a build item names its number first; it has no "number" (make it triage or review)`);
+      // The night measures and never builds: a build in lane night is one no pass would ever take.
+      if (item.lane === 'night') bad(`${where}: a build item names the pass that builds it; lane night only measures (use climb:<job>, robot:#<issue>, loop or persona:<name>)`);
       builds++;
       if (builds + outside.length > MAX_BUILD) {
         bad(`${where}: a ${ordinal(builds + outside.length)} build item; at most ${MAX_BUILD} a night, counted with the robot's open PRs (${outside.length ? outside.map(n => `#${n}`).join(', ') : 'none'}); the rest wait for the next night`);

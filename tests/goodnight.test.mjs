@@ -303,3 +303,22 @@ test('--yes writes the plan with shapedBy owner and pushes it to the plan branch
   await assert.rejects(goodnight({ root: f.root, args: ['--yes'], env: f.env }, { board }), e => e.exitCode === 2 && /no git remote here/.test(e.message));
   assert.equal(existsSync(join(f.root, PLAN)), false);
 });
+
+// Review of phase 74 (PR #144): edit --kind build on an item in lane night kept that lane, and --yes would publish a build no pass takes.
+test('edit that makes an item a build gives it the pass that builds its number, or is refused; a build in lane night never reaches the draft', async t => {
+  const f = await acme(t);
+  const edit = (...args) => goodnight({ root: f.root, args: ['edit', 'health-prs-stale', ...args], env: f.env }, { board });
+  // health-prs-stale is a review in lane night; no climb job measures prs_stale.
+  await assert.rejects(edit('--kind', 'build'), e => e.exitCode === 2 && /a build item names the pass that builds it: --lane climb:<job> or robot:#<issue> \(lane night only measures\)/.test(e.message));
+  await assert.rejects(edit('--kind', 'build', '--lane', 'night'), e => e.exitCode === 2 && /lane night only measures/.test(e.message));
+  await assert.rejects(goodnight({ root: f.root, args: ['add', '--title', 'Acme: a night build', '--measure', 'slow_tests', '--bound', '0', '--lane', 'night'], env: f.env }, { board }), /lane night only measures/);
+  assert.equal(existsSync(join(f.root, DRAFT)), false, 'nothing refused reaches the draft');
+  // Its number measured by a climb job: the build goes to that job, as add does.
+  await edit('--kind', 'build', '--measure', 'slow_tests', '--bound', '0');
+  const d = JSON.parse(await readFile(join(f.root, DRAFT), 'utf8'));
+  const it = d.items.find(i => i.id === 'health-prs-stale');
+  assert.deepEqual([it.kind, it.lane, it.number.measure], ['build', 'climb:test-time', 'slow_tests']);
+  // A lane the owner names is theirs.
+  await edit('--lane', 'robot:#12');
+  assert.equal(JSON.parse(await readFile(join(f.root, DRAFT), 'utf8')).items.find(i => i.id === 'health-prs-stale').lane, 'robot:#12');
+});
