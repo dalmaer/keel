@@ -5,7 +5,7 @@
 // goal becomes a candidate plan item naming its number. Every fixture is Acme's.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run as runNode } from './helpers/run.mjs';
@@ -146,6 +146,33 @@ test('exit 1 when a goal is missed and none broken, 0 when every goal is met; on
   await assert.rejects(run({ root, date: DATE }), e => e.exitCode === 2 && /name one persona or --all/.test(e.message));
   assert.deepEqual(parseArgs(['run', '--all']), { name: undefined, all: true });
   assert.throws(() => parseArgs(['run', '--fast']), /unexpected argument: --fast/);
+});
+
+test('a review page that is a symlink or a hard link to a file outside the project is refused (exit 1), and the target is untouched', async t => {
+  const outside = await mkdtemp(join(tmpdir(), 'keel-persona-outside-'));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  const target = join(outside, 'acme-precious.txt');
+  await writeFile(target, 'Acme anvils ledger\n');
+  const other = persona(goal('size', 'at most: 10', 'echo 1')).replace('name: speed', 'name: other');
+  const root = await project(t, { [FILE]: persona(goal('size', 'at most: 10', 'echo 1')), '.agents/personas/other.md': other });
+  await mkdir(join(root, 'docs/reviews'), { recursive: true });
+  // other's page sorts first and is a plain new file: a refusal of speed's page must still write neither.
+  await symlink(target, join(root, `docs/reviews/${DATE}-speed.md`));
+  const before = await tree(root);
+  await assert.rejects(run({ root, all: true, date: DATE }), e => e.exitCode === 1
+    && /refused: docs\/reviews\/2026-10-14-speed\.md is not a regular file \(a symlink\); a run never writes through a link/.test(e.message));
+  assert.equal(await readFile(target, 'utf8'), 'Acme anvils ledger\n', 'the linked target is byte-identical');
+  assert.deepEqual(await tree(root), before, 'no other file changed: not even the other persona\'s page');
+  // A hard link shares the outside file's bytes: truncating it would truncate them too.
+  await rm(join(root, `docs/reviews/${DATE}-speed.md`));
+  await link(target, join(root, `docs/reviews/${DATE}-speed.md`));
+  await assert.rejects(run({ root, name: 'speed', date: DATE }), e => e.exitCode === 1 && /2026-10-14-speed\.md is not a regular file \(2 links\)/.test(e.message));
+  assert.equal(await readFile(target, 'utf8'), 'Acme anvils ledger\n');
+  // docs/ itself a link out of the project: refused before anything is made there.
+  const elsewhere = await project(t, { [FILE]: persona(goal('size', 'at most: 10', 'echo 1')) });
+  await symlink(outside, join(elsewhere, 'docs'));
+  await assert.rejects(run({ root: elsewhere, all: true, date: DATE }), e => e.exitCode === 1 && /refused: docs is a symlink/.test(e.message));
+  assert.deepEqual(await readdir(outside), ['acme-precious.txt'], 'nothing made outside the project');
 });
 
 test('a persona file that changes during the run is refused, and no review page is written', async t => {

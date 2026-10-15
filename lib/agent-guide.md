@@ -896,7 +896,8 @@ Each command runs with `sh -c` in the project root, the gate's environment
 is `met`, `missed`, or `broken` (failed, timed out, or printed anything but
 one number; never zero). The run writes `docs/reviews/<date>-<persona>.md`
 and nothing else, and refuses (exit 1, nothing written) when a persona file
-changed while it ran. Exit 0 all met, 1 a goal missed, 2 a goal broken.
+changed while it ran, or when a page, `docs` or `docs/reviews` is a symlink
+or a page has another hard link: it never writes through a link. Exit 0 all met, 1 a goal missed, 2 a goal broken.
 
 `--json` → `{date, met, missed, broken, personas: [{name, page, goals:
 [{id, name, measure, command, kind, bound, unit, better, baseline, state,

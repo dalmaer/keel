@@ -53,8 +53,8 @@
 // into a review item. `personaMeasures` gives each goal as a measure the
 // night's improve.mjs `measure()` can take (`persona:<name>:<goal>`).
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { constants, existsSync } from 'node:fs';
+import { lstat, mkdir, open, readFile, readdir, realpath } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -280,13 +280,47 @@ async function configOf(root) {
   catch (e) { if (e.code === 'ENOENT') return {}; throw new PersonaError(`.keel/keel.json: ${e.message}`); }
 }
 
-/** docs/reviews/, made if missing, refused when it resolves outside the project (a symlink). */
+/** lstat, or null when the path does not exist. */
+const lstatOf = path => lstat(path).catch(e => { if (e.code === 'ENOENT') return null; throw e; });
+
+/**
+ * docs/reviews/, made if missing. Refused when docs or docs/reviews is a
+ * symlink (checked before mkdir, so nothing is made through one) or when it
+ * resolves outside the project.
+ */
 async function reviewsDir(root) {
+  let at = root;
+  for (const part of REVIEWS.split('/')) {
+    at = join(at, part);
+    const s = await lstatOf(at);
+    if (s && !s.isDirectory()) fail(`refused: ${relative(root, at).split(sep).join('/')} is ${s.isSymbolicLink() ? 'a symlink' : 'not a directory'}; a run writes only inside the project, never through a link`, 1);
+  }
   const dir = join(root, REVIEWS);
   await mkdir(dir, { recursive: true });
   const [real, top] = [await realpath(dir), await realpath(root)];
   if (real !== top && !real.startsWith(top + sep)) fail(`${REVIEWS} resolves outside the project (${real}); a run writes only inside it`, 1);
   return dir;
+}
+
+/** Why `s` (an lstat or fstat) is not a page this run may overwrite, or null: a regular file with one link. */
+const unsafe = s => s.isSymbolicLink() ? 'a symlink' : !s.isFile() ? 'not a file' : s.nlink !== 1 ? `${s.nlink} links` : null;
+const pageRefusal = (root, page, why) => `refused: ${relative(root, page).split(sep).join('/')} is not a regular file (${why}); a run never writes through a link, and no review page was written`;
+
+/**
+ * Write a review page without following a link: opened with O_NOFOLLOW (a
+ * symlink made after the check still fails the open), checked on the open
+ * handle (a hard link shares an outside file's bytes), then truncated.
+ */
+async function writePage(root, page, text) {
+  let handle;
+  try { handle = await open(page, constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW, 0o644); }
+  catch (e) { if (e.code === 'ELOOP') fail(pageRefusal(root, page, 'a symlink'), 1); throw e; }
+  try {
+    const why = unsafe(await handle.stat());
+    if (why) fail(pageRefusal(root, page, why), 1);
+    await handle.truncate(0);
+    await handle.writeFile(text);
+  } finally { await handle.close(); }
 }
 
 /**
@@ -313,9 +347,16 @@ export async function run({ root, name, all = false, date = today(), env = proce
   if (changed.length) fail(`refused: ${changed.map(f => `${PERSONA_DIR}/${f}`).join(', ')} changed during the run, and a run that can change its goal can pass by lowering the bar; no review page was written`, 1);
   const dir = await reviewsDir(root);
   const commit = commitOf(root, env);
+  // Every destination is checked before any is written, so one refused page writes none.
   for (const r of results) {
     const page = join(dir, `${date}-${r.name}.md`);
-    await writeFile(page, reviewPage({ persona: r.name, goals: r.goals, date, commit, by }));
+    const s = await lstatOf(page);
+    const why = s && unsafe(s);
+    if (why) fail(pageRefusal(root, page, why), 1);
+  }
+  for (const r of results) {
+    const page = join(dir, `${date}-${r.name}.md`);
+    await writePage(root, page, reviewPage({ persona: r.name, goals: r.goals, date, commit, by }));
     r.page = relative(root, page).split(sep).join('/');
     r.candidates = planCandidates(r);
   }
