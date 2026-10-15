@@ -22,6 +22,7 @@ const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Each keel workflow's own branch prefix: the only refs it may push or drain. */
 export const PREFIX = {
   'keel-night.yml': 'keel-night/',
+  'keel-morning.yml': 'keel-night/',
   'keel-loop.yml': 'keel-loop/',
   'keel-climb.yml': 'keel-climb/',
   'keel-robot.yml': 'keel/robot-',
@@ -130,7 +131,7 @@ test('every workflow keel ships keeps the night shift\'s rules, as a template an
   assert.deepEqual(renderedWorkflowPaths([optional], [], new Set([optional.path])), [optional.path], 'an actual file is checked even when its practice is disabled');
   assert.deepEqual(renderedWorkflowPaths([optional], [], new Set()), [], 'a disabled absent workflow has only its template checked');
   assert.throws(() => renderedWorkflowPaths([optional], ['acme'], new Set()), /configured workflow missing: .*acme\.yml/, 'configured missing outputs cannot silently skip policy checks');
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-night.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-morning.yml', 'keel-night.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -2319,5 +2320,69 @@ test('phase 47: Codex runs climb and tend in workspace-write with sudo dropped, 
       assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
       assert.ok(check(text, opts).length, `${name} ${why}: expected a problem`);
     }
+  }
+});
+
+/**
+ * keel-morning.yml's rules (phase 77), as text: started by each pass
+ * finishing and by a schedule; read-only at the top; only the send job may
+ * write issues; send and finalize run only when decide says the night is
+ * over and unsent; a failed send fails the run. Returns the broken rules.
+ */
+export function morningProblems(text) {
+  const out = [];
+  if (!/^on:\n {2}workflow_run:\n {4}workflows: \[keel-night, keel-climb, keel-robot\]\n {4}types: \[completed\]\n {2}schedule:\n {4}- cron: "[^"]+"\n/m.test(text)) out.push('not started by keel-night, keel-climb and keel-robot finishing and by a schedule');
+  if (!/^concurrency:\n {2}group: keel-morning\n {2}cancel-in-progress: false$/m.test(text)) out.push('no keel-morning concurrency group that queues');
+  if (!/^permissions: \{\}$/m.test(text)) out.push('the top level must grant nothing (permissions: {})');
+  if (/secrets\./.test(text)) out.push('no secret beyond the job\'s own token');
+  const jobs = Object.fromEntries(jobsOf(text).map(j => [j.id, j.text]));
+  if (Object.keys(jobs).join(',') !== 'decide,finalize,send') out.push(`jobs are decide, finalize, send (got ${Object.keys(jobs).join(', ')})`);
+  const perms = job => /\n {4}permissions:\n((?: {6}[a-z-]+: (?:read|write)\n)+)/.exec(jobs[job] ?? '')?.[1].trim().split('\n').map(l => l.trim()).sort() ?? [];
+  for (const [id, body] of Object.entries(jobs)) {
+    if (!/\n {4}timeout-minutes: \d+\n/.test(body)) out.push(`${id}: no timeout`);
+    if (/issues: write/.test(body) && id !== 'send') out.push(`${id}: only the send job may write issues`);
+    if (/continue-on-error/.test(body)) out.push(`${id}: continue-on-error hides a failure`);
+  }
+  if (JSON.stringify(perms('decide')) !== JSON.stringify(['contents: read', 'issues: read'])) out.push('decide reads contents and issues, and writes nothing');
+  if (JSON.stringify(perms('finalize')) !== JSON.stringify(['contents: write', 'pull-requests: write'])) out.push('finalize writes contents and one PR, nothing else');
+  if (JSON.stringify(perms('send')) !== JSON.stringify(['contents: read', 'issues: write'])) out.push('send reads contents and writes issues, nothing else');
+  const over = "needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'";
+  for (const id of ['finalize', 'send']) if (!(jobs[id] ?? '').includes(`    needs: decide\n    if: ${over}`)) out.push(`${id}: runs only when decide says the night is over and unsent`);
+  if (!(jobs.send ?? '').includes("&& needs.decide.outputs.assignee == 'set'")) out.push('send: runs only with an assignee');
+  if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n?$/.test(jobs.send ?? '')) out.push('send: the send is its step\'s whole command, so its failure fails the run');
+  if (!/node scripts\/keel\/morning\.mjs decide --github-output "\$GITHUB_OUTPUT"/.test(jobs.decide ?? '')) out.push('decide: runs morning.mjs decide into the job\'s outputs');
+  if (!/node scripts\/keel\/morning\.mjs finalize --date "\$DAY"/.test(jobs.finalize ?? '')) out.push('finalize: runs morning.mjs finalize');
+  return out;
+}
+
+test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, decides read-only, and only its send job writes issues; a failed send is red', async () => {
+  const all = await shipped(), rendered = await renderedWorkflows(all);
+  const w = all.find(w => w.name === 'keel-morning.yml');
+  assert.equal(w.practice, 'night');
+  assert.deepEqual(morningProblems(w.template), []);
+  if (rendered.has(w.path)) assert.deepEqual(morningProblems(rendered.get(w.path)), [], 'keel\'s rendered copy');
+  assert.deepEqual(permissionPath(w.template), [], 'Actions not allowed to open PRs is a notice; any other failure is red');
+  assert.deepEqual(reachesBack(w.template), []);
+  // The final PR is in the night's queue, on its own dated branch, and commits only the night's data.
+  assert.match(w.template, /git push --force origin "HEAD:refs\/heads\/keel-night\/\$DAY-final"/);
+  assert.match(w.template, /PATHS=\("docs\/night\/\$DAY\.json"\)\n\s+if \[ -f "\$HEALTH\/\$DAY\.md" \]; then PATHS\+=\("\$HEALTH\/\$DAY\.md"\); fi/);
+  const t = w.template;
+  for (const [why, changed, expected] of [
+    ['no workflow_run trigger', t.replace(/ {2}workflow_run:\n {4}workflows: \[[^\]]*\]\n {4}types: \[completed\]\n/, ''), /not started by/],
+    ['climb left out', t.replace('[keel-night, keel-climb, keel-robot]', '[keel-night, keel-robot]'), /not started by/],
+    ['no schedule', t.replace(/ {2}schedule:\n {4}- cron: "[^"]+"\n/, ''), /not started by/],
+    ['decide writes issues', t.replace('      contents: read\n      issues: read\n', '      contents: read\n      issues: write\n'), /decide: only the send job may write issues/],
+    ['finalize writes issues', t.replace('      contents: write\n      pull-requests: write\n', '      contents: write\n      pull-requests: write\n      issues: write\n'), /finalize: only the send job may write issues/],
+    ['a write at the top', t.replace('permissions: {}', 'permissions:\n  issues: write'), /top level must grant nothing/],
+    ['a swallowed send', t.replace('run: node scripts/keel/morning.mjs send --date "$DAY"', 'run: node scripts/keel/morning.mjs send --date "$DAY" || true'), /send: the send is its step's whole command/],
+    ['send allowed to fail', t.replace('      - name: Send the brief\n', '      - name: Send the brief\n        continue-on-error: true\n'), /send: continue-on-error/],
+    ['send before the night is over', t.replace("  send:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true' && ", '  send:\n    needs: decide\n    if: '), /send: runs only when decide says the night is over/],
+    ['send twice', t.replace(" && needs.decide.outputs.sent != 'true' && needs.decide.outputs.assignee", ' && needs.decide.outputs.assignee'), /send: runs only when decide says the night is over and unsent/],
+    ['a secret', t.replace('GH_TOKEN: ${{ github.token }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps', 'GH_TOKEN: ${{ secrets.MAIL_TOKEN }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps'), /no secret/],
+    ['no timeout', t.replace(/(  send:\n(?:.*\n)*?) {4}timeout-minutes: \d+\n/, '$1'), /send: no timeout/],
+  ]) {
+    assert.notEqual(changed, t, `${why}: the mutation must apply`);
+    const found = morningProblems(changed);
+    assert.ok(found.some(p => expected.test(p)), `${why}: ${JSON.stringify(found)}`);
   }
 });

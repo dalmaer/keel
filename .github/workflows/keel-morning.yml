@@ -1,0 +1,166 @@
+# The morning (keel practice `night`; managed: keel render rewrites it).
+#
+# When the night is over, one message says what it did (keel phase 77; the
+# design is docs/research/2026-10-14-nightwatch.md, "The plan is a live card,
+# and the morning sends a message"). The night is over when every build item
+# in its plan is terminal (done, failed, skipped or left alone), or at the
+# plan's readyBy (default 17:00 UTC), when what is unfinished is "not finished
+# by" that time, never done. Then, once a night:
+#
+#   - Send: the brief as one issue "Good morning, <date>", assigned to
+#     .keel/keel.json "morning" "assignee" and labelled keel:morning; GitHub
+#     emails the assignee. The previous open brief is closed. No assignee is
+#     a notice, not red: nothing is sent until the owner names one.
+#   - Finalize (keel#137): the plan's final outcomes into the night's archive,
+#     docs/night/<date>.json and the health page's "Tonight's plan", as one
+#     data-only PR in the night's queue (keel-night/<date>-final), which the
+#     night's drain merges with the series.
+#
+# All of it is scripts/keel/morning.mjs, a managed file of this practice: no
+# model, no install, no secret beyond the job's own token. Each job holds only
+# what it needs: decide reads; finalize writes contents and a PR; only send
+# writes issues. A failed send or finalization turns the run red, and GitHub
+# emails: a guard fires into a room someone is in.
+#
+# Started by each pass finishing (keel-night, keel-climb, keel-robot; one that
+# is not installed never starts it) and hourly, so readyBy is met within the
+# hour. An hourly run that finds the night not over, or already sent, does
+# nothing more.
+name: keel-morning
+
+on:
+  workflow_run:
+    workflows: [keel-night, keel-climb, keel-robot]
+    types: [completed]
+  schedule:
+    - cron: "47 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-morning
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  # Read-only: is the night that last started over, and was its brief sent?
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      day: ${{ steps.decide.outputs.day }}
+      ready: ${{ steps.decide.outputs.ready }}
+      sent: ${{ steps.decide.outputs.sent }}
+      assignee: ${{ steps.decide.outputs.assignee }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Is the night over?
+        id: decide
+        run: |
+          node scripts/keel/morning.mjs decide --github-output "$GITHUB_OUTPUT"
+          if grep -q '^assignee=unset$' "$GITHUB_OUTPUT"; then
+            echo "::notice::The morning brief is not sent: set \"morning\": { \"assignee\": \"<login>\" } in .keel/keel.json."
+          fi
+
+  # The night's final outcomes, as one data-only PR in its queue (keel#137).
+  finalize:
+    needs: decide
+    if: needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DAY: ${{ needs.decide.outputs.day }}
+      BASE: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The branch it starts from: its own (a rerun the same night changes
+      # only what moved), else the night's PR branch while the default branch
+      # lacks the night's page (the night's PR is still open), else the
+      # default branch. The push names its own branch.
+      - name: Open the night's final pull request
+        run: |
+          case "$DAY" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) echo "::error::No night was decided (day: $DAY)."; exit 1 ;; esac
+          BRANCH="keel-night/$DAY-final"
+          HEALTH=$(node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { healthDirIn } from "./scripts/keel/lib.mjs";
+            console.log(healthDirIn(".", JSON.parse(readFileSync(".keel/keel.json", "utf8"))));
+          ')
+          START=HEAD
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            git fetch -q --no-tags origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+            START="refs/remotes/origin/$BRANCH"
+          elif [ ! -f "$HEALTH/$DAY.md" ] && git ls-remote --exit-code --heads origin "keel-night/$DAY" > /dev/null; then
+            git fetch -q --no-tags origin "+refs/heads/keel-night/$DAY:refs/remotes/origin/keel-night/$DAY"
+            START="refs/remotes/origin/keel-night/$DAY"
+          fi
+          git checkout -q -B "$BRANCH" "$START"
+          node scripts/keel/morning.mjs finalize --date "$DAY" --pr-input "$RUNNER_TEMP/pr.json"
+          export GIT_LITERAL_PATHSPECS=1
+          PATHS=("docs/night/$DAY.json")
+          if [ -f "$HEALTH/$DAY.md" ]; then PATHS+=("$HEALTH/$DAY.md"); fi
+          if [ -z "$(git status --porcelain -- "${PATHS[@]}")" ]; then
+            echo "Nothing changed: the night's archive already holds its final outcomes."
+            exit 0
+          fi
+          git config user.name "keel-morning"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- "${PATHS[@]}"
+          git commit -q --only -m "keel night: $DAY, as it finished" -- "${PATHS[@]}"
+          git show --name-only --format= HEAD > "$RUNNER_TEMP/files.txt"
+          node scripts/keel/pr-body.mjs --input "$RUNNER_TEMP/pr.json" --files "$RUNNER_TEMP/files.txt" > "$RUNNER_TEMP/body.md"
+          # The branch is this workflow's alone; a rerun the same night
+          # replaces its own commit, so force is safe here and nowhere else.
+          git push --force origin "HEAD:refs/heads/keel-night/$DAY-final"
+          PR=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number')
+          if [ -n "$PR" ]; then
+            gh pr edit "$PR" --body-file "$RUNNER_TEMP/body.md"
+          else
+            code=0
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "keel night: $DAY, as it finished" --body-file "$RUNNER_TEMP/body.md" 2>&1) || code=$?
+            echo "$out"
+            if [ "$code" != 0 ]; then
+              if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+                echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions → \"Allow GitHub Actions to create and approve pull requests\"."
+              else
+                exit "$code"
+              fi
+            fi
+          fi
+
+  # The one job that writes issues: the brief, once a night.
+  send:
+    needs: decide
+    if: needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true' && needs.decide.outputs.assignee == 'set'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DAY: ${{ needs.decide.outputs.day }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Send the brief
+        run: node scripts/keel/morning.mjs send --date "$DAY"

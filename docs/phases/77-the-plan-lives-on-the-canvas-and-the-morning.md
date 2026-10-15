@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: owner
 since: 2026-10-14
 goal: G4
 spec: 2
 depends: [73, 50]
-note: "Specified 2026-10-14: the plan is a live canvas card ticked through the night, and the morning brief arrives as an email via an assigned GitHub issue."
-evidence: []
+note: "Built 2026-10-14: keel morning (the brief; --send as the assigned Good morning issue; --card as the live card night-plan), the keel-morning workflow (sends once the night is over; only its send job writes issues) and its final data-only PR (keel#137). Owes the owner one real morning's email."
+evidence: ["evidence/2026-10-14-morning.md"]
 issue: 135
 ---
 
@@ -27,10 +29,10 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 
 ## Acceptance
 
-- [ ] The plan renders as one card and each tick edits it in place, with a person's edit stopping updates. `tests/canvas-sync.test.mjs`, `tests/morning.test.mjs`
-- [ ] `keel morning` renders the brief in order with every link, from a fixture plan and health page. `tests/morning.test.mjs`
-- [ ] `--send` opens one assigned, labelled issue and closes the previous one, on a stubbed gh; with no assignee it refuses, naming the key. `tests/morning.test.mjs`
-- [ ] The brief is sent only when every build item is terminal, or at `readyBy` with unfinished items marked "not finished by"; it includes each item's terminal outcome (the PR, or the reason it failed or was skipped); one brief per night; a failed send fails the workflow. `tests/morning.test.mjs`, `tests/workflows.test.mjs`
+- [x] The plan renders as one card and each tick edits it in place, with a person's edit stopping updates. `tests/canvas-sync.test.mjs`, `tests/morning.test.mjs`
+- [x] `keel morning` renders the brief in order with every link, from a fixture plan and health page. `tests/morning.test.mjs`
+- [x] `--send` opens one assigned, labelled issue and closes the previous one, on a stubbed gh; with no assignee it refuses, naming the key. `tests/morning.test.mjs`
+- [x] The brief is sent only when every build item is terminal, or at `readyBy` with unfinished items marked "not finished by"; it includes each item's terminal outcome (the PR, or the reason it failed or was skipped); one brief per night; a failed send fails the workflow. `tests/morning.test.mjs`, `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: the owner gets the email one morning and opens the canvas from it.
 
 ## Your part
@@ -58,7 +60,14 @@ By hand: one real morning's email.
 
 - **Mail beyond GitHub**: an adapter for a mail provider needs a secret the owner holds; built only if asked.
 - **Known limit**: GitHub sends the email only if the owner's notification settings allow it.
+- **Where final outcomes are read, settled 2026-10-14 by the build**: one function, `finalPlan` in `scripts/keel/morning.mjs`, reads every place the night's plan lives (the record on `keel-night/<date>-final`, `keel-night/<date>` and the checkout; the plan branch `keel-night-plan`; the working plan). The record is the base (the plan the night ran); each item takes its furthest tick from any place (terminal over running over planned; ties go to the plan branch). Phase 76 decides where passes record ticks durably; only this function changes.
+- **"Terminal", settled 2026-10-14 by the build**: done, failed, skipped and left alone. Only build items hold the brief back; measure, review and triage items never do.
+- **readyBy when none is set, settled 2026-10-14 by the build**: 17:00 UTC on the night's date, after climb (10:17, up to four hours) and the robot. The workflow's schedule is hourly (cron cannot read the plan), so a brief at readyBy arrives within the hour.
+- **The brief's sections, settled 2026-10-14 by the build**: Done is the build items done (isocan's "sure"); Tried is every other item done (measures, reviews, triage); Failed, and why; Left alone (skipped, left alone, will not touch); Not finished by `<readyBy>` (Still going before it); Your next. Before → after is the night's own health page and the first page after it ("not measured yet" until the next night).
+- **No assignee in the workflow, settled 2026-10-14 by the build**: `keel morning --send` refuses (exit 2, naming `morning.assignee`); the workflow says so as a notice and stays green, so a project that has not set it is not red every hour. The final PR is still opened.
+- **keel#137, settled 2026-10-14 by the build**: the same run opens one data-only PR, `keel-night/<date>-final`, with the final `docs/night/<date>.json` and the night's health page section, started from the night's own PR branch while that is unmerged; the night's drain merges it with the series as data.
+- **Who republishes the card**: `keel morning --card --yes` does, from a machine with isocan; no workflow publishes it yet (the night's canvas step runs once at 07:23, before the builds tick). Wiring a tick to republish waits for phase 76's durable ticks.
 
 ## Next action
 
-Write `keel morning` (render and send) with `tests/morning.test.mjs`, then the plan card.
+Set `"morning": { "assignee": "<login>" }` in keel's `.keel/keel.json` (and, for the card, `keel canvas live --card pulse --card night-plan --yes`), merge, and after one real night the owner opens the "Good morning" email and follows it to the canvas (Your part), then answers with `keel walk done 77 --choice "<choice>"`.
