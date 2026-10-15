@@ -134,8 +134,9 @@ Nothing new gets write access; the plan only chooses.
 
 **The plan is a live card, and the morning sends a message.** With a canvas, the
 plan is the live card `night-plan`, edited in place as items tick (phase 50's
-conditional edit; a person's edit stops it, as always). At the end of the night,
-`keel morning` writes the brief in isocan's order: what was done, sure; what was
+conditional edit; a person's edit stops it, as always). When every build item is
+done, failed or skipped (or at `readyBy`, marking the rest "not finished by"),
+a `keel-morning` workflow runs `keel morning`, which writes the brief in isocan's order: what was done, sure; what was
 tried, with its number; what failed and why; what was left alone. It links the
 canvas, the health page and each PR. Delivery:
 
