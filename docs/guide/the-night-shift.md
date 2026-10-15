@@ -238,7 +238,8 @@ keel goodnight --yes                             # "that's the plan": write it a
   whose note names a measure in backticks, and the health page's proposal as
   a build for the climb job that measures it. "Today" is since the last plan
   pushed (as this checkout last fetched it), or the last 24 hours. A source it
-  cannot read is a "not read" line, never an empty list. Personas are read
+  cannot read, or read only in part, is a "not read" line, never an empty or
+  partial list shown as whole, and the plan keeps it. Personas are read
   from their newest review pages, not run.
 - **Shaping** changes a draft, `.keel/night/draft.json`, never written through
   a link, started from the default plan. Your words are kept as you wrote

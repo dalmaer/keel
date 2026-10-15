@@ -1073,7 +1073,8 @@ it under "Tonight's plan". The design is
   merged, phases moved, Loop findings decided since the plan branch's last
   commit as last fetched, or the last 24 hours, whichever is later), left open
   (open PRs; from `keel board`, unanswered reviews and the "yours" items; a
-  source it cannot read is a `not read:` line), tonight's plan (the draft
+  source it cannot read, or read only in part, is a `not read:` line, kept in
+  the plan's leftOpen), tonight's plan (the draft
   `.keel/night/draft.json`, else keel's default plan with personas read from
   their newest review pages, never run), and up to three things to try
   (personas' missed goals the plan did not admit, accepted Loop findings

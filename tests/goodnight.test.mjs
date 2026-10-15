@@ -322,3 +322,29 @@ test('edit that makes an item a build gives it the pass that builds its number, 
   await edit('--lane', 'robot:#12');
   assert.equal(JSON.parse(await readFile(join(f.root, DRAFT), 'utf8')).items.find(i => i.id === 'health-prs-stale').lane, 'robot:#12');
 });
+
+// Review of phase 74 (PR #144): only n/a board sources were gaps, so reviews read from one repo of two showed as complete.
+test('a board source read only in part is a gap in the opening and in the plan\'s leftOpen, never a subset shown as the whole', async t => {
+  const f = await acme(t);
+  const partial = async () => ({
+    items: [{ source: 'reviews', waits: 'broken', title: 'acme/anvils#42: 2 review comments unanswered' }],
+    sources: [
+      { source: 'roadmap', state: 'ok', count: 0, why: 'GitHub milestones (read-only)' },
+      { source: 'reviews', state: 'partial', count: 1, why: 'not read: acme/hammers: HTTP 502' },
+      { source: 'loose-ends', state: 'partial', count: 0, why: 'acme/tongs: gh timed out' },
+    ],
+  });
+  const r = await goodnight({ root: f.root, args: [], env: f.env }, { board: partial });
+  assert.deepEqual(r.data.leftOpen.gaps, [
+    'unanswered reviews: partly read, only what was read is listed (not read: acme/hammers: HTTP 502)',
+    'the board\'s loose-ends: partly read, only what was read is listed (acme/tongs: gh timed out)',
+  ], 'a descriptive why on a source read in full is not a gap');
+  assert.match(r.text, /not read: unanswered reviews: partly read, only what was read is listed \(not read: acme\/hammers: HTTP 502\)/);
+  // Reviews read in full but with repos skipped past the cap: a gap too.
+  const skipped = async () => ({ items: [], sources: [{ source: 'reviews', state: 'ok', count: 0, why: '3 repos past the first 12 not read' }] });
+  assert.deepEqual((await goodnight({ root: f.root, args: [], env: f.env }, { board: skipped })).data.leftOpen.gaps,
+    ['unanswered reviews: partly read, only what was read is listed (3 repos past the first 12 not read)']);
+  // And the plan the owner says keeps it, for the morning.
+  const yes = await goodnight({ root: f.root, args: ['--yes'], env: f.env }, { board: partial });
+  assert.ok(yes.data.plan.leftOpen.includes('not read: unanswered reviews: partly read, only what was read is listed (not read: acme/hammers: HTTP 502)'), yes.data.plan.leftOpen.join('\n'));
+});
