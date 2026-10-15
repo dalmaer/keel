@@ -20,7 +20,7 @@ Each build item in tonight's plan is handed to a pass that already builds safely
 The design is [Nightwatch: a night with a plan you can shape](../research/2026-10-14-nightwatch.md), "The night does what the plan names".
 
 - **Climb**: `climb.mjs pick --plan <file>` takes the first build item whose lane is `climb:<job>` and whose job is allowed; with a plan and no such item, climb does not run tonight. Without a plan it picks as before.
-- **Robot**: an item whose lane is `robot:#<n>` admits that issue first, if it passes the rubric; the robot's weekly allowance and every guard stay as they are.
+- **Robot**: with a plan present, the robot admits only the plan's `robot:#<n>` items, in plan order, and nothing else: no scan of other `keel:agent` issues, no fallback when a planned issue fails its rubric (that item ticks `failed` with the reason). A plan with no robot item means the robot builds nothing that night. Without a plan it admits as before. Its weekly allowance and every guard stay as they are.
 - **Loop findings**: an accepted finding that names a number becomes a robot issue (`ensureRobotIssue`, as accepted time proposals do) when the owner adds it to the plan; never on its own.
 - **Will not touch**: the judge refuses a change that touches a path in `willNotTouch`, as the sandbox refuses `.github/`.
 - **Ticking**: each pass ticks its item `running`, then `done` with the PR link or `failed` with the reason, through `keel night tick`.
@@ -29,7 +29,7 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 ## Acceptance
 
 - [ ] With a plan, `pick` runs the plan's climb item and nothing else; with no climb item it runs nothing; without a plan it picks as before. `tests/climb.test.mjs`
-- [ ] The robot admits the plan's issue first when it passes the rubric, and the reason when it does not. `tests/robot.test.mjs`
+- [ ] With a plan, the robot admits only the plan's issues: a plan with no robot item admits nothing, and a planned issue that fails its rubric ticks failed with the reason and no other issue is admitted; without a plan it admits as before. `tests/robot.test.mjs`
 - [ ] A change that touches a `willNotTouch` path is refused by the judge. `tests/climb.test.mjs`
 - [ ] Each pass ticks its item running, then done with the PR link or failed with the reason. `tests/night-plan.test.mjs`
 - [ ] A plan budget lowers a pass's minutes and never raises them. `tests/climb.test.mjs`
