@@ -69,7 +69,7 @@ import { hygieneOptions, draftsWaiting, longFiles } from './hygiene-measures.mjs
 import { makeHygieneProposal, formatHygieneProposal, readHygieneProposals, hygieneRobotTargetReason } from './hygiene-proposals.mjs';
 import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   LOCK, read, readLock, lockDrift, phaseLints, claudeMdLint, secondCopies, lockedSkills, lessonsTableSplit, lessonsTableShapes, parseLessons, lessonsPathOf, unsentLessons, SENT, gateEnv, healthDirOf, healthDirIn, healthPage, healthLints, platformLints, HEALTH_DIR, isMain, rootOf, main,
@@ -82,7 +82,7 @@ import { evaluateTimeEvidence, TIME_MEASURES } from './time-measures.mjs';
 import { makeTimeProposal, formatTimeProposal, readTimeProposals, selectableTimeProposal, writeHealthReport, withTimeProposal } from './time-proposals.mjs';
 import { remeasureTimeProposal } from './time-proposal-remeasurement.mjs';
 import { digest } from './time-receipts.mjs';
-import { PLAN, readPlan, writePlan, tickMeasures, planSection, recordOf } from './night-plan.mjs';
+import { PLAN, readPlan, writePlan, writeRecord, tickMeasures, planSection, NightPlanError } from './night-plan.mjs';
 
 export const BOUNDS = '.keel/bounds.json';
 /** The default health directory; a project's own is .keel/keel.json `health` (healthDirOf). */
@@ -1722,10 +1722,10 @@ async function nightPlan(root, date, results, page) {
   if (!plan) return null;
   if (plan.date !== date) return { plan: null, line: `${PLAN} is dated ${plan.date}, not ${date}: not tonight's plan, so it was not ticked or recorded.` };
   const ended = tickMeasures(plan, { results, page });
-  await writePlan(root, ended);
-  const record = recordOf(date);
-  await mkdir(join(root, dirname(record)), { recursive: true });
-  await writeFile(join(root, record), `${JSON.stringify(ended, null, 2)}\n`);
+  // Never through a symlink (writeRecord, safeWrite): a refused write is named on the page, and nothing is recorded.
+  let record;
+  try { await writePlan(root, ended); record = await writeRecord(root, ended); }
+  catch (e) { if (e instanceof NightPlanError) return { plan: null, line: `The plan was not recorded: ${e.message}` }; throw e; }
   return { plan: ended, record };
 }
 

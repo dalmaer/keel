@@ -8,13 +8,13 @@
 // asked (lesson 8). Nothing here reads the live world.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, cp, chmod, realpath } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, cp, chmod, realpath, symlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
-import { validatePlan, admit, defaultPlan, nightOf, tickMeasures, planSection, healthProposal, MAX_BUILD, PLAN, ITEM_FIELDS, PLAN_FIELDS, CANDIDATE_SOURCES } from '../lib/night-plan.mjs';
+import { validatePlan, admit, defaultPlan, nightOf, tickMeasures, planSection, healthProposal, safeWrite, writeRecord, MAX_BUILD, PLAN, ITEM_FIELDS, PLAN_FIELDS, CANDIDATE_SOURCES } from '../lib/night-plan.mjs';
 import { isData } from '../lib/night.mjs';
 import { formatRobotRubric } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
 
@@ -369,6 +369,55 @@ test('the record is the night\'s data: the drain merges docs/night/<date>.json a
   const fresh = tickMeasures(defaultPlan({ date: NIGHT }), { results: [{ id: 'gate', state: 'broken' }], page: 'x.md' });
   assert.deepEqual([fresh.items[0].status, fresh.items[0].result.note], ['failed', '0 ok, 0 outside, 0 n/a, 1 broken (gate)']);
   assert.deepEqual(healthProposal('## Proposal\n\nNone: every measure is within its bound.\n'), null);
+});
+
+test('the plan and its record are never written through a symlink: a linked directory or file pointing outside the project is refused, and its target is untouched', async t => {
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-links-')));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const outside = join(base, 'outside');
+  await mkdir(outside, { recursive: true });
+  const plan = defaultPlan({ date: NIGHT });
+  const fresh = async name => { const root = join(base, name); await mkdir(join(root, 'docs'), { recursive: true }); return root; };
+  // A symlinked docs/night directory: the record would land outside.
+  await writeFile(join(outside, `${NIGHT}.json`), 'Acme\'s own file\n');
+  const dirLink = await fresh('dir-link');
+  await symlink(outside, join(dirLink, 'docs/night'));
+  await assert.rejects(writeRecord(dirLink, plan), /refusing to write docs\/night\/2026-10-15\.json: docs\/night is a symlink/);
+  assert.equal(await readFile(join(outside, `${NIGHT}.json`), 'utf8'), 'Acme\'s own file\n', 'the target is byte-identical');
+  // A symlinked record file.
+  await writeFile(join(outside, 'hosts'), 'Acme hosts\n');
+  const fileLink = await fresh('file-link');
+  await mkdir(join(fileLink, 'docs/night'));
+  await symlink(join(outside, 'hosts'), join(fileLink, `docs/night/${NIGHT}.json`));
+  await assert.rejects(writeRecord(fileLink, plan), /docs\/night\/2026-10-15\.json is a symlink/);
+  assert.equal(await readFile(join(outside, 'hosts'), 'utf8'), 'Acme hosts\n');
+  // A plain tree: written, and a second write replaces it.
+  const plain = await fresh('plain');
+  assert.equal(await writeRecord(plain, plan), `docs/night/${NIGHT}.json`);
+  assert.equal(await writeRecord(plain, plan), `docs/night/${NIGHT}.json`);
+  assert.deepEqual(JSON.parse(await readFile(join(plain, `docs/night/${NIGHT}.json`), 'utf8')), plan);
+  await assert.rejects(safeWrite(plain, '../escape.json', 'x'), /not a plain repo path/);
+
+  // keel night plan and tick: a symlinked .keel/night, and a symlinked plan.json, each refused (exit 2), the target untouched.
+  const { root, gh } = await acme(t);
+  await writeFile(join(outside, 'plan.json'), 'Acme\'s plan elsewhere\n');
+  await symlink(outside, join(root, '.keel/night'));
+  const linkedDir = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.equal(linkedDir.code, 2, linkedDir.out);
+  assert.match(linkedDir.json().error, /refusing to write \.keel\/night\/\.gitignore: \.keel\/night is a symlink/);
+  assert.equal(await readFile(join(outside, 'plan.json'), 'utf8'), 'Acme\'s plan elsewhere\n');
+  assert.ok(!existsSync(join(outside, '.gitignore')));
+  await rm(join(root, '.keel/night'));
+  await mkdir(join(root, '.keel/night'));
+  await writeFile(join(outside, 'target.json'), JSON.stringify(plan));
+  await symlink(join(outside, 'target.json'), join(root, PLAN));
+  const linkedFile = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.equal(linkedFile.code, 2, linkedFile.out);
+  assert.match(linkedFile.json().error, /\.keel\/night\/plan\.json is a symlink/);
+  const tick = keel(['night', 'tick', 'measures', '--status', 'done', '--json'], root, { KEEL_GH: gh });
+  assert.equal(tick.code, 2, tick.out);
+  assert.match(tick.json().error, /\.keel\/night\/plan\.json is a symlink/);
+  assert.equal(await readFile(join(outside, 'target.json'), 'utf8'), JSON.stringify(plan), 'neither the plan nor the tick wrote through the link');
 });
 
 test('keel night is announced: both verbs are in the cold start and the guide', async () => {

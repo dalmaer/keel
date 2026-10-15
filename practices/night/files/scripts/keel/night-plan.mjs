@@ -39,10 +39,10 @@
 // Exit: 0 done; 2 usage, a refused plan or tick, or an input that cannot be
 // read (nothing is written then; the message names the input). gh is
 // process.env.KEEL_GH || 'gh'.
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { readFile, mkdir, readdir, lstat, realpath, open } from 'node:fs/promises';
+import { existsSync, constants } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, dirname, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isMain, rootOf, main, healthDirOf, cells } from './lib.mjs';
 
@@ -409,14 +409,46 @@ export async function makePlan({ root, date, env = process.env, sources = CANDID
   return { plan: defaultPlan({ date, ...inputs, candidates }), inputs, config };
 }
 
+/**
+ * Write `text` to the repo-relative `rel` under `root`, never through a
+ * symlink: every component that exists is a real directory (missing ones are
+ * made, one at a time, and checked again), the destination resolves inside
+ * the repo, and the file is opened O_NOFOLLOW, so a link planted between the
+ * check and the open is still refused. A symlinked docs/night or record would
+ * otherwise overwrite whatever it points at. Throws NightPlanError (exit 2).
+ */
+export async function safeWrite(root, rel, text) {
+  const parts = rel.split('/');
+  if (!parts.length || parts.some(p => !p || p === '.' || p === '..')) throw new NightPlanError(`refusing to write ${rel}: not a plain repo path`);
+  const top = await realpath(root);
+  let at = top;
+  for (const [i, part] of parts.entries()) {
+    at = join(at, part);
+    let s = await lstat(at).catch(e => (e.code === 'ENOENT' ? null : Promise.reject(e)));
+    const last = i === parts.length - 1;
+    if (!s && !last) { await mkdir(at).catch(e => (e.code === 'EEXIST' ? null : Promise.reject(e))); s = await lstat(at); }
+    if (s?.isSymbolicLink()) throw new NightPlanError(`refusing to write ${rel}: ${parts.slice(0, i + 1).join('/')} is a symlink`);
+    if (s && !last && !s.isDirectory()) throw new NightPlanError(`refusing to write ${rel}: ${parts.slice(0, i + 1).join('/')} is not a directory`);
+    if (s && last && !s.isFile()) throw new NightPlanError(`refusing to write ${rel}: it is not a regular file`);
+  }
+  const dir = await realpath(dirname(at));
+  if (dir !== top && !dir.startsWith(`${top}${sep}`)) throw new NightPlanError(`refusing to write ${rel}: it resolves outside the repo`);
+  let file;
+  try { file = await open(at, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW, 0o644); }
+  catch (e) { throw new NightPlanError(`refusing to write ${rel}: ${e.code === 'ELOOP' ? 'it is a symlink' : e.code ?? e.message}`); }
+  try { await file.writeFile(text); } finally { await file.close(); }
+  return rel;
+}
+
 /** Write the working plan; .keel/night ignores itself (only docs/night/<date>.json is ever committed). */
 export async function writePlan(root, plan) {
-  await mkdir(join(root, PLAN_DIR), { recursive: true });
-  await writeFile(join(root, PLAN_DIR, '.gitignore'), '*\n');
-  const path = join(root, PLAN);
-  await writeFile(path, `${JSON.stringify(plan, null, 2)}\n`);
+  await safeWrite(root, `${PLAN_DIR}/.gitignore`, '*\n');
+  await safeWrite(root, PLAN, `${JSON.stringify(plan, null, 2)}\n`);
   return PLAN;
 }
+
+/** The plan as the night ended, docs/night/<date>.json, written the same safe way. */
+export const writeRecord = (root, plan) => safeWrite(root, recordOf(plan.date), `${JSON.stringify(plan, null, 2)}\n`);
 
 /** The working plan, validated (the build count without the robot's PRs: a tick never reads GitHub). Null when there is none. */
 export async function readPlan(root, path = join(root, PLAN), what = PLAN) {

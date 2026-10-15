@@ -3,7 +3,7 @@
 // to say "fine" (lesson 6); an instrument that cannot run is broken, never 0.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile, cp, realpath } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, chmod, mkdir, appendFile, cp, realpath, symlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -194,6 +194,23 @@ test('--report with tonight\'s plan: the measure item is ticked, the plan as it 
   assert.match(pageText, new RegExp(`The record: \`docs/night/${date}\\.json\``));
   assert.ok(pageText.indexOf("## Tonight's plan") < pageText.indexOf('<!-- keel:health-report:end -->'), 'the section is the generated report\'s, rewritten each night');
   assert.deepEqual(data.nightPlan.items.map(i => [i.id, i.status]), [['measures', 'done'], ['acme-review', 'planned']]);
+  // keel improve --report run by hand has no workflow staging check: a symlinked docs/night, or record, pointing
+  // outside the project is refused before any write, the page says so, and the target is byte-identical.
+  const outside = await scratch(t, 'acme-outside-');
+  await writeFile(join(outside, `${date}.json`), 'Acme\'s own file\n');
+  await writeFile(planPath, JSON.stringify(plan));
+  await rm(join(dir, 'docs', 'night'), { recursive: true });
+  await symlink(outside, join(dir, 'docs', 'night'));
+  const viaDir = keel(['improve', '--report', '--json'], dir, env).json();
+  assert.equal(viaDir.nightRecord, null);
+  assert.match(await readFile(join(dir, viaDir.report), 'utf8'), /## Tonight's plan\n\nThe plan was not recorded: refusing to write docs\/night\/\d{4}-\d{2}-\d{2}\.json: docs\/night is a symlink/);
+  assert.equal(await readFile(join(outside, `${date}.json`), 'utf8'), 'Acme\'s own file\n');
+  await rm(join(dir, 'docs', 'night'));
+  await mkdir(join(dir, 'docs', 'night'));
+  await symlink(join(outside, `${date}.json`), join(dir, 'docs', 'night', `${date}.json`));
+  const viaFile = keel(['improve', '--report', '--json'], dir, env).json();
+  assert.equal(viaFile.nightRecord, null);
+  assert.equal(await readFile(join(outside, `${date}.json`), 'utf8'), 'Acme\'s own file\n');
   // A working plan dated for another night is not tonight's: not ticked, not recorded, and the page says so.
   await rm(join(dir, 'docs', 'night'), { recursive: true });
   await writeFile(planPath, JSON.stringify({ ...plan, date: '2020-01-01' }));
