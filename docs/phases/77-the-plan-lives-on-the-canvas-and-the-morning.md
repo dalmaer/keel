@@ -22,14 +22,15 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 - **The card**: `night-plan`, a live key (phase 50's `canvas.liveKeys`), rendered from the plan file; each tick republishes it through the conditional edit. A person's edit stops updates, as always.
 - **The brief**: `keel morning` reads the plan as it ended, the health page and each item's PR, and renders markdown: what was done (with its number before and after), what was tried, what failed and why, what was left alone, and what is the owner's next.
 - **Delivery**: by default a GitHub issue "Good morning, <date>" assigned to the owner (`morning.assignee` in `.keel/keel.json`, required to send), labelled `keel:morning`; the previous morning's issue is closed. GitHub's own notification is the email. No other mail is sent without an adapter the owner configures.
-- **In the night**: the night's last step runs `keel morning --send`; a send that fails turns the night red, as a guard must fire into a room someone is in.
+- **When it is sent**: not from the night, which runs before climb and the robot (07:23 UTC, then 10:17, then the robot). A `keel-morning` workflow sends the brief once every build item in tonight's plan is terminal (done, failed or skipped), started by each pass finishing (`workflow_run`) and by a schedule at the plan's `readyBy`. At `readyBy`, any item still planned or running is sent as "not finished by <time>", never as done. One brief per night: a second run for the same night does nothing.
+- **A failed send** turns that workflow red, as a guard must fire into a room someone is in.
 
 ## Acceptance
 
 - [ ] The plan renders as one card and each tick edits it in place, with a person's edit stopping updates. `tests/canvas-sync.test.mjs`, `tests/morning.test.mjs`
 - [ ] `keel morning` renders the brief in order with every link, from a fixture plan and health page. `tests/morning.test.mjs`
 - [ ] `--send` opens one assigned, labelled issue and closes the previous one, on a stubbed gh; with no assignee it refuses, naming the key. `tests/morning.test.mjs`
-- [ ] The night's last step sends the brief, and a failed send fails the night. `tests/workflows.test.mjs`
+- [ ] The brief is sent only when every build item is terminal, or at `readyBy` with unfinished items marked "not finished by"; it includes each item's terminal outcome (the PR, or the reason it failed or was skipped); one brief per night; a failed send fails the workflow. `tests/morning.test.mjs`, `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: the owner gets the email one morning and opens the canvas from it.
 
 ## Your part
@@ -46,7 +47,7 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 
 - GitHub API: the assigned issue and GitHub's email.
 - Owner's machine: the live plan card on the owner's isocan canvas.
-- Workflow shell: the night's last step.
+- Workflow shell: the `keel-morning` workflow, after the night's passes.
 
 ## Proof
 
