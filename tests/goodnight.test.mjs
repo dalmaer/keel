@@ -375,3 +375,35 @@ test('a climb lane is one of the project\'s enabled climb jobs: never another jo
   await refused(['add', '--title', 'Acme: no climb', '--measure', 'slow_tests', '--bound', '0', '--lane', 'climb:test-time'], /lane climb:test-time, a climb job this project does not run \(climb is off here/);
   await refused(['add', '--title', 'Acme: no climb either', '--measure', 'slow_tests', '--bound', '0'], /no climb job here measures slow_tests \(climb is off here/);
 });
+
+// Review of phase 74 (PR #144), round 2: a failed health source dropped the owner's decisions and Left open said "nothing".
+test('any source that feeds the owner\'s items and could not be read is a gap; a source that does not apply here stays quiet', async t => {
+  const f = await acme(t);
+  const failing = async () => ({
+    items: [],
+    sources: [
+      { source: 'roadmap', state: 'ok', count: 0 },
+      { source: 'health', state: 'n/a', why: 'EACCES: permission denied, scandir \'docs/health\'' },
+      { source: 'claims', state: 'n/a', why: 'git fetch origin failed: could not read from remote' },
+      { source: 'inbox', state: 'n/a', why: 'the inbox is keel\'s (home only)' },
+      { source: 'fleet', state: 'n/a', why: 'keel fleet runs at home, on keel' },
+      { source: 'robot', state: 'ok', count: 0, why: 'robot OFF; agent issues are unlabelled, no model spend' },
+    ],
+  });
+  const r = await goodnight({ root: f.root, args: [], env: f.env }, { board: failing });
+  assert.deepEqual(r.data.leftOpen.gaps, [
+    'the board\'s health: EACCES: permission denied, scandir \'docs/health\'',
+    'the board\'s claims: git fetch origin failed: could not read from remote',
+  ], 'the inbox outside keel, the fleet and the robot are quiet');
+  assert.match(r.text, /Left open\n(?:.*\n)*?  not read: the board's health: EACCES/);
+  assert.doesNotMatch(r.text, /Left open\n  nothing\n/, 'never "nothing" when a source was not read');
+  // --yes keeps the gap for the morning.
+  const yes = await goodnight({ root: f.root, args: ['--yes'], env: f.env }, { board: failing });
+  assert.ok(yes.data.plan.leftOpen.includes('not read: the board\'s health: EACCES: permission denied, scandir \'docs/health\''), yes.data.plan.leftOpen.join('\n'));
+  // The inbox is quiet only where board() says it does not apply: on keel itself its n/a is a failure.
+  const { expectedNa, OWNER_SOURCES } = await import('../lib/goodnight.mjs');
+  const inbox = { source: 'inbox', state: 'n/a', why: 'ENOENT' };
+  assert.equal(expectedNa(inbox, { name: 'Acme Anvils' }), true);
+  assert.equal(expectedNa(inbox, { keel: 'self' }), false);
+  for (const s of OWNER_SOURCES.filter(x => x !== 'inbox')) assert.equal(expectedNa({ source: s, state: 'n/a' }, { name: 'Acme Anvils' }), false, s);
+});
