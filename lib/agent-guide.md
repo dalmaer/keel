@@ -1053,7 +1053,10 @@ it under "Tonight's plan". The design is
   climb job `climb.mjs pick` would choose (build, with its measure's number and
   budget), the robot's next admissible `keel:agent` issue (oldest whose rubric
   parses, no owner blocker or prerequisite; it names no number, so triage) and
-  Loop's untriaged findings (triage, at most five). Deterministic, no model:
+  Loop's untriaged findings (triage, at most five) and, with the `personas`
+  practice, `persona run --all`'s missed goals (build, with the goal's
+  `persona:<name>:<goal>` number; a broken goal is review; ids
+  `persona-<name>--<goal>`; no personas is no items). Deterministic, no model:
   the same inputs make the same bytes. `--date` defaults to the night it is
   for: the UTC date of the next 07:23 UTC run (before 07:23 UTC, today's).
   `--json` → `{ok, path, from: "default", plan}`. An input it cannot read (gh,

@@ -222,24 +222,27 @@ function resultOf(persona, goal, reading) {
  *
  *   missed → { id, title, kind: 'build', source: 'persona:<name>',
  *              number: { measure: 'persona:<name>:<goal>', bound, better },
- *              lane: null, status: 'planned' }
+ *              lane: 'persona:<name>', status: 'planned' }
  *   broken → { id, title, kind: 'review', source: 'persona:<name>',
- *              number: null, lane: null, status: 'planned' }
+ *              number: null, lane: 'persona:<name>', status: 'planned' }
  *
- * `id` is `persona-<name>-<goal>`. A build item names its number first; a
- * broken goal has no number to name, so it is never a build. `lane` is null:
- * the plan chooses the pass that builds (a persona never does). A met goal
- * gives nothing.
+ * `id` is `persona-<name>--<goal>` (keel#141): a goal's id is a slug, which
+ * never holds `--`, so the last `--` separates the two and no two personas'
+ * goals share an id ("a-b" + "c" and "a" + "b-c" were both persona-a-b-c). A
+ * build item names its number first; a broken goal has no number to name, so
+ * it is never a build. `lane` is the persona's own (the plan's lane names
+ * where the item came from until phase 76 hands builds to a pass; a persona
+ * never builds). A met goal gives nothing.
  */
 export function planCandidates({ name, goals }) {
   const items = [];
   for (const g of goals) {
-    const base = { id: `persona-${name}-${g.id}`, source: `persona:${name}` };
+    const base = { id: `persona-${name}--${g.id}`, source: `persona:${name}` };
     if (g.state === 'missed') {
       items.push({ ...base, title: `${g.name}: back to ${g.kind} ${g.bound}${g.unit} (measured ${g.value}${g.unit})`, kind: 'build',
-        number: { measure: g.measure, bound: g.bound, better: g.better }, lane: null, status: 'planned' });
+        number: { measure: g.measure, bound: g.bound, better: g.better }, lane: `persona:${name}`, status: 'planned' });
     } else if (g.state === 'broken') {
-      items.push({ ...base, title: `${g.name}: its command is broken (\`${g.command}\`: ${g.detail})`, kind: 'review', number: null, lane: null, status: 'planned' });
+      items.push({ ...base, title: `${g.name}: its command is broken (\`${g.command}\`: ${g.detail})`, kind: 'review', number: null, lane: `persona:${name}`, status: 'planned' });
     }
   }
   return items;

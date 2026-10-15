@@ -294,7 +294,7 @@ test('the default plan is pure, and other sources plug in as candidate items thr
   assert.match(plain.items[0].title, /no health page yet/);
   assert.deepEqual(plain.leftOpen, ['climb: climb is off']);
   assert.deepEqual(defaultPlan(inputs), plain, 'same inputs, same plan');
-  assert.deepEqual(CANDIDATE_SOURCES, [], 'keel names no other source yet');
+  assert.deepEqual(CANDIDATE_SOURCES.map(s => s.name), ['personaCandidates'], 'the personas practice is the one other source');
   // A persona's missed goal, as phase 75 will hand it in: a build with its number; the robot's four PRs leave room for one.
   const persona = n => ({ id: `perf-${n}`, title: `Acme bundle ${n}`, kind: 'build', source: 'persona:performance', lane: 'persona:performance', number: { measure: 'bundle_bytes', bound: 747000, better: 'lower' } });
   const shaped = defaultPlan({ ...inputs, candidates: [persona(1), persona(2), { id: 'hunch', title: 'A hunch', kind: 'build', source: 'persona:performance', lane: 'persona:performance' }] });
@@ -397,6 +397,54 @@ test('the record is the night\'s data: the drain merges docs/night/<date>.json a
   const fresh = tickMeasures(defaultPlan({ date: NIGHT }), { results: [{ id: 'gate', state: 'broken' }], page: 'x.md' });
   assert.deepEqual([fresh.items[0].status, fresh.items[0].result.note], ['failed', '0 ok, 0 outside, 0 n/a, 1 broken (gate)']);
   assert.deepEqual(healthProposal('## Proposal\n\nNone: every measure is within its bound.\n'), null);
+});
+
+test('with the personas practice, keel night plan runs every persona and each missed goal is a build item with its number; no personas is no items, never a failure', async t => {
+  const config = { practices: ['base', 'night', 'climb', 'loop', 'personas'], climb: undefined, robot: undefined };
+  const { root, gh } = await acme(t, { config });
+  await cp(join(KEEL, 'practices/personas/files/scripts/keel/persona.mjs'), join(root, 'scripts/keel/persona.mjs'));
+  // Installed, no persona files: the plan is made as before.
+  const none = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.equal(none.code, 0, none.out + none.err);
+  assert.ok(!none.json().plan.items.some(i => i.source.startsWith('persona:')));
+  await mkdir(join(root, '.agents/personas'), { recursive: true });
+  await writeFile(join(root, '.agents/personas/speed.md'), `---
+name: speed
+description: Whether Acme stays quick.
+goal:
+  - name: entry bundle
+    at most: 250000
+    measured by: echo 260000
+  - name: cache hits
+    at least: 90
+    measured by: echo 95
+  - name: latency
+    at most: 100
+    measured by: exit 3
+---
+
+Acme's lens.
+`);
+  const r = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.equal(r.code, 0, r.out + r.err);
+  const items = r.json().plan.items.filter(i => i.source === 'persona:speed');
+  assert.deepEqual(items.map(i => [i.id, i.kind, i.lane, i.number]), [
+    ['persona-speed--entry-bundle', 'build', 'persona:speed', { measure: 'persona:speed:entry-bundle', bound: 250000, better: 'lower' }],
+    ['persona-speed--latency', 'review', 'persona:speed', null],
+  ], 'the missed goal is a build with its number, the broken one a review, the met one nothing');
+  assert.ok(existsSync(join(root, `docs/reviews/${NIGHT}-speed.md`)), 'persona run wrote its review page');
+  // Not installed (no "personas" in practices): the persona files are not run.
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night'] }));
+  const off = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.ok(!off.json().plan.items.some(i => i.source.startsWith('persona:')));
+  // A persona file that cannot be read is an input the plan cannot read: exit 2, nothing written.
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'personas'] }));
+  await writeFile(join(root, '.agents/personas/broken.md'), 'no front matter\n');
+  const before = await readFile(join(root, PLAN), 'utf8');
+  const bad = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.equal(bad.code, 2, bad.out);
+  assert.match(bad.json().error, /cannot read a plan source \(personaCandidates\)/);
+  assert.equal(await readFile(join(root, PLAN), 'utf8'), before);
 });
 
 test('the plan and its record are never written through a symlink: a linked directory or file pointing outside the project is refused, and its target is untouched', async t => {

@@ -184,7 +184,9 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
 - **The default plan** is what keel would do anyway, written down: the
   night's measure item, the newest earlier health page's proposal (to
   review), the climb job `climb.mjs pick` would choose, the robot's next
-  admissible `keel:agent` issue and Loop's untriaged findings (to triage).
+  admissible `keel:agent` issue and Loop's untriaged findings (to triage),
+  and, with the personas practice, each persona's missed goals (to build,
+  with the goal as the number; the night runs `persona run --all` first).
   No model, no person; the same inputs make the same plan. An input it cannot
   read (gh, a health page, a Loop finding) is exit 2, naming it, and nothing
   is written.

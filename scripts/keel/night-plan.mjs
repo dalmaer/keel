@@ -100,7 +100,8 @@ function numberProblems(n, where) {
   if (!isObject(n)) return [`${where}: "number" is { measure, bound, better }`];
   const out = [];
   for (const k of Object.keys(n)) if (!['measure', 'bound', 'better'].includes(k)) out.push(`${where}: unknown field "number.${k}"`);
-  if (!/^[a-z][a-z0-9_]*$/.test(n.measure ?? '')) out.push(`${where}: "number.measure" names a measure the night already takes (like slow_tests)`);
+  // The night's own measure ids, or a persona goal's (persona:<name>:<goal>, the personas practice).
+  if (!/^(?:[a-z][a-z0-9_]*|persona:[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*)$/.test(n.measure ?? '')) out.push(`${where}: "number.measure" names a measure the night already takes (like slow_tests, or persona:<name>:<goal>)`);
   if (!Number.isFinite(n.bound)) out.push(`${where}: "number.bound" is a number`);
   if (!['lower', 'higher'].includes(n.better)) out.push(`${where}: "number.better" is lower or higher`);
   return out;
@@ -351,12 +352,28 @@ export async function readInputs({ root, config, env = process.env, date }) {
 }
 
 /**
- * Other sources of candidate items: each is async ({ root, config, env, date,
- * inputs }) → [item], its items passed through admit after keel's own. Empty
- * here; personas (phase 75) add theirs. A source that throws is an input the
- * plan cannot read.
+ * The personas practice's missed goals (phase 75): with "personas" in the
+ * config's practices and its scripts/keel/persona.mjs here, `persona run
+ * --all` measures every persona (writing its review pages, as it always
+ * does) and each missed goal becomes a build item with its number, each
+ * broken one a review item (planCandidates). No persona files is no items,
+ * never a failure; a persona file that cannot be read is an input the plan
+ * cannot read.
  */
-export const CANDIDATE_SOURCES = Object.freeze([]);
+export async function personaCandidates({ root, config, env, date }) {
+  if (!(config?.practices ?? []).includes('personas') || !existsSync(join(root, 'scripts/keel/persona.mjs'))) return [];
+  const persona = await practiceScript(root, 'scripts/keel/persona.mjs', 'the personas');
+  if (!(await persona.readPersonas(root)).length) return [];
+  const r = await persona.run({ root, all: true, date, env });
+  return r.data.personas.flatMap(p => p.candidates ?? persona.planCandidates(p));
+}
+
+/**
+ * Other sources of candidate items: each is async ({ root, config, env, date,
+ * inputs }) → [item], its items passed through admit after keel's own. A
+ * source that throws is an input the plan cannot read.
+ */
+export const CANDIDATE_SOURCES = Object.freeze([personaCandidates]);
 
 // ---- the default plan -------------------------------------------------------
 

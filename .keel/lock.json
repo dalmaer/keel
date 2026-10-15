@@ -83,7 +83,7 @@
     },
     ".github/workflows/keel-robot-route.yml": {
       "practice": "climb",
-      "sha256": "d4277358992ddb84d697a45b79af6a05bbb87e808bc292e9a3a6e5c21f767445"
+      "sha256": "7384236e2762ad896fd3fcfa7a9fee8d0cd165d89d8b285c3728c7a7b7dde434"
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
@@ -191,7 +191,7 @@
     },
     "scripts/keel/night-plan.mjs": {
       "practice": "night",
-      "sha256": "fc6a45874a57d12a2236c9b8201bca86befe51392fbfac883c969fa2dc7aeaa8"
+      "sha256": "dea3fc033d95bc60b4bf63640329c482dc603507a5bd5b3df3453b59388bac09"
     },
     "scripts/keel/planning-config.mjs": {
       "practice": "night",

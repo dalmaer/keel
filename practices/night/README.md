@@ -19,7 +19,8 @@ every night at 07:23 UTC (and by hand):
    when it is valid and dated for this run's UTC date; otherwise it writes
    keel's default plan (the night's measure item, the newest earlier health
    page's proposal, the climb job `climb.mjs pick` would choose, the robot's
-   next admissible `keel:agent` issue, Loop's untriaged findings), and says
+   next admissible `keel:agent` issue, Loop's untriaged findings, and with
+   the personas practice each persona's missed goals), and says
    which and why. No model; the same inputs make the same plan. A build item
    names its number first (else it is triage), and at most five build items
    run, counted with the robot's open PRs. A plan that cannot be made (an input
