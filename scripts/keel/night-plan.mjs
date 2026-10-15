@@ -12,14 +12,20 @@
 //   node scripts/keel/night-plan.mjs record --date d --ticks f [--remote r]
 //                                   a pass's ticks (f: [{ id, status, note, link }]) pushed onto the plan branch's
 //                                   plan for the night d, with a lease (phase 76: climb's and the robot's publish jobs)
+//   node scripts/keel/night-plan.mjs publish --date d [--remote r]
+//                                   the night's default plan for d onto the plan branch, when it holds no plan
+//                                   for d or later, with a lease (phase 78: the night's PR step)
 //   node scripts/keel/night-plan.mjs check [--file f]        validate a plan (default: the working plan)
 //
 // The plan is .keel/night/plan.json (schema 1), a working file that ignores
 // itself; the night commits it as it ended as docs/night/<date>.json in its
 // data-only PR (improve.mjs writes that record). It travels on the branch
 // keel-night-plan (one file, force-pushed by whoever shapes it, never merged
-// and never main): the night only reads it; climb's and the robot's publish
-// jobs add their ticks on top of it with a lease (record, phase 76).
+// and never main): the night's plan step only reads it; climb's and the
+// robot's publish jobs add their ticks on top of it with a lease (record,
+// phase 76); and a night that ran keel's default plan writes it there from
+// its PR step, never over a plan for tonight or later (publishDefault, phase
+// 78), so a default night is ticked as an owner's is.
 //
 // The default plan is what keel would do anyway, written down: tonight's
 // measures, the health page's proposal, the climb job `climb.mjs pick` would
@@ -36,9 +42,12 @@
 //
 // Rules the validator holds (validatePlan): exactly the design's fields,
 // an unknown one refused by name; a build item names its number first; at
-// most five build items, counted with the robot's open PRs. The default plan
-// never writes a refused plan: a candidate build with no number becomes
-// triage, and builds past the fifth wait for the next night (admit).
+// most five build items, counted with the robot's open PRs; a build names a
+// lane a pass builds (climb:<job> or robot:#<n>; never night, loop or
+// persona:<name>, phase 78). The default plan never writes a refused plan: a
+// candidate build with no number becomes triage, a persona's build goes to
+// the climb job that measures its number or becomes triage (handBuild), and
+// builds past the fifth wait for the next night (admit).
 //
 // Exit: 0 done; 2 usage, a refused plan or tick, or an input that cannot be
 // read (nothing is written then; the message names the input). gh is
@@ -68,6 +77,13 @@ export const STATUSES = Object.freeze(['planned', 'running', 'done', 'failed', '
 export const SHAPERS = Object.freeze(['default', 'owner']);
 export const PLAN_FIELDS = Object.freeze(['schema', 'date', 'shapedBy', 'readyBy', 'willNotTouch', 'settledToday', 'leftOpen', 'items']);
 export const ITEM_FIELDS = Object.freeze(['id', 'title', 'kind', 'source', 'number', 'lane', 'budget', 'status', 'result']);
+/**
+ * A draft's lane for a build whose robot issue does not exist yet (phase 78):
+ * keel goodnight add puts an accepted Loop finding there, and keel goodnight
+ * --yes creates the issue and writes robot:#<n> in its place. Only a draft
+ * (validatePlan's `draft`) may hold it; a plan never does.
+ */
+export const PENDING_LANE = 'robot:pending';
 /** The night's own item: improve.mjs --report ticks every measure item in lane night. */
 export const MEASURE_ITEM = 'measures';
 const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -123,9 +139,10 @@ const robotOutside = (items, openRobotPrs) => {
  * makes it triage first: admit). At most MAX_BUILD build items, counted with
  * the robot's open PRs (`openRobotPrs`: the issue numbers of the open
  * keel/robot-<n> PRs; one whose issue a build item names in its lane is that
- * item, not another). Pure. Returns { ok, problems: [text] }.
+ * item, not another). `draft`: keel goodnight's draft, which may hold a build
+ * in PENDING_LANE. Pure. Returns { ok, problems: [text] }.
  */
-export function validatePlan(plan, { openRobotPrs = [] } = {}) {
+export function validatePlan(plan, { openRobotPrs = [], draft = false } = {}) {
   const problems = [];
   const bad = m => problems.push(m);
   if (!isObject(plan)) return { ok: false, problems: ['the plan is a JSON object'] };
@@ -149,7 +166,8 @@ export function validatePlan(plan, { openRobotPrs = [] } = {}) {
     if (!isText(item.title, 300)) bad(`${where}: "title" is one line of text, at most 300 characters`);
     if (!KINDS.includes(item.kind)) bad(`${where}: "kind" is ${KINDS.join(', ')}`);
     if (!SOURCE.test(item.source ?? '')) bad(`${where}: "source" is default, owner, persona:<name>, loop:<slug>, health:<measure> or robot:#<issue>`);
-    if (!LANE.test(item.lane ?? '')) bad(`${where}: "lane" is climb:<job>, robot:#<issue>, loop, persona:<name> or night`);
+    if (item.lane === PENDING_LANE) { if (!draft || item.kind !== 'build') bad(`${where}: "lane" ${PENDING_LANE} is a draft's build whose robot issue keel goodnight --yes creates; a plan names robot:#<issue>`); }
+    else if (!LANE.test(item.lane ?? '')) bad(`${where}: "lane" is climb:<job>, robot:#<issue>, loop, persona:<name> or night`);
     if (!STATUSES.includes(item.status)) bad(`${where}: "status" is ${STATUSES.join(', ')}`);
     if (item.number !== undefined && item.number !== null) problems.push(...numberProblems(item.number, where));
     if (item.budget !== undefined && item.budget !== null) {
@@ -166,7 +184,11 @@ export function validatePlan(plan, { openRobotPrs = [] } = {}) {
     if (item.kind === 'build') {
       if (item.number === undefined || item.number === null) bad(`${where}: a build item names its number first; it has no "number" (make it triage or review)`);
       // The night measures and never builds: a build in lane night is one no pass would ever take.
-      if (item.lane === 'night') bad(`${where}: a build item names the pass that builds it; lane night only measures (use climb:<job>, robot:#<issue>, loop or persona:<name>)`);
+      if (item.lane === 'night') bad(`${where}: a build item names the pass that builds it; lane night only measures (use climb:<job> or robot:#<issue>)`);
+      // No lane without a builder (phase 78): no pass builds lane loop (an accepted finding is built by the robot,
+      // keel goodnight add drafts its issue), and a persona measures, it does not build.
+      if (item.lane === 'loop') bad(`${where}: a build item names the pass that builds it; no pass builds lane loop (an accepted Loop finding that names a number is built by the robot: keel goodnight add drafts its issue, lane robot:#<n>)`);
+      if (/^persona:/.test(item.lane ?? '')) bad(`${where}: a build item names the pass that builds it; a persona measures and never builds (hand it to the climb job that measures ${item.number?.measure ?? 'its number'}, lane climb:<job>, or make it triage)`);
       builds++;
       if (builds + outside.length > MAX_BUILD) {
         bad(`${where}: a ${ordinal(builds + outside.length)} build item; at most ${MAX_BUILD} a night, counted with the robot's open PRs (${outside.length ? outside.map(n => `#${n}`).join(', ') : 'none'}); the rest wait for the next night`);
@@ -191,15 +213,17 @@ const item = ({ id, title, kind, source, number = null, lane, budget = null, sta
  * leftOpen lines. This is the seam for other plan sources: a source's items
  * pass through here. Pure. Returns { items, waiting: [text] }.
  */
-export function admit(candidates, { openRobotPrs = [], taken = [] } = {}) {
+export function admit(candidates, { openRobotPrs = [], taken = [], jobs = {} } = {}) {
   const ids = new Set(taken), items = [], waiting = [];
   // Kinds first: a build with no number is triage before anything is counted,
-  // so admission counts exactly the builds the validator will.
+  // and a build in a lane no pass builds (loop, persona:<name>) goes to its
+  // builder or is triage (handBuild), so admission counts exactly the builds
+  // the validator will.
   const normal = candidates.map(c => {
     const it = item(c);
     return it.kind === 'build' && it.number === null
       ? { ...it, kind: 'triage', result: { note: 'Names no number, so it is triage, not build: a build item names its number first.' } }
-      : it;
+      : handBuild(it, jobs);
   });
   // The validator's count: admitted builds, plus each open robot PR no admitted build names in its lane.
   // A build naming an open PR not yet named takes that PR's place (no change); any other adds one.
@@ -221,6 +245,28 @@ export function admit(candidates, { openRobotPrs = [], taken = [] } = {}) {
     items.push(it);
   }
   return { items, waiting };
+}
+
+/** The climb job (of `jobs`: { job: { measures } }, the project's enabled ones) whose measures include `measure`, or null. */
+export const jobFor = (jobs, measure) => Object.entries(jobs ?? {}).find(([, j]) => (j?.measures ?? []).includes(measure))?.[0] ?? null;
+
+/**
+ * A build item in a lane no pass builds, handed to one, pure (phase 78: no
+ * lane without a builder). A build in lane persona:<name> goes to the climb
+ * job that measures its number (lane climb:<job>), as goodnight does for a
+ * build with no lane; with none it is triage, saying why. A build in lane loop
+ * is triage: a Loop finding is built by the robot once its issue exists (keel
+ * goodnight add drafts it). Every other item is returned as it is.
+ */
+export function handBuild(it, jobs = {}) {
+  if (it.kind !== 'build') return it;
+  if (/^persona:/.test(it.lane ?? '')) {
+    const job = it.number ? jobFor(jobs, it.number.measure) : null;
+    if (job) return { ...it, lane: `climb:${job}` };
+    return { ...it, kind: 'triage', result: { note: `A persona measures and never builds, and no climb job here measures ${it.number?.measure ?? 'its number'}, so it is triage, not build.` } };
+  }
+  if (it.lane === 'loop') return { ...it, kind: 'triage', result: { note: 'No pass builds lane loop, so it is triage: an accepted Loop finding that names a number is built by the robot (keel goodnight add drafts its issue).' } };
+  return it;
 }
 
 // ---- the inputs -------------------------------------------------------------
@@ -348,13 +394,28 @@ async function loopInput(root) {
   catch (e) { throw new NightPlanError(`cannot read the Loop findings (docs/loop): ${String(e.message).split('\n')[0]}`); }
 }
 
+/**
+ * The project's enabled climb jobs and their measures ({ job: { measures } }):
+ * climb.mjs's own climbConfigOf, never the whole catalogue. {} with climb off
+ * or not installed: then no climb job builds anything here.
+ */
+export async function climbJobs(root, config) {
+  if (config?.climb === undefined || !existsSync(join(root, 'scripts/keel/climb.mjs'))) return {};
+  const climb = await practiceScript(root, 'scripts/keel/climb.mjs', 'the climb jobs');
+  let c;
+  try { c = climb.climbConfigOf(config); } catch (e) { throw new NightPlanError(`cannot read the climb jobs: ${String(e.message).split('\n')[0]}`); }
+  if (!c) return {};
+  return Object.fromEntries(c.jobs.filter(j => climb.JOBS?.[j]).map(j => [j, { measures: [...(climb.JOBS[j].measures ?? [])] }]));
+}
+
 /** Everything the default plan reads. Throws NightPlanError naming the first input it cannot read. */
 export async function readInputs({ root, config, env = process.env, date }) {
   const health = await newestHealth(root, config, date);
   const climb = await climbInput(root, config, env, date);
   const robot = await robotInput(root, config, env);
   const loop = await loopInput(root);
-  return { health, climb, robot, loop };
+  const jobs = await climbJobs(root, config);
+  return { health, climb, robot, loop, jobs };
 }
 
 /**
@@ -366,12 +427,14 @@ export async function readInputs({ root, config, env = process.env, date }) {
  * never a failure; a persona file that cannot be read is an input the plan
  * cannot read.
  */
-export async function personaCandidates({ root, config, env, date }) {
+export async function personaCandidates({ root, config, env, date, inputs }) {
   if (!(config?.practices ?? []).includes('personas') || !existsSync(join(root, 'scripts/keel/persona.mjs'))) return [];
   const persona = await practiceScript(root, 'scripts/keel/persona.mjs', 'the personas');
   if (!(await persona.readPersonas(root)).length) return [];
   const r = await persona.run({ root, all: true, date, env });
-  return r.data.personas.flatMap(p => p.candidates ?? persona.planCandidates(p));
+  // A missed goal's build goes to the climb job that measures it, else it is triage (phase 78).
+  const jobs = inputs?.jobs ?? await climbJobs(root, config);
+  return r.data.personas.flatMap(p => persona.planCandidates(p, { jobs }));
 }
 
 /**
@@ -396,7 +459,7 @@ const numberOf = (rows, ids, better) => {
  * admit makes it triage), Loop's untriaged findings (triage), then
  * `candidates` (other sources). Same inputs, same plan.
  */
-export function defaultPlan({ date, health = null, climb = null, robot = null, loop = null, candidates = [] }) {
+export function defaultPlan({ date, health = null, climb = null, robot = null, loop = null, jobs = {}, candidates = [] }) {
   if (!isDate(date)) throw new NightPlanError(`the night's date is YYYY-MM-DD (got ${JSON.stringify(date)})`);
   const rows = health?.rows ?? [];
   const off = rows.filter(r => ['outside', 'broken'].includes(r.state)).map(r => r.id);
@@ -415,7 +478,7 @@ export function defaultPlan({ date, health = null, climb = null, robot = null, l
   const findings = loop ?? [];
   for (const f of findings.slice(0, FINDING_ITEMS)) own.push(item({ id: `loop-${f.slug}`, kind: 'triage', source: `loop:${f.slug}`, lane: 'loop', title: short(`Triage the Loop finding: ${f.title}`, 300) }));
   const open = robot?.open ?? [];
-  const { items, waiting } = admit([...own, ...candidates], { openRobotPrs: open });
+  const { items, waiting } = admit([...own, ...candidates], { openRobotPrs: open, jobs });
   const leftOpen = [
     ...(findings.length > FINDING_ITEMS ? [`${findings.length - FINDING_ITEMS} more untriaged Loop findings wait (docs/loop/)`] : []),
     ...(climb && !climb.job ? [`climb: ${short(climb.reason, 300)}`] : []),
@@ -706,22 +769,77 @@ export async function record({ root, date, ticks, remote = 'origin', env = proce
       catch (e) { if (!(e instanceof NightPlanError)) throw e; refused.push({ id: t.id, status: t.status, why: e.message }); }
     }
     if (!ticked.length) return { recorded: false, why: 'every tick was refused', ticked, refused };
-    const blob = planGit(root, ['hash-object', '-w', '--stdin'], { env, input: `${JSON.stringify(plan, null, 2)}\n` });
     // The tip's own tree with the plan replaced, built in a private index: no checkout, no working tree touched.
-    const index = join(planGit(root, ['rev-parse', '--absolute-git-dir'], { env }), `keel-night-plan-${process.pid}.index`);
-    const withIndex = { ...env, GIT_INDEX_FILE: index };
-    let commit;
-    try {
-      planGit(root, ['read-tree', tip], { env: withIndex });
-      planGit(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${PLAN}`], { env: withIndex });
-      const tree = planGit(root, ['write-tree'], { env: withIndex });
-      const message = `keel night: tick ${ticked.map(t => `${t.id} ${t.status}`).join(', ')} (${date})`;
-      commit = planGit(root, ['-c', 'user.name=keel-night', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit-tree', tree, '-p', tip, '-m', message], { env });
-    } finally { await rm(index, { force: true }); }
+    const commit = await planCommit(root, env, plan, tip, `keel night: tick ${ticked.map(t => `${t.id} ${t.status}`).join(', ')} (${date})`);
     const pushed = planGit(root, ['push', '--porcelain', `--force-with-lease=${ref}:${tip}`, remote, `${commit}:${ref}`], { env, allowFail: true });
     if (pushed.status === 0) return { recorded: true, commit, ticked, refused };
   }
   throw new NightPlanError(`the ticks could not be pushed to ${PLAN_BRANCH}: it moved under every one of ${attempts} attempts`);
+}
+
+/**
+ * A plan as one commit on the plan branch, built in a private index (no
+ * checkout, no working tree touched): on top of `tip` with the tip's tree and
+ * the plan replaced, or, with no tip, a commit of the plan alone with no parent.
+ */
+async function planCommit(root, env, plan, tip, message) {
+  const blob = planGit(root, ['hash-object', '-w', '--stdin'], { env, input: `${JSON.stringify(plan, null, 2)}\n` });
+  const index = join(planGit(root, ['rev-parse', '--absolute-git-dir'], { env }), `keel-night-plan-${process.pid}.index`);
+  const withIndex = { ...env, GIT_INDEX_FILE: index };
+  try {
+    await rm(index, { force: true });
+    if (tip) planGit(root, ['read-tree', tip], { env: withIndex });
+    planGit(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${PLAN}`], { env: withIndex });
+    const tree = planGit(root, ['write-tree'], { env: withIndex });
+    return planGit(root, ['-c', 'user.name=keel-night', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit-tree', tree, ...(tip ? ['-p', tip] : []), '-m', message], { env });
+  } finally { await rm(index, { force: true }); }
+}
+
+/**
+ * The night's default plan, recorded where the passes tick (phase 78): with no
+ * owner plan for tonight on the plan branch, the night's working plan (keel's
+ * default, as improve left it, measures ticked) is pushed there, so climb's and
+ * the robot's `record` tick it as they tick an owner's. Only the night's PR
+ * step runs this (the one step of the night that already writes).
+ *
+ * It writes only a plan shapedBy default and dated `date`, and only when the
+ * branch is absent (created, with a lease that it still is), holds no plan
+ * file, or holds a valid plan for an earlier night (that night is over and in
+ * its record, docs/night/<date>.json; the new commit sits on top of it, so it
+ * stays in the branch's history). It never replaces a plan for tonight or a
+ * later night, whoever shaped it (a rerun keeps tonight's ticks; an owner's
+ * plan is the owner's), and never one it cannot read (refused or not JSON).
+ * A push that lost a race is read again from the new tip, at most `attempts`
+ * times. Returns { written, why, commit? }.
+ */
+export async function publishDefault({ root, date, remote = 'origin', env = process.env, attempts = 3 }) {
+  if (!isDate(date)) throw new NightPlanError(`--date is the night's UTC date, YYYY-MM-DD (got ${JSON.stringify(date)})`);
+  const plan = await readPlan(root);
+  if (!plan) return { written: false, why: `no working plan (${PLAN}): nothing to record` };
+  if (plan.date !== date) return { written: false, why: `the working plan is for ${plan.date}, not ${date}: never another night's` };
+  if (plan.shapedBy !== 'default') return { written: false, why: `tonight's plan is the owner's, read from ${PLAN_BRANCH}: nothing to write` };
+  const ref = `refs/heads/${PLAN_BRANCH}`, local = 'refs/keel/night-plan-default';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const listed = planGit(root, ['ls-remote', '--exit-code', '--heads', remote, ref], { env, allowFail: true });
+    let tip = null, over = `the branch ${PLAN_BRANCH} is new`;
+    if (listed.status !== 2) {
+      if (listed.status !== 0) throw new NightPlanError(`cannot read the plan branch ${PLAN_BRANCH}: git ls-remote exited ${listed.status}`);
+      planGit(root, ['fetch', '-q', '--no-tags', remote, `+${ref}:${local}`], { env });
+      tip = planGit(root, ['rev-parse', '--verify', `${local}^{commit}`], { env });
+      const shown = planGit(root, ['show', `${tip}:${PLAN}`], { env, allowFail: true });
+      if (shown.status === 0) {
+        let there = null;
+        try { there = shown.stdout.length <= MAX_BYTES ? JSON.parse(shown.stdout) : null; } catch { /* unread: left alone below */ }
+        if (!there || !validatePlan(there).ok) return { written: false, why: `${PLAN_BRANCH} holds a plan that cannot be read or is refused: it is left alone, never replaced` };
+        if (there.date >= date) return { written: false, why: `${PLAN_BRANCH} holds the plan for ${there.date}, shaped by ${there.shapedBy}: never replaced` };
+        over = `on top of the plan for ${there.date} (shaped by ${there.shapedBy}), an earlier night's`;
+      } else over = `${PLAN_BRANCH} held no ${PLAN}`;
+    }
+    const commit = await planCommit(root, env, plan, tip, `keel night: the default plan for the night of ${date}`);
+    const pushed = planGit(root, ['push', '--porcelain', `--force-with-lease=${ref}:${tip ?? ''}`, remote, `${commit}:${ref}`], { env, allowFail: true });
+    if (pushed.status === 0) return { written: true, why: `tonight's default plan is on ${PLAN_BRANCH} (${over})`, commit };
+  }
+  throw new NightPlanError(`the default plan could not be pushed to ${PLAN_BRANCH}: it moved under every one of ${attempts} attempts`);
 }
 
 /**
@@ -761,12 +879,12 @@ export function planSection(plan, { record } = {}) {
 
 // ---- the script --------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/night-plan.mjs plan [--date d] | tonight --date d [--branch-plan f | --branch-unread "<why>"] | tick <id> --status s [--note "<text>"] [--link <url>] | record --date d --ticks f [--remote r] | check [--file f] [--json]';
+const USAGE = 'usage: node scripts/keel/night-plan.mjs plan [--date d] | tonight --date d [--branch-plan f | --branch-unread "<why>"] | tick <id> --status s [--note "<text>"] [--link <url>] | record --date d --ticks f [--remote r] | publish --date d [--remote r] | check [--file f] [--json]';
 
 /** The script's own arguments: a subcommand, its one positional (tick), its valued flags. */
 export function parseArgs(args) {
   const [sub, ...rest] = args;
-  const valued = { plan: ['--date'], tonight: ['--date', '--branch-plan', '--branch-unread'], tick: ['--status', '--note', '--link'], record: ['--date', '--ticks', '--remote'], check: ['--file'] }[sub];
+  const valued = { plan: ['--date'], tonight: ['--date', '--branch-plan', '--branch-unread'], tick: ['--status', '--note', '--link'], record: ['--date', '--ticks', '--remote'], publish: ['--date', '--remote'], check: ['--file'] }[sub];
   if (!valued) throw new NightPlanError(USAGE);
   const out = { sub }, positional = [];
   for (let i = 0; i < rest.length; i++) {
@@ -780,6 +898,7 @@ export function parseArgs(args) {
   if (sub === 'tick') { out.id = positional[0]; if (out.status === undefined) throw new NightPlanError('--status is required'); }
   if (sub === 'tonight' && out.date === undefined) throw new NightPlanError('--date is required: the night passes its own');
   if (sub === 'record' && (out.date === undefined || out.ticks === undefined)) throw new NightPlanError('record needs --date (the night the ticks are for) and --ticks (a JSON file of [{ id, status, note, link }])');
+  if (sub === 'publish' && out.date === undefined) throw new NightPlanError('--date is required: the night passes its own');
   if (out.branchPlan && out.branchUnread) throw new NightPlanError('--branch-plan and --branch-unread are one or the other');
   return out;
 }
@@ -801,6 +920,10 @@ export async function run(args, { root, env = process.env } = {}) {
     const r = await record({ root, date: o.date, ticks: await readJsonFile(o.ticks, '--ticks'), remote: o.remote ?? 'origin', env });
     const lines = [r.recorded ? `ticked on ${PLAN_BRANCH} (${r.commit.slice(0, 7)}): ${r.ticked.map(t => `${t.id} ${t.from} → ${t.status}`).join(', ')}` : `::notice::nothing recorded on ${PLAN_BRANCH}: ${r.why}`, ...r.refused.map(x => `::warning::${x.id} not ticked ${x.status}: ${x.why}`)];
     return { data: { ok: true, ...r }, text: lines.join('\n') };
+  }
+  if (o.sub === 'publish') {
+    const r = await publishDefault({ root, date: o.date, remote: o.remote ?? 'origin', env });
+    return { data: { ok: true, ...r }, text: r.written ? `${r.why} (${r.commit.slice(0, 7)}).` : `::notice::the default plan is not written to ${PLAN_BRANCH}: ${r.why}.` };
   }
   return check({ root, file: o.file });
 }

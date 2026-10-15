@@ -15,20 +15,27 @@ every night at 07:23 UTC (and by hand):
 
 0. Tonight's plan is written before anything runs (phase 73):
    `node scripts/keel/night-plan.mjs tonight` reads the plan branch
-   `keel-night-plan` (never pushes it) and uses its `.keel/night/plan.json`
+   `keel-night-plan` and uses its `.keel/night/plan.json`
    when it is valid and dated for this run's UTC date; otherwise it writes
    keel's default plan (the night's measure item, the newest earlier health
    page's proposal, the climb job `climb.mjs pick` would choose, the robot's
    next admissible `keel:agent` issue, Loop's untriaged findings, and with
-   the personas practice each persona's missed goals), and says
-   which and why. No model; the same inputs make the same plan. A build item
-   names its number first (else it is triage), and at most five build items
-   run, counted with the robot's open PRs. A plan that cannot be made (an input
+   the personas practice each persona's missed goals, a build only for the
+   climb job that measures it), and says which and why. No model; the same
+   inputs make the same plan. A build item names its number first (else it
+   is triage) and a lane a pass builds (`climb:<job>` or `robot:#<n>`; never
+   `night`, `loop` or `persona:<name>`, phase 78), and at most five build
+   items run, counted with the robot's open PRs. A plan that cannot be made (an input
    it cannot read) or a branch that cannot be read is red at the verdict,
    after the measure has still run. improve ticks the measure item, writes the
    plan as it ended to `docs/night/<date>.json`, and the page shows it under
-   "Tonight's plan"; each pass that builds ticks its own item (`node
-   scripts/keel/night-plan.mjs tick <id> --status <s>`; phase 76 wires them).
+   "Tonight's plan"; each pass that builds ticks its own item on the plan
+   branch (`node scripts/keel/night-plan.mjs record`, phase 76). A night that
+   ran the default plan writes it to `keel-night-plan` from its PR step
+   (`night-plan.mjs publish`, phase 78), so the passes tick it as they tick
+   an owner's: only when the branch holds no plan for tonight or a later
+   night (never the owner's), with a lease; a failed write is red at the
+   verdict. That push and the PR's are the night's only writes.
 1. The test ledger's history is gathered (CI's `keel-test-runs` artifacts,
    below); then `node scripts/keel/improve.mjs --report` measures the practice and writes
    `<health>/<date>.md` and `.keel/bounds.json`. `<health>` is `"health"` in
@@ -72,7 +79,12 @@ every night at 07:23 UTC (and by hand):
    plan" as one data-only PR, `keel-night/<date>-final`, which the drain
    merges with the series (a run with nothing new changes nothing, so a
    later build outcome still arrives). Only the send job may write issues; a failed send
-   is red. Without an assignee nothing is sent (a notice).
+   is red. Without an assignee nothing is sent (a notice). On every run, its
+   card job (phase 78) republishes tonight's plan as the canvas's live card
+   `night-plan` (`keel morning --card --yes`) when the canvas is set for
+   nightly publishing and lists `night-plan` live, else a notice and nothing
+   more; it needs exactly the provisioning below and holds only `contents:
+   read` and `actions: read`.
 
 `keel improve` and `keel drain` are these same modules, run from keel. What
 a project's copy cannot read alone it calls `keel-side only`, never a zero:
@@ -367,7 +379,12 @@ replacement canvas. Existing `keel-night` concurrency serializes nights; sync
 also owns a local writer lock and pending receipt recovery.
 
 The workflow restores `recovery.json` from the latest **canvas-enabled attempt**
-of this repository's default-branch `keel-night.yml`, including failed attempts.
+of this repository's default-branch `keel-night.yml` or `keel-morning.yml`
+(whose card job writes the same canvas, phase 78), including failed attempts;
+`scripts/keel/canvas-recovery.mjs` holds the rules for both. A keel-morning
+attempt with no `keel-canvas-card-<attempt>` artifact never reached its card
+job and is skipped; one still running makes the card wait a pass (exit 3)
+and the night refuse, as for an unfinished night.
 It reads the committed config at each candidate's source commit to establish
 opt-in, rejects PR/fork/other-branch runs, and verifies repository, commit, run
 ID and attempt against artifact provenance. Artifact names include the attempt:

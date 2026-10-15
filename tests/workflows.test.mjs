@@ -519,7 +519,7 @@ test('every run: block in every workflow parses as bash, and every inline node -
  * bare origin and a stub gh. Returns { dir, files: the paths the pushed
  * branch's commit carries, out }.
  */
-async function nightCommit(t, night, { health, ignore = '', tracked = {}, existingPr = '', listExit = 0, editExit = 0, before = async () => {}, after = async () => {} }) {
+async function nightCommit(t, night, { health, ignore = '', tracked = {}, existingPr = '', listExit = 0, editExit = 0, planDay = '', before = async () => {}, after = async () => {} }) {
   const steps = runBlocks(night);
   const where = steps.find(b => b.step === 'Where the health page goes');
   const open = steps.find(b => b.step === "Open the night's pull request");
@@ -572,13 +572,15 @@ if (args[0] === 'pr' && args[1] === 'list') {
   await writeFile(join(temp, 'improve.json'), JSON.stringify({ date: '2026-10-05', report: `${page}/2026-10-05.md`, changedHistoricalHealthPaths: [] }));
   await writeFile(join(temp, 'pr.json'), JSON.stringify(nightPr({ date: '2026-10-05', report: `${page}/2026-10-05.md`, proposal: { id: 'prs_stale', state: 'outside', text: 'Close or merge the Acme PRs.' },
     results: [{ id: 'gate', state: 'ok', detail: 'npm test passed, 12 tests', bound: 0, better: 'lower', value: 0 }, { id: 'prs_stale', state: 'outside', detail: '2 stale', bound: 0, better: 'lower', value: 2 }] })));
-  const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', BASE: 'main', HEALTH: page ?? '' } });
+  const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', PLAN_DAY: planDay, BASE: 'main', HEALTH: page ?? '' } });
+  const outputs = Object.fromEntries((await readFile(out, 'utf8')).trim().split('\n').filter(Boolean).map(l => l.split('=')));
+  const branch = run('git', ['--git-dir', origin, 'show', 'refs/heads/keel-night-plan:.keel/night/plan.json']);
   const pushed = run('git', ['--git-dir', origin, 'show', '--name-only', '--format=', 'refs/heads/keel-night/2026-10-05']);
   const body = await readFile(join(base, 'body.md'), 'utf8').catch(() => null);
   const calls = (await readFile(join(base, 'gh.jsonl'), 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
   const generatedBody = await readFile(join(temp, 'body.md'), 'utf8').catch(() => null);
   const show = run('git', ['--git-dir', origin, 'show', '--name-status', '--format=', 'refs/heads/keel-night/2026-10-05']);
-  return { page, where: 0, status: o.status, out: o.stdout + o.stderr, body, calls, generatedBody, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null,
+  return { page, where: 0, status: o.status, out: o.stdout + o.stderr, body, calls, generatedBody, outputs, planBranch: branch.status === 0 ? branch.stdout : null, files: pushed.status === 0 ? pushed.stdout.trim().split('\n').filter(Boolean).sort() : null,
     changes: show.status === 0 ? show.stdout.trim().split('\n').filter(Boolean).sort() : null };
 }
 
@@ -830,6 +832,36 @@ test('the night\'s PR carries the plan as it ended, docs/night/<date>.json, and 
   // Mutation: a step that stages the whole directory carries the person's notes.
   const whole = await nightCommit(t, night.replace('HEALTH_PATHS+=("$RECORD")', 'HEALTH_PATHS+=(docs/night)'), { after: record });
   assert.ok(whole.files.includes('docs/night/notes.md'), `staging docs/night/ carries what is not the night's: ${JSON.stringify(whole.files)}`);
+});
+
+// Phase 78: a default night records its plan on the plan branch, from the PR step alone.
+test('a default night writes its plan to keel-night-plan from its PR step, the one step that writes; the plan step only reads; a failed write is red at the verdict', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  const blocks = runBlocks(night);
+  const publishing = blocks.filter(b => /node scripts\/keel\/night-plan\.mjs publish\b/.test(b.script)).map(b => b.step);
+  assert.deepEqual(publishing, ["Open the night's pull request"], 'only the PR step writes the plan branch');
+  assert.doesNotMatch(blocks.find(b => b.step === 'Plan the night').script, /\bgit push\b|publish/, 'the plan step only reads');
+  assert.match(night, /\n {8}id: pr\n {8}env:\n(?: {10}.*\n)*? {10}PLAN_DAY: \$\{\{ steps\.plan\.outputs\.day \}\}\n/, 'the date is the plan step\'s, never another night\'s');
+  const { writePlan, defaultPlan } = await import('../lib/night-plan.mjs');
+  const plan = defaultPlan({ date: '2026-10-05' });
+  const withPlan = async dir => { await cp(join(KEEL, 'practices/night/files/scripts/keel'), join(dir, 'scripts/keel'), { recursive: true }); await writePlan(dir, plan); };
+  const r = await nightCommit(t, night, { before: withPlan, planDay: '2026-10-05' });
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /tonight's default plan is on keel-night-plan \(the branch keel-night-plan is new\)/);
+  assert.equal(r.outputs.publish, '0');
+  assert.deepEqual(JSON.parse(r.planBranch), plan, 'the plan branch holds tonight\'s default plan');
+  assert.deepEqual(r.files, ['.keel/bounds.json', 'docs/health/2026-10-05.md'], 'the PR is as it was');
+  // Mutation: a step that never publishes leaves the branch empty, and no pass has a plan to tick.
+  const silent = await nightCommit(t, night.replace('node scripts/keel/night-plan.mjs publish --date "$PLAN_DAY" || published=$?', 'true'), { before: withPlan, planDay: '2026-10-05' });
+  assert.equal(silent.planBranch, null);
+  // The verdict: a failed write is red, naming it; none (an older night) is not.
+  const verdict = blocks.find(b => b.step === 'Verdict').script;
+  const v = env => run('bash', ['-e', '-c', verdict], { env: { ...process.env, CANVAS_OUTCOME: 'success', CODE: '0', GATE: 'ok', PLAN: '0', ...env } });
+  assert.equal(v({ PUBLISH: '0' }).status, 0);
+  assert.equal(v({ PUBLISH: '' }).status, 0);
+  const red = v({ PUBLISH: '2' });
+  assert.equal(red.status, 1);
+  assert.match(red.stdout, /Tonight's default plan could not be written to keel-night-plan/);
 });
 
 test('the PR description is re-checked on edit by keel-impact.yml alone; check.yml never runs it', async () => {
@@ -2452,7 +2484,7 @@ export function morningProblems(text) {
   if (!/^permissions: \{\}$/m.test(text)) out.push('the top level must grant nothing (permissions: {})');
   if (/secrets\./.test(text)) out.push('no secret beyond the job\'s own token');
   const jobs = Object.fromEntries(jobsOf(text).map(j => [j.id, j.text]));
-  if (Object.keys(jobs).join(',') !== 'decide,finalize,send') out.push(`jobs are decide, finalize, send (got ${Object.keys(jobs).join(', ')})`);
+  if (Object.keys(jobs).join(',') !== 'decide,finalize,send,card') out.push(`jobs are decide, finalize, send, card (got ${Object.keys(jobs).join(', ')})`);
   const perms = job => /\n {4}permissions:\n((?: {6}[a-z-]+: (?:read|write)\n)+)/.exec(jobs[job] ?? '')?.[1].trim().split('\n').map(l => l.trim()).sort() ?? [];
   for (const [id, body] of Object.entries(jobs)) {
     if (!/\n {4}timeout-minutes: \d+\n/.test(body)) out.push(`${id}: no timeout`);
@@ -2462,6 +2494,10 @@ export function morningProblems(text) {
   if (JSON.stringify(perms('decide')) !== JSON.stringify(['contents: read', 'issues: read'])) out.push('decide reads contents and issues, and writes nothing');
   if (JSON.stringify(perms('finalize')) !== JSON.stringify(['contents: write', 'pull-requests: write'])) out.push('finalize writes contents and one PR, nothing else');
   if (JSON.stringify(perms('send')) !== JSON.stringify(['contents: read', 'issues: write'])) out.push('send reads contents and writes issues, nothing else');
+  // Phase 78: the card job reads (contents, and the artifacts its canvas journal lives in); it writes only the canvas.
+  if (JSON.stringify(perms('card')) !== JSON.stringify(['actions: read', 'contents: read'])) out.push('card reads contents and actions, and writes nothing on GitHub');
+  if (!(jobs.card ?? '').includes("    needs: decide\n    if: needs.decide.outputs.plan == 'found' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == github.event.repository.default_branch)\n")) out.push('card: runs only for a night with a plan, from a default-branch pass');
+  if (!/keel morning --card --yes --date "\$DAY" --json/.test(jobs.card ?? '')) out.push('card: publishes tonight\'s plan card with keel morning --card');
   const over = "needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'";
   if (!(jobs.send ?? '').includes(`    needs: decide\n    if: ${over}`)) out.push('send: runs only when decide says the night is over and unsent');
   // Finalize runs on every run after the night is over, sent or not: a finalization that failed
@@ -2470,11 +2506,118 @@ export function morningProblems(text) {
   if (!(jobs.finalize ?? '').includes("    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n")) out.push('finalize: runs whenever the night is over, never gated on the brief being unsent');
   if (!/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n\s+echo "Nothing changed[^\n]*\n\s+exit 0/.test(jobs.finalize ?? '')) out.push('finalize: a run with nothing new changes nothing (git status --porcelain)');
   if (!(jobs.send ?? '').includes("&& needs.decide.outputs.assignee == 'set'")) out.push('send: runs only with an assignee');
-  if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n?$/.test(jobs.send ?? '')) out.push('send: the send is its step\'s whole command, so its failure fails the run');
+  if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n(?:\n| *#[^\n]*\n)*$/.test(`${jobs.send ?? ''}\n`)) out.push('send: the send is its step\'s whole command, so its failure fails the run');
   if (!/node scripts\/keel\/morning\.mjs decide --github-output "\$GITHUB_OUTPUT"/.test(jobs.decide ?? '')) out.push('decide: runs morning.mjs decide into the job\'s outputs');
   if (!/node scripts\/keel\/morning\.mjs finalize --date "\$DAY"/.test(jobs.finalize ?? '')) out.push('finalize: runs morning.mjs finalize');
   return out;
 }
+
+/**
+ * Run keel-morning's card job's gate and publish steps, as the workflow has
+ * them, in a synthetic Acme repo: keel and isocan are stubs that log their
+ * calls; gh answers the recovery's reads (no earlier canvas writer, so the
+ * owner's provisioned manifest is the bootstrap). Returns { gate, status, out, calls, outputs }.
+ */
+async function cardStep(t, morning, { canvas, creds = true, pins = true, day = '2026-10-15' } = {}) {
+  const blocks = runBlocks(morning);
+  const gate = blocks.find(b => b.step === 'Is the card set up?'), publish = blocks.find(b => b.step === 'Publish the plan card');
+  assert.ok(gate && publish, 'the card job has its gate and its publish step');
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-card-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme'), bin = join(base, 'bin'), temp = join(base, 'tmp'), log = join(base, 'calls.jsonl'), home = join(base, 'isocan-home');
+  for (const d of [join(dir, '.keel/canvas'), join(dir, 'scripts/keel'), bin, temp, home]) await mkdir(d, { recursive: true });
+  for (const f of ['canvas-recovery.mjs', 'lib.mjs']) await cp(join(KEEL, 'practices/night/files/scripts/keel', f), join(dir, 'scripts/keel', f));
+  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', canvas }));
+  await writeFile(join(dir, '.keel/canvas/manifest.json'), '{}');
+  for (const tool of ['keel', 'isocan']) await writeFile(join(bin, tool), `#!${process.execPath}\nconst a = process.argv.slice(2); require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify([${JSON.stringify(tool)}, ...a]) + '\\n'); if (a[0] === '--version') console.log('acme-pinned');\n`, { mode: 0o755 });
+  await writeFile(join(bin, 'gh'), `#!${process.execPath}\nconst a = process.argv.slice(2); require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(['gh', ...a]) + '\\n'); console.log(JSON.stringify(a[1].includes('/workflows/') ? { workflow_runs: [] } : {}));\n`, { mode: 0o755 });
+  const out = join(temp, 'out');
+  await writeFile(out, '');
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, RUNNER_TEMP: temp, DAY: day, REPO: 'Acme/app', BASE: 'main', GITHUB_REPOSITORY: 'Acme/app', GITHUB_REF_NAME: 'main', GITHUB_EVENT_NAME: 'workflow_run', GITHUB_RUN_ID: '300', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: 'b'.repeat(40),
+    ...(pins ? { KEEL_CANVAS_KEEL_VERSION: 'acme-pinned', KEEL_CANVAS_ISOCAN_VERSION: 'acme-pinned' } : {}), KEEL_CANVAS_ISOCAN_HOME: creds ? home : '' };
+  const g = run('bash', ['-e', '-c', gate.script], { cwd: dir, env });
+  const enabled = /^enabled=true$/m.test(await readFile(out, 'utf8'));
+  const p = enabled ? run('bash', ['-e', '-c', publish.script], { cwd: dir, env }) : null;
+  const calls = (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  return { gate: g, enabled, status: p?.status ?? null, out: g.stdout + g.stderr + (p ? p.stdout + p.stderr : ''), calls, neverRan: await readFile(join(temp, 'keel-canvas-card/never-ran.json'), 'utf8').then(JSON.parse, () => null) };
+}
+
+// Phase 78: the card ticks.
+test('keel-morning republishes the plan card after each pass when the canvas is set for nightly publishing, with keel canvas night\'s own provisioning; otherwise a notice and nothing else', async t => {
+  const morning = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-morning.yml'), 'utf8');
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  // Exactly keel canvas night's guards: the same tool, pin and isocan home checks, the same recovery script.
+  const guards = runBlocks(night).find(b => b.step === 'Project the night onto its canvas').script;
+  const preflight = guards.slice(guards.indexOf('for tool in keel isocan; do'), guards.indexOf('# Restore the latest canvas-enabled attempt'));
+  assert.ok(preflight.length > 200, 'the night\'s preflight was found');
+  const card = runBlocks(morning).find(b => b.step === 'Publish the plan card').script;
+  assert.ok(card.includes(preflight), 'the card\'s preflight is the night\'s, line for line');
+  for (const line of ['export KEEL_CANVAS_PERSISTENCE=artifact-v1', 'export KEEL_ISOCAN="$(command -v isocan)"', 'export ISOCAN_HOME="$KEEL_CANVAS_ISOCAN_HOME"']) assert.ok(card.includes(line) && guards.includes(line), line);
+  assert.match(card, /node scripts\/keel\/canvas-recovery\.mjs --workflow keel-morning\.yml/);
+  assert.match(guards, /node scripts\/keel\/canvas-recovery\.mjs --workflow keel-night\.yml/);
+  // The journal travels as the night's does: kept, red or green, for 90 days, under the name the recovery reads.
+  assert.match(morning, /- name: Keep the canvas journal\n {8}if: always\(\) && steps\.canvas\.outputs\.enabled == 'true'\n {8}uses: actions\/upload-artifact@v\d+\n {8}with:\n {10}name: keel-canvas-card-\$\{\{ github\.run_attempt \}\}\n {10}path: \$\{\{ runner\.temp \}\}\/keel-canvas-card\/\n/);
+  // The secret the night's Install step may hold reaches only the card job's Install step too.
+  assert.deepEqual(setupTokenProblems(morning), [], 'setupToken only in Install');
+
+  const live = { provider: 'isocan', enabled: true, cadence: 'nightly', mode: 'live', liveKeys: ['pulse', 'night-plan'] };
+  // Set up: the pinned keel publishes tonight's card, once, with --yes.
+  const on = await cardStep(t, morning, { canvas: live });
+  assert.equal(on.status, 0, on.out);
+  // The stubs' own log (no keel runs here): the pins read, then one card publication.
+  assert.deepEqual(on.calls.filter(c => c[0] !== 'gh').map(c => c.join(' ')), ['keel --version', 'isocan --version', 'keel morning --card --yes --date 2026-10-15 --json']);
+  assert.ok(on.calls.some(c => c[0] === 'gh' && /actions\/workflows\/keel-night\.yml\/runs/.test(c[2])) && on.calls.some(c => c[0] === 'gh' && /actions\/workflows\/keel-morning\.yml\/runs/.test(c[2])), 'the journal is the newest of the night\'s and the card\'s');
+  // Not set up: a notice, nothing installed, nothing called.
+  for (const [canvas, why] of [[undefined, /not set for nightly publishing/], [{ ...live, cadence: 'manual' }, /not set for nightly publishing/], [{ ...live, mode: 'immutable' }, /does not list night-plan live/], [{ ...live, liveKeys: ['pulse'] }, /does not list night-plan live/]]) {
+    const off = await cardStep(t, morning, { canvas });
+    assert.equal(off.gate.status, 0, off.out);
+    assert.equal(off.enabled, false);
+    assert.match(off.out, /::notice::The plan card is not republished: /);
+    assert.match(off.out, why);
+    assert.deepEqual(off.calls, [], 'nothing else is done');
+  }
+  // Provisioning missing: red, a never-ran receipt, and the canvas never touched.
+  for (const options of [{ creds: false }, { pins: false }, { day: '' }]) {
+    const bad = await cardStep(t, morning, { canvas: live, ...options });
+    assert.notEqual(bad.status, 0, JSON.stringify(options));
+    assert.match(bad.out, /::error::/);
+    assert.ok(!bad.calls.some(c => c[1] === 'morning'), 'no card without its provisioning');
+    assert.equal(bad.neverRan?.provenance.workflow, '.github/workflows/keel-morning.yml');
+  }
+  // Mutation: a card that skips the isocan home check publishes with no admitted identity.
+  const loose = morning.replace(/ {10}if \[ -z "\$\{KEEL_CANVAS_ISOCAN_HOME:-\}" \][^\n]*\n[^\n]*\n {10}fi\n/, '');
+  assert.notEqual(loose, morning);
+  assert.ok((await cardStep(t, loose, { canvas: live, creds: false })).calls.some(c => c[1] === 'morning'), 'the guard above is what stops it');
+});
+
+/**
+ * Every `needs.<job>.outputs.<name>` a workflow reads is one that job
+ * exports (its `outputs:` block). GitHub reads an unexported output as an
+ * empty string, so a job gated on it silently never runs (review of #151:
+ * the card job read needs.decide.outputs.plan, which decide did not export).
+ */
+export function neededOutputProblems(text) {
+  const out = [];
+  const jobs = Object.fromEntries(jobsOf(text).map(j => [j.id, j.text]));
+  const exported = id => new Set([...((/\n {4}outputs:\n((?: {6}(?:[\w-]+: |#).*\n)+)/.exec(jobs[id] ?? '')?.[1] ?? '').matchAll(/^ {6}([\w-]+):/gm))].map(m => m[1]));
+  for (const [, job, name] of text.matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)) {
+    if (!jobs[job]) out.push(`needs.${job}.outputs.${name}: no job ${job}`);
+    else if (!exported(job).has(name)) out.push(`needs.${job}.outputs.${name}: ${job} does not export ${name}`);
+  }
+  return [...new Set(out)];
+}
+
+test('every needs.<job>.outputs.<name> a shipped workflow reads is exported by that job (#151)', async () => {
+  const all = await shipped(), rendered = await renderedWorkflows(all);
+  for (const w of all) {
+    assert.deepEqual(neededOutputProblems(w.template), [], w.name);
+    if (rendered.has(w.path)) assert.deepEqual(neededOutputProblems(rendered.get(w.path)), [], `${w.name}, keel's rendered copy`);
+  }
+  const morning = all.find(w => w.name === 'keel-morning.yml').template;
+  const dropped = morning.replace('      plan: ${{ steps.decide.outputs.plan }}\n', '');
+  assert.notEqual(dropped, morning, 'the mutation applies');
+  assert.deepEqual(neededOutputProblems(dropped), ['needs.decide.outputs.plan: decide does not export plan']);
+});
 
 test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, decides read-only, and only its send job writes issues; a failed send is red', async () => {
   const all = await shipped(), rendered = await renderedWorkflows(all);
@@ -2508,6 +2651,9 @@ test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, 
     ['finalize with no no-change check', t.replace(/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n(\s+)echo "Nothing changed[^\n]*\n\s+exit 0\n/, ''), /finalize: a run with nothing new changes nothing/],
     ['a secret', t.replace('GH_TOKEN: ${{ github.token }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps', 'GH_TOKEN: ${{ secrets.MAIL_TOKEN }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps'), /no secret/],
     ['no timeout', t.replace(/(  send:\n(?:.*\n)*?) {4}timeout-minutes: \d+\n/, '$1'), /send: no timeout/],
+    ['the card writes issues', t.replace('      contents: read\n      actions: read\n', '      contents: read\n      actions: read\n      issues: write\n'), /card: only the send job may write issues/],
+    ['the card writes contents', t.replace('      contents: read\n      actions: read\n', '      contents: write\n      actions: read\n'), /card reads contents and actions/],
+    ['the card for a night with no plan', t.replace("    if: needs.decide.outputs.plan == 'found' && ", '    if: '), /card: runs only for a night with a plan/],
   ]) {
     assert.notEqual(changed, t, `${why}: the mutation must apply`);
     const found = morningProblems(changed);

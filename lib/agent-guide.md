@@ -1056,9 +1056,10 @@ it under "Tonight's plan". The design is
   budget), the robot's next admissible `keel:agent` issue (oldest whose rubric
   parses, no owner blocker or prerequisite; it names no number, so triage) and
   Loop's untriaged findings (triage, at most five) and, with the `personas`
-  practice, `persona run --all`'s missed goals (build, with the goal's
-  `persona:<name>:<goal>` number; a broken goal is review; ids
-  `persona-<name>--<goal>`; no personas is no items). Deterministic, no model:
+  practice, `persona run --all`'s missed goals (with the goal's
+  `persona:<name>:<goal>` number: a build for the enabled climb job that
+  measures it, else triage saying why, since a persona never builds; a broken
+  goal is review; ids `persona-<name>--<goal>`; no personas is no items). Deterministic, no model:
   the same inputs make the same bytes. `--date` defaults to the night it is
   for: the UTC date of the next 07:23 UTC run (before 07:23 UTC, today's).
   `--json` → `{ok, path, from: "default", plan}`. An input it cannot read (gh,
@@ -1086,9 +1087,13 @@ it under "Tonight's plan". The design is
   not apply, is quiet), tonight's plan (the draft
   `.keel/night/draft.json`, else keel's default plan with personas read from
   their newest review pages, never run), and up to three things to try
-  (personas' missed goals the plan did not admit, accepted Loop findings
-  whose note names a health measure in backticks, the health proposal as a
-  build for the climb job that measures it). `--json` → `{ok, night, since,
+  (personas' missed goals the plan did not admit, accepted Loop findings,
+  the health proposal as a build for the climb job that measures it). An
+  accepted Loop finding that names a health measure in backticks, with the
+  robot on and a robot rubric drafted from it (its problem, the number and
+  bound as acceptance, its cited files as the one change, no prerequisites)
+  that the robot's own check accepts, is a build in the draft's lane
+  `robot:pending`; otherwise it is triage in lane `loop`, its note saying why. `--json` → `{ok, night, since,
   settled: {prs, phases, findings}, leftOpen: {prs, reviews, yours, gaps},
   plan, from: draft|default, staleDraft, suggestions}`.
 - `keel goodnight add <suggestion-id>` | `add --title "<words>" [--kind k]
@@ -1109,9 +1114,14 @@ it under "Tonight's plan". The design is
   `.keel/night/plan.json` with `shapedBy: "owner"`, and force-pushes one
   parentless commit holding only that file to `refs/heads/keel-night-plan`
   (built with hash-object, mktree and commit-tree: the working tree, index
-  and other branches are untouched). Exit 2 and nothing written with no
-  remote or a refused plan; exit 1 when written but not pushed. `--json` →
-  `{ok, night, path, pushed: {remote, branch, commit}, plan}`.
+  and other branches are untouched). Before writing, each `robot:pending`
+  item's finding is read and its rubric drafted again, and its issue is made
+  through `keel issue new`'s durable path (ensureRobotIssue: a second `--yes`
+  recovers the same issue, never a second); the item's lane becomes
+  `robot:#<n>`. Exit 2 and nothing written with no remote, a refused plan or
+  a finding no longer accepted; exit 1 when an issue is not verified (nothing
+  written) or when written but not pushed. `--json` → `{ok, night, path,
+  pushed: {remote, branch, commit}, issues: [{id, number, url, state}], plan}`.
 
 The plan: `{schema: 1, date, shapedBy: default|owner, readyBy: null|<time with
 zone>, willNotTouch, settledToday, leftOpen, items}`; each item `{id, title,
@@ -1119,17 +1129,24 @@ kind: measure|build|triage|review, source: default|owner|persona:<name>|loop:<sl
 number: null|{measure, bound, better}, lane: climb:<job>|robot:#<n>|loop|persona:<name>|night,
 budget: null|{minutes}, status, result: null|{note, link}}`. Any other field is
 refused by name; a build item with no `number` is refused (the default plan
-makes it triage instead), and so is one in lane `night` (the night only measures); at most five build items, counted with the robot's
+makes it triage instead), and so is one in a lane no pass builds: `night`
+(the night only measures), `loop` and `persona:<name>` (phase 78; the default
+plan hands a persona build to the climb job that measures its number, or
+makes it triage); `robot:pending` is a draft's alone; at most five build items, counted with the robot's
 open `keel/robot-<n>` PRs (one whose issue a build item names in its lane is
 that item).
 
 In a project, `node scripts/keel/night-plan.mjs` is the same module
-(`plan`, `tick`, `check`, and `tonight`, the night's step). `keel-night.yml`
-reads the plan branch `keel-night-plan` (never pushes it): a valid plan dated
-for the run's UTC date is used; none, another night's or a refused one means
-the default plan, and the step says which and why. improve `--report` ticks the
-measure items and writes the record. Until phase 76, climb and the robot still
-choose their own work.
+(`plan`, `tick`, `check`, `record`, `publish`, and `tonight`, the night's
+step). `keel-night.yml` reads the plan branch `keel-night-plan` in its plan
+step: a valid plan dated for the run's UTC date is used; none, another night's
+or a refused one means the default plan, and the step says which and why.
+improve `--report` ticks the measure items and writes the record. A default
+night then writes its plan to the branch from its PR step (`publish --date d`,
+phase 78), so the passes tick it: only when the branch holds no plan for
+tonight or a later night (an earlier night's stays as the parent commit; one
+it cannot read is left alone), with a lease; a failed write is red at the
+verdict.
 
 **The morning** (phase 77). `keel morning [--date <YYYY-MM-DD>]` renders the
 brief for the night that last started (or `--date`), from its plan as it
@@ -1149,6 +1166,9 @@ links, markdown, plan}`. No plan for the night is exit 2.
   `night-plan` through `keel canvas sync`'s conditional edit; refused (exit 2)
   unless the binding is live and lists it (`keel canvas live --card pulse
   --card night-plan --yes`). A person's edit stops it, as for every live card.
+  With `KEEL_CANVAS_PERSISTENCE=artifact-v1` (CI) it restores the canvas
+  journal from `KEEL_CANVAS_RECOVERY` first and saves
+  `$KEEL_CANVAS_OUTPUT/recovery.json` after, as `keel canvas night` does.
 
 The night is over when every build item is terminal (done, failed, skipped,
 left alone), or at `readyBy` (default 17:00 UTC on the night's date).
@@ -1158,7 +1178,14 @@ when keel-night, keel-climb or keel-robot finish and daily at 17:07 UTC (a
 over, it sends the brief once (the one job with `issues: write`; a failed send
 is red) and, on every run, sent or not, keeps one data-only PR,
 `keel-night/<date>-final`, with the final `docs/night/<date>.json` and the
-health page's "Tonight's plan" (nothing new, nothing changed).
+health page's "Tonight's plan" (nothing new, nothing changed). Its `card` job
+(phase 78) republishes the card after every pass when the canvas is set for
+nightly publishing and lists `night-plan` live, else a notice and nothing
+more: `keel canvas night`'s provisioning exactly (setup's pinned keel and
+isocan, `KEEL_CANVAS_ISOCAN_HOME`, the same preflight), `contents: read` and
+`actions: read` only, and one journal with the night
+(`scripts/keel/canvas-recovery.mjs` restores the newest of either's
+attempts; exit 3 when another writer runs, and the card waits a pass).
 
 <!-- topic: loop | Stitch Loop's findings: a project script, not a keel verb; an agent proposes, a person decides -->
 

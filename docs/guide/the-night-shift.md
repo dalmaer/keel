@@ -185,15 +185,19 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   night's measure item, the newest earlier health page's proposal (to
   review), the climb job `climb.mjs pick` would choose, the robot's next
   admissible `keel:agent` issue and Loop's untriaged findings (to triage),
-  and, with the personas practice, each persona's missed goals (to build,
-  with the goal as the number; the night runs `persona run --all` first).
+  and, with the personas practice, each persona's missed goals (with the
+  goal as the number: a build for the climb job that measures it, else
+  triage, because a persona never builds; the night runs `persona run --all`
+  first).
   No model, no person; the same inputs make the same plan. An input it cannot
   read (gh, a health page, a Loop finding) is exit 2, naming it, and nothing
   is written.
 - **Its rules.** A build item names its number first (a measure the night
   already takes, its bound and which way is better); one that does not is
   triage. A build names the pass that builds it: never lane `night`, which only
-  measures. At most five build items a night, counted with the robot's open
+  measures, and never `loop` or `persona:<name>`, which no pass builds (an
+  accepted Loop finding is built by the robot, below; a persona's goal by the
+  climb job that measures it). At most five build items a night, counted with the robot's open
   PRs; the rest wait. Any field the design does not name is refused by name.
 - **Tonight** is the UTC date the night runs on. The night runs at 07:23 UTC,
   so a plan made before 07:23 UTC is for that morning's night and one made
@@ -202,12 +206,17 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
 - **Where it travels.** The night reads the branch `keel-night-plan` (one
   file, `.keel/night/plan.json`): a valid plan dated for tonight is used;
   none, another night's, or a refused one means the default plan, and the
-  step's log says which and why. The night never pushes that branch; the
-  owner does, with `keel goodnight --yes` (below).
+  step's log says which and why. The owner shapes it with `keel goodnight
+  --yes` (below). A night that ran the default plan writes it there too, from
+  the PR step that already writes (phase 78), so climb and the robot tick a
+  default night as they tick yours: only when the branch holds no plan for
+  tonight or a later night (never yours; an earlier night's stays in the
+  branch's history; one it cannot read is left alone), with a lease, so a
+  `/goodnight` that lands at the same moment wins. A failed write is red.
 - **Ticking.** Each pass ticks its own item. The night ticks its measure
-  item; `keel night tick` refuses an id the plan does not hold and a move back
-  from `done`. Until phase 76, climb and the robot still choose their own work,
-  so their items stay `planned` unless something ticks them.
+  item; climb and the robot tick theirs on the plan branch as they publish;
+  `keel night tick` refuses an id the plan does not hold and a move back
+  from `done`.
 - **The record.** The night's PR commits the plan as it ended,
   `docs/night/<date>.json`, which the drain treats as data; the health page's
   "Tonight's plan" section shows each item, its number and its outcome.
@@ -234,9 +243,14 @@ keel goodnight --yes                             # "that's the plan": write it a
   status moved, Loop findings decided), what was left open (open PRs, and
   from the board the unanswered reviews and your items), tonight's plan (your
   draft, else keel's default plan), and up to three things to try: a
-  persona's missed goal the plan had no room for, an accepted Loop finding
-  whose note names a measure in backticks, and the health page's proposal as
-  a build for the climb job that measures it. "Today" is since the last plan
+  persona's missed goal the plan had no room for, an accepted Loop finding,
+  and the health page's proposal as a build for the climb job that measures
+  it. A Loop finding whose note names a measure in backticks is the robot's
+  to build when the robot is on and the rubric drafted from it (the finding's
+  problem, the number and its bound as acceptance, the files it cites as the
+  one change, no prerequisites) passes the robot's own rubric check; then
+  it sits in your draft as `robot:pending`. Otherwise it is a triage item,
+  and its note says why (no number, the robot off, or what the check refused). "Today" is since the last plan
   pushed (as this checkout last fetched it), or the last 24 hours. A source it
   cannot read, or read only in part, is a "not read" line, never an empty or
   partial list shown as whole, and the plan keeps it: any board source your
@@ -260,6 +274,13 @@ keel goodnight --yes                             # "that's the plan": write it a
   every other branch (main above all) are untouched. That push is the only
   summons. The branch is never merged. Exit 1 if the plan was written but the
   push failed: the night then runs the default plan.
+- **A Loop finding's issue** is made only here: for each `robot:pending`
+  item, `--yes` reads the finding again, drafts its rubric again, and opens
+  its `keel:agent` issue the way `keel issue new --agent --yes` does (a
+  durable intent first, so a second `--yes` finds the same issue, never a
+  second). The item's lane becomes `robot:#<n>` and the robot builds it
+  tonight. A finding no longer accepted stops `--yes` before anything is
+  written; an issue not confirmed is exit 1, and `--yes` again recovers it.
 
 ### The morning
 
@@ -304,6 +325,17 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   --yes` publishes the plan as one card, edited in place each time an item
   ticks. If you edit the card yourself, keel stops updating it until you
   re-base it (`keel canvas rebase --card night-plan`).
+- **The card ticks on its own** (phase 78). `keel-morning.yml`'s card job
+  republishes it after every pass when the canvas is set for nightly
+  publishing (`canvas.enabled` and `cadence: "nightly"`, what `keel canvas
+  night` needs) and lists `night-plan` live; otherwise its log says so and it
+  does nothing. It uses what the night's canvas step uses and nothing more:
+  your setup's pinned `keel` and `isocan`, the dedicated isocan home
+  (`KEEL_CANVAS_ISOCAN_HOME`), the same checks before anything is touched,
+  and the job's own token, which only reads. The night and the card keep one
+  canvas journal between runs (each restores the newest of the other's and
+  its own), so a card edit is never mistaken for yours. While a night is
+  still publishing, the card waits for the next pass.
 
 ## What you'll see
 
@@ -614,7 +646,9 @@ can change its goal can pass by lowering the bar. It exits 0 when every goal
 is met, 1 when one is missed, 2 when one is broken.
 
 Personas measure; they never build. Each missed goal becomes a candidate item
-for the night's plan, a `build` item naming its number
-(`persona:<name>:<goal>`), and each broken one a `review` item; which pass
-builds is the plan's choice. A goal is only as good as its command: keel
+for the night's plan, naming its number (`persona:<name>:<goal>`): a `build`
+for the enabled climb job that measures that number, and with none (climb's
+jobs measure keel's own numbers, so usually none) a `triage` item saying so,
+because a build no pass takes would sit in the plan all night. Each broken
+goal is a `review` item. A goal is only as good as its command: keel
 checks that it prints one number, not that the number is the right one.

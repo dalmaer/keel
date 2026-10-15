@@ -13,6 +13,7 @@
     { "path": "scripts/keel/drain.mjs", "from": "scripts/keel/drain.mjs", "kind": "managed" },
     { "path": "scripts/keel/night-plan.mjs", "from": "scripts/keel/night-plan.mjs", "kind": "managed" },
     { "path": "scripts/keel/morning.mjs", "from": "scripts/keel/morning.mjs", "kind": "managed" },
+    { "path": "scripts/keel/canvas-recovery.mjs", "from": "scripts/keel/canvas-recovery.mjs", "kind": "managed" },
     { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" },
     { "path": "scripts/keel/milestones.mjs", "from": "scripts/keel/milestones.mjs", "kind": "managed" },
     { "path": "scripts/keel/quota.mjs", "from": "scripts/keel/quota.mjs", "kind": "managed" },

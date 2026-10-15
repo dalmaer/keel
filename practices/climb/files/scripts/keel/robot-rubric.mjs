@@ -53,3 +53,18 @@ export function parseRobotRubric(body) {
     return checked;
   } catch { return fail('rubric data is malformed'); }
 }
+/**
+ * The robot's rubric check on an issue body, as its admission reads it: null
+ * when the robot would take the issue, else why not. One section that parses
+ * and round-trips; no owner blocker; no prerequisite (fail-closed until
+ * verified: prose is not evidence). robot.mjs admits through this, and keel
+ * goodnight checks a drafted rubric with it before an item may be a build
+ * (keel phase 78), so a draft the robot would refuse is never planned.
+ */
+export function robotRubricRefusal(body) {
+  const parsed = parseRobotRubric(body);
+  if (!parsed.ok) return `rubric: ${parsed.problems.map(p => p.message).join('; ')}`;
+  if (parsed.rubric.ownerBlockers.length) return 'owner-only blockers remain';
+  if (parsed.rubric.prerequisites.length) return 'prerequisite verification unavailable; resolve prerequisites before labelling';
+  return null;
+}

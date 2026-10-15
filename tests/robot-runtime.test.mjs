@@ -1153,3 +1153,25 @@ test('with a plan, the robot judge refuses a change to a willNotTouch path',asyn
  // Without the plan the same change goes on to the gate (here one that fails), so the refusal above is the plan's.
  assert.deepEqual((await judgeRobot({root,config:{check:'exit 1'},baseSha,headSha,repo,issueNumber:1})).problems,[`full gate failed on ${baseSha}`]);
 });
+
+// Phase 78: an accepted Loop finding's issue is built by the robot under a rubric drafted from the finding.
+test('robot admits the issue keel goodnight drafts from an accepted Loop finding, and triages one whose rubric it refuses',async t=>{
+ const { loopRubric, loopDraft } = await import('../lib/goodnight.mjs');
+ const { previewRobotIssue } = await import('../lib/robot-issue.mjs');
+ const { robotPolicy } = await import('../practices/climb/files/scripts/keel/robot-policy.mjs');
+ const root=await project(t);
+ const finding={slug:'lighter-anvils',title:'Lighter anvils',note:'Brings `slow_tests` back within its bound.',body:"> **Loop says** (P2/S1): The anvil tests wait on a sleep.\n\n- `lib/anvil.mjs`"};
+ const number={measure:'slow_tests',bound:0,better:'lower'};
+ const body=previewRobotIssue({repo,rubric:loopRubric(finding,number),policy:robotPolicy(config),subjectKey:'loop:lighter-anvils',instanceId:'acme-loop-lighter',title:'Loop: Lighter anvils'}).body;
+ const a=api({body});
+ const ready=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ assert.equal(ready.state,'ready',ready.reason);
+ assert.deepEqual(ready.rubric,loopRubric(finding,number),'the robot works the rubric drafted from the finding');
+ assert.equal(a.writes.length,0);
+ // A finding that cites no file: goodnight keeps it triage; an issue made from it by hand with a prerequisite is triaged by the robot.
+ const bare={...finding,body:''};
+ assert.match(loopDraft({finding:bare,rows:[{id:'slow_tests',bound:0,better:'lower'}],robotOn:true}).why,/change needs nonblank text/);
+ const handMade=formatRobotRubric({...loopRubric(bare,number),change:'see the finding',prerequisites:['the finding cites a file']});
+ const blocked=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:api({body:handMade}).github});
+ assert.deepEqual([blocked.state,blocked.triage,blocked.reason],['blocked',true,'prerequisite verification unavailable; resolve prerequisites before labelling']);
+});

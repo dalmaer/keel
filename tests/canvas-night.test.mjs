@@ -93,6 +93,9 @@ async function workflow(t, { enabled = true, creds = true, missing = false, mism
   const root = await fixture(t, { ...binding, enabled, cadence: 'nightly' });
   if (local) { await mkdir(join(root, '.keel/canvas')); await writeFile(join(root, '.keel/canvas/manifest.json'), JSON.stringify(initialManifest())); }
   const bin = join(root, 'bin'); await mkdir(bin);
+  // The step's recovery is the night practice's managed script, as a project has it.
+  await mkdir(join(root, 'scripts/keel'), { recursive: true });
+  for (const f of ['canvas-recovery.mjs', 'lib.mjs']) await writeFile(join(root, 'scripts/keel', f), await readFile(resolve('practices/night/files/scripts/keel', f), 'utf8'));
   const log = join(root, 'calls.jsonl');
   for (const tool of ['keel', 'isocan']) {
     if (missing && tool === 'isocan') continue;
@@ -292,6 +295,56 @@ test('a failed rerun of an old night falls back in time order: a night that ran 
   assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['150', 'keel-canvas-night-2'], ['180', 'keel-canvas-night-1']]);
 });
+// Phase 78: keel-morning's plan card writes the same canvas, so the night and the card keep one journal.
+const cardRun = (extra = {}) => trustedRun({ path: '.github/workflows/keel-morning.yml', event: 'workflow_run', ...extra });
+const cardArtifact = r => ({ ...artifactFor(r), name: `keel-canvas-card-${r.run_attempt}` });
+test('the night restores the newest canvas writer, the plan card\'s attempt when it ran last; a keel-morning run that never reached its card is skipped', async t => {
+  const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
+  const card = cardRun({ id: 160, run_started_at: '2026-10-08T10:40:00Z' });
+  const out = await workflow(t, { runs: [card, night], artifacts: [cardArtifact(card), artifactFor(night)], bundle: { provenance: provenanceFor(card) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'the card\'s journal, newer than the night\'s (mutation: list only keel-night.yml and this restores 100)');
+  assert.ok(out.ghCalls.some(a => /actions\/workflows\/keel-morning\.yml\/runs/.test(a[1] ?? '')));
+  // A keel-morning run with no card artifact (its card job never ran: canvas not set for the card, or no plan) never touched the canvas.
+  const skipped = await workflow(t, { runs: [card, night], artifacts: [artifactFor(night)], bundle: { provenance: provenanceFor(night) } });
+  assert.equal(skipped.status, 0, skipped.stderr);
+  assert.deepEqual(skipped.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['100']);
+  // Its provenance must still name the attempt it came from.
+  const forged = await workflow(t, { runs: [card, night], artifacts: [cardArtifact(card), artifactFor(night)], bundle: { provenance: provenanceFor(night) } });
+  assert.notEqual(forged.status, 0);
+  assert.ok(!forged.calls.some(a => a[1] === 'canvas'));
+  // A night whose canvas artifact is missing is still refused: only keel-morning may have skipped its card.
+  const missing = await workflow(t, { runs: [card, night], artifacts: [], bundle: { provenance: provenanceFor(night) } });
+  assert.notEqual(missing.status, 0);
+});
+
+// Review of #151: attempt 1 published the card, its send failed, the owner reran the failed jobs, and
+// attempt 2 (its card job not rerun) left no card artifact. Skipping the whole run lost attempt 1's journal.
+test('a keel-morning rerun with no card artifact falls back to its own earlier attempt, never to an older night (#151)', async t => {
+  const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
+  const first = cardRun({ id: 160, run_attempt: 1, run_started_at: '2026-10-08T10:40:00Z', conclusion: 'failure' });
+  const rerun = cardRun({ id: 160, run_attempt: 2, run_started_at: '2026-10-08T11:05:00Z' });
+  const out = await workflow(t, { runs: [rerun, night], priorAttempt: first, artifacts: [cardArtifact(first), artifactFor(night)], bundle: { provenance: provenanceFor(first) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(out.ghCalls.some(a => a[1]?.endsWith('/runs/160/attempts/1')), 'the earlier attempt is read');
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'attempt 1\'s journal, not the older night\'s');
+});
+
+test('the card waits (exit 3, the canvas untouched) while another canvas writer runs; the night still refuses to race', async t => {
+  const running = trustedRun({ id: 150, status: 'in_progress', conclusion: null });
+  const setup = await workflow(t, { runs: [running] });
+  assert.notEqual(setup.status, 0, 'the night refuses an unfinished canvas writer, as before');
+  const script = join(setup.root, 'scripts/keel/canvas-recovery.mjs');
+  const env = { ...process.env, PATH: join(setup.root, 'bin'), RUNNER_TEMP: setup.root, REPO: 'Acme/app', BASE: 'main', GITHUB_REF_NAME: 'main', GITHUB_RUN_ID: '200', GITHUB_RUN_ATTEMPT: '1' };
+  const card = run(join(setup.root, 'bin/node'), [script, '--workflow', 'keel-morning.yml'], { cwd: setup.root, env: { ...env, GITHUB_EVENT_NAME: 'workflow_run' } });
+  assert.equal(card.status, 3, card.stderr);
+  assert.match(card.stderr, /Another canvas writer \(keel-night\.yml run 150\) is still running; the plan card waits for the next pass/);
+  // The card is a default-branch pass only, as the night is.
+  const pr = run(join(setup.root, 'bin/node'), [script, '--workflow', 'keel-morning.yml'], { cwd: setup.root, env: { ...env, GITHUB_EVENT_NAME: 'pull_request' } });
+  assert.equal(pr.status, 1);
+  assert.match(pr.stderr, /requires a default-branch night/);
+});
+
 async function recoveryFixture(t, { seed = true, manifest = initialManifest() } = {}) {
   const root = await realpath(await fixture(t, { ...binding, enabled: true, cadence: 'nightly' }));
   const output = await realpath(await mkdtemp(join(tmpdir(), 'acme-night-state-')));

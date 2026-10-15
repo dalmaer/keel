@@ -49,8 +49,8 @@
 //   - writes docs/reviews/<date>-<persona>.md and nothing else.
 //
 // `planCandidates` turns a run's missed goals into candidate plan items for
-// the night's default plan (keel phase 73's plan shape), and a broken goal
-// into a review item. `personaMeasures` gives each goal as a measure the
+// the night's default plan (keel phase 73's plan shape): a build for the climb
+// job that measures it, else triage (phase 78); a broken goal is a review item. `personaMeasures` gives each goal as a measure the
 // night's improve.mjs `measure()` can take (`persona:<name>:<goal>`).
 import { spawnSync } from 'node:child_process';
 import { constants, existsSync } from 'node:fs';
@@ -222,7 +222,8 @@ function resultOf(persona, goal, reading) {
  *
  *   missed → { id, title, kind: 'build', source: 'persona:<name>',
  *              number: { measure: 'persona:<name>:<goal>', bound, better },
- *              lane: 'persona:<name>', status: 'planned' }
+ *              lane: 'climb:<job>', status: 'planned' }   a climb job here measures it
+ *            { …, kind: 'triage', lane: 'persona:<name>', result: { note } }   none does
  *   broken → { id, title, kind: 'review', source: 'persona:<name>',
  *              number: null, lane: 'persona:<name>', status: 'planned' }
  *
@@ -230,17 +231,23 @@ function resultOf(persona, goal, reading) {
  * never holds `--`, so the last `--` separates the two and no two personas'
  * goals share an id ("a-b" + "c" and "a" + "b-c" were both persona-a-b-c). A
  * build item names its number first; a broken goal has no number to name, so
- * it is never a build. `lane` is the persona's own (the plan's lane names
- * where the item came from until phase 76 hands builds to a pass; a persona
- * never builds). A met goal gives nothing.
+ * it is never a build. A persona measures and never builds (keel phase 78:
+ * no lane without a builder): a missed goal is a build only when one of
+ * `jobs` (the project's enabled climb jobs, { job: { measures } }) measures
+ * its number, handed to that job's lane; otherwise it is triage, in the
+ * persona's lane, saying why. A met goal gives nothing.
  */
-export function planCandidates({ name, goals }) {
+export function planCandidates({ name, goals }, { jobs = {} } = {}) {
   const items = [];
   for (const g of goals) {
     const base = { id: `persona-${name}--${g.id}`, source: `persona:${name}` };
     if (g.state === 'missed') {
-      items.push({ ...base, title: planTitle(`${g.name}: back to ${g.kind} ${g.bound}${g.unit} (measured ${g.value}${g.unit})`), kind: 'build',
-        number: { measure: g.measure, bound: g.bound, better: g.better }, lane: `persona:${name}`, status: 'planned' });
+      const number = { measure: g.measure, bound: g.bound, better: g.better };
+      const job = Object.entries(jobs ?? {}).find(([, j]) => (j?.measures ?? []).includes(g.measure))?.[0];
+      const title = planTitle(`${g.name}: back to ${g.kind} ${g.bound}${g.unit} (measured ${g.value}${g.unit})`);
+      items.push(job
+        ? { ...base, title, kind: 'build', number, lane: `climb:${job}`, status: 'planned' }
+        : { ...base, title, kind: 'triage', number, lane: `persona:${name}`, status: 'planned', result: { note: `A persona measures and never builds, and no climb job here measures ${g.measure}, so it is triage, not build.` } });
     } else if (g.state === 'broken') {
       items.push({ ...base, title: planTitle(`${g.name}: its command is broken (\`${g.command}\`: ${g.detail})`), kind: 'review', number: null, lane: `persona:${name}`, status: 'planned' });
     }

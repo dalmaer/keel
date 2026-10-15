@@ -14,7 +14,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
-import { goodnight, suggestionsFor, namesSettled, parseArgs, DRAFT, SUGGESTIONS } from '../lib/goodnight.mjs';
+import { goodnight, suggestionsFor, namesSettled, parseArgs, loopRubric, loopDraft, DRAFT, SUGGESTIONS } from '../lib/goodnight.mjs';
+import { previewRobotIssue } from '../lib/robot-issue.mjs';
+import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
+import { robotRubricRefusal } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
 import { validatePlan, tonight, nightOf, PLAN, PLAN_BRANCH } from '../lib/night-plan.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -102,7 +105,8 @@ const pick = rows => rows.map(r => Object.fromEntries(opt('--json').split(',').m
 if (a[0] === 'pr' && a[1] === 'list') {
   const want = opt('--state');
   console.log(JSON.stringify(pick(prs.filter(p => want === 'all' || p.state === want.toUpperCase()))));
-} else { console.error('stub gh: not here: ' + a.join(' ')); process.exit(1); }
+} else if (a[0] === 'issue' && a[1] === 'list') console.log('[]');
+else { console.error('stub gh: not here: ' + a.join(' ')); process.exit(1); }
 `, { mode: 0o755 });
   const env = { ...process.env, KEEL_GH: gh };
   const keel = args => { const r = run(process.execPath, [BIN, ...args], { cwd: root, env }); return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) }; };
@@ -143,11 +147,12 @@ test('keel goodnight shows settled today, left open, the default plan and up to 
   assert.equal(d.from, 'default');
   assert.deepEqual(validatePlan(d.plan).problems, []);
   assert.deepEqual(d.plan.items.map(i => [i.id, i.kind]), [
-    ['measures', 'measure'], ['health-prs-stale', 'review'], ['climb-test-time', 'build'], ['loop-slow-search', 'triage'], ['persona-perf--bundle-size', 'build'],
+    ['measures', 'measure'], ['health-prs-stale', 'review'], ['climb-test-time', 'build'], ['loop-slow-search', 'triage'], ['persona-perf--bundle-size', 'triage'],
   ]);
-  assert.deepEqual(d.plan.items.at(-1).number, { measure: 'persona:perf:bundle-size', bound: 250000, better: 'lower' });
-  // Things to try: the accepted Loop finding that names a number (the persona's goal is already in the plan).
-  assert.deepEqual(d.suggestions.map(s => [s.id, s.kind, s.lane, s.number?.measure]), [['loop-lighter-anvils', 'build', 'loop', 'slow_tests']]);
+  assert.deepEqual(d.plan.items.at(-1).number, { measure: 'persona:perf:bundle-size', bound: 250000, better: 'lower' }, 'no climb job measures the persona\'s number, so it is triage (phase 78)');
+  // Things to try: the accepted Loop finding that names a number; the robot is off here, so it stays triage, saying why (phase 78).
+  assert.deepEqual(d.suggestions.map(s => [s.id, s.kind, s.lane, s.number?.measure]), [['loop-lighter-anvils', 'triage', 'loop', 'slow_tests']]);
+  assert.match(d.suggestions[0].why, /the robot is off here/);
   for (const line of ['Settled today', 'merged #41: Acme: anvils weigh less', 'phase 1: planned → built', 'Loop finding heavy-anvils: declined',
     'Left open', 'open PR #42 (draft): Acme: sharper anvils', 'review: acme/anvils#42', 'yours: phase 2: Acme anvils ring',
     "Tonight's plan (keel's default plan)", 'climb-test-time', 'Things to try (keel goodnight add <id>)', 'loop-lighter-anvils', 'keel goodnight --yes']) assert.ok(r.text.includes(line), `the opening says: ${line}\n${r.text}`);
@@ -187,6 +192,10 @@ test('add, drop, edit, budget and skip change the draft; a sixth build item, a b
   assert.equal(existsSync(join(f.root, DRAFT)), false);
   assert.match((await say('add', 'loop-lighter-anvils')).said, /added loop-lighter-anvils/);
   let d = await draft();
+  assert.deepEqual([d.items.at(-1).kind, d.items.at(-1).lane], ['triage', 'loop'], 'the robot is off here: the finding stays triage');
+  assert.match(d.items.at(-1).result.note, /^Not a build: the robot is off here/);
+  // A build in lane loop, by hand, is refused: no pass builds it (phase 78).
+  await refused(['add', '--title', 'Acme: build the finding', '--measure', 'slow_tests', '--bound', '0', '--lane', 'loop'], /no pass builds lane loop/);
   assert.equal(d.shapedBy, 'owner');
   assert.deepEqual(d.items.map(i => i.id), ['measures', 'health-prs-stale', 'climb-test-time', 'loop-slow-search', 'persona-perf--bundle-size', 'loop-lighter-anvils']);
   assert.equal(await readFile(join(f.root, '.keel/night/.gitignore'), 'utf8'), '*\n', 'the draft ignores itself');
@@ -218,8 +227,8 @@ test('add, drop, edit, budget and skip change the draft; a sixth build item, a b
   await refused(['add', '--title', 'Acme: polish phase 1'], /names something settled today \(phase 1 moved today\)/);
   await refused(['edit', 'measures', '--title', 'Measure what #41 did'], /settled today \(#41 merged today\)/);
   assert.match(namesSettled({ id: 'loop-heavy-anvils', source: 'loop:heavy-anvils', lane: 'loop', title: 'Heavy anvils' }, { prs: [], phases: [], findings: [{ slug: 'heavy-anvils' }] }), /decided today/);
-  // A sixth build item: four are in (climb, persona, the Loop finding, the owner's); a fifth is fine, a sixth is not.
-  await say('add', '--title', 'Acme: fifth', '--measure', 'slow_tests', '--bound', '0', '--id', 'fifth');
+  // A sixth build item: two are in (climb and the owner's; the persona's and the Loop finding's are triage here); a fifth is fine, a sixth is not.
+  for (const n of ['third', 'fourth', 'fifth']) await say('add', '--title', `Acme: ${n}`, '--measure', 'slow_tests', '--bound', '0', '--id', n);
   await refused(['add', '--title', 'Acme: sixth', '--measure', 'slow_tests', '--bound', '0', '--id', 'sixth'], /\(sixth\): a sixth build item; at most 5 a night/);
   // Unknown ids and words are refused too.
   await refused(['drop', 'no-such-item'], /no item "no-such-item"/);
@@ -406,4 +415,105 @@ test('any source that feeds the owner\'s items and could not be read is a gap; a
   assert.equal(expectedNa(inbox, { name: 'Acme Anvils' }), true);
   assert.equal(expectedNa(inbox, { keel: 'self' }), false);
   for (const s of OWNER_SOURCES.filter(x => x !== 'inbox')) assert.equal(expectedNa({ source: s, state: 'n/a' }, { name: 'Acme Anvils' }), false, s);
+});
+
+/** GitHub's issues API, at the boundary: what ensureRobotIssue reads and writes. */
+function issuesApi() {
+  const rows = [], calls = [];
+  const github = async req => {
+    calls.push(req);
+    if (req.method === 'POST') {
+      const n = rows.length + 7;
+      const row = { number: n, html_url: `https://github.com/acme/anvils/issues/${n}`, url: `https://api.github.com/repos/acme/anvils/issues/${n}`, state: 'open', body: req.body.body, title: req.body.title, labels: req.body.labels.map(name => ({ name })) };
+      rows.push(row);
+      return { status: 201, data: row };
+    }
+    const one = /\/issues\/(\d+)$/.exec(req.path);
+    return one ? { status: 200, data: rows.find(r => r.number === Number(one[1])) } : { status: 200, data: rows, headers: {} };
+  };
+  return { rows, calls, github, posts: () => calls.filter(c => c.method === 'POST') };
+}
+
+// Phase 78: an accepted Loop finding that names a number is built by the robot, under a rubric drafted from it.
+test('goodnight add for an accepted Loop finding that names a number drafts a robot item; --yes alone makes its issue (once), with a rubric the robot accepts; one that names no number stays triage, with the reason', async t => {
+  const f = await acme(t);
+  const config = JSON.parse(await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(f.root, '.keel/keel.json'), JSON.stringify({ ...config, robot: { on: true, budgetMinutes: 60 } }));
+  await writeFile(join(f.root, 'docs/loop/lighter-anvils.md'), finding('Lighter anvils', 'decision: accepted\nrank: next\nphase: 1\nsince: 2026-10-01\nnote: Brings `slow_tests` back within its bound.\n')
+    .replace("Acme's Lighter anvils.", "# Lighter anvils\n\n> **Loop says** (P2/S1): The anvil tests wait on a sleep.\n\n- `test/anvil.test.mjs`\n- `lib/anvil.mjs`\n\n## Our read\n\nlib/anvil.mjs:12 sleeps."));
+  await writeFile(join(f.root, 'docs/loop/vague-anvils.md'), finding('Vague anvils', 'decision: accepted\nrank: later\nphase: 1\nsince: 2026-10-01\nnote: Make anvils nicer.\n'));
+  await writeFile(join(f.root, 'docs/loop/uncited-anvils.md'), finding('Uncited anvils', 'decision: accepted\nrank: later\nphase: 1\nsince: 2026-10-01\nnote: Also moves `slow_tests`.\n'));
+  const api = issuesApi();
+  const deps = { board, github: api.github };
+  const say = async (...args) => (await goodnight({ root: f.root, args, env: f.env }, deps)).data;
+
+  // The opening: the finding with a number, cited files and the robot on is a build for the robot; the others stay triage, saying why.
+  const opening = await say();
+  const by = Object.fromEntries(opening.suggestions.map(x => [x.id, x]));
+  assert.deepEqual([by['loop-lighter-anvils'].kind, by['loop-lighter-anvils'].lane, by['loop-lighter-anvils'].number.measure], ['build', 'robot:pending', 'slow_tests']);
+  assert.deepEqual([by['loop-vague-anvils'].kind, by['loop-vague-anvils'].lane], ['triage', 'loop']);
+  assert.match(by['loop-vague-anvils'].why, /names no number/);
+  assert.deepEqual([by['loop-uncited-anvils'].kind, by['loop-uncited-anvils'].lane], ['triage', 'loop']);
+  assert.match(by['loop-uncited-anvils'].why, /the robot's rubric check refuses the rubric drafted from it \(change: change needs nonblank text/);
+
+  // add: the draft holds it in the pending lane, and nothing is asked of GitHub.
+  await say('add', 'loop-lighter-anvils');
+  await say('add', 'loop-vague-anvils');
+  const draft = JSON.parse(await readFile(join(f.root, DRAFT), 'utf8'));
+  const it = draft.items.find(i => i.id === 'loop-lighter-anvils');
+  assert.deepEqual([it.kind, it.lane, it.source], ['build', 'robot:pending', 'loop:lighter-anvils']);
+  assert.match(draft.items.find(i => i.id === 'loop-vague-anvils').result.note, /^Not a build: it names no number/);
+  assert.equal(api.calls.length, 0, 'no issue before --yes (mutation: create it on add, and this fails)');
+  assert.equal(validatePlan(draft).ok, false, 'the pending lane is a draft\'s: a plan never holds it');
+  assert.equal(validatePlan(draft, { draft: true }).ok, true);
+
+  // --yes: the issue, once, with the drafted rubric; the plan names robot:#<n>.
+  const yes = await say('--yes');
+  assert.equal(api.posts().length, 1);
+  const post = api.posts()[0].body;
+  assert.deepEqual(post.labels, ['keel:agent']);
+  assert.equal(robotRubricRefusal(post.body), null, 'the robot\'s rubric check accepts the issue it will be handed');
+  assert.match(post.body, /### Acceptance\n\n`slow_tests` is at most 0, as the night measures it/);
+  assert.match(post.body, /### One change\n\nChange only what the finding cites: test\/anvil.test.mjs, lib\/anvil.mjs, lib\/anvil.mjs:12\./);
+  assert.match(post.body, /### Prerequisites\n\nNone\./);
+  const planned = yes.plan.items.find(i => i.id === 'loop-lighter-anvils');
+  assert.deepEqual([planned.kind, planned.lane, planned.source], ['build', 'robot:#7', 'loop:lighter-anvils']);
+  assert.deepEqual(yes.issues.map(i => [i.id, i.number, i.state]), [['loop-lighter-anvils', 7, 'created']]);
+  assert.deepEqual(validatePlan(yes.plan).problems, []);
+  const pushed = JSON.parse(f.git(['show', `refs/heads/${PLAN_BRANCH}:.keel/night/plan.json`], f.origin));
+  assert.equal(pushed.items.find(i => i.id === 'loop-lighter-anvils').lane, 'robot:#7');
+
+  // Said again: the same issue, recovered, never a second (ensureRobotIssue's durable intent).
+  await rm(join(f.root, DRAFT));
+  await say('add', 'loop-lighter-anvils');
+  const again = await say('--yes');
+  assert.equal(api.posts().length, 1, 'idempotent: no second issue');
+  assert.deepEqual(again.issues.map(i => [i.number, i.state]), [[7, 'recovered']]);
+
+  // A finding that changed since add (no longer accepted) stops --yes before anything is written or made.
+  await rm(join(f.root, DRAFT));
+  await say('add', 'loop-lighter-anvils');
+  await writeFile(join(f.root, 'docs/loop/lighter-anvils.md'), finding('Lighter anvils', 'decision: declined\nsince: 2026-10-01\nnote: Not now.\n'));
+  const tip = f.git(['rev-parse', `refs/heads/${PLAN_BRANCH}`], f.origin);
+  await assert.rejects(say('--yes'), e => e.exitCode === 2 && /the Loop finding lighter-anvils is declined/.test(e.message));
+  assert.equal(f.git(['rev-parse', `refs/heads/${PLAN_BRANCH}`], f.origin), tip, 'nothing pushed');
+  assert.equal(api.posts().length, 1);
+});
+
+test('the rubric drafted from a Loop finding: the finding\'s problem, its number and bound as acceptance, its cited files as the change, no prerequisites; a draft the rubric check refuses is triage', () => {
+  const f = { slug: 'lighter-anvils', title: 'Lighter anvils', note: 'Brings `slow_tests` back.', body: "> **Loop says** (P2): The tests sleep.\n\n- `lib/anvil.mjs`\n\nsee ../etc/passwd:1 and /abs/path.mjs:2" };
+  const r = loopRubric(f, { measure: 'slow_tests', bound: 0, better: 'lower' });
+  assert.equal(r.problem, 'Lighter anvils. Loop says: The tests sleep. Accepted: Brings `slow_tests` back.');
+  assert.equal(r.acceptance, '`slow_tests` is at most 0, as the night measures it, and no other measure on the health page moves the wrong way.');
+  assert.equal(r.change, 'Change only what the finding cites: lib/anvil.mjs.', 'only plain repo paths are cited');
+  assert.deepEqual([r.prerequisites, r.ownerBlockers], [[], []]);
+  const rows = [{ id: 'slow_tests', bound: 0, better: 'lower' }];
+  assert.equal(loopDraft({ finding: f, rows, robotOn: true }).ok, true);
+  assert.match(loopDraft({ finding: f, rows: [], robotOn: true }).why, /names no number/);
+  assert.match(loopDraft({ finding: f, rows, robotOn: false }).why, /the robot is off here/);
+  assert.match(loopDraft({ finding: { ...f, body: '' }, rows, robotOn: true }).why, /rubric check refuses .*change needs nonblank text/);
+  // The preview ensureRobotIssue would post carries a body the robot's check accepts.
+  const preview = previewRobotIssue({ repo: 'acme/anvils', rubric: loopDraft({ finding: f, rows, robotOn: true }).rubric, policy: robotPolicy({ robot: { on: true, budgetMinutes: 60 } }), subjectKey: 'loop:lighter-anvils', instanceId: 'acme-loop-1', title: 'Loop: Lighter anvils' });
+  assert.equal(preview.ok, true);
+  assert.equal(robotRubricRefusal(preview.body), null);
 });
