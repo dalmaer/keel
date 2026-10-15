@@ -10,7 +10,7 @@
 // reads the live world.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, cp, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, cp, chmod, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -283,7 +283,7 @@ test('the workflow\'s decision: over and unsent, or not yet; already sent; no as
   const out = join(p.base, 'out-before');
   const before = await decideFn({ root: p.root, env: { ...ENV, KEEL_GH: p.gh }, now: BEFORE, githubOutput: out });
   assert.deepEqual([before.data.day, before.data.ready, before.data.sent, before.data.assignee], [NIGHT, false, false, 'set']);
-  assert.equal(await readFile(out, 'utf8'), `day=${NIGHT}\nready=false\nsent=false\nassignee=set\n`);
+  assert.equal(await readFile(out, 'utf8'), `day=${NIGHT}\nready=false\nsent=false\nassignee=set\nplan=found\n`);
   assert.deepEqual(await p.calls(), [], 'a night not over asks GitHub nothing');
   const after = await decideFn({ root: p.root, env: { ...ENV, KEEL_GH: p.gh }, now: AFTER });
   assert.deepEqual([after.data.ready, after.data.sent], [true, false]);
@@ -301,7 +301,7 @@ test('the workflow\'s decision: over and unsent, or not yet; already sent; no as
   const lines = join(p.base, 'out-script');
   const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'decide', '--github-output', lines, '--json'], { cwd: p.root, env: { ...ENV, KEEL_GH: p.gh } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  assert.match(await readFile(lines, 'utf8'), /^day=\d{4}-\d{2}-\d{2}\nready=(true|false)\nsent=(true|false)\nassignee=set\n$/);
+  assert.match(await readFile(lines, 'utf8'), /^day=\d{4}-\d{2}-\d{2}\nready=(true|false)\nsent=(true|false)\nassignee=set\nplan=(found|none)\n$/);
 });
 
 test('keel#137: finalization puts a later build outcome in the night\'s record and its health page, keeping the rest of the page', async t => {
@@ -381,4 +381,91 @@ test('the brief\'s repo: in a GitHub Actions run, the run\'s own repository; any
   const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh, GITHUB_REPOSITORY: 'acme/elsewhere' });
   assert.equal(r.code, 0, r.err + r.out);
   assert.equal(r.json().links.health, LINKS.health);
+});
+
+// Phase 78: the card ticks. Through a fake isocan home (tests/helpers/isocan.mjs): the card is
+// republished from tonight's plan as it stands after each pass; a person's edit stops it.
+test('the plan card republishes after each tick through the live card\'s conditional edit, sends nothing when nothing ticked, and stops at a person\'s edit', async t => {
+  const { fixture: isocan } = await import('./helpers/isocan.mjs');
+  const { publishPlanCard } = morningModule;
+  const f = await isocan(t);
+  await f.attach();
+  await f.goLive({ cards: ['pulse', PLAN_CARD] });
+  const night = async plan => { await mkdir(join(f.root, '.keel/night'), { recursive: true }); await writeFile(join(f.root, PLAN), `${JSON.stringify(plan, null, 2)}\n`); };
+  const publish = () => publishPlanCard({ root: f.root, date: NIGHT, yes: true }, { transport: f.transport });
+  const cardNow = async () => f.remote.items.get(JSON.parse(await readFile(join(f.root, '.keel/canvas/manifest.json'), 'utf8')).items[PLAN_CARD].itemId);
+  // The night starts: the card is made once, from the plan as the night recorded it.
+  await night(asRecorded());
+  const first = await publish();
+  assert.equal(first.exitCode ?? 0, 0, JSON.stringify(first.data));
+  assert.equal(first.data.card, PLAN_CARD);
+  const card = await cardNow();
+  const made = card.currentVersionId;
+  // Nothing ticked since: nothing sent.
+  const same = await publish();
+  assert.equal(same.data.state, 'unchanged');
+  assert.equal(f.remote.edits.length, 0);
+  // Climb finishes: its tick republishes the same card in place, one conditional edit on the version keel recorded.
+  const climbed = asRecorded();
+  climbed.items = climbed.items.map(i => (i.id === 'perf-bundle' ? { ...i, status: 'done', result: { note: 'Split the vendor chunk', link: PR } } : i));
+  await night(climbed);
+  const ticked = await publish();
+  assert.equal(ticked.data.state, 'published', JSON.stringify(ticked.data));
+  assert.equal(f.remote.edits.length, 1);
+  assert.equal(f.remote.edits[0].ifVersion, made, 'the edit is conditional on keel\'s own last version');
+  assert.notEqual((await cardNow()).currentVersionId, made, 'the card moved');
+  assert.equal((await cardNow()).id, card.id, 'the same card, edited in place: never a new card per tick');
+  assert.equal(f.remote.adds, [...f.remote.items.values()].filter(i => i.properties?.['keel.key']).length, 'no card was added for the tick');
+  // A person edits the card: the next tick sends nothing, and says so; updates stay stopped.
+  const human = await cardNow();
+  human.versions.push({ id: 'ver_person', blobHash: 'f'.repeat(64) }); human.currentVersionId = 'ver_person';
+  const robot = { ...climbed, items: climbed.items.map(i => (i.id === 'robot-12' ? { ...i, status: 'failed', result: { note: 'the gate failed' } } : i)) };
+  await night(robot);
+  const stopped = await publish();
+  assert.equal(stopped.exitCode, 1);
+  assert.equal(stopped.data.state, 'conflict');
+  assert.equal(f.remote.edits.length, 1, 'no edit is sent over a person\'s (mutation: an unconditional republish writes over it)');
+  assert.equal((await cardNow()).currentVersionId, 'ver_person');
+  await night({ ...robot, items: robot.items.map(i => (i.id === 'climb-docs' ? { ...i, status: 'done' } : i)) });
+  assert.equal((await publish()).data.state, 'conflict', 'still stopped at the next pass');
+  assert.equal(f.remote.edits.length, 1);
+});
+
+test('on CI the card keeps the night\'s journal: restored from the newest canvas writer, saved for the next, with keel-morning\'s provenance', async t => {
+  const { fixture: isocan } = await import('./helpers/isocan.mjs');
+  const { restoreJournal } = await import('../lib/canvas-night.mjs');
+  const { publishPlanCard } = morningModule;
+  const f = await isocan(t);
+  await f.attach();
+  await f.goLive({ cards: ['pulse', PLAN_CARD] });
+  await mkdir(join(f.root, '.keel/night'), { recursive: true });
+  await writeFile(join(f.root, PLAN), `${JSON.stringify(asRecorded(), null, 2)}\n`);
+  const config = JSON.parse(await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
+  await writeFile(join(f.root, '.keel/keel.json'), JSON.stringify({ ...config, canvas: { ...config.canvas, cadence: 'nightly' } }));
+  const output = await realpath(await mkdtemp(join(tmpdir(), 'keel-card-output-')));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  const env = { ...ENV, KEEL_CANVAS_PERSISTENCE: 'artifact-v1', KEEL_CANVAS_OUTPUT: output, GITHUB_REPOSITORY: 'acme/anvils', GITHUB_RUN_ID: '300', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: 'b'.repeat(40) };
+  const r = await publishPlanCard({ root: f.root, date: NIGHT, yes: true, env, now: new Date() }, { transport: f.transport });
+  assert.equal(r.exitCode ?? 0, 0, JSON.stringify(r.data));
+  const bundle = JSON.parse(await readFile(join(output, 'recovery.json'), 'utf8'));
+  assert.deepEqual(bundle.provenance, { repo: 'acme/anvils', workflow: '.github/workflows/keel-morning.yml', runId: '300', attempt: 1, headSha: 'b'.repeat(40) });
+  assert.ok(bundle.manifest.items[PLAN_CARD], 'the card\'s own receipt travels in the journal');
+  // A fresh checkout (the next night, or the next pass) restores it: one journal, so the card's edit is never taken for a person's.
+  const fresh = await realpath(await mkdtemp(join(tmpdir(), 'keel-card-fresh-')));
+  t.after(() => rm(fresh, { recursive: true, force: true }));
+  await mkdir(join(fresh, '.keel'), { recursive: true });
+  await writeFile(join(fresh, '.keel/keel.json'), await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
+  const restored = await restoreJournal({ root: fresh, config: JSON.parse(await readFile(join(fresh, '.keel/keel.json'), 'utf8')), env: { KEEL_CANVAS_RECOVERY: join(output, 'recovery.json') }, yes: true, now: Date.now() + 1000 });
+  assert.equal(restored.binding.canvasId, config.canvas.canvasId);
+  assert.deepEqual(JSON.parse(await readFile(join(fresh, '.keel/canvas/manifest.json'), 'utf8')).items[PLAN_CARD], bundle.manifest.items[PLAN_CARD]);
+  // No journal to restore, and none provisioned: nothing is published.
+  const empty = await realpath(await mkdtemp(join(tmpdir(), 'keel-card-empty-')));
+  t.after(() => rm(empty, { recursive: true, force: true }));
+  await mkdir(join(empty, '.keel'), { recursive: true });
+  await cp(join(f.root, '.keel/keel.json'), join(empty, '.keel/keel.json'));
+  await mkdir(join(empty, '.keel/night'), { recursive: true });
+  await writeFile(join(empty, PLAN), `${JSON.stringify(asRecorded(), null, 2)}\n`);
+  const adds = f.remote.adds;
+  await assert.rejects(publishPlanCard({ root: empty, date: NIGHT, yes: true, env: { ...env, KEEL_CANVAS_OUTPUT: join(empty, 'out') } }, { transport: f.transport }), e => e.exitCode === 1 && /could not be restored/.test(e.message));
+  assert.equal(f.remote.adds, adds, 'nothing was written to the canvas');
 });

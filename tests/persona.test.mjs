@@ -125,7 +125,7 @@ test('keel persona run measures each goal, marks met, missed or broken, writes t
   assert.match(page, /\| cold start \| at most 100ms \| 140ms \| \*\*missed\*\* \|/);
   assert.match(page, /\| failing command \| at most 0 \| — \| \*\*broken\*\* \|/);
   assert.match(page, /- failing command: `echo 'no build here' >&2; exit 3` — exit 3: no build here/);
-  assert.match(page, /- build: cold start: back to at most 100ms \(measured 140ms\) \(`persona:speed:cold-start`\)/);
+  assert.match(page, /- triage: cold start: back to at most 100ms \(measured 140ms\) \(`persona:speed:cold-start`\)/, 'no climb job measures it, so a persona build is triage (phase 78)');
   assert.match(page, /- review: too slow: its command is broken/);
 });
 
@@ -188,7 +188,7 @@ test('a persona file that changes during the run is refused, and no review page 
   await assert.rejects(run({ root: second, name: 'speed', date: DATE }), /\.agents\/personas\/other\.md changed during the run/);
 });
 
-test('a missed goal is a candidate build item naming its number; a broken one a review item; a met one nothing', async t => {
+test('a missed goal is a candidate item naming its number: a build for the climb job that measures it, else triage; a broken one a review item; a met one nothing', async t => {
   const root = await project(t, { [FILE]: persona([
     goal('entry bundle size', 'at most: 250000', 'echo 260000'),
     goal('cache hits', 'at least: 90%', 'echo 80'),
@@ -196,16 +196,20 @@ test('a missed goal is a candidate build item naming its number; a broken one a 
     goal('met one', 'at most: 1', 'echo 0'),
   ].join('')) });
   const r = await run({ root, all: true, date: DATE });
+  const orphan = 'A persona measures and never builds, and no climb job here measures';
   const items = planCandidates(r.data.personas[0]);
   assert.deepEqual(items, [
-    { id: 'persona-speed--entry-bundle-size', source: 'persona:speed', title: 'entry bundle size: back to at most 250000 (measured 260000)', kind: 'build',
-      number: { measure: 'persona:speed:entry-bundle-size', bound: 250000, better: 'lower' }, lane: 'persona:speed', status: 'planned' },
-    { id: 'persona-speed--cache-hits', source: 'persona:speed', title: 'cache hits: back to at least 90% (measured 80%)', kind: 'build',
-      number: { measure: 'persona:speed:cache-hits', bound: 90, better: 'higher' }, lane: 'persona:speed', status: 'planned' },
+    { id: 'persona-speed--entry-bundle-size', source: 'persona:speed', title: 'entry bundle size: back to at most 250000 (measured 260000)', kind: 'triage',
+      number: { measure: 'persona:speed:entry-bundle-size', bound: 250000, better: 'lower' }, lane: 'persona:speed', status: 'planned', result: { note: `${orphan} persona:speed:entry-bundle-size, so it is triage, not build.` } },
+    { id: 'persona-speed--cache-hits', source: 'persona:speed', title: 'cache hits: back to at least 90% (measured 80%)', kind: 'triage',
+      number: { measure: 'persona:speed:cache-hits', bound: 90, better: 'higher' }, lane: 'persona:speed', status: 'planned', result: { note: `${orphan} persona:speed:cache-hits, so it is triage, not build.` } },
     { id: 'persona-speed--latency', source: 'persona:speed', title: 'latency: its command is broken (`exit 1`: exit 1)', kind: 'review', number: null, lane: 'persona:speed', status: 'planned' },
   ]);
   assert.deepEqual(r.data.personas[0].candidates, items, 'the run reports its candidates');
-  assert.ok(items.every(i => i.kind !== 'build' || i.number), 'a build item names its number first');
+  // Phase 78: with a climb job that measures the number, the build is that job's.
+  const handed = planCandidates(r.data.personas[0], { jobs: { perf: { measures: ['persona:speed:entry-bundle-size'] } } });
+  assert.deepEqual(handed.map(i => [i.id, i.kind, i.lane]), [['persona-speed--entry-bundle-size', 'build', 'climb:perf'], ['persona-speed--cache-hits', 'triage', 'persona:speed'], ['persona-speed--latency', 'review', 'persona:speed']]);
+  assert.ok(handed.every(i => i.kind !== 'build' || (i.number && /^climb:/.test(i.lane))), 'a build names its number and a pass that builds it');
 });
 
 test('keel#141: candidate ids never collide across personas ("a-b" + "c" and "a" + "b-c")', () => {

@@ -296,11 +296,39 @@ test('the default plan is pure, and other sources plug in as candidate items thr
   assert.deepEqual(plain.leftOpen, ['climb: climb is off']);
   assert.deepEqual(defaultPlan(inputs), plain, 'same inputs, same plan');
   assert.deepEqual(CANDIDATE_SOURCES.map(s => s.name), ['personaCandidates'], 'the personas practice is the one other source');
-  // A persona's missed goal, as phase 75 will hand it in: a build with its number; the robot's four PRs leave room for one.
+  // A persona's missed goal, as phase 75 hands it in: a build with its number, handed to the climb job
+  // that measures it (phase 78); the robot's four PRs leave room for one.
   const persona = n => ({ id: `perf-${n}`, title: `Acme bundle ${n}`, kind: 'build', source: 'persona:performance', lane: 'persona:performance', number: { measure: 'bundle_bytes', bound: 747000, better: 'lower' } });
-  const shaped = defaultPlan({ ...inputs, candidates: [persona(1), persona(2), { id: 'hunch', title: 'A hunch', kind: 'build', source: 'persona:performance', lane: 'persona:performance' }] });
-  assert.deepEqual(shaped.items.map(i => [i.id, i.kind]), [['measures', 'measure'], ['perf-1', 'build'], ['hunch', 'triage']]);
+  const jobs = { perf: { measures: ['bundle_bytes'] } };
+  const shaped = defaultPlan({ ...inputs, jobs, candidates: [persona(1), persona(2), { id: 'hunch', title: 'A hunch', kind: 'build', source: 'persona:performance', lane: 'persona:performance' }] });
+  assert.deepEqual(shaped.items.map(i => [i.id, i.kind, i.lane]), [['measures', 'measure', 'night'], ['perf-1', 'build', 'climb:perf'], ['hunch', 'triage', 'persona:performance']]);
   assert.match(shaped.leftOpen.join('\n'), /perf-2: waits for the next night \(at most 5 build items, counted with the robot's 4 open PRs\)/);
+});
+
+// Phase 78: no lane without a builder.
+test('the validator refuses a build in lane loop, and a persona build; the default plan hands a persona build to the climb job that measures its number, or makes it triage', () => {
+  const loop = validatePlan(designPlan([designItem({ id: 'loop-build', source: 'loop:slow-search', lane: 'loop' })]));
+  assert.equal(loop.ok, false);
+  assert.match(loop.problems.join('\n'), /items\[0\] \(loop-build\): a build item names the pass that builds it; no pass builds lane loop/);
+  const persona = validatePlan(designPlan([designItem({ id: 'persona-build', lane: 'persona:performance' })]));
+  assert.equal(persona.ok, false);
+  assert.match(persona.problems.join('\n'), /items\[0\] \(persona-build\): a build item names the pass that builds it; a persona measures and never builds \(hand it to the climb job that measures bundle_bytes/);
+  // Triage and review in those lanes are still the lanes' own.
+  for (const lane of ['loop', 'persona:performance']) assert.deepEqual(validatePlan(designPlan([designItem({ kind: 'triage', lane })])).problems, [], lane);
+  // The default plan never writes either: handed to its builder, or triage saying why.
+  const inputs = { date: NIGHT, health: null, climb: null, robot: null, loop: [] };
+  const candidates = [
+    { id: 'p-handed', title: 'Acme bundle', kind: 'build', source: 'persona:performance', lane: 'persona:performance', number: { measure: 'bundle_bytes', bound: 747000, better: 'lower' } },
+    { id: 'p-orphan', title: 'Acme frame', kind: 'build', source: 'persona:performance', lane: 'persona:performance', number: { measure: 'persona:performance:frame', bound: 2, better: 'lower' } },
+    { id: 'l-orphan', title: 'Acme finding', kind: 'build', source: 'loop:slow-search', lane: 'loop', number: { measure: 'slow_tests', bound: 3, better: 'lower' } },
+  ];
+  const plan = defaultPlan({ ...inputs, jobs: { perf: { measures: ['bundle_bytes'] } }, candidates });
+  assert.equal(validatePlan(plan).ok, true);
+  assert.deepEqual(plan.items.slice(1).map(i => [i.id, i.kind, i.lane]), [['p-handed', 'build', 'climb:perf'], ['p-orphan', 'triage', 'persona:performance'], ['l-orphan', 'triage', 'loop']]);
+  assert.match(plan.items[2].result.note, /no climb job here measures persona:performance:frame/);
+  assert.match(plan.items[3].result.note, /No pass builds lane loop/);
+  // No jobs at all (climb off): every persona build is triage.
+  assert.deepEqual(defaultPlan({ ...inputs, candidates }).items.slice(1).map(i => i.kind), ['triage', 'triage', 'triage']);
 });
 
 test('the night\'s step uses tonight\'s plan from the plan branch, else the default plan, and says which', async t => {
@@ -400,7 +428,7 @@ test('the record is the night\'s data: the drain merges docs/night/<date>.json a
   assert.deepEqual(healthProposal('## Proposal\n\nNone: every measure is within its bound.\n'), null);
 });
 
-test('with the personas practice, keel night plan runs every persona and each missed goal is a build item with its number; no personas is no items, never a failure', async t => {
+test('with the personas practice, keel night plan runs every persona and each missed goal is an item with its number; no personas is no items, never a failure', async t => {
   const config = { practices: ['base', 'night', 'climb', 'loop', 'personas'], climb: undefined, robot: undefined };
   const { root, gh } = await acme(t, { config });
   await cp(join(KEEL, 'practices/personas/files/scripts/keel/persona.mjs'), join(root, 'scripts/keel/persona.mjs'));
@@ -430,9 +458,10 @@ Acme's lens.
   assert.equal(r.code, 0, r.out + r.err);
   const items = r.json().plan.items.filter(i => i.source === 'persona:speed');
   assert.deepEqual(items.map(i => [i.id, i.kind, i.lane, i.number]), [
-    ['persona-speed--entry-bundle', 'build', 'persona:speed', { measure: 'persona:speed:entry-bundle', bound: 250000, better: 'lower' }],
+    ['persona-speed--entry-bundle', 'triage', 'persona:speed', { measure: 'persona:speed:entry-bundle', bound: 250000, better: 'lower' }],
     ['persona-speed--latency', 'review', 'persona:speed', null],
-  ], 'the missed goal is a build with its number, the broken one a review, the met one nothing');
+  ], 'the missed goal names its number and, with no climb job measuring it, is triage (phase 78); the broken one a review, the met one nothing');
+  assert.match(items[0].result.note, /no climb job here measures persona:speed:entry-bundle/);
   assert.ok(existsSync(join(root, `docs/reviews/${NIGHT}-speed.md`)), 'persona run wrote its review page');
   // Not installed (no "personas" in practices): the persona files are not run.
   await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night'] }));
@@ -652,6 +681,86 @@ test('the validator refuses a build item in lane night: the night measures and n
   const r = validatePlan(designPlan([designItem({ id: 'night-build', lane: 'night' })]));
   assert.equal(r.ok, false);
   assert.match(r.problems.join('\n'), /items\[0\] \(night-build\): a build item names the pass that builds it; lane night only measures/);
-  for (const lane of ['climb:perf', 'robot:#12', 'loop', 'persona:performance']) assert.deepEqual(validatePlan(designPlan([designItem({ lane })])).problems, [], lane);
+  for (const lane of ['climb:perf', 'robot:#12']) assert.deepEqual(validatePlan(designPlan([designItem({ lane })])).problems, [], lane);
   assert.deepEqual(validatePlan(designPlan([designItem({ kind: 'review', lane: 'night' })])).problems, [], 'a review in lane night is the night\'s own');
+});
+
+// Phase 78: a night that ran keel's default plan records it on the plan branch, so the passes tick it.
+const defaultTonight = () => designPlan([
+  designItem({ id: 'measures', kind: 'measure', source: 'default', lane: 'night', number: null, budget: null, status: 'done', result: { note: '40 ok' } }),
+  designItem({ id: 'climb-tests', source: 'default', lane: 'climb:test-time', budget: null, result: null }),
+], { shapedBy: 'default', readyBy: null, willNotTouch: [], settledToday: [], leftOpen: [] });
+
+test('a night with no owner plan writes its default plan to the plan branch, and the passes tick it; an owner\'s plan, tonight\'s or later, is never replaced', async t => {
+  const { publishDefault, writePlan } = await import('../lib/night-plan.mjs');
+  const publish = (dir, env) => run(process.execPath, [join(dir, 'scripts/keel/night-plan.mjs'), 'publish', '--date', NIGHT, '--json'], { cwd: dir, env: { ...process.env, ...env } });
+  // No plan branch: created, the default plan alone, no parent.
+  const fresh = await planRemote(t, null);
+  await writePlan(fresh.dir, defaultTonight());
+  const made = publish(fresh.dir);
+  assert.equal(made.status, 0, made.stderr + made.stdout);
+  assert.equal(JSON.parse(made.stdout).written, true);
+  assert.deepEqual(fresh.show(), defaultTonight());
+  assert.equal(fresh.git(['rev-list', '--count', 'refs/heads/keel-night-plan'], fresh.origin), '1');
+  assert.equal(fresh.git(['ls-tree', '-r', '--name-only', 'refs/heads/keel-night-plan'], fresh.origin), '.keel/night/plan.json');
+  // Climb's pass ticks it, exactly as it ticks an owner's plan (mutation: no publish, and there is nothing to tick).
+  await mkdir(join(fresh.temp, 'plan'), { recursive: true });
+  await writeFile(join(fresh.temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', skipped: [] } }));
+  const climbTick = await tickStep('keel-climb.yml', fresh.dir, { RUNNER_TEMP: fresh.temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time: kept 1' });
+  assert.equal(climbTick.status, 0, climbTick.out);
+  assert.deepEqual(fresh.show().items.find(i => i.id === 'climb-tests').status, 'done');
+  // A rerun of the night: tonight's plan is there (with its ticks), so nothing is written over it.
+  const ticked = fresh.tip('refs/heads/keel-night-plan');
+  const rerun = await publishDefault({ root: fresh.dir, date: NIGHT });
+  assert.deepEqual([rerun.written, fresh.tip('refs/heads/keel-night-plan')], [false, ticked]);
+  assert.match(rerun.why, /holds the plan for 2026-10-15, shaped by default: never replaced/);
+
+  // The owner's plan for tonight, or a later night: never replaced.
+  for (const date of [NIGHT, '2026-10-16']) {
+    const owned = await planRemote(t, { ...plannedTonight(), date });
+    await writePlan(owned.dir, defaultTonight());
+    const before = owned.tip('refs/heads/keel-night-plan');
+    const r = await publishDefault({ root: owned.dir, date: NIGHT });
+    assert.equal(r.written, false, date);
+    assert.match(r.why, new RegExp(`holds the plan for ${date}, shaped by owner: never replaced`));
+    assert.equal(owned.tip('refs/heads/keel-night-plan'), before);
+  }
+  // An earlier night's plan (that night is over and in its record): tonight's default goes on top, the old one kept as its parent.
+  const old = await planRemote(t, { ...plannedTonight(), date: '2026-10-14' });
+  await writePlan(old.dir, defaultTonight());
+  const parent = old.tip('refs/heads/keel-night-plan');
+  const over = await publishDefault({ root: old.dir, date: NIGHT });
+  assert.equal(over.written, true, over.why);
+  assert.equal(old.tip('refs/heads/keel-night-plan^'), parent);
+  assert.equal(old.show().date, NIGHT);
+  // A plan that cannot be read is left alone, never replaced.
+  const unread = await planRemote(t, { ...plannedTonight(), mood: 'calm' });
+  await writePlan(unread.dir, defaultTonight());
+  const kept = unread.tip('refs/heads/keel-night-plan');
+  assert.match((await publishDefault({ root: unread.dir, date: NIGHT })).why, /cannot be read or is refused: it is left alone/);
+  assert.equal(unread.tip('refs/heads/keel-night-plan'), kept);
+  // Only tonight's default plan is written: the owner's working plan, or another night's, never.
+  const own = await planRemote(t, null);
+  await writePlan(own.dir, { ...defaultTonight(), shapedBy: 'owner' });
+  assert.match((await publishDefault({ root: own.dir, date: NIGHT })).why, /tonight's plan is the owner's/);
+  await writePlan(own.dir, { ...defaultTonight(), date: '2026-10-14' });
+  assert.match((await publishDefault({ root: own.dir, date: NIGHT })).why, /the working plan is for 2026-10-14, not 2026-10-15: never another night's/);
+  assert.equal(run('git', ['rev-parse', '--verify', '-q', 'refs/heads/keel-night-plan'], { cwd: own.origin }).status, 1, 'nothing pushed');
+
+  // A race: the owner's /goodnight lands tonight's plan between the night's read and its push. The lease
+  // refuses the stale push; read again, the branch holds the owner's plan, which is kept.
+  const raced = await planRemote(t, { ...plannedTonight(), date: '2026-10-14' });
+  await writePlan(raced.dir, defaultTonight());
+  const racer = join(raced.temp, 'racer');
+  assert.equal(run('git', ['clone', '-q', '-b', 'keel-night-plan', raced.origin, racer]).status, 0);
+  await writeFile(join(racer, '.keel/night/plan.json'), JSON.stringify(plannedTonight()));
+  assert.equal(run('git', ['-C', racer, 'commit', '-qam', 'acme: the owner shapes tonight']).status, 0);
+  const bin = join(raced.temp, 'bin'), mark = join(raced.temp, 'raced');
+  await mkdir(bin, { recursive: true });
+  const real = run('sh', ['-c', 'command -v git']).stdout.trim();
+  await writeFile(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" push --porcelain "*) if [ ! -f "${mark}" ]; then touch "${mark}"; "${real}" -C "${racer}" push -q origin HEAD:refs/heads/keel-night-plan || exit 7; fi;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  const lost = await publishDefault({ root: raced.dir, date: NIGHT, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assert.ok(existsSync(mark), 'the race happened');
+  assert.equal(lost.written, false, 'mutation: a plain force push writes over the owner\'s plan');
+  assert.deepEqual(raced.show(), plannedTonight(), 'the owner\'s plan stands');
 });

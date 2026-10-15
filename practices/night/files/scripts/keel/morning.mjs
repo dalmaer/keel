@@ -346,8 +346,9 @@ export async function send({ root, date, env = process.env, now = new Date() }) 
 
 /**
  * keel-morning.yml's decision, read-only: the night that last started, its
- * readiness, whether its brief was sent, and whether an assignee is set.
- * Writes day, ready, sent and assignee to `githubOutput` when given.
+ * readiness, whether its brief was sent, whether an assignee is set, and
+ * whether it has a plan. Writes day, ready, sent, assignee and plan to
+ * `githubOutput` when given.
  */
 export async function decide({ root, env = process.env, now = new Date(), githubOutput }) {
   const night = lastNight(now);
@@ -362,7 +363,8 @@ export async function decide({ root, env = process.env, now = new Date(), github
     const sent = r.ready ? morningIssues(root, config, env).find(i => i.title === titleOf(night)) : null;
     data = { day: night, ready: r.ready, sent: Boolean(sent), assignee, why: sent ? `already sent as #${sent.number}` : r.why };
   }
-  if (githubOutput) appendFileSync(githubOutput, `day=${data.day}\nready=${data.ready}\nsent=${data.sent}\nassignee=${data.assignee}\n`);
+  // plan: whether the night has a plan anywhere (keel-morning's card job publishes it only then).
+  if (githubOutput) appendFileSync(githubOutput, `day=${data.day}\nready=${data.ready}\nsent=${data.sent}\nassignee=${data.assignee}\nplan=${found.plan ? 'found' : 'none'}\n`);
   return { data: { ok: true, ...data, sources: found.sources }, text: `The night of ${night}: ${data.ready ? 'over' : 'not over'} (${data.why}); brief ${data.sent ? 'sent' : 'not sent'}; ${ASSIGNEE} ${data.assignee}.` };
 }
 

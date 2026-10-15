@@ -296,12 +296,12 @@ async function admitRobot({ root, repo, config, event, eventName, has, now = new
       instanceId = mark.instanceId;
     }
     const common = { authorization, rejections, instanceId, repo, issueNumber: issue.number, cursor, previousHead: state?.headSha ?? null, previousCompletedAt: state?.completedAt ?? null, issueHash: sha256(issue.body ?? ''), author: providers.author, reviewer: providers.reviewer };
-    const { parseRobotRubric } = await import('./robot-rubric.mjs');
+    // The rubric check (robot-rubric.mjs): one parsed section, no owner blocker, and no
+    // prerequisite (fail-closed until verified: prose is not evidence).
+    const { parseRobotRubric, robotRubricRefusal } = await import('./robot-rubric.mjs');
+    const refusal = robotRubricRefusal(issue.body);
+    if (refusal) return reject(refusal, { ...common, triage: true });
     const parsed = parseRobotRubric(issue.body);
-    if (!parsed.ok) return reject(`rubric: ${parsed.problems.map(p => p.message).join('; ')}`, { ...common, triage: true });
-    if (parsed.rubric.ownerBlockers.length) return reject('owner-only blockers remain', { ...common, triage: true });
-    // Prerequisites are deliberately fail-closed until verified: prose is not evidence.
-    if (parsed.rubric.prerequisites.length) return reject('prerequisite verification unavailable; resolve prerequisites before labelling', { ...common, triage: true });
 
     const pulls = await robotPages(github, `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0] + ':keel/robot-' + issue.number)}`);
     if (pulls.length > 1) return reject('multiple robot pull requests; owner resolution needed', common);

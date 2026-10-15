@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: owner
 since: 2026-10-14
 goal: G4
 spec: 2
 depends: [73, 74, 76, 77]
-note: "Specified 2026-10-14: the three pieces phases 73-77 left open for the owner's nightwatch: a card that ticks, default nights that record, and Loop findings that get built."
-evidence: []
+note: "Built 2026-10-14: keel-morning's card job republishes night-plan after each pass with keel canvas night's provisioning and one shared canvas journal; a default night writes its plan to keel-night-plan from its PR step; an accepted Loop finding becomes a robot build whose issue keel goodnight --yes makes; no build lane without a builder. Owes the owner one watched night."
+evidence: ["evidence/2026-10-14-night-plan-live.md"]
 issue: 150
 ---
 
@@ -26,10 +28,10 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 
 ## Acceptance
 
-- [ ] The morning workflow republishes the plan card after each pass when the canvas is set up, does nothing and says why when it is not, and a person's edit stops it. `tests/morning.test.mjs`, `tests/workflows.test.mjs`
-- [ ] A night with no owner plan writes its default plan to the plan branch and the passes tick it; a night with an owner plan never replaces it. `tests/night-plan.test.mjs`, `tests/workflows.test.mjs`
-- [ ] `goodnight add` for an accepted Loop finding that names a number becomes a robot item, its issue created only on `--yes` with a rubric the robot accepts; one that names no number stays triage, with the reason. `tests/goodnight.test.mjs`, `tests/robot-runtime.test.mjs`
-- [ ] The validator refuses a build in lane `loop`, and a persona build without a climb job that measures its number. `tests/night-plan.test.mjs`
+- [x] The morning workflow republishes the plan card after each pass when the canvas is set up, does nothing and says why when it is not, and a person's edit stops it. `tests/morning.test.mjs`, `tests/workflows.test.mjs`
+- [x] A night with no owner plan writes its default plan to the plan branch and the passes tick it; a night with an owner plan never replaces it. `tests/night-plan.test.mjs`, `tests/workflows.test.mjs`
+- [x] `goodnight add` for an accepted Loop finding that names a number becomes a robot item, its issue created only on `--yes` with a rubric the robot accepts; one that names no number stays triage, with the reason. `tests/goodnight.test.mjs`, `tests/robot-runtime.test.mjs`
+- [x] The validator refuses a build in lane `loop`, and a persona build without a climb job that measures its number. `tests/night-plan.test.mjs`
 - [ ] ⚑ by hand: the owner watches one night's plan card change on the canvas as climb and the robot finish, and gets the morning email linking to it.
 
 ## Your part
@@ -55,9 +57,11 @@ By hand: one real night, watched.
 
 ## Deliberately open
 
-- **Who may write the plan branch**: the night writing its default plan means the night's job needs to push one more ref; that is a write it does not do today, kept to the plan branch alone.
-- **Known limit**: a Loop finding's rubric is drafted from the finding's own text; one Loop wrote badly can be refused by the robot's rubric check, and then stays triage.
+- **Who may write the plan branch**: settled 2026-10-14 by the build. The night's PR step, the one step of its job that already writes, pushes `refs/heads/keel-night-plan` and nothing else new (`night-plan.mjs publish`), with a lease; its plan step only reads. It writes over a plan for an earlier night (kept as the parent commit), never over one for tonight or later, nor one it cannot read.
+- **How a draft names a robot issue that does not exist yet**: settled 2026-10-14 by the build. The draft holds the item in lane `robot:pending`, which only `validatePlan(plan, { draft: true })` accepts; `keel goodnight --yes` makes the issue (ensureRobotIssue, idempotent) after every other check holds and writes `robot:#<n>`.
+- **Two canvas writers**: settled 2026-10-14 by the build. The night and the card share one journal: `scripts/keel/canvas-recovery.mjs` restores the newest attempt of either. Known limit: a card job still running when the night's canvas step starts makes that step refuse (red), as an unfinished night does; the card waits a pass while the night runs.
+- **Known limit**: a Loop finding's rubric is drafted from the finding's own text; one Loop wrote badly can be refused by the robot's rubric check, and then stays triage. A finding that cites no file drafts no change and stays triage.
 
 ## Next action
 
-Build the three pieces with their tests, the default-plan write first.
+The ⚑ walk: one evening, the owner puts one Loop finding and one small fix in tonight's plan with `/goodnight`; the next morning, opens the email and follows it to the canvas's plan card (needs this merged, `morning.assignee` set, and the canvas set for nightly publishing with `night-plan` live).
