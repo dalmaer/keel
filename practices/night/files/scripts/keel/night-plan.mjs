@@ -87,7 +87,12 @@ export function nightOf(now = new Date()) {
 
 const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const isText = (x, max = 2000) => typeof x === 'string' && x.trim() !== '' && x.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(x);
-const isDate = d => DATE.test(d ?? '') && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+// A real calendar day: 2026-13-01 matches DATE but is no time (toISOString would throw), and 2026-02-30 rolls over.
+const isDate = d => {
+  if (typeof d !== 'string' || !DATE.test(d)) return false;
+  const t = new Date(`${d}T00:00:00Z`);
+  return Number.isFinite(t.getTime()) && t.toISOString().slice(0, 10) === d;
+};
 const textList = (x, max = 64) => Array.isArray(x) && x.length <= max && x.every(s => isText(s, 500));
 
 /** A build item's or a measure-named item's number: { measure, bound, better }. Returns the problems. */

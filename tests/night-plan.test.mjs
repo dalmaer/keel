@@ -93,6 +93,10 @@ test('the validator accepts the design\'s schema and refuses an unknown field, a
   assert.match(validatePlan(designPlan([designItem(), designItem()])).problems.join('\n'), /"id" perf-bundle is already an item/);
   assert.match(validatePlan(designPlan(undefined, { schema: 2 })).problems.join('\n'), /"schema" is 1/);
   assert.match(validatePlan(designPlan(undefined, { date: '2026-02-30' })).problems.join('\n'), /"date" is the night's UTC date/);
+  // A month or day no calendar has is refused, never a RangeError.
+  for (const date of ['2026-13-01', '2026-00-10', '2026-10-32', '2026-10-00']) {
+    assert.match(validatePlan(designPlan(undefined, { date })).problems.join('\n'), /"date" is the night's UTC date/, date);
+  }
   assert.match(validatePlan(designPlan(undefined, { shapedBy: 'acme' })).problems.join('\n'), /"shapedBy" is default or owner/);
 });
 
@@ -328,6 +332,12 @@ test('the night\'s step uses tonight\'s plan from the plan branch, else the defa
   const crowded = JSON.parse(tonight('--branch-plan', branch).stdout);
   assert.equal(crowded.from, 'default', 'five builds and the robot\'s open PR #3 are six');
   assert.match(crowded.why, /a sixth build item.*#3/);
+  // A date no calendar has (2026-13-01): refused and replaced by the default plan, never a crash.
+  await writeFile(branch, JSON.stringify({ ...owner, date: '2026-13-01' }));
+  const impossible = tonight('--branch-plan', branch);
+  assert.equal(impossible.status, 0, impossible.stderr + impossible.stdout);
+  assert.equal(JSON.parse(impossible.stdout).from, 'default');
+  assert.match(JSON.parse(impossible.stdout).why, /is refused: plan: "date" is the night's UTC date/);
   // The branch could not be read: the default, saying so.
   const unread = JSON.parse(tonight('--branch-unread', 'git ls-remote exit 128').stdout);
   assert.match(unread.why, /could not be read \(git ls-remote exit 128\)/);
