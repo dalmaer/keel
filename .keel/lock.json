@@ -79,7 +79,7 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "85f44a1c6763d71c4c90105acd3c3b28c865a290f5b011a9e2b8e1bdf799468a"
+      "sha256": "9d12b3ed9a73227d8250b1268db95fa954952893d3c98dc2840d95c3d47efeab"
     },
     ".github/workflows/keel-robot-route.yml": {
       "practice": "climb",
