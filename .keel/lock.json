@@ -43,7 +43,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "0509217117d94ae026a6f75d202447d9c2d48fdf449b1eb89bfe3a98ce0c5260"
+      "sha256": "5d340c515ccf332c18e56cc86a2f822786a32b9e8269797d530131d92fad5974"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -191,7 +191,7 @@
     },
     "scripts/keel/night-plan.mjs": {
       "practice": "night",
-      "sha256": "c6a3f879fc278c6922491e5bdfaae424e741a96f94395935414ae81949564a0d"
+      "sha256": "6afb6889478aa046756d6b2bd01008831a02c025e9d9502dc3d9b0bbb821edff"
     },
     "scripts/keel/planning-config.mjs": {
       "practice": "night",

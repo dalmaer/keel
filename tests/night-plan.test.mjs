@@ -646,3 +646,12 @@ test('a pass never ticks another night\'s plan, records nothing without a plan b
   assert.equal(after.items.find(i => i.id === 'climb-tests').status, 'done');
   assert.equal(run('git', ['rev-parse', 'refs/heads/keel-night-plan^'], { cwd: origin }).stdout.trim(), run('git', ['-C', racer, 'rev-parse', 'HEAD']).stdout.trim());
 });
+
+// Review of phase 74 (PR #144): a build no pass takes. Lane night only measures.
+test('the validator refuses a build item in lane night: the night measures and never builds', () => {
+  const r = validatePlan(designPlan([designItem({ id: 'night-build', lane: 'night' })]));
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join('\n'), /items\[0\] \(night-build\): a build item names the pass that builds it; lane night only measures/);
+  for (const lane of ['climb:perf', 'robot:#12', 'loop', 'persona:performance']) assert.deepEqual(validatePlan(designPlan([designItem({ lane })])).problems, [], lane);
+  assert.deepEqual(validatePlan(designPlan([designItem({ kind: 'review', lane: 'night' })])).problems, [], 'a review in lane night is the night\'s own');
+});
