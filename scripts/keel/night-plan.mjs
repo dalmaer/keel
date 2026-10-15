@@ -9,13 +9,17 @@
 //                                   the night's own step: the plan f read from the plan branch when it is
 //                                   valid and dated d, else the default plan; it says which
 //   node scripts/keel/night-plan.mjs tick <id> --status s [--note "<text>"] [--link <url>]
+//   node scripts/keel/night-plan.mjs record --date d --ticks f [--remote r]
+//                                   a pass's ticks (f: [{ id, status, note, link }]) pushed onto the plan branch's
+//                                   plan for the night d, with a lease (phase 76: climb's and the robot's publish jobs)
 //   node scripts/keel/night-plan.mjs check [--file f]        validate a plan (default: the working plan)
 //
 // The plan is .keel/night/plan.json (schema 1), a working file that ignores
 // itself; the night commits it as it ended as docs/night/<date>.json in its
 // data-only PR (improve.mjs writes that record). It travels on the branch
-// keel-night-plan (one file, force-pushed by whoever shapes it, never merged):
-// the night only reads it.
+// keel-night-plan (one file, force-pushed by whoever shapes it, never merged
+// and never main): the night only reads it; climb's and the robot's publish
+// jobs add their ticks on top of it with a lease (record, phase 76).
 //
 // The default plan is what keel would do anyway, written down: tonight's
 // measures, the health page's proposal, the climb job `climb.mjs pick` would
@@ -39,7 +43,7 @@
 // Exit: 0 done; 2 usage, a refused plan or tick, or an input that cannot be
 // read (nothing is written then; the message names the input). gh is
 // process.env.KEEL_GH || 'gh'.
-import { readFile, mkdir, readdir, lstat, realpath, open } from 'node:fs/promises';
+import { readFile, mkdir, readdir, lstat, realpath, open, rm } from 'node:fs/promises';
 import { existsSync, constants } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname, sep } from 'node:path';
@@ -545,11 +549,32 @@ export async function tonight({ root, date, env = process.env, branchPlan = null
  * done (a done item may be ticked done again, to mend its note).
  */
 export async function tick({ root, id, status, note, link }) {
+  const current = await readPlan(root);
+  if (!current) {
+    tickProblem({ status, note, link });
+    throw new NightPlanError(`no plan to tick: ${PLAN} is not here (keel night plan writes one)`);
+  }
+  const { plan: updated, item: next, from } = applyTick(current, { id, status, note, link });
+  await writePlan(root, updated);
+  return { data: { ok: true, path: PLAN, date: updated.date, item: next, from }, text: `${id}: ${from} → ${status}${note ? ` — ${note}` : ''}${link ? ` (${link})` : ''}` };
+}
+
+/** A tick's own fields, checked before any plan is read: throws NightPlanError. */
+function tickProblem({ status, note, link }) {
   if (!STATUSES.includes(status)) throw new NightPlanError(`--status is one of ${STATUSES.join(', ')} (got ${JSON.stringify(status)})`);
   if (note !== undefined && !isText(note, 1000)) throw new NightPlanError('--note is text, at most 1000 characters');
   if (link !== undefined && !isLink(link)) throw new NightPlanError('--link is an https URL or a repo path');
-  const current = await readPlan(root);
-  if (!current) throw new NightPlanError(`no plan to tick: ${PLAN} is not here (keel night plan writes one)`);
+}
+
+/**
+ * One tick on a plan, pure: keel night tick's rules (an id the plan holds, a
+ * status of the six, never back from done; a done item may be ticked done
+ * again, to mend its note) on any plan, so `record` ticks the plan branch's
+ * copy exactly as `tick` ticks the working one. Returns { plan, item, from };
+ * throws NightPlanError naming what it refused.
+ */
+export function applyTick(current, { id, status, note, link }) {
+  tickProblem({ status, note, link });
   const at = current.items.findIndex(i => i.id === id);
   if (at < 0) throw new NightPlanError(`no item "${id}" in tonight's plan (${current.date}); its items: ${current.items.map(i => i.id).join(', ') || 'none'}`);
   const was = current.items[at];
@@ -559,8 +584,142 @@ export async function tick({ root, id, status, note, link }) {
   const updated = { ...current, items: current.items.map((it, i) => (i === at ? next : it)) };
   const v = validatePlan(updated);
   if (!v.ok) throw new NightPlanError(`the tick would leave a refused plan: ${v.problems[0]}`);
-  await writePlan(root, updated);
-  return { data: { ok: true, path: PLAN, date: updated.date, item: next, from: was.status }, text: `${id}: ${was.status} → ${status}${note ? ` — ${note}` : ''}${link ? ` (${link})` : ''}` };
+  return { plan: updated, item: next, from: was.status };
+}
+
+// ---- the passes' side (phase 76) ---------------------------------------------
+//
+// Climb and the robot read tonight's plan from the plan branch, as the night
+// does, and with one present build only what it names: a climb pass the first
+// open build item whose lane is climb:<job> and whose job may run, the robot
+// the open build items whose lane is robot:#<n>, in plan order. "Open" is
+// planned or running (a re-run); a done, failed, skipped or left-alone item is
+// never built again. A plan that is refused, or dated another night, is no
+// plan: the pass works as it did before plans, which is what the night's own
+// default plan wrote down anyway. Each pass records its ticks on the plan
+// branch from its publish job (`record`), the only job of its that can write.
+
+/** Statuses a pass may still build. */
+export const OPEN = Object.freeze(['planned', 'running']);
+
+/** The plan's open build items in a lane family ('climb' or 'robot'), in plan order: [{ id, title, job | issue, item }]. */
+export function buildItems(plan, family) {
+  const out = [];
+  for (const it of plan?.items ?? []) {
+    if (it.kind !== 'build' || !OPEN.includes(it.status)) continue;
+    if (family === 'climb' && /^climb:/.test(it.lane)) out.push({ id: it.id, title: it.title, job: it.lane.slice(6), item: it });
+    if (family === 'robot' && /^robot:#/.test(it.lane)) out.push({ id: it.id, title: it.title, issue: Number(it.lane.slice(7)), item: it });
+  }
+  return out;
+}
+
+/**
+ * A plan item's budget against a pass's own, in whole minutes: the item may
+ * lower it, never raise it. Minutes are whole because Actions' timeout-minutes
+ * is (a fraction rounds down, and never below one minute, which is still at
+ * most the pass's own). No item budget: the pass's own.
+ */
+export function planMinutes(item, ceiling) {
+  const m = item?.budget?.minutes;
+  if (!Number.isFinite(m) || m <= 0) return ceiling;
+  return Math.min(ceiling, Math.max(1, Math.floor(m)));
+}
+
+/**
+ * Tonight's plan as a pass reads it: `file` (the plan branch's copy, which
+ * the workflow fetched) when it is a valid plan dated `date`. Returns
+ * { used: true, plan } or { used: false, why }. A file that cannot be read
+ * throws (the pass never guesses there is no plan). The build count is
+ * checked without the robot's open PRs: the night counted them when it read
+ * the same plan, and a pass never widens what the plan says.
+ */
+export async function passPlan(file, date) {
+  const raw = await readJsonFile(file, `the plan on ${PLAN_BRANCH}`);
+  const v = validatePlan(raw);
+  if (!v.ok) return { used: false, why: `the plan on ${PLAN_BRANCH} is refused (${v.problems[0]}), so there is no plan tonight` };
+  if (raw.date !== date) return { used: false, why: `the plan on ${PLAN_BRANCH} is dated ${raw.date}, not ${date}, so there is no plan tonight` };
+  return { used: true, plan: raw };
+}
+
+/**
+ * A pass's ticks, in the order `record` applies them, pure: the items it
+ * decided on without building (`others`: [{ id, status, note }], each skipped
+ * or failed with why), then its own item running, then done with the pull
+ * request (`prUrl`) or failed with the reason (`failed`) and the run's link.
+ * Notes are made one line of at most 1000 characters, as a tick needs.
+ */
+export function passTicks({ item = null, others = [], prUrl = null, done = null, failed = null, runUrl = null }) {
+  const clip = s => String(s ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1000) || 'no reason given';
+  const ticks = others.map(o => ({ id: o.id, status: o.status ?? 'skipped', note: clip(o.note) }));
+  if (item) {
+    ticks.push({ id: item, status: 'running' });
+    if (prUrl && isLink(prUrl)) ticks.push({ id: item, status: 'done', note: clip(done ?? 'pull request opened'), link: prUrl });
+    else ticks.push({ id: item, status: 'failed', note: clip(failed ?? 'no pull request was opened'), ...(runUrl && isLink(runUrl) ? { link: runUrl } : {}) });
+  }
+  return ticks;
+}
+
+/** A git command for `record`: no hook, no fsmonitor, no prompt; throws NightPlanError on a failure it does not expect. */
+function planGit(root, args, { env = process.env, input, allowFail = false } = {}) {
+  const r = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args], { cwd: root, env: { ...env, GIT_TERMINAL_PROMPT: '0' }, input, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 120_000 });
+  if (r.error) throw new NightPlanError(`git ${args[0]}: ${r.error.message}`);
+  if (r.status !== 0 && !allowFail) throw new NightPlanError(`git ${args[0]} exited ${r.status}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+  return allowFail ? r : r.stdout.trim();
+}
+
+/**
+ * A pass's ticks, recorded where the morning reads them: the plan branch.
+ * Fetches its tip, applies `ticks` ([{ id, status, note?, link? }], in
+ * order, each by applyTick, so running then done is two checked moves), and
+ * pushes one commit on top of that tip with a lease on it: a push that lost a
+ * race (the owner's /goodnight, or the other pass) is retried from the new
+ * tip, at most `attempts` times. Nothing is pushed when there is no branch,
+ * no plan on it, a refused plan, or a plan for another night (that plan is
+ * tomorrow's, shaped since; it is not this pass's to change). A tick the plan
+ * refuses (a done item moved back by a re-run) is left out and named.
+ * Returns { recorded, why?, commit?, ticked, refused }.
+ */
+export async function record({ root, date, ticks, remote = 'origin', env = process.env, attempts = 3 }) {
+  if (!isDate(date)) throw new NightPlanError(`--date is the night's UTC date, YYYY-MM-DD (got ${JSON.stringify(date)})`);
+  if (!Array.isArray(ticks) || ticks.length > 64 || ticks.some(t => !isObject(t) || Object.keys(t).some(k => !['id', 'status', 'note', 'link'].includes(k)))) throw new NightPlanError('the ticks are a list of at most 64 { id, status, note?, link? }');
+  for (const t of ticks) tickProblem(t);
+  const ref = `refs/heads/${PLAN_BRANCH}`, local = 'refs/keel/night-plan-record';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const listed = planGit(root, ['ls-remote', '--exit-code', '--heads', remote, ref], { env, allowFail: true });
+    if (listed.status === 2) return { recorded: false, why: `no plan branch ${PLAN_BRANCH}: nothing to tick`, ticked: [], refused: [] };
+    if (listed.status !== 0) throw new NightPlanError(`cannot read the plan branch ${PLAN_BRANCH}: git ls-remote exited ${listed.status}`);
+    planGit(root, ['fetch', '-q', '--no-tags', remote, `+${ref}:${local}`], { env });
+    const tip = planGit(root, ['rev-parse', '--verify', `${local}^{commit}`], { env });
+    const shown = planGit(root, ['show', `${tip}:${PLAN}`], { env, allowFail: true });
+    if (shown.status !== 0) return { recorded: false, why: `${PLAN_BRANCH} holds no ${PLAN}: nothing to tick`, ticked: [], refused: [] };
+    if (shown.stdout.length > MAX_BYTES) return { recorded: false, why: `the plan on ${PLAN_BRANCH} is larger than ${MAX_BYTES} bytes`, ticked: [], refused: [] };
+    let plan;
+    try { plan = JSON.parse(shown.stdout); } catch { return { recorded: false, why: `the plan on ${PLAN_BRANCH} is not JSON: nothing to tick`, ticked: [], refused: [] }; }
+    const v = validatePlan(plan);
+    if (!v.ok) return { recorded: false, why: `the plan on ${PLAN_BRANCH} is refused (${v.problems[0]}): nothing to tick`, ticked: [], refused: [] };
+    if (plan.date !== date) return { recorded: false, why: `the plan on ${PLAN_BRANCH} is dated ${plan.date}, not ${date}: it is another night's, so nothing is ticked`, ticked: [], refused: [] };
+    const ticked = [], refused = [];
+    for (const t of ticks) {
+      try { const r = applyTick(plan, t); plan = r.plan; ticked.push({ id: t.id, from: r.from, status: t.status }); }
+      catch (e) { if (!(e instanceof NightPlanError)) throw e; refused.push({ id: t.id, status: t.status, why: e.message }); }
+    }
+    if (!ticked.length) return { recorded: false, why: 'every tick was refused', ticked, refused };
+    const blob = planGit(root, ['hash-object', '-w', '--stdin'], { env, input: `${JSON.stringify(plan, null, 2)}\n` });
+    // The tip's own tree with the plan replaced, built in a private index: no checkout, no working tree touched.
+    const index = join(planGit(root, ['rev-parse', '--absolute-git-dir'], { env }), `keel-night-plan-${process.pid}.index`);
+    const withIndex = { ...env, GIT_INDEX_FILE: index };
+    let commit;
+    try {
+      planGit(root, ['read-tree', tip], { env: withIndex });
+      planGit(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${PLAN}`], { env: withIndex });
+      const tree = planGit(root, ['write-tree'], { env: withIndex });
+      const message = `keel night: tick ${ticked.map(t => `${t.id} ${t.status}`).join(', ')} (${date})`;
+      commit = planGit(root, ['-c', 'user.name=keel-night', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit-tree', tree, '-p', tip, '-m', message], { env });
+    } finally { await rm(index, { force: true }); }
+    const pushed = planGit(root, ['push', '--porcelain', `--force-with-lease=${ref}:${tip}`, remote, `${commit}:${ref}`], { env, allowFail: true });
+    if (pushed.status === 0) return { recorded: true, commit, ticked, refused };
+  }
+  throw new NightPlanError(`the ticks could not be pushed to ${PLAN_BRANCH}: it moved under every one of ${attempts} attempts`);
 }
 
 /**
@@ -588,7 +747,7 @@ export function planSection(plan, { record } = {}) {
   const by = plan.shapedBy === 'owner' ? `the owner (from the plan branch \`${PLAN_BRANCH}\`)` : 'keel\'s default plan (`keel night plan`): nobody shaped tonight';
   return [
     '## Tonight\'s plan', '',
-    `Shaped by ${by}. Each pass ticks its own item; until phase 76, climb and the robot still choose their own work, so an item they have not ticked is still \`planned\`.${record ? ` The record: \`${record}\`.` : ''}`, '',
+    `Shaped by ${by}. Each pass ticks its own item on the plan branch as it goes (climb and the robot run after the night), so an item they have not reached yet is still \`planned\` here.${record ? ` The record: \`${record}\`.` : ''}`, '',
     '| Item | Kind | Lane | Number | Status | Outcome |', '| --- | --- | --- | --- | --- | --- |',
     ...plan.items.map(it => `| ${esc(it.id)}: ${esc(it.title)} | ${it.kind} | ${esc(it.lane)} | ${esc(numberCell(it.number))} | ${it.status} | ${it.result ? esc([it.result.note, it.result.link].filter(Boolean).join(' — ')) : '—'} |`),
     ...(plan.items.length ? [] : ['| — | — | — | — | — | nothing planned |']),
@@ -600,12 +759,12 @@ export function planSection(plan, { record } = {}) {
 
 // ---- the script --------------------------------------------------------------
 
-const USAGE = 'usage: node scripts/keel/night-plan.mjs plan [--date d] | tonight --date d [--branch-plan f | --branch-unread "<why>"] | tick <id> --status s [--note "<text>"] [--link <url>] | check [--file f] [--json]';
+const USAGE = 'usage: node scripts/keel/night-plan.mjs plan [--date d] | tonight --date d [--branch-plan f | --branch-unread "<why>"] | tick <id> --status s [--note "<text>"] [--link <url>] | record --date d --ticks f [--remote r] | check [--file f] [--json]';
 
 /** The script's own arguments: a subcommand, its one positional (tick), its valued flags. */
 export function parseArgs(args) {
   const [sub, ...rest] = args;
-  const valued = { plan: ['--date'], tonight: ['--date', '--branch-plan', '--branch-unread'], tick: ['--status', '--note', '--link'], check: ['--file'] }[sub];
+  const valued = { plan: ['--date'], tonight: ['--date', '--branch-plan', '--branch-unread'], tick: ['--status', '--note', '--link'], record: ['--date', '--ticks', '--remote'], check: ['--file'] }[sub];
   if (!valued) throw new NightPlanError(USAGE);
   const out = { sub }, positional = [];
   for (let i = 0; i < rest.length; i++) {
@@ -618,6 +777,7 @@ export function parseArgs(args) {
   if (sub === 'tick' ? positional.length !== 1 : positional.length) throw new NightPlanError(`unexpected argument: ${positional[sub === 'tick' ? 1 : 0] ?? '(none)'}; ${USAGE}`);
   if (sub === 'tick') { out.id = positional[0]; if (out.status === undefined) throw new NightPlanError('--status is required'); }
   if (sub === 'tonight' && out.date === undefined) throw new NightPlanError('--date is required: the night passes its own');
+  if (sub === 'record' && (out.date === undefined || out.ticks === undefined)) throw new NightPlanError('record needs --date (the night the ticks are for) and --ticks (a JSON file of [{ id, status, note, link }])');
   if (out.branchPlan && out.branchUnread) throw new NightPlanError('--branch-plan and --branch-unread are one or the other');
   return out;
 }
@@ -635,6 +795,11 @@ export async function run(args, { root, env = process.env } = {}) {
   if (o.sub === 'plan') return plan({ root, date: o.date, env });
   if (o.sub === 'tonight') return tonight({ root, date: o.date, env, branchPlan: o.branchPlan ?? null, branchUnread: o.branchUnread ?? null });
   if (o.sub === 'tick') return tick({ root, id: o.id, status: o.status, note: o.note, link: o.link });
+  if (o.sub === 'record') {
+    const r = await record({ root, date: o.date, ticks: await readJsonFile(o.ticks, '--ticks'), remote: o.remote ?? 'origin', env });
+    const lines = [r.recorded ? `ticked on ${PLAN_BRANCH} (${r.commit.slice(0, 7)}): ${r.ticked.map(t => `${t.id} ${t.from} → ${t.status}`).join(', ')}` : `::notice::nothing recorded on ${PLAN_BRANCH}: ${r.why}`, ...r.refused.map(x => `::warning::${x.id} not ticked ${x.status}: ${x.why}`)];
+    return { data: { ok: true, ...r }, text: lines.join('\n') };
+  }
   return check({ root, file: o.file });
 }
 

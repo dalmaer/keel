@@ -1086,3 +1086,70 @@ test('robot sandbox checks every commit the bundle carries and a merge only for 
  git(root,'reset','-q','--hard','HEAD~2');git(root,'merge','-q','--no-commit','main');await writeFile(join(root,'docs/phases/02-acme.md'),'Acme merged-in phase');git(root,'add','-A');git(root,'commit','-qm','Acme merge');
  assert.match(robotSandbox(root,main,git(root,'rev-parse','HEAD')).join('\n'),/record changes require owner reconciliation/);
 });
+
+// ---- phase 76: with tonight's plan, the robot admits only the plan's issues ----------
+
+const nightItem=(id,n,over={})=>({id,title:`Acme ${id}`,kind:'build',source:`robot:#${n}`,number:{measure:'slow_tests',bound:0,better:'lower'},lane:`robot:#${n}`,budget:null,status:'planned',result:null,...over});
+const nightPlanOf=(items,over={})=>({schema:1,date:'2026-10-10',shapedBy:'owner',readyBy:null,willNotTouch:['acme.txt'],settledToday:[],leftOpen:[],items,...over});
+
+test('with a plan, the robot admits only the plan\'s issues: no robot item admits nothing, a planned issue failing its rubric ticks failed and no other is admitted; without a plan it admits as before',async t=>{
+ const root=await project(t),a=api(),reads=[];
+ // Two open keel:agent issues, both admissible: #1 the older.
+ const queue=(second=formatRobotRubric(rubric))=>async r=>{
+   reads.push(r.path);
+   if(r.path.includes('/issues?'))return {status:200,data:[{number:1},{number:2}]};
+   if(r.path.endsWith('/issues/2'))return {status:200,data:{...a.issue,number:2,html_url:`https://github.com/${repo}/issues/2`,body:second}};
+   if(r.path.includes('/issues/2/comments?'))return {status:200,data:[receipt(second,2)]};
+   return a.github(r);
+ };
+ const scan=(nightPlan,github=queue())=>{reads.length=0;return prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github,nightPlan});};
+ const issueReads=()=>reads.filter(p=>/\/issues(?:\?|\/\d+$)/.test(p));
+ // No plan: the oldest admissible issue, as before.
+ const before=await scan(null);
+ assert.deepEqual([before.state,before.issueNumber,before.nightPlan],['ready',1,undefined]);
+ assert.equal(before.buildSeconds,45*60);
+ // The plan names #2: #2, though #1 is older and admissible; no scan, and #1 is never read. (Mutation: scanning as before admits #1.)
+ const planned=await scan(nightPlanOf([nightItem('robot-2',2,{budget:{minutes:10}})]));
+ assert.deepEqual([planned.state,planned.issueNumber,planned.planItem],['ready',2,'robot-2']);
+ assert.deepEqual(planned.nightPlan,{used:true,applies:true,date:'2026-10-10',item:'robot-2',ticks:[],willNotTouch:['acme.txt']});
+ assert.deepEqual(issueReads(),[`/repos/${repo}/issues/2`]);
+ // A plan budget lowers the build's minutes and never raises them.
+ assert.equal(planned.buildSeconds,10*60);
+ assert.equal((await scan(nightPlanOf([nightItem('robot-2',2,{budget:{minutes:90}})]))).buildSeconds,45*60);
+ // A plan with no robot item admits nothing, and reads no issue. Nor does one whose robot item is done, or only triage.
+ for(const items of [[{...nightItem('climb-x',1),lane:'climb:test-time',source:'owner'}],[nightItem('robot-1',1,{status:'done'})],[nightItem('robot-1',1,{kind:'triage',number:null})]]){
+   const none=await scan(nightPlanOf(items));
+   assert.equal(none.state,'blocked');
+   assert.equal(none.reason,'tonight\'s plan names no robot item, so the robot builds nothing tonight');
+   assert.deepEqual(issueReads(),[]);
+   assert.deepEqual(none.nightPlan.ticks,[]);
+ }
+ // A planned issue that fails its rubric ticks failed with the reason, and no other issue is admitted: #1 is never read.
+ const failing=await scan(nightPlanOf([nightItem('robot-2',2)]),queue('missing rubric'));
+ assert.equal(failing.state,'blocked');
+ assert.match(failing.reason,/no robot item in tonight's plan could be admitted/);
+ assert.equal(failing.nightPlan.item,null);
+ assert.deepEqual(failing.nightPlan.ticks.map(x=>[x.id,x.status]),[['robot-2','failed']]);
+ assert.match(failing.nightPlan.ticks[0].note,/^the robot refused #2: rubric: /);
+ assert.deepEqual(issueReads(),[`/repos/${repo}/issues/2`]);
+ assert.ok(failing.rejections[0].triage,'its triage question is still asked');
+ // Plan order: the first planned issue refused, the next planned one is admitted.
+ const second=await scan(nightPlanOf([nightItem('robot-2',2),nightItem('robot-1',1)]),queue('missing rubric'));
+ assert.deepEqual([second.state,second.issueNumber,second.nightPlan.item],['ready',1,'robot-1']);
+ assert.deepEqual(second.nightPlan.ticks.map(x=>[x.id,x.status]),[['robot-2','failed']]);
+ // A writer's own event (labelling #1) is that writer asking now: the plan does not choose it.
+ const labelled=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github,nightPlan:nightPlanOf([nightItem('robot-2',2)])});
+ assert.deepEqual([labelled.state,labelled.issueNumber,labelled.nightPlan.applies],['ready',1,false]);
+ assert.equal(a.writes.length,0);
+});
+
+test('with a plan, the robot judge refuses a change to a willNotTouch path',async t=>{
+ const root=await project(t),baseSha=git(root,'rev-parse','HEAD');
+ await writeFile(join(root,'acme.txt'),'changed');git(root,'commit','-qam','acme: change');
+ const headSha=git(root,'rev-parse','HEAD');
+ const refused=await judgeRobot({root,config:{check:'exit 1'},baseSha,headSha,repo,issueNumber:1,willNotTouch:['acme.txt']});
+ assert.equal(refused.ok,false);
+ assert.deepEqual(refused.problems,['acme.txt: changed on the agent\'s branch; tonight\'s plan will not touch acme.txt (its willNotTouch), so the branch is refused whole']);
+ // Without the plan the same change goes on to the gate (here one that fails), so the refusal above is the plan's.
+ assert.deepEqual((await judgeRobot({root,config:{check:'exit 1'},baseSha,headSha,repo,issueNumber:1})).problems,[`full gate failed on ${baseSha}`]);
+});

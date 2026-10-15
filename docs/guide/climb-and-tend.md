@@ -44,6 +44,16 @@ hour repeatable, under one protocol (`.agents/climb/PROTOCOL.md`):
   with an open PR waits for you to read it. A job whose last three PRs were
   closed unmerged proposes its own retirement: if you keep declining its
   work, it stops asking.
+- **Or chosen by tonight's plan.** When the plan branch `keel-night-plan`
+  holds a plan dated today (UTC), climb runs its first `climb:<job>` build
+  item whose job may run (one `"climb".jobs` names, with no open PR, not
+  retiring), and nothing else; a plan with no climb item means no climb
+  tonight, a green run that says so. The plan never adds a job, and its
+  item's minutes may lower the budget, never raise it. Anything its
+  `willNotTouch` lists (a path: that file, or everything under it) is refused
+  like `.github/`. The publish job ticks the item on the plan branch:
+  running, then done with the PR or failed with why. A plan that is refused
+  or for another night is no plan: climb chooses as above.
 
 The jobs (`test-time`, `hygiene`, `build-time`, `perf`, `lessons`, `loop`)
 and what each climbs and is judged by are in the climb practice's README.
@@ -166,7 +176,9 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 ## What it never does
 
 - It never pushes to `main` and never merges. The workflows push only their
-  own branch prefix.
+  own branch prefix, and a pass with tonight's plan adds one commit of ticks
+  on top of `keel-night-plan`, with a lease, from its publish job.
+- With a plan, it never builds what the plan does not name.
 - The agent cannot write to the repo even if a brief or a finding talks it
   into trying: it runs in a job whose token only reads (Codex with no
   GitHub token at all, sudo dropped), and its commits are

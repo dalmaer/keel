@@ -268,13 +268,15 @@ test('robot publisher runs for blocked-only triage scans without a selected issu
  assert.match(agent,/^      triage: \$\{\{ steps\.prepare\.outputs\.triage \}\}$/m);
  const publish=text.split('\n  publish:\n')[1].split('\n  review-agent:')[0];
  const condition=/^    if: (.+)$/m.exec(publish)?.[1];
- assert.equal(condition,"always() && (needs.agent.outputs.issue != '' || needs.agent.outputs.triage == 'true')");
+ assert.equal(condition,"always() && (needs.agent.outputs.issue != '' || needs.agent.outputs.triage == 'true' || needs.agent.outputs.plan_ticks == 'true')");
  // Evaluate the actual expression for selected work, blocked-only scans, and
  // empty/no-authorized-work scans. A skipped judge must not suppress triage.
- const accepts=(issue,triage)=>Function('needs','always',`return ${condition.replaceAll(' == ', ' === ').replaceAll(' != ', ' !== ')};`)({agent:{outputs:{issue,triage}}},()=>true);
+ // Phase 76: a planned issue's tick (refused or skipped) is work for the publisher too.
+ const accepts=(issue,triage,plan_ticks)=>Function('needs','always',`return ${condition.replaceAll(' == ', ' === ').replaceAll(' != ', ' !== ')};`)({agent:{outputs:{issue,triage,plan_ticks}}},()=>true);
  assert.equal(accepts('', 'true'),true);
  assert.equal(accepts('7', 'false'),true);
- for(const triage of ['', 'false', undefined])assert.equal(accepts('',triage),false);
+ assert.equal(accepts('', 'false', 'true'),true);
+ for(const triage of ['', 'false', undefined])assert.equal(accepts('',triage,'false'),false);
  assert.match(publish,/name: robot-plan/);
  assert.match(publish,/run: node scripts\/keel\/robot\.mjs publish --json/);
 });

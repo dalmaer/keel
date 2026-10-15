@@ -8,7 +8,11 @@
 #
 #   - Off unless .keel/keel.json has "climb"; with no secret, a notice and green.
 #   - One job a night: climb.mjs pick chooses it, and a job with an open
-#     keel-climb/<job>/ PR waits for a person to read it.
+#     keel-climb/<job>/ PR waits for a person to read it. With tonight's
+#     plan on the branch keel-night-plan (phase 76), only the plan's first
+#     climb item that may run, or nothing; its willNotTouch is refused like
+#     the off-limits paths, its minutes may lower the budget, never raise it,
+#     and the publish job ticks its items on that branch.
 #   - The agent never pushes and never merges: its tools let git read, stage,
 #     commit and switch, nothing more. It is time-boxed to the budget.
 #   - Three jobs, so the agent never holds a credential that can write
@@ -84,6 +88,9 @@ jobs:
       job: ${{ steps.pick.outputs.job }}
       branch: ${{ steps.pick.outputs.branch }}
       day: ${{ steps.pick.outputs.day }}
+      # Tonight's plan (phase 76): whether pick ran one, and whether it has an item to tick.
+      plan_used: ${{ steps.pick.outputs.plan_used }}
+      plan_ticks: ${{ steps.pick.outputs.plan_ticks }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -198,10 +205,39 @@ jobs:
             echo "::notice::The last night's record (artifact $id) could not be read; the rotation reads .keel/climb.json alone."
           fi
 
+      # Tonight's plan (keel phase 76): .keel/night/plan.json on the plan
+      # branch keel-night-plan, as the night reads it, but through the
+      # contents API with this job's read token (its checkout keeps no
+      # credential for git). None there: climb picks as it always has. A
+      # branch that cannot be read is red and nothing runs: pick never
+      # guesses there is no plan.
+      - name: Read tonight's plan
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/night-plan"
+          code=0
+          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan" > "$RUNNER_TEMP/night-plan/branch.json" 2> "$RUNNER_TEMP/night-plan/error.txt" || code=$?
+          if [ "$code" = 0 ]; then
+            echo "tonight's plan: read from keel-night-plan"
+          elif grep -q "HTTP 404" "$RUNNER_TEMP/night-plan/error.txt"; then
+            rm -f "$RUNNER_TEMP/night-plan/branch.json"
+            echo "no plan on keel-night-plan: climb picks as it always has"
+          else
+            rm -f "$RUNNER_TEMP/night-plan/branch.json"
+            echo "::error::The plan branch keel-night-plan could not be read (gh api exit $code: $(head -n 1 "$RUNNER_TEMP/night-plan/error.txt")); climb never guesses there is no plan."
+            exit 1
+          fi
+
       # The climb config, validated (a bad one is red, naming the key), and
-      # tonight's job: the one tied to the health page's worst measure, else
-      # the next in rotation after the last night's; a job with an open PR
-      # waits. A dispatch runs even on a weekly climb's off day.
+      # tonight's job: with tonight's plan (valid and dated today, UTC), the
+      # plan's first climb item whose job may run, or none at all; without
+      # one, the job tied to the health page's worst measure, else the next in
+      # rotation after the last night's. A job with an open PR waits. A
+      # dispatch runs even on a weekly climb's off day. The budget is the
+      # pick's: a plan item's minutes may lower climb's, never raise them.
       - name: Pick tonight's job
         id: pick
         if: steps.configured.outputs.enabled == 'true'
@@ -213,16 +249,38 @@ jobs:
           set --
           if [ "$EVENT" = workflow_dispatch ]; then set -- "$@" --force; fi
           if [ -f "$RUNNER_TEMP/last-night/night.json" ]; then set -- "$@" --last-night "$RUNNER_TEMP/last-night/night.json"; fi
+          if [ -f "$RUNNER_TEMP/night-plan/branch.json" ]; then set -- "$@" --plan "$RUNNER_TEMP/night-plan/branch.json"; fi
           node scripts/keel/climb.mjs pick --json "$@" > "$RUNNER_TEMP/pick.json"
           node -e '
             const fs = require("fs");
             const [cfg, pick, out] = process.argv.slice(1);
             const c = JSON.parse(fs.readFileSync(cfg, "utf8"));
             const p = JSON.parse(fs.readFileSync(pick, "utf8"));
-            const lines = [`minutes=${c.minutes}`, `job=${p.job ?? ""}`, `branch=${p.branch ?? ""}`, `day=${p.date}`];
+            const used = p.plan?.used === true;
+            const ticks = used && Boolean(p.plan.item || p.plan.skipped.length);
+            const lines = [`minutes=${p.minutes ?? c.minutes}`, `job=${p.job ?? ""}`, `branch=${p.branch ?? ""}`, `day=${p.date}`, `plan_used=${used}`, `plan_ticks=${ticks}`];
             fs.appendFileSync(out, `${lines.join("\n")}\n`);
-            console.log(p.job ? `tonight: ${p.job} (${p.why})` : `no climb tonight: ${p.reason}`);
+            if (p.plan) console.log(used ? `the plan for tonight (${p.plan.date}, shaped by ${p.plan.shapedBy}): ${p.plan.item ? `climb runs ${p.plan.item}` : "no climb item runs"}` : `no plan tonight: ${p.plan.why}`);
+            console.log(p.job ? `tonight: ${p.job} (${p.why}), ${p.minutes} min` : `no climb tonight: ${p.reason}`);
           ' "$RUNNER_TEMP/climb-config.json" "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
+          if [ -f "$RUNNER_TEMP/night-plan/branch.json" ] && grep -q '^plan_used=true$' "$GITHUB_OUTPUT"; then
+            mkdir -p "$RUNNER_TEMP/plan-handoff"
+            cp "$RUNNER_TEMP/night-plan/branch.json" "$RUNNER_TEMP/plan-handoff/night-plan.json"
+            cp "$RUNNER_TEMP/pick.json" "$RUNNER_TEMP/plan-handoff/pick.json"
+          fi
+
+      # Tonight's plan and the pick, kept before any agent runs (as the
+      # robot's admission is): the judge and the publisher refuse the plan's
+      # willNotTouch from this copy, and the publisher ticks the items it
+      # names, never from anything the agent could write.
+      - name: Keep tonight's plan
+        if: steps.pick.outputs.plan_used == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: keel-climb-plan
+          path: ${{ runner.temp }}/plan-handoff/
+          if-no-files-found: error
+          retention-days: 7
 
       # Hygiene's number is the test ledger's flaky count: CI's keel-test-runs
       # artifacts on the default branch, read-only, by name, into
@@ -566,14 +624,22 @@ jobs:
         with:
           name: keel-climb-agent
           path: ${{ runner.temp }}/handoff
+      # Tonight's plan as the agent job kept it before its agent ran (phase 76).
+      - if: needs.agent.outputs.plan_used == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: keel-climb-plan
+          path: ${{ runner.temp }}/plan
       # Drop anything no compare kept (climb.mjs settle: git only), then name
       # the commit to judge, and the checkout's state, before any of the
       # agent's code runs (#68): this step's outputs are fixed when it ends,
-      # so nothing the gate leaves running can rename them.
+      # so nothing the gate leaves running can rename them. With tonight's
+      # plan, the sandbox also refuses anything its willNotTouch covers.
       - name: Take the night's commits
         id: take
         env:
           BRANCH: ${{ needs.agent.outputs.branch }}
+          PLAN_USED: ${{ needs.agent.outputs.plan_used }}
         run: |
           in="$RUNNER_TEMP/handoff"
           head="$GITHUB_SHA"
@@ -582,6 +648,7 @@ jobs:
             head=$(git rev-parse FETCH_HEAD)
           fi
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          if [ "$PLAN_USED" = true ]; then node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
           git config user.name "keel-climb"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -q -c "$BRANCH" "$head"
@@ -660,10 +727,11 @@ jobs:
   # here. It takes only the commit the judge named (#68), checks the sandbox
   # again (git only), pushes it to the night's own branch with the rotation's
   # state, opens one PR, files hygiene's issue, and keeps the night's record,
-  # whatever happened before it.
+  # whatever happened before it. With tonight's plan it is also the one job
+  # that ticks the plan's items on the plan branch (phase 76).
   publish:
     needs: [agent, judge]
-    if: always() && needs.agent.outputs.job != ''
+    if: always() && (needs.agent.outputs.job != '' || needs.agent.outputs.plan_ticks == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -680,18 +748,26 @@ jobs:
           name: keel-climb-judged
           path: ${{ runner.temp }}/night
       # A night the judge never finished keeps the agent's record.
-      - if: needs.judge.result != 'success'
+      - if: needs.judge.result != 'success' && needs.agent.outputs.job != ''
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           name: keel-climb-agent
           path: ${{ runner.temp }}/night
+      # Tonight's plan as the agent job kept it before its agent ran (phase 76).
+      - if: needs.agent.outputs.plan_used == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: keel-climb-plan
+          path: ${{ runner.temp }}/plan
 
       # One PR, on this workflow's own prefix; a person merges it. A night
       # that kept nothing pushes nothing.
       - name: Open the climb's pull request
+        id: open
         if: needs.judge.result == 'success'
         env:
+          PLAN_USED: ${{ needs.agent.outputs.plan_used }}
           KEPT: ${{ needs.judge.outputs.kept }}
           LINE: ${{ needs.judge.outputs.line }}
           JOB: ${{ needs.agent.outputs.job }}
@@ -720,6 +796,7 @@ jobs:
             exit 1
           fi
           node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          if [ "$PLAN_USED" = true ]; then node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
           # The rotation's state rides on the PR as one more commit, made here
           # from the night's job, day and count, never from a tree the agent's
           # code ran in: .keel/climb.json on the judged commit, by plumbing (no
@@ -760,6 +837,7 @@ jobs:
               night.pr = Number(n);
               fs.writeFileSync(file, `${JSON.stringify(night, null, 2)}\n`);
             ' "$RUNNER_TEMP/night/record/night.json" "$num"
+            echo "pr=$num" >> "$GITHUB_OUTPUT"
           fi
 
       # A hygiene night that proved no fix: one issue on this repo, with the
@@ -788,3 +866,32 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
+
+      # Tonight's plan, ticked where the morning reads it (phase 76): the
+      # plan branch keel-night-plan, never main, never merged. Climb's item
+      # runs, then is done with its PR, or failed with why (and this run);
+      # every other climb item is skipped, saying why. One commit on the
+      # branch's tip, pushed with a lease on it, retried from a new tip
+      # (scripts/keel/night-plan.mjs record). A plan since replaced by
+      # another night's is never ticked. Last, so the PR stands either way.
+      - name: Tick tonight's plan
+        if: always() && needs.agent.outputs.plan_ticks == 'true'
+        env:
+          DAY: ${{ needs.agent.outputs.day }}
+          JUDGED: ${{ needs.judge.result }}
+          LINE: ${{ needs.judge.outputs.line }}
+          OPENED: ${{ steps.open.outcome }}
+          PR: ${{ steps.open.outputs.pr }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            import { passTicks } from "./scripts/keel/night-plan.mjs";
+            const [pick, out] = process.argv.slice(1);
+            const { plan } = JSON.parse(readFileSync(pick, "utf8"));
+            const e = process.env;
+            const failed = e.JUDGED !== "success" ? `the climb did not finish: its judge ended ${e.JUDGED || "unrun"}` : e.OPENED === "failure" ? "the judge kept a change, and its pull request could not be opened" : `no pull request: ${e.LINE || "the night kept nothing"}`;
+            writeFileSync(out, JSON.stringify(passTicks({ item: plan.item, others: plan.skipped, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: e.LINE, failed, runUrl: e.RUN })));
+          ' "$RUNNER_TEMP/plan/pick.json" "$RUNNER_TEMP/plan-ticks.json"
+          node scripts/keel/night-plan.mjs record --date "$DAY" --ticks "$RUNNER_TEMP/plan-ticks.json"
