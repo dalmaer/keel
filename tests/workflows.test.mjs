@@ -2331,7 +2331,10 @@ test('phase 47: Codex runs climb and tend in workspace-write with sudo dropped, 
  */
 export function morningProblems(text) {
   const out = [];
-  if (!/^on:\n {2}workflow_run:\n {4}workflows: \[keel-night, keel-climb, keel-robot\]\n {4}types: \[completed\]\n {2}schedule:\n {4}- cron: "[^"]+"\n/m.test(text)) out.push('not started by keel-night, keel-climb and keel-robot finishing and by a schedule');
+  if (!/^on:\n {2}workflow_run:\n {4}workflows: \[keel-night, keel-climb, keel-robot\]\n {4}types: \[completed\]\n {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "[^"]+"\n {2}workflow_dispatch: \{\}\n/m.test(text)) out.push('not started by keel-night, keel-climb and keel-robot finishing, by a schedule and by hand');
+  // Once a day, just after the default readyBy (17:00 UTC): the passes finishing cover the rest.
+  const crons = [...text.matchAll(/^\s*-\s*cron:\s*"([^"]+)"/gm)].map(m => m[1]);
+  if (crons.length !== 1 || !/^\d+ 17 \* \* \*$/.test(crons[0]) || Number(crons[0].split(' ')[0]) > 30) out.push(`one daily cron shortly after 17:00 UTC, the default readyBy (got ${JSON.stringify(crons)})`);
   if (!/^concurrency:\n {2}group: keel-morning\n {2}cancel-in-progress: false$/m.test(text)) out.push('no keel-morning concurrency group that queues');
   if (!/^permissions: \{\}$/m.test(text)) out.push('the top level must grant nothing (permissions: {})');
   if (/secrets\./.test(text)) out.push('no secret beyond the job\'s own token');
@@ -2370,7 +2373,11 @@ test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, 
   for (const [why, changed, expected] of [
     ['no workflow_run trigger', t.replace(/ {2}workflow_run:\n {4}workflows: \[[^\]]*\]\n {4}types: \[completed\]\n/, ''), /not started by/],
     ['climb left out', t.replace('[keel-night, keel-climb, keel-robot]', '[keel-night, keel-robot]'), /not started by/],
-    ['no schedule', t.replace(/ {2}schedule:\n {4}- cron: "[^"]+"\n/, ''), /not started by/],
+    ['no schedule', t.replace(/ {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "[^"]+"\n/, ''), /not started by/],
+    ['no dispatch', t.replace('  workflow_dispatch: {}\n', ''), /not started by/],
+    ['hourly', t.replace('cron: "7 17 * * *"', 'cron: "7 * * * *"'), /one daily cron shortly after 17:00 UTC/],
+    ['before readyBy', t.replace('cron: "7 17 * * *"', 'cron: "7 16 * * *"'), /one daily cron shortly after 17:00 UTC/],
+    ['a second cron', t.replace('    - cron: "7 17 * * *"\n', '    - cron: "7 17 * * *"\n    - cron: "7 21 * * *"\n'), /one daily cron shortly after 17:00 UTC/],
     ['decide writes issues', t.replace('      contents: read\n      issues: read\n', '      contents: read\n      issues: write\n'), /decide: only the send job may write issues/],
     ['finalize writes issues', t.replace('      contents: write\n      pull-requests: write\n', '      contents: write\n      pull-requests: write\n      issues: write\n'), /finalize: only the send job may write issues/],
     ['a write at the top', t.replace('permissions: {}', 'permissions:\n  issues: write'), /top level must grant nothing/],

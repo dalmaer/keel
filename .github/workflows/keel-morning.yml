@@ -23,9 +23,13 @@
 # emails: a guard fires into a room someone is in.
 #
 # Started by each pass finishing (keel-night, keel-climb, keel-robot; one that
-# is not installed never starts it) and hourly, so readyBy is met within the
-# hour. An hourly run that finds the night not over, or already sent, does
-# nothing more.
+# is not installed never starts it), and once a day at 17:07 UTC, just after
+# the default readyBy, to catch "readyBy has passed" when no pass finishes
+# after it. A plan whose readyBy is another time is caught by the next pass
+# to finish or the next daily run, whichever comes first; one whose readyBy
+# falls after the next night starts (07:23 UTC) and never finishes gets no
+# brief, since decide then reads the new night. A run that finds the night
+# not over, or already sent, does nothing more.
 name: keel-morning
 
 on:
@@ -33,7 +37,8 @@ on:
     workflows: [keel-night, keel-climb, keel-robot]
     types: [completed]
   schedule:
-    - cron: "47 * * * *"
+    # 17:07 UTC, just after the default readyBy (17:00 UTC).
+    - cron: "7 17 * * *"
   workflow_dispatch: {}
 
 concurrency:

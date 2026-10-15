@@ -1109,7 +1109,8 @@ links, markdown, plan}`. No plan for the night is exit 2.
 The night is over when every build item is terminal (done, failed, skipped,
 left alone), or at `readyBy` (default 17:00 UTC on the night's date).
 `keel-morning.yml` (`node scripts/keel/morning.mjs decide|send|finalize`) runs
-when keel-night, keel-climb or keel-robot finish and hourly; once the night is
+when keel-night, keel-climb or keel-robot finish and daily at 17:07 UTC (a
+`readyBy` at another time waits for the next of those); once the night is
 over and unsent, it sends the brief (the one job with `issues: write`; a failed
 send is red) and opens one data-only PR, `keel-night/<date>-final`, with the
 final `docs/night/<date>.json` and the health page's "Tonight's plan".

@@ -827,8 +827,8 @@ test('adoption and adding practices estimate only newly created workflows from p
     const result = await adopt(opts, { version: VERSION, now, ciEnv });
     assert.deepEqual(await tree(dir), before, 'read-only preview installs no workflows or schedules');
     for (const flow of result.data.ciCost.workflows) {
-      // keel-morning's schedule is hourly (phase 77): 24 runs a day, priced, never left unknown.
-      assert.equal(flow.monthlyWeightedMinutes, flow.triggers.includes('schedule') ? (flow.path.endsWith('/keel-morning.yml') ? 1440 : 60) : 2.14);
+      // keel-morning (phase 77) is a daily cron plus workflow_run: priced like every daily workflow, never unknown.
+      assert.equal(flow.monthlyWeightedMinutes, flow.triggers.includes('schedule') ? 60 : 2.14);
       assert.equal(flow.source.repo, repo);
       assert.equal(flow.source.window.days, 28);
       assert.equal(flow.coverage.complete, true);

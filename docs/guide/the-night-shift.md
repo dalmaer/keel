@@ -238,7 +238,11 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
 - **When.** `keel-morning.yml` sends it once every build item in the plan is
   done, failed, skipped or left alone, or at the plan's `readyBy` (default
   17:00 UTC), marking anything unfinished "not finished by" that time, never
-  done. It starts when the night, climb or the robot finishes, and hourly.
+  done. It starts when the night, climb or the robot finishes, and once a
+  day at 17:07 UTC, just after the default `readyBy`. A `readyBy` at another
+  time is caught by whichever comes next: a pass finishing or the daily run.
+  A `readyBy` after the next night starts (07:23 UTC) is never reached for a
+  night whose builds never finish: by then the morning reads the new night.
   Only its send job may write issues; a failed send turns it red. The same run
   opens one data-only PR, `keel-night/<date>-final`, that puts the final
   outcomes in `docs/night/<date>.json` and the page's "Tonight's plan"; the
