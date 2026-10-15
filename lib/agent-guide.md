@@ -22,7 +22,8 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel time` — weekly gate/test medians, load, failure memory
 - `keel test <file> --stalls` — names tests that judge the wall clock
 - `keel drain <prefix>` — newest passing PR per queue; exit 3
-- `keel night plan|tick` — tonight's plan; tick it
+- `keel night plan|tick` — the plan
+- `keel goodnight` — shape it
 - `keel fleet` — fleet practice, health, CI
 - `keel fleet update` — update PRs for projects behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
@@ -1067,6 +1068,38 @@ it under "Tonight's plan". The design is
   written, for an id the plan does not hold, an unknown status, or a move back
   from `done` (done again only mends its note). `--json` → `{ok, path, date,
   item, from}`.
+- `keel goodnight` (phase 74; the conduct skill's `/goodnight` runs it when
+  the owner asks) shows the opening and changes nothing: settled today (PRs
+  merged, phases moved, Loop findings decided since the plan branch's last
+  commit as last fetched, or the last 24 hours, whichever is later), left open
+  (open PRs; from `keel board`, unanswered reviews and the "yours" items; a
+  source it cannot read is a `not read:` line), tonight's plan (the draft
+  `.keel/night/draft.json`, else keel's default plan with personas read from
+  their newest review pages, never run), and up to three things to try
+  (personas' missed goals the plan did not admit, accepted Loop findings
+  whose note names a health measure in backticks, the health proposal as a
+  build for the climb job that measures it). `--json` → `{ok, night, since,
+  settled: {prs, phases, findings}, leftOpen: {prs, reviews, yours, gaps},
+  plan, from: draft|default, staleDraft, suggestions}`.
+- `keel goodnight add <suggestion-id>` | `add --title "<words>" [--kind k]
+  [--measure m --bound n --better lower|higher] [--lane l] [--budget min]
+  [--id x]` | `drop <id>` | `edit <id> [--title …] [--kind …] [--lane …]
+  [--measure …] [--budget …]` | `budget <id> <minutes>` | `skip <path-or-id>`
+  change the draft (written never through a link; it starts from the default
+  plan). A build added with no `--lane` takes the climb job that measures its
+  number, else is refused. Refused, exit 2, nothing written: a sixth build
+  item, a build with no number, an item naming something settled today (a
+  merged `#n` or `phase n` in its title, a decided `loop:<slug>`, a merged
+  robot PR's `robot:#n`). The owner's words are kept as written. `--json` →
+  `{ok, night, said, draft, plan}`.
+- `keel goodnight --yes` ("that's the plan") validates the draft (or the
+  default plan), fills `settledToday` and `leftOpen`, writes
+  `.keel/night/plan.json` with `shapedBy: "owner"`, and force-pushes one
+  parentless commit holding only that file to `refs/heads/keel-night-plan`
+  (built with hash-object, mktree and commit-tree: the working tree, index
+  and other branches are untouched). Exit 2 and nothing written with no
+  remote or a refused plan; exit 1 when written but not pushed. `--json` →
+  `{ok, night, path, pushed: {remote, branch, commit}, plan}`.
 
 The plan: `{schema: 1, date, shapedBy: default|owner, readyBy: null|<time with
 zone>, willNotTouch, settledToday, leftOpen, items}`; each item `{id, title,
