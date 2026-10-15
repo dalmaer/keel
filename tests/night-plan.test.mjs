@@ -448,6 +448,24 @@ Acme's lens.
   assert.equal(await readFile(join(root, PLAN), 'utf8'), before);
 });
 
+test('keel#142: a broken persona with a long command and long stderr still makes a valid plan; the title is cut, the review page keeps them whole', async t => {
+  const { root, gh } = await acme(t, { config: { practices: ['base', 'night', 'personas'], climb: undefined, robot: undefined } });
+  await cp(join(KEEL, 'practices/personas/files/scripts/keel/persona.mjs'), join(root, 'scripts/keel/persona.mjs'));
+  await mkdir(join(root, '.agents/personas'), { recursive: true });
+  const command = `echo ${'acme-anvil-'.repeat(40)} >&2; echo ${'stderr-'.repeat(60)} >&2; exit 3`;
+  await writeFile(join(root, '.agents/personas/speed.md'), `---\nname: speed\ndescription: Acme.\ngoal:\n  - name: latency\n    at most: 100\n    measured by: ${command}\n---\n\nAcme's lens.\n`);
+  const r = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  assert.equal(r.code, 0, r.out + r.err);
+  const item = r.json().plan.items.find(i => i.id === 'persona-speed--latency');
+  assert.equal(item.kind, 'review');
+  assert.ok(item.title.length <= 300 && item.title.endsWith('…'), item.title);
+  assert.ok(item.title.startsWith('latency: its command is broken (`echo acme-anvil-'));
+  assert.deepEqual(validatePlan(r.json().plan).problems, []);
+  const page = await readFile(join(root, `docs/reviews/${NIGHT}-speed.md`), 'utf8');
+  assert.ok(page.includes(`\`${command}\``), 'the review page keeps the full command');
+  assert.match(page, /stderr-stderr-/);
+});
+
 test('the plan and its record are never written through a symlink: a linked directory or file pointing outside the project is refused, and its target is untouched', async t => {
   const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-links-')));
   t.after(() => rm(base, { recursive: true, force: true }));
