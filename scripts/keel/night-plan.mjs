@@ -181,19 +181,30 @@ const item = ({ id, title, kind, source, number = null, lane, budget = null, sta
  */
 export function admit(candidates, { openRobotPrs = [], taken = [] } = {}) {
   const ids = new Set(taken), items = [], waiting = [];
-  const robots = robotOutside(candidates, openRobotPrs).length;
-  let builds = 0;
-  for (const c of candidates) {
-    let it = item(c);
+  // Kinds first: a build with no number is triage before anything is counted,
+  // so admission counts exactly the builds the validator will.
+  const normal = candidates.map(c => {
+    const it = item(c);
+    return it.kind === 'build' && it.number === null
+      ? { ...it, kind: 'triage', result: { note: 'Names no number, so it is triage, not build: a build item names its number first.' } }
+      : it;
+  });
+  // The validator's count: admitted builds, plus each open robot PR no admitted build names in its lane.
+  // A build naming an open PR not yet named takes that PR's place (no change); any other adds one.
+  const open = new Set(openRobotPrs), named = new Set();
+  let total = open.size;
+  for (const c of normal) {
+    let it = c;
     let id = String(it.id).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'item';
     const base = id;
     for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;
-    it.id = id;
-    if (it.kind === 'build' && it.number === null) {
-      it = { ...it, kind: 'triage', result: { note: 'Names no number, so it is triage, not build: a build item names its number first.' } };
+    it = { ...it, id };
+    if (it.kind === 'build') {
+      const pr = /^robot:#/.test(it.lane) ? Number(it.lane.slice(7)) : null;
+      const replaces = pr !== null && open.has(pr) && !named.has(pr);
+      if (total + (replaces ? 0 : 1) > MAX_BUILD) { waiting.push(`${id}: waits for the next night (at most ${MAX_BUILD} build items, counted with the robot's ${open.size} open PR${open.size === 1 ? '' : 's'})`); continue; }
+      if (replaces) named.add(pr); else total++;
     }
-    if (it.kind === 'build' && builds + robots >= MAX_BUILD) { waiting.push(`${id}: waits for the next night (at most ${MAX_BUILD} build items, counted with the robot's ${robots} open PR${robots === 1 ? '' : 's'})`); continue; }
-    if (it.kind === 'build') builds++;
     ids.add(id);
     items.push(it);
   }

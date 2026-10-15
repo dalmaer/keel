@@ -106,6 +106,24 @@ test('admit, the default plan\'s door: a build with no number becomes triage, bu
   assert.equal(validatePlan(designPlan(r.items), { openRobotPrs: [9] }).ok, true, 'what admit returns, the validator accepts');
 });
 
+test('admission counts the builds the validator counts: five open robot PRs, the next robot issue one of them, and a numbered climb job make a valid plan', () => {
+  const inputs = {
+    date: NIGHT,
+    health: { date: '2026-10-14', rows: [{ id: 'slow_tests', value: 2, bound: 0, better: 'lower', state: 'outside' }], proposal: null },
+    climb: { job: 'test-time', by: 'measure', why: 'slow_tests is outside', minutes: 40, measures: ['slow_tests'], better: 'lower' },
+    robot: { next: { number: 3, title: 'Acme: index the anvils' }, open: [1, 2, 3, 4, 5] },
+  };
+  const plan = defaultPlan(inputs);
+  assert.deepEqual(validatePlan(plan, { openRobotPrs: [1, 2, 3, 4, 5] }).problems, []);
+  // The robot's issue names no number: triage, so its open PR #3 still counts; five PRs leave no room for the climb.
+  assert.equal(plan.items.find(i => i.id === 'robot-3').kind, 'triage');
+  assert.ok(!plan.items.some(i => i.kind === 'build'));
+  assert.match(plan.leftOpen.join('\n'), /climb-test-time: waits for the next night \(at most 5 build items, counted with the robot's 5 open PRs\)/);
+  // A numbered build naming an open robot PR takes that PR's place rather than adding one.
+  const named = admit([{ id: 'robot-3', title: 'Acme', kind: 'build', source: 'robot:#3', lane: 'robot:#3', number: { measure: 'slow_tests', bound: 0, better: 'lower' } }], { openRobotPrs: [1, 2, 3, 4, 5] });
+  assert.deepEqual([named.items.map(i => i.kind), named.waiting], [['build'], []]);
+});
+
 test('tonight is the UTC date of the next 07:23 UTC night', () => {
   assert.equal(nightOf(new Date('2026-10-15T05:00:00Z')), '2026-10-15', '22:00 in California, before the night: that night');
   assert.equal(nightOf(new Date('2026-10-14T20:00:00Z')), '2026-10-15', '22:00 in Berlin: tomorrow morning\'s night');
