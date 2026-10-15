@@ -7,8 +7,9 @@
 // keel's own tests KEEL_CLIMB_CLOCK for the wall clock: see measureIn).
 //
 //   node scripts/keel/climb.mjs config                      the climb config, validated
-//   node scripts/keel/climb.mjs pick [--date d] [--force] [--last-night f]   tonight's job, or why none
-//                                   (f: the last night's night.json, from its keel-climb record)
+//   node scripts/keel/climb.mjs pick [--date d] [--force] [--last-night f] [--plan p]   tonight's job, or why none
+//                                   (f: the last night's night.json, from its keel-climb record; p: tonight's plan,
+//                                   from the plan branch: with one dated d, its first climb item that may run, or none)
 //   node scripts/keel/climb.mjs measure <job> [--runs k] [--baseline]
 //   node scripts/keel/climb.mjs compare [--base r] [--candidate r] [--rounds n] [--runs k] [--decide] [--final]
 //                                   (--final --base r: the run's commit, and the night's record must name it)
@@ -17,7 +18,8 @@
 //   node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" [--runs n] [--decide]
 //   node scripts/keel/climb.mjs harmless --path p --why "<why>"   a changed build output, explained
 //   node scripts/keel/climb.mjs guard [--base r] [--job j]  the gate, no test dropped, the job's own guard
-//   node scripts/keel/climb.mjs sandbox --base r --head r [--job tend]   the agent's commits change no workflow, keel script, config or install file
+//   node scripts/keel/climb.mjs sandbox --base r --head r [--job tend] [--plan p]   the agent's commits change no workflow, keel script, config or install file
+//                                   (with --plan, nothing the plan's willNotTouch covers either: touchRules)
 //                                   (git only); --job tend adds a tend pass's record rules (tend.mjs tendCheck, git only too)
 //   node scripts/keel/climb.mjs held [--since s --head sha]   the checkout's state (HEAD, the tracked tree, the index flags, the
 //                                   git dir) as one JSON line; with --since (that line), what moved since it was named
@@ -404,15 +406,70 @@ export async function lastJob(root, lastNight) {
   return fromState;
 }
 
-export async function pick({ root, config, env = process.env, date = today(), force = false, lastNight }) {
+/**
+ * The night's plan module (night-plan.mjs, the night practice's, beside this
+ * script: climb requires night). Loaded only when a plan is given, so every
+ * night without one runs without it.
+ */
+async function nightPlanLib() {
+  const at = new URL('./night-plan.mjs', import.meta.url);
+  try { return await import(at.href); }
+  catch (e) { throw new ClimbError(`--plan needs scripts/keel/night-plan.mjs (the night practice) beside climb.mjs: ${String(e.message).split('\n')[0]}`); }
+}
+
+/**
+ * Tonight's plan as climb reads it (phase 76): `file` is the plan branch's
+ * copy the workflow fetched. { used, why?, plan?, items, willNotTouch }: with
+ * `used`, its open climb build items in plan order. A file that cannot be
+ * read is exit 2: pick never guesses there is no plan.
+ */
+export async function planFor(file, date) {
+  const lib = await nightPlanLib();
+  let read;
+  try { read = await lib.passPlan(file, date); } catch (e) { throw new ClimbError(`${e.message}; pick never guesses there is no plan`); }
+  if (!read.used) return { used: false, why: read.why, items: [], willNotTouch: [] };
+  return { used: true, plan: read.plan, shapedBy: read.plan.shapedBy, items: lib.buildItems(read.plan, 'climb'), willNotTouch: [...read.plan.willNotTouch], planMinutes: lib.planMinutes };
+}
+
+/**
+ * With a plan, climb runs what it names and nothing else: the first open
+ * build item whose lane is climb:<job> and whose job may run tonight (named
+ * in "climb".jobs, available, no open keel-climb/<job>/ PR waiting for a
+ * person, not retiring). The plan chooses among the jobs climb may already
+ * run; it never adds one. Every other climb item is skipped, saying why (one
+ * job a night). Pure. { job, item, by, why, skipped: [{ id, note }] } or
+ * { job: null, reason, skipped }.
+ */
+export function choosePlanned({ items, jobs, unavailable = [], waiting = new Set(), retiring = new Set(), date }) {
+  const why = it => {
+    const off = unavailable.find(u => u.job === it.job);
+    if (off) return off.reason;
+    if (!jobs.includes(it.job)) return `${it.job} is not a job "climb".jobs names (${jobs.join(', ') || 'none'})`;
+    if (waiting.has(it.job)) return `${it.job} waits for its open ${PREFIX}${it.job}/ PR`;
+    if (retiring.has(it.job)) return `${it.job} is retiring: its last three PRs were closed unmerged`;
+    return null;
+  };
+  if (!items.length) return { job: null, reason: `tonight's plan (${date}) names no climb item, so climb does not run tonight`, skipped: [] };
+  const at = items.findIndex(it => why(it) === null);
+  const skipped = items.flatMap((it, i) => (i === at ? [] : [{ id: it.id, note: at < 0 || i < at ? `climb did not run it: ${why(it)}` : `climb runs one job a night, and tonight's plan named ${items[at].id} first` }]));
+  if (at < 0) return { job: null, reason: `no climb item in tonight's plan (${date}) can run: ${items.map(it => `${it.id} (${why(it)})`).join('; ')}`, skipped };
+  const it = items[at];
+  return { job: it.job, item: it, by: 'plan', why: `tonight's plan names it: ${it.id}, ${it.title}`, skipped };
+}
+
+export async function pick({ root, config, env = process.env, date = today(), force = false, lastNight, plan: planFile }) {
   const c = climbConfigOf(config);
   if (!c) return { job: null, date, reason: 'climb is off: .keel/keel.json has no "climb"' };
+  const planned = planFile ? await planFor(planFile, date) : null;
+  // What the pass ticks on the plan branch (phase 76): its item, and every open climb item it does not run, skipped with why.
+  const planOut = (skipped, item = null) => (planned ? { plan: planned.used ? { used: true, date, shapedBy: planned.shapedBy, item, skipped, willNotTouch: planned.willNotTouch } : { used: false, why: planned.why } } : {});
+  const skipAll = note => (planned?.used ? planned.items.map(it => ({ id: it.id, note })) : []);
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
-  if (c.schedule === 'weekly' && !force && day !== WEEKLY_DAY) return { job: null, date, reason: 'not tonight: climb is weekly, on Mondays (UTC)' };
+  if (c.schedule === 'weekly' && !force && day !== WEEKLY_DAY) return { job: null, date, reason: 'not tonight: climb is weekly, on Mondays (UTC)', ...planOut(skipAll('climb did not run it: climb is weekly, on Mondays (UTC)')) };
   const problem = c.jobs.includes('loop') ? loopSourceProblem(config) : null;
   const unavailable = problem ? [{ job: 'loop', reason: problem }] : [];
   const jobs = c.jobs.filter(job => job !== 'loop' || !problem);
-  if (!jobs.length) return { job: null, date, reason: problem, unavailable };
+  if (!jobs.length) return { job: null, date, reason: problem, unavailable, ...planOut(skipAll(`climb did not run it: ${problem}`)) };
   const waiting = waitingJobs(openHeads(root, env));
   // Three closed unmerged in a row (newest three of every state: a merge or an open one breaks it): the job proposes its own retirement (the health page says so) and waits for the owner.
   const retired = climbRetiring(ghPrs(root, env, 'all', 'headRefName,number,createdAt,mergedAt,state'), c.jobs);
@@ -420,13 +477,89 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   const health = await newestHealth(root, config);
   const lastRun = await lastJob(root, lastNight);
   const last = lastRun?.job ?? null;
-  // The proposals jobs' own signals, read from the repo: rows since the last distill, Loop's untriaged findings.
-  const signals = await signalsOf(root, config, jobs);
-  const chosen = choose({ jobs, rows: [...(health?.rows ?? []), ...signals], waiting, last, retiring });
-  const out = { ...chosen, date, health: health?.file ?? null, last: lastRun, waiting: [...waiting].filter(j => c.jobs.includes(j)), retiring: retired, minutes: c.minutes, margin: c.margin, attempts: c.attempts };
+  let chosen, minutes = c.minutes, extra;
+  if (planned?.used) {
+    // The plan chooses; the health page and the rotation do not (the plan is the owner's, or what keel would have chosen).
+    const p = choosePlanned({ items: planned.items, jobs, unavailable, waiting, retiring, date });
+    chosen = p.job ? { job: p.job, by: p.by, why: p.why } : { job: null, reason: p.reason };
+    extra = planOut(p.skipped, p.job ? p.item.id : null);
+    if (p.job) {
+      minutes = planned.planMinutes(p.item.item, c.minutes);
+      extra.planItem = { id: p.item.id, title: p.item.title, number: p.item.item.number, minutes: p.item.item.budget?.minutes ?? null };
+    }
+  } else {
+    // The proposals jobs' own signals, read from the repo: rows since the last distill, Loop's untriaged findings.
+    const signals = await signalsOf(root, config, jobs);
+    chosen = choose({ jobs, rows: [...(health?.rows ?? []), ...signals], waiting, last, retiring });
+    extra = planOut([]);
+  }
+  // minutes: the pass's budget; a plan item's may lower it, never raise it (budget shows both).
+  const out = { ...chosen, date, health: health?.file ?? null, last: lastRun, waiting: [...waiting].filter(j => c.jobs.includes(j)), retiring: retired, minutes, budget: { config: c.minutes, plan: extra.planItem?.minutes ?? null }, margin: c.margin, attempts: c.attempts, ...extra };
   if (unavailable.length) out.unavailable = unavailable;
   if (chosen.job) Object.assign(out, { branch: `${PREFIX}${chosen.job}/${date}`, command: JOBS[chosen.job].command(config), number: JOBS[chosen.job].number });
   return out;
+}
+
+/**
+ * A plan's willNotTouch, as path rules (phase 76). Each entry is a path in
+ * the repo, compared literally and case-sensitively (no globs: "*" is a
+ * character): it covers that exact path and, as a directory, everything under
+ * it, so "lib/anvil" covers lib/anvil and lib/anvil/x.mjs, never
+ * lib/anvils.mjs. A leading "./" and a trailing "/" are dropped. An entry
+ * that can name no repo path (empty, absolute, or with a "." or ".." segment)
+ * is set aside as `ignored`, never widened into a match.
+ */
+export function touchRules(entries = []) {
+  const paths = [], ignored = [];
+  for (const entry of entries) {
+    const p = String(entry).trim().replace(/^(?:\.\/)+/, '').replace(/\/+$/, '');
+    if (!p || p.startsWith('/') || p.split('/').some(s => s === '' || s === '.' || s === '..')) ignored.push(entry);
+    else paths.push({ entry, path: p });
+  }
+  return { paths, ignored };
+}
+/** The rule a repo path falls under, or null. */
+export const touchedBy = (path, rules) => rules.find(r => path === r.path || path.startsWith(`${r.path}/`)) ?? null;
+
+/**
+ * What the agent's commits change that tonight's plan will not touch:
+ * [problem], git only (no code of the branch's runs), reading paths as the
+ * sandbox does (NUL-delimited): the whole branch, and each commit against its
+ * first parent, so a path changed and changed back is still refused (the
+ * branch's history would carry it). In a merge, a path as one of its other
+ * parents has it came from that parent, which is checked as its own commit
+ * (or is the base's history); any other change a merge makes is its own.
+ */
+export function willNotTouchProblems(root, base, head, entries) {
+  const { paths: rules } = touchRules(entries);
+  if (!rules.length) return [];
+  const out = [], seen = new Set();
+  const entryAt = (ref, path) => { const r = git(root, ['ls-tree', '-z', ref, '--', path], { allowFail: true }); return r.status === 0 ? (r.stdout.split('\0')[0] ?? '').split('\t')[0] : ''; };
+  const flag = (path, where) => {
+    const rule = touchedBy(path, rules);
+    if (!rule || seen.has(path)) return;
+    seen.add(path);
+    out.push(`${path}: ${where}; tonight's plan will not touch ${rule.entry} (its willNotTouch), so the branch is refused whole`);
+  };
+  for (const { path } of changesOf(root, base, head)) flag(path, 'changed on the agent\'s branch');
+  for (const c of git(root, ['rev-list', '--reverse', `${base}..${head}`]).split('\n').filter(Boolean)) {
+    const [, first, ...others] = git(root, ['rev-list', '--parents', '-n', '1', c]).split(' ');
+    for (const { path } of changesOf(root, first, c)) {
+      if (others.some(p => entryAt(p, path) === entryAt(c, path))) continue;
+      flag(path, `changed in ${c.slice(0, 7)} on the agent's branch`);
+    }
+  }
+  return out;
+}
+
+/** The willNotTouch of the plan a judge was handed (sandbox --plan): a valid plan's, or exit 2, never read as "nothing". */
+export async function planWillNotTouch(file) {
+  const lib = await nightPlanLib();
+  let raw;
+  try { raw = JSON.parse(await readFile(file, 'utf8')); } catch (e) { throw new ClimbError(`--plan ${file} cannot be read (${e.code ?? e.message}); the sandbox never guesses the plan touches nothing`); }
+  const v = lib.validatePlan(raw);
+  if (!v.ok) throw new ClimbError(`--plan ${file} is refused: ${v.problems[0]}`);
+  return raw.willNotTouch;
 }
 
 /**
@@ -1729,7 +1862,7 @@ export async function agentRan({ outcome, file, minutes, started, agent, now = D
 // ---- the command line ------------------------------------------------------------
 
 const USAGE = 'usage: node scripts/keel/climb.mjs config|pick|measure <job>|compare|prove-steady|harmless|revert|settle|guard|sandbox|held|report|agent-ran|distill [propose]|loop-pull|tend-pick|tend-input|tend-note|tend-page|tend-report [--json]';
-const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--agent': 'agent', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight', '--since': 'since',
+const FLAGS = { '--date': 'date', '--runs': 'runs', '--rounds': 'rounds', '--base': 'base', '--head': 'head', '--candidate': 'candidate', '--what': 'what', '--why': 'why', '--input': 'input', '--body': 'body', '--test': 'test', '--path': 'path', '--job': 'job', '--issue': 'issue', '--outcome': 'outcome', '--file': 'file', '--minutes': 'minutes', '--started': 'started', '--agent': 'agent', '--finding': 'finding', '--propose': 'propose', '--tried': 'tried', '--last-night': 'lastNight', '--since': 'since', '--plan': 'plan',
   // distill propose (lessons)
   '--kind': 'kind', '--name': 'name', '--rule': 'rule', '--guard': 'guard', '--rows': 'rows', '--row': 'row', '--shape': 'shape', '--cost': 'cost', '--check': 'check', '--family': 'family', '--note': 'note', '--read': 'read' };
 const SWITCHES = { '--force': 'force', '--baseline': 'baseline', '--decide': 'decide', '--final': 'final', '--state': 'state', '--record': 'record' };
@@ -1794,7 +1927,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       return { data: { ...r, text: undefined }, text: [r.line, ...(r.text && !o.body ? ['', r.text.trimEnd()] : [])].join('\n') };
     }
     case 'pick': {
-      const p = await pick({ ...ctx, date: o.date, force: o.force, lastNight: o.lastNight ? resolve(o.lastNight) : undefined });
+      const p = await pick({ ...ctx, date: o.date, force: o.force, lastNight: o.lastNight ? resolve(o.lastNight) : undefined, plan: o.plan ? resolve(o.plan) : undefined });
       return { data: p, text: p.job ? `tonight: ${p.job} (${p.why}); branch ${p.branch}` : `no climb tonight: ${p.reason}` };
     }
     case 'measure': {
@@ -1852,11 +1985,15 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
       if (!o.base || !o.head) throw new ClimbError(`sandbox needs --base <ref> --head <ref>; ${USAGE}`);
       if (o.job !== undefined && o.job !== 'tend') throw new ClimbError(`sandbox --job takes tend only: its record rules are read with git alone; ${USAGE}`);
       const problems = sandboxProblems(root, o.base, o.head);
+      // Phase 76: with the plan the pass ran (--plan), its willNotTouch is refused as the off-limits paths are.
+      const avoid = o.plan ? await planWillNotTouch(resolve(o.plan)) : [];
+      if (!problems.length && avoid.length) problems.push(...willNotTouchProblems(root, o.base, o.head, avoid));
       // #68: a tend pass's publish job rechecks the pass's record rules itself, with this checkout's script. The
       // worksheet is the agent job's record, so only what git says: each commit cites a finding, not which one.
       if (o.job === 'tend' && !problems.length) problems.push(...tendCheck(root, o.base, o.head).refused);
       const rules = o.job === 'tend' ? '; and the tend pass\'s record rules hold (no evidence written, no status marked built, lived-in or accepted, no box ticked, nothing deleted, nothing outside its surfaces, every commit cites a finding)' : '';
-      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, ...(o.job ? { job: o.job } : {}), problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}, and no install file (${INSTALL_FILES.join(', ')}, or package.json but its scripts)${rules}`, exitCode: problems.length ? 1 : 0 };
+      const planned = avoid.length ? `, nor anything tonight's plan will not touch (${avoid.join(', ')})` : '';
+      return { data: { ok: !problems.length, offLimits: OFF_LIMITS, ...(o.job ? { job: o.job } : {}), ...(o.plan ? { willNotTouch: avoid } : {}), problems }, text: problems.length ? `sandbox refused:\n${problems.map(p => `  ${p}`).join('\n')}` : `sandbox: ${o.head} is on top of ${o.base} and changes none of ${OFF_LIMITS.join(', ')}, and no install file (${INSTALL_FILES.join(', ')}, or package.json but its scripts)${planned}${rules}`, exitCode: problems.length ? 1 : 0 };
     }
     case 'held': {
       // #68: the checkout's state before any of the agent's code runs (one JSON line, for a step output the agent's

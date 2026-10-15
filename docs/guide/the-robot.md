@@ -96,6 +96,23 @@ preserves recorded heads, avoids duplicate questions, and posts at most 10 new
 questions per run. JSON reports rejected questions and the omitted count;
 already-posted questions do not consume that bound on later scans.
 
+With tonight's plan (the plan branch `keel-night-plan` holds a valid plan dated
+today, UTC), a scheduled or manual scan admits only the plan's open `robot:#<n>`
+build items, in plan order, and never lists or reads another `keel:agent`
+issue: there is no fallback. A planned issue the robot refuses (its rubric, its
+label, its receipt) is ticked failed with the reason and the next planned issue
+is tried; one it already finished and that has not changed is ticked skipped. A
+plan with no robot item builds nothing. The item's `budget.minutes` may lower
+the build's 45 minutes, never raise them, and the weekly allowance still
+governs. The judge and the publisher refuse any path the plan's `willNotTouch`
+covers (that exact path, or anything under it). The publisher ticks the admitted
+item running, then done with its PR or failed with why, as one commit on top of
+`keel-night-plan`, pushed with a lease; it never touches a plan for another
+night. A writer's own label or comment, routed, is that writer asking now, not
+the night, so the plan does not choose it. A refused plan, or one for another
+night, is no plan: the scan admits as above. Loop findings do not become robot
+issues through the plan yet: an accepted finding still needs its own rubric.
+
 Admission, publication and review resolve the current default branch to a commit
 and verify its configuration blob. Disabled or unavailable policy revokes queued
 work even when its immutable checkout is still enabled. The fresh allowance and

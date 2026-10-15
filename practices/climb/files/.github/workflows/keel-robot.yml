@@ -1,6 +1,8 @@
 # Robot extends climb; OFF unless trusted robot.on and budgetMinutes permit it.
 # Build's three trust boundaries: read-only agent, read-only judge, trusted publisher.
 # Review follows explicitly on this same serialized workflow, never by bot-PR triggers.
+# With tonight's plan (keel-night-plan, phase 76) a scan admits only its robot
+# items, in plan order, refuses its willNotTouch, and the publisher ticks them.
 name: keel-robot
 on:
   schedule:
@@ -38,6 +40,9 @@ jobs:
       # The deterministic preparation step's outcome: 'failure' (a merge conflict
       # with the default branch, say) repeats on every retry, so it is recorded.
       prepared: ${{ steps.isolate.outcome }}
+      # Tonight's plan (phase 76): whether it has items for the publisher to tick, and the night they are for.
+      plan_ticks: ${{ steps.prepare.outputs.plan_ticks }}
+      plan_date: ${{ steps.prepare.outputs.plan_date }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,9 +52,33 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+      # Tonight's plan (phase 76): .keel/night/plan.json on the plan branch
+      # keel-night-plan, read as data through the contents API with this
+      # job's read token. With one dated today (UTC), a scan admits only its
+      # robot items, in its order; none there, the robot admits as before. A
+      # branch that cannot be read is red: admission never guesses.
+      - name: Read tonight's plan
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/night-plan"
+          code=0
+          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan" > "$RUNNER_TEMP/night-plan/branch.json" 2> "$RUNNER_TEMP/night-plan/error.txt" || code=$?
+          if [ "$code" = 0 ]; then
+            echo "tonight's plan: read from keel-night-plan"
+          elif grep -q "HTTP 404" "$RUNNER_TEMP/night-plan/error.txt"; then
+            rm -f "$RUNNER_TEMP/night-plan/branch.json"
+            echo "no plan on keel-night-plan: the robot admits as it always has"
+          else
+            rm -f "$RUNNER_TEMP/night-plan/branch.json"
+            echo "::error::The plan branch keel-night-plan could not be read (gh api exit $code: $(head -n 1 "$RUNNER_TEMP/night-plan/error.txt")); the robot never guesses there is no plan."
+            exit 1
+          fi
       - name: Admit one issue from trusted policy
         id: prepare
         env:
+          ROBOT_NIGHT_PLAN: ${{ runner.temp }}/night-plan/branch.json
           GH_TOKEN: ${{ github.token }}
           ROBOT_HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
           ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
@@ -357,7 +386,7 @@ jobs:
           retention-days: 7
   publish:
     needs: [agent, judge]
-    if: always() && (needs.agent.outputs.issue != '' || needs.agent.outputs.triage == 'true')
+    if: always() && (needs.agent.outputs.issue != '' || needs.agent.outputs.triage == 'true' || needs.agent.outputs.plan_ticks == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -368,6 +397,10 @@ jobs:
     outputs:
       pr: ${{ steps.publish.outputs.pr }}
       head: ${{ steps.publish.outputs.head }}
+      # The publication step's own outcome (phase 76): the review follows a
+      # published PR even when a later step of this job (the plan's ticks)
+      # fails; that failure still leaves this job, and the run, red.
+      published: ${{ steps.publish.outcome }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -404,11 +437,37 @@ jobs:
           ROBOT_JUDGE_RAN: ${{ needs.judge.outputs.judge_ran }}
           ROBOT_PREPARED: ${{ needs.agent.outputs.prepared }}
         run: node scripts/keel/robot.mjs publish --json
+      # Tonight's plan, ticked where the morning reads it (phase 76): the
+      # plan branch keel-night-plan, never main, never merged. The admitted
+      # item runs, then is done with its pull request or failed with why (and
+      # this run); each planned issue the robot refused is failed, and one it
+      # had nothing new for is skipped, each saying why. One commit on the
+      # branch's tip, pushed with a lease (scripts/keel/night-plan.mjs record).
+      - name: Tick tonight's plan
+        if: always() && needs.agent.outputs.plan_ticks == 'true'
+        env:
+          DAY: ${{ needs.agent.outputs.plan_date }}
+          PUBLISHED: ${{ steps.publish.outcome }}
+          JUDGED: ${{ needs.judge.result }}
+          PR: ${{ steps.publish.outputs.pr }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            import { passTicks } from "./scripts/keel/night-plan.mjs";
+            const [admitted, out] = process.argv.slice(1);
+            const { nightPlan } = JSON.parse(readFileSync(admitted, "utf8"));
+            const e = process.env;
+            const failed = e.PUBLISHED !== "success" ? "the robot could not publish its candidate (see this run)" : e.JUDGED !== "success" ? `the robot built no candidate that passed its judge (the judge ended ${e.JUDGED || "unrun"})` : "no pull request was opened";
+            writeFileSync(out, JSON.stringify(passTicks({ item: nightPlan.item, others: nightPlan.ticks, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: "the robot opened or updated its pull request; other-provider review follows, and a person merges", failed, runUrl: e.RUN })));
+          ' "$RUNNER_TEMP/plan/robot-plan.json" "$RUNNER_TEMP/plan-ticks.json"
+          node scripts/keel/night-plan.mjs record --date "$DAY" --ticks "$RUNNER_TEMP/plan-ticks.json"
   review-agent:
     outputs:
       complete: ${{ steps.review.outputs.complete }}
     needs: publish
-    if: always() && needs.publish.result == 'success' && needs.publish.outputs.pr != ''
+    if: always() && needs.publish.outputs.published == 'success' && needs.publish.outputs.pr != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

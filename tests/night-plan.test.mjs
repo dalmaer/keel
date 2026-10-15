@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
+import { runBlocks } from './helpers/workflows.mjs';
 import { validatePlan, admit, defaultPlan, nightOf, tickMeasures, planSection, healthProposal, safeWrite, writeRecord, MAX_BUILD, PLAN, ITEM_FIELDS, PLAN_FIELDS, CANDIDATE_SOURCES } from '../lib/night-plan.mjs';
 import { isData } from '../lib/night.mjs';
 import { formatRobotRubric } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
@@ -520,6 +521,130 @@ test('keel night is announced: both verbs are in the cold start and the guide', 
   assert.match(guide, /<!-- topic: night \|/);
   const names = (await readdir(join(KEEL, 'practices/night/files/scripts/keel'))).filter(n => n === 'night-plan.mjs');
   assert.deepEqual(names, ['night-plan.mjs']);
+});
+
+// ---- phase 76: each pass ticks its item on the plan branch --------------------
+
+/**
+ * A synthetic Acme project whose origin is a bare repo holding main and the
+ * plan branch keel-night-plan (one file, on its own history, as /goodnight
+ * pushes it), with the night practice's scripts in scripts/keel.
+ * Returns { dir, origin, git, tip, show, temp }.
+ */
+async function planRemote(t, plan) {
+  const base = await mkdtemp(join(tmpdir(), 'keel-plan-record-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme'), origin = join(base, 'origin.git'), temp = join(base, 'tmp');
+  const git = (args, cwd = dir) => { const r = run('git', args, { cwd }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout.trim(); };
+  for (const d of [dir, temp]) await mkdir(d, { recursive: true });
+  git(['init', '-q', '--bare', origin], base);
+  git(['init', '-q', '-b', 'main']);
+  await cp(join(KEEL, 'practices/night/files/scripts/keel'), join(dir, 'scripts/keel'), { recursive: true });
+  await mkdir(join(dir, '.keel'), { recursive: true });
+  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme' })}\n`);
+  git(['add', '-A']);
+  git(['commit', '-q', '-m', 'acme']);
+  git(['remote', 'add', 'origin', origin]);
+  git(['push', '-q', 'origin', 'HEAD:refs/heads/main']);
+  if (plan) {
+    git(['checkout', '-q', '--orphan', 'keel-night-plan']);
+    git(['rm', '-rq', '--cached', '.']);
+    await mkdir(join(dir, '.keel/night'), { recursive: true });
+    await writeFile(join(dir, '.keel/night/plan.json'), JSON.stringify(plan));
+    git(['add', '-f', '.keel/night/plan.json']);
+    git(['commit', '-q', '-m', 'acme plan']);
+    git(['push', '-q', 'origin', 'HEAD:refs/heads/keel-night-plan']);
+    git(['checkout', '-q', '-f', 'main']);
+    await rm(join(dir, '.keel/night'), { recursive: true, force: true });
+  }
+  const tip = ref => git(['rev-parse', ref], origin);
+  const show = () => JSON.parse(git(['show', 'refs/heads/keel-night-plan:.keel/night/plan.json'], origin));
+  return { dir, origin, git, tip, show, temp };
+}
+
+const plannedTonight = () => designPlan([
+  designItem({ id: 'climb-tests', lane: 'climb:test-time', budget: null, result: null }),
+  designItem({ id: 'climb-build', lane: 'climb:build-time', budget: null, result: null }),
+  designItem({ id: 'robot-12', source: 'robot:#12', lane: 'robot:#12', budget: null, result: null }),
+  designItem({ id: 'robot-13', source: 'robot:#13', lane: 'robot:#13', budget: null, result: null }),
+]);
+
+/** Run one workflow's "Tick tonight's plan" step in `dir`, as the workflow has it. */
+async function tickStep(workflow, dir, env) {
+  const text = await readFile(join(KEEL, 'practices/climb/files/.github/workflows', workflow), 'utf8');
+  const block = runBlocks(text).find(b => b.step === 'Tick tonight\'s plan');
+  assert.ok(block, `${workflow} has a Tick tonight's plan step`);
+  const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, GITHUB_SERVER_URL: 'https://github.com', REPO: 'acme/anvils', RUN: 'https://github.com/acme/anvils/actions/runs/5', ...env } });
+  return { status: r.status, out: r.stdout + r.stderr };
+}
+
+test('each pass ticks its item running, then done with the PR link or failed with the reason, on the plan branch', async t => {
+  const { dir, git, tip, show, temp } = await planRemote(t, plannedTonight());
+  const main = tip('refs/heads/main'), first = tip('refs/heads/keel-night-plan');
+  await mkdir(join(temp, 'plan'), { recursive: true });
+  // Climb's publish job: its item ran and opened PR 21; the other climb item was skipped, saying why.
+  await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', skipped: [{ id: 'climb-build', note: 'climb runs one job a night, and tonight\'s plan named climb-tests first' }] } }));
+  const climbTick = await tickStep('keel-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time 2026-10-15: kept 1; Acme tests 12% faster' });
+  assert.equal(climbTick.status, 0, climbTick.out);
+  assert.match(climbTick.out, /ticked on keel-night-plan \([0-9a-f]{7}\): climb-build planned → skipped, climb-tests planned → running, climb-tests running → done/);
+  let plan = show();
+  const byId = id => plan.items.find(i => i.id === id);
+  assert.deepEqual([byId('climb-tests').status, byId('climb-tests').result], ['done', { note: 'climb test-time 2026-10-15: kept 1; Acme tests 12% faster', link: 'https://github.com/acme/anvils/pull/21' }]);
+  assert.deepEqual([byId('climb-build').status, byId('climb-build').result.note], ['skipped', 'climb runs one job a night, and tonight\'s plan named climb-tests first']);
+  assert.deepEqual(['robot-12', 'robot-13'].map(id => byId(id).status), ['planned', 'planned'], 'only climb\'s items moved');
+  // One commit on top of the shaped plan: its history keeps the owner's plan, and main never moves.
+  assert.equal(git(['rev-parse', 'refs/heads/keel-night-plan^'], join(dir, '..', 'origin.git')), first);
+  assert.equal(tip('refs/heads/main'), main, 'the plan branch is never main');
+  // The robot's publish job: its item's judge failed, so no PR; a planned issue it refused is failed with why.
+  await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ state: 'ready', nightPlan: { used: true, applies: true, date: NIGHT, item: 'robot-12', ticks: [{ id: 'robot-13', status: 'failed', note: 'the robot refused #13: rubric: acceptance is missing' }], willNotTouch: [] } }));
+  const robotTick = await tickStep('keel-robot.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, PUBLISHED: 'success', JUDGED: 'failure', PR: '' });
+  assert.equal(robotTick.status, 0, robotTick.out);
+  plan = show();
+  assert.deepEqual([byId('robot-12').status, byId('robot-12').result], ['failed', { note: 'the robot built no candidate that passed its judge (the judge ended failure)', link: 'https://github.com/acme/anvils/actions/runs/5' }]);
+  assert.deepEqual([byId('robot-13').status, byId('robot-13').result.note], ['failed', 'the robot refused #13: rubric: acceptance is missing']);
+  assert.equal(byId('climb-tests').status, 'done', 'the robot\'s ticks sit on top of climb\'s, never over them');
+  // A re-run of climb that kept nothing: running is refused for a done item and named; it stays done.
+  const rerun = await tickStep('keel-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'skipped', PR: '', LINE: 'climb test-time: kept nothing' });
+  assert.equal(rerun.status, 0, rerun.out);
+  assert.match(rerun.out, /::warning::climb-tests not ticked running: "climb-tests" is done; a done item never moves back/);
+  plan = show();
+  assert.equal(byId('climb-tests').status, 'done');
+});
+
+test('a pass never ticks another night\'s plan, records nothing without a plan branch, and retries a push that lost a race', async t => {
+  const { record, passTicks } = await import('../lib/night-plan.mjs');
+  const ticks = passTicks({ item: 'climb-tests', prUrl: 'https://github.com/acme/anvils/pull/21', done: 'kept 1' });
+  assert.deepEqual(ticks.map(x => x.status), ['running', 'done']);
+  assert.deepEqual(passTicks({ item: 'robot-12', failed: 'line one\nline two', runUrl: 'https://github.com/acme/anvils/actions/runs/5' }).at(-1), { id: 'robot-12', status: 'failed', note: 'line one line two', link: 'https://github.com/acme/anvils/actions/runs/5' });
+  // No plan branch: nothing recorded, never an error.
+  const bare = await planRemote(t, null);
+  assert.deepEqual(await record({ root: bare.dir, date: NIGHT, ticks }), { recorded: false, why: 'no plan branch keel-night-plan: nothing to tick', ticked: [], refused: [] });
+  // Tomorrow's plan, shaped since: it is not this pass's to tick.
+  const later = await planRemote(t, { ...plannedTonight(), date: '2026-10-16' });
+  const before = later.tip('refs/heads/keel-night-plan');
+  const other = await record({ root: later.dir, date: NIGHT, ticks });
+  assert.equal(other.recorded, false);
+  assert.match(other.why, /dated 2026-10-16, not 2026-10-15: it is another night's/);
+  assert.equal(later.tip('refs/heads/keel-night-plan'), before);
+  // A race: someone pushes the plan branch between this pass's fetch and its push. The lease refuses
+  // the stale push, and the pass ticks again on top of the new tip, keeping both.
+  const { dir, origin, show, temp } = await planRemote(t, plannedTonight());
+  const racer = join(temp, 'racer');
+  assert.equal(run('git', ['clone', '-q', '-b', 'keel-night-plan', origin, racer]).status, 0);
+  const owner = { ...plannedTonight(), leftOpen: ['the owner added this line during the race'] };
+  await writeFile(join(racer, '.keel/night/plan.json'), JSON.stringify(owner));
+  assert.equal(run('git', ['-C', racer, 'commit', '-qam', 'acme: the owner edits the plan']).status, 0);
+  const bin = join(temp, 'bin'), mark = join(temp, 'raced');
+  await mkdir(bin, { recursive: true });
+  const real = run('sh', ['-c', 'command -v git']).stdout.trim();
+  await writeFile(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" push --porcelain "*) if [ ! -f "${mark}" ]; then touch "${mark}"; "${real}" -C "${racer}" push -q origin HEAD:refs/heads/keel-night-plan || exit 7; fi;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  const raced = await record({ root: dir, date: NIGHT, ticks, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(raced.recorded, true, JSON.stringify(raced));
+  assert.ok(existsSync(mark), 'the race happened');
+  const after = show();
+  assert.deepEqual(after.leftOpen, ['the owner added this line during the race'], 'the owner\'s push is kept (mutation: a plain force push loses it)');
+  assert.equal(after.items.find(i => i.id === 'climb-tests').status, 'done');
+  assert.equal(run('git', ['rev-parse', 'refs/heads/keel-night-plan^'], { cwd: origin }).stdout.trim(), run('git', ['-C', racer, 'rev-parse', 'HEAD']).stdout.trim());
 });
 
 // Review of phase 74 (PR #144): a build no pass takes. Lane night only measures.

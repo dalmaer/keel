@@ -15,7 +15,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
-import { git, commit, acme, climb, json, load, TIMED, suite } from './helpers/climb.mjs';
+import { git, commit, acme, climb, json, load, TIMED, suite, NIGHT, write, stubGh, page, step, setConfig } from './helpers/climb.mjs';
 
 /**
  * A "suite" that took `ms` by the clock compare reads here (KEEL_CLIMB_CLOCK:
@@ -156,4 +156,159 @@ test('compare --decide, revert, settle and report: the numbers go in the commit,
   const nothing = m.reportOf({ job: 'test-time', date: '2026-10-06', started: '2026-10-06T09:41:00Z', margin: 0.05, tried: [{ what: 'a', verdict: 'revert', why: 'round 1: −1%' }, { what: 'b', verdict: 'revert', why: 'round 2: +2%' }] }, { now: new Date('2026-10-06T10:20:00Z') });
   assert.equal(nothing.input, null);
   assert.equal(nothing.line, 'climb test-time 2026-10-06: kept nothing; 2 tried, none beat the noise (margin 5%); 39 min');
+});
+
+// ---- phase 76: the night builds what the plan names, and only that ---------------
+
+/** A plan item as the design has it: a build in climb's lane, its number named first. */
+const planItem = (id, lane, over = {}) => ({ id, title: `Acme ${id}`, kind: 'build', source: 'owner', number: { measure: 'slow_tests', bound: 0, better: 'lower' }, lane, budget: null, status: 'planned', result: null, ...over });
+const acmePlan = (items, over = {}) => ({ schema: 1, date: '2026-10-06', shapedBy: 'owner', readyBy: null, willNotTouch: [], settledToday: [], leftOpen: [], items, ...over });
+
+/** Tonight's plan as the workflow fetched it, beside the repo (never in it); returns its path. */
+async function planFile(t, dir, plan, name = 'plan') {
+  const file = join(dir, '..', `${dir.split('/').pop()}-${name}.json`);
+  t.after(() => rm(file, { force: true }));
+  await writeFile(file, JSON.stringify(plan));
+  return file;
+}
+
+/** An Acme repo with the night's plan module beside climb.mjs (climb requires night), and slow_tests outside. */
+async function plannedAcme(t, climbConfig = { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' }) {
+  const dir = await acme(t, { climb: climbConfig, files: { 'docs/health/2026-10-05.md': page([['slow_tests', 3, '≤ 0', 'outside']]) } });
+  await cp(join(NIGHT, 'night-plan.mjs'), join(dir, 'scripts/keel/night-plan.mjs'));
+  return dir;
+}
+
+test('with a plan, pick runs the plan\'s climb item and nothing else; with no climb item it runs nothing; without a plan it picks as before', async t => {
+  const dir = await plannedAcme(t);
+  const gh = await stubGh(t, []);
+  const open = await stubGh(t, ['keel-climb/test-time/2026-10-04']);
+  const pickWith = (args = [], stub = gh) => {
+    const r = climb(dir, ['pick', '--date', '2026-10-06', ...args, '--json'], { KEEL_GH: stub });
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    return json(r);
+  };
+  // Without a plan: the health page's worst measure, as before (test-time, for slow_tests).
+  const before = pickWith();
+  assert.deepEqual([before.job, before.by, before.plan], ['test-time', 'measure', undefined]);
+  // The plan names build-time: that, not the health page's choice. (Mutation: pick ignoring --plan runs test-time.)
+  const named = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('measure-it', 'night', { kind: 'measure', number: null }), planItem('faster-build', 'climb:build-time')]))]);
+  assert.deepEqual([named.job, named.by, named.branch], ['build-time', 'plan', 'keel-climb/build-time/2026-10-06']);
+  assert.match(named.why, /tonight's plan names it: faster-build, Acme faster-build/);
+  assert.deepEqual(named.plan, { used: true, date: '2026-10-06', shapedBy: 'owner', item: 'faster-build', skipped: [], willNotTouch: [] });
+  // Only the first climb item that may run: one not in "climb".jobs, or waiting on its open PR, is skipped, saying why.
+  const second = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('perf-x', 'climb:perf'), planItem('tests-x', 'climb:test-time'), planItem('build-x', 'climb:build-time'), planItem('build-y', 'climb:build-time')]))], open);
+  assert.deepEqual([second.job, second.plan.item], ['build-time', 'build-x']);
+  assert.deepEqual(second.plan.skipped.map(s => s.id), ['perf-x', 'tests-x', 'build-y']);
+  assert.match(second.plan.skipped[0].note, /perf is not a job "climb"\.jobs names \(test-time, build-time\)/);
+  assert.match(second.plan.skipped[1].note, /test-time waits for its open keel-climb\/test-time\/ PR/);
+  assert.match(second.plan.skipped[2].note, /climb runs one job a night, and tonight's plan named build-x first/);
+  // A plan with no climb item: climb does not run tonight, green, saying so. (Mutation: falling back to choose runs test-time.)
+  const robotOnly = await planFile(t, dir, acmePlan([planItem('robot-7', 'robot:#7')]));
+  const none = climb(dir, ['pick', '--date', '2026-10-06', '--plan', robotOnly], { KEEL_GH: gh });
+  assert.equal(none.status, 0, none.stderr);
+  assert.match(none.stdout, /^no climb tonight: tonight's plan \(2026-10-06\) names no climb item, so climb does not run tonight$/m);
+  const noneJson = pickWith(['--plan', robotOnly]);
+  assert.deepEqual([noneJson.job, noneJson.plan.item, noneJson.plan.skipped], [null, null, []]);
+  // Its only climb item done already, or a triage item in climb's lane: nothing open to build, so nothing runs.
+  assert.equal(pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('build-x', 'climb:build-time', { status: 'done' }), planItem('tests-x', 'climb:test-time', { kind: 'triage', number: null })]))]).job, null);
+  // Every climb item blocked: none runs, and each says why.
+  const blocked = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time')]))], open);
+  assert.equal(blocked.job, null);
+  assert.match(blocked.reason, /no climb item in tonight's plan \(2026-10-06\) can run: tests-x \(test-time waits for its open keel-climb\/test-time\/ PR\)/);
+  assert.deepEqual(blocked.plan.skipped.map(s => s.id), ['tests-x']);
+  // A plan for another night, or a refused one, is no plan: pick as before, saying why.
+  const old = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('build-x', 'climb:build-time')], { date: '2026-10-05' }))]);
+  assert.deepEqual([old.job, old.by, old.plan.used], ['test-time', 'measure', false]);
+  assert.match(old.plan.why, /dated 2026-10-05, not 2026-10-06, so there is no plan tonight/);
+  const refused = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('build-x', 'climb:build-time', { number: null })]))]);
+  assert.deepEqual([refused.job, refused.plan.used], ['test-time', false]);
+  assert.match(refused.plan.why, /is refused \(.*names its number first/);
+  // A plan file that cannot be read: exit 2, never a guess that there is none.
+  const missing = climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', join(dir, '..', 'no-such-plan.json')], { KEEL_GH: gh });
+  assert.equal(missing.status, 2);
+  assert.match(json(missing).error, /cannot read the plan on keel-night-plan.*pick never guesses there is no plan/);
+  // Weekly, on its off day: the plan's climb items are skipped, saying why.
+  await setConfig(dir, { climb: { jobs: ['test-time'], schedule: 'weekly' } });
+  const weekly = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time')]))]);
+  assert.equal(weekly.job, null);
+  assert.deepEqual(weekly.plan.skipped, [{ id: 'tests-x', note: 'climb did not run it: climb is weekly, on Mondays (UTC)' }]);
+});
+
+test('a plan budget lowers a pass\'s minutes and never raises them', async t => {
+  const dir = await plannedAcme(t, { jobs: ['test-time'], budget: { minutes: 45 } });
+  const gh = await stubGh(t, []);
+  const minutesFor = async budget => {
+    const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time', { budget })]))], { KEEL_GH: gh }));
+    assert.equal(p.job, 'test-time');
+    return [p.minutes, p.budget];
+  };
+  assert.deepEqual(await minutesFor({ minutes: 10 }), [10, { config: 45, plan: 10 }], 'lowered to the plan\'s');
+  assert.deepEqual(await minutesFor({ minutes: 90 }), [45, { config: 45, plan: 90 }], 'never raised past climb\'s own (mutation: Math.max raises it to 90)');
+  assert.deepEqual(await minutesFor({ minutes: 2.7 }), [2, { config: 45, plan: 2.7 }], 'whole minutes, rounded down');
+  assert.deepEqual(await minutesFor({ minutes: 0.5 }), [1, { config: 45, plan: 0.5 }], 'at least one minute, still under climb\'s own');
+  assert.deepEqual(await minutesFor(null), [45, { config: 45, plan: null }], 'no plan budget: climb\'s own');
+  // The workflow's pick step hands that budget to the agent's time box (steps.pick.outputs.minutes).
+  const temp = await mkdtemp(join(tmpdir(), 'keel-climb-plan-step-'));
+  t.after(() => rm(temp, { recursive: true, force: true }));
+  await mkdir(join(temp, 'night-plan'), { recursive: true });
+  await writeFile(join(temp, 'night-plan/branch.json'), JSON.stringify(acmePlan([planItem('tests-x', 'climb:test-time', { budget: { minutes: 12 } })], { date: new Date().toISOString().slice(0, 10) })));
+  const s = await step(t, dir, "Pick tonight's job", { RUNNER_TEMP: temp, EVENT: 'workflow_dispatch', KEEL_GH: gh });
+  assert.equal(s.status, 0, s.out);
+  assert.deepEqual([s.outputs.job, s.outputs.minutes, s.outputs.plan_used, s.outputs.plan_ticks], ['test-time', '12', 'true', 'true']);
+  assert.match(s.out, /climb runs tests-x/);
+  // The plan and the pick are kept for the judge and the publisher, before any agent runs.
+  assert.equal(JSON.parse(await readFile(join(temp, 'plan-handoff/pick.json'), 'utf8')).plan.item, 'tests-x');
+  assert.ok(existsSync(join(temp, 'plan-handoff/night-plan.json')));
+});
+
+test('a change that touches a willNotTouch path is refused by the judge', async t => {
+  const dir = await plannedAcme(t, { jobs: ['test-time'] });
+  await commit(dir, { 'lib/anvil.mjs': 'export const anvil = 1;\n', 'lib/anvils.mjs': 'export const anvils = 2;\n', 'docs/guide/acme.md': '# Acme\n' }, 'acme: lib');
+  const base = git(dir, ['rev-parse', 'HEAD']);
+  const plan = await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time')], { willNotTouch: ['lib/anvil.mjs', './docs/guide/', 'the billing module'] }));
+  const sandbox = (head, args = ['--plan', plan]) => climb(dir, ['sandbox', '--base', base, '--head', head, '--json', ...args]);
+  // Pure: exact path or directory prefix, literal, never a sibling with the same start.
+  const m = await load(dir);
+  const { paths, ignored } = m.touchRules(['lib/anvil', './docs/guide/', '/etc/passwd', '../up', 'a/./b', '', 'src/*.js']);
+  assert.deepEqual(paths.map(r => r.path), ['lib/anvil', 'docs/guide', 'src/*.js']);
+  assert.deepEqual(ignored, ['/etc/passwd', '../up', 'a/./b', '']);
+  assert.deepEqual(['lib/anvil', 'lib/anvil/x.mjs', 'lib/anvils.mjs', 'lib', 'docs/guide/a.md', 'docs/guides.md', 'src/a.js', 'src/*.js'].map(p => m.touchedBy(p, paths)?.path ?? null),
+    ['lib/anvil', 'lib/anvil', null, null, 'docs/guide', null, null, 'src/*.js']);
+  // A change to a listed file is refused whole, naming it; a sibling with the same start is not.
+  git(dir, ['checkout', '-q', '-b', 'keel-climb/test-time/2026-10-06']);
+  const sibling = await commit(dir, { 'lib/anvils.mjs': 'export const anvils = 3;\n' }, 'acme: anvils');
+  const ok = sandbox(sibling);
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.deepEqual(json(ok).willNotTouch, ['lib/anvil.mjs', './docs/guide/', 'the billing module']);
+  const touched = await commit(dir, { 'lib/anvil.mjs': 'export const anvil = 2;\n' }, 'acme: anvil');
+  const refusedFile = sandbox(touched);
+  assert.equal(refusedFile.status, 1, refusedFile.stdout);
+  assert.match(json(refusedFile).problems.join('\n'), /^lib\/anvil\.mjs: changed on the agent's branch; tonight's plan will not touch lib\/anvil\.mjs \(its willNotTouch\), so the branch is refused whole$/m);
+  // The same change without the plan passes the sandbox: the refusal is the plan's. (Mutation: sandbox ignoring --plan passes here.)
+  assert.equal(sandbox(touched, []).status, 0);
+  // Under a listed directory, changed then changed back: the branch's history would still carry it.
+  git(dir, ['checkout', '-q', '-B', 'keel-climb/test-time/2026-10-06', sibling]);
+  await commit(dir, { 'docs/guide/acme.md': '# Acme, edited\n' }, 'acme: guide');
+  const back = await commit(dir, { 'docs/guide/acme.md': '# Acme\n' }, 'acme: guide back');
+  const refusedDir = sandbox(back);
+  assert.equal(refusedDir.status, 1);
+  assert.match(json(refusedDir).problems.join('\n'), /^docs\/guide\/acme\.md: changed in [0-9a-f]{7} on the agent's branch; tonight's plan will not touch \.\/docs\/guide\//m);
+  // A merge that only brings in the agent's own checked commits adds nothing; one that edits a listed path itself is refused.
+  git(dir, ['checkout', '-q', '-b', 'side', sibling]);
+  const side = await commit(dir, { 'lib/other.mjs': 'export const other = 1;\n' }, 'acme: other');
+  git(dir, ['checkout', '-q', '-B', 'keel-climb/test-time/2026-10-06', sibling]);
+  git(dir, ['merge', '-q', '--no-ff', '-m', 'acme: merge side', side]);
+  assert.equal(sandbox(git(dir, ['rev-parse', 'HEAD'])).status, 0, 'a clean merge of the agent\'s own work');
+  git(dir, ['reset', '-q', '--hard', sibling]);
+  git(dir, ['merge', '-q', '--no-ff', '--no-commit', side]);
+  await write(dir, { 'lib/anvil.mjs': 'export const anvil = 9;\n' });
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'acme: an evil merge']);
+  const evil = sandbox(git(dir, ['rev-parse', 'HEAD']));
+  assert.equal(evil.status, 1);
+  assert.match(json(evil).problems.join('\n'), /lib\/anvil\.mjs: changed/);
+  // A plan the judge cannot read, or one that is refused: exit 2, never "touches nothing".
+  assert.equal(sandbox(sibling, ['--plan', join(dir, '..', 'no-such-plan.json')]).status, 2);
+  assert.equal(sandbox(sibling, ['--plan', await planFile(t, dir, { schema: 1 }, 'bad')]).status, 2);
 });

@@ -148,11 +148,13 @@ test('off: with no climb key the workflow does nothing; with no secret the run e
   for (const s of after) {
     const cond = /(?:^ {6}- |\n {8})if: (.+)/.exec(s)?.[1] ?? '';
     // A step for one job (hygiene's gather, its issue) runs only when that job was picked: a job, so climb is on.
-    assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.job != ''|steps\.pick\.outputs\.job == '[a-z-]+'/, `step without the guard: ${s.split('\n')[0]}`);
+    // Tonight's plan is kept only when the pick ran one (phase 76): a pick, so climb is on and configured.
+    assert.match(cond, /steps\.configured\.outputs\.enabled == 'true'|steps\.pick\.outputs\.job != ''|steps\.pick\.outputs\.job == '[a-z-]+'|steps\.pick\.outputs\.plan_used == 'true'/, `step without the guard: ${s.split('\n')[0]}`);
   }
   assert.match(steps.find(s => s.includes('name: Configured?')), /if: steps\.on\.outputs\.on == 'true'/);
   assert.match(text, /\n  judge:\n    needs: agent\n    if: needs\.agent\.outputs\.job != ''\n/, 'no job picked, no judge');
-  assert.match(text, /\n  publish:\n    needs: \[agent, judge\]\n    if: always\(\) && needs\.agent\.outputs\.job != ''\n/, 'no job picked, nothing published');
+  // No job picked, nothing published; the one exception is tonight's plan's ticks (phase 76), which the pick names.
+  assert.match(text, /\n  publish:\n    needs: \[agent, judge\]\n    if: always\(\) && \(needs\.agent\.outputs\.job != '' \|\| needs\.agent\.outputs\.plan_ticks == 'true'\)\n/, 'no job picked, nothing published');
   assert.match(text, /\n    outputs:\n      job: \$\{\{ steps\.pick\.outputs\.job \}\}\n/);
 });
 

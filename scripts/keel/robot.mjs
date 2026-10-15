@@ -9,7 +9,8 @@ import { readRobotBudget, robotAdmission } from './robot-budget.mjs';
 import { robotGithub, robotRead, robotPages, robotRepo, robotSha, robotId, robotAssociation, robotAssociationOf, robotContinuation, robotDeliveryMetadata } from './robot-delivery.mjs';
 import { agentsProblems, listedAgents, agentOf, gateEnv, isMain } from './lib.mjs';
 import { sandboxProblems, packageProblem, OFF_LIMITS, INSTALL_FILES } from './tend.mjs';
-import { missingTests, ranOn, packageDirs, lastResult } from './climb.mjs';
+import { missingTests, ranOn, packageDirs, lastResult, willNotTouchProblems } from './climb.mjs';
+import { buildItems, planMinutes, passPlan } from './night-plan.mjs';
 import { prBody } from './pr-body.mjs';
 import { readRuns } from './test-ledger.mjs';
 
@@ -167,7 +168,39 @@ function triagePlans(plan) {
   if (plan.triage === true && robotId(plan.issueNumber) && !plans.some(p=>p.issueNumber===plan.issueNumber)) plans.push(plan);
   return plans;
 }
-export async function prepareRobot({ root, repo, config, event, eventName, has, now = new Date(), github = robotGithub, preflight = null }) {
+/**
+ * The robot's admission (phase 54), and with tonight's plan (phase 76) only
+ * what the plan names. `nightPlan`: a valid plan dated tonight (night-plan.mjs
+ * passPlan), or null. With one, a scan (the schedule, or a dispatch with no
+ * routed trigger) admits only the plan's open robot:#<n> build items, in plan
+ * order, and never scans other keel:agent issues: no fallback. A planned issue
+ * the robot refuses (its rubric, its label, its identity) ticks failed with the
+ * reason, one it already finished and that has not changed ticks skipped, and
+ * the next planned one is tried; an issue the plan does not name is never
+ * read. A plan with no robot item admits nothing. A writer's own event (a label
+ * or a comment, routed) is that writer asking now, not the night, so the plan
+ * does not apply to it. Every guard below is unchanged; the plan only narrows
+ * which issues reach them, and its item's minutes may lower the build's budget,
+ * never raise it. The result carries `nightPlan`: { used, applies, item, ticks,
+ * willNotTouch } for the publisher's ticks and the judge's refusal.
+ */
+export async function prepareRobot({ nightPlan = null, ...args }) {
+  if (!nightPlan) return admitRobot(args);
+  const routedInput = args.eventName === 'workflow_dispatch' && args.event?.inputs?.robot_trigger !== undefined && args.event.inputs.robot_trigger !== '';
+  const applies = ['schedule', 'workflow_dispatch'].includes(args.eventName) && !routedInput;
+  const ticks = [];
+  const items = applies ? buildItems(nightPlan, 'robot') : [];
+  const result = await admitRobot({ ...args, planned: applies ? { items, ticks } : null });
+  const reason = !applies ? result.reason
+    : !items.length ? 'tonight\'s plan names no robot item, so the robot builds nothing tonight'
+    : result.state === 'blocked' && result.reason === 'no pending robot issue' ? 'no robot item in tonight\'s plan could be admitted (each is ticked with why); no other issue is read' : result.reason;
+  return {
+    ...result, ...(reason !== undefined ? { reason } : {}),
+    nightPlan: { used: true, applies, date: nightPlan.date, item: applies ? result.planItem ?? null : null, ticks, willNotTouch: [...nightPlan.willNotTouch], ...(applies ? {} : { why: 'a writer\'s own event, not the night: tonight\'s plan does not choose it' }) },
+  };
+}
+
+async function admitRobot({ root, repo, config, event, eventName, has, now = new Date(), github = robotGithub, preflight = null, planned = null }) {
   const rejections = [];
   const blocked = (reason, extra = {}) => ({ state: 'blocked', reason, rejections, ...extra });
   // A checkout that is already OFF cannot initiate work; enabled checkouts
@@ -191,7 +224,11 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
   }
   const scanning = !routed && ['schedule','workflow_dispatch'].includes(eventName);
   let issues;
-  if (eventName === 'schedule' || eventName === 'workflow_dispatch') {
+  // Tonight's plan (phase 76): its robot items, in its order, and no other issue is listed or read.
+  const tick = (candidate, status, note) => { if (candidate.planItem) planned.ticks.push({ id: candidate.planItem, status, note: robotRedact(note).slice(0, 1000) }); };
+  if (planned && scanning) {
+    issues = planned.items.map(p => ({ number: p.issue, planItem: p.id, planBudget: p.item }));
+  } else if (eventName === 'schedule' || eventName === 'workflow_dispatch') {
     issues = (await robotPages(github, `/repos/${repo}/issues?state=open&labels=keel%3Aagent&sort=created&direction=asc`)).filter(i => !i.pull_request);
   } else if ((eventName === 'issues' && ['labeled', 'reopened'].includes(event.action)) || (eventName === 'issue_comment' && event.action === 'created')) {
     if (event.issue?.pull_request || !robotId(event.issue?.number)) return blocked('not an issue event');
@@ -237,7 +274,7 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
           const pr = await robotRead(github, `/repos/${repo}/pulls/${pulls[0].number}`);
           if (pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch) return reject('PR base branch changed; refusing human retarget');
         }
-        return {...pending.plan, state:'recover', recoveryHead:pending.headSha, rejections};
+        return {...pending.plan, state:'recover', recoveryHead:pending.headSha, rejections, ...(candidate.planItem ? {planItem:candidate.planItem} : {})};
       }
       // A crash before push leaves no new branch/head: normal admission can rebuild.
       const unpushed = (ref.status === 404 && pending.plan.previousHead === null) || (ref.status === 200 && ref.data?.ref === `refs/heads/${pending.plan.branch}` && ref.data.object?.type === 'commit' && ref.data.object.sha === pending.plan.previousHead);
@@ -248,7 +285,7 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
       if (await robotWriter({ repo, user: c.user, github })) unseen.push({ id: c.id, body: robotRedact(c.body), user: c.user.login });
     }
     const unchanged = state && state.issueHash === sha256(issue.body ?? '') && !unseen.length && !(eventName === 'issues' && event.action === 'reopened');
-    if (unchanged && !state.headSha) continue;
+    if (unchanged && !state.headSha) { tick(candidate, 'skipped', 'the robot already answered this issue and nothing has changed since; a writer\'s comment or an edited issue starts it again'); continue; }
     const cursor = unseen.at(-1)?.id ?? state?.cursor ?? 0;
     const issueMarks = [...String(issue.body ?? '').matchAll(/^<!-- keel:robot-issue (.+) -->$/gm)];
     let instanceId = state?.instanceId ?? `issue-${issue.number}`;
@@ -283,17 +320,20 @@ export async function prepareRobot({ root, repo, config, event, eventName, has, 
       if (mark?.instanceId !== instanceId || mark?.author !== providers.author) return reject('published provider or instance changed',common);
       if (!await completedRobotReview({repo,prNumber,headSha:previousHead,author:mark.author,reviewer:providers.reviewer,github})) {
         await revalidateAuthorization({repo,issueNumber:issue.number,authorization:permissionOf(pr.deliveryBody),fresh,github});
-        return {...common,authorization:permissionOf(pr.deliveryBody),state:'review',baseSha,previousHead,prNumber,branch:`keel/robot-${issue.number}`,cursor:state.cursor};
+        return {...common,authorization:permissionOf(pr.deliveryBody),state:'review',baseSha,previousHead,prNumber,branch:`keel/robot-${issue.number}`,cursor:state.cursor,...(candidate.planItem ? {planItem:candidate.planItem} : {})};
       }
     }
-    if (unchanged) continue;
+    if (unchanged) { tick(candidate, 'skipped', 'the robot\'s pull request for this issue is reviewed and nothing has changed since; a writer\'s comment or an edited issue starts it again'); continue; }
     if (!robotSha(baseSha)) return blocked('trusted base unavailable', common);
     const budget = await readRobotBudget({ repo, policy, now, github, preflight });
-    const admission = robotAdmission({ policy, budget, requestedBuildSeconds: 45 * 60, reservedReviewSeconds: 5 * 60 });
-    if (!admission.allowed) return blocked(admission.reason, { ...common, budget });
-    return { state: 'ready', ...common, baseSha, previousHead, prNumber, instanceId, branch: `keel/robot-${issue.number}`, comments: unseen, rubric: parsed.rubric, buildSeconds: admission.buildSeconds, reviewSeconds: admission.reviewSeconds, budget, preparedAt: new Date(now).toISOString() };
+    // A planned item's minutes may lower the build's request, never raise it (planMinutes: whole minutes, at least one).
+    const requestedBuildSeconds = planMinutes(candidate.planBudget, 45) * 60;
+    const admission = robotAdmission({ policy, budget, requestedBuildSeconds, reservedReviewSeconds: 5 * 60 });
+    if (!admission.allowed) { tick(candidate, 'skipped', `the robot's weekly allowance: ${admission.reason}`); return blocked(admission.reason, { ...common, budget }); }
+    return { state: 'ready', ...common, baseSha, previousHead, prNumber, instanceId, branch: `keel/robot-${issue.number}`, comments: unseen, rubric: parsed.rubric, buildSeconds: admission.buildSeconds, reviewSeconds: admission.reviewSeconds, budget, preparedAt: new Date(now).toISOString(), ...(candidate.planItem ? {planItem:candidate.planItem} : {}) };
     } catch (error) {
       if (error instanceof RobotGlobalError) return blocked(error.message);
+      tick(candidate, 'failed', `the robot refused #${candidate.number}: ${error.message}`);
       const rejection = {issueNumber:candidate.number,reason:error.message};
       if (error.extra?.triage === true) {
         const triage = {...Object.fromEntries(triageFields.map(k=>[k,error.extra[k]])),state:'blocked',triage:true,reason:error.message};
@@ -395,8 +435,10 @@ export function robotClosingProblems(root, base, head, { repo, issueNumber } = {
   }
   return problems;
 }
-export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNumber, env = process.env }) {
+// willNotTouch (phase 76): tonight's plan's paths, refused as the sandbox's are (climb.mjs touchRules); none without a plan.
+export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNumber, env = process.env, willNotTouch = [] }) {
   const problems = [...robotSandbox(root, baseSha, headSha), ...robotClosingProblems(root, baseSha, headSha, { repo, issueNumber })];
+  if (!problems.length) problems.push(...willNotTouchProblems(root, baseSha, headSha, willNotTouch));
   if (problems.length) return { ok: false, problems };
   if (baseSha === headSha) return { ok: false, problems: ['no change committed'] };
   const gate = config.check;
@@ -428,7 +470,7 @@ export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNu
 }
 
 export function validateRobotPlan(plan, { repo, baseSha }) {
-  if (plan?.state !== 'ready' || plan.repo !== repo || plan.baseSha !== baseSha || !robotSha(baseSha) || !robotId(plan.issueNumber) || plan.branch !== `keel/robot-${plan.issueNumber}` || !Number.isSafeInteger(plan.cursor) || plan.cursor < 0 || !/^[A-Za-z0-9_-]{1,128}$/.test(plan.instanceId) || !['claude','codex'].includes(plan.author) || !['claude','codex'].includes(plan.reviewer) || plan.author === plan.reviewer || (plan.previousHead !== null && !robotSha(plan.previousHead))) throw new Error('robot handoff identity mismatch');
+  if (plan?.state !== 'ready' || plan.repo !== repo || plan.baseSha !== baseSha || !robotSha(baseSha) || !robotId(plan.issueNumber) || plan.branch !== `keel/robot-${plan.issueNumber}` || !Number.isSafeInteger(plan.cursor) || plan.cursor < 0 || !/^[A-Za-z0-9_-]{1,128}$/.test(plan.instanceId) || !['claude','codex'].includes(plan.author) || !['claude','codex'].includes(plan.reviewer) || plan.author === plan.reviewer || (plan.previousHead !== null && !robotSha(plan.previousHead)) || (plan.nightPlan !== undefined && !(Array.isArray(plan.nightPlan?.willNotTouch ?? []) && (plan.nightPlan?.willNotTouch ?? []).every(p => typeof p === 'string')))) throw new Error('robot handoff identity mismatch');
   return plan;
 }
 async function revalidateIssue(plan, github) {
@@ -459,6 +501,8 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
   if (!budget.complete) throw new Error('publication budget unavailable');
   await revalidateIssue(plan, github);
   if (!robotSha(headSha) || headSha === baseSha || robotSandbox(root, baseSha, headSha).length) throw new Error('candidate fails trusted sandbox');
+  // Phase 76: the publisher rechecks tonight's willNotTouch itself, never trusting the judge's word.
+  if (willNotTouchProblems(root, baseSha, headSha, plan.nightPlan?.willNotTouch ?? []).length) throw new Error('candidate touches a path tonight\'s plan will not touch; nothing pushed');
   // Read from the publisher's own fetched objects, before any intent or push.
   if (robotClosingProblems(root, baseSha, headSha, { repo, issueNumber: plan.issueNumber }).length) throw new Error('candidate commit message would close another issue; nothing pushed');
   if (plan.previousHead && git(root, ['merge-base','--is-ancestor',plan.previousHead,headSha], {allowFail:true}).status !== 0) throw new Error('candidate discards continuation history');
@@ -645,9 +689,18 @@ export async function robotCli(args, env = process.env) {
     return {ok:true};
   }
   if (command === 'prepare') {
-    const plan = await prepareRobot({root,repo,config,event:await json(env.GITHUB_EVENT_PATH),eventName:env.GITHUB_EVENT_NAME,has:hasOf(env),preflight:{runId:Number(env.GITHUB_RUN_ID),attempt:Number(env.GITHUB_RUN_ATTEMPT),job:env.GITHUB_JOB}});
+    // Tonight's plan (phase 76): the plan branch's copy the workflow fetched, when there is one; dated
+    // tonight (UTC) and valid, it narrows the scan; otherwise the robot admits as before, saying why.
+    let nightPlan = null, unused = null;
+    if (env.ROBOT_NIGHT_PLAN && existsSync(env.ROBOT_NIGHT_PLAN)) {
+      const read = await passPlan(env.ROBOT_NIGHT_PLAN, env.ROBOT_NIGHT_DATE || new Date().toISOString().slice(0, 10));
+      if (read.used) nightPlan = read.plan; else unused = { used: false, why: read.why };
+    }
+    const admitted = await prepareRobot({root,repo,config,event:await json(env.GITHUB_EVENT_PATH),eventName:env.GITHUB_EVENT_NAME,has:hasOf(env),preflight:{runId:Number(env.GITHUB_RUN_ID),attempt:Number(env.GITHUB_RUN_ATTEMPT),job:env.GITHUB_JOB},nightPlan});
+    const plan = unused ? {...admitted,nightPlan:unused} : admitted;
     await write('robot-plan.json',plan);
-    outputs({triage:triagePlans(plan).length>0,triage_count:triagePlans(plan).length,triage_omitted:(plan.rejections ?? []).filter(r=>r.triageOmitted).length,ready:plan.state === 'ready',issue:plan.issueNumber ?? '',base:trustedBase,author:plan.author ?? '',reviewer:plan.reviewer ?? '',build_minutes:plan.buildSeconds ? plan.buildSeconds/60 : 1,review_minutes:plan.reviewSeconds ? plan.reviewSeconds/60 : 1});
+    const night = plan.nightPlan;
+    outputs({plan_ticks:Boolean(night?.applies && (night.item || night.ticks.length)),plan_date:night?.applies ? night.date : '',triage:triagePlans(plan).length>0,triage_count:triagePlans(plan).length,triage_omitted:(plan.rejections ?? []).filter(r=>r.triageOmitted).length,ready:plan.state === 'ready',issue:plan.issueNumber ?? '',base:trustedBase,author:plan.author ?? '',reviewer:plan.reviewer ?? '',build_minutes:plan.buildSeconds ? plan.buildSeconds/60 : 1,review_minutes:plan.reviewSeconds ? plan.reviewSeconds/60 : 1});
     if (plan.state === 'ready') {
       const protocol = await readFile(join(root,'.agents/robot/PROTOCOL.md'),'utf8');
       await mkdir(join(temp,ROBOT_BRIEF),{recursive:true});
@@ -660,7 +713,7 @@ export async function robotCli(args, env = process.env) {
     validateRobotPlan(plan,{repo,baseSha:trustedBase});
     git(root,['fetch','--no-tags',join(temp,'handoff/robot.bundle'),`refs/heads/${plan.branch}`]);
     const headSha=git(root,['rev-parse','FETCH_HEAD']);
-    const result=await judgeRobot({root,config,baseSha:trustedBase,headSha,repo,issueNumber:plan.issueNumber});
+    const result=await judgeRobot({root,config,baseSha:trustedBase,headSha,repo,issueNumber:plan.issueNumber,willNotTouch:plan.nightPlan?.willNotTouch ?? []});
     if (!result.ok) throw new Error(result.problems.join('; '));
     await write('robot-judgment.json',result); outputs({head:headSha}); return result;
   }

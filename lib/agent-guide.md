@@ -1069,6 +1069,13 @@ it under "Tonight's plan". The design is
   written, for an id the plan does not hold, an unknown status, or a move back
   from `done` (done again only mends its note). `--json` → `{ok, path, date,
   item, from}`.
+- Climb and the robot build only what a plan on `keel-night-plan` names
+  (dated today, UTC): climb its first open `climb:<job>` build item, the
+  robot's scans its open `robot:#<n>` build items in order, never another
+  issue; neither touches a `willNotTouch` path (exact path or anything under
+  it, literal). Their publish jobs tick through `node
+  scripts/keel/night-plan.mjs record --date d --ticks f`: one commit on the
+  branch's tip, pushed with a lease; another night's plan is never ticked.
 - `keel goodnight` (phase 74; the conduct skill's `/goodnight` runs it when
   the owner asks) shows the opening and changes nothing: settled today (PRs
   merged, phases moved, Loop findings decided since the plan branch's last
@@ -1218,6 +1225,11 @@ schedule: an agent climbs one number under `.agents/climb/PROTOCOL.md`, and
   rows since the last distill → `lessons`; untriaged Loop findings → `loop`),
   else rotation (`.keel/climb.json`; never hygiene, lessons or loop); a job with an open `keel-climb/<job>/` PR waits, one with three
   closed unmerged is skipped (retiring). gh is `KEEL_GH` or `gh`.
+  `--plan f` (tonight's plan, from `keel-night-plan`): valid and dated d, only
+  its first open `climb:<job>` build item whose job may run, or nothing
+  (`plan.skipped` says why for each other); its `budget.minutes` lowers
+  `minutes`, never raises it. Refused or another night's: as without.
+  `sandbox --plan f` also refuses any path its `willNotTouch` covers.
 - `measure <job> [--runs k] [--baseline]` — median and spread; `--baseline`
   opens `.keel/climb/night.json`.
 - `compare [--base r] [--candidate r] [--rounds n] [--decide] [--final]` —

@@ -1089,7 +1089,8 @@ export function agentSandboxProblems(text) {
     if (writes.length && isAgent(j)) out.push(`the agent's job ${j.id} pushes or opens: ${writes[0].trim()}`);
     const push = lines.findIndex(l => /\bgit push\b/.test(l));
     if (push >= 0) {
-      const sandbox = lines.findIndex(l => /node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"/.test(l));
+      // Unconditional: a sandbox run only under an `if` (phase 76's plan check) does not count.
+      const sandbox = lines.findIndex(l => /^\s*node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"/.test(l));
       if (sandbox < 0 || sandbox > push) out.push(`job ${j.id} pushes without climb.mjs sandbox first`);
     }
   }
@@ -1098,7 +1099,9 @@ export function agentSandboxProblems(text) {
   else {
     const at = s => judge.text.indexOf(s);
     if (/:\s*write/.test(/\n {4}permissions:\n((?: {6}.*\n)+)/.exec(judge.text)?.[1] ?? 'none: write')) out.push('the judge may write: it runs the agent\'s code (the gate)');
-    if (at('climb.mjs sandbox') < 0 || at('git switch -q -c "$BRANCH" "$head"') < 0 || at('climb.mjs sandbox') > at('git switch -q -c "$BRANCH" "$head"')) out.push('the judge takes the agent\'s commits before climb.mjs sandbox has checked them');
+    // Unconditional, as for the push: a sandbox run only under an `if` (phase 76's plan check) does not count.
+    const sandboxAt = judge.text.search(/\n {10}node scripts\/keel\/climb\.mjs sandbox /);
+    if (sandboxAt < 0 || at('git switch -q -c "$BRANCH" "$head"') < 0 || sandboxAt > at('git switch -q -c "$BRANCH" "$head"')) out.push('the judge takes the agent\'s commits before climb.mjs sandbox has checked them');
     if (!/\n {10}persist-credentials: false\n/.test(judge.text)) out.push('the judge\'s checkout keeps the token in git');
     // ledger#92: no code of the agent's runs where the setup token is. The
     // install (its only step) runs on the run's commit, before the bundle is
@@ -2341,6 +2344,96 @@ test('phase 47: Codex runs climb and tend in workspace-write with sudo dropped, 
       assert.ok(check(text, opts).length, `${name} ${why}: expected a problem`);
     }
   }
+});
+
+// ---- phase 76: climb and the robot read tonight's plan, and tick it from their publish job ----
+
+/** A workflow's jobs, by name (jobsOf, above). */
+const jobsByName = text => Object.fromEntries(jobsOf(text).map(j => [j.id, j.text]));
+
+test('climb and the robot read tonight\'s plan before they choose, keep it before any agent runs, and tick it only from the job that can write', async t => {
+  const dir = join(KEEL, 'practices/climb/files/.github/workflows');
+  const climb = await readFile(join(dir, 'keel-climb.yml'), 'utf8');
+  const robot = await readFile(join(dir, 'keel-robot.yml'), 'utf8');
+  for (const [name, text, chooses] of [['keel-climb', climb, 'Pick tonight\'s job'], ['keel-robot', robot, 'Admit one issue from trusted policy']]) {
+    const jobs = jobsByName(text);
+    const steps = runBlocks(jobs.agent).map(b => b.step);
+    const at = s => steps.indexOf(s);
+    assert.ok(at('Read tonight\'s plan') >= 0 && at('Read tonight\'s plan') < at(chooses), `${name}: the plan is read before the pass chooses: ${steps.join(', ')}`);
+    // Only the publish job can write, and only it ticks; the agent and the judge read.
+    for (const job of ['agent', 'judge']) {
+      assert.doesNotMatch(jobs[job].split('\n    steps:\n')[0], /: write/, `${name} ${job} holds no write permission`);
+      assert.doesNotMatch(jobs[job], /night-plan\.mjs record/, `${name} ${job} never ticks`);
+    }
+    assert.match(jobs.publish.split('\n    steps:\n')[0], /contents: write/);
+    const publish = runBlocks(jobs.publish).map(b => b.step);
+    assert.ok(publish.includes('Tick tonight\'s plan'), `${name}: the publisher ticks`);
+    assert.match(jobs.publish, /- name: Tick tonight's plan\n {8}if: always\(\) && needs\.agent\.outputs\.plan_ticks == 'true'\n/);
+    assert.match(jobs.publish, /node scripts\/keel\/night-plan\.mjs record --date "\$DAY" --ticks "\$RUNNER_TEMP\/plan-ticks\.json"/);
+    // The plan never goes to main: the only push of it is record's, onto keel-night-plan.
+    assert.doesNotMatch(text, /keel-night-plan:refs\/heads\/main|push[^\n]*keel-night-plan/);
+  }
+  // Climb keeps the plan and the pick as an artifact before its agent runs, the judge and the publisher refuse its
+  // willNotTouch from that copy (sandbox --plan), and the agent's time box is the pick's minutes, never the config's alone.
+  const agentText = jobsByName(climb).agent;
+  assert.ok(agentText.indexOf('name: keel-climb-plan') > 0 && agentText.indexOf('name: keel-climb-plan') < agentText.indexOf('- name: Climb\n'), 'kept before the agent runs');
+  // The off-limits check stays exactly as it was; the plan's is one more check right after it, never in its place.
+  for (const job of ['judge', 'publish']) {
+    assert.match(jobsByName(climb)[job], /\n {10}node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head"\n {10}if \[ "\$PLAN_USED" = true \]; then node scripts\/keel\/climb\.mjs sandbox --base "\$GITHUB_SHA" --head "\$head" --plan "\$RUNNER_TEMP\/plan\/night-plan\.json"; fi\n/, `${job} refuses the plan's willNotTouch`);
+  }
+  assert.match(agentText, /`minutes=\$\{p\.minutes \?\? c\.minutes\}`/);
+  assert.match(jobsByName(robot).agent, /ROBOT_NIGHT_PLAN: \$\{\{ runner\.temp \}\}\/night-plan\/branch\.json/);
+
+  // The read itself, against a stub gh: a plan is kept, none is green and says so, an unreadable branch is red.
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-read-plan-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  for (const [name, text] of [['keel-climb', climb], ['keel-robot', robot]]) {
+    const block = runBlocks(text).find(b => b.step === 'Read tonight\'s plan');
+    for (const [answer, status, kept, said] of [
+      ['echo \'{"schema":1}\'; exit 0', 0, true, /tonight's plan: read from keel-night-plan/],
+      ['echo "gh: Not Found (HTTP 404)" >&2; exit 1', 0, false, /no plan on keel-night-plan: (climb picks|the robot admits) as it always has/],
+      ['echo "gh: Server Error (HTTP 502)" >&2; exit 1', 1, false, /::error::The plan branch keel-night-plan could not be read \(gh api exit 1: gh: Server Error \(HTTP 502\)\); (climb|the robot) never guesses there is no plan\./],
+    ]) {
+      const temp = await mkdtemp(join(base, 'run-')), bin = join(temp, 'bin');
+      await mkdir(bin);
+      await writeFile(join(bin, 'gh'), `#!/bin/sh\n[ "$1 $2 $3" = "api -H Accept: application/vnd.github.raw+json" ] || exit 9\ncase "$4" in "repos/acme/anvils/contents/.keel/night/plan.json?ref=keel-night-plan") ;; *) exit 9 ;; esac\n${answer}\n`, { mode: 0o755 });
+      const r = run('bash', ['-e', '-c', block.script], { cwd: temp, env: { ...process.env, RUNNER_TEMP: temp, REPO: 'acme/anvils', PATH: `${bin}:${process.env.PATH}` } });
+      assert.equal(r.status, status, `${name}: ${r.stdout}${r.stderr}`);
+      assert.match(r.stdout + r.stderr, said);
+      assert.equal((await readdir(join(temp, 'night-plan'))).includes('branch.json'), kept, `${name}: the plan file is there only when one was read`);
+    }
+  }
+});
+
+test('a robot PR published on a night whose plan ticks fail still gets its other-provider review, and the run is still red', async t => {
+  const robot = await readFile(join(KEEL, 'practices/climb/files/.github/workflows/keel-robot.yml'), 'utf8');
+  const jobs = jobsByName(robot);
+  // The review follows the publication step's own outcome, never the whole publish job's.
+  assert.match(jobs.publish, /\n {6}published: \$\{\{ steps\.publish\.outcome \}\}\n/);
+  assert.match(jobs.publish, /\n {6}- name: Publish verified candidate or explicit blocked outcome\n {8}id: publish\n/);
+  const condition = /\n {4}if: (.+)\n/.exec(jobs['review-agent'])?.[1];
+  assert.doesNotMatch(condition, /needs\.publish\.result/, 'the review never waits on the tick step');
+  const runs = (publish, outputs) => Function('needs', 'always', `return ${condition.replaceAll(' == ', ' === ').replaceAll(' != ', ' !== ')};`)({ publish: { result: publish, outputs } }, () => true);
+  assert.equal(runs('failure', { published: 'success', pr: '7' }), true, 'only the record failed: the PR is reviewed (mutation: needs.publish.result == \'success\' skips it)');
+  assert.equal(runs('success', { published: 'success', pr: '7' }), true);
+  assert.equal(runs('failure', { published: 'failure', pr: '' }), false, 'publication failed: no review');
+  assert.equal(runs('success', { published: 'success', pr: '' }), false, 'nothing published: no review');
+  // The tick step may not hide its failure: no continue-on-error, so a failed record leaves the job, and the run, red.
+  const tick = jobs.publish.split(/\n(?= {6}- )/).find(s => s.includes('- name: Tick tonight\'s plan'));
+  assert.ok(tick, 'the publisher ticks');
+  assert.doesNotMatch(tick, /continue-on-error/);
+  // And it does fail when the plan branch cannot be reached: the record's error is the step's exit.
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-tick-fails-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme'), temp = join(base, 'tmp');
+  await mkdir(join(temp, 'plan'), { recursive: true });
+  await cp(join(KEEL, 'practices/night/files/scripts/keel'), join(dir, 'scripts/keel'), { recursive: true });
+  for (const args of [['init', '-q', '-b', 'main'], ['remote', 'add', 'origin', join(base, 'no-such-origin.git')]]) assert.equal(run('git', args, { cwd: dir }).status, 0);
+  await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ nightPlan: { used: true, applies: true, date: '2026-10-15', item: 'robot-12', ticks: [], willNotTouch: [] } }));
+  const block = runBlocks(robot).find(b => b.step === 'Tick tonight\'s plan');
+  const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: temp, DAY: '2026-10-15', PUBLISHED: 'success', JUDGED: 'success', PR: '7', REPO: 'acme/anvils', RUN: 'https://github.com/acme/anvils/actions/runs/5' } });
+  assert.notEqual(r.status, 0, `a failed record is red: ${r.stdout}${r.stderr}`);
+  assert.match(r.stderr + r.stdout, /cannot read the plan branch keel-night-plan/);
 });
 
 /**
