@@ -348,3 +348,30 @@ test('a board source read only in part is a gap in the opening and in the plan\'
   const yes = await goodnight({ root: f.root, args: ['--yes'], env: f.env }, { board: partial });
   assert.ok(yes.data.plan.leftOpen.includes('not read: unanswered reviews: partly read, only what was read is listed (not read: acme/hammers: HTTP 502)'), yes.data.plan.leftOpen.join('\n'));
 });
+
+// Review of phase 74 (PR #144), round 2: the job lookup read climb's whole catalogue, so a build went to a job the project never runs.
+test('a climb lane is one of the project\'s enabled climb jobs: never another job in climb\'s catalogue, never one at all with climb off', async t => {
+  const f = await acme(t); // climb runs test-time only
+  const say = (...args) => goodnight({ root: f.root, args, env: f.env }, { board });
+  const refused = (args, re) => assert.rejects(say(...args), e => { assert.equal(e.exitCode, 2); assert.match(e.message, re); return true; });
+  // build_time is build-time's measure in the catalogue; this project does not run build-time.
+  await refused(['add', '--title', 'Acme: a faster build', '--measure', 'build_time', '--bound', '60'], /no climb job here measures build_time \(its climb jobs: climb:test-time\)/);
+  await refused(['add', '--title', 'Acme: a made-up job', '--measure', 'slow_tests', '--bound', '0', '--lane', 'climb:no-such-job'], /"acme-a-made-up-job" is in lane climb:no-such-job, a climb job this project does not run \(its climb jobs: climb:test-time\)/);
+  await refused(['edit', 'climb-test-time', '--lane', 'climb:build-time'], /lane climb:build-time, a climb job this project does not run/);
+  assert.equal(existsSync(join(f.root, DRAFT)), false, 'nothing refused reaches the draft');
+  // --yes checks the lanes again: a draft holding a job the project does not run is never written or pushed.
+  await say('add', '--title', 'Acme: the search tests', '--measure', 'slow_tests', '--bound', '0');
+  const draft = JSON.parse(await readFile(join(f.root, DRAFT), 'utf8'));
+  draft.items.find(i => i.id === 'acme-the-search-tests').lane = 'climb:perf';
+  await writeFile(join(f.root, DRAFT), JSON.stringify(draft));
+  await refused(['--yes'], /"acme-the-search-tests" is in lane climb:perf, a climb job this project does not run/);
+  assert.equal(existsSync(join(f.root, PLAN)), false);
+  assert.equal(run('git', ['rev-parse', '--verify', '-q', `refs/heads/${PLAN_BRANCH}`], { cwd: f.origin }).status, 1, 'nothing pushed');
+  // Climb off: no climb lane is one a pass builds.
+  await rm(join(f.root, DRAFT));
+  const config = JSON.parse(await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
+  delete config.climb;
+  await writeFile(join(f.root, '.keel/keel.json'), JSON.stringify(config));
+  await refused(['add', '--title', 'Acme: no climb', '--measure', 'slow_tests', '--bound', '0', '--lane', 'climb:test-time'], /lane climb:test-time, a climb job this project does not run \(climb is off here/);
+  await refused(['add', '--title', 'Acme: no climb either', '--measure', 'slow_tests', '--bound', '0'], /no climb job here measures slow_tests \(climb is off here/);
+});

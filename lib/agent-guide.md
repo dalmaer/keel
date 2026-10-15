@@ -1088,7 +1088,9 @@ it under "Tonight's plan". The design is
   [--measure …] [--budget …]` | `budget <id> <minutes>` | `skip <path-or-id>`
   change the draft (written never through a link; it starts from the default
   plan). A build added with no `--lane` takes the climb job that measures its
-  number, else is refused. Refused, exit 2, nothing written: a sixth build
+  number among the project's enabled jobs (`climb.jobs`), else is refused; a
+  `climb:<job>` lane names an enabled job, checked again on `--yes`, and none
+  with climb off. Refused, exit 2, nothing written: a sixth build
   item, a build with no number, an item naming something settled today (a
   merged `#n` or `phase n` in its title, a decided `loop:<slug>`, a merged
   robot PR's `robot:#n`). The owner's words are kept as written. `--json` →

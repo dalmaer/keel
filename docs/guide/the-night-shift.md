@@ -248,7 +248,9 @@ keel goodnight --yes                             # "that's the plan": write it a
   measure the night takes, its bound and which way is better), and an item
   naming something settled today (a merged `#n` or a moved `phase n` in its
   title, a decided Loop finding, a merged robot PR). A build with no `--lane`
-  takes the climb job that measures its number, or is refused.
+  takes the climb job that measures its number, or is refused. A climb lane
+  is always one of the jobs this project runs (`climb.jobs` in
+  `.keel/keel.json`), and none when climb is off.
 - **Saying it.** `keel goodnight --yes` checks the plan again, fills in what
   was settled and left open, writes `.keel/night/plan.json` shaped by the
   owner, and force-pushes it to `keel-night-plan`: one commit holding that one
