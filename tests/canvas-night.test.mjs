@@ -318,6 +318,18 @@ test('the night restores the newest canvas writer, the plan card\'s attempt when
   assert.notEqual(missing.status, 0);
 });
 
+// Review of #151: attempt 1 published the card, its send failed, the owner reran the failed jobs, and
+// attempt 2 (its card job not rerun) left no card artifact. Skipping the whole run lost attempt 1's journal.
+test('a keel-morning rerun with no card artifact falls back to its own earlier attempt, never to an older night (#151)', async t => {
+  const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
+  const first = cardRun({ id: 160, run_attempt: 1, run_started_at: '2026-10-08T10:40:00Z', conclusion: 'failure' });
+  const rerun = cardRun({ id: 160, run_attempt: 2, run_started_at: '2026-10-08T11:05:00Z' });
+  const out = await workflow(t, { runs: [rerun, night], priorAttempt: first, artifacts: [cardArtifact(first), artifactFor(night)], bundle: { provenance: provenanceFor(first) } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(out.ghCalls.some(a => a[1]?.endsWith('/runs/160/attempts/1')), 'the earlier attempt is read');
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'attempt 1\'s journal, not the older night\'s');
+});
+
 test('the card waits (exit 3, the canvas untouched) while another canvas writer runs; the night still refuses to race', async t => {
   const running = trustedRun({ id: 150, status: 'in_progress', conclusion: null });
   const setup = await workflow(t, { runs: [running] });

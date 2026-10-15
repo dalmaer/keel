@@ -151,7 +151,7 @@
     },
     "scripts/keel/canvas-recovery.mjs": {
       "practice": "night",
-      "sha256": "e0d04bc5b64d00c14c7305fafb99d51d44e5199c7acc62ba6342721c70489680"
+      "sha256": "79a1e1cf141119811589965afc78bf91c10cc8b7b78e150ec6c23121ddeb8ac0"
     },
     "scripts/keel/ci.mjs": {
       "practice": "night",

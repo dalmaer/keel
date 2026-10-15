@@ -24,7 +24,8 @@
 // sends recovery to the attempt before it; the artifact's provenance must
 // name exactly the attempt it came from. A night attempt with canvas on must
 // have left its artifact. A keel-morning attempt with none never reached its
-// card job (canvas not set for the card, or no plan): it is skipped.
+// card job (canvas not set for the card, or no plan): it is skipped, and its
+// run's earlier attempt, which may have, is read in its place (#151).
 // gh is `gh`; GH_TOKEN is the job's own (actions: read, contents: read).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -85,7 +86,12 @@ export function chooseRecovery({ self, env = process.env, gh = 'gh' }) {
     if (!Array.isArray(list)) fail('Cannot list the trusted night artifacts.');
     const found = list.filter(a => a.name === name && !a.expired && a.workflow_run?.id === run.id && a.workflow_run?.head_sha === run.head_sha && a.size_in_bytes > 0 && a.size_in_bytes <= 64 * 1024 * 1024);
     // A keel-morning attempt that left no card artifact never reached its card job: it never touched the canvas.
-    if (!w.required && found.length === 0 && !list.some(a => a.name === name)) continue;
+    // Its run's earlier attempt may have (a rerun of a failed send after the card published, #151):
+    // that attempt takes its place in time order, as after a never-ran receipt.
+    if (!w.required && found.length === 0 && !list.some(a => a.name === name)) {
+      if (run.run_attempt > 1) { queue.push({ ...api(`repos/${repo}/actions/runs/${run.id}/attempts/${run.run_attempt - 1}`), writer: run.writer }); queue.sort(newestFirst); }
+      continue;
+    }
     if (found.length !== 1) fail('Latest expected attempt recovery artifact missing, expired, oversized or ambiguous. Manual recovery required; refusing older state.');
     const dir = fs.mkdtempSync(path.join(env.RUNNER_TEMP, 'canvas-recovery-'));
     execFileSync(gh, ['run', 'download', String(run.id), '--repo', repo, '--name', name, '--dir', dir], { timeout: 60000, maxBuffer: 1024 * 1024 });
