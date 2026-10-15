@@ -261,6 +261,50 @@ keel goodnight --yes                             # "that's the plan": write it a
   summons. The branch is never merged. Exit 1 if the plan was written but the
   push failed: the night then runs the default plan.
 
+### The morning
+
+When the night is over, one message says what it did (phase 77). GitHub
+sends it: the brief is an issue assigned to you, so its notification is the
+email.
+
+```bash
+keel morning                        # the brief for the night that last started, markdown
+keel morning --date 2026-10-15      # for a named night
+keel morning --send                 # the issue "Good morning, <date>", once a night
+keel morning --card --yes           # the plan as the live canvas card night-plan
+```
+
+- **The brief** reads the plan as it finished (the night's record and the
+  plan branch, each item at its furthest tick) and says, in isocan's order:
+  what was done, with its number before and after from the health pages;
+  what was tried; what failed, and why; what was left alone; what was not
+  finished by `readyBy`; and what is yours next (each PR to review and merge,
+  each failure to look at). It links the canvas when one is bound, the
+  health page and each PR.
+- **Sending** needs `"morning": { "assignee": "<your GitHub login>" }` in
+  `.keel/keel.json`; without it `--send` refuses, naming the key. It labels
+  the issue `keel:morning` and closes yesterday's. A second send for the same
+  night does nothing.
+- **When.** `keel-morning.yml` sends it once every build item in the plan is
+  done, failed, skipped or left alone, or at the plan's `readyBy` (default
+  17:00 UTC), marking anything unfinished "not finished by" that time, never
+  done. It starts when the night, climb or the robot finishes, and once a
+  day at 17:07 UTC, just after the default `readyBy`. A `readyBy` at another
+  time is caught by whichever comes next: a pass finishing or the daily run.
+  A `readyBy` after the next night starts (07:23 UTC) is never reached for a
+  night whose builds never finish: by then the morning reads the new night.
+  Only its send job may write issues; a failed send turns it red. Every run
+  once the night is over, sent or not, keeps one data-only PR,
+  `keel-night/<date>-final`, that puts the final outcomes in
+  `docs/night/<date>.json` and the page's "Tonight's plan", so a build that
+  finishes after the brief still reaches the archive; a run with nothing new
+  changes nothing. The next night's drain merges it with the series.
+- **The card.** With a canvas in live mode that lists `night-plan` (`keel
+  canvas live --card pulse --card night-plan --yes`), `keel morning --card
+  --yes` publishes the plan as one card, edited in place each time an item
+  ticks. If you edit the card yourself, keel stops updating it until you
+  re-base it (`keel canvas rebase --card night-plan`).
+
 ## What you'll see
 
 The night's PR, `keel-night/<date>`, holds the health page, tonight's plan

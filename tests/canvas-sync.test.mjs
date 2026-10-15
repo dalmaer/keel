@@ -1079,3 +1079,47 @@ test('a live key dropped after a property-only edit, with no sync in between, re
     assert.equal(f.remote.edits.length, 0); assert.equal(card.versions.length, 1); assert.equal(card.properties.reviewed, 'yes');
   });
 });
+
+// ---- Phase 77: tonight's plan is the live card night-plan ----
+test('phase 77: tonight\'s plan renders as one live card night-plan, each tick edits it in place, and a person\'s edit stops updates', async t => {
+  const { publishPlanCard, planCard, PLAN_CARD } = await import('../lib/morning.mjs');
+  const { tick, writePlan, readPlan } = await import('../lib/night-plan.mjs');
+  const f = await liveFixture(t); await f.goLive({ cards: ['pulse', PLAN_CARD] });
+  const NIGHT = '2026-10-05';
+  const item = over => ({ number: null, budget: null, status: 'planned', result: null, ...over });
+  await writePlan(f.root, { schema: 1, date: NIGHT, shapedBy: 'default', readyBy: null, willNotTouch: [], settledToday: [], leftOpen: [], items: [
+    item({ id: 'measures', title: 'Measure the practice', kind: 'measure', source: 'default', lane: 'night' }),
+    item({ id: 'climb-perf', title: 'Climb perf', kind: 'build', source: 'default', lane: 'climb:perf', number: { measure: 'bundle_bytes', bound: 747000, better: 'lower' } }),
+  ] });
+  const publish = () => publishPlanCard({ root: f.root, yes: true }, { transport: f.transport });
+  const adds = f.remote.adds;
+  const first = await publish();
+  assert.equal(first.data.state, 'published');
+  assert.deepEqual(first.data.changes.map(c => [c.action, c.key]), [['add-live', PLAN_CARD]]);
+  assert.equal(f.remote.adds, adds + 1); assert.equal(f.remote.edits.length, 0);
+  const owned = (await read(manifestPath(f.root))).items[PLAN_CARD];
+  const card = f.remote.items.get(owned.itemId);
+  assert.equal(owned.live, true); assert.equal(card.title, `Tonight's plan · ${NIGHT}`);
+  assert.equal((await publish()).data.state, 'unchanged', 'an unticked plan writes nothing');
+  // Each tick: the same card, one conditional edit against the version keel recorded.
+  for (const [id, status, n] of [['measures', 'done', 1], ['climb-perf', 'running', 2], ['climb-perf', 'done', 3]]) {
+    await tick({ root: f.root, id, status, ...(status === 'done' && id === 'climb-perf' ? { link: 'https://github.com/acme/anvils/pull/21' } : {}) });
+    const out = await publish();
+    assert.equal(out.data.state, 'published', `${id} ${status}`);
+    assert.deepEqual(out.data.live.map(l => [l.key, l.itemId, l.status]), [[PLAN_CARD, owned.itemId, 'applied']]);
+    assert.equal(f.remote.edits.length, n); assert.equal(f.remote.adds, adds + 1, 'never a second card');
+    assert.equal(card.versions.length, n + 1);
+  }
+  assert.equal(card.versions.at(-1).blobHash, digest(planCard(await readPlan(f.root)).source), 'the card is the plan as ticked');
+  // A person edits the card: the next tick writes nothing, and the refusal stays.
+  card.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); card.currentVersionId = 'ver_person';
+  const frozen = snapshotOf(f.remote), edits = f.remote.edits.length;
+  await tick({ root: f.root, id: 'climb-perf', status: 'done', note: 'Split the vendor chunk' });
+  for (let i = 0; i < 2; i++) {
+    const refused = await publish();
+    assert.deepEqual([refused.data.state, refused.exitCode, refused.data.attention[0].key, refused.data.attention[0].currentVersionId], ['conflict', 1, PLAN_CARD, 'ver_person']);
+  }
+  assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.edits.length, edits);
+  // The pulse stays live beside it, untouched by the plan's syncs.
+  assert.equal((await read(manifestPath(f.root))).items.pulse.conflict, undefined);
+});

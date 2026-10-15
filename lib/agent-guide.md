@@ -15,15 +15,16 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
 - `keel doctor` — drift and practice lints; `--fix <path> restore|eject` (exit 3)
 - `keel update` — migrations, re-render, check; PR branch (exit 3) or `--local`
-- `keel lessons` — send lessons, drift and practice commits home; exit 3
+- `keel lessons` — send lessons and drift home; exit 3
 - `keel learn` — lessons → proposals and decisions
 - `keel improve` — measures, bounds, one proposal; `--report` a health page
 - `keel persona run` — measure a project's own goals
 - `keel time` — weekly gate/test medians, load, failure memory
-- `keel test <file> --stalls` — names tests that judge the wall clock
+- `keel test <file> --stalls` — tests that judge the wall clock
 - `keel drain <prefix>` — newest passing PR per queue; exit 3
 - `keel night plan|tick` — the plan
 - `keel goodnight` — shape it
+- `keel morning` — the brief; `--send`
 - `keel fleet` — fleet practice, health, CI
 - `keel fleet update` — update PRs for projects behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
@@ -1129,6 +1130,35 @@ for the run's UTC date is used; none, another night's or a refused one means
 the default plan, and the step says which and why. improve `--report` ticks the
 measure items and writes the record. Until phase 76, climb and the robot still
 choose their own work.
+
+**The morning** (phase 77). `keel morning [--date <YYYY-MM-DD>]` renders the
+brief for the night that last started (or `--date`), from its plan as it
+finished: the night's record (`keel-night/<date>-final`, `keel-night/<date>`,
+the checkout), the plan branch and the working plan, each item at its furthest
+tick. Its order: Done (build items done, each number's value before → after
+from the health pages), Tried (other items done), Failed, and why, Left alone
+(skipped, left alone, will not touch), Not finished by `<readyBy>` (or Still
+going), Your next; with the canvas link when bound, the health page and each
+PR. `--json` → `{ok, date, title, from, sources, readiness, sections, next,
+links, markdown, plan}`. No plan for the night is exit 2.
+- `--send` opens the issue "Good morning, <date>" assigned to `morning.assignee`
+  (`.keel/keel.json`; unset is exit 2, naming the key), labelled `keel:morning`,
+  and closes the previous open one. An issue with that title, open or closed,
+  means sent: nothing again. A gh write that fails is exit 1.
+- `--card [--dry-run | --yes]` publishes the plan as the live card
+  `night-plan` through `keel canvas sync`'s conditional edit; refused (exit 2)
+  unless the binding is live and lists it (`keel canvas live --card pulse
+  --card night-plan --yes`). A person's edit stops it, as for every live card.
+
+The night is over when every build item is terminal (done, failed, skipped,
+left alone), or at `readyBy` (default 17:00 UTC on the night's date).
+`keel-morning.yml` (`node scripts/keel/morning.mjs decide|send|finalize`) runs
+when keel-night, keel-climb or keel-robot finish and daily at 17:07 UTC (a
+`readyBy` at another time waits for the next of those); once the night is
+over, it sends the brief once (the one job with `issues: write`; a failed send
+is red) and, on every run, sent or not, keeps one data-only PR,
+`keel-night/<date>-final`, with the final `docs/night/<date>.json` and the
+health page's "Tonight's plan" (nothing new, nothing changed).
 
 <!-- topic: loop | Stitch Loop's findings: a project script, not a keel verb; an agent proposes, a person decides -->
 

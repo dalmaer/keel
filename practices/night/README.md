@@ -58,6 +58,21 @@ every night at 07:23 UTC (and by hand):
 4. A broken instrument (improve exit 2) or a failing gate fails the run, and
    GitHub emails. A measure outside its bound (exit 1) is news on the page,
    not red.
+5. The morning (phase 77): `keel-morning.yml` runs when keel-night,
+   keel-climb or keel-robot finish, and daily at 17:07 UTC (just after the
+   default `readyBy`; another `readyBy` is caught by the next pass to finish
+   or the next daily run). `node scripts/keel/morning.mjs
+   decide` reads tonight's plan as it finished (its record and the plan
+   branch, each item at its furthest tick); once every build item is terminal,
+   or the plan's `readyBy` (default 17:00 UTC) has passed, and no brief was
+   sent, `morning.mjs send` opens the issue "Good morning, <date>" assigned to
+   `.keel/keel.json` `morning.assignee` and labelled `keel:morning` (closing the
+   previous one; GitHub emails the assignee). On every run once the night is
+   over, sent or not, `morning.mjs finalize` puts the final outcomes in `docs/night/<date>.json` and the page's "Tonight's
+   plan" as one data-only PR, `keel-night/<date>-final`, which the drain
+   merges with the series (a run with nothing new changes nothing, so a
+   later build outcome still arrives). Only the send job may write issues; a failed send
+   is red. Without an assignee nothing is sent (a notice).
 
 `keel improve` and `keel drain` are these same modules, run from keel. What
 a project's copy cannot read alone it calls `keel-side only`, never a zero:
