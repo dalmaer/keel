@@ -243,10 +243,12 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   time is caught by whichever comes next: a pass finishing or the daily run.
   A `readyBy` after the next night starts (07:23 UTC) is never reached for a
   night whose builds never finish: by then the morning reads the new night.
-  Only its send job may write issues; a failed send turns it red. The same run
-  opens one data-only PR, `keel-night/<date>-final`, that puts the final
-  outcomes in `docs/night/<date>.json` and the page's "Tonight's plan"; the
-  next night's drain merges it with the series.
+  Only its send job may write issues; a failed send turns it red. Every run
+  once the night is over, sent or not, keeps one data-only PR,
+  `keel-night/<date>-final`, that puts the final outcomes in
+  `docs/night/<date>.json` and the page's "Tonight's plan", so a build that
+  finishes after the brief still reaches the archive; a run with nothing new
+  changes nothing. The next night's drain merges it with the series.
 - **The card.** With a canvas in live mode that lists `night-plan` (`keel
   canvas live --card pulse --card night-plan --yes`), `keel morning --card
   --yes` publishes the plan as one card, edited in place each time an item

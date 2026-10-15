@@ -67,10 +67,11 @@ every night at 07:23 UTC (and by hand):
    or the plan's `readyBy` (default 17:00 UTC) has passed, and no brief was
    sent, `morning.mjs send` opens the issue "Good morning, <date>" assigned to
    `.keel/keel.json` `morning.assignee` and labelled `keel:morning` (closing the
-   previous one; GitHub emails the assignee), and `morning.mjs finalize` puts
-   the final outcomes in `docs/night/<date>.json` and the page's "Tonight's
+   previous one; GitHub emails the assignee). On every run once the night is
+   over, sent or not, `morning.mjs finalize` puts the final outcomes in `docs/night/<date>.json` and the page's "Tonight's
    plan" as one data-only PR, `keel-night/<date>-final`, which the drain
-   merges with the series. Only the send job may write issues; a failed send
+   merges with the series (a run with nothing new changes nothing, so a
+   later build outcome still arrives). Only the send job may write issues; a failed send
    is red. Without an assignee nothing is sent (a notice).
 
 `keel improve` and `keel drain` are these same modules, run from keel. What

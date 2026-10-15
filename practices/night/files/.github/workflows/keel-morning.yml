@@ -5,16 +5,21 @@
 # and the morning sends a message"). The night is over when every build item
 # in its plan is terminal (done, failed, skipped or left alone), or at the
 # plan's readyBy (default 17:00 UTC), when what is unfinished is "not finished
-# by" that time, never done. Then, once a night:
+# by" that time, never done. Then:
 #
-#   - Send: the brief as one issue "Good morning, <date>", assigned to
-#     .keel/keel.json "morning" "assignee" and labelled keel:morning; GitHub
-#     emails the assignee. The previous open brief is closed. No assignee is
-#     a notice, not red: nothing is sent until the owner names one.
-#   - Finalize (keel#137): the plan's final outcomes into the night's archive,
+#   - Send, once a night: the brief as one issue "Good morning, <date>",
+#     assigned to .keel/keel.json "morning" "assignee" and labelled
+#     keel:morning; GitHub emails the assignee. The previous open brief is
+#     closed. No assignee is a notice, not red: nothing is sent until the
+#     owner names one.
+#   - Finalize (keel#137), on every run once the night is over, sent or not:
+#     the plan's final outcomes into the night's archive,
 #     docs/night/<date>.json and the health page's "Tonight's plan", as one
 #     data-only PR in the night's queue (keel-night/<date>-final), which the
-#     night's drain merges with the series.
+#     night's drain merges with the series. So a finalization that failed
+#     after the send, or a build that finished after a brief sent at
+#     readyBy, still reaches the archive; a run with nothing new changes
+#     nothing.
 #
 # All of it is scripts/keel/morning.mjs, a managed file of this practice: no
 # model, no install, no secret beyond the job's own token. Each job holds only
@@ -29,7 +34,7 @@
 # to finish or the next daily run, whichever comes first; one whose readyBy
 # falls after the next night starts (07:23 UTC) and never finishes gets no
 # brief, since decide then reads the new night. A run that finds the night
-# not over, or already sent, does nothing more.
+# not over does nothing more; one that finds the brief sent only finalizes.
 name: keel-morning
 
 on:
@@ -78,7 +83,7 @@ jobs:
   # The night's final outcomes, as one data-only PR in its queue (keel#137).
   finalize:
     needs: decide
-    if: needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'
+    if: needs.decide.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

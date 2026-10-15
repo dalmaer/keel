@@ -2370,7 +2370,12 @@ export function morningProblems(text) {
   if (JSON.stringify(perms('finalize')) !== JSON.stringify(['contents: write', 'pull-requests: write'])) out.push('finalize writes contents and one PR, nothing else');
   if (JSON.stringify(perms('send')) !== JSON.stringify(['contents: read', 'issues: write'])) out.push('send reads contents and writes issues, nothing else');
   const over = "needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'";
-  for (const id of ['finalize', 'send']) if (!(jobs[id] ?? '').includes(`    needs: decide\n    if: ${over}`)) out.push(`${id}: runs only when decide says the night is over and unsent`);
+  if (!(jobs.send ?? '').includes(`    needs: decide\n    if: ${over}`)) out.push('send: runs only when decide says the night is over and unsent');
+  // Finalize runs on every run after the night is over, sent or not: a finalization that failed
+  // after a send, or a build that finished after a brief sent at readyBy, still reaches the
+  // archive. Its own no-change check (git status --porcelain) makes repeats harmless.
+  if (!(jobs.finalize ?? '').includes("    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n")) out.push('finalize: runs whenever the night is over, never gated on the brief being unsent');
+  if (!/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n\s+echo "Nothing changed[^\n]*\n\s+exit 0/.test(jobs.finalize ?? '')) out.push('finalize: a run with nothing new changes nothing (git status --porcelain)');
   if (!(jobs.send ?? '').includes("&& needs.decide.outputs.assignee == 'set'")) out.push('send: runs only with an assignee');
   if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n?$/.test(jobs.send ?? '')) out.push('send: the send is its step\'s whole command, so its failure fails the run');
   if (!/node scripts\/keel\/morning\.mjs decide --github-output "\$GITHUB_OUTPUT"/.test(jobs.decide ?? '')) out.push('decide: runs morning.mjs decide into the job\'s outputs');
@@ -2405,6 +2410,9 @@ test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, 
     ['send allowed to fail', t.replace('      - name: Send the brief\n', '      - name: Send the brief\n        continue-on-error: true\n'), /send: continue-on-error/],
     ['send before the night is over', t.replace("  send:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true' && ", '  send:\n    needs: decide\n    if: '), /send: runs only when decide says the night is over/],
     ['send twice', t.replace(" && needs.decide.outputs.sent != 'true' && needs.decide.outputs.assignee", ' && needs.decide.outputs.assignee'), /send: runs only when decide says the night is over and unsent/],
+    ['finalize gated on the brief', t.replace("  finalize:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n", "  finalize:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'\n"), /finalize: runs whenever the night is over, never gated/],
+    ['finalize before the night is over', t.replace("  finalize:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n", '  finalize:\n    needs: decide\n'), /finalize: runs whenever the night is over/],
+    ['finalize with no no-change check', t.replace(/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n(\s+)echo "Nothing changed[^\n]*\n\s+exit 0\n/, ''), /finalize: a run with nothing new changes nothing/],
     ['a secret', t.replace('GH_TOKEN: ${{ github.token }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps', 'GH_TOKEN: ${{ secrets.MAIL_TOKEN }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps'), /no secret/],
     ['no timeout', t.replace(/(  send:\n(?:.*\n)*?) {4}timeout-minutes: \d+\n/, '$1'), /send: no timeout/],
   ]) {

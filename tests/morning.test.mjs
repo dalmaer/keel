@@ -322,6 +322,11 @@ test('keel#137: finalization puts a later build outcome in the night\'s record a
   assert.equal(pageAfter.split('## Tonight\'s plan')[0], pageBefore.split('## Tonight\'s plan')[0], 'what came before it is kept');
   assert.equal(pageAfter.split('## Proposal')[1], pageBefore.split('## Proposal')[1], 'and what came after it');
   assert.equal(withPlanSection(pageAfter, planSection(record, { record: `docs/night/${NIGHT}.json` })), pageAfter, 'finalizing again changes nothing');
+  // keel-morning finalizes on every run once the night is over, sent or not: a repeat with nothing new writes the same bytes.
+  const recordBytes = await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8');
+  await finalize({ root: p.root, date: NIGHT });
+  assert.equal(await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8'), recordBytes);
+  assert.equal(await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8'), pageAfter);
   const body = JSON.parse(await readFile(join(p.base, 'pr.json'), 'utf8'));
   assert.equal(body.danger.door, 'two-way');
   assert.deepEqual(body.evidence.rows.find(x => x.what === 'perf-bundle'), { what: 'perf-bundle', before: 'build', after: 'done' });

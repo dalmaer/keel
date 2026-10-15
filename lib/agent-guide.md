@@ -1111,9 +1111,10 @@ left alone), or at `readyBy` (default 17:00 UTC on the night's date).
 `keel-morning.yml` (`node scripts/keel/morning.mjs decide|send|finalize`) runs
 when keel-night, keel-climb or keel-robot finish and daily at 17:07 UTC (a
 `readyBy` at another time waits for the next of those); once the night is
-over and unsent, it sends the brief (the one job with `issues: write`; a failed
-send is red) and opens one data-only PR, `keel-night/<date>-final`, with the
-final `docs/night/<date>.json` and the health page's "Tonight's plan".
+over, it sends the brief once (the one job with `issues: write`; a failed send
+is red) and, on every run, sent or not, keeps one data-only PR,
+`keel-night/<date>-final`, with the final `docs/night/<date>.json` and the
+health page's "Tonight's plan" (nothing new, nothing changed).
 
 <!-- topic: loop | Stitch Loop's findings: a project script, not a keel verb; an agent proposes, a person decides -->
 
