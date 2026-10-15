@@ -710,7 +710,7 @@ test('the night stages only tonight\'s page and its own data (deletions kept), p
  * branch keel-night-plan; `date` is a stub, so tonight is 2026-10-15 (UTC).
  * Returns { status, out, outputs, plan }.
  */
-async function nightPlanStep(t, night, { branchPlan = null, origin: brokenOrigin = false } = {}) {
+async function nightPlanStep(t, night, { branchPlan = null, origin: brokenOrigin = false, emptyBranch = false, failFetch = false } = {}) {
   const step = runBlocks(night).find(b => b.step === 'Plan the night');
   assert.ok(step, 'the night has a Plan the night step');
   const base = await mkdtemp(join(tmpdir(), 'keel-wf-plan-'));
@@ -737,7 +737,14 @@ async function nightPlanStep(t, night, { branchPlan = null, origin: brokenOrigin
     git(['checkout', '-q', '-f', 'main']);
     await rm(join(dir, '.keel/night'), { recursive: true, force: true });
   }
+  // The branch, holding no plan file.
+  if (emptyBranch) git(['push', '-q', origin, 'HEAD:refs/heads/keel-night-plan']);
   git(['remote', 'add', 'origin', brokenOrigin ? join(base, 'no-such-origin.git') : origin]);
+  // A git whose fetch fails (the network drops between ls-remote and fetch); every other command is the real git.
+  if (failFetch) {
+    const real = run('sh', ['-c', 'command -v git']).stdout.trim();
+    await writeFile(join(bin, 'git'), `#!/bin/sh\n[ "$1" = fetch ] && { echo "fatal: Acme network down" >&2; exit 128; }\nexec ${JSON.stringify(real)} "$@"\n`, { mode: 0o755 });
+  }
   await writeFile(join(bin, 'date'), '#!/bin/sh\n[ "$1" = "-u" ] && [ "$2" = "+%F" ] && { echo 2026-10-15; exit 0; }\nexit 9\n', { mode: 0o755 });
   await writeFile(join(bin, 'gh'), '#!/bin/sh\necho "[]"\n', { mode: 0o755 });
   const out = join(temp, 'out');
@@ -770,6 +777,19 @@ test('the night plans before anything runs: tonight\'s plan from keel-night-plan
   const old = await nightPlanStep(t, night, { branchPlan: { ...owner, date: '2026-10-14' } });
   assert.match(old.out, /keel's default plan: the plan on keel-night-plan is dated 2026-10-14, not 2026-10-15\./);
   assert.equal(old.plan.shapedBy, 'default');
+  // The branch is there and holds no plan file: the default plan, and not red.
+  const empty = await nightPlanStep(t, night, { emptyBranch: true });
+  assert.equal(empty.outputs.code, '0', empty.out);
+  assert.match(empty.out, /plan: keel-night-plan holds no \.keel\/night\/plan\.json/);
+  assert.equal(empty.plan.shapedBy, 'default');
+  // keel#142: the branch is there but the fetch fails: a plan the night could not read (red), never "no plan file".
+  const unfetched = await nightPlanStep(t, night, { branchPlan: owner, failFetch: true });
+  assert.equal(unfetched.status, 0, 'the step goes on: the measure still runs');
+  assert.equal(unfetched.outputs.code, '2', unfetched.out);
+  assert.match(unfetched.out, /::error::git fetch could not read the plan branch keel-night-plan \(exit 128\)/);
+  assert.match(unfetched.out, /keel's default plan: the plan branch keel-night-plan could not be read \(git fetch exit 128\)/);
+  assert.doesNotMatch(unfetched.out, /holds no \.keel\/night\/plan\.json/);
+  assert.equal(unfetched.plan.shapedBy, 'default');
   // The branch cannot be read: red at the verdict, and the night still has its default plan.
   const broken = await nightPlanStep(t, night, { origin: true });
   assert.equal(broken.status, 0, 'the step goes on: the measure still runs');
