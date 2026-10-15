@@ -10,6 +10,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verbs, FLAGS, GUIDE, COLD_START_LIMIT, parseGuide, surfaceGaps, announced } from '../lib/cli.mjs';
 import { acmeRepo } from './helpers/prove.mjs';
+import { nightOf } from '../lib/night-plan.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -152,7 +153,9 @@ test('--json parses for every verb and flag; human text never mixes in', async t
       'goal retire': [added, '--reason', 'Acme test'], 'phase new': ['Acme phase', '--goal', 'G0'], 'phase claim': ['0'],
       prove: ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 'evidence rederive': ['1'], 'persona run': ['--all'],
       // night tick runs after night plan (the registry's order), which wrote the copy's plan (tests/night-plan.test.mjs covers both).
-      'night tick': ['measures', '--status', 'running'] };
+      'night tick': ['measures', '--status', 'running'],
+      // morning reads that plan's night, which night plan dated (tests/morning.test.mjs covers the verb).
+      morning: ['--date', nightOf()] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
     const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
     // Evidence previews a synthetic record, independent of this checkout's historical measurements.

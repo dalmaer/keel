@@ -77,6 +77,10 @@
       "practice": "reconciliation",
       "sha256": "2f1bf82f06c614c6ef59541829ac9d1713f01672e6d9486909fcf8fdf56f7643"
     },
+    ".github/workflows/keel-morning.yml": {
+      "practice": "night",
+      "sha256": "24867489f8004c57e257ad51a05cefab5dd6629e8040e5021156439d9965e890"
+    },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
       "sha256": "9d12b3ed9a73227d8250b1268db95fa954952893d3c98dc2840d95c3d47efeab"
@@ -188,6 +192,10 @@
     "scripts/keel/milestones.mjs": {
       "practice": "night",
       "sha256": "e37492e3518422faea8580916032aa7dcff314e499e627338ede403edb7dc3bb"
+    },
+    "scripts/keel/morning.mjs": {
+      "practice": "night",
+      "sha256": "5b9af697126cde63df1cbf74ecc4ca82987b49382f088c2b76cde3c7b2e45b8c"
     },
     "scripts/keel/night-plan.mjs": {
       "practice": "night",
