@@ -6,7 +6,7 @@
 // that breaks it must fail.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir, mkdtemp, writeFile, rm, mkdir, symlink } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, writeFile, rm, mkdir, symlink, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -702,6 +702,113 @@ test('the night stages only tonight\'s page and its own data (deletions kept), p
   assert.doesNotMatch(probe.out, /is git-ignored \(/, 'an x.md probe misses a rule for dated pages');
   const lexical = await nightCommit(t, night.replace('import { healthDirIn } from', 'import { healthDirOf as healthDirIn } from'), { health: '.keel/health', before: async (dir, base) => { await mkdir(join(base, 'elsewhere'), { recursive: true }); await symlink(join(base, 'elsewhere'), join(dir, '.keel/health')); } });
   assert.equal(lexical.where, 0, 'a lexical check alone lets the symlink through');
+});
+
+/**
+ * Run the night's "Plan the night" step, as the workflow has it, in a
+ * synthetic Acme repo whose origin is a bare repo that may hold the plan
+ * branch keel-night-plan; `date` is a stub, so tonight is 2026-10-15 (UTC).
+ * Returns { status, out, outputs, plan }.
+ */
+async function nightPlanStep(t, night, { branchPlan = null, origin: brokenOrigin = false } = {}) {
+  const step = runBlocks(night).find(b => b.step === 'Plan the night');
+  assert.ok(step, 'the night has a Plan the night step');
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-plan-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const dir = join(base, 'acme'), origin = join(base, 'origin.git'), bin = join(base, 'bin'), temp = join(base, 'tmp');
+  const git = (args, cwd = dir) => { const r = run('git', args, { cwd }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout; };
+  for (const d of [dir, bin, temp, join(dir, '.keel')]) await mkdir(d, { recursive: true });
+  git(['init', '-q', '--bare', origin], base);
+  git(['init', '-q', '-b', 'main']);
+  await cp(join(KEEL, 'practices/night/files/scripts/keel'), join(dir, 'scripts/keel'), { recursive: true });
+  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme' })}\n`);
+  git(['add', '-A']);
+  git(['commit', '-q', '-m', 'acme']);
+  git(['push', '-q', origin, 'HEAD:refs/heads/main']);
+  if (branchPlan) {
+    // The plan branch, as /goodnight would push it: one file, on its own history.
+    git(['checkout', '-q', '--orphan', 'keel-night-plan']);
+    git(['rm', '-rq', '--cached', '.']);
+    await mkdir(join(dir, '.keel/night'), { recursive: true });
+    await writeFile(join(dir, '.keel/night/plan.json'), JSON.stringify(branchPlan));
+    git(['add', '-f', '.keel/night/plan.json']);
+    git(['commit', '-q', '-m', 'acme plan']);
+    git(['push', '-q', origin, 'HEAD:refs/heads/keel-night-plan']);
+    git(['checkout', '-q', '-f', 'main']);
+    await rm(join(dir, '.keel/night'), { recursive: true, force: true });
+  }
+  git(['remote', 'add', 'origin', brokenOrigin ? join(base, 'no-such-origin.git') : origin]);
+  await writeFile(join(bin, 'date'), '#!/bin/sh\n[ "$1" = "-u" ] && [ "$2" = "+%F" ] && { echo 2026-10-15; exit 0; }\nexit 9\n', { mode: 0o755 });
+  await writeFile(join(bin, 'gh'), '#!/bin/sh\necho "[]"\n', { mode: 0o755 });
+  const out = join(temp, 'out');
+  await writeFile(out, '');
+  const r = run('bash', ['-e', '-c', step.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out, RUNNER_TEMP: temp, PATH: `${bin}:${process.env.PATH}` } });
+  const outputs = Object.fromEntries((await readFile(out, 'utf8')).trim().split('\n').filter(Boolean).map(l => l.split('=')));
+  const plan = await readFile(join(dir, '.keel/night/plan.json'), 'utf8').then(JSON.parse, () => null);
+  return { status: r.status, out: r.stdout + r.stderr, outputs, plan };
+}
+
+test('the night plans before anything runs: tonight\'s plan from keel-night-plan, else the default plan, saying which; a plan it cannot make is red at the verdict', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  const steps = runBlocks(night).map(b => b.step);
+  const at = name => steps.indexOf(name);
+  assert.ok(at('Plan the night') > at('Install') && at('Plan the night') < at('Gather what came home') && at('Plan the night') < at('Measure'), `the plan is written before any pass runs: ${steps.join(', ')}`);
+  const owner = { schema: 1, date: '2026-10-15', shapedBy: 'owner', readyBy: null, willNotTouch: ['lib/anvil.mjs'], settledToday: [], leftOpen: [],
+    items: [{ id: 'measure', title: 'Measure Acme', kind: 'measure', source: 'owner', number: null, lane: 'night', budget: null, status: 'planned', result: null }] };
+  // The branch holds tonight's plan: it is used, and the step says so.
+  const used = await nightPlanStep(t, night, { branchPlan: owner });
+  assert.equal(used.status, 0, used.out);
+  assert.deepEqual(used.outputs, { code: '0', day: '2026-10-15' });
+  assert.match(used.out, /Tonight's plan \(2026-10-15\) is the one on keel-night-plan, shaped by owner\./);
+  assert.deepEqual(used.plan, owner);
+  // No branch: the default plan.
+  const none = await nightPlanStep(t, night);
+  assert.equal(none.status, 0, none.out);
+  assert.match(none.out, /Tonight's plan \(2026-10-15\) is keel's default plan: no plan on keel-night-plan\./);
+  assert.deepEqual([none.plan.shapedBy, none.plan.date, none.plan.items[0].id], ['default', '2026-10-15', 'measures']);
+  // Dated for another night: the default plan, saying why.
+  const old = await nightPlanStep(t, night, { branchPlan: { ...owner, date: '2026-10-14' } });
+  assert.match(old.out, /keel's default plan: the plan on keel-night-plan is dated 2026-10-14, not 2026-10-15\./);
+  assert.equal(old.plan.shapedBy, 'default');
+  // The branch cannot be read: red at the verdict, and the night still has its default plan.
+  const broken = await nightPlanStep(t, night, { origin: true });
+  assert.equal(broken.status, 0, 'the step goes on: the measure still runs');
+  assert.equal(broken.outputs.code, '2');
+  assert.match(broken.out, /::error::git ls-remote could not read the plan branch keel-night-plan/);
+  assert.equal(broken.plan.shapedBy, 'default');
+  // Mutation: a step that never reads the branch runs the default plan when the owner shaped one.
+  const blind = await nightPlanStep(t, night.replace('ARGS=(--branch-plan "$RUNNER_TEMP/branch-plan.json")', 'ARGS=()'), { branchPlan: owner });
+  assert.equal(blind.plan.shapedBy, 'default', 'the guard above would catch a blind step');
+  // The verdict: a plan the night could not make is red; a made one is not.
+  const verdict = runBlocks(night).find(b => b.step === 'Verdict').script;
+  const v = env => run('bash', ['-e', '-c', verdict], { env: { ...process.env, CANVAS_OUTCOME: 'success', CODE: '0', GATE: 'ok', ...env } });
+  assert.equal(v({ PLAN: '0' }).status, 0);
+  const red = v({ PLAN: '2' });
+  assert.equal(red.status, 1);
+  assert.match(red.stdout, /Tonight's plan could not be made or read/);
+  assert.equal(v({ PLAN: '' }).status, 1, 'no plan step at all is red too');
+});
+
+test('the night\'s PR carries the plan as it ended, docs/night/<date>.json, and nothing else there; a symlinked record is refused', async t => {
+  const night = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-night.yml'), 'utf8');
+  const record = async dir => { await mkdir(join(dir, 'docs/night'), { recursive: true }); await writeFile(join(dir, 'docs/night/2026-10-05.json'), '{"schema":1}\n'); await writeFile(join(dir, 'docs/night/notes.md'), 'a person\'s notes\n'); };
+  const r = await nightCommit(t, night, { after: record });
+  assert.equal(r.status, 0, r.out);
+  assert.deepEqual(r.files, ['.keel/bounds.json', 'docs/health/2026-10-05.md', 'docs/night/2026-10-05.json'], 'the record, never the directory\'s other files');
+  // No plan record (a project before phase 73's night): the PR is as it was.
+  assert.deepEqual((await nightCommit(t, night, {})).files, ['.keel/bounds.json', 'docs/health/2026-10-05.md']);
+  // A record that is a symlink out of the repo: red, nothing pushed.
+  const linked = await nightCommit(t, night, { after: async dir => { await mkdir(join(dir, 'docs/night'), { recursive: true }); await symlink('/etc/hosts', join(dir, 'docs/night/2026-10-05.json')); } });
+  assert.notEqual(linked.status, 0);
+  assert.match(linked.out, /docs\/night\/2026-10-05\.json is not a regular file inside the repo/);
+  assert.equal(linked.files, null);
+  // Ignored: red, naming the fix.
+  const ignored = await nightCommit(t, night, { ignore: 'docs/night/\n', after: record });
+  assert.notEqual(ignored.status, 0);
+  assert.match(ignored.out, /docs\/night\/2026-10-05\.json is git-ignored.*stop ignoring docs\/night\//);
+  // Mutation: a step that stages the whole directory carries the person's notes.
+  const whole = await nightCommit(t, night.replace('HEALTH_PATHS+=("$RECORD")', 'HEALTH_PATHS+=(docs/night)'), { after: record });
+  assert.ok(whole.files.includes('docs/night/notes.md'), `staging docs/night/ carries what is not the night's: ${JSON.stringify(whole.files)}`);
 });
 
 test('the PR description is re-checked on edit by keel-impact.yml alone; check.yml never runs it', async () => {

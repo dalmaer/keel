@@ -194,6 +194,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel update` | Take the next practice version, as a branch for a PR (or `--local`) |
 | `keel lessons` | Send what this project learned home to keel |
 | `keel drain <prefix>` | Keep one open PR per machine queue (the nightly runs this) |
+| `keel night plan`, `keel night tick <id>` | Write tonight's default plan before the night runs; tick one of its items with a status, a note and a link |
 | `keel retro sessions` | Reserve and record bounded handoff trials; audit, promote and roll back within an explicit envelope (`keel improve --sessions` reads the same evidence) |
 | `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
 | `keel evidence rederive <phase>` | Preview structured measurements from a phase’s evidence; `--yes` reruns them and compares dated old/new values without rewriting history |

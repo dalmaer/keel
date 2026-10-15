@@ -79,11 +79,11 @@
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
-      "sha256": "72d716bb9d004a379037a69fa55724f0a582ad9c8ffe082df93c71eb4e38426e"
+      "sha256": "85f44a1c6763d71c4c90105acd3c3b28c865a290f5b011a9e2b8e1bdf799468a"
     },
     ".github/workflows/keel-robot-route.yml": {
       "practice": "climb",
-      "sha256": "d4277358992ddb84d697a45b79af6a05bbb87e808bc292e9a3a6e5c21f767445"
+      "sha256": "7384236e2762ad896fd3fcfa7a9fee8d0cd165d89d8b285c3728c7a7b7dde434"
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
@@ -163,7 +163,7 @@
     },
     "scripts/keel/drain.mjs": {
       "practice": "night",
-      "sha256": "04446d1796f5975e6ebf9d1f0d9729260b45b81c93782a9b867ea42784624aff"
+      "sha256": "1c49b5de5d7c8d3e229d1e220b4c6eee24737adc585d213a00d01815a32611ad"
     },
     "scripts/keel/generated.mjs": {
       "practice": "phases",
@@ -179,7 +179,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "b10832d96abc185564fbc4879e74d0cc0ef632f0d6172d64ab71673516645a59"
+      "sha256": "a1521dc497f35c393ccb1d3f7de1bad6af885a520557f6bccb9a944beb98d42f"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -188,6 +188,10 @@
     "scripts/keel/milestones.mjs": {
       "practice": "night",
       "sha256": "e37492e3518422faea8580916032aa7dcff314e499e627338ede403edb7dc3bb"
+    },
+    "scripts/keel/night-plan.mjs": {
+      "practice": "night",
+      "sha256": "dea3fc033d95bc60b4bf63640329c482dc603507a5bd5b3df3453b59388bac09"
     },
     "scripts/keel/planning-config.mjs": {
       "practice": "night",

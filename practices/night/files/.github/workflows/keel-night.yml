@@ -10,6 +10,10 @@
 # requests"):
 #
 #   - Measure first. Nothing here fixes anything; the page proposes one change.
+#   - A plan before anything runs (scripts/keel/night-plan.mjs): the owner's
+#     from the branch keel-night-plan when it is dated tonight, else keel's
+#     default plan; the page shows it, and the PR commits it as it ended
+#     (docs/night/<date>.json).
 #   - A bot writes a pull request, never to main. The only push names
 #     refs/heads/keel-night/<date>.
 #   - One open PR per queue, the newest; drain.mjs enforces it, not a person.
@@ -19,7 +23,7 @@
 #     evidence fall back to the local gate. PR CI may require approval;
 #     the newest night PR merges only when the gate measure passed and the
 #     PR holds nothing but data
-#     (tonight's dated health page, docs/inbox/, docs/INBOX.md,
+#     (tonight's dated health page, docs/night/<date>.json, docs/inbox/, docs/INBOX.md,
 #     .keel/bounds.json; never the rest of the health directory, which may be
 #     shared). The health directory is .keel/keel.json "health" (default
 #     docs/health), read at run time; one the project git-ignores, or one
@@ -120,6 +124,38 @@ jobs:
           elif [ -f package-lock.json ]; then
             npm ci
           fi
+
+      # Tonight's plan, before anything else runs (keel phase 73): the one on
+      # the plan branch keel-night-plan when it holds a valid plan dated for
+      # tonight (the run's UTC date, the date its page and PR carry), else
+      # keel's default plan (scripts/keel/night-plan.mjs: deterministic, no
+      # model). It says which, and why. The branch is only read here; the
+      # night never pushes it. A plan that cannot be made (an input it cannot
+      # read, exit 2) or a branch that cannot be read is red at the verdict,
+      # after the measure has still run.
+      - name: Plan the night
+        id: plan
+        run: |
+          DAY=$(date -u +%F)
+          code=0
+          found=0
+          git ls-remote --exit-code --heads origin keel-night-plan > /dev/null || found=$?
+          ARGS=()
+          if [ "$found" = 0 ]; then
+            if git fetch -q --no-tags origin "+refs/heads/keel-night-plan:refs/remotes/origin/keel-night-plan" &&
+              git show "refs/remotes/origin/keel-night-plan:.keel/night/plan.json" > "$RUNNER_TEMP/branch-plan.json" 2> /dev/null; then
+              ARGS=(--branch-plan "$RUNNER_TEMP/branch-plan.json")
+            else
+              echo "plan: keel-night-plan holds no .keel/night/plan.json"
+            fi
+          elif [ "$found" != 2 ]; then
+            echo "::error::git ls-remote could not read the plan branch keel-night-plan (exit $found); tonight runs the default plan."
+            ARGS=(--branch-unread "git ls-remote exit $found")
+            code=2
+          fi
+          node scripts/keel/night-plan.mjs tonight --date "$DAY" "${ARGS[@]}" || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
 
       # On keel itself only (its .keel/keel.json says "keel": "self"): lesson
       # issues and moved sources become inbox proposals. It reads and writes
@@ -301,6 +337,22 @@ jobs:
             fi
             HEALTH_PATHS+=("$p")
           done < "$RUNNER_TEMP/health-paths.bin"
+          # The night's plan as it ended (improve wrote it from the working
+          # plan): one dated file, a regular one, never under a symlink.
+          RECORD="docs/night/$DAY.json"
+          if [ -e "$RECORD" ] || [ -L "$RECORD" ]; then
+            if [ -L docs ] || [ -L docs/night ] || [ -L "$RECORD" ] || [ ! -f "$RECORD" ]; then
+              echo "::error::$RECORD is not a regular file inside the repo; the plan record is not committed."
+              exit 1
+            fi
+            ignored=0
+            git check-ignore -q -- "$RECORD" || ignored=$?
+            if [ "$ignored" = 0 ]; then
+              echo "::error::$RECORD is git-ignored, so the night's plan record is never committed: stop ignoring docs/night/."
+              exit 1
+            fi
+            HEALTH_PATHS+=("$RECORD")
+          fi
           # check-ignore refuses literal pathspecs; every git call after it reads paths literally.
           export GIT_LITERAL_PATHSPECS=1
           PATHS=("${HEALTH_PATHS[@]}")
@@ -474,9 +526,14 @@ jobs:
           CANVAS_OUTCOME: ${{ steps.canvas.outcome }}
           CODE: ${{ steps.improve.outputs.code }}
           GATE: ${{ steps.improve.outputs.gate }}
+          PLAN: ${{ steps.plan.outputs.code }}
         run: |
           if [ "$CANVAS_OUTCOME" = failure ]; then
             echo "::error::Canvas projection failed; the health report and queue were still processed."
+            exit 1
+          fi
+          if [ "$PLAN" != 0 ]; then
+            echo "::error::Tonight's plan could not be made or read (night-plan.mjs exit ${PLAN:-none}); the Plan the night step says which input."
             exit 1
           fi
           if [ "$CODE" = 2 ] || [ -z "$CODE" ]; then

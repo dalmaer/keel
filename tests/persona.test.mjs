@@ -198,14 +198,22 @@ test('a missed goal is a candidate build item naming its number; a broken one a 
   const r = await run({ root, all: true, date: DATE });
   const items = planCandidates(r.data.personas[0]);
   assert.deepEqual(items, [
-    { id: 'persona-speed-entry-bundle-size', source: 'persona:speed', title: 'entry bundle size: back to at most 250000 (measured 260000)', kind: 'build',
-      number: { measure: 'persona:speed:entry-bundle-size', bound: 250000, better: 'lower' }, lane: null, status: 'planned' },
-    { id: 'persona-speed-cache-hits', source: 'persona:speed', title: 'cache hits: back to at least 90% (measured 80%)', kind: 'build',
-      number: { measure: 'persona:speed:cache-hits', bound: 90, better: 'higher' }, lane: null, status: 'planned' },
-    { id: 'persona-speed-latency', source: 'persona:speed', title: 'latency: its command is broken (`exit 1`: exit 1)', kind: 'review', number: null, lane: null, status: 'planned' },
+    { id: 'persona-speed--entry-bundle-size', source: 'persona:speed', title: 'entry bundle size: back to at most 250000 (measured 260000)', kind: 'build',
+      number: { measure: 'persona:speed:entry-bundle-size', bound: 250000, better: 'lower' }, lane: 'persona:speed', status: 'planned' },
+    { id: 'persona-speed--cache-hits', source: 'persona:speed', title: 'cache hits: back to at least 90% (measured 80%)', kind: 'build',
+      number: { measure: 'persona:speed:cache-hits', bound: 90, better: 'higher' }, lane: 'persona:speed', status: 'planned' },
+    { id: 'persona-speed--latency', source: 'persona:speed', title: 'latency: its command is broken (`exit 1`: exit 1)', kind: 'review', number: null, lane: 'persona:speed', status: 'planned' },
   ]);
   assert.deepEqual(r.data.personas[0].candidates, items, 'the run reports its candidates');
   assert.ok(items.every(i => i.kind !== 'build' || i.number), 'a build item names its number first');
+});
+
+test('keel#141: candidate ids never collide across personas ("a-b" + "c" and "a" + "b-c")', () => {
+  const missed = id => ({ id, name: id, state: 'missed', kind: 'at most', bound: 1, unit: '', value: 2, measure: 'x', better: 'lower' });
+  const one = planCandidates({ name: 'a-b', goals: [missed('c')] });
+  const two = planCandidates({ name: 'a', goals: [missed('b-c')] });
+  assert.deepEqual([one[0].id, two[0].id], ['persona-a-b--c', 'persona-a--b-c']);
+  assert.notEqual(one[0].id, two[0].id);
 });
 
 test("persona goals are measures the night's measure() takes, bounded by the persona file, never by .keel/bounds.json", async t => {

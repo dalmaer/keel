@@ -10,6 +10,7 @@
     { "path": "scripts/keel/hygiene-measures.mjs", "from": "scripts/keel/hygiene-measures.mjs", "kind": "managed" },
     { "path": "scripts/keel/hygiene-proposals.mjs", "from": "scripts/keel/hygiene-proposals.mjs", "kind": "managed" },
     { "path": "scripts/keel/drain.mjs", "from": "scripts/keel/drain.mjs", "kind": "managed" },
+    { "path": "scripts/keel/night-plan.mjs", "from": "scripts/keel/night-plan.mjs", "kind": "managed" },
     { "path": "scripts/keel/lib.mjs", "from": "scripts/keel/lib.mjs", "kind": "managed" },
     { "path": "scripts/keel/milestones.mjs", "from": "scripts/keel/milestones.mjs", "kind": "managed" },
     { "path": "scripts/keel/quota.mjs", "from": "scripts/keel/quota.mjs", "kind": "managed" },

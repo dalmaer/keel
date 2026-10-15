@@ -13,6 +13,22 @@ is a managed file of this practice; it never fetches keel and needs no
 secret (design §6, "Projects run on their own"). `keel-night.yml` runs
 every night at 07:23 UTC (and by hand):
 
+0. Tonight's plan is written before anything runs (phase 73):
+   `node scripts/keel/night-plan.mjs tonight` reads the plan branch
+   `keel-night-plan` (never pushes it) and uses its `.keel/night/plan.json`
+   when it is valid and dated for this run's UTC date; otherwise it writes
+   keel's default plan (the night's measure item, the newest earlier health
+   page's proposal, the climb job `climb.mjs pick` would choose, the robot's
+   next admissible `keel:agent` issue, Loop's untriaged findings, and with
+   the personas practice each persona's missed goals), and says
+   which and why. No model; the same inputs make the same plan. A build item
+   names its number first (else it is triage), and at most five build items
+   run, counted with the robot's open PRs. A plan that cannot be made (an input
+   it cannot read) or a branch that cannot be read is red at the verdict,
+   after the measure has still run. improve ticks the measure item, writes the
+   plan as it ended to `docs/night/<date>.json`, and the page shows it under
+   "Tonight's plan"; each pass that builds ticks its own item (`node
+   scripts/keel/night-plan.mjs tick <id> --status <s>`; phase 76 wires them).
 1. The test ledger's history is gathered (CI's `keel-test-runs` artifacts,
    below); then `node scripts/keel/improve.mjs --report` measures the practice and writes
    `<health>/<date>.md` and `.keel/bounds.json`. `<health>` is `"health"` in
@@ -25,7 +41,8 @@ every night at 07:23 UTC (and by hand):
    counts last night's PR.
 2. If `git status --porcelain` shows a change in the night's data
    (tonight's dated page in the health directory, never the rest of it;
-   `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`, a tracked one that
+   tonight's plan record `docs/night/<date>.json`, never the rest of that
+   directory; `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`, a tracked one that
    is gone staged as its deletion; nothing else a gate run leaves behind;
    paths read literally, never as git pathspec magic), it is committed on
    `keel-night/<date>`, pushed to that branch only, and opened as one PR
@@ -33,7 +50,8 @@ every night at 07:23 UTC (and by hand):
    proposal as its note.
 3. `node scripts/keel/drain.mjs keel-night/ --yes` keeps the queue at one:
    each older PR is merged when it holds only data (`docs/health/`, the
-   configured health directory's dated pages, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`) and still merges, and
+   configured health directory's dated pages, the plan records
+   `docs/night/<date>.json`, `docs/inbox/`, `docs/INBOX.md`, `.keel/bounds.json`) and still merges, and
    closed as superseded otherwise, with a comment saying how to recover it
    (the branch is kept). The newest merges only with `--gate-passed`, which
    the workflow passes only when the gate improve ran on this tree passed.
