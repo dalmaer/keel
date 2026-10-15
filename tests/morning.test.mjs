@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
 import { renderBrief, readiness, lastNight, finalPlan, healthAround, linksOf, withPlanSection, readyByOf, titleOf, LABEL, planCard, PLAN_CARD } from '../lib/morning.mjs';
+import * as morningModule from '../lib/morning.mjs';
 import { planSection, validatePlan, PLAN } from '../lib/night-plan.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,8 +28,11 @@ const READY_BY = `${NIGHT}T15:00:00Z`;
 const BEFORE = new Date(`${NIGHT}T12:00:00Z`), AFTER = new Date(`${NIGHT}T16:00:00Z`);
 const PR = 'https://github.com/acme/anvils/pull/21';
 
+// Hermetic: on GitHub Actions the runner sets GITHUB_REPOSITORY (keel's own repo) and
+// GITHUB_ACTIONS; a fixture's repo comes from its config, so neither leaks in.
+const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['GITHUB_REPOSITORY', 'GITHUB_ACTIONS'].includes(k)));
 const keel = (args, cwd, env = {}) => {
-  const r = run(process.execPath, [BIN, ...args], { cwd, env: { ...process.env, ...env } });
+  const r = run(process.execPath, [BIN, ...args], { cwd, env: { ...ENV, ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -277,25 +281,25 @@ test('the workflow\'s decision: over and unsent, or not yet; already sent; no as
   // decide reads the clock: in-process, with a fixed now (the script is the same module).
   const { decide: decideFn } = await import('../lib/morning.mjs');
   const out = join(p.base, 'out-before');
-  const before = await decideFn({ root: p.root, env: { ...process.env, KEEL_GH: p.gh }, now: BEFORE, githubOutput: out });
+  const before = await decideFn({ root: p.root, env: { ...ENV, KEEL_GH: p.gh }, now: BEFORE, githubOutput: out });
   assert.deepEqual([before.data.day, before.data.ready, before.data.sent, before.data.assignee], [NIGHT, false, false, 'set']);
   assert.equal(await readFile(out, 'utf8'), `day=${NIGHT}\nready=false\nsent=false\nassignee=set\n`);
   assert.deepEqual(await p.calls(), [], 'a night not over asks GitHub nothing');
-  const after = await decideFn({ root: p.root, env: { ...process.env, KEEL_GH: p.gh }, now: AFTER });
+  const after = await decideFn({ root: p.root, env: { ...ENV, KEEL_GH: p.gh }, now: AFTER });
   assert.deepEqual([after.data.ready, after.data.sent], [true, false]);
   // Every build terminal: over before readyBy.
   const done = await project(t, { branch: { ...finished(), items: finished().items.map(i => (i.id === 'climb-docs' ? { ...i, status: 'done', result: { link: 'https://github.com/acme/anvils/pull/22' } } : i)) } });
-  assert.equal((await decideFn({ root: done.root, env: { ...process.env, KEEL_GH: done.gh }, now: BEFORE })).data.ready, true);
+  assert.equal((await decideFn({ root: done.root, env: { ...ENV, KEEL_GH: done.gh }, now: BEFORE })).data.ready, true);
   // Sent: the workflow does nothing more.
   const sent = await project(t, { issues: [{ number: 31, title: titleOf(NIGHT), state: 'OPEN' }] });
-  const s = await decideFn({ root: sent.root, env: { ...process.env, KEEL_GH: sent.gh }, now: AFTER });
+  const s = await decideFn({ root: sent.root, env: { ...ENV, KEEL_GH: sent.gh }, now: AFTER });
   assert.deepEqual([s.data.ready, s.data.sent, s.data.why], [true, true, 'already sent as #31']);
   const { morning: _, ...rest } = CONFIG;
   const unset = await project(t, { config: rest });
-  assert.equal((await decideFn({ root: unset.root, env: { ...process.env, KEEL_GH: unset.gh }, now: AFTER })).data.assignee, 'unset');
+  assert.equal((await decideFn({ root: unset.root, env: { ...ENV, KEEL_GH: unset.gh }, now: AFTER })).data.assignee, 'unset');
   // The project's own script, as keel-morning.yml runs it: its output lines.
   const lines = join(p.base, 'out-script');
-  const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'decide', '--github-output', lines, '--json'], { cwd: p.root, env: { ...process.env, KEEL_GH: p.gh } });
+  const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'decide', '--github-output', lines, '--json'], { cwd: p.root, env: { ...ENV, KEEL_GH: p.gh } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.match(await readFile(lines, 'utf8'), /^day=\d{4}-\d{2}-\d{2}\nready=(true|false)\nsent=(true|false)\nassignee=set\n$/);
 });
@@ -304,7 +308,7 @@ test('keel#137: finalization puts a later build outcome in the night\'s record a
   const p = await project(t);
   const pageBefore = await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8');
   // The project's own script, as keel-morning.yml's finalize job runs it.
-  const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'finalize', '--date', NIGHT, '--pr-input', join(p.base, 'pr.json'), '--json'], { cwd: p.root, env: { ...process.env, KEEL_GH: p.gh } });
+  const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'finalize', '--date', NIGHT, '--pr-input', join(p.base, 'pr.json'), '--json'], { cwd: p.root, env: { ...ENV, KEEL_GH: p.gh } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.deepEqual(JSON.parse(r.stdout).written, [`docs/night/${NIGHT}.json`, `docs/health/${NIGHT}.md`]);
   assert.deepEqual(await p.calls(), [], 'finalizing calls no gh');
@@ -340,4 +344,18 @@ test('the plan card is the plan alone (no clock), and --card is refused, naming 
     assert.match(r.json().error, canvas ? /keel canvas live --card pulse --card night-plan --yes/ : /No canvas is bound/);
     assert.equal(existsSync(join(p.root, '.keel/canvas')), false, 'nothing was written');
   }
+});
+
+test('the brief\'s repo: in a GitHub Actions run, the run\'s own repository; anywhere else, the project\'s config, never a stray GITHUB_REPOSITORY', async t => {
+  const { repoOf } = morningModule;
+  assert.equal(typeof repoOf, 'function');
+  assert.equal(repoOf(CONFIG, { GITHUB_REPOSITORY: 'acme/elsewhere' }), 'acme/anvils', 'a local or test run: the config wins');
+  assert.equal(repoOf(CONFIG, { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'acme/elsewhere' }), 'acme/elsewhere', 'in the workflow: the run\'s repository is the truth');
+  assert.equal(repoOf(CONFIG, { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'not a repo' }), 'acme/anvils');
+  assert.equal(repoOf({}, { GITHUB_REPOSITORY: 'acme/elsewhere' }), null, 'outside Actions with no config repo: no GitHub link, the page\'s path');
+  // End to end: a stray GITHUB_REPOSITORY (keel's own CI) does not move the fixture's links.
+  const p = await project(t);
+  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh, GITHUB_REPOSITORY: 'acme/elsewhere' });
+  assert.equal(r.code, 0, r.err + r.out);
+  assert.equal(r.json().links.health, LINKS.health);
 });

@@ -191,7 +191,14 @@ async function configOf(root) {
   return config;
 }
 
-const repoOf = (config, env) => (/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPOSITORY ?? '') ? env.GITHUB_REPOSITORY : /^[\w.-]+\/[\w.-]+$/.test(config?.repo ?? '') ? config.repo : null);
+const REPO = /^[\w.-]+\/[\w.-]+$/;
+/**
+ * The repo the brief links into: in a GitHub Actions run (keel-morning.yml),
+ * the run's own repository, which is the truth there; anywhere else (a
+ * person's keel, a test), the project's config "repo". A GITHUB_REPOSITORY
+ * outside Actions is never trusted: it may be another repo's CI.
+ */
+export const repoOf = (config, env = {}) => (env.GITHUB_ACTIONS === 'true' && REPO.test(env.GITHUB_REPOSITORY ?? '') ? env.GITHUB_REPOSITORY : REPO.test(config?.repo ?? '') ? config.repo : null);
 
 /** The links the brief carries: the canvas when one is bound, the health page (on GitHub when the repo is known). */
 export function linksOf(config, { repo = null, page = null } = {}) {
