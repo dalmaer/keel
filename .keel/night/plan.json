@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "date": "2026-10-15",
+  "date": "2026-10-16",
   "shapedBy": "default",
   "readyBy": null,
   "willNotTouch": [],
@@ -9,7 +9,7 @@
   "items": [
     {
       "id": "measures",
-      "title": "Measure the practice: 39 measures; outside or broken on 2026-10-14: long_files, phases_without_issue, lessons_without_guard, issues_unnamed, dependency_age",
+      "title": "Measure the practice: 39 measures; outside or broken on 2026-10-15: long_files, phases_without_issue, lessons_without_guard, inbox_waiting, issues_unnamed, dependency_age",
       "kind": "measure",
       "source": "default",
       "number": null,
@@ -18,12 +18,12 @@
       "status": "done",
       "result": {
         "note": "15 ok, 6 outside, 18 n/a, 0 broken",
-        "link": "docs/health/2026-10-15.md"
+        "link": "docs/health/2026-10-16.md"
       }
     },
     {
       "id": "health-issues-unnamed",
-      "title": "Proposal from 2026-10-14: Name issues #35, #61, #62, #66, #72, #73 and 4 more in the doc whose work they follow, or close them on dalmaer/keel.",
+      "title": "Proposal from 2026-10-15: Name issues #35, #61, #62, #66, #72, #73 and 7 more in the doc whose work they follow, or close them on dalmaer/keel.",
       "kind": "review",
       "source": "health:issues_unnamed",
       "number": {
@@ -50,11 +50,8 @@
       "budget": {
         "minutes": 45
       },
-      "status": "failed",
-      "result": {
-        "note": "no pull request: climb test-time 2026-10-15: kept nothing; nothing was tried; 1 min",
-        "link": "https://github.com/dalmaer/keel/actions/runs/38720520800"
-      }
+      "status": "planned",
+      "result": null
     },
     {
       "id": "robot-60",
