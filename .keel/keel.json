@@ -22,7 +22,8 @@
     "renovate",
     "reconciliation",
     "climb",
-    "cross-review"
+    "cross-review",
+    "personas"
   ],
   "agents": {
     "claude": {},
