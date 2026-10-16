@@ -71,5 +71,22 @@
   },
   "morning": {
     "assignee": "dalmaer"
+  },
+  "canvas": {
+    "provider": "isocan",
+    "projectKey": "bad3fa52-5684-41dd-99a2-5d91e6eef7ca",
+    "home": "https://isocan.io",
+    "canvasId": "prj_TcSqNZw5a1",
+    "spaceId": "spc_tDxPHP-QVF",
+    "audience": "owner-only",
+    "actorId": "usr_z-oReLdjwe",
+    "enabled": true,
+    "privacy": "summary",
+    "mode": "live",
+    "cadence": "manual",
+    "liveKeys": [
+      "pulse",
+      "night-plan"
+    ]
   }
 }
