@@ -21,7 +21,7 @@ Their proposals and decisions stay on those issues; only counts are shown here.
 
 | Status | Count |
 | --- | --- |
-| untriaged | 1 |
+| untriaged | 2 |
 | proposed | 0 |
 | accepted | 17 |
 | declined | 0 |
@@ -36,3 +36,4 @@ Nothing is waiting for a decision.
 | Proposal | Kind | From |
 | --- | --- | --- |
 | [source-personas-d8d03e8](inbox/2026-10-15-source-personas-d8d03e8.md) | source | dglazkov/isocan@d8d03e8a5257884f8811e1b739d39f8c94c8691e |
+| [source-personas-ee15e61](inbox/2026-10-16-source-personas-ee15e61.md) | source | dglazkov/isocan@ee15e61378eb83e95017347a69fde86ba16605f0 |
