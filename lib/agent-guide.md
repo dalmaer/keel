@@ -906,7 +906,9 @@ sha, at}`. Marking a branch ready again replaces its ref, and clears a block.
 
 `keel integrate` takes `claims/integrate` (phase claim's create-only push;
 held: exit 1, `refused`, `holder`, nothing done; a lock left by a dead run is
-the owner's to delete), and in a temporary worktree merges every ready change
+the owner's to delete). Before it lets go it reads the ready refs again and
+runs another round for a change it has not seen, up to 3 rounds (`rounds`,
+`more` lists what is still ready after the last). In each round it, in a temporary worktree, merges every ready change
 onto the default branch in the order marked ready and runs the full gate once:
 each tree's own `check` and `env`, never the integrator checkout's (a tree
 whose config names no runnable gate is sent back with that reason). A pass

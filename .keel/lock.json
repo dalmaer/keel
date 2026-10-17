@@ -43,7 +43,7 @@
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "ef3f8aa44b01beffcdb74f6edd9faf535f4ce97c6529dd3a04e7ea61fce77d46"
+      "sha256": "5e4865716b34bdba644a735101ff4e6d403e05506c67a55fa6b65f9da2c702d2"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",

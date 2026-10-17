@@ -380,6 +380,8 @@ test('the conduct skill finishes with keel ready and leaves the full gate to kee
   assert.match(four, /It\s+never runs the full gate, and refuses a check that is the full gate/);
   assert.match(four, /the\s+failing one is sent back blocked, with the reason\. One sent back is yours:\s+fix it on its branch and `keel ready` again/);
   assert.match(four, /another\s+integrator holds the lock: stop there; that one takes your change too/);
+  // PR #186 review: the holder drains before letting go, and a change it did not name is run again after release.
+  assert.match(four, /it reads the ready changes again before it lets go\)\. If its report does\s+not name yours, run `keel integrate` again once the lock is free/);
   assert.doesNotMatch(four, /\n4\. Push, and follow CI/, 'the conductor no longer pushes main itself');
   // keel's own copy says it too (render --self).
   const own = await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');

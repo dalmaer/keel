@@ -337,7 +337,9 @@ Land on `main`, no pull request (unless the phase waits for review, below):
    narrowed until each failing change is found; the rest land, and the
    failing one is sent back blocked, with the reason. One sent back is yours:
    fix it on its branch and `keel ready` again. Refused because another
-   integrator holds the lock: stop there; that one takes your change too.
+   integrator holds the lock: stop there; that one takes your change too
+   (it reads the ready changes again before it lets go). If its report does
+   not name yours, run `keel integrate` again once the lock is free.
    Follow CI on the commit it pushed while preparing the next brief.
    With no remote, stop at the local commit: there is no push and no CI.
 

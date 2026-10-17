@@ -311,6 +311,46 @@ test('a gate that changes tracked files does not pass the candidate: it is sent 
   assert.ok(onMain(origin, 'anvil-two.txt'));
 });
 
+// PR #186 review: a refused integrator is told the holder takes its change; one marked ready after the holder's read
+// must still be taken. The holder reads the ready refs again before it lets go, and runs another round (bounded).
+test('a change marked ready while the integrator runs is taken in another round before the lock is released', async t => {
+  const { a, b, origin, env, pushes } = await acme(t);
+  await change(a, 'claude/anvil', { 'anvil-two.txt': 'two anvils\n' }, env('m1'));
+  const { gate } = fakeGate();
+  let late = false;
+  const lateArrival = async dir => {
+    if (!late) { late = true; await change(b, 'codex/late', { 'late.txt': 'late\n' }, env('m2')); }
+    return gate(dir);
+  };
+  const r = await integrate({ root: a }, { env: env('m1'), gate: lateArrival });
+  assert.equal(r.exitCode ?? 0, 0, r.text);
+  assert.deepEqual(r.data.landed.map(l => l.branch), ['claude/anvil', 'codex/late']);
+  assert.equal(r.data.rounds.length, 2);
+  assert.equal(r.data.gates, 2);
+  assert.deepEqual(r.data.more, []);
+  assert.equal((await pushes()).length, 2);
+  assert.ok(onMain(origin, 'late.txt'));
+  assert.deepEqual(remoteRefs(origin, 'ready/'), []);
+  assert.deepEqual(remoteRefs(origin, LOCK), []);
+});
+
+test('the drain is bounded: after MAX_ROUNDS it lets go and says what is still ready', async t => {
+  const { MAX_ROUNDS } = await import('../lib/integrate.mjs');
+  assert.ok(Number.isInteger(MAX_ROUNDS) && MAX_ROUNDS >= 2, 'a bound, and room for one drain round');
+  const { a, b, origin, env } = await acme(t);
+  await change(a, 'claude/first', { 'first.txt': 'first\n' }, env('m1'));
+  const { gate } = fakeGate();
+  let n = 0;
+  // Every round's gate run brings one more change.
+  const endless = async dir => { n++; await change(b, `codex/more-${n}`, { [`more-${n}.txt`]: 'more\n' }, env('m2')); return gate(dir); };
+  const r = await integrate({ root: a }, { env: env('m1'), gate: endless });
+  assert.equal(r.data.rounds.length, MAX_ROUNDS);
+  assert.deepEqual(r.data.more, [`codex/more-${MAX_ROUNDS}`]);
+  assert.match(r.text, /run keel integrate again/);
+  assert.deepEqual(remoteRefs(origin, 'ready/'), [`ready/codex/more-${MAX_ROUNDS}`]);
+  assert.deepEqual(remoteRefs(origin, LOCK), []);
+});
+
 test('only a tree the gate passed is pushable without gating it again', () => {
   const passed = new Set(['t-left']);
   assert.equal(pushable('t-left', passed), true);
