@@ -269,6 +269,29 @@ test('a change that does not merge on top of an earlier one is sent back as conf
   assert.equal(git(origin, 'show', 'main:anvil.txt'), 'two anvils');
 });
 
+// PR #186 review: the gate is the candidate's own `check`, never the integrator's checkout's.
+test('each candidate is gated by the check its own tree names, not the integrator checkout\'s', async t => {
+  const { a, b, origin, env } = await acme(t);
+  // A change that renames the project's gate to one that fails; the integrator's checkout (a, on main) still names node gate.mjs.
+  const config = JSON.parse(await readFile(join(a, '.keel', 'keel.json'), 'utf8'));
+  await change(b, 'codex/gate', { '.keel/keel.json': JSON.stringify({ ...config, check: 'node fail.mjs' }) }, env('m2'));
+  // Another gives its gate an env keel cannot pass: sent back with the reason, never gated.
+  await change(b, 'codex/nogate', { 'rocket.txt': 'one rocket\n', '.keel/keel.json': JSON.stringify({ ...config, env: { ACME: 1 } }) }, env('m2'));
+  git(a, 'checkout', '-q', 'main');
+  const { gate } = fakeGate();
+  const commands = [];
+  // A gate told no command runs what the integrator's checkout names (the default shell runner before the fix).
+  const byCommand = async (dir, o) => { const c = o.command ?? 'node gate.mjs'; commands.push(c); return c === 'node gate.mjs' ? gate(dir) : { status: 1 }; };
+  const r = await integrate({ root: a }, { env: env('m1'), gate: byCommand });
+  assert.deepEqual(r.data.landed, []);
+  assert.deepEqual(r.data.blocked.map(x => x.branch), ['codex/gate', 'codex/nogate']);
+  assert.match(r.data.blocked[0].reason, /fails the gate on main/);
+  assert.match(r.data.blocked[1].reason, /names no gate keel can run: its \.keel\/keel\.json "env" must map names to strings/);
+  assert.ok(commands.includes('node fail.mjs'), `the candidate's own check ran: ${commands}`);
+  assert.ok(!onMain(origin, 'rocket.txt'));
+  assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).check, 'node gate.mjs');
+});
+
 test('only a tree the gate passed is pushable without gating it again', () => {
   const passed = new Set(['t-left']);
   assert.equal(pushable('t-left', passed), true);

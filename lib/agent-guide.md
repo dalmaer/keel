@@ -907,7 +907,9 @@ sha, at}`. Marking a branch ready again replaces its ref, and clears a block.
 `keel integrate` takes `claims/integrate` (phase claim's create-only push;
 held: exit 1, `refused`, `holder`, nothing done; a lock left by a dead run is
 the owner's to delete), and in a temporary worktree merges every ready change
-onto the default branch in the order marked ready and runs the full gate once.
+onto the default branch in the order marked ready and runs the full gate once:
+each tree's own `check` and `env`, never the integrator checkout's (a tree
+whose config names no runnable gate is sent back with that reason).
 A passing batch is one gate run and one push. A failing one accumulates by
 halves: each change is kept only if the tree with it, on top of what was kept
 before it, passes; a single failing change is tried alone once, to report
@@ -915,7 +917,7 @@ before it, passes; a single failing change is tried alone once, to report
 (each passes alone, together they fail). The tree pushed is one the gate
 passed; nothing failing is pushed. Landed changes lose their ready ref; a
 change sent back keeps it as `Status: blocked` with the reason, skipped until
-marked ready again. `--json` → `{ok, base, command, gates, pushed, landed:[{branch,
+marked ready again. `--json` → `{ok, base, command, commands, gates, pushed, landed:[{branch,
 head}], blocked:[{branch, head, reason, with}], stillBlocked, alreadyLanded,
 malformed}`; exit 1 when a change was sent back or the push was refused (main
 moved: nothing landed, run again).
