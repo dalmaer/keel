@@ -13,7 +13,7 @@ issue: 172
 
 ## Done when
 
-The conduct skill has every builder restate the phase's success criteria before it builds, and report in one shape (changes, each acceptance box with its test or why not, the gate's exit code, decisions the spec left open, what remains), and the conductor's checklist refuses a report missing the gate's exit code or an acceptance box.
+The conduct skill has every builder restate the phase's success criteria before it builds, and report in one shape (changes, each acceptance box with its test or why not, the focused test commands the builder ran with their exit codes, decisions the spec left open, what remains), and the conductor's checklist refuses a report missing those exit codes or an acceptance box. The full gate stays the conductor's, run once on the integrated tree, as the skill already says.
 
 ## Scope
 
@@ -21,7 +21,7 @@ The design is [Verification: tests that tell right from plausibly wrong](../rese
 
 - **Restate first**: the builder's brief ends with "restate the success criteria in your own words before writing code"; a restatement that differs from the phase's Done when is the first thing the conductor reads.
 - **One shape**: a fixed report template in the conduct skill, sections in order; the third idea from the 2026-10-11 "software factory" note.
-- **The conductor's check**: the skill's verify step lists what to check in the report (gate exit code present and 0 before commit; every acceptance box addressed).
+- **The conductor's check**: the skill's verify step lists what to check in the report (every acceptance box addressed; the builder's focused test commands and their exit codes present). The full gate is not the builder's: the conductor runs it once on the integrated tree, after the record, as now.
 
 ## Acceptance
 

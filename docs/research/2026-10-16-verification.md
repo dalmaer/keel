@@ -45,7 +45,9 @@ applies small, mechanical mutations to the fix's own changed lines (flip a
 comparison, drop a condition, return early, swap `&&`/`||`, change a constant
 by one) and requires the named test to fail for each, reporting the survivors.
 A survivor is not a failure of the fix; it is a gap in the test, shown to the
-conductor before the commit.
+conductor before the commit. The unmutated fix must pass first, and only a
+failure of the selected test counts as caught: a mutant that does not parse,
+an import error or a timeout is reported apart, never as caught.
 
 **85, properties.** A small, zero-dependency generator in `tests/helpers`
 (seeded, shrinking to the smallest failing case, reproducible by seed) and
@@ -64,9 +66,10 @@ internals.
 **87, the builder's shape.** The conduct skill asks a builder to restate the
 success criteria before building (the article's "restate what you think done
 means") and to report in one shape: what changed, each acceptance box with its
-test, the gate's exit code, decisions the spec left open, what remains. The
-conductor's own check reads that shape, so a missing gate result is caught,
-not skimmed past.
+test, the focused tests it ran with their exit codes, decisions the spec left
+open, what remains. The full gate stays the conductor's, once, on the
+integrated tree. The conductor's own check reads that shape, so a missing
+result is caught, not skimmed past.
 
 ## Open
 

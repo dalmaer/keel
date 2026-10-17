@@ -20,7 +20,7 @@ issue: 169
 The design is [Verification: tests that tell right from plausibly wrong](../research/2026-10-16-verification.md), phase 84.
 
 - **Mutations** (on the fix's added or changed lines only, in JavaScript and TypeScript): flip a comparison (`<`/`<=`/`>`/`>=`, `===`/`!==`), negate or drop a condition, swap `&&`/`||`, return early, change a numeric constant by one. Each is applied alone, on a scratch copy.
-- **Run**: for each mutation, the named test (or `--name` pattern) runs once; red means caught, green means a survivor.
+- **Run**: the named test must first pass on the unmutated fix (the baseline). Then, for each mutation, it runs once and is read the way `keel prove` already reads a run (`readNodeRun`): **caught** only when the selected test itself fails; **survivor** when it passes; **invalid** when the mutant does not parse or import; **inconclusive** when the runner times out or no selected test ran. Invalid and inconclusive mutants are reported separately and never count as caught.
 - **Report**: caught/total, and each survivor as file, line and the mutation, so the conductor can strengthen the test. `--trailer` adds `Mutants: <caught>/<total>` beside `Proven-by`.
 - **Budget**: at most 40 mutants per proof, chosen evenly across the changed lines; a time limit per run.
 
@@ -30,6 +30,7 @@ Not in scope: mutating code outside the fix, or failing a commit for survivors (
 
 - [ ] Each of the five mutations is applied to a fixture fix, alone, on a scratch copy; the real tree is never changed. `tests/prove-mutate.test.mjs`
 - [ ] A strong test catches every mutant; a weak one leaves named survivors. `tests/prove-mutate.test.mjs`
+- [ ] A failing baseline stops the run; a mutant that breaks parsing, an import, or times out is reported as invalid or inconclusive and never inflates the caught count. `tests/prove-mutate.test.mjs`
 - [ ] Only the fix's changed lines are mutated, at most 40, and each run is time-limited. `tests/prove-mutate.test.mjs`
 - [ ] `--trailer` records `Mutants: caught/total`. `tests/prove-mutate.test.mjs`
 - [ ] ⚑ by hand: the owner reads the survivors from one real fix and says whether they showed a real gap.
