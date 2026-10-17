@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-16
 goal: G6
 spec: 2
 depends: [79]
-note: "Specified 2026-10-16 from isocan's release-order.sh: many commits test at once, one queued publisher advances a tested ref, skipping the superseded."
-evidence: []
+note: "Partial 2026-10-16: the optional delivery practice's keel-publish.yml and publish.mjs move the tested ref to the newest passing commit on main, chosen from main's history, never the trigger; keel doctor holds workflows to the concurrency rule. The owner's two pushes wait."
+evidence: ["evidence/2026-10-16-publisher.md"]
 issue: 163
 ---
 
@@ -26,11 +26,11 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 ## Acceptance
 
-- [ ] The publisher moves the tested ref to a newer passing descendant, skips a superseded commit, and fails on a diverged ref, without writing main. `tests/publish.test.mjs`
-- [ ] Two passing commits arriving out of order leave the tested ref at the newer one. `tests/publish.test.mjs`
-- [ ] Commits A, B, C: while A's publisher runs, C's run queues and B's late run replaces it; the surviving run still advances the tested ref to C, because it chooses the newest passing commit itself, not the one that triggered it. `tests/publish.test.mjs`
-- [ ] The installed workflow runs only after a successful gate on main and is queued, never cancelled. `tests/workflows.test.mjs`
-- [ ] The concurrency check flags a test workflow without cancel-superseded and a deploy workflow that can be cancelled. `tests/workflows.test.mjs`
+- [x] The publisher moves the tested ref to a newer passing descendant, skips a superseded commit, and fails on a diverged ref, without writing main. `tests/publish.test.mjs`
+- [x] Two passing commits arriving out of order leave the tested ref at the newer one. `tests/publish.test.mjs`
+- [x] Commits A, B, C: while A's publisher runs, C's run queues and B's late run replaces it; the surviving run still advances the tested ref to C, because it chooses the newest passing commit itself, not the one that triggered it. `tests/publish.test.mjs`
+- [x] The installed workflow runs only after a successful gate on main and is queued, never cancelled. `tests/workflows.test.mjs`
+- [x] The concurrency check flags a test workflow without cancel-superseded and a deploy workflow that can be cancelled. `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: the owner pushes two changes to one project in a row and sees one publish of the newer, the older skipped.
 
 ## Your part
@@ -58,7 +58,11 @@ By hand: the owner's two pushes.
 
 - **A merge queue** instead of a tested ref: a project may add one; keel does not require it.
 - **Known limit**: the publisher batches by "newest passing wins"; it does not combine untested commits into one test run (phase 83 does, for agent sessions).
+- **Settled 2026-10-16, building: the concurrency check lives in `keel doctor`** (`workflow-concurrency`, with `delivery-config`), for projects with delivery on: the ci practice's workflow test runs only where keel manages ci (isocan and ledger keep theirs local), and an adopt proposal runs once. Which workflow is a test or a publisher is read from its file and `name:` (publish, deploy, release, promote; else the gate, test, check, ci, gate).
+- **Settled 2026-10-16, building: keel does not turn delivery on for itself**: it deploys nothing, and the publisher would push a `green` branch to dalmaer/keel unasked.
+- **Known limit**: the publisher asks at most 30 of main's newest first-parent commits per run; a tested ref further behind than 30 commits with none of them passing stays put until one does.
+- **Settled 2026-10-17, PR #178 review: an Actions deploy follows the publisher by `workflow_run` of keel-publish completing, never by a push to the tested ref**: the publisher pushes with `GITHUB_TOKEN`, and GitHub starts no workflow for such a push. A trigger outside Actions (isocan's Cloud Build on a push to `green`) is unaffected. Scope's "a push to `green`" holds only for those.
 
 ## Next action
 
-Write `publish.mjs` (move, skip, refuse) with `tests/publish.test.mjs` on a bare-origin fixture, then the workflow.
+Ship it to one project (`keel adopt --with delivery`, ⚑: it pushes `green` there), point that project's deploy at the tested ref as `docs/guide/delivery.md` says, then the owner's two pushes a minute apart.

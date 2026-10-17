@@ -3,7 +3,7 @@
 // artifact's ZIP bytes from fixtures; no network, nobody's git settings.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile, mkdir, cp, chmod, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, cp, chmod, readdir, symlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -376,6 +376,30 @@ test('only a text doc, or an image under docs/, is ever docs only, in both copie
     assert.equal(docsFile('docs/link.md', '120000'), false, `${copy}: a symlink`);
     for (const entry of ['src/anvil.mjs', 'src/anvil*.mjs', 'docs/*.mjs', 'docs/build.mjs', 'LICENSE', 'docs/notes.py']) {
       assert.throws(() => m.docsOnlyOf({ delivery: { docsOnly: ['docs/', entry] } }), e => e.exitCode === 2, `${copy}: ${entry}`);
+    }
+  }
+});
+
+// keel#177: a changed file was judged by HEAD's mode alone, so deleting an executable or symlinked docs/*.md, or
+// removing an executable bit, passed as a text doc. Both sides' modes are read: either one not a plain file refuses.
+test('deleting an executable or symlinked doc, or removing its executable bit, runs the suite, in both copies', async t => {
+  const config = { ...CONFIG, delivery: { docsOnly: ['docs/', '**/*.md'] } };
+  for (const [copy, m] of COPIES) {
+    for (const [why, path, make, change] of [
+      ['an executable doc deleted', 'docs/publish.md', async p => { await writeFile(p, '#!/bin/sh\necho Acme\n'); await chmod(p, 0o755); }, async (a, p) => a.git('rm', '-q', p)],
+      ['a symlinked doc deleted', 'docs/link.md', async p => symlink('../anvil.mjs', p), async (a, p) => a.git('rm', '-q', p)],
+      ['an executable bit removed', 'docs/guide.md', async p => { await writeFile(p, '# Acme\n'); await chmod(p, 0o755); }, async (a, p) => { await chmod(join(a.root, p), 0o644); a.git('add', '-A'); }],
+    ]) {
+      const a = await acme(t, { config });
+      await mkdir(join(a.root, 'docs'), { recursive: true });
+      await make(join(a.root, path));
+      a.git('add', '-A'); a.git('commit', '-qm', `Acme ${path}`);
+      const tested = a.head();
+      await change(a, path);
+      a.git('commit', '-qm', `Acme ${why}`);
+      const r = await m.docsOnlySkip({ root: a.root, config, env: (await ghStub(t, actions([tested]))).env });
+      assert.equal(r.skip, false, `${copy}: ${why}`);
+      assert.match(r.reason, /not a text doc/, `${copy}: ${why}`);
     }
   }
 });

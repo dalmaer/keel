@@ -87,6 +87,7 @@ archived phase files remain unchanged.
 | `claude` *(optional)* | `@claude` on issues and PRs: it opens PRs and never pushes to `main` | Agents landing unread changes |
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
 | `personas` *(optional)* | Goals the project sets itself (a number, a bound, the command that prints it), measured into a dated review page; a missed goal becomes a candidate for the night's plan | Standards stated once and never measured again |
+| `delivery` *(optional)* | One queued publisher moves a tested ref (`green`) to the newest commit on `main` whose gate passed, skipping the superseded and refusing a diverged ref; deploys follow it; doctor holds workflows to cancel-superseded tests and never-cancelled deploys | Two changes in a row each running the whole path, or a deploy from `main` before its gate |
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 | `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR | A speed-up nobody measured against noise; a test quietly gone |
@@ -162,6 +163,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Keep the fleet current](docs/guide/keep-the-fleet-current.md) | the practice changed and every project should have it |
 | [The robot](docs/guide/the-robot.md) | Preview agent issues and opt in to bounded build/review work |
 | [Reviews and PRs](docs/guide/reviews-and-prs.md) | a PR from keel arrived, or a reviewer commented on one |
+| [Delivery](docs/guide/delivery.md) | two changes in a row should publish once, and deploys should follow tested commits, not `main` |
 | [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
