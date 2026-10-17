@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
+import fsp, { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -1020,4 +1021,40 @@ test('phase 77: tonight\'s plan renders as one live card night-plan, each tick e
   assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.edits.length, edits);
   // The pulse stays live beside it, untouched by the plan's syncs.
   assert.equal((await read(manifestPath(f.root))).items.pulse.conflict, undefined);
+});
+
+// #129: a card made live but awaiting adoption, renamed by a person, leaves live ownership with --off.
+// The binding write lands and the journal write after it is lost: running it again still retires the card.
+test('live --off whose journal write after the binding is lost still retires, when run again, a renamed card awaiting adoption', async t => {
+  for (const way of ['--off', '--card other']) await t.test(way, async t => {
+    const f = await loopFixture(t);
+    await f.publish(week('2026-10-12'));
+    await f.goLive({ cards: [LOOP] });
+    const owned = (await read(manifestPath(f.root))).items[LOOP], card = f.remote.items.get(owned.itemId);
+    assert.equal(owned.live, undefined, 'live by the binding alone: awaiting its first live sync');
+    card.title = 'Acme: loop, renamed by a person';
+    const leave = () => (way === '--off' ? canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport }) : f.goLive({ cards: ['pulse'] }));
+    // The journal write that follows the binding write is lost (the process dies between them).
+    const real = fsp.rename;
+    const bound = async () => { const c = (await read(configPath(f.root))).canvas; return c.mode === 'immutable' || !c.liveKeys.includes(LOOP); };
+    fsp.rename = async (from, to) => { if (to === manifestPath(f.root) && await bound()) throw Object.assign(new Error('Acme: the journal write is lost'), { code: 'EIO' }); return real(from, to); };
+    syncBuiltinESMExports();
+    try { await assert.rejects(leave(), /the journal write is lost/); }
+    finally { fsp.rename = real; syncBuiltinESMExports(); }
+    assert.ok(await bound(), 'the binding write landed');
+    const frozen = snapshotOf(f.remote);
+    // Run again: the card is retired, not skipped as unchanged.
+    const again = await leave();
+    assert.deepEqual(again.data.changes.filter(c => c.action === 'retire-live-card').map(c => [c.key, c.itemId]), [[LOOP, card.id]]);
+    assert.equal(snapshotOf(f.remote), frozen, 'nothing is written to the card');
+    const journal = await read(manifestPath(f.root));
+    assert.equal(journal.items[LOOP], undefined);
+    assert.deepEqual([journal.retired.length, journal.retired[0].itemId, journal.retired[0].retiring], [1, card.id, undefined]);
+    // The next sync publishes beside the person's card, never refusing it.
+    const adds = f.remote.adds;
+    const next = await f.publish(week('2026-10-19'));
+    assert.deepEqual([next.data.state, next.exitCode], ['published', 0]);
+    assert.equal(f.remote.adds, adds + 2); assert.equal(f.remote.edits.length, 0);
+    assert.equal(card.title, 'Acme: loop, renamed by a person');
+  });
 });
