@@ -282,12 +282,37 @@ cover an `integration` job with none.
 A workflow named neither way is not checked. A gate workflow that also
 publishes (isocan's `release.yml`) is held as a publisher.
 
+## Sessions hand off; one integrator runs the gate
+
+Before a change reaches `main` at all, two sessions can each run the full gate
+on their own change and push. Phase 83 makes that one run:
+
+- A session finishes with `keel ready`: it runs only the fast checks
+  (`"delivery": {"fast": ["node --test tests/x.test.mjs"]}` and each
+  `--check "<cmd>"`), pushes its branch and records `ready/<branch>`. It
+  refuses to run the full gate.
+- `keel integrate` takes the lock `claims/integrate` (the phase claim's
+  create-only push; a second integrator exits 1 and leaves the work to the
+  first), merges every ready change onto `main` in a temporary worktree, runs
+  the full gate (`check`, default `npm run check`) once and pushes once.
+- When the batch fails, it accumulates by halves rather than only splitting:
+  each change is kept only on top of what was kept before it, so two changes
+  that pass alone and fail together are told apart (one lands, the other is
+  sent back as conflicting with it). The tree it pushes is always one the
+  gate passed.
+- A change sent back keeps its `ready/` ref, marked blocked with the reason,
+  until its session fixes it and runs `keel ready` again.
+
+`keel --agent-help improve` ("Ready and integrate") has the JSON.
+
 ## What it does not do
 
-- It does not merge, and never writes `main`. The verifier writes only the
+- The publisher does not merge, and never writes `main`; `keel integrate`
+  does, and only with a tree its gate passed. The verifier writes only the
   `keel-verify` data branch, and only with `--record`. `keel promote` writes
   only the production ref, and only with `--yes`.
 - It does not promote on its own. No workflow runs `keel promote`.
-- It does not batch untested commits into one test run; "newest passing wins"
-  is the batching (agent sessions handing off to one integrator is phase 83).
+- The publisher does not batch untested commits into one test run; "newest
+  passing wins" is its batching. `keel integrate` batches ready changes
+  before `main` (above).
 - A merge queue is an alternative a project may add; keel does not require it.
