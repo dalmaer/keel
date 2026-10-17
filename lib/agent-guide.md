@@ -917,7 +917,10 @@ them sends the change back: `the gate changed tracked files`. The checkout's
 `node_modules` is linked in only when the candidate's package.json and
 lockfiles are the checkout's byte for byte; otherwise it is sent back,
 `changes dependencies: …` (install them in the checkout, or integrate it
-alone after `npm ci`). No setup is run. Before each gate run the worktree is
+alone after `npm ci`). No setup is run. An install with a package (top level
+or `@scope/*`) that is a symlink resolving outside `node_modules` (workspaces,
+`file:` dependencies) refuses `keel integrate` before the lock (exit 2): it
+would gate the checkout's own packages. Before each gate run the worktree is
 cleaned of untracked and ignored files (`git clean -ffdx`), so one
 candidate's build output never reaches the next; only the validated link is
 put back.

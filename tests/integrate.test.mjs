@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, readdir, writeFile, rm, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, writeFile, rm, chmod, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -396,6 +396,26 @@ test('ignored build output a rejected candidate\'s gate left is cleaned before t
   assert.deepEqual(r.data.landed.map(l => l.branch), ['claude/good']);
   assert.deepEqual(r.data.blocked.map(x => x.branch), ['codex/bad']);
   assert.ok(onMain(origin, 'anvil-two.txt'));
+});
+
+// PR #186 review: a workspace link in node_modules points at the checkout's source, not the candidate's.
+test('an install that links outside node_modules (a workspace) refuses integrate before the lock; nothing is gated', async t => {
+  const { a, origin, env } = await acme(t);
+  await change(a, 'claude/lib', { 'anvil-two.txt': 'two anvils\n' }, env('m1'));
+  git(a, 'checkout', '-q', 'main');
+  await mkdir(join(a, 'packages', 'lib'), { recursive: true });
+  await mkdir(join(a, 'node_modules', 'anvil'), { recursive: true });
+  await mkdir(join(a, 'node_modules', '@acme'), { recursive: true });
+  // A link inside node_modules is an ordinary install; one to packages/lib is a workspace.
+  await symlink('anvil', join(a, 'node_modules', 'alias'));
+  await symlink(join('..', '..', 'packages', 'lib'), join(a, 'node_modules', '@acme', 'lib'));
+  const runs = [];
+  const r = await integrate({ root: a }, { env: env('m1'), gate: async () => { runs.push(1); return { status: 0 }; } }).catch(e => e);
+  assert.equal(r.exitCode, 2, String(r.message ?? r.text));
+  assert.match(r.message, /node_modules links outside itself \(@acme\/lib: workspaces or file: dependencies\)/);
+  assert.deepEqual(runs, []);
+  assert.deepEqual(remoteRefs(origin, LOCK), [], 'the lock was never taken');
+  assert.deepEqual(remoteRefs(origin, 'ready/'), ['ready/claude/lib'], 'the change stays ready');
 });
 
 test('only a tree the gate passed is pushable without gating it again', () => {
