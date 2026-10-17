@@ -857,7 +857,9 @@ loop's gate step and a pre-push hook use it; `--ci` (check.yml) never reuses.
 `"delivery": {"docsOnly": ["docs/", "**/*.md"]}`: a clean commit changing only
 those paths since the newest first-parent ancestor CI fully tested records
 `skipped: docs only` (kind `gate-skip`, never a test run); never against the
-parent. A list covering code or `package.json` is refused. Candidate trees
+parent. `.github/`, `scripts/keel/`, manifests, lockfiles, `.keel/` config,
+version files and keel's managed files (HEAD's `.keel/lock.json`) are never
+docs only; an entry reaching one is refused (exit 2). Candidate trees
 (climb, tend, robot judges) and a dirty tree always run their own gate. `adopt --dry-run` and `adopt --with ... --dry-run` include
 `ciCost` for only newly-created workflows: triggers, source/window, monthly
 weighted estimates and total. Missing/incomplete history means unknown. Source

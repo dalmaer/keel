@@ -59,8 +59,57 @@ export const DOCS_ONLY = 'skipped: docs only';
 export const DOCS_DEPTH = 20;
 /** The largest keel-test-runs archive read: the test history's own bound. */
 const MAX_BYTES = 256 * 1024 * 1024;
-/** Paths a docs-only list may never cover: the gate's own code and config (a list that did would skip everything). */
-const CANARIES = ['package.json', '.keel/keel.json', '.github/workflows/check.yml', 'scripts/keel/gate.mjs', 'src/index.js', 'lib/index.mjs', 'tests/acme.test.mjs'];
+/**
+ * Paths that are never docs only, whatever "delivery".docsOnly says (PR #174
+ * review): what runs or configures the gate. Every file under .github/
+ * (workflows and actions) and scripts/keel/ (keel's scripts); the repo's
+ * own config files; a package manifest, lockfile or package-manager config at
+ * any depth; and each file keel manages, as the committed .keel/lock.json
+ * names it (a changed lock is itself protected, so a commit cannot drop a
+ * file from it and skip the suite in the same breath).
+ */
+export const PROTECTED_DIRS = Object.freeze(['.github/', 'scripts/keel/']);
+export const PROTECTED_FILES = Object.freeze(['.keel/keel.json', '.keel/lock.json', '.nvmrc', '.node-version', '.tool-versions']);
+export const PROTECTED_NAMES = Object.freeze(['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb', '.npmrc', '.yarnrc', '.yarnrc.yml']);
+/** Extensions of files that run or configure: a glob whose last segment can end in one reaches code. */
+const CODE_EXTENSIONS = Object.freeze(['mjs', 'cjs', 'js', 'jsx', 'ts', 'mts', 'cts', 'tsx', 'json', 'yml', 'yaml', 'sh', 'lock', 'lockb', 'toml']);
+
+/** Whether a changed path is protected: never docs only. `managed` is keel's managed paths (lockedPaths). */
+export function protectedPath(path, managed = []) {
+  const name = path.split('/').pop();
+  return PROTECTED_DIRS.some(d => path.startsWith(d)) || PROTECTED_FILES.includes(path) || PROTECTED_NAMES.includes(name) || managed.includes(path);
+}
+
+/** A glob segment as a regex (`**` kept as itself): what that segment of a path it matches can be. */
+const segment = seg => seg === '**' ? '**' : new RegExp(`^${seg.split('*').map(s => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
+
+/**
+ * What protected path an entry reaches, structurally, or null. A directory
+ * entry or a glob's literal head overlaps a protected directory (either
+ * contains the other); a protected file is matched as itself, a managed one
+ * when the entry names it exactly; an
+ * exact entry's name, or a glob's last segment, that can be a protected name
+ * or end in a code extension reaches every such file. A plain directory entry
+ * ("docs/") may hold a nested package.json: protectedPath refuses that file
+ * when it changes.
+ */
+function reaches(entry, managed) {
+  const glob = entry.includes('*');
+  const head = glob ? entry.slice(0, entry.indexOf('*')) : entry;
+  for (const d of PROTECTED_DIRS) {
+    if (entry.endsWith('/') || glob ? head && (d.startsWith(head) || head.startsWith(d)) : entry.startsWith(d)) return d;
+  }
+  const test = matcher(entry);
+  for (const f of PROTECTED_FILES) if (test(f)) return f;
+  // A managed file is refused when named; "docs/" may hold keel's templates, which protectedPath refuses when they change.
+  if (managed.includes(entry)) return entry;
+  if (entry.endsWith('/')) return null;
+  const last = glob ? segment(entry.split('/').at(-1)) : null;
+  const can = name => last === null ? entry.split('/').at(-1) === name : last === '**' || last.test(name);
+  for (const name of PROTECTED_NAMES) if (can(name)) return name;
+  if (glob) for (const ext of CODE_EXTENSIONS) if (can(`acme.${ext}`)) return `any .${ext} file`;
+  return null;
+}
 
 export class GateError extends Error {
   constructor(message, exitCode = 2) { super(message); this.exitCode = exitCode; }
@@ -79,9 +128,10 @@ function matcher(entry) {
 /**
  * .keel/keel.json "delivery": { "docsOnly": [path] }: { paths, test } when
  * set, null when not, or a throw (exit 2) naming what is wrong. An entry is
- * repo-relative, never `..`, and the list may not cover the gate's own code.
+ * repo-relative, never `..`, and never reaches a protected path (reaches:
+ * the PROTECTED_* sets, and `managed`, keel's files from .keel/lock.json).
  */
-export function docsOnlyOf(config) {
+export function docsOnlyOf(config, { managed = [] } = {}) {
   const d = config?.delivery;
   if (d === undefined || d?.docsOnly === undefined) return null;
   if (!d || typeof d !== 'object' || Array.isArray(d)) throw new GateError('.keel/keel.json "delivery" must be an object');
@@ -91,8 +141,10 @@ export function docsOnlyOf(config) {
   }
   const tests = list.map(matcher);
   const test = p => tests.some(t => t(p));
-  const covered = CANARIES.filter(test);
-  if (covered.length) throw new GateError(`.keel/keel.json "delivery".docsOnly covers ${covered.join(', ')}: a docs-only list never covers code or the gate's own files`);
+  for (const entry of list) {
+    const reached = reaches(entry, managed);
+    if (reached) throw new GateError(`.keel/keel.json "delivery".docsOnly ${JSON.stringify(entry)} reaches ${reached}: a docs-only list never covers code, keel's scripts, workflows or the gate's own files`);
+  }
   return { paths: list, test };
 }
 
@@ -111,6 +163,20 @@ export function revision(root, env = process.env) {
   const tree = sha ? gitOut(root, env, ['rev-parse', 'HEAD^{tree}']) ?? '' : '';
   const status = sha ? gitOut(root, env, ['status', '--porcelain', '--untracked-files=all']) : null;
   return { sha, tree, clean: status === '' };
+}
+
+/**
+ * keel's managed paths, from HEAD's committed .keel/lock.json ("AGENTS.md#night"
+ * is AGENTS.md): the committed lock, never the working tree's. [] without a
+ * lock; a throw (exit 2) when it cannot be read, since then nothing is known safe.
+ */
+export function lockedPaths(root, env = process.env) {
+  const r = git(root, env, ['show', 'HEAD:.keel/lock.json']);
+  if (r.status !== 0) return [];
+  let files;
+  try { files = JSON.parse(r.stdout).files; } catch { throw new GateError('.keel/lock.json is not JSON: which files keel manages cannot be told, so nothing is docs only'); }
+  if (!files || typeof files !== 'object' || Array.isArray(files)) throw new GateError('.keel/lock.json has no "files": which files keel manages cannot be told');
+  return [...new Set(Object.keys(files).map(k => k.split('#')[0]))];
 }
 
 // ---- the ledger's evidence ---------------------------------------------------------
@@ -211,13 +277,17 @@ export async function reusableGate({ root, config, env = process.env, now = Date
  * carry that change too.
  */
 export async function docsOnlySkip({ root, config, env = process.env, now = Date.now(), request, download, depth = DOCS_DEPTH }) {
-  const docs = docsOnlyOf(config);
-  if (!docs) return { skip: false, reason: 'no "delivery".docsOnly in .keel/keel.json' };
+  if (!docsOnlyOf(config)) return { skip: false, reason: 'no "delivery".docsOnly in .keel/keel.json' };
+  const managed = lockedPaths(root, env);
+  const docs = docsOnlyOf(config, { managed });
   const { sha, clean } = revision(root, env);
   if (!sha || !clean) return { skip: false, reason: 'the tree is dirty or has no commit: docs-only is decided for a commit' };
   const ancestors = (gitOut(root, env, ['rev-list', '--first-parent', `--max-count=${depth + 1}`, 'HEAD']) ?? '').split('\n').filter(Boolean).slice(1);
   for (const base of ancestors) {
     const changed = (gitOut(root, env, ['diff', '--name-only', '--no-renames', '-z', base, sha]) ?? '\0code').split('\0').filter(Boolean);
+    // A protected path is never docs only, even when a pattern reached it: the config check is the first line, this the last.
+    const guarded = changed.filter(p => protectedPath(p, managed));
+    if (guarded.length) return { skip: false, reason: `${guarded[0]}${guarded.length > 1 ? ` and ${guarded.length - 1} more` : ''} changed since ${base.slice(0, 7)} and is protected (it runs or configures the gate): never docs only` };
     const code = changed.filter(p => !docs.test(p));
     if (code.length) return { skip: false, reason: `${code[0]}${code.length > 1 ? ` and ${code.length - 1} more` : ''} changed since ${base.slice(0, 7)}, the newest commit CI could have tested before it: not docs only` };
     const tree = gitOut(root, env, ['rev-parse', `${base}^{tree}`]) ?? '';

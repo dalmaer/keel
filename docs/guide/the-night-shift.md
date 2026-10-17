@@ -490,8 +490,18 @@ tested commit is the newest first-parent ancestor (at most 20 back) with a
 result of reuse grade, at any age, never simply the parent: a code commit
 whose run was cancelled is never covered by a docs commit after it (ledger's
 lesson). List only paths no part of the gate reads (a roadmap check reads
-`docs/phases/`). A list that would cover `package.json`, `.keel/keel.json`, a
-workflow or keel's scripts is refused, exit 2. check.yml's gate step holds a
+`docs/phases/`). Some paths are never docs only, whatever the list says: all
+of `.github/` (workflows and actions) and `scripts/keel/`, `.keel/keel.json`,
+`.keel/lock.json`, `.nvmrc`, `.node-version`, `.tool-versions`, a
+`package.json`, lockfile or package-manager config at any depth, and every file
+keel manages as HEAD's committed `.keel/lock.json` names it (the committed lock,
+so a commit cannot drop a file from it and skip in one go; a changed lock is
+itself protected). A change to one runs the suite. An entry that reaches one is
+refused at config time, exit 2: a directory entry or a glob's literal head
+overlapping a protected directory, a protected file it matches, a managed file
+it names, or an exact name or glob's last segment that can be a manifest,
+lockfile or code file (`**/*.mjs`, `*.json`). `docs/` stays allowed: a
+`docs/package.json` or a managed template under it is refused when it changes. check.yml's gate step holds a
 read-only `GH_TOKEN` (and `actions: read`) for this lookup alone; the check
 runs without it.
 

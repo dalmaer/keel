@@ -9,7 +9,10 @@ import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { deflateRawSync, crc32 } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { gate, gateLine, ciResult, ledgerEvidence, docsOnlyOf, docsOnlySkip, DOCS_ONLY } from '../practices/night/files/scripts/keel/gate.mjs';
+import * as gateModule from '../practices/night/files/scripts/keel/gate.mjs';
+const { gate, gateLine, ciResult, ledgerEvidence, docsOnlyOf, docsOnlySkip, DOCS_ONLY } = gateModule;
+// Read through the namespace, so this file loads without it and its tests fail on behaviour (keel prove).
+const protectedPath = (...args) => gateModule.protectedPath?.(...args) ?? false;
 import { readRuns, sha12 } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 import { ranOn } from '../scripts/keel/climb.mjs';
 import { MEASURES, measure } from '../practices/night/files/scripts/keel/improve.mjs';
@@ -315,4 +318,44 @@ test('check.yml\'s gate step runs gate.mjs --ci with a read-only token it keeps 
   const gates = (await readRuns(a.root, undefined, { gates: true })).runs.filter(x => x.kind === 'gate');
   assert.deepEqual(gates.map(g => g.status), [7]);
   assert.deepEqual(await readdir(join(a.root, '.keel/test-runs')).then(n => n.some(x => x.endsWith('.json'))), true, 'what Keep the test ledger uploads');
+});
+
+// PR #174 review: a list naming one executable file (keel's own scripts, a workflow) was accepted, and a clean
+// commit changing only that file skipped the gate. A protected path is never docs only, whatever the list says.
+const PROTECTED = ['scripts/keel/test-ledger.mjs', '.github/workflows/keel-night.yml', '.github/actions/acme/action.yml', 'package.json', 'web/package.json', 'package-lock.json', 'web/pnpm-lock.yaml', 'bun.lockb', 'yarn.lock', '.keel/keel.json', '.keel/lock.json', '.nvmrc', '.node-version', '.tool-versions'];
+
+test('a docs-only list that reaches a protected path is refused at config time, structurally', () => {
+  for (const entry of [...PROTECTED, 'scripts/keel/', 'scripts/', '.github/', '.github/workflows/*.yml', 'scripts/keel/*.mjs', '**/package.json', '**/*.lock', '**/*.mjs', '*.json', '**', '*']) {
+    assert.throws(() => docsOnlyOf({ delivery: { docsOnly: ['docs/', entry] } }), e => e.exitCode === 2 && /never covers/.test(e.message), entry);
+  }
+  // A path keel manages, named in the project's .keel/lock.json, is refused by name too.
+  assert.throws(() => docsOnlyOf({ delivery: { docsOnly: ['docs/templates/evidence.md'] } }, { managed: ['docs/templates/evidence.md'] }), /never covers/);
+  for (const ok of [['docs/'], ['README.md'], ['**/*.md'], ['docs/**/*.md', 'CHANGELOG.md']]) assert.ok(docsOnlyOf({ delivery: { docsOnly: ok } }), JSON.stringify(ok));
+});
+
+test('a protected path is never docs only when changed, even if a pattern slipped through', async t => {
+  for (const p of PROTECTED) assert.equal(protectedPath(p), true, p);
+  for (const p of ['docs/guide.md', 'README.md', 'docs/package.json.md']) assert.equal(protectedPath(p), false, p);
+  assert.equal(protectedPath('AGENTS.md', ['AGENTS.md']), true, 'a managed file');
+  // A list that slipped past the config check (a broad prefix holds a nested package.json; a glob reaches .github/).
+  const config = { ...CONFIG, delivery: { docsOnly: ['docs/', '**/*.md'] } };
+  for (const path of ['docs/package.json', '.github/ISSUE_TEMPLATE/bug.md', 'scripts/keel/notes.md']) {
+    const a = await acme(t, { config });
+    const tested = a.head();
+    await a.commit(path, '{}\n');
+    const r = await docsOnlySkip({ root: a.root, config, env: (await ghStub(t, actions([tested]))).env });
+    assert.equal(r.skip, false, path);
+    assert.match(r.reason, /protected/, path);
+  }
+  // Keel's managed files, read from the committed .keel/lock.json, are protected too.
+  const m = await acme(t, { config });
+  await mkdir(join(m.root, 'docs/templates'), { recursive: true });
+  await writeFile(join(m.root, 'docs/templates/evidence.md'), 'Acme\n');
+  await writeFile(join(m.root, '.keel/lock.json'), JSON.stringify({ practice: '0.0.0', files: { 'docs/templates/evidence.md': {}, 'AGENTS.md#night': {} } }));
+  m.git('add', '-A'); m.git('commit', '-qm', 'Acme lock');
+  const base = m.head();
+  await m.commit('docs/templates/evidence.md', 'Acme changed\n');
+  const managed = await docsOnlySkip({ root: m.root, config, env: (await ghStub(t, actions([base]))).env });
+  assert.equal(managed.skip, false);
+  assert.match(managed.reason, /docs\/templates\/evidence\.md.*protected/);
 });

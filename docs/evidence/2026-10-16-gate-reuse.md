@@ -50,6 +50,21 @@ each reverted (file identical to the committed one afterwards), running
 | let `--ci` reuse | exit 1: "CI's own gate step (--ci) never reuses …" fails |
 | pass CI's read token to the check | exit 1: "check.yml's gate step runs gate.mjs --ci with a read-only token it keeps from the check …" fails (the check exits 9, not 7) |
 
+### PR #174 review: a protected path is never docs only (2026-10-16)
+
+The config check tested seven sample paths, so `docsOnly: ["scripts/keel/test-ledger.mjs"]`
+or `[".github/workflows/keel-night.yml"]` was accepted and a clean commit
+changing only that file skipped the gate. Now `protectedPath` refuses, when
+classifying changed paths, all of `.github/` and `scripts/keel/`, the repo's
+config and version files, a manifest, lockfile or package-manager config at any
+depth, and the managed files of HEAD's committed `.keel/lock.json` (decided:
+read the committed lock, not the working tree's; a changed lock is itself
+protected). The config refusal checks each entry against those sets
+structurally. `tests/gate-reuse.test.mjs` "a docs-only list that reaches a
+protected path is refused at config time, structurally" and "a protected path
+is never docs only when changed, even if a pattern slipped through" fail
+without the fix (`keel prove`, the commit's Proven-by trailer).
+
 ## By hand
 
 | Did | Expected | Observed | Proves / does not prove |
