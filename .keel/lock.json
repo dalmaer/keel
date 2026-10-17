@@ -287,7 +287,7 @@
     },
     "scripts/roadmap.mjs": {
       "practice": "phases",
-      "sha256": "136c2404c55d0da8032d96b021050fd61a5a36f36c05f6676bfad01225f10b58"
+      "sha256": "323e4ab34b3a5a73b473f6bb26e04e26d62128bc6d50c01958ccf70cc302c76d"
     },
     "tests/keel-generated.test.mjs": {
       "practice": "phases",
@@ -299,7 +299,7 @@
     },
     "tests/roadmap.test.mjs": {
       "practice": "phases",
-      "sha256": "406ae5bb682ebae0d51fea710b838c5f22bf574cf4fb24458369b6b5db599780"
+      "sha256": "8dc4ff8ead4d1117e67a428a2996ffaeaeae2778308834f51aaacf6c207d45d1"
     }
   }
 }
