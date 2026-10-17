@@ -907,7 +907,7 @@ matched}], failures, at, run, recorded?}`; exit 0 passed, 1 failed (or not
 recorded), 2 config or usage, each error naming its key (doctor:
 `delivery-config`). `live <sha>`: one read, `{live, serving, why}`, exit 0 yes,
 1 no (unreadable is no). `--record` pushes the result to `keel-verify:verify.json`
-(newest first, 30 kept, lease; a non-record there is left alone, exit 1). With
+(newest first, 30 kept and every failure for 72 h, lease; a non-record there is left alone, exit 1). With
 delivery on, `keel board` lists production's (site = `delivery.site`) failed
 latest verify as the owner's (source `verify`; a preview's pass never clears
 it) and the morning brief puts each failure of the day before the night

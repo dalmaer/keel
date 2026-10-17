@@ -248,6 +248,24 @@ export function linksOf(config, { repo = null, page = null, ref = null } = {}) {
 export const VERIFY_BRANCH = 'keel-verify';
 export const VERIFY_FILE = 'verify.json';
 export const VERIFY_KEEP = 30;
+/** A failure is kept this long whatever came after it: the brief that carries it is sent within a day and a half of it (PR #182 review). */
+export const VERIFY_HOLD_MS = 72 * 3600 * 1000;
+/** The file never grows past this many results, nor past three quarters of MAX_BYTES, so its reader never refuses it. */
+export const VERIFY_MAX = 200;
+
+/**
+ * What verify.json keeps of `results` (newest first) at `now`: the newest
+ * VERIFY_KEEP, and every failure younger than VERIFY_HOLD_MS, so a burst of
+ * passes never pushes out a failure before its brief has read it; then at
+ * most VERIFY_MAX, and within the size its reader takes, the oldest dropped
+ * first. Pure.
+ */
+export function keptResults(results, now = Date.now()) {
+  const sorted = [...results].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  let kept = sorted.filter((r, i) => i < VERIFY_KEEP || (!r.ok && Date.parse(r.at) > now - VERIFY_HOLD_MS)).slice(0, VERIFY_MAX);
+  while (kept.length > 1 && JSON.stringify({ results: kept }, null, 2).length > MAX_BYTES * 0.75) kept = kept.slice(0, -1);
+  return kept;
+}
 const FULL_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 
 /** One recorded verify, checked: the result, or null when it is not one. */

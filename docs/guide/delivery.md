@@ -176,7 +176,7 @@ node scripts/keel/verify.mjs live <sha> [--json]
   a checkout with `fetch-depth: 0`.
 
 **Where the result goes.** `--record` adds the result to the branch
-`keel-verify`, file `verify.json` (newest first, the last 30, each with the
+`keel-verify`, file `verify.json` (newest first, the last 30, and every failure of the last 72 hours so a burst of passes never drops one before its brief reads it; each with the
 commit, the outcome, the time, the site, what production served, each failure
 and the Actions run), with a lease; a file there that is not a verify record
 is never replaced. With the delivery practice on, the night's morning brief

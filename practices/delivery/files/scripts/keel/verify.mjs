@@ -27,7 +27,8 @@
 // (redirects are not followed) and its status compared. It passes only on
 // what it saw: the version contained the commit and every smoke check matched.
 // Otherwise it fails, naming each check that did not hold. --record adds the
-// result to the branch keel-verify (verify.json, newest first, the last 30),
+// result to the branch keel-verify (verify.json, newest first, the last 30
+// and every failure of the last 72 hours),
 // where keel board and the morning brief read it.
 //
 // live <sha>: one read of the version path: does production already serve
@@ -43,7 +44,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { isMain, main } from './lib.mjs';
 import { deliveryOf, siteProblem, DeliveryError } from './delivery.mjs';
-import { VERIFY_BRANCH, VERIFY_FILE, VERIFY_KEEP, verifyResults } from './morning.mjs';
+import { VERIFY_BRANCH, VERIFY_FILE, keptResults, verifyResults } from './morning.mjs';
 
 /** How long a verify waits for production to report the commit, and how often it reads, in seconds. */
 export const WITHIN = 600, EVERY = 10;
@@ -210,11 +211,12 @@ export async function live({ root, config, sha, site, env = process.env, fetch, 
 
 /**
  * Add a verify's result to keel-verify:verify.json on `remote` (newest first,
- * the last VERIFY_KEEP), with a lease on the tip it read; a lost race is read
+ * what morning.mjs keptResults keeps: the last 30, and every failure until
+ * its brief has read it), with a lease on the tip it read; a lost race is read
  * again, at most `attempts` times. A file there that is not a verify record is
  * never replaced (exit 1). { recorded: true, commit, branch }.
  */
-export function record({ root, result, remote = 'origin', env = process.env, attempts = 3 }) {
+export function record({ root, result, remote = 'origin', env = process.env, attempts = 3, now = Date.now() }) {
   const entry = { sha: result.sha, ok: result.ok, at: result.at, site: result.site, serving: result.serving, failures: result.failures, ...(result.run ? { run: result.run } : {}) };
   const ref = `refs/heads/${VERIFY_BRANCH}`, local = 'refs/keel/verify/tip';
   const ok = (args, what, input) => {
@@ -234,7 +236,7 @@ export function record({ root, result, remote = 'origin', env = process.env, att
         try { results = verifyResults(shown.stdout); } catch (e) { throw new VerifyError(`${VERIFY_BRANCH}:${VERIFY_FILE} is not a verify record (${e.message}): it is left alone, and this result is not recorded`, 1); }
       }
     }
-    const text = `${JSON.stringify({ results: [entry, ...results].slice(0, VERIFY_KEEP) }, null, 2)}\n`;
+    const text = `${JSON.stringify({ results: keptResults([entry, ...results], now) }, null, 2)}\n`;
     const blob = ok(['hash-object', '-w', '--stdin'], 'cannot write the record', text);
     const tree = ok(['mktree'], 'cannot write the record', `100644 blob ${blob}\t${VERIFY_FILE}\n`);
     const commit = ok(['-c', 'user.name=keel-verify', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit-tree', tree, ...(tip ? ['-p', tip] : []), '-m', `keel verify: ${entry.ok ? 'passed' : 'failed'} for ${short(entry.sha)} (${entry.at})`], 'cannot write the record');

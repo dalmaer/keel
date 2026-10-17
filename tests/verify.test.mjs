@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { scratch, ENV } from './helpers/improve.mjs';
 import { runAsync } from './helpers/run.mjs';
 import { deliveryOf, deliveryProblems } from '../practices/delivery/files/scripts/keel/delivery.mjs';
-import { verifyResults, VERIFY_BRANCH, VERIFY_FILE } from '../practices/night/files/scripts/keel/morning.mjs';
+import { verifyResults, verifyFailuresFor, VERIFY_BRANCH, VERIFY_FILE } from '../practices/night/files/scripts/keel/morning.mjs';
 
 const NIGHT = resolve('practices/night/files/scripts/keel');
 const DELIVERY = resolve('practices/delivery/files/scripts/keel');
@@ -273,10 +273,10 @@ test('--record adds the result to keel-verify:verify.json, newest first; a file 
   const results = verifyResults(shown());
   assert.deepEqual(results.map(r => [r.sha, r.ok]), [[repo.C, true], [repo.C, false]], 'newest first');
   assert.match(results[1].failures[0], /does not contain/);
-  // Its history keeps the last 30.
+  // Its history keeps the last 30, and the failure above (too recent for its brief to have read it).
   const result = { sha: repo.C, ok: true, at: new Date().toISOString(), site: prod.site, serving: repo.C, failures: [] };
   for (let i = 0; i < 30; i++) v.record({ root: repo.root, result: { ...result, at: new Date(Date.now() + (i + 1) * 1000).toISOString() }, env: ENV });
-  assert.equal(verifyResults(shown()).length, 30);
+  assert.equal(verifyResults(shown()).length, 31);
   // Not a record: refused, and the branch left as it was.
   const tip = () => execFileSync('git', ['--git-dir', repo.origin, 'rev-parse', `refs/heads/${VERIFY_BRANCH}`], { env: ENV, encoding: 'utf8' }).trim();
   const before = tip();
@@ -290,4 +290,22 @@ test('--record adds the result to keel-verify:verify.json, newest first; a file 
   assert.notEqual(broken, before);
   assert.throws(() => v.record({ root: repo.root, result, env: ENV }), e => e.exitCode === 1 && /is not a verify record .* left alone/.test(e.message));
   assert.equal(tip(), broken);
+});
+
+// PR #182 review: a failure at 08:00 followed by 30 passes that day fell out of the last 30 before the next night's brief read it.
+test('a burst of passes never drops a failure before its brief has read it; an old failure still ages out', async t => {
+  const { prod, repo, v } = await setup(t);
+  const at = h => new Date(Date.parse('2026-10-04T08:00:00Z') + h * 3600 * 1000).toISOString();
+  const base = { sha: repo.C, site: prod.site, serving: repo.C };
+  const failure = { ...base, ok: false, at: at(0), failures: ['GET /: expected 200, got 500'] };
+  v.record({ root: repo.root, result: failure, env: ENV, now: Date.parse(at(0)) });
+  for (let i = 1; i <= 30; i++) v.record({ root: repo.root, result: { ...base, ok: true, at: at(i * 0.5), failures: [] }, env: ENV, now: Date.parse(at(i * 0.5)) });
+  const shown = () => verifyResults(execFileSync('git', ['--git-dir', repo.origin, 'show', `refs/heads/${VERIFY_BRANCH}:${VERIFY_FILE}`], { env: ENV, encoding: 'utf8' }));
+  const results = shown();
+  assert.equal(results.length, 31, 'the 30 newest, and the failure');
+  assert.deepEqual(verifyFailuresFor(results, '2026-10-05').map(r => r.at), [failure.at], 'the next night\'s brief still reads it');
+  // Three days on, the failure has had its brief: the next record lets it go.
+  v.record({ root: repo.root, result: { ...base, ok: true, at: at(80), failures: [] }, env: ENV, now: Date.parse(at(80)) });
+  assert.equal(shown().length, 30);
+  assert.ok(shown().every(r => r.ok));
 });
