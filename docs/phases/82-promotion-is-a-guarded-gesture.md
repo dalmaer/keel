@@ -23,13 +23,14 @@ The design is [Delivery: a change reaches production once, checked](../research/
 - **The guard**: the commit must be on the tested ref and its gate must have passed (phase 79's result); anything else is refused, naming why. Default commit: the tested ref's head.
 - **Preview, then `--yes`**: show the commit, what changes from what production serves now, and the verify that will follow.
 - **After**: run `verify.mjs` against production and report; a failed verify suggests `--back` and never moves anything itself.
+- **Rollback verifies the exact commit**: phase 81 accepts a descendant, which is right going forward but wrong going back (production still serving the newer B would pass a rollback to its ancestor A). `--back` requires production to report exactly the target commit, within the same bounded wait, and reports failure otherwise.
 - **Who**: the command runs on the owner's machine with their git credentials; no workflow promotes.
 
 ## Acceptance
 
 - [ ] `keel promote` refuses a commit not on the tested ref or without a passing gate, and moves the ref for one that is, only with `--yes`. `tests/promote.test.mjs`
 - [ ] After moving, it verifies production and reports; a failure suggests `--back` and moves nothing. `tests/promote.test.mjs`
-- [ ] `--back <commit>` moves the ref to an earlier tested commit with the same checks. `tests/promote.test.mjs`
+- [ ] `--back <commit>` moves the ref to an earlier tested commit with the same checks, and passes only when production reports exactly that commit: production still serving the newer commit after the ref moved is a failure, never a success. `tests/promote.test.mjs`
 - [ ] No installed workflow runs `keel promote`. `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: the owner promotes isocan once with `keel promote` instead of moving the tag by hand.
 

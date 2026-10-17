@@ -19,7 +19,7 @@ Many commits test at once, but one queued publisher advances a tested ref (`gree
 
 The design is [Delivery: a change reaches production once, checked](../research/2026-10-16-delivery.md), items 1, 2 and 6.
 
-- **The publisher**: a `delivery` practice installs `keel-publish.yml`, started by the gate workflow finishing on `main` (`workflow_run`, success, push). One concurrency group (`publish`, queued, never cancelled) runs `scripts/keel/publish.mjs`: it moves `delivery.tested` to the commit only if that commit descends from the current tested ref and the ref is not already at or past it; a superseded commit is skipped, a diverged ref fails red. It never writes `main`.
+- **The publisher**: a `delivery` practice installs `keel-publish.yml`, started by the gate workflow finishing on `main` (`workflow_run`, success, push). One concurrency group (`publish`, never cancelled while running) runs `scripts/keel/publish.mjs`. GitHub keeps only one *pending* run per group, so a late trigger can replace a newer one: the publisher therefore never trusts the commit that started it. Each run reads `main`'s history and the gate results (phase 79) and advances `delivery.tested` to the newest commit on `main` that descends from the current tested ref and whose gate passed; if there is none newer, it does nothing. A diverged ref fails red. It never writes `main`.
 - **Deploys follow it**: the practice documents and checks that a project's deploy triggers on the tested ref (a push to `green`, as isocan's Cloud Build does) or on the publisher finishing; ledger's direct deploy-on-push becomes deploy-on-publish.
 - **Concurrency rules as a check**: a `delivery` check in keel's workflow lint: test and gate workflows have a per-ref group with `cancel-in-progress: true`; publish and deploy workflows have a fixed group with `cancel-in-progress: false`. isocan's `workflows.test.ts` is the model.
 - **Configuration**: `delivery.tested` (ref name), `delivery.gateWorkflow` (defaults to the project's gate workflow).
@@ -28,6 +28,7 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 - [ ] The publisher moves the tested ref to a newer passing descendant, skips a superseded commit, and fails on a diverged ref, without writing main. `tests/publish.test.mjs`
 - [ ] Two passing commits arriving out of order leave the tested ref at the newer one. `tests/publish.test.mjs`
+- [ ] Commits A, B, C: while A's publisher runs, C's run queues and B's late run replaces it; the surviving run still advances the tested ref to C, because it chooses the newest passing commit itself, not the one that triggered it. `tests/publish.test.mjs`
 - [ ] The installed workflow runs only after a successful gate on main and is queued, never cancelled. `tests/workflows.test.mjs`
 - [ ] The concurrency check flags a test workflow without cancel-superseded and a deploy workflow that can be cancelled. `tests/workflows.test.mjs`
 - [ ] ⚑ by hand: the owner pushes two changes to one project in a row and sees one publish of the newer, the older skipped.
