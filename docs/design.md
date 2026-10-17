@@ -259,6 +259,16 @@ rewritten. Accepted, verified outcomes and complete costs judge the trial;
 missing coverage is inconclusive. Promotion and rollback retain the evidence.
 The CLI records safe handoffs; the calling host controls agent lifecycles.
 
+### Production errors (phase 88)
+
+Production observations extend the night practice. Configured bounded log readers
+aggregate sanitized error signatures; recurrence becomes triage and a reviewable
+repair spec through the existing robot issue journal. Collection never accepts a
+finding or increases the robot budget. Error-free windows require traffic,
+coverage and deployed-revision evidence before they can verify a repair; a merge
+proves none of these. Unavailable credentials and capped reads remain gaps.
+See the [production-error contract](specs/production-errors.md).
+
 ### 7. The fleet (phase 12)
 
 `fleet.json` on keel lists the projects keel manages. `keel fleet` reads each

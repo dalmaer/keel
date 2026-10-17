@@ -187,6 +187,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       DAY: ${{ needs.decide.outputs.day }}
@@ -195,8 +196,25 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+      - name: Restore production observations for the brief
+        id: production_restore
+        env:
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          code=0
+          node scripts/keel/production-night.mjs --restore-only || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
       - name: Send the brief
         run: node scripts/keel/morning.mjs send --date "$DAY"
+      - name: Production restoration verdict
+        if: always()
+        env:
+          RESTORE_CODE: ${{ steps.production_restore.outputs.code }}
+        run: |
+          if [ "${RESTORE_CODE:-missing}" != 0 ]; then
+            echo "::error::Production restoration failed or did not report an outcome; the brief was still attempted."
+            exit 1
+          fi
 
   # The plan's live card, after each pass (keel phase 78): tonight's plan as
   # it stands (finalPlan: each item at its furthest tick), republished as the

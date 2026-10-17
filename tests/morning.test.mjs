@@ -82,7 +82,7 @@ async function project(t, { config = CONFIG, issues = [], failCreate = false, br
   await writeFile(join(root, 'docs/health/2026-10-06.md'), page('2026-10-06', 741000));
   // The night practice's scripts, as a project carries them.
   await mkdir(join(root, 'scripts/keel'), { recursive: true });
-  for (const f of ['morning.mjs', 'night-plan.mjs', 'lib.mjs']) await cp(join(KEEL, 'practices/night/files/scripts/keel', f), join(root, 'scripts/keel', f));
+  for (const f of ['morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(KEEL, 'practices/night/files/scripts/keel', f), join(root, 'scripts/keel', f));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Acme: the night');
   git(root, 'push', '-q', 'origin', 'main');
   if (branch) {

@@ -1,10 +1,11 @@
 ---
-status: designed
+status: partial
 since: 2026-10-17
 goal: G4
 spec: 2
 depends: [54, 73, 81]
-note: "Production-log collection, recurring-error evidence, repair proposals and post-deployment verification specified; implementation and fleet rollout pending."
+note: "Implemented with 24 focused tests and real provider probes. Full gate, reviewed release and fleet nightly retention walk pending; Google access needs reauthentication and a CI identity."
+evidence: ["evidence/88-production-errors.md"]
 ---
 
 # Production errors become verified fixes
@@ -20,10 +21,10 @@ night, plan, robot and delivery flows; no parallel tracking system.
 
 ## Acceptance
 
-- [ ] Configured Cloud Logging/Vercel and normalized JSON sources collect bounded evidence with explicit coverage and safe persistence: `tests/production-errors.test.mjs`.
-- [ ] Recurrence, redaction, overlap/replay and recovery preserve privacy and counts: `tests/production-errors.test.mjs`.
-- [ ] Specs and issue preparation reuse existing authorization and durable recovery; the night/morning expose candidates and gaps: `tests/production-integration.test.mjs`.
-- [ ] Verification refuses zero/unknown traffic, incomplete coverage or unproven deployment; recurrence is preserved: `tests/production-errors.test.mjs`.
+- [x] Configured Cloud Logging/Vercel and normalized JSON sources collect bounded evidence with explicit coverage and safe persistence: `tests/production-errors.test.mjs`.
+- [x] Recurrence, redaction, overlap/replay and recovery preserve privacy and counts: `tests/production-errors.test.mjs`.
+- [x] Specs and issue preparation reuse existing authorization and durable recovery; the night/morning expose candidates and gaps: `tests/production-integration.test.mjs`.
+- [x] Verification refuses zero/unknown traffic, incomplete coverage or unproven deployment; recurrence is preserved: `tests/production-errors.test.mjs`.
 - [ ] CLI help, guides and managed rendering agree: `npm run check`, `npm run typecheck`.
 - [ ] Real source collection and scheduled retention are verified on configured fleet projects, with unavailable and not-applicable projects explicitly recorded: `keel production collect --yes --json` and GitHub run links.
 
@@ -46,9 +47,14 @@ Walk each available provider through its public CLI and the final installed nigh
 
 ## Next action
 
-Implement the collector and evidence lifecycle, integrate the existing night and
-repair flow, then configure and verify each discovered production source.
+Run the integrated gate, land the reviewed practice, configure the fleet, and
+verify a nightly collection followed by restoration of its retained state.
+Isocan needs Google reauthentication and an approved CI reader identity.
 
 ## Trajectory
 
-*Nothing yet.*
+2026-10-17: bounded collectors, strict sanitized state, robot issue preparation,
+night/morning projections and timed production verification implemented. Independent
+review caught overlap overcounting, late-error invalidation, lifecycle rewinds,
+malformed-history bootstrap and incomplete probe intervals; regression tests cover
+these. Ledger read succeeds with explicit coverage gaps; Isocan access is unavailable.

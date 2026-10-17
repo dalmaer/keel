@@ -60,12 +60,28 @@ export function validCron(expr) {
   }));
 }
 
+/** The optional Vercel secret belongs only to the production collector step. */
+export function productionSecretProblems(text) {
+  const out = [], binding = "          VERCEL_TOKEN: ${{ steps.config.outputs.production_vercel == 'true' && secrets.VERCEL_API_TOKEN || '' }}";
+  const steps = text.split(/\n(?= {6}- )/);
+  const collectors = steps.filter(s => /^ {6}- name: Collect production evidence\n/.test(s));
+  if (collectors.length !== 1 || !collectors[0].includes(binding + '\n')) out.push('production: one step-scoped Vercel secret binding is required');
+  for (const step of steps) {
+    const body = code(step).map(x=>x.line).join('\n');
+    if (/^ {6}- name: Collect production evidence\n/.test(step)) {
+      if (!/\n {8}run: node scripts\/keel\/production-night\.mjs\n(?:\s*#[^\n]*\n)*$/.test(step.trimEnd() + '\n')) out.push('production: only the bounded collector may receive the provider secret');
+      if (/VERCEL_TOKEN|VERCEL_API_TOKEN|secrets\./.test(body.replace(binding,''))) out.push('production: provider secret must not be duplicated, printed or exported');
+    } else if (/VERCEL_TOKEN|VERCEL_API_TOKEN|secrets\./.test(body.replace('secrets[steps.config.outputs.setup_token]', ''))) out.push('production: provider secret outside collection step');
+  }
+  return out;
+}
+
 /**
  * Every rule broken by one workflow's text: [string]. `name` is its file name,
  * `declared` the secret names its practice declares for it.
  */
 export function problems(name, text, declared = []) {
-  const out = [];
+  const out = name === 'keel-night.yml' ? productionSecretProblems(text) : [];
   const lines = code(text);
   const prefix = PREFIX[name];
   if (!/^concurrency:\s*\n\s+group:\s*\S/m.test(text)) out.push('no concurrency group');
@@ -178,8 +194,8 @@ test('the night workflow measures before it drains, pushes only its dated branch
   assert.match(night, /if \[ "\$CODE" = 2 \] \|\| \[ -z "\$CODE" \]; then[\s\S]*?exit 1/, 'a broken instrument (or no reading) is red');
   assert.match(night, /if \[ "\$GATE" != ok \]; then[\s\S]*?exit 1/, 'a failing gate is red');
   assert.doesNotMatch(night.slice(at('if [ "$CODE" = 1 ]')), /exit 1/, 'outside a bound is news, not red');
-  assert.doesNotMatch(night, /secrets\./, 'the night needs no secret: it runs the project\'s own scripts');
-  assert.deepEqual(night.match(/secrets\[[^\]]*\]/g), ['secrets[steps.config.outputs.setup_token]'], 'its one secret is the project\'s own setupToken, by name');
+  assert.deepEqual(productionSecretProblems(night), [], 'only optional production collection receives its declared provider secret');
+  assert.deepEqual(night.match(/secrets\[[^\]]*\]/g), ['secrets[steps.config.outputs.setup_token]'], 'dynamic secrets remain confined to the project setupToken');
 });
 
 test('mutations: a workflow that breaks a rule fails', async () => {
@@ -2533,6 +2549,17 @@ test('a robot PR published on a night whose plan ticks fail still gets its other
  * write issues; send and finalize run only when decide says the night is
  * over and unsent; a failed send fails the run. Returns the broken rules.
  */
+export function productionMorningProblems(text) {
+  const out = [], send = jobsOf(text).find(j=>j.id==='send')?.text ?? '';
+  const steps = send.split(/\n(?= {6}- )/);
+  const restore = (steps.find(s=>/^ {6}- name: Restore production observations for the brief\n/.test(s)) ?? '').trimEnd() + '\n';
+  const verdict = steps.find(s=>/^ {6}- name: Production restoration verdict\n/.test(s)) ?? '';
+  if (!restore.includes('        id: production_restore\n') || !restore.includes('          code=0\n          node scripts/keel/production-night.mjs --restore-only || code=$?\n          echo "code=$code" >> "$GITHUB_OUTPUT"\n')) out.push('send: restoration must capture and publish its real exit code');
+  if (!verdict.includes('        if: always()\n') || !verdict.includes('          RESTORE_CODE: ${{ steps.production_restore.outputs.code }}\n') || !verdict.includes('          if [ "${RESTORE_CODE:-missing}" != 0 ]; then\n') || !/\n {12}exit 1\n {10}fi/.test(verdict)) out.push('send: restoration requires an always-run fail-closed verdict');
+  if (send.indexOf('name: Restore production observations') > send.indexOf('name: Send the brief') || send.indexOf('name: Production restoration verdict') < send.indexOf('name: Send the brief')) out.push('send: restore, attempt brief, then verdict');
+  return out;
+}
+
 export function morningProblems(text) {
   const out = [];
   if (!/^on:\n {2}workflow_run:\n {4}workflows: \[keel-night(?:, keel-climb, keel-robot)?\]\n {4}types: \[completed\]\n {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "[^"]+"\n {2}workflow_dispatch: \{\}\n/m.test(text)) out.push('not started by keel-night, keel-climb and keel-robot finishing, by a schedule and by hand');
@@ -2552,7 +2579,7 @@ export function morningProblems(text) {
   }
   if (JSON.stringify(perms('decide')) !== JSON.stringify(['contents: read', 'issues: read'])) out.push('decide reads contents and issues, and writes nothing');
   if (JSON.stringify(perms('finalize')) !== JSON.stringify(['contents: write', 'pull-requests: write'])) out.push('finalize writes contents and one PR, nothing else');
-  if (JSON.stringify(perms('send')) !== JSON.stringify(['contents: read', 'issues: write'])) out.push('send reads contents and writes issues, nothing else');
+  if (JSON.stringify(perms('send')) !== JSON.stringify(['actions: read', 'contents: read', 'issues: write'])) out.push('send reads contents and production artifacts, and writes issues only');
   // Phase 78: the card job reads (contents, and the artifacts its canvas journal lives in); it writes only the canvas.
   if (JSON.stringify(perms('card')) !== JSON.stringify(['actions: read', 'contents: read'])) out.push('card reads contents and actions, and writes nothing on GitHub');
   if (!(jobs.card ?? '').includes("    needs: decide\n    if: needs.decide.outputs.plan == 'found' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == github.event.repository.default_branch)\n")) out.push('card: runs only for a night with a plan, from a default-branch pass');
@@ -2565,7 +2592,8 @@ export function morningProblems(text) {
   if (!(jobs.finalize ?? '').includes("    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n")) out.push('finalize: runs whenever the night is over, never gated on the brief being unsent');
   if (!/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n(?:\s+#[^\n]*\n)*\s+if [^\n]*; then\n\s+echo "Nothing changed[^\n]*\n\s+exit 0/.test(jobs.finalize ?? '')) out.push('finalize: a run with nothing new changes nothing (git status --porcelain)');
   if (!(jobs.send ?? '').includes("&& needs.decide.outputs.assignee == 'set'")) out.push('send: runs only with an assignee');
-  if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n(?:\n| *#[^\n]*\n)*$/.test(`${jobs.send ?? ''}\n`)) out.push('send: the send is its step\'s whole command, so its failure fails the run');
+  if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n(?:\n| *#[^\n]*\n)*$/.test((jobs.send ?? '').split(/\n(?= {6}- )/).find(s=>/^ {6}- name: Send the brief\n/.test(s)) + '\n')) out.push('send: the send is its step\'s whole command, so its failure fails the run');
+  out.push(...productionMorningProblems(text));
   if (!/node scripts\/keel\/morning\.mjs decide --github-output "\$GITHUB_OUTPUT"/.test(jobs.decide ?? '')) out.push('decide: runs morning.mjs decide into the job\'s outputs');
   if (!/node scripts\/keel\/morning\.mjs finalize --date "\$DAY"/.test(jobs.finalize ?? '')) out.push('finalize: runs morning.mjs finalize');
   return out;
@@ -3021,4 +3049,50 @@ test('PR #182: a conditional publish group is fixed only when every job it cover
   const jobLevel = extra => `name: deploy\non: push\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n${extra}    concurrency:\n      group: ${group}\n    steps:\n      - run: ./deploy.sh\n`;
   assert.match(problems(jobLevel('')).join('\n'), /cannot establish/);
   assert.deepEqual(problems(jobLevel('    if: github.run_attempt == 1\n')), []);
+});
+
+
+test('production credentials are conditional on validated enabled Vercel config and scoped to collection', async () => {
+  const text = await readFile(join(KEEL,'practices/night/files/.github/workflows/keel-night.yml'),'utf8');
+  assert.deepEqual(productionSecretProblems(text),[]);
+  for (const changed of [
+    text.replace("steps.config.outputs.production_vercel == 'true' && secrets.VERCEL_API_TOKEN || ''", 'secrets.VERCEL_API_TOKEN'),
+    text.replace('        run: node scripts/keel/production-night.mjs', '        run: echo "$VERCEL_TOKEN"'),
+    text.replace('      - name: Install', '      - name: Install\n        env:\n          VERCEL_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}'),
+  ]) assert.ok(productionSecretProblems(changed).length);
+  const dir = await mkdtemp(join(tmpdir(),'keel-production-config-'));
+  try {
+    await mkdir(join(dir,'.keel'));
+    await cp(join(KEEL,'practices/night/files/scripts'),join(dir,'scripts'),{recursive:true});
+    const script = runBlocks(text).find(s=>s.step==='Read the config').script;
+    const source = {id:'acme',provider:'vercel',service:'acme',environment:'production',project:'prj_acme',scope:'team_acme',windowMinutes:60,maxEvents:100,maxBytes:10000,timeoutMs:5000,threshold:2};
+    for (const [production, expected] of [[undefined,false],[{version:1,enabled:false},false],[{version:1,enabled:true,sources:[source]},true],[{version:1,enabled:true,sources:[{...source,provider:'gcp',region:'us-west1'}]},false]]) {
+      await writeFile(join(dir,'.keel/keel.json'),JSON.stringify({production}));
+      await writeFile(join(dir,'output'),'');
+      const result = run('bash',['-e','-c',script],{cwd:dir,env:{...process.env,GITHUB_OUTPUT:join(dir,'output'),GITHUB_ENV:join(dir,'env')}});
+      assert.equal(result.status,0,result.stderr);
+      assert.match(await readFile(join(dir,'output'),'utf8'),new RegExp(`^production_vercel=${expected}$`,'m'));
+    }
+    await writeFile(join(dir,'.keel/keel.json'),JSON.stringify({production:{version:1,enabled:true,sources:[{...source,maxEvents:0}]}}));
+    assert.notEqual(run('bash',['-e','-c',script],{cwd:dir,env:{...process.env,GITHUB_OUTPUT:join(dir,'output'),GITHUB_ENV:join(dir,'env')}}).status,0);
+  } finally { await rm(dir,{recursive:true,force:true}); }
+});
+
+test('morning restoration failure still attempts the brief and fails the final verdict', async () => {
+  const text = await readFile(join(KEEL,'practices/night/files/.github/workflows/keel-morning.yml'),'utf8');
+  assert.deepEqual(productionMorningProblems(text),[]);
+  for (const changed of [text.replace('--restore-only || code=$?', '--restore-only || true'), text.replace('if: always()\n        env:\n          RESTORE_CODE', 'if: success()\n        env:\n          RESTORE_CODE'), text.replace('RESTORE_CODE:-missing','RESTORE_CODE:-0')]) assert.ok(productionMorningProblems(changed).length);
+  assert.ok(morningProblems(text.replace('        id: production_restore','        id: production_restore\n        continue-on-error: true')).length);
+  assert.ok(morningProblems(text.replace('      actions: read','      actions: write')).length);
+  const blocks = runBlocks(text), dir = await mkdtemp(join(tmpdir(),'keel-production-verdict-'));
+  const restore = blocks.find(s=>s.step==='Restore production observations for the brief').script;
+  const send = blocks.find(s=>s.step==='Send the brief').script;
+  const verdict = blocks.find(s=>s.step==='Production restoration verdict').script;
+  try {
+    const script = `node() { if [ "$2" = "--restore-only" ]; then return 7; else echo brief-attempted; fi; }\n${restore}\n${send}\nRESTORE_CODE=$(sed -n 's/^code=//p' "$GITHUB_OUTPUT")\n${verdict}`;
+    const result = run('bash',['-e','-c',script],{cwd:dir,env:{...process.env,GITHUB_OUTPUT:join(dir,'output'),DAY:'2026-01-01'}});
+    assert.equal(result.status,1,result.stderr); assert.match(result.stdout,/brief-attempted/);
+    assert.equal((await readFile(join(dir,'output'),'utf8')).trim(),'code=7');
+    for (const [value,status] of [['',1],['0',0],['7',1]]) assert.equal(run('bash',['-e','-c',verdict],{cwd:dir,env:{...process.env,RESTORE_CODE:value}}).status,status);
+  } finally { await rm(dir,{recursive:true,force:true}); }
 });
