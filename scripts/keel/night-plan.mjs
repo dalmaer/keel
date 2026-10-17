@@ -450,7 +450,11 @@ export async function personaCandidates({ root, config, env, date, inputs }) {
  * inputs }) → [item], its items passed through admit after keel's own. A
  * source that throws is an input the plan cannot read.
  */
-export const CANDIDATE_SOURCES = Object.freeze([personaCandidates]);
+export async function productionCandidates(input) {
+  if (!input.config?.production) return [];
+  return (await import('./production.mjs')).productionCandidates(input);
+}
+export const CANDIDATE_SOURCES = Object.freeze([productionCandidates, personaCandidates]);
 
 // ---- the default plan -------------------------------------------------------
 

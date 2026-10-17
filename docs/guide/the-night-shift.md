@@ -712,3 +712,10 @@ jobs measure keel's own numbers, so usually none) a `triage` item saying so,
 because a build no pass takes would sit in the plan all night. Each broken
 goal is a `review` item. A goal is only as good as its command: keel
 checks that it prints one number, not that the number is the right one.
+
+## Production error evidence
+
+The optional `production` configuration adds bounded read-only log collection to
+the existing night. Recurring signatures enter triage; unavailable collection is
+reported separately from findings and the gate. See [Production errors](production-errors.md)
+for configuration, retention and the evidence required to verify a deployed fix.

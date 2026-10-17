@@ -9,11 +9,16 @@ onto a page nobody opens (keel lesson 3). A commit step that tests
 (ledger's audit agent lost every report to it).
 
 **The rule.** A project's night runs from its own repo: everything it runs
-is a managed file of this practice; it never fetches keel and needs no
-secret (design §6, "Projects run on their own"). `keel-night.yml` runs
+is a managed file of this practice; it never fetches keel (design §6,
+"Projects run on their own"). Core reporting needs only the job's GitHub token.
+Configured Vercel production collection optionally uses `VERCEL_API_TOKEN`,
+mapped to `VERCEL_TOKEN` only in the collection step. Off and other-provider
+projects need no Vercel secret; recovery and other provider children strip it.
+The gate, plan and morning receive no provider credential. `keel-night.yml` runs
 every night at 07:23 UTC (and by hand):
 
-0. Tonight's plan is written before anything runs (phase 73):
+0. Read-only production observation supplies evidence for tonight's plan. The
+   plan is written before gate or agent work begins (phase 73):
    `node scripts/keel/night-plan.mjs tonight` reads the plan branch
    `keel-night-plan` and uses its `.keel/night/plan.json`
    when it is valid and dated for this run's UTC date; otherwise it writes
@@ -80,7 +85,10 @@ every night at 07:23 UTC (and by hand):
    plan" as one data-only PR, `keel-night/<date>-final`, which the drain
    merges with the series (a run with nothing new changes nothing, so a
    later build outcome still arrives). Only the send job may write issues; a failed send
-   is red. Without an assignee nothing is sent (a notice). On every run, its
+   is red. The send job also has `actions: read` solely to restore production
+   observations from the newest night artifact. Restoration records its exit
+   code, the brief is attempted, and an always-run verdict fails the job on
+   missing or failed restoration. Neither failure is swallowed. Without an assignee nothing is sent (a notice). On every run, its
    card job (phase 78) republishes tonight's plan as the canvas's live card
    `night-plan` (`keel morning --card --yes`) when the canvas is set for
    nightly publishing and lists `night-plan` live, else a notice and nothing

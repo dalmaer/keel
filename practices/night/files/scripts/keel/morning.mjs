@@ -1,3 +1,4 @@
+import { status as productionStatus, productionLines } from './production.mjs';
 // The morning (keel practice `night`; managed: keel render rewrites it). When
 // the night is over, one message says what it did: the brief, in isocan's
 // order (done, tried, failed and why, left alone or not finished by, the
@@ -384,7 +385,7 @@ const isPr = link => /^https:\/\/[^/]+\/[^/]+\/[^/]+\/pull\/\d+$/.test(link ?? '
  * review, triage), failed and why, left alone (skipped, left alone, will not
  * touch), not finished (by readyBy when it passed), and the owner's next.
  */
-export function renderBrief({ plan, now = new Date(), health = {}, links = {}, verify = null }) {
+export function renderBrief({ plan, now = new Date(), health = {}, links = {}, verify = null, production = null }) {
   const r = readiness(plan, now);
   const done = plan.items.filter(i => i.kind === 'build' && i.status === 'done');
   const tried = plan.items.filter(i => i.kind !== 'build' && i.status === 'done');
@@ -393,6 +394,7 @@ export function renderBrief({ plan, now = new Date(), health = {}, links = {}, v
   const open = plan.items.filter(i => !TERMINAL.includes(i.status));
   const unfinishedHead = r.late ? `## Not finished by ${r.readyBy}` : '## Still going';
   const next = [
+    ...productionLines(production),
     // Production first: a failed verify (phase 81), and a verify record that could not be read, never silence.
     ...(verify?.failed ?? []).map(verifyLine),
     ...(verify?.unread ? [`The verify record (${VERIFY_BRANCH}:${VERIFY_FILE}) could not be read: ${one(verify.unread)}. Whether production passed is unknown.`] : []),
@@ -442,8 +444,9 @@ export async function brief({ root, date, env = process.env, now = new Date() })
     const v = readVerify(root);
     verify = { failed: verifyFailuresFor(v.results, night, { production: productionOf(config) }), unread: v.unread ?? null };
   }
-  const b = renderBrief({ plan: found.plan, now, health, links, verify });
-  return { data: { ok: true, date: night, title: titleOf(night), from: found.from, sources: found.sources, readiness: b.readiness, sections: b.sections, next: b.next, links, verify, markdown: b.markdown, plan: found.plan }, text: b.markdown.trimEnd() };
+  const production = await productionStatus({root,config,now});
+  const b = renderBrief({ plan: found.plan, now, health, links, verify, production });
+  return { data: { ok: true, date: night, title: titleOf(night), from: found.from, sources: found.sources, readiness: b.readiness, sections: b.sections, next: b.next, links, verify, production, markdown: b.markdown, plan: found.plan }, text: b.markdown.trimEnd() };
 }
 
 // ---- sending -----------------------------------------------------------------

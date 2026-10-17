@@ -1,7 +1,7 @@
 # keel — agent cold start
 
 Keel installs phases, roadmaps, lessons and evidence.
-Run in a project (`.keel/keel.json`); init/adopt also run outside one.
+Run in a project; init/adopt also run outside one.
 Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
 
 Verbs (all take `--json`; parse JSON, never prose):
@@ -26,6 +26,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel night plan|tick` — the plan
 - `keel goodnight` — shape it
 - `keel morning` — the brief; `--send`
+- `keel production` — status, collect, spec, verify
 - `keel fleet` — fleet practice, health, CI
 - `keel fleet update` — PRs for projects behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id>`
@@ -48,15 +49,14 @@ Rules that bite:
 - Status lives in each `docs/phases/NN-*.md` front matter. Never edit
   `docs/ROADMAP.md`; it is generated.
 - `built` and `lived-in` need an evidence file. Never invent evidence.
-- Managed files are keel's, seeded files the project's: render rewrites
-  only managed files and blocks.
+- Render rewrites managed files and blocks; seeded files are the project's.
 - ⚑ steps (creating repos, secrets, Pages, issues elsewhere, scheduled model
   spend) wait for the owner's yes.
 
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -2327,3 +2327,70 @@ removing them. Never delete the intent or subject reservation to retry a POST.
 The exported issue API takes an explicit stateDir and stable subjectKey/instanceId
 for proposal callers; merge/delivery facts never establish proposal acceptance.
 See docs/guide/the-robot.md for rollout and the owner walk.
+
+<!-- topic: production | bounded production error evidence and repair preparation -->
+
+`keel production status|collect|spec|verify --json` uses `.keel/keel.json`
+`production`. Off by default. `version: 1`, `enabled: true`, and `sources`
+(1–8) enable it. Static projects use `enabled: false, applicability:
+"not-applicable"`; that is not a healthy monitored runtime.
+
+Each source requires `id`, `provider` (`gcp`, `vercel`, `json`), `service`,
+`environment: "production"`, and positive integer bounds: `windowMinutes`
+(max 1440), `maxEvents` (max 10000), `maxBytes` (max 4194304), `timeoutMs`
+(max 60000), `threshold` (max 10000). GCP needs `project` and `region`;
+Vercel needs `project` and `scope`. The public installed `gcloud`/`vercel`
+CLIs and authorized log-read identity must be available. The night passes
+existing secret `VERCEL_API_TOKEN` as `VERCEL_TOKEN` only to the collection step; no credential is
+printed or retained. Provider limits and unproven sampling/retention remain
+coverage gaps, even on successful reads.
+
+`collect [--source ID] [--start UTC --end UTC]` previews (exit 3); `--yes`
+reads and retains sanitized observations. UTC is ISO ending Z; the default
+is the configured window ending now. Error-only reads have unknown traffic.
+State is `.keel/production/`, ignored by Git. Replay deduplicates source-scoped
+IDs. Unknown identity is a lower bound. Keep 64 windows/source and 64 receipts;
+window eviction is disclosed. Unresolved incidents/identities are never pruned:
+the 8 MiB state bound refuses further writes instead. A changed source scope
+requires a new id. `status --recover --yes` completes a pending atomic write;
+a remaining writer lock must first be inspected and its writer proved stopped.
+
+JSON sources name a confined `input` path. Input schema:
+`{version:1, source, service, environment, start, end, coverage:"complete",
+events:[{id,timestamp,exceptionType,stack,revision}]}`. Scope/window must match.
+`sampled`, `truncated`, `nextPage`, `expired`, malformed rows and missing times
+remain gaps. Messages/request data are not retained; code locations, identities,
+revisions and normalized shapes are hashes. JSON coverage is declared adapter
+evidence, not independent proof of provider completeness.
+
+`spec --incident HASH` returns a deterministic robot rubric and stable subject
+key. Reproduction is an owner blocker. Review the rubric, then
+`spec --incident HASH --rubric FILE [--yes]` uses the existing robot policy and
+`.keel/robot-issues` recovery. An uncertain POST is never repeated. This feature
+creates no budget, merges nothing and deploys nothing.
+
+`verify --incident HASH --revision FULL_SHA [--probe /path] --yes` requires
+complete post-error coverage, a recorded deployment preceding that window,
+and fresh exact-revision/smoke verification. Source `site` must match delivery;
+source `equivalentProbe` explicitly authorizes a delivery smoke path as a traffic
+equivalent, but its read must fall within the observed window. A later smoke alone is inconclusive. First `verify --yes` records revision evidence from the real delivery check.
+Run it again to record a separate `probeReceipt` with `startedAt` and
+`completedAt` bracketing the entire check. Collect a complete window containing
+that entire interval, starting strictly after the earlier check completed.
+Then verify again: it uses the matching interval and separate prior revision
+evidence plus a fresh live check. Completion-only windows are inconclusive.
+Probe receipts use version 2; completion-only version-1 receipts are refused. Sources retain at most 32 timed probes, disclosing
+evictions; no imported boolean supplies probe evidence. Otherwise traffic remains unknown and verification is inconclusive.
+JSON booleans cannot establish deployment or traffic. Recurrence after verified
+resolution becomes regressed. Issue closure and merge do not change acceptance.
+
+The installed night restores the newest enabled attempt's immutable
+`keel-production-ATTEMPT` artifact, collects before planning, and retains a
+sanitized snapshot for 90 days. First run bootstraps from complete history with no prior enabled run, or an
+explicit `production.since` UTC boundary; earlier coverage stays unavailable. Missing/expired/ambiguous newest evidence blocks
+recovery; never falls back. Unavailable reads/recovery failures still allow the health report to run and
+make the workflow verdict red. Successful partial reads report gaps without
+failing the workflow. Nightly cadence shorter than the configured coverage
+window is not assumed continuous. Plan triage, health and morning expose
+candidates and gaps. Exit 0 observed/prepared; 1 unavailable/inconclusive; 2 refused;
+3 preview. All commands accept `--json`.

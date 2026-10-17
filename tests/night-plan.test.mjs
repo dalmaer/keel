@@ -304,7 +304,7 @@ test('the default plan is pure, and other sources plug in as candidate items thr
   assert.match(plain.items[0].title, /no health page yet/);
   assert.deepEqual(plain.leftOpen, ['climb: climb is off']);
   assert.deepEqual(defaultPlan(inputs), plain, 'same inputs, same plan');
-  assert.deepEqual(CANDIDATE_SOURCES.map(s => s.name), ['personaCandidates'], 'the personas practice is the one other source');
+  assert.deepEqual(CANDIDATE_SOURCES.map(s => s.name), ['productionCandidates', 'personaCandidates'], 'production triage and personas extend the existing plan');
   // A persona's missed goal, as phase 75 hands it in: a build with its number, handed to the climb job
   // that measures it (phase 78); the robot's four PRs leave room for one.
   const persona = n => ({ id: `perf-${n}`, title: `Acme bundle ${n}`, kind: 'build', source: 'persona:performance', lane: 'persona:performance', number: { measure: 'bundle_bytes', bound: 747000, better: 'lower' } });

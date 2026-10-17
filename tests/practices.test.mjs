@@ -311,3 +311,26 @@ test('the optional personas practice installs the runner and an example persona,
     assert.ok(optionalPractices().includes('personas'), 'personas is only ever asked for');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+
+test('optional production secrets are validated and needed only for configured Vercel', async () => {
+  const { secretsNeeded } = await import('../lib/init.mjs');
+  const practices = await load();
+  const source = { id:'acme', provider:'vercel', service:'acme', environment:'production', project:'prj_acme', scope:'team_acme', windowMinutes:60, maxEvents:100, maxBytes:10000, timeoutMs:5000, threshold:2 };
+  const config = sources => ({ production:{version:1,enabled:true,sources} });
+  for (const c of [{}, {production:{version:1,enabled:false}}, config([{...source,provider:'gcp',region:'us-west1'}])]) assert.deepEqual(secretsNeeded(practices,['night'],c), []);
+  const needed = secretsNeeded(practices,['night'],config([source]));
+  assert.equal(needed.length,1); assert.equal(needed[0].name,'VERCEL_API_TOKEN'); assert.equal(needed[0].optional,true);
+  assert.match(needed[0].why,/OPTIONAL/);
+  assert.throws(()=>secretsNeeded(practices,['night'],config([{...source,maxEvents:0}])));
+  const dir = await temp('optional-secret');
+  try {
+    await mkdir(join(dir,'acme/files'),{recursive:true});
+    await writeFile(join(dir,'acme/files/a.md'),'Acme');
+    const spec = {name:'acme',summary:'Acme',requires:[],files:[{path:'a.md',from:'a.md',kind:'managed'}]};
+    for (const metadata of [{optional:'true'}, {when:'unknown',optional:true}, {when:'production-vercel'}, {when:'production-vercel',optional:false}]) {
+      await writeFile(join(dir,'acme/practice.json'),JSON.stringify({...spec,secrets:[{name:'ACME_TOKEN',why:'Acme',workflow:'acme.yml',...metadata}]}));
+      await assert.rejects(load(dir),/secrets/);
+    }
+  } finally { await rm(dir,{recursive:true,force:true}); }
+});

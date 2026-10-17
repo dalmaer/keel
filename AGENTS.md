@@ -181,6 +181,16 @@ revision, dirty paths, active jobs and next action; it does not transfer a phase
 claim. Revalidate ownership on resume. Automatic tuning only selects within
 the experiment's envelope; it never enlarges a budget or changes unrelated rules.
 
+## Production errors
+
+`keel production` collects bounded, sanitized application error evidence through
+existing night, plan and morning reports. Recurring signatures become repair specs
+through the existing robot policy; collection grants no agent budget or deployment
+permission. Keep unavailable coverage explicit and preserve recovery receipts.
+A merged fix is not production verification: require serving-revision evidence,
+a complete observation window, traffic or an approved probe, and no recurrence.
+See [the production guide](docs/guide/production-errors.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for

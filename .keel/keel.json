@@ -88,5 +88,10 @@
       "pulse",
       "night-plan"
     ]
+  },
+  "production": {
+    "version": 1,
+    "enabled": false,
+    "applicability": "not-applicable"
   }
 }

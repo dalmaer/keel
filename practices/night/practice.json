@@ -2,6 +2,9 @@
   "name": "night",
   "summary": "The night shift: a nightly health page as one PR, its queue drained by machinery, all from scripts in the project's own repo; a red night is a failed workflow.",
   "requires": ["base", "agents-md"],
+  "secrets": [
+    { "name": "VERCEL_API_TOKEN", "optional": true, "when": "production-vercel", "why": "OPTIONAL: only configured Vercel production collection uses it, as step-scoped VERCEL_TOKEN; off and other-provider projects need none", "workflow": ".github/workflows/keel-night.yml" }
+  ],
   "files": [
     { "path": "scripts/keel/planning-config.mjs", "from": "scripts/keel/planning-config.mjs", "kind": "managed" },
     { "path": ".github/workflows/keel-night.yml", "from": ".github/workflows/keel-night.yml", "kind": "managed" },
@@ -28,6 +31,10 @@
     { "path": "scripts/keel/gate.mjs", "from": "scripts/keel/gate.mjs", "kind": "managed" },
     { "path": "scripts/keel/stalls.mjs", "from": "scripts/keel/stalls.mjs", "kind": "managed" },
     { "path": "scripts/keel/pr-body.mjs", "from": "scripts/keel/pr-body.mjs", "kind": "managed" },
+    {"path": "scripts/keel/production.mjs", "from": "scripts/keel/production.mjs", "kind": "managed"},
+    {"path": "scripts/keel/production-store.mjs", "from": "scripts/keel/production-store.mjs", "kind": "managed"},
+    {"path": "scripts/keel/production-collectors.mjs", "from": "scripts/keel/production-collectors.mjs", "kind": "managed"},
+    {"path": "scripts/keel/production-night.mjs", "from": "scripts/keel/production-night.mjs", "kind": "managed"},
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "night" }
   ]
 }
