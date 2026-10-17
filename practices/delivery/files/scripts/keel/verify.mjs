@@ -5,7 +5,7 @@
 // and its live-SHA deploy skip (dalmaer/ledger at c47b93b3, the owner's own;
 // adapted, no code copied).
 //
-//   node scripts/keel/verify.mjs <sha> [--site <origin>] [--within <s>] [--every <s>] [--record] [--json]
+//   node scripts/keel/verify.mjs <sha> [--site <origin>] [--within <s>] [--every <s>] [--exact] [--record] [--json]
 //   node scripts/keel/verify.mjs live <sha> [--site <origin>] [--json]
 //
 // .keel/keel.json "delivery": { "site": "https://anvils.acme.example",
@@ -26,7 +26,10 @@
 // --within seconds (default 600) pass; then each smoke path is read once
 // (redirects are not followed) and its status compared. It passes only on
 // what it saw: the version contained the commit and every smoke check matched.
-// Otherwise it fails, naming each check that did not hold. --record adds the
+// Otherwise it fails, naming each check that did not hold. --exact (keel
+// promote --back, phase 82) accepts that commit alone, never a descendant: a
+// rollback to A is not verified by production still serving A's descendant B.
+// --record adds the
 // result to the branch keel-verify (verify.json, newest first, the last 30
 // and every failure of the last 72 hours, and each site's latest always),
 // where keel board and the morning brief read it.
@@ -170,7 +173,7 @@ const runOf = env => (env.GITHUB_ACTIONS === 'true' && /^https:\/\//.test(env.GI
  * checks. { ok, sha, site, serving, contained, attempts, waited, smoke: [{
  * path, expected, got }], failures, at, run }. ok is true only on what it saw.
  */
-export async function verify({ root, config, sha, site, within = WITHIN, every = EVERY, env = process.env, fetch, requestMs = REQUEST_MS, now = () => Date.now(), sleep = ms => delay(ms) }) {
+export async function verify({ root, config, sha, site, exact = false, within = WITHIN, every = EVERY, env = process.env, fetch, requestMs = REQUEST_MS, now = () => Date.now(), sleep = ms => delay(ms) }) {
   const p = plan({ root, config, sha, site, env });
   const versionUrl = new URL(p.version, p.origin).href;
   const started = now(), deadline = started + within * 1000, state = {};
@@ -180,7 +183,9 @@ export async function verify({ root, config, sha, site, within = WITHIN, every =
     const r = await readServing(versionUrl, { fetch, requestMs });
     if (r.sha) {
       serving = r.sha;
-      const c = contains({ root, env, expected: p.expected, serving: r.sha, state });
+      // A rollback (exact) needs the commit itself: a descendant still serving is the newer commit, not the one rolled back to.
+      const c = exact ? (r.sha === p.expected ? { yes: true } : { yes: false, why: `production serves ${short(r.sha)}, not exactly ${short(p.expected)} (a rollback is verified by the exact commit)` })
+        : contains({ root, env, expected: p.expected, serving: r.sha, state });
       if (c.yes) { contained = true; break; }
       last = c.why;
     } else last = `${p.version} ${r.error}`;
@@ -197,7 +202,7 @@ export async function verify({ root, config, sha, site, within = WITHIN, every =
     if (!matched) failures.push(`GET ${c.path}: expected ${c.status.join(' or ')}, got ${got ?? r.error}`);
   }
   const ok = contained === true && smoke.every(s => s.matched === true) && failures.length === 0;
-  return { ok, sha: p.expected, site: p.origin, version: p.version, serving, contained, attempts, waited, smoke, failures, at: new Date(now()).toISOString(), run: runOf(env) };
+  return { ok, sha: p.expected, site: p.origin, version: p.version, exact, serving, contained, attempts, waited, smoke, failures, at: new Date(now()).toISOString(), run: runOf(env) };
 }
 
 /** Does production already serve `sha` or a descendant? One read: { live, sha, site, serving, why }. */
@@ -251,15 +256,15 @@ export function record({ root, result, remote = 'origin', env = process.env, att
 
 /** What a verify says, one line, then one per failure. */
 export function verifyText(r) {
-  if (r.ok) return `keel verify: passed. ${r.site} serves ${short(r.serving)}, containing ${short(r.sha)}${r.smoke.length ? `; ${r.smoke.length} smoke check${r.smoke.length === 1 ? '' : 's'} matched` : ''}.`;
+  if (r.ok) return `keel verify: passed. ${r.site} serves ${r.exact ? `exactly ${short(r.sha)}` : `${short(r.serving)}, containing ${short(r.sha)}`}${r.smoke.length ? `; ${r.smoke.length} smoke check${r.smoke.length === 1 ? '' : 's'} matched` : ''}.`;
   return [`keel verify: FAILED for ${short(r.sha)} at ${r.site}:`, ...r.failures.map(f => `  - ${f}`)].join('\n');
 }
 
-const USAGE = 'usage: node scripts/keel/verify.mjs <sha> [--site <origin>] [--within <s>] [--every <s>] [--record] [--json] | live <sha> [--site <origin>] [--json]';
+const USAGE = 'usage: node scripts/keel/verify.mjs <sha> [--site <origin>] [--within <s>] [--every <s>] [--exact] [--record] [--json] | live <sha> [--site <origin>] [--json]';
 
-/** The script's arguments: { sub: 'verify' | 'live', sha, site?, within?, every?, record }; a throw (exit 2) on anything else. */
+/** The script's arguments: { sub: 'verify' | 'live', sha, site?, within?, every?, exact, record }; a throw (exit 2) on anything else. */
 export function parseArgs(args) {
-  const out = { sub: 'verify', record: false };
+  const out = { sub: 'verify', record: false, exact: false };
   const rest = [...args];
   if (rest[0] === 'live') { out.sub = 'live'; rest.shift(); }
   const valued = out.sub === 'live' ? ['--site'] : ['--site', '--within', '--every'];
@@ -267,6 +272,7 @@ export function parseArgs(args) {
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--record' && out.sub === 'verify') { out.record = true; continue; }
+    if (a === '--exact' && out.sub === 'verify') { out.exact = true; continue; }
     if (valued.includes(a)) {
       if (rest[i + 1] === undefined || rest[i + 1].startsWith('--')) throw new VerifyError(`${a} needs a value; ${USAGE}`);
       out[a.slice(2)] = rest[++i];
@@ -295,7 +301,7 @@ export async function run(args, { root = process.cwd(), env = process.env, fetch
     const r = await live({ root, config, sha: o.sha, site: o.site, env, fetch });
     return { data: r, text: `keel verify live: ${r.live ? 'yes' : 'no'}. ${r.why}.`, exitCode: r.live ? 0 : 1 };
   }
-  const r = await verify({ root, config, sha: o.sha, site: o.site, within: o.within, every: o.every, env, fetch });
+  const r = await verify({ root, config, sha: o.sha, site: o.site, exact: o.exact, within: o.within, every: o.every, env, fetch });
   let text = verifyText(r), exitCode = r.ok ? 0 : 1;
   if (o.record) {
     try { r.recorded = record({ root, result: r, env, production: deliveryOf(config).site }); text += `\nRecorded on ${VERIFY_BRANCH} (${short(r.recorded.commit)}).`; }

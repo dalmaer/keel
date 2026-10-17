@@ -862,3 +862,21 @@ test('phase 81: doctor names a bad verifier key ("delivery".site, version, smoke
   assert.ok((await lstat(join(dir, 'scripts/keel/verify.mjs'))).isFile());
   assert.deepEqual(configs(), []);
 });
+
+test('phase 82: doctor names a bad "delivery".promote and says keel promote reads it; scripts/keel/promote.mjs is rendered', async t => {
+  const dir = await project(t);
+  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
+  const configs = () => doctor(dir).data.lint.filter(l => l.rule === 'delivery-config').map(l => l.message);
+  // Even without the practice on, the key set is checked.
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, delivery: { promote: 'prod' } }, null, 2));
+  let found = configs();
+  assert.ok(found.some(m => /"delivery"\.promote must be "tag:<name>" or "branch:<name>".*; keel promote \(scripts\/keel\/promote\.mjs\) reads it$/.test(m)), JSON.stringify(found));
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, delivery: { promote: 'tag:prod' } }, null, 2));
+  found = configs();
+  assert.ok(found.some(m => /"delivery"\.promote needs "delivery"\.site and "delivery"\.version.*; keel promote \(scripts\/keel\/promote\.mjs\) reads it$/.test(m)), JSON.stringify(found));
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'], delivery: { promote: 'tag:prod', site: 'https://anvils.acme.example', version: '/api/version' } }, null, 2));
+  assert.equal(keel(['render'], dir).code, 0);
+  assert.ok((await lstat(join(dir, 'scripts/keel/promote.mjs'))).isFile());
+  assert.deepEqual(configs(), []);
+});

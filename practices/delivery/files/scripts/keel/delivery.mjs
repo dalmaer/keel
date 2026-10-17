@@ -7,9 +7,10 @@
 // tree, where the night's scripts are not beside it.
 //
 //   deliveryOf(config)        .keel/keel.json "delivery": { tested, gateWorkflow,
-//                             site, version, smoke }, validated, each error
-//                             naming its key (site, version and smoke: phase 81's
-//                             verifier, scripts/keel/verify.mjs)
+//                             site, version, smoke, promote }, validated, each
+//                             error naming its key (site, version and smoke: phase
+//                             81's verifier, scripts/keel/verify.mjs; promote:
+//                             phase 82's keel promote, scripts/keel/promote.mjs)
 //   concurrencyOf(text)       a workflow's concurrency blocks, read as text
 //   workflowKind(file, text, { gate })  'test', 'publish' or null
 //   concurrencyProblems(file, text, kind)  the rule, broken: [string]
@@ -202,8 +203,39 @@ export function deliveryProblems(config) {
     if (!Array.isArray(d.smoke) || d.smoke.length > SMOKE_MAX) out.push(`.keel/keel.json "delivery".smoke must be a list of at most ${SMOKE_MAX} checks, each a path ("/") or { "path": "/", "status": 200 }`);
     else d.smoke.forEach((c, i) => { const p = smokeProblem(c); if (p) out.push(`.keel/keel.json "delivery".smoke[${i}] ${p}`); });
   }
+  // keel promote's key (phase 82): the ref production deploys from, "tag:<name>" or "branch:<name>", or "none".
+  if (d.promote !== undefined) {
+    const p = promoteProblem(d.promote, d.tested ?? TESTED);
+    if (p) out.push(`.keel/keel.json "delivery".promote ${p}`);
+    else if (d.promote !== 'none' && (d.site === undefined || d.version === undefined)) out.push('.keel/keel.json "delivery".promote needs "delivery".site and "delivery".version: keel promote verifies that production serves the commit it moved to');
+  }
   if ((d.version !== undefined || d.smoke !== undefined) && d.site === undefined) out.push('.keel/keel.json "delivery".site is required with "delivery".version or "delivery".smoke: the production origin they are read from (like "https://anvils.acme.example")');
   return out;
+}
+
+/**
+ * What is wrong with a "delivery".promote value, or null: "tag:<name>" or
+ * "branch:<name>" (a ref name by git's rules, narrowed; a branch never the
+ * default branch nor the tested ref), or "none".
+ */
+function promoteProblem(value, tested) {
+  const like = 'must be "tag:<name>" or "branch:<name>", the ref production deploys from (like "tag:prod"), or "none"';
+  if (value === 'none') return null;
+  const m = typeof value === 'string' ? /^(tag|branch):(.+)$/.exec(value) : null;
+  if (!m) return `${like} (got ${JSON.stringify(value)})`;
+  const p = branchProblem(m[2]);
+  const defaultBranch = p !== null && /^cannot be (main|master)\b/.test(p);
+  if (p && !defaultBranch) return `${like} (got ${JSON.stringify(value)})`;
+  if (m[1] === 'branch' && defaultBranch) return `cannot be branch:${m[2]}: keel promote never writes the default branch`;
+  if (m[1] === 'branch' && m[2] === tested) return `cannot be branch:${m[2]}, the tested ref: the publisher moves that one, and production is promoted from it`;
+  return null;
+}
+
+/** "delivery".promote as a ref: { kind: 'tag' | 'branch', name, ref, spec }, or null for none (no promote). Validated by deliveryProblems. */
+export function promoteRefOf(value) {
+  if (value === undefined || value === null || value === 'none') return null;
+  const [, kind, name] = /^(tag|branch):(.+)$/.exec(value);
+  return { kind, name, ref: `refs/${kind === 'tag' ? 'tags' : 'heads'}/${name}`, spec: value };
 }
 
 /** How many smoke checks a project may name. */
@@ -250,7 +282,7 @@ export function deliveryOf(config) {
   if (problems.length) throw new DeliveryError(problems[0]);
   const d = config?.delivery ?? {};
   const smoke = (d.smoke ?? []).map(c => typeof c === 'string' ? { path: c, status: [200] } : { path: c.path, status: c.status === undefined ? [200] : [c.status].flat() });
-  return { tested: d.tested ?? TESTED, gateWorkflow: d.gateWorkflow ?? null, site: d.site ? new URL(d.site).origin : null, version: d.version ?? null, smoke };
+  return { tested: d.tested ?? TESTED, gateWorkflow: d.gateWorkflow ?? null, site: d.site ? new URL(d.site).origin : null, version: d.version ?? null, smoke, promote: promoteRefOf(d.promote) };
 }
 
 /** A workflow's top-level `name:`, unquoted, or null. */

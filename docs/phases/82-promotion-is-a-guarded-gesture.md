@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
 since: 2026-10-16
+owes: walk
 goal: G6
 spec: 2
 depends: [81]
-note: "Specified 2026-10-16 from isocan's hand-moved prod tag: keel promote moves production only to a tested commit and verifies it."
-evidence: []
+note: "Partial 2026-10-17: keel promote (the delivery practice's promote.mjs) moves delivery.promote only to a commit on the tested ref with phase 79's gate result, previews first, moves with --yes under a lease, and verifies production after; --back passes only on exactly the commit. No workflow runs it. The owner's one real promotion of isocan waits."
+evidence: ["evidence/2026-10-17-promote.md"]
 issue: 165
 ---
 
@@ -28,11 +29,11 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 ## Acceptance
 
-- [ ] `keel promote` refuses a commit not on the tested ref or without a passing gate, and moves the ref for one that is, only with `--yes`. `tests/promote.test.mjs`
-- [ ] After moving, it verifies production and reports; a failure suggests `--back` and moves nothing. `tests/promote.test.mjs`
-- [ ] `--back <commit>` moves the ref to an earlier tested commit with the same checks, and passes only when production reports exactly that commit: production still serving the newer commit after the ref moved is a failure, never a success. `tests/promote.test.mjs`
-- [ ] No installed workflow runs `keel promote`. `tests/workflows.test.mjs`
-- [ ] ⚑ by hand: the owner promotes isocan once with `keel promote` instead of moving the tag by hand.
+- [x] `keel promote` refuses a commit not on the tested ref or without a passing gate, and moves the ref for one that is, only with `--yes`. `tests/promote.test.mjs`
+- [x] After moving, it verifies production and reports; a failure suggests `--back` and moves nothing. `tests/promote.test.mjs`
+- [x] `--back <commit>` moves the ref to an earlier tested commit with the same checks, and passes only when production reports exactly that commit: production still serving the newer commit after the ref moved is a failure, never a success. `tests/promote.test.mjs`
+- [x] No installed workflow runs `keel promote`. `tests/workflows.test.mjs`
+- [ ] ⚑ by hand: the owner promotes isocan once with keel promote instead of moving the tag by hand.
 
 ## Your part
 
@@ -58,7 +59,15 @@ By hand: one real promotion.
 
 - **"Do not promote while somebody is presenting"** (isocan's rule) is a person's judgement; keel does not encode it.
 - **Known limit**: anyone who can push the tag can still move it by hand; keel guards its own command, not the ref.
+- **A docs-only commit at the tested tip** (2026-10-17, open): CI's gate step records it as "skipped: docs only" (phase 79), which is not a gate record, so promote refuses it, naming why; promote the tested commit before it. Accepting a skip by checking its base is left until a project hits it.
+- **Settled 2026-10-17, while building:**
+  - *Where it runs*: `keel promote` runs the project's own `scripts/keel/promote.mjs` (a managed delivery file beside the night's scripts it imports, `gate.mjs` and `verify.mjs`), so doctor sees drift in it and a project without it is told to update.
+  - *Which gate result*: phase 79's, `gate.mjs` `ciResult` (ledger evidence, not only the run's conclusion), for `delivery.gateWorkflow` else `ci.gateWorkflow`, at any age: the 24-hour window is for reusing a result instead of running the gate, not for whether a commit was tested.
+  - *A sideways move* (production on a commit the target does not contain, as after a hand-moved tag) is allowed forward; the preview lists the commits that leave production. Only an ancestor of production needs `--back`.
+  - *It does not `--record`* the verify: the project's deploy step records its own (phase 81); promote reports and exits by it.
+  - *It pushes with `--no-verify`*, as the publisher does: a pre-push gate on the owner's checkout tests that checkout, not the promoted commit.
+  - *A lightweight tag*: the tag is pushed as `<commit>:refs/tags/<name>`, so an annotated tag becomes a lightweight one; the lease is on the object origin had.
 
 ## Next action
 
-Write `keel promote` with `tests/promote.test.mjs` on a bare-origin fixture and a stub verify.
+The owner promotes isocan once with `keel promote` (preview, then `--yes`) instead of moving the tag by hand, once the delivery practice with `delivery.promote: "tag:prod"` has shipped there, and says whether the preview was enough.

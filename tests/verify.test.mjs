@@ -235,7 +235,7 @@ test('"delivery".site, version and smoke are validated, each error naming its ke
     assert.throws(() => deliveryOf({ delivery }), e => e.exitCode === 2 && key.test(e.message), JSON.stringify(delivery));
   }
   assert.deepEqual(deliveryProblems({ delivery: { site: 'http://127.0.0.1:8080', version: '/v', smoke: ['/', { path: '/a', status: [301, 302] }] } }), [], 'http on this machine (a local preview)');
-  assert.deepEqual(deliveryOf({ delivery: { site: 'https://anvils.acme.example/', version: '/v', smoke: ['/', { path: '/a', status: 307 }] } }), { tested: 'green', gateWorkflow: null, site: 'https://anvils.acme.example', version: '/v', smoke: [{ path: '/', status: [200] }, { path: '/a', status: [307] }] });
+  assert.deepEqual(deliveryOf({ delivery: { site: 'https://anvils.acme.example/', version: '/v', smoke: ['/', { path: '/a', status: 307 }] } }), { tested: 'green', gateWorkflow: null, site: 'https://anvils.acme.example', version: '/v', smoke: [{ path: '/', status: [200] }, { path: '/a', status: [307] }], promote: null });
   // The script: a bad key, no version, a bad --site, a short sha; each exit 2, naming it.
   const { prod, repo, dir } = await setup(t);
   await writeFile(join(repo.root, '.keel/keel.json'), JSON.stringify(config(prod.site, { smoke: ['nope'] })));

@@ -1,6 +1,6 @@
 {
   "name": "delivery",
-  "summary": "Changes are verified in parallel and published one at a time: after the gate passes on main, one queued publisher (keel-publish.yml) moves the tested ref (delivery.tested, default green) to the newest commit on main whose gate passed, skipping any a later one has passed and refusing a diverged ref; it never writes main, and deploys follow the tested ref. Production is then checked by the commit it serves (verify.mjs: delivery.site, version and smoke), a deploy skips itself when production already has the commit, and a failed verify is the owner's on the board and in the morning brief.",
+  "summary": "Changes are verified in parallel and published one at a time: after the gate passes on main, one queued publisher (keel-publish.yml) moves the tested ref (delivery.tested, default green) to the newest commit on main whose gate passed, skipping any a later one has passed and refusing a diverged ref; it never writes main, and deploys follow the tested ref. Production is then checked by the commit it serves (verify.mjs: delivery.site, version and smoke), a deploy skips itself when production already has the commit, and a failed verify is the owner's on the board and in the morning brief. keel promote (promote.mjs) moves the production ref (delivery.promote) only to a commit on the tested ref whose gate passed, previewed first, then verified (exactly that commit for --back); no workflow runs it.",
   "optional": true,
   "requires": ["night"],
   "secrets": [],
@@ -8,6 +8,7 @@
     { "path": ".github/workflows/keel-publish.yml", "from": ".github/workflows/keel-publish.yml", "kind": "managed" },
     { "path": "scripts/keel/publish.mjs", "from": "scripts/keel/publish.mjs", "kind": "managed" },
     { "path": "scripts/keel/delivery.mjs", "from": "scripts/keel/delivery.mjs", "kind": "managed" },
-    { "path": "scripts/keel/verify.mjs", "from": "scripts/keel/verify.mjs", "kind": "managed" }
+    { "path": "scripts/keel/verify.mjs", "from": "scripts/keel/verify.mjs", "kind": "managed" },
+    { "path": "scripts/keel/promote.mjs", "from": "scripts/keel/promote.mjs", "kind": "managed" }
   ]
 }

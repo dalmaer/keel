@@ -59,20 +59,36 @@ result to the branch `keel-verify` (`verify.json`); a failed latest verify is
 an owner's item on `keel board`, and each failure of the day before a night
 is a line in that night's morning brief.
 
+**Promotion is a guarded gesture** (phase 82, design item 5, after isocan's
+hand-moved `prod` tag): `keel promote [<commit>]` runs
+`scripts/keel/promote.mjs`, which moves `delivery.promote` (`tag:prod` or
+`branch:production`) only to a commit on the tested ref whose gate passed
+(phase 79's result, `gate.mjs` `ciResult`, at any age). Default: the tested
+ref's tip. It previews first (exit 3) and moves with `--yes`, with a lease,
+then verifies production with `verify.mjs`. A failed verify suggests `--back`
+and moves nothing. `keel promote --back <commit>` rolls back to an earlier
+tested commit with the same checks. It passes only when production reports
+exactly that commit (`verify.mjs --exact`), since a newer commit still
+serving contains the older one. It refuses to run in GitHub Actions; no
+workflow keel installs runs it.
+
 **Configuration** (`.keel/keel.json`): `"delivery": { "tested": "green",
 "gateWorkflow": "check.yml", "site": "https://anvils.acme.example",
-"version": "/api/version", "smoke": ["/", { "path": "/login", "status": 307 }]
-}`. `tested` is a branch's short name, never the
+"version": "/api/version", "smoke": ["/", { "path": "/login", "status": 307 }],
+"promote": "tag:prod" }`. `tested` is a branch's short name, never the
 default branch; `gateWorkflow` is the workflow whose success on `main` starts
 the publisher (its file or the name GitHub shows), default the project's gate
 workflow (`ci.gateWorkflow`, else `check.yml`, else the one running the
 check). `site` is https (http on localhost only) and required with `version`
 or `smoke`; `version` and each smoke path start with `/`; a smoke status is a
-code or a list of codes (default 200). Each error names its key. `"delivery".docsOnly` is the night's gate
+code or a list of codes (default 200). `promote` is `tag:<name>`,
+`branch:<name>` (never the default branch or the tested ref) or `none`, and
+needs `site` and `version`. Each error names its key. `"delivery".docsOnly` is the night's gate
 (phase 79).
 
 **Its files.** `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`,
-`scripts/keel/delivery.mjs` and `scripts/keel/verify.mjs` (managed). It
+`scripts/keel/delivery.mjs`, `scripts/keel/verify.mjs` and
+`scripts/keel/promote.mjs` (managed). It
 requires `night` (the gate result reader, `scripts/keel/ci.mjs` and `lib.mjs`,
 and the morning brief, `scripts/keel/morning.mjs`, which reads the verify
 record). Optional: `keel adopt --with delivery`; its publisher pushes a branch
