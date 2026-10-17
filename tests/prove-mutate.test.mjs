@@ -255,6 +255,19 @@ test('a mutant that does not parse is invalid even when the test imports the mod
   assert.equal(m.caught, m.total - 1, 'the number mutant is caught; the return mutant is not');
 });
 
+test('a project that loads its own sources through a preload is not syntax-checked by bare node: its mutants are judged by its tests', async t => {
+  // node --check knows no .jsx; the project's preload does, so only its own runner can say whether a mutant parses.
+  const loader = ["import { register } from 'node:module';",
+    "register('data:text/javascript,' + encodeURIComponent('import { readFileSync } from \"node:fs\"; export async function load(u, c, next) { return u.endsWith(\".jsx\") ? { format: \"module\", source: readFileSync(new URL(u)), shortCircuit: true } : next(u, c); }'));", ''].join('\n');
+  const pkg = `${JSON.stringify({ name: 'acme', type: 'module', scripts: { test: 'node --import ./tests/jsx-loader.mjs --test tests/*.test.mjs' } }, null, 2)}\n`;
+  const tst = [...TESTHEAD, "import { value } from '../lib/value.jsx';", "test('three', () => { assert.equal(value, 3); });", ''].join('\n');
+  const repo = await fixRepo(t, { base: { 'package.json': pkg, 'tests/jsx-loader.mjs': loader, 'lib/value.jsx': 'export const value = 2;\n' }, fix: { 'lib/value.jsx': 'export const value = 3;\n' }, tests: { 'tests/value.test.mjs': tst } });
+  const { j } = await mutate(repo, ['tests/value.test.mjs', '--fix', 'lib/value.jsx'], 0);
+  assert.deepEqual(j.mutate.invalid, []);
+  assert.equal(j.mutate.caught, j.mutate.total);
+  assert.ok(j.mutate.total > 0);
+});
+
 test('a mutant that does not finish is stopped at the time limit and reported inconclusive', async t => {
   const base = ['export function count(n) {', '  return n - 1;', '}', ''].join('\n');
   const fix = ['export function count(n) {', '  let i = 0;', '  while (i < n) i++;', '  return i;', '}', ''].join('\n');
