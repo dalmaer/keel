@@ -41,6 +41,13 @@ Nothing yet.
 Do the thing.
 `;
 
+test('an impossible since date is refused naming the file, never thrown as a bare RangeError (phase 85: shrunk case since 2000-01-32, seed 283816414)', () => {
+  for (const since of ['2000-01-32', '2026-13-01', '2026-00-10', '2026-02-30', '2025-02-29']) {
+    assert.throws(() => parsePhase('03-a-phase.md', phase({ since })), e => e.constructor === Error && e.message === '03-a-phase.md: invalid since date', since);
+  }
+  assert.equal(parsePhase('03-a-phase.md', phase({ since: '2024-02-29' })).since, '2024-02-29', 'a leap day is a day');
+});
+
 test('a well-formed phase parses', () => {
   const p = parsePhase('03-a-phase.md', phase());
   assert.equal(p.id, 3);

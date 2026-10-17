@@ -1,11 +1,12 @@
 ---
-status: planned
-since: 2026-10-16
+status: partial
+owes: walk
+since: 2026-10-17
 goal: G0
 spec: 2
 depends: [70, 73]
-note: "Specified 2026-10-16: a seeded, shrinking, zero-dependency generator drives properties over the plan validator, ticks, claims and front matter."
-evidence: []
+note: "Built 2026-10-17: tests/helpers/property.mjs (seeded, shrinking, zero-dependency) drives properties over the plan validator, ticks and the morning's merge, claims and front matter in the gate, each also run against planted bugs. They found two real bugs on their first run (a readyBy on an impossible day accepted; an impossible since thrown as a bare RangeError), fixed apart. Owes the owner one read of a shrunk failure."
+evidence: ["evidence/2026-10-17-properties.md"]
 issue: 170
 ---
 
@@ -28,10 +29,10 @@ The design is [Verification: tests that tell right from plausibly wrong](../rese
 
 ## Acceptance
 
-- [ ] The runner shrinks a failing case to its smallest and reports the seed that reproduces it. `tests/helpers/property.test.mjs`
-- [ ] The plan, tick and front-matter properties pass, and each fails on a planted bug of its kind (an impossible date accepted, an order-dependent merge). `tests/properties.test.mjs`
-- [ ] The claim race property holds for N racers. `tests/properties.test.mjs`
-- [ ] Properties run in `npm run check` within the test budget. `tests/properties.test.mjs`
+- [x] The runner shrinks a failing case to its smallest and reports the seed that reproduces it. `tests/helpers/property.test.mjs`
+- [x] The plan, tick and front-matter properties pass, and each fails on a planted bug of its kind (an impossible date accepted, an order-dependent merge). `tests/properties.test.mjs`
+- [x] The claim race property holds for N racers. `tests/properties.test.mjs`
+- [x] Properties run in `npm run check` within the test budget. `tests/properties.test.mjs`
 - [ ] ⚑ by hand: none beyond the gate; the owner reads one shrunk failure if one appears in review.
 
 ## Your part
@@ -42,7 +43,7 @@ The design is [Verification: tests that tell right from plausibly wrong](../rese
 - **Choices:** Obvious | Still hard to read
 - **Takes:** 10 minutes.
 - **Then:** Hard: the shrinker or the report is improved.
-- **Ready when:** a property has failed for real.
+- **Ready when:** a property has failed for real. Ready: two did on their first run (the evidence's "Real bugs found", seed 283816414).
 
 ## Real surfaces
 
@@ -56,7 +57,8 @@ Automated: `node --import ./tests/helpers/hermetic.mjs --test tests/helpers/prop
 
 - **Count**: small in the gate; a larger run could be a night measure later.
 - **Known limit**: properties cover these four modules first; others follow their own findings.
+- **Seed** (settled 2026-10-17, by building it): a fresh seed per run, printed on every failure and set by `KEEL_PROPERTY_SEED`, so the gate explores new inputs each run; a failure there is a finding to read, never a flake to rerun.
 
 ## Next action
 
-Write the runner with shrinking and seeds, then the plan-validator properties.
+The owner reads the two shrunk failures in the evidence (readyBy 2000-01-32T07:00:00Z; since 2000-01-32) and says Obvious or Still hard to read, then tick the ⚑ box and set built.
