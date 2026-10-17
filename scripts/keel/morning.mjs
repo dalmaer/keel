@@ -287,17 +287,36 @@ export function readVerify(root) {
   }
 }
 
-/** The failed verifies the brief for the night `date` carries: those recorded in the day before the night started. */
-export function verifyFailuresFor(results, date) {
+/** Production's origin, .keel/keel.json "delivery".site, or null when it names none (or none that parses). */
+export function productionOf(config) {
+  const site = config?.delivery?.site;
+  try { return typeof site === 'string' ? new URL(site).origin : null; } catch { return null; }
+}
+
+/**
+ * Whether a result is of production: its site is "delivery".site. With no
+ * site configured, every result is taken as production's (there is nothing
+ * to tell a preview by). A preview (verify.mjs --site) is never production's,
+ * so its pass never clears production's failure (PR #182 review).
+ */
+export const isProduction = (r, production) => !production || r.site === production;
+
+/**
+ * The failed verifies the brief for the night `date` carries: those recorded
+ * in the day before the night started, of any site (a preview's too, said as
+ * a preview's). `passedSince` is a later pass of the same site only.
+ */
+export function verifyFailuresFor(results, date, { production = null } = {}) {
   const end = Date.parse(`${date}T${pad(NIGHT_AT.hour)}:${pad(NIGHT_AT.minute)}:00Z`), start = end - 24 * 3600 * 1000;
   return results.filter(r => !r.ok && Date.parse(r.at) >= start && Date.parse(r.at) < end)
-    .map(r => ({ ...r, passedSince: results.some(o => o.ok && Date.parse(o.at) > Date.parse(r.at)) }));
+    .map(r => ({ ...r, preview: !isProduction(r, production), passedSince: results.some(o => o.ok && o.site === r.site && Date.parse(o.at) > Date.parse(r.at)) }));
 }
 
 /** One failed verify, as the brief and the board say it. */
 export function verifyLine(r) {
-  const since = r.passedSince ? ' Production has passed a verify since.' : '';
-  return `Production failed its verify for \`${r.sha.slice(0, 7)}\` at ${r.at}${r.site ? ` (${r.site})` : ''}: ${r.failures.join('; ')}.${r.run ? ` ${r.run}` : ''}${since}`;
+  const who = r.preview ? `The preview ${r.site}` : 'Production';
+  const since = r.passedSince ? ` ${r.preview ? 'It' : 'Production'} has passed a verify since.` : '';
+  return `${who} failed its verify for \`${r.sha.slice(0, 7)}\` at ${r.at}${r.site && !r.preview ? ` (${r.site})` : ''}: ${r.failures.join('; ')}.${r.run ? ` ${r.run}` : ''}${since}`;
 }
 
 // ---- the brief ---------------------------------------------------------------
@@ -384,7 +403,7 @@ export async function brief({ root, date, env = process.env, now = new Date() })
   let verify = null;
   if (Array.isArray(config.practices) && config.practices.includes('delivery')) {
     const v = readVerify(root);
-    verify = { failed: verifyFailuresFor(v.results, night), unread: v.unread ?? null };
+    verify = { failed: verifyFailuresFor(v.results, night, { production: productionOf(config) }), unread: v.unread ?? null };
   }
   const b = renderBrief({ plan: found.plan, now, health, links, verify });
   return { data: { ok: true, date: night, title: titleOf(night), from: found.from, sources: found.sources, readiness: b.readiness, sections: b.sections, next: b.next, links, verify, markdown: b.markdown, plan: found.plan }, text: b.markdown.trimEnd() };

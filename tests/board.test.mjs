@@ -1151,3 +1151,18 @@ test('a failed verify of production is the owner\'s item on the board; a passed 
   data = await board({ root }, { ...deps(root), env: { ...process.env, KEEL_CACHE: join(root, '.cache-test') }, fresh: true });
   assert.deepEqual(verifyOf(data).map(i => i.title), ['production failed its verify for a1b2c3d']);
 });
+
+// PR #182 review: a passing preview (verify.mjs --site … --record) after a production failure cleared production's item.
+test('a preview\'s pass never clears production\'s failed verify on the board; only production\'s own pass does', async t => {
+  const root = await acme({ git: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const prod = 'https://anvils.acme.example', preview = 'https://preview-7.anvils.acme.example';
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', keel: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'], delivery: { site: prod, version: '/api/version' } }));
+  const sha = 'a1b2c3d'.padEnd(40, '0');
+  const r = (site, ok, at) => ({ sha, ok, at, site, serving: sha, failures: ok ? [] : ['GET /: expected 200, got 500'], run: null });
+  const verifyOf = async results => (await board({ root }, { ...deps(root), verify: async () => ({ results }) })).items.filter(i => i.source === 'verify');
+  const failed = r(prod, false, '2026-10-07T21:00:00Z');
+  assert.deepEqual((await verifyOf([r(preview, true, '2026-10-07T22:00:00Z'), failed])).map(i => i.title), ['production failed its verify for a1b2c3d'], 'a preview\'s pass is not production\'s');
+  assert.deepEqual(await verifyOf([r(prod, true, '2026-10-07T23:00:00Z'), r(preview, true, '2026-10-07T22:00:00Z'), failed]), [], 'production\'s own pass clears it');
+  assert.deepEqual(await verifyOf([r(preview, false, '2026-10-07T22:00:00Z')]), [], 'a preview\'s failure is the brief\'s, not a production item');
+});

@@ -184,10 +184,13 @@ and `keel board` read it:
 
 - **The board**: when the latest verify failed, an owner's item, "production
   failed its verify for `<sha>`", with each failure and the run. A later pass
-  clears it. A record that cannot be read is the `verify` source n/a, with why.
+  clears it. Only production's results count (their site is `delivery.site`):
+  a preview's pass (`--site`) never clears production's failure. A record that
+  cannot be read is the `verify` source n/a, with why.
 - **The morning brief**: each verify that failed in the day before the night
   started (07:23 UTC to 07:23 UTC) is a line first under "Your next", so every
-  failure reaches one brief, once, and says when production has passed since.
+  failure reaches one brief, once, and says when the same site has passed
+  since. A preview's failure is said as the preview's.
   A record it cannot read is said there too, never silence.
 
 A project may add its own channel (ledger's Telegram alert) beside these.

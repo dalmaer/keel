@@ -543,3 +543,18 @@ test('a failed verify is a line in the next morning brief: each failure of the d
   write(['push', '-q', '--force', 'origin', `${write(['commit-tree', badTree, '-m', 'not a record'])}:refs/heads/keel-verify`]);
   assert.match(keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh }).json().next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
 });
+
+// PR #182 review: a preview's pass counted as production having passed since.
+test('in the brief, "passed since" is the same site\'s pass only, and a preview\'s failure is said as the preview\'s', () => {
+  const { verifyFailuresFor, verifyLine } = morningModule;
+  const prod = 'https://anvils.acme.example', preview = 'https://preview-7.anvils.acme.example', sha = 'a1b2c3d'.padEnd(40, '0');
+  const r = (site, ok, at) => ({ sha, ok, at, site, serving: sha, failures: ok ? [] : ['GET /: expected 200, got 500'], run: null });
+  const failed = r(prod, false, '2026-10-04T20:00:00Z');
+  let [f] = verifyFailuresFor([r(preview, true, '2026-10-04T21:00:00Z'), failed], NIGHT, { production: prod });
+  assert.equal(f.passedSince, false, 'a preview\'s pass is not production\'s');
+  assert.doesNotMatch(verifyLine(f), /passed a verify since/);
+  [f] = verifyFailuresFor([r(prod, true, '2026-10-04T22:00:00Z'), failed], NIGHT, { production: prod });
+  assert.equal(f.passedSince, true);
+  [f] = verifyFailuresFor([r(preview, false, '2026-10-04T20:00:00Z')], NIGHT, { production: prod });
+  assert.equal(verifyLine(f), `The preview ${preview} failed its verify for \`a1b2c3d\` at 2026-10-04T20:00:00Z: GET /: expected 200, got 500.`);
+});
