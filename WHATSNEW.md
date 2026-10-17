@@ -5,6 +5,28 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.32 — practice 0.8.32 (2026-10-17)
+
+Production error monitoring now joins the existing night, plan and morning flow.
+Configure bounded Cloud Logging, Vercel or normalized JSON sources; `keel production`
+collects sanitized recurring-error evidence, prepares repair specs through the robot
+policy, and distinguishes deployed fixes from production-verified recovery.
+
+Monitoring is off until configured and grants no agent budget. Vercel sources use
+an existing VERCEL_API_TOKEN only in the collection step; Google sources need an
+approved log-reader identity. Unavailable access, unknown traffic and incomplete
+provider coverage remain visible. Exact-attempt artifacts retain state between
+nights, with strict recovery instead of silently resetting incident history.
+
+See docs/guide/production-errors.md and `keel --agent-help production`. Verify a
+real collection and the next night's restoration before calling a project monitored.
+
+This release also carries the reviewed work accumulated since v0.8.31: shared gate
+receipts, parallel verification with serialized publication, exact-revision production
+checks and guarded promotion/rollback, ready/integrate session handoffs, stronger
+plan/claim properties, and morning/canvas recovery fixes. Delivery stays opt-in;
+updating the practice does not configure a new deployment target.
+
 ## v0.8.31 — practice 0.8.31 (2026-10-16)
 
 - **`keel-morning` is started only by the passes your project installs.** Without the climb practice it names only `keel-night`; before, it also named `keel-climb` and `keel-robot`, workflows that did not exist there.
