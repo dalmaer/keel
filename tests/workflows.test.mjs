@@ -2928,3 +2928,22 @@ test('phase 80: the concurrency rule: test workflows cancel the superseded per r
   }
   assert.equal(workflowKind('.github/workflows/check.yml', all.find(w => w.name === 'check.yml').template), 'test', 'check.yml is held as a test workflow');
 });
+
+// PR #178 review: `concurrency: { group: production, cancel-in-progress: true }` was read as a group named the
+// whole mapping, losing cancel-in-progress: a cancellable deploy passed, and a valid inline test config was flagged.
+test('phase 80: the concurrency rule reads a flow mapping and quoted values, and names a form it cannot read', () => {
+  const wf = (name, concurrency, indent = '') => `name: ${name}\non: push\n${indent ? 'jobs:\n  j:\n    runs-on: ubuntu-latest\n' : ''}${indent}concurrency: ${concurrency}\n`;
+  assert.deepEqual(concurrencyOf(wf('deploy', '{ group: production, cancel-in-progress: true }')).map(b => [b.group, b.cancel]), [['production', true]]);
+  assert.match(concurrencyProblems('deploy.yml', wf('deploy', '{ group: production, cancel-in-progress: true }'), 'publish').join('\n'), /deploy can be cancelled midway/, 'a cancellable deploy, inline');
+  assert.match(concurrencyProblems('deploy.yml', wf('deploy', '{group: "deploy-${{ github.ref }}"}', '    '), 'publish').join('\n'), /is not fixed/, 'a per-ref deploy group, inline and quoted, in a job');
+  assert.deepEqual(concurrencyProblems('deploy.yml', wf('deploy', "{ group: 'production', cancel-in-progress: false }"), 'publish'), []);
+  assert.deepEqual(concurrencyProblems('test.yml', wf('test', '{ group: "test-${{ github.ref }}", cancel-in-progress: true }'), 'test'), [], 'a valid inline test config');
+  assert.deepEqual(concurrencyProblems('test.yml', wf('test', "{ group: \"${{ format('test-{0}', github.ref) }}\", cancel-in-progress: true } # per ref"), 'test'), [], 'a comma inside an expression, and a comment');
+  assert.deepEqual(concurrencyOf('concurrency:\n  group: "deploy #1"\n  cancel-in-progress: false\n').map(b => [b.group, b.cancel]), [['deploy #1', false]], 'a quoted value keeps its #');
+  assert.deepEqual(concurrencyOf("concurrency: 'production' # one at a time\n").map(b => [b.group, b.cancel]), [['production', undefined]]);
+  // A form the reader cannot read is named, never guessed at.
+  for (const [why, value] of [['an unclosed mapping', '{ group: production'], ['an unknown key', '{ group: production, cancel: true }'], ['an anchor', '&c { group: production }'], ['a block scalar', '|']]) {
+    const found = concurrencyProblems('deploy.yml', wf('deploy', value), 'publish');
+    assert.ok(found.some(p => /cannot read this concurrency/.test(p)), `${why}: ${JSON.stringify(found)}`);
+  }
+});

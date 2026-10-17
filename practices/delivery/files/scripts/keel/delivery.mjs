@@ -79,14 +79,82 @@ export function workflowName(text) {
   return v.replace(/^(["'])(.*)\1$/, '$2') || null;
 }
 
-const unquote = v => v.replace(/[ \t]+#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2');
 const bool = v => v === 'true' ? true : v === 'false' ? false : v;
 
 /**
+ * One YAML scalar as written after a key: { value } (a quoted value without
+ * its quotes, a plain one without a trailing comment), or { error } for a
+ * form this reader does not take (an anchor, alias, tag, block scalar, flow
+ * collection, or an unclosed quote). Never a guess.
+ */
+export function scalar(raw) {
+  const v = (raw ?? '').trim();
+  if (!v) return { value: '' };
+  const q = v[0];
+  if (q === '"' || q === "'") {
+    let k = 1, out = '';
+    for (; k < v.length; k++) {
+      if (q === "'" && v[k] === "'" && v[k + 1] === "'") { out += "'"; k++; continue; }
+      if (q === '"' && v[k] === '\\' && k + 1 < v.length) { out += v[++k]; continue; }
+      if (v[k] === q) break;
+      out += v[k];
+    }
+    if (k >= v.length) return { error: 'an unclosed quote' };
+    const rest = v.slice(k + 1);
+    if (rest.trim() && !/^[ \t]+#/.test(rest)) return { error: `text after a quoted value (${JSON.stringify(rest.trim())})` };
+    return { value: out };
+  }
+  if (/^[&*!|>[{]/.test(v)) return { error: `the form ${JSON.stringify(v[0])} (an anchor, alias, tag, block scalar or flow collection)` };
+  return { value: v.replace(/[ \t]+#.*$/, '').trim() };
+}
+
+/** Split a flow mapping's inside at its top-level commas: quotes and (), {}, [] (a `${{ … }}` expression too) nest. */
+function topLevel(s, sep) {
+  const parts = [];
+  let depth = 0, quote = null, at = 0;
+  for (let k = 0; k < s.length; k++) {
+    const c = s[k];
+    if (quote) { if (c === '\\' && quote === '"') k++; else if (c === quote) quote = null; continue; }
+    if (c === '"' || c === "'") quote = c;
+    else if ('({['.includes(c)) depth++;
+    else if (')}]'.includes(c)) depth--;
+    else if (c === sep && depth === 0) { parts.push(s.slice(at, k)); at = k + 1; }
+  }
+  parts.push(s.slice(at));
+  return parts;
+}
+
+/** Where a flow mapping that starts at v[0] (`{`) closes, or -1. */
+function closing(v) {
+  let depth = 0, quote = null;
+  for (let k = 0; k < v.length; k++) {
+    const c = v[k];
+    if (quote) { if (c === '\\' && quote === '"') k++; else if (c === quote) quote = null; continue; }
+    if (c === '"' || c === "'") quote = c;
+    else if ('({['.includes(c)) depth++;
+    else if (')}]'.includes(c) && --depth === 0) return k;
+  }
+  return -1;
+}
+
+const KEYS = ['group', 'cancel-in-progress'];
+
+/** Set one key of a block from its written value; an unreadable value marks the block unreadable. */
+function setKey(block, key, raw) {
+  const s = scalar(raw);
+  if (s.error) { block.unreadable ??= `${key}: ${s.error}`; return; }
+  if (key === 'group') block.group = s.value || null;
+  else block.cancel = bool(s.value);
+}
+
+/**
  * The concurrency blocks of one workflow's text: [{ level: 'workflow'|'job',
- * line, group, cancel }]. `concurrency: <group>` on one line is a group with
- * no cancel-in-progress (GitHub's default: false). `cancel` is true, false,
- * undefined (not set), or the expression as written.
+ * line, group, cancel, unreadable? }]. Three forms: `concurrency: <group>` (a
+ * group with no cancel-in-progress, GitHub's default: false); a flow mapping
+ * `concurrency: { group: …, cancel-in-progress: … }`; and `group:` and
+ * `cancel-in-progress:` lines under it. Values may be quoted. `cancel` is
+ * true, false, undefined (not set), or the expression as written. Anything
+ * else is `unreadable`, with why, and concurrencyProblems names it.
  */
 export function concurrencyOf(text) {
   const lines = (text ?? '').split('\n');
@@ -96,15 +164,36 @@ export function concurrencyOf(text) {
     if (!m || /^\s*#/.test(lines[i])) continue;
     const indent = m[1].length;
     const block = { level: indent === 0 ? 'workflow' : 'job', line: i + 1, group: null, cancel: undefined };
-    const inline = unquote(m[2]);
-    if (inline) { block.group = inline; out.push(block); continue; }
+    const inline = m[2];
+    if (inline.startsWith('{')) {
+      const end = closing(inline);
+      const after = end < 0 ? '' : inline.slice(end + 1);
+      if (end < 0) block.unreadable = 'an unclosed { mapping } (keel reads a flow mapping on one line)';
+      else if (after.trim() && !/^[ \t]+#/.test(after)) block.unreadable = `text after the mapping (${JSON.stringify(after.trim())})`;
+      else {
+        const parts = topLevel(inline.slice(1, end), ',');
+        for (const part of parts.filter(p => p.trim())) {
+          const kv = /^\s*([\w-]+)\s*:(?:\s+|$)([\s\S]*)$/.exec(part);
+          if (!kv) { block.unreadable ??= `the entry ${JSON.stringify(part.trim())}`; continue; }
+          if (!KEYS.includes(kv[1])) { block.unreadable ??= `the key ${kv[1]} (concurrency takes group and cancel-in-progress)`; continue; }
+          setKey(block, kv[1], kv[2]);
+        }
+      }
+      out.push(block);
+      continue;
+    }
+    if (inline && !/^#/.test(inline)) {
+      const s = scalar(inline);
+      if (s.error) block.unreadable = s.error; else block.group = s.value || null;
+      out.push(block);
+      continue;
+    }
     for (let j = i + 1; j < lines.length; j++) {
       const l = lines[j];
       if (!l.trim() || /^\s*#/.test(l)) continue;
       if (l.search(/\S/) <= indent) break;
       const kv = /^\s*(group|cancel-in-progress):[ \t]*(.*?)[ \t]*$/.exec(l);
-      if (kv?.[1] === 'group') block.group = unquote(kv[2]) || null;
-      if (kv?.[1] === 'cancel-in-progress') block.cancel = bool(unquote(kv[2]));
+      if (kv) setKey(block, kv[1], kv[2]);
     }
     out.push(block);
   }
@@ -135,18 +224,22 @@ export function concurrencyProblems(file, text, kind) {
   if (!kind) return [];
   const blocks = concurrencyOf(text);
   const out = [];
+  // A form this reader does not take is named, and never judged by a guess at what it says.
+  const unread = blocks.filter(b => b.unreadable).map(b => `${file} (line ${b.line}): keel cannot read this concurrency (${b.unreadable}); write it as group: and cancel-in-progress: lines under concurrency:, or as { group: …, cancel-in-progress: … } on one line`);
+  const readable = blocks.filter(b => !b.unreadable);
+  out.push(...unread);
   if (kind === 'test') {
     if (!blocks.length) return [`${file}: a test workflow with no concurrency group: a superseded run is never cancelled; add concurrency: { group: <name>-\${{ github.ref }}, cancel-in-progress: true }`];
-    const good = blocks.filter(b => b.group && PER_REF.test(b.group) && b.cancel === true);
-    if (good.length) return [];
-    for (const b of blocks) {
+    const good = readable.filter(b => b.group && PER_REF.test(b.group) && b.cancel === true);
+    if (good.length) return out;
+    for (const b of readable) {
       if (!b.group || !PER_REF.test(b.group)) out.push(`${file} (line ${b.line}): a test workflow's concurrency group ${JSON.stringify(b.group)} is not per ref: runs of every branch share one queue; name the ref in it (\${{ github.ref }})`);
       if (b.cancel !== true) out.push(`${file} (line ${b.line}): a test workflow's cancel-in-progress is ${b.cancel === undefined ? 'not set (false)' : JSON.stringify(b.cancel)}: a superseded test run keeps running; set cancel-in-progress: true`);
     }
     return out;
   }
   if (!blocks.length) return [`${file}: a publish or deploy workflow with no concurrency group: two can run at once; add concurrency: { group: <fixed name>, cancel-in-progress: false }`];
-  for (const b of blocks) {
+  for (const b of readable) {
     if (!b.group || PER_REF.test(b.group) || PER_COMMIT.test(b.group)) out.push(`${file} (line ${b.line}): a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is not fixed: publishes of different refs or commits can run at once; name one group for them all`);
     if (b.cancel !== false && b.cancel !== undefined) out.push(`${file} (line ${b.line}): a publish or deploy workflow's cancel-in-progress is ${JSON.stringify(b.cancel)}: a deploy can be cancelled midway; set cancel-in-progress: false`);
   }
