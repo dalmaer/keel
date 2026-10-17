@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-16
 goal: G0
 spec: 2
 depends: [62]
-note: "Specified 2026-10-16: keel prove --mutate shows a fix's test fails for nearly-right versions of the fix, not only without it."
-evidence: []
+note: "Partial 2026-10-17: keel prove --mutate runs the named test against five mechanical mutations of the fix's changed lines, each in a scratch copy, after a passing baseline, and reports caught/total with each survivor. The owner's read of one real fix's survivors waits."
+evidence: ["evidence/2026-10-17-mutation-proofs.md"]
 issue: 169
 ---
 
@@ -28,11 +28,11 @@ Not in scope: mutating code outside the fix, or failing a commit for survivors (
 
 ## Acceptance
 
-- [ ] Each of the five mutations is applied to a fixture fix, alone, on a scratch copy; the real tree is never changed. `tests/prove-mutate.test.mjs`
-- [ ] A strong test catches every mutant; a weak one leaves named survivors. `tests/prove-mutate.test.mjs`
-- [ ] A failing baseline stops the run; a mutant that breaks parsing, an import, or times out is reported as invalid or inconclusive and never inflates the caught count. `tests/prove-mutate.test.mjs`
-- [ ] Only the fix's changed lines are mutated, at most 40, and each run is time-limited. `tests/prove-mutate.test.mjs`
-- [ ] `--trailer` records `Mutants: caught/total`. `tests/prove-mutate.test.mjs`
+- [x] Each of the five mutations is applied to a fixture fix, alone, on a scratch copy; the real tree is never changed. `tests/prove-mutate.test.mjs`
+- [x] A strong test catches every mutant; a weak one leaves named survivors. `tests/prove-mutate.test.mjs`
+- [x] A failing baseline stops the run; a mutant that breaks parsing, an import, or times out is reported as invalid or inconclusive and never inflates the caught count. `tests/prove-mutate.test.mjs`
+- [x] Only the fix's changed lines are mutated, at most 40, and each run is time-limited. `tests/prove-mutate.test.mjs`
+- [x] `--trailer` records `Mutants: caught/total`. `tests/prove-mutate.test.mjs`
 - [ ] ⚑ by hand: the owner reads the survivors from one real fix and says whether they showed a real gap.
 
 ## Your part
@@ -61,4 +61,4 @@ By hand: one real fix's survivors.
 
 ## Next action
 
-Write the five mutators and the scratch-copy runner with `tests/prove-mutate.test.mjs`.
+⚑ The owner reads the survivors `keel prove --mutate` reports for the next real fix (the prove output in its PR) and says real gaps or noise; noise narrows the mutation set. A first look, at `012a0af`, is in the evidence.

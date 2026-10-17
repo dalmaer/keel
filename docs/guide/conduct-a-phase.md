@@ -143,6 +143,24 @@ evidence with `--evidence <phase>`. The base is the commit before the fix
 (HEAD's parent once the fix is committed, HEAD before); `--base <ref>` names
 another, and `--name <pattern>` picks one test in the file.
 
+A test that fails without the fix may still pass a fix that is nearly right.
+`--mutate` checks that too: it makes small wrong versions of the lines the
+fix changed (a comparison flipped, a condition negated or dropped, `&&` and
+`||` swapped, an early return, a constant off by one), each alone in a
+scratch copy, and runs the test against each. The fix itself must pass
+first. A mutant the test fails on is caught; one it passes is a survivor,
+named by file, line and mutation, and is a gap in the test for you to judge.
+A mutant that does not load or runs out of time is reported apart and never
+counts as caught.
+
+```bash
+keel prove tests/anvil.test.mjs --fix lib/anvil.mjs --mutate --trailer
+#   mutants: 7/9 caught (2 survivors) on 2 changed lines; each run limited to 10s
+#     survivor     lib/anvil.mjs:4 — comparison `<` → `<=`
+# Proven-by: tests/anvil.test.mjs — VERIFIED — "..."
+# Mutants: 7/9
+```
+
 The skill itself lives once, at `.agents/skills/conduct/SKILL.md`, and Claude
 Code reaches it through the `.claude/skills/conduct` symlink. It is a managed
 file: if your project needs it to say something different, change it in
