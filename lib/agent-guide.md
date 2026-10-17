@@ -859,7 +859,9 @@ those paths since the newest first-parent ancestor CI fully tested records
 `skipped: docs only` (kind `gate-skip`, never a test run); never against the
 parent. `.github/`, `scripts/keel/`, manifests, lockfiles, `.keel/` config,
 version files and keel's managed files (HEAD's `.keel/lock.json`) are never
-docs only; an entry reaching one is refused (exit 2). Candidate trees
+docs only; an entry reaching one is refused (exit 2). Only a text doc
+(.md .mdx .markdown .txt .rst .adoc .asciidoc), or an image under `docs/`,
+mode 100644, is ever docs only, whatever the list says. Candidate trees
 (climb, tend, robot judges) and a dirty tree always run their own gate. `adopt --dry-run` and `adopt --with ... --dry-run` include
 `ciCost` for only newly-created workflows: triggers, source/window, monthly
 weighted estimates and total. Missing/incomplete history means unknown. Source

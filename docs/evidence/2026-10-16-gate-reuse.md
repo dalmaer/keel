@@ -65,6 +65,23 @@ protected path is refused at config time, structurally" and "a protected path
 is never docs only when changed, even if a pattern slipped through" fail
 without the fix (`keel prove`, the commit's Proven-by trailer).
 
+### PR #174 review, second finding: only text docs are docs only (2026-10-16)
+
+The code-extension guard tested a glob against one basename, so
+`["src/anvil.mjs"]`, `["src/anvil*.mjs"]` or `["docs/"]` holding
+`docs/build.mjs` let a clean commit changing only that code file skip the gate.
+Now `docsFile` judges each changed file in `docsOnlySkip`, whatever the list
+says: an allowlist of `.md .mdx .markdown .txt .rst .adoc .asciidoc` anywhere
+and `.png .jpg .jpeg .gif .webp .avif .svg` under `docs/`, git mode 100644 at
+HEAD only (an executable or a symlink never). The config check refuses an
+exact entry that is not a text doc and a glob whose literal tail is another
+extension. `tests/gate-reuse.test.mjs` "only a text doc, or an image under
+docs/, is ever docs only, in both copies" and "a clean commit changing only a
+code file, or an executable script, under a docs-only directory runs the
+suite, in both copies" run against the practice's `gate.mjs` and keel's
+rendered one; `keel prove` VERIFIED them red without the fix (the commit's
+trailer), and disabling only the per-file check turns the second red.
+
 ## By hand
 
 | Did | Expected | Observed | Proves / does not prove |

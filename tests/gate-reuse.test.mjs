@@ -359,3 +359,40 @@ test('a protected path is never docs only when changed, even if a pattern slippe
   assert.equal(managed.skip, false);
   assert.match(managed.reason, /docs\/templates\/evidence\.md.*protected/);
 });
+
+// PR #174 review, second finding: the code-extension guard tested a glob against one basename, so an exact entry
+// (src/anvil.mjs), a narrow glob (src/anvil*.mjs) or a directory holding code (docs/build.mjs) let a code change
+// skip the gate. Each changed file is now judged by its own extension and git mode, whatever the list says; held
+// for the practice's copy and keel's rendered one alike.
+const COPIES = [['practice', gateModule], ['rendered', await import('../scripts/keel/gate.mjs')]];
+
+test('only a text doc, or an image under docs/, is ever docs only, in both copies', () => {
+  for (const [copy, m] of COPIES) {
+    const docsFile = (...args) => m.docsFile?.(...args) ?? true;
+    for (const p of ['docs/guide.md', 'README.md', 'docs/a.mdx', 'docs/b.markdown', 'NOTES.txt', 'docs/c.rst', 'docs/d.adoc', 'docs/e.asciidoc', 'docs/img/f.png', 'docs/g.jpg', 'docs/h.svg']) assert.equal(docsFile(p, '100644'), true, `${copy}: ${p}`);
+    for (const p of ['src/anvil.mjs', 'docs/build.mjs', 'docs/a.py', 'docs/b.css', 'docs/c.html', 'docs/d.json', 'docs/e.sql', 'docs/f.vue', 'img.png', 'LICENSE', 'docs/Makefile', 'docs/.env', 'docs/x.unknown']) assert.equal(docsFile(p, '100644'), false, `${copy}: ${p}`);
+    assert.equal(docsFile('docs/publish', '100755'), false, `${copy}: an executable with no extension`);
+    assert.equal(docsFile('docs/guide.md', '100755'), false, `${copy}: an executable bit`);
+    assert.equal(docsFile('docs/link.md', '120000'), false, `${copy}: a symlink`);
+    for (const entry of ['src/anvil.mjs', 'src/anvil*.mjs', 'docs/*.mjs', 'docs/build.mjs', 'LICENSE', 'docs/notes.py']) {
+      assert.throws(() => m.docsOnlyOf({ delivery: { docsOnly: ['docs/', entry] } }), e => e.exitCode === 2, `${copy}: ${entry}`);
+    }
+  }
+});
+
+test('a clean commit changing only a code file, or an executable script, under a docs-only directory runs the suite, in both copies', async t => {
+  const config = { ...CONFIG, delivery: { docsOnly: ['docs/', '**/*.md'] } };
+  for (const [copy, m] of COPIES) {
+    for (const [path, mode] of [['docs/build.mjs', 0o644], ['docs/anvil.mjs', 0o644], ['docs/publish', 0o755]]) {
+      const a = await acme(t, { config });
+      const tested = a.head();
+      await mkdir(join(a.root, 'docs'), { recursive: true });
+      await writeFile(join(a.root, path), '#!/bin/sh\necho Acme\n');
+      await chmod(join(a.root, path), mode);
+      a.git('add', '-A'); a.git('commit', '-qm', `Acme ${path}`);
+      const r = await m.docsOnlySkip({ root: a.root, config, env: (await ghStub(t, actions([tested]))).env });
+      assert.equal(r.skip, false, `${copy}: ${path}`);
+      assert.match(r.reason, /not a text doc/, `${copy}: ${path}`);
+    }
+  }
+});

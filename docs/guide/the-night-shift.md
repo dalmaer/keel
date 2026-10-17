@@ -501,7 +501,15 @@ refused at config time, exit 2: a directory entry or a glob's literal head
 overlapping a protected directory, a protected file it matches, a managed file
 it names, or an exact name or glob's last segment that can be a manifest,
 lockfile or code file (`**/*.mjs`, `*.json`). `docs/` stays allowed: a
-`docs/package.json` or a managed template under it is refused when it changes. check.yml's gate step holds a
+`docs/package.json` or a managed template under it is refused when it changes.
+And docs only means text docs, judged per changed file whatever the list says:
+an extension of `.md`, `.mdx`, `.markdown`, `.txt`, `.rst`, `.adoc` or
+`.asciidoc` anywhere, or an image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`,
+`.avif`, `.svg`) under `docs/`, with git mode 100644. Anything else runs the
+suite: a code or config extension, an unknown one, no extension (`LICENSE`, a
+`Makefile`, a script), a file git marks executable (100755) or a symlink. An
+exact entry must itself name a text doc, and a glob ending in another
+extension (`src/anvil*.mjs`) is refused. check.yml's gate step holds a
 read-only `GH_TOKEN` (and `actions: read`) for this lookup alone; the check
 runs without it.
 

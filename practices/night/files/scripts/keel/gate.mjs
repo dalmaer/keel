@@ -71,8 +71,26 @@ const MAX_BYTES = 256 * 1024 * 1024;
 export const PROTECTED_DIRS = Object.freeze(['.github/', 'scripts/keel/']);
 export const PROTECTED_FILES = Object.freeze(['.keel/keel.json', '.keel/lock.json', '.nvmrc', '.node-version', '.tool-versions']);
 export const PROTECTED_NAMES = Object.freeze(['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'bun.lock', 'bun.lockb', '.npmrc', '.yarnrc', '.yarnrc.yml']);
-/** Extensions of files that run or configure: a glob whose last segment can end in one reaches code. */
-const CODE_EXTENSIONS = Object.freeze(['mjs', 'cjs', 'js', 'jsx', 'ts', 'mts', 'cts', 'tsx', 'json', 'yml', 'yaml', 'sh', 'lock', 'lockb', 'toml']);
+/** Extensions of files that run or configure: a glob whose last segment can end in one reaches code (config time). */
+const CODE_EXTENSIONS = Object.freeze(['js', 'mjs', 'cjs', 'ts', 'mts', 'cts', 'jsx', 'tsx', 'json', 'yml', 'yaml', 'sh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'css', 'scss', 'html', 'vue', 'svelte', 'sql', 'toml', 'lock', 'lockb']);
+/**
+ * What docs only can ever be (PR #174 review, second finding), decided per
+ * changed file whatever the list says: a text doc anywhere (DOC_EXTENSIONS),
+ * or an image under docs/ (DOCS_IMAGES). Nothing else: no code or config
+ * extension, no unknown one, no file without an extension (LICENSE, a
+ * Makefile, a script), never a file git marks executable (100755) or a
+ * symlink (120000). An allowlist, so an extension nobody listed runs the suite.
+ */
+export const DOC_EXTENSIONS = Object.freeze(['md', 'mdx', 'markdown', 'txt', 'rst', 'adoc', 'asciidoc']);
+export const DOCS_IMAGES = Object.freeze(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg']);
+const extOf = path => { const name = path.split('/').at(-1), dot = name.lastIndexOf('.'); return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''; };
+
+/** Whether a changed file can be docs only: its extension and its git mode at HEAD (null when deleted) say, never the list. */
+export function docsFile(path, mode) {
+  if (mode !== null && mode !== undefined && mode !== '100644') return false;
+  const ext = extOf(path);
+  return DOC_EXTENSIONS.includes(ext) || (path.startsWith('docs/') && DOCS_IMAGES.includes(ext));
+}
 
 /** Whether a changed path is protected: never docs only. `managed` is keel's managed paths (lockedPaths). */
 export function protectedPath(path, managed = []) {
@@ -108,6 +126,10 @@ function reaches(entry, managed) {
   const can = name => last === null ? entry.split('/').at(-1) === name : last === '**' || last.test(name);
   for (const name of PROTECTED_NAMES) if (can(name)) return name;
   if (glob) for (const ext of CODE_EXTENSIONS) if (can(`acme.${ext}`)) return `any .${ext} file`;
+  // An exact entry names one file, and a glob's literal tail its extension: either must be a text doc (docsFile).
+  if (!glob && !docsFile(entry, null)) return `${entry}, which is not a text doc (${DOC_EXTENSIONS.map(e => `.${e}`).join(' ')})`;
+  const tail = glob ? entry.slice(entry.lastIndexOf('*') + 1) : '';
+  if (glob && tail.includes('.') && !docsFile(`docs/acme${tail.slice(tail.lastIndexOf('.'))}`, null)) return `files ending ${tail}, which are not text docs`;
   return null;
 }
 
@@ -280,6 +302,8 @@ export async function docsOnlySkip({ root, config, env = process.env, now = Date
   if (!docsOnlyOf(config)) return { skip: false, reason: 'no "delivery".docsOnly in .keel/keel.json' };
   const managed = lockedPaths(root, env);
   const docs = docsOnlyOf(config, { managed });
+  // Every path's mode at HEAD ("100755" an executable, "120000" a symlink), read once.
+  const modes = new Map((gitOut(root, env, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD']) ?? '').split('\0').filter(Boolean).map(l => { const tab = l.indexOf('\t'); return [l.slice(tab + 1), l.split(' ')[0]]; }));
   const { sha, clean } = revision(root, env);
   if (!sha || !clean) return { skip: false, reason: 'the tree is dirty or has no commit: docs-only is decided for a commit' };
   const ancestors = (gitOut(root, env, ['rev-list', '--first-parent', `--max-count=${depth + 1}`, 'HEAD']) ?? '').split('\n').filter(Boolean).slice(1);
@@ -288,6 +312,9 @@ export async function docsOnlySkip({ root, config, env = process.env, now = Date
     // A protected path is never docs only, even when a pattern reached it: the config check is the first line, this the last.
     const guarded = changed.filter(p => protectedPath(p, managed));
     if (guarded.length) return { skip: false, reason: `${guarded[0]}${guarded.length > 1 ? ` and ${guarded.length - 1} more` : ''} changed since ${base.slice(0, 7)} and is protected (it runs or configures the gate): never docs only` };
+    // Each file by its own extension and mode at HEAD (a deleted file by its extension), whatever the list says.
+    const notDocs = changed.filter(p => !docsFile(p, modes.has(p) ? modes.get(p) : null));
+    if (notDocs.length) return { skip: false, reason: `${notDocs[0]}${notDocs.length > 1 ? ` and ${notDocs.length - 1} more` : ''} changed since ${base.slice(0, 7)} and is not a text doc (an extension of ${DOC_EXTENSIONS.join(', ')}, or an image under docs/, never executable): not docs only` };
     const code = changed.filter(p => !docs.test(p));
     if (code.length) return { skip: false, reason: `${code[0]}${code.length > 1 ? ` and ${code.length - 1} more` : ''} changed since ${base.slice(0, 7)}, the newest commit CI could have tested before it: not docs only` };
     const tree = gitOut(root, env, ['rev-parse', `${base}^{tree}`]) ?? '';
