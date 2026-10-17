@@ -237,7 +237,11 @@ value it read, so a ref someone moved meanwhile is refused, not overwritten.
 **After moving** it runs `verify.mjs`: production must report the commit or a
 descendant within `--within` seconds (default 600), then pass its smoke
 checks. A failure says what production served and suggests `keel promote
---back <what production was>`; it never moves anything itself.
+--back <what production was>` when that command can do it. After a sideways
+move (production was off the tested line) it cannot, so it names the `git
+push` that restores the previous ref by hand instead. It never moves
+anything itself. Run again with the ref already in place, it pushes nothing
+and verifies production again (exactly, for `--back`).
 
 **Rolling back verifies the exact commit.** Going forward, a descendant
 serving is fine. Going back it is the failure: production still serving the

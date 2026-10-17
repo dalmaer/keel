@@ -976,7 +976,8 @@ to an ancestor of production, `--back` only does. Refusals are exit 1, naming
 why; nothing moves. Without `--yes`: a preview, exit 3 (`preview: true`, `from`,
 `to`, `arriving`/`leaving` commits, `gate`, `verifies`). With `--yes`: one push
 with a lease on what it read, then `verify.mjs` (`--exact` for `--back`): exit
-0 verified, 1 failed with `next` suggesting `--back <previous>`; nothing else
+0 verified, 1 failed with `next`: `--back <previous>` when that can work, else
+the hand `git push` that restores it; nothing else
 moves. Already there (a retry): `action: verify`, nothing pushed, still verified. It refuses to run in GitHub
 Actions; no shipped workflow runs it. Only the owner runs it on a real project.
 

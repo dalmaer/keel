@@ -46,7 +46,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isMain, main, gateWorkflowOf } from './lib.mjs';
-import { deliveryOf, DeliveryError } from './delivery.mjs';
+import { deliveryOf, promoteRefOf, DeliveryError } from './delivery.mjs';
 import { ciResult } from './gate.mjs';
 import { verify, verifyText, WITHIN, EVERY } from './verify.mjs';
 
@@ -190,8 +190,28 @@ export async function promote({ root, config, commit = null, back = false, yes =
   catch (e) { v = { ok: false, sha: p.to, site: p.verifies.site, exact: back, serving: null, failures: [`the verify could not run: ${e.message}`], smoke: [] }; }
   const next = v.ok ? null : back
     ? `production does not serve exactly ${short(p.to)}; ${p.ref} is at ${short(p.to)}: check the deploy, then node scripts/keel/verify.mjs ${p.to} --exact`
-    : p.from ? `production does not serve ${short(p.to)}: to roll back, keel promote --back ${p.from}` : `production does not serve ${short(p.to)}, and there was no earlier production to roll back to: check the deploy`;
+    : recovery({ root, env, p });
   return { ...p, moved, verify: v, next, exitCode: v.ok ? 0 : 1 };
+}
+
+/**
+ * What to do after a forward promote's failed verify. `keel promote --back
+ * <previous>` only when that command can do it: the previous commit is an
+ * ancestor of the new one and on the tested ref. After a sideways move (a
+ * hand-moved tag off the tested line) it cannot, and the step by hand is
+ * named, with why (PR #191 review). Its gate --back checks itself.
+ */
+function recovery({ root, env, p }) {
+  const failed = `production does not serve ${short(p.to)}`;
+  if (p.action === 'verify') return `${failed}, and ${p.ref} already was at ${short(p.to)}: there is no earlier production this run moved from; check the deploy`;
+  if (!p.from) return `${failed}, and there was no earlier production to roll back to: check the deploy`;
+  const why = [
+    ...(ancestor(root, env, p.from, p.to) ? [] : [`it is not an ancestor of ${short(p.to)} (this move was sideways)`]),
+    ...(ancestor(root, env, p.from, p.testedTip) ? [] : [`it is not on ${p.tested}`]),
+  ];
+  if (!why.length) return `${failed}: to roll back, keel promote --back ${p.from}`;
+  const { ref } = promoteRefOf(p.ref);
+  return `${failed}. keel promote --back cannot put production back on ${short(p.from)}: ${why.join(', and ')}. To restore it by hand, unguarded: git push --force-with-lease=${ref}:${p.to} origin ${p.from}:${ref}`;
 }
 
 const list = (head, c) => [head, ...c.commits.map(x => `    ${short(x.sha)} ${x.subject}`), ...(c.count > c.commits.length ? [`    … and ${c.count - c.commits.length} more`] : [])];

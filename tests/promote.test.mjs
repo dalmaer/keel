@@ -277,6 +277,23 @@ test('after moving it verifies production and reports; a failure suggests --back
   assert.equal(data.exitCode, undefined, 'the exit code is the process\'s, not the data\'s');
 });
 
+test('PR #191 review: after a sideways promote fails its verify, --back is never suggested; the step by hand is named, with why', async t => {
+  const a = await acme(t);
+  // Someone moved the tag by hand to F, a commit off the tested line; promoting C forward is allowed and sideways.
+  a.git('push', '-q', '--force', 'origin', `${a.F}:refs/tags/prod`);
+  a.prod.serve(a.F);
+  const r = await a.promote({ commit: a.C, yes: true });
+  assert.equal(r.exitCode, 1);
+  assert.equal(r.from, a.F);
+  assert.deepEqual(r.leaving.commits.map(c => c.sha), [a.F], 'the preview named F as leaving production');
+  assert.doesNotMatch(r.next, /to roll back, keel promote --back/, 'a --back to F would be refused: it is not earlier, nor on green');
+  assert.equal(r.next, `production does not serve ${a.C.slice(0, 7)}. keel promote --back cannot put production back on ${a.F.slice(0, 7)}: it is not an ancestor of ${a.C.slice(0, 7)} (this move was sideways), and it is not on green. To restore it by hand, unguarded: git push --force-with-lease=refs/tags/prod:${a.C} origin ${a.F}:refs/tags/prod`);
+  await assert.rejects(a.promote({ commit: a.F, back: true, yes: true }), e => e.exitCode === 1, 'what --back would have said');
+  // The step named works: it restores F exactly, with a lease on C.
+  a.git(...r.next.split('by hand, unguarded: git ')[1].split(' '));
+  assert.equal(a.refs().prod, a.F);
+});
+
 // ---- rolling back -------------------------------------------------------------------------------
 
 test('--back moves the ref to an earlier tested commit with the same checks, and passes only when production reports exactly that commit', async t => {
