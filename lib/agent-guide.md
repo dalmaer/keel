@@ -10,14 +10,15 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel next` — next free phase; ready, free or claimed; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress
 - `keel phase new|list|claim` — scaffold, list or claim phases
+- `keel ready|integrate` — hand off; one gate, one push
 - `keel render` — render practices; `--check` reads only (exit 1)
 - `keel init [dir] --description "<paragraph>"` — new project; `--github` exit 3
-- `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
-- `keel doctor` — drift and practice lints; `--fix <path> restore|eject` (exit 3)
+- `keel adopt [dir]` — adopt a repo; `--dry-run` writes nothing
+- `keel doctor` — drift, lints; `--fix <path> restore|eject` (exit 3)
 - `keel update` — migrations, re-render, check; PR branch (exit 3) or `--local`
 - `keel lessons` — send lessons and drift home; exit 3
 - `keel learn` — lessons → proposals and decisions
-- `keel improve` — measures, bounds, one proposal; `--report` a health page
+- `keel improve` — measures, bounds, one proposal; `--report` a page
 - `keel persona run` — measure a project's own goals
 - `keel time` — weekly gate/test medians, load, failure memory
 - `keel test <file> --stalls` — tests that judge the wall clock
@@ -26,10 +27,10 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel goodnight` — shape it
 - `keel morning` — the brief; `--send`
 - `keel fleet` — fleet practice, health, CI
-- `keel fleet update` — update PRs for projects behind; exit 3
+- `keel fleet update` — PRs for projects behind; exit 3
 - `keel loose-ends` — unfinished work; `mark <id> resume|park|drop`
 - `keel issue new --agent` — rubric issue preview; `--yes` creates it
-- `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers
+- `keel review <repo>#<n>` — review comments; `--wait`; `--close` answers
 - `keel board` — whose turn: a local page; `--fresh`
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, live, night
@@ -39,7 +40,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel release <x.y.z> --notes <file>` — review, version, tag
 - `keel help` — verbs
 - `keel --agent-help` — cold start; `<topic>` or `all` for details
-- `keel --version` — CLI, commit and practice versions
+- `keel --version` — CLI, commit, practice
 
 Rules that bite:
 
@@ -890,6 +891,34 @@ newer commits that had not passed. A diverged ref, a moved ref or an unreadable
 result is exit 1; config is exit 2. `--advance --from <sha|none> --to <sha>`
 is the write job's step. Never writes main. Deploys follow the tested ref
 (docs/guide/delivery.md).
+
+### Ready and integrate
+
+A session hands a change off; one integrator runs the full gate. `keel ready
+[--branch <name>] [--check "<cmd>"]...` needs a clean tree on a branch that is
+not the default: it runs only the fast checks (`"delivery": {"fast": [..]}`,
+then each `--check`), refuses one that is the full gate (`check`, default
+`npm run check`; exit 2), pushes the branch, and pushes `ready/<branch>`: a
+commit whose one parent is the change's head, recording session, machine,
+time and each check's exit. A failing fast check pushes nothing (exit 1).
+`--json` → `{ok, ready, branch, head, remote, ref, checks:[{command, status}],
+sha, at}`. Marking a branch ready again replaces its ref, and clears a block.
+
+`keel integrate` takes `claims/integrate` (phase claim's create-only push;
+held: exit 1, `refused`, `holder`, nothing done; a lock left by a dead run is
+the owner's to delete), and in a temporary worktree merges every ready change
+onto the default branch in the order marked ready and runs the full gate once.
+A passing batch is one gate run and one push. A failing one accumulates by
+halves: each change is kept only if the tree with it, on top of what was kept
+before it, passes; a single failing change is tried alone once, to report
+`fails the gate on main`, `does not merge onto main`, or `conflicts with <kept>`
+(each passes alone, together they fail). The tree pushed is one the gate
+passed; nothing failing is pushed. Landed changes lose their ready ref; a
+change sent back keeps it as `Status: blocked` with the reason, skipped until
+marked ready again. `--json` → `{ok, base, command, gates, pushed, landed:[{branch,
+head}], blocked:[{branch, head, reason, with}], stillBlocked, alreadyLanded,
+malformed}`; exit 1 when a change was sent back or the push was refused (main
+moved: nothing landed, run again).
 
 ### Repository hygiene
 

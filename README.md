@@ -121,7 +121,10 @@ treated as yours: the next update simply takes keel's file.
    ready, and which of them another session already holds. A session takes
    one with `keel phase claim <n>` before it builds, so two sessions never
    build the same phase. In Claude Code, `/conduct` walks them: one phase at
-   a time, claimed first, proof verified, one commit each.
+   a time, claimed first, proof verified, one commit each. A session finishes
+   with `keel ready` (its fast checks only), and `keel integrate`, one at a
+   time under a lock, runs the full gate once for every ready change and
+   pushes them together.
 3. **Review.** A reviewer reads the PR (with the cross-review practice on,
    the other provider does), and `keel review` makes
    sure every comment is validated and answered. A review that is still
@@ -186,6 +189,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel status`, `keel next` | Where the project stands; the next free phase, and which ready ones are claimed |
 | `keel goal list\|show\|add\|retire` | Goals as outcomes. Progress is derived from phases, never stored |
 | `keel phase new\|list\|claim` | Scaffold the next free phase under a goal; claim a phase before building it |
+| `keel ready`, `keel integrate` | Hand a committed change off with only its fast checks; one integrator (lock `claims/integrate`) runs the full gate once for every ready change and pushes once, sending a failing change back blocked |
 | `keel init`, `keel adopt` | Start a project, or bring one under keel |
 | `keel render` | Write the practices onto the project; `--check` only compares |
 | `keel doctor` | What the project changed of keel's files, and practice rules broken. Changes nothing without `--fix` |

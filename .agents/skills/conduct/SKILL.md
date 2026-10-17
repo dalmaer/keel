@@ -146,8 +146,9 @@ evidence: the conductor writes the record.
 ## How you test
 The test files you touched or wrote, by path (`node --test tests/<file>`),
 as often as you like. Do NOT run the whole check (`npm run check`): the
-conductor runs it once on the integrated tree. Never run a build beside
-another build.
+conductor runs it once on the integrated tree (with a remote, through
+`keel integrate`). Two full gates never run beside each other: the integrator's lock
+(`claims/integrate`) lets one run at a time.
 
 ## What you return (under 600 words), these sections in this order
 0. Done means: your restatement, from below, word for word.
@@ -288,6 +289,9 @@ Then **the whole check, once**, on the final tree, record included:
 you commit (the roadmap check in it reads the status you just set). Builders
 tested by file; this is the integrated tree. If something fails, re-run just
 that, alone, before calling it a flake; after a fix, run the whole check again.
+With a remote, that one run is `keel integrate`'s, after the commit (§4):
+finish with `keel ready` and leave the full gate to the integrator. Without a
+remote, run it here.
 
 ## 4. Commit
 
@@ -314,13 +318,27 @@ tree the gate just checked in §3; if anything changes after it, run it again.
 
 Land on `main`, no pull request (unless the phase waits for review, below):
 
-1. With a remote, integrate `origin/main` before the gate run in §3, and
+1. With a remote, integrate `origin/main` into the phase's branch first, and
    regenerate the roadmap if it conflicts.
 2. Stage an **explicit list** of the phase's files, taken from the builder's
    report and `git diff --stat`. Never `git add -A`: a builder still writing in
    the tree creates files between your read and your stage.
-3. Read `git show --stat HEAD` before pushing.
-4. Push, and follow CI on that exact commit while preparing the next brief.
+3. With a remote, commit on the phase's branch (`<provider>/phase-<N>`), never
+   on `main`: the integrator is what writes `main`. Read `git show --stat HEAD`.
+4. **Finish with `keel ready`.** (why: Two sessions that each ran the full gate and pushed ran the expensive path twice for two changes.) It runs only the fast checks
+   (`"delivery".fast` in `.keel/keel.json`, and each `--check "<cmd>"`: your
+   focused tests), pushes the branch and records it as `ready/<branch>`. It
+   never runs the full gate, and refuses a check that is the full gate.
+5. **Then `keel integrate`.** It takes the lock (`claims/integrate`), merges
+   every ready change onto `main`, runs `npm run check` once on the combined tree
+   and pushes it. Its report (how many gate runs, exit, what landed) is the
+   gate's result line for this phase: record it in the next commit, as for
+   proofs that need the commit. A failing batch is
+   narrowed until each failing change is found; the rest land, and the
+   failing one is sent back blocked, with the reason. One sent back is yours:
+   fix it on its branch and `keel ready` again. Refused because another
+   integrator holds the lock: stop there; that one takes your change too.
+   Follow CI on the commit it pushed while preparing the next brief.
    With no remote, stop at the local commit: there is no push and no CI.
 
 **Reviews.** (why: An unanswered finding hides whether it was fixed, tracked or rejected.) Every PR the conductor opens or merges (a phase that waits for

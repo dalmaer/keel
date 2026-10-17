@@ -357,3 +357,31 @@ test('the conduct skill\'s /goodnight runs only when asked, shows the opening, s
   // keel's own copy says it too (render --self).
   assert.ok((await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('**Write it only on "that\'s the plan".**'));
 });
+
+// Phase 83: two changes asked for one after the other each ran the full gate. Builders and sessions finish with
+// keel ready; only keel integrate runs the full gate, and "never run a build beside another" is the lock.
+test('the conduct skill finishes with keel ready and leaves the full gate to keel integrate', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
+  const brief = skill.slice(skill.indexOf('\n## 1.'), skill.indexOf('\n## 2.'));
+  // The brief: the whole check is the integrator's, and the old sentence is the lock now.
+  assert.match(brief, /with a remote, through\s+`keel integrate`/);
+  assert.match(brief, /the integrator's lock\s+\(`claims\/integrate`\) lets one run at a time/);
+  assert.doesNotMatch(skill, /Never run a build beside/);
+  // §3: with a remote, the one full run is keel integrate's, after the commit; without one it stays here.
+  assert.match(section(3), /With a remote, that one run is `keel integrate`'s, after the commit \(§4\):\s+finish with `keel ready` and leave the full gate to the integrator\. Without a\s+remote, run it here\./);
+  // §4: commit on the branch, keel ready (fast checks only, never the full gate), then keel integrate, in that order.
+  const four = section(4);
+  const at = re => { const m = re.exec(four); assert.ok(m, String(re)); return m.index; };
+  const branch = at(/commit on the phase's branch \(`<provider>\/phase-<N>`\), never\s+on `main`/);
+  const readyAt = at(/\*\*Finish with `keel ready`\.\*\* \(why: [^)\n]+\) It runs only the fast checks/);
+  const integrateAt = at(/\*\*Then `keel integrate`\.\*\* It takes the lock \(`claims\/integrate`\), merges\s+every ready change onto `main`, runs `\{\{check\}\}` once on the combined tree\s+and pushes it/);
+  assert.ok(branch < readyAt && readyAt < integrateAt, 'branch, then ready, then integrate');
+  assert.match(four, /It\s+never runs the full gate, and refuses a check that is the full gate/);
+  assert.match(four, /the\s+failing one is sent back blocked, with the reason\. One sent back is yours:\s+fix it on its branch and `keel ready` again/);
+  assert.match(four, /another\s+integrator holds the lock: stop there; that one takes your change too/);
+  assert.doesNotMatch(four, /\n4\. Push, and follow CI/, 'the conductor no longer pushes main itself');
+  // keel's own copy says it too (render --self).
+  const own = await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  assert.ok(own.includes('**Finish with `keel ready`.**') && own.includes('**Then `keel integrate`.**'));
+});
