@@ -900,7 +900,9 @@ not the default: it runs only the fast checks (`"delivery": {"fast": [..]}`,
 then each `--check`), refuses one that is the full gate (`check`, default
 `npm run check`; exit 2), pushes the branch, and pushes `ready/<branch>`: a
 commit whose one parent is the change's head, recording session, machine,
-time and each check's exit. A failing fast check pushes nothing (exit 1).
+time and each check's exit. A failing fast check pushes nothing (exit 1); so
+does one that changed tracked files or the index, or moved HEAD (`changed:
+true`, "a fast check changed tracked files").
 `--json` → `{ok, ready, branch, head, remote, ref, checks:[{command, status}],
 sha, at}`. Marking a branch ready again replaces its ref, and clears a block.
 

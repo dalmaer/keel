@@ -418,6 +418,33 @@ test('an install that links outside node_modules (a workspace) refuses integrate
   assert.deepEqual(remoteRefs(origin, 'ready/'), ['ready/claude/lib'], 'the change stays ready');
 });
 
+// PR #186 review: a --write formatter repairs the tree and exits 0; the unrepaired head must not go out as checked.
+test('keel ready refuses when a fast check changed tracked files, in the tree or the index; nothing is pushed', async t => {
+  const { a, origin, env } = await acme(t);
+  git(a, 'checkout', '-q', '-b', 'claude/format');
+  await writeFile(join(a, 'fmt.mjs'), "import { writeFileSync } from 'node:fs';\nwriteFileSync('anvil.txt', 'one anvil, formatted\\n');\n");
+  await writeFile(join(a, 'anvil.txt'), 'one   anvil\n');
+  git(a, 'add', '-A');
+  git(a, 'commit', '-q', '-m', 'acme: unformatted');
+  const r = run(process.execPath, [BIN, 'ready', '--check', 'node fmt.mjs', '--json'], { cwd: a, env: env('m1') });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.ready, false);
+  assert.equal(out.changed, true);
+  assert.deepEqual(remoteRefs(origin, 'ready/'), []);
+  assert.deepEqual(remoteRefs(origin, 'claude/'), []);
+  // A check that stages its repair: the index differs from HEAD.
+  git(a, 'checkout', '-q', '--', 'anvil.txt');
+  const staged = await ready({ root: a, checks: ['node stage.mjs'] }, { env: env('m1'), run: async (command, { cwd }) => {
+    await writeFile(join(cwd, 'anvil.txt'), 'staged\n');
+    git(cwd, 'add', 'anvil.txt');
+    return { status: 0 };
+  } });
+  assert.equal(staged.data.ready, false);
+  assert.match(staged.text, /a fast check changed tracked files/);
+  assert.deepEqual(remoteRefs(origin, 'ready/'), []);
+});
+
 test('only a tree the gate passed is pushable without gating it again', () => {
   const passed = new Set(['t-left']);
   assert.equal(pushable('t-left', passed), true);
