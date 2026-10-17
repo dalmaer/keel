@@ -845,3 +845,20 @@ test('phase 80: with delivery on, doctor holds every workflow to the concurrency
   assert.deepEqual(bad.lint.filter(l => l.rule === 'workflow-concurrency'), []);
   assert.match(bad.lint.find(l => l.rule === 'delivery-config')?.message ?? '', /"delivery".tested cannot be main/);
 });
+
+test('phase 81: doctor names a bad verifier key ("delivery".site, version, smoke) and says the verifier reads it; scripts/keel/verify.mjs is rendered', async t => {
+  const dir = await project(t);
+  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
+  const configs = d => doctor(dir).data.lint.filter(l => l.rule === 'delivery-config').map(l => l.message);
+  // Even without the practice on, a verifier key set is checked.
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, delivery: { version: 'api/version', smoke: [{ path: '/', status: 999 }] } }, null, 2));
+  const found = configs();
+  assert.ok(found.some(m => /"delivery"\.version must be a path starting with "\/".*; the verifier \(scripts\/keel\/verify\.mjs\) reads it$/.test(m)), JSON.stringify(found));
+  assert.ok(found.some(m => /"delivery"\.smoke\[0\] status must be an HTTP status code/.test(m)), JSON.stringify(found));
+  assert.ok(found.some(m => /"delivery"\.site is required/.test(m)), JSON.stringify(found));
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'], delivery: { site: 'https://anvils.acme.example', version: '/api/version', smoke: ['/'] } }, null, 2));
+  assert.equal(keel(['render'], dir).code, 0);
+  assert.ok((await lstat(join(dir, 'scripts/keel/verify.mjs'))).isFile());
+  assert.deepEqual(configs(), []);
+});

@@ -891,6 +891,28 @@ result is exit 1; config is exit 2. `--advance --from <sha|none> --to <sha>`
 is the write job's step. Never writes main. Deploys follow the tested ref
 (docs/guide/delivery.md).
 
+### Verifying production
+
+`node scripts/keel/verify.mjs <sha> [--site <origin>] [--within <s>] [--every
+<s>] [--record] [--json]` (delivery, phase 81) reads `delivery.version` on
+`delivery.site` (https; http on localhost only; `--site` for a preview) until
+production serves `<sha>` or a descendant (ancestry in the checkout, full
+history; a commit it lacks after one fetch is never yes) or `--within`
+(default 600 s) passes, reading every `--every` (10 s); then each
+`delivery.smoke` entry (`"/path"`, 200, or `{path, status: code|[codes]}`),
+redirects not followed. Accepted version bodies: JSON with `sha` or `commit`
+(agreeing), a JSON string, or the plain hash; full hashes only. JSON: `{ok,
+sha, site, serving, contained, attempts, waited, smoke: [{path, expected, got,
+matched}], failures, at, run, recorded?}`; exit 0 passed, 1 failed (or not
+recorded), 2 config or usage, each error naming its key (doctor:
+`delivery-config`). `live <sha>`: one read, `{live, serving, why}`, exit 0 yes,
+1 no (unreadable is no). `--record` pushes the result to `keel-verify:verify.json`
+(newest first, 30 kept, every failure for 72 h and each site's latest always, lease; other files on the branch kept; a non-record there, or a branch with no verify.json, is left alone, exit 1). With
+delivery on, `keel board` lists production's (site = `delivery.site`) failed
+latest verify as the owner's (source `verify`; a preview's pass never clears
+it) and the morning brief puts each failure of the day before the night
+first under "Your next"; an unreadable record is said, never silence.
+
 ### Repository hygiene
 
 `keel improve` and its installed night measure `stale_worktrees`,

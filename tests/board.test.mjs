@@ -1113,3 +1113,56 @@ test('milestone board details are read-only links and escape remote markup, with
   assert.match(html, /https:\/\/github.com\/acme\/anvils\/milestone\/1/);
   await assert.rejects(walkDone({ root, phase: 1, note: 'Acme saw it' }), /read-only/);
 });
+
+// Phase 81: production's verify, recorded by the delivery practice's verify.mjs on keel-verify.
+test('a failed verify of production is the owner\'s item on the board; a passed one is nothing; an unreadable record is n/a, never "nothing failed"', async t => {
+  const root = await acme({ git: true });
+  const origin = `${root}-origin.git`;
+  t.after(() => Promise.all([root, origin].map(d => rm(d, { recursive: true, force: true }))));
+  const sha = 'a1b2c3d'.padEnd(40, '0'), at = '2026-10-07T21:04:00Z';
+  const failed = { sha, ok: false, at, site: 'https://anvils.acme.example', serving: 'b'.repeat(40), failures: ['production serves bbbbbbb, which does not contain a1b2c3d, after 61 reads over 600s', 'GET /login: expected 307, got 500'], run: 'https://github.com/acme/app/actions/runs/7' };
+  const passed = { ...failed, ok: true, at: '2026-10-07T22:00:00Z', serving: sha, failures: [] };
+  const verifyOf = data => data.items.filter(i => i.source === 'verify');
+  // Without the delivery practice there is no verify source.
+  assert.equal((await board({ root }, deps(root))).sources.some(s => s.source === 'verify'), false);
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', keel: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'] }));
+  // The latest failed: the owner's, with every failure and the run.
+  let data = await board({ root }, { ...deps(root), verify: async () => ({ results: [failed] }) });
+  const [item] = verifyOf(data);
+  assert.deepEqual([item.waits, item.kind, item.title, item.link], ['owner', 'verify', 'production failed its verify for a1b2c3d', failed.run]);
+  assert.equal(item.why, `Production failed its verify for \`a1b2c3d\` at ${at} (https://anvils.acme.example): ${failed.failures.join('; ')}. ${failed.run}`);
+  assert.ok(titles(data, 'owner').includes(item.title));
+  assert.match(boardText(data), /production failed its verify for a1b2c3d/);
+  assert.deepEqual(data.sources.at(-1), { source: 'verify', state: 'ok', count: 1, why: `the latest verify (${at}, a1b2c3d) failed` });
+  // A later pass clears it.
+  data = await board({ root }, { ...deps(root), verify: async () => ({ results: [passed, failed] }) });
+  assert.deepEqual(verifyOf(data), []);
+  assert.match(data.sources.at(-1).why, /passed$/);
+  // Unreadable: n/a with why.
+  data = await board({ root }, { ...deps(root), verify: async () => ({ results: [], unread: 'git ls-remote exited 128' }) });
+  assert.deepEqual(data.sources.at(-1), { source: 'verify', state: 'n/a', why: 'the verify record (keel-verify) could not be read: git ls-remote exited 128' });
+  // The real read: origin's keel-verify branch, as verify.mjs --record leaves it.
+  const g = (args, input) => execFileSync('git', ['-C', root, ...args], { input, encoding: 'utf8' }).trim();
+  execFileSync('git', ['clone', '-q', '--bare', root, origin]);
+  g(['remote', 'add', 'origin', origin]);
+  const blob = g(['hash-object', '-w', '--stdin'], JSON.stringify({ results: [failed] }));
+  const tree = g(['mktree'], `100644 blob ${blob}\tverify.json\n`);
+  g(['push', '-q', 'origin', `${g(['commit-tree', tree, '-m', 'keel verify: failed'])}:refs/heads/keel-verify`]);
+  data = await board({ root }, { ...deps(root), env: { ...process.env, KEEL_CACHE: join(root, '.cache-test') }, fresh: true });
+  assert.deepEqual(verifyOf(data).map(i => i.title), ['production failed its verify for a1b2c3d']);
+});
+
+// PR #182 review: a passing preview (verify.mjs --site … --record) after a production failure cleared production's item.
+test('a preview\'s pass never clears production\'s failed verify on the board; only production\'s own pass does', async t => {
+  const root = await acme({ git: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const prod = 'https://anvils.acme.example', preview = 'https://preview-7.anvils.acme.example';
+  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', keel: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'], delivery: { site: prod, version: '/api/version' } }));
+  const sha = 'a1b2c3d'.padEnd(40, '0');
+  const r = (site, ok, at) => ({ sha, ok, at, site, serving: sha, failures: ok ? [] : ['GET /: expected 200, got 500'], run: null });
+  const verifyOf = async results => (await board({ root }, { ...deps(root), verify: async () => ({ results }) })).items.filter(i => i.source === 'verify');
+  const failed = r(prod, false, '2026-10-07T21:00:00Z');
+  assert.deepEqual((await verifyOf([r(preview, true, '2026-10-07T22:00:00Z'), failed])).map(i => i.title), ['production failed its verify for a1b2c3d'], 'a preview\'s pass is not production\'s');
+  assert.deepEqual(await verifyOf([r(prod, true, '2026-10-07T23:00:00Z'), r(preview, true, '2026-10-07T22:00:00Z'), failed]), [], 'production\'s own pass clears it');
+  assert.deepEqual(await verifyOf([r(preview, false, '2026-10-07T22:00:00Z')]), [], 'a preview\'s failure is the brief\'s, not a production item');
+});
