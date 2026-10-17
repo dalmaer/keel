@@ -431,14 +431,17 @@ export async function planFor(file, date) {
   return { used: true, plan: read.plan, shapedBy: read.plan.shapedBy, items: lib.buildItems(read.plan, 'climb'), willNotTouch: [...read.plan.willNotTouch], planMinutes: lib.planMinutes };
 }
 
+/** A plan item as the pass decided on it, carried with its ticks (keel#147): its lane and number. */
+const admittedOf = it => ({ lane: it.lane, number: it.number ?? null });
+
 /**
  * With a plan, climb runs what it names and nothing else: the first open
  * build item whose lane is climb:<job> and whose job may run tonight (named
  * in "climb".jobs, available, no open keel-climb/<job>/ PR waiting for a
  * person, not retiring). The plan chooses among the jobs climb may already
  * run; it never adds one. Every other climb item is skipped, saying why (one
- * job a night). Pure. { job, item, by, why, skipped: [{ id, note }] } or
- * { job: null, reason, skipped }.
+ * job a night). Pure. { job, item, by, why, skipped: [{ id, note, admitted }] }
+ * or { job: null, reason, skipped }.
  */
 export function choosePlanned({ items, jobs, unavailable = [], waiting = new Set(), retiring = new Set(), date }) {
   const why = it => {
@@ -451,7 +454,7 @@ export function choosePlanned({ items, jobs, unavailable = [], waiting = new Set
   };
   if (!items.length) return { job: null, reason: `tonight's plan (${date}) names no climb item, so climb does not run tonight`, skipped: [] };
   const at = items.findIndex(it => why(it) === null);
-  const skipped = items.flatMap((it, i) => (i === at ? [] : [{ id: it.id, note: at < 0 || i < at ? `climb did not run it: ${why(it)}` : `climb runs one job a night, and tonight's plan named ${items[at].id} first` }]));
+  const skipped = items.flatMap((it, i) => (i === at ? [] : [{ id: it.id, note: at < 0 || i < at ? `climb did not run it: ${why(it)}` : `climb runs one job a night, and tonight's plan named ${items[at].id} first`, admitted: admittedOf(it.item) }]));
   if (at < 0) return { job: null, reason: `no climb item in tonight's plan (${date}) can run: ${items.map(it => `${it.id} (${why(it)})`).join('; ')}`, skipped };
   const it = items[at];
   return { job: it.job, item: it, by: 'plan', why: `tonight's plan names it: ${it.id}, ${it.title}`, skipped };
@@ -462,8 +465,9 @@ export async function pick({ root, config, env = process.env, date = today(), fo
   if (!c) return { job: null, date, reason: 'climb is off: .keel/keel.json has no "climb"' };
   const planned = planFile ? await planFor(planFile, date) : null;
   // What the pass ticks on the plan branch (phase 76): its item, and every open climb item it does not run, skipped with why.
-  const planOut = (skipped, item = null) => (planned ? { plan: planned.used ? { used: true, date, shapedBy: planned.shapedBy, item, skipped, willNotTouch: planned.willNotTouch } : { used: false, why: planned.why } } : {});
-  const skipAll = note => (planned?.used ? planned.items.map(it => ({ id: it.id, note })) : []);
+  // Each with the item as climb read it (`admitted`: lane and number), so a tick never lands on an item reshaped since (keel#147).
+  const planOut = (skipped, item = null) => (planned ? { plan: planned.used ? { used: true, date, shapedBy: planned.shapedBy, item: item?.id ?? null, ...(item ? { admitted: admittedOf(item.item) } : {}), skipped, willNotTouch: planned.willNotTouch } : { used: false, why: planned.why } } : {});
+  const skipAll = note => (planned?.used ? planned.items.map(it => ({ id: it.id, note, admitted: admittedOf(it.item) })) : []);
   const day = new Date(`${date}T00:00:00Z`).getUTCDay();
   if (c.schedule === 'weekly' && !force && day !== WEEKLY_DAY) return { job: null, date, reason: 'not tonight: climb is weekly, on Mondays (UTC)', ...planOut(skipAll('climb did not run it: climb is weekly, on Mondays (UTC)')) };
   const problem = c.jobs.includes('loop') ? loopSourceProblem(config) : null;
@@ -482,7 +486,7 @@ export async function pick({ root, config, env = process.env, date = today(), fo
     // The plan chooses; the health page and the rotation do not (the plan is the owner's, or what keel would have chosen).
     const p = choosePlanned({ items: planned.items, jobs, unavailable, waiting, retiring, date });
     chosen = p.job ? { job: p.job, by: p.by, why: p.why } : { job: null, reason: p.reason };
-    extra = planOut(p.skipped, p.job ? p.item.id : null);
+    extra = planOut(p.skipped, p.job ? p.item : null);
     if (p.job) {
       minutes = planned.planMinutes(p.item.item, c.minutes);
       extra.planItem = { id: p.item.id, title: p.item.title, number: p.item.item.number, minutes: p.item.item.budget?.minutes ?? null };

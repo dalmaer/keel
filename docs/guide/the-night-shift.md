@@ -214,8 +214,10 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   branch's history; one it cannot read is left alone), with a lease, so a
   `/goodnight` that lands at the same moment wins. A failed write is red.
 - **Ticking.** Each pass ticks its own item. The night ticks its measure
-  item; climb and the robot tick theirs on the plan branch as they publish;
-  `keel night tick` refuses an id the plan does not hold and a move back
+  item; climb and the robot tick theirs on the plan branch as they publish,
+  each tick carrying the item's lane and number as the pass admitted it, so
+  an item you reshape mid-run under the same id is never ticked with the old
+  one's outcome (the tick is refused and named); `keel night tick` refuses an id the plan does not hold and a move back
   from `done`.
 - **The record.** The night's PR commits the plan as it ended,
   `docs/night/<date>.json`, which the drain treats as data; the health page's

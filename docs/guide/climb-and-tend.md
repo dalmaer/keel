@@ -51,8 +51,11 @@ hour repeatable, under one protocol (`.agents/climb/PROTOCOL.md`):
   tonight, a green run that says so. The plan never adds a job, and its
   item's minutes may lower the budget, never raise it. Anything its
   `willNotTouch` lists (a path: that file, or everything under it) is refused
-  like `.github/`. The publish job ticks the item on the plan branch:
-  running, then done with the PR or failed with why. A plan that is refused
+  like `.github/`, on the head that is pushed as well as the agent's: listing
+  `.keel/climb.json` stops climb's own rotation commit, and the next night
+  reads the rotation from this night's record alone. The publish job ticks
+  the item on the plan branch: running, then done with the PR or failed with
+  why. A plan that is refused
   or for another night is no plan: climb chooses as above.
 
 The jobs (`test-time`, `hygiene`, `build-time`, `perf`, `lessons`, `loop`)
