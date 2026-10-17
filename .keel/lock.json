@@ -79,7 +79,7 @@
     },
     ".github/workflows/keel-morning.yml": {
       "practice": "night",
-      "sha256": "99eaa8483f6e5a48b91f7bb80d0d94a6f99cfef6fef429d090bd1c3f29260d44"
+      "sha256": "8c7ed909d3fdad41c358f1e390dad59a2490f2fc35eab9ba82252980fa4f6be9"
     },
     ".github/workflows/keel-night.yml": {
       "practice": "night",
@@ -199,7 +199,7 @@
     },
     "scripts/keel/morning.mjs": {
       "practice": "night",
-      "sha256": "50f0b21440fac84c26e2084b5763275b14290106f29fe964080c2492fc355cd1"
+      "sha256": "b11cedd87bf5c7f80abf3001e58ef0f66c74c840a9e5dea63e09641ee2d7b70c"
     },
     "scripts/keel/night-plan.mjs": {
       "practice": "night",

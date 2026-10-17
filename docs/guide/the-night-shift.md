@@ -301,11 +301,15 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   what was tried; what failed, and why; what was left alone; what was not
   finished by `readyBy`; and what is yours next (each PR to review and merge,
   each failure to look at). It links the canvas when one is bound, the
-  health page and each PR.
+  health page and each PR. The night's health page is read from where its
+  record was: while the night's PR is unmerged, from that PR's branch, and
+  linked there.
 - **Sending** needs `"morning": { "assignee": "<your GitHub login>" }` in
   `.keel/keel.json`; without it `--send` refuses, naming the key. It labels
   the issue `keel:morning` and closes yesterday's. A second send for the same
-  night does nothing.
+  night does nothing. In a workflow run its issues go to the run's own
+  repository, the one the brief links into (a fork, a renamed repo);
+  elsewhere to `.keel/keel.json` `repo`.
 - **When.** `keel-morning.yml` sends it once every build item in the plan is
   done, failed, skipped or left alone, or at the plan's `readyBy` (default
   17:00 UTC), marking anything unfinished "not finished by" that time, never
@@ -319,7 +323,8 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   `keel-night/<date>-final`, that puts the final outcomes in
   `docs/night/<date>.json` and the page's "Tonight's plan", so a build that
   finishes after the brief still reaches the archive; a run with nothing new
-  changes nothing. The next night's drain merges it with the series.
+  commits nothing, but opens that PR if an earlier run pushed its branch
+  and failed to open it. The next night's drain merges it with the series.
 - **The card.** With a canvas in live mode that lists `night-plan` (`keel
   canvas live --card pulse --card night-plan --yes`), `keel morning --card
   --yes` publishes the plan as one card, edited in place each time an item
