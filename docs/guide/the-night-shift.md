@@ -460,20 +460,69 @@ from `scripts/keel/ci.mjs` for read-only API walks.
 `gateWorkflow` alias still works; conflicting values are an error. Discovery
 heuristics do not authorize reuse. The gate measure reuses only same-repo,
 default-branch **push** CI on the exact clean SHA. PR and fork runs are excluded.
-The newest candidate by update/attempt freshness must be completed success or
-failure, with validated matching jobs completed within 24 hours, and evidence
-that tests ran (keel#93): a job named for tests whose every step ran. A step's
-name is never evidence (an upload step named for the ledger succeeds with
-nothing to keep), and neither is the `keel-test-runs` artifact until its
-contents are read (#96): the gate's own timing record is uploaded even when no
-tests ran. A CI with no test-named job, keel's own `check.yml` among them, is
-not reused; the night runs its local gate. A run whose test jobs were all skipped (only lint or setup ran), or whose
-test step was skipped, is not reused. A completed
-failure remains a failure; pending, skipped, canceled, stale or unavailable
-results fall back to the configured local command. Reused reports name the
-source, SHA, conclusion and completion age. They do not claim local execution
-or create local gate wall-time records. Keel's own real reuse walk must follow
-merge and default-branch CI, not just a green PR check.
+The newest candidate by update/attempt freshness must be a completed success,
+with validated matching jobs completed within 24 hours. Since phase 79 the
+evidence is the run's `keel-test-runs` artifact, read through the test
+history's bounded ZIP reader: it must hold exactly one gate record for this
+commit (`kind: gate`, from `gate.mjs --ci` or `test-ledger.mjs --gate`) on the
+same tree, clean, for the same configured `check` (its command hash), exit 0,
+and test runs under that gate invocation that ran at least one test and failed
+none (the ledger's "no test ran" rule). A job's or step's name is no longer
+enough: it cannot say which command ran, on which tree. A failure, a pending,
+skipped, cancelled, stale or unavailable result, a run with no artifact, or an
+artifact that does not prove all of that falls back to the configured local
+command. Reused reports name the source, SHA, conclusion, completion age and
+the tests CI ran. They do not claim local execution or create local gate
+wall-time records.
+
+### One gate result per commit (phase 79)
+
+`scripts/keel/gate.mjs` is the one function every pass asks before running
+the gate. `node scripts/keel/gate.mjs` reuses CI's result as above, else skips
+a docs-only commit, else runs the check through the test ledger's launcher,
+and says which (`--json`: `action` reused, skipped or ran, and why).
+
+| Pass | Uses it | Why not, where it does not |
+| --- | --- | --- |
+| The night's gate measure | reuse (improve.mjs `gateRun`) | — |
+| The loop's gate step | `node scripts/keel/gate.mjs` | a pull that changed findings is a dirty tree: never reused, so it runs |
+| A pre-push hook | `"pre-push": "node scripts/keel/gate.mjs"`, the project's choice | — |
+| CI's own gate step (check.yml) | `gate.mjs --ci`: docs-only skip or run, never reuse | it is the result the others reuse |
+| climb's and tend's guards, the robot's judge (candidate) | no | a candidate branch is a tree CI never tested |
+| climb's guard and the robot's judge (base) | not yet | the base is the commit CI tested, but the judge job holds no token by design (the agent's code runs in it) and the robot's judge strips `GITHUB_*` from the gate's env, so CI's run is not like for like; it runs its own |
+
+`"delivery": { "docsOnly": ["docs/", "README.md", "**/*.md"] }` in
+`.keel/keel.json` names the paths whose change needs no suite: an entry ending
+in `/` is a directory, one with `*` a glob (`**` crosses folders), else one
+file. A clean commit whose every changed path since the **last fully tested
+commit** is in the list records `skipped: docs only` (a `gate-skip` record in
+`.keel/test-runs`, never read as a test run or a gate time). The last fully
+tested commit is the newest first-parent ancestor (at most 20 back) with a
+result of reuse grade, at any age, never simply the parent: a code commit
+whose run was cancelled is never covered by a docs commit after it (ledger's
+lesson). List only paths no part of the gate reads (a roadmap check reads
+`docs/phases/`). Some paths are never docs only, whatever the list says: all
+of `.github/` (workflows and actions) and `scripts/keel/`, `.keel/keel.json`,
+`.keel/lock.json`, `.nvmrc`, `.node-version`, `.tool-versions`, a
+`package.json`, lockfile or package-manager config at any depth, and every file
+keel manages as HEAD's committed `.keel/lock.json` names it (the committed lock,
+so a commit cannot drop a file from it and skip in one go; a changed lock is
+itself protected). A change to one runs the suite. An entry that reaches one is
+refused at config time, exit 2: a directory entry or a glob's literal head
+overlapping a protected directory, a protected file it matches, a managed file
+it names, or an exact name or glob's last segment that can be a manifest,
+lockfile or code file (`**/*.mjs`, `*.json`). `docs/` stays allowed: a
+`docs/package.json` or a managed template under it is refused when it changes.
+And docs only means text docs, judged per changed file whatever the list says:
+an extension of `.md`, `.mdx`, `.markdown`, `.txt`, `.rst`, `.adoc` or
+`.asciidoc` anywhere, or an image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`,
+`.avif`, `.svg`) under `docs/`, with git mode 100644. Anything else runs the
+suite: a code or config extension, an unknown one, no extension (`LICENSE`, a
+`Makefile`, a script), a file git marks executable (100755) or a symlink. An
+exact entry must itself name a text doc, and a glob ending in another
+extension (`src/anvil*.mjs`) is refused. check.yml's gate step holds a
+read-only `GH_TOKEN` (and `actions: read`) for this lookup alone; the check
+runs without it.
 
 Both adoption paths preview only workflows they would create, with triggers,
 history source/window and monthly weighted-minute estimates. They query the

@@ -59,7 +59,7 @@
     },
     ".github/workflows/check.yml": {
       "practice": "ci",
-      "sha256": "604784a06610817287b1b1d09b8452a4d10ab942b93edf346a8e7a8a04ffb127"
+      "sha256": "4c5202285c00fc3df5912c62915112b042d94c2f46397bc1dd87e6bdd937819d"
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",
@@ -155,7 +155,7 @@
     },
     "scripts/keel/ci.mjs": {
       "practice": "night",
-      "sha256": "0af4960574107b1424314d254ced19e5339f01a27d73db808ef84b8e65b79a48"
+      "sha256": "54e9bc33c013569884ba296cedb0d198eb59278e7db398c29cb5833e7c823952"
     },
     "scripts/keel/climb.mjs": {
       "practice": "climb",
@@ -173,6 +173,10 @@
       "practice": "night",
       "sha256": "1c49b5de5d7c8d3e229d1e220b4c6eee24737adc585d213a00d01815a32611ad"
     },
+    "scripts/keel/gate.mjs": {
+      "practice": "night",
+      "sha256": "f880d397a356ae73beb8ca9e209222fe5753174d46021e196c2642f070094852"
+    },
     "scripts/keel/generated.mjs": {
       "practice": "phases",
       "sha256": "887b30076953ebc406698bf7c8db85f4ca6605e215248bfda4c624dcc6faadb2"
@@ -187,7 +191,7 @@
     },
     "scripts/keel/improve.mjs": {
       "practice": "night",
-      "sha256": "a1521dc497f35c393ccb1d3f7de1bad6af885a520557f6bccb9a944beb98d42f"
+      "sha256": "43c387a47ddc13080a90ff5468fdee6cdba0a25ddbde6b4625d7646d1c19cac4"
     },
     "scripts/keel/lib.mjs": {
       "practice": "night",
@@ -255,11 +259,11 @@
     },
     "scripts/keel/test-history.mjs": {
       "practice": "night",
-      "sha256": "2e2a873736f6c6235c8eb7356657b967ca2ca26e20d574208652c1d2c885615e"
+      "sha256": "5e656638ab55a61748c8cc9df6c5119083a2dbff698a25661d2f9778e04f73d1"
     },
     "scripts/keel/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "d4ad925f33d676a360916d0f75b8594b68b5c3964d17ce7740f2c110d00730ce"
+      "sha256": "494ff74393bb74fa736c138d73bc400189545b1b60348a056426395948423ba8"
     },
     "scripts/keel/time-measures.mjs": {
       "practice": "night",

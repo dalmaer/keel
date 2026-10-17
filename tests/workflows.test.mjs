@@ -939,6 +939,39 @@ test('check.yml keeps each run\'s test ledger as an artifact, red or green; the 
 });
 
 /**
+ * One gate result per commit (phase 79): check.yml's gate step is gate.mjs --ci, before the ledger is kept in
+ * the same job (so the record the others reuse is in the artifact), with Actions read-only for its docs-only
+ * lookup; the loop's gate step goes through gate.mjs too. [string] problems.
+ */
+export function gateReuseProblems(name, text) {
+  const out = [];
+  if (name === 'check.yml') {
+    const gate = text.indexOf('      - name: Run the configured gate\n'), keep = text.indexOf('      - name: Keep the test ledger\n');
+    if (gate < 0 || !/node scripts\/keel\/gate\.mjs --ci\n/.test(text.slice(gate, keep))) out.push('check.yml: the gate step does not run scripts/keel/gate.mjs --ci');
+    if (keep < gate) out.push('check.yml: the ledger is kept before the gate ran');
+    if (!/\n {6}actions: read\n/.test(text)) out.push('check.yml: the docs-only lookup cannot read Actions');
+    if (/\n {6}actions: write\n/.test(text)) out.push('check.yml: Actions is writable');
+  }
+  if (name === 'keel-loop.yml' && !/- name: Gate\n[\s\S]*?node scripts\/keel\/gate\.mjs;[\s\S]*?render --check && check;/.test(text)) out.push('keel-loop.yml: the gate step does not go through scripts/keel/gate.mjs');
+  return out;
+}
+
+test('check.yml\'s gate is gate.mjs --ci, kept as the artifact after it, read-only; the loop\'s gate goes through gate.mjs (phase 79)', async () => {
+  const all = await shipped();
+  for (const name of ['check.yml', 'keel-loop.yml']) {
+    const w = all.find(x => x.name === name);
+    assert.deepEqual(gateReuseProblems(name, w.template), [], name);
+  }
+  assert.deepEqual(gateReuseProblems('check.yml', await readFile(join(KEEL, '.github/workflows/check.yml'), 'utf8')), [], "keel's own check.yml");
+  const check = all.find(w => w.name === 'check.yml').template, loop = all.find(w => w.name === 'keel-loop.yml').template;
+  const fails = (name, text, pattern) => assert.ok(gateReuseProblems(name, text).some(p => pattern.test(p)), JSON.stringify(gateReuseProblems(name, text)));
+  fails('check.yml', check.replace('node scripts/keel/gate.mjs --ci', 'node scripts/keel/test-ledger.mjs --gate'), /gate\.mjs --ci/);
+  fails('check.yml', check.replace('      actions: read\n', ''), /cannot read Actions/);
+  fails('check.yml', check.replace('      actions: read\n', '      actions: write\n'), /writable|cannot read/);
+  fails('keel-loop.yml', loop.replace('node scripts/keel/gate.mjs;', '{{check}};'), /gate\.mjs/);
+});
+
+/**
  * A climb night's own rules (phase 35), on keel-climb.yml's text: [string].
  * The agent's tools cannot push, merge or reach gh; its step is time-boxed by
  * the budget; the script judges the night (settle, guard) before anything is

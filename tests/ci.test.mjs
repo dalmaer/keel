@@ -2,7 +2,7 @@
 // used by the production night and adoption preview. No real project data.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { readCiUsage, readCiGate, ciOptions } from '../practices/night/files/scripts/keel/ci.mjs';
@@ -160,11 +160,14 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   const api = gateApi(run(1, { head_sha: commit }), [{ ...lint, head_sha: commit }, { ...skippedTests, head_sha: commit }]);
   const [gate] = await measure({ root, config, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, measures: MEASURES.filter(m => m.id === 'gate') });
   assert.equal(gate.facts.source, 'local-command');
-  assert.match(gate.facts.reuseUnavailable, /no test job or test-ledger run executed/);
+  // Phase 79: the night reuses through gate.mjs, whose evidence is the run's keel-test-runs records (tests/gate-reuse.test.mjs).
+  assert.match(gate.facts.reuseUnavailable, /artifact/);
   assert.equal(await readFile(join(root, 'ran'), 'utf8'), 'yes');
 });
 
-test('night reuses explicit clean CI without local timing, preserves failure, and falls back safely', async t => {
+// Phase 79: a test-named job is no longer enough for the night (it cannot say which command ran, on which
+// tree); its reuse, with the ledger's records, is tests/gate-reuse.test.mjs's. Without them it runs its own gate.
+test('night runs its own gate without the ledger\'s record of CI\'s, success or failure, and a conflicting config is broken', async t => {
   const root = await scratch(t);
   const git = (...args) => execFileSync('git', args, { cwd: root, env: ENV, encoding: 'utf8' }).trim();
   git('init', '-q', '-b', 'main');
@@ -175,10 +178,8 @@ test('night reuses explicit clean CI without local timing, preserves failure, an
   const invoke = async (api, c = config) => (await measure({ root, config: c, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, measures: selected }))[0];
   for (const conclusion of ['success', 'failure']) {
     const result = await invoke(gateApi(run(1, { head_sha: commit, conclusion }), [job(101, 1, { head_sha: commit })]));
-    assert.equal(result.value, conclusion === 'success' ? 0 : 1);
-    assert.equal(result.facts.source, 'github-actions');
-    assert.match(result.detail, /not run locally/);
-    assert.deepEqual(await readdir(root), ['.git', 'source']);
+    assert.equal(result.facts.source, 'local-command', conclusion);
+    assert.equal(result.value, 0, 'the local gate passed');
   }
   const fallback = await invoke({});
   assert.equal(fallback.facts.source, 'local-command');

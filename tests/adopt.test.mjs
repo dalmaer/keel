@@ -14,7 +14,7 @@ import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, fill, wanted } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
-import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, HEADING, REPORT } from '../lib/adopt.mjs';
+import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, adoptionReport, HEADING, REPORT, LEDGER_UPLOAD_STEP } from '../lib/adopt.mjs';
 import { testsConfigProblems, readRuns, busyCoverage, hygiene } from '../practices/night/files/scripts/keel/test-ledger.mjs';
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -107,6 +107,31 @@ test('acme-groove: milestones make phases local; its gate is check:all; its work
   assert.equal(status(data, 'AGENTS.md#phases'), undefined, 'a local practice installs nothing');
   assert.equal(status(data, 'docs/templates/evidence.md'), 'create');
   assert.equal(status(data, '.github/workflows/check.yml'), undefined, 'no second workflow running the gate');
+});
+
+test('a project\'s own CI that keeps no gate result gets the test ledger\'s upload proposed, never written (phase 79)', async t => {
+  // acme-groove's pages.yml runs the gate and uploads nothing (ledger's test.yml was the case).
+  const { data } = await adopt({ dir: join(FIXTURES, 'acme-groove'), dryRun: true }, { version: VERSION });
+  assert.match(data.config.local.ci, /add keel's "Keep the test ledger" step \(the keel-test-runs artifact, red or green\) after its gate in pages\.yml/);
+  const report = adoptionReport({ ...data, ledgerUpload: { where: '.github/workflows/pages.yml', step: LEDGER_UPLOAD_STEP } });
+  assert.match(report, /## Keep the gate's result\n\n\.github\/workflows\/pages\.yml runs the gate but keeps none of its result/);
+  assert.ok(report.includes(`\`\`\`yaml\n${LEDGER_UPLOAD_STEP}\n\`\`\``));
+  // The step proposed is keel's own check.yml step, byte for byte: never a second spelling of it.
+  const check = await readFile(join(KEEL, 'practices/ci/files/.github/workflows/check.yml'), 'utf8');
+  assert.ok(check.includes(`${LEDGER_UPLOAD_STEP}\n`), 'the proposed step is check.yml\'s');
+  // Adopted for real: the report carries the step, and the project's workflow is left as it was.
+  const dir = await copyFixture(t, 'acme-groove');
+  const before = await readFile(join(dir, '.github/workflows/pages.yml'), 'utf8');
+  const r = keel(['adopt', dir, '--json']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(await readFile(join(dir, '.github/workflows/pages.yml'), 'utf8'), before, 'adopt never edits the project\'s workflow');
+  assert.match(await readFile(join(dir, REPORT), 'utf8'), /## Keep the gate's result[\s\S]*name: keel-test-runs/);
+  // A workflow that already keeps it: no proposal.
+  const kept = await copyFixture(t, 'acme-groove');
+  await writeFile(join(kept, '.github/workflows/pages.yml'), `${before}${LEDGER_UPLOAD_STEP}\n`);
+  const { data: again } = await adopt({ dir: kept, dryRun: true }, { version: VERSION });
+  assert.doesNotMatch(again.config.local.ci, /Keep the test ledger/);
+  assert.equal(again.ledgerUpload, null);
 });
 
 test('acme-fold: phases without goal or evidence stay local; its TS roadmap is its own', async () => {

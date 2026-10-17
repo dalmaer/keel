@@ -64,7 +64,8 @@ import { Saving } from './quota.mjs';
 // Apache-2.0): time each Bash call from tool_use to tool_result, by kind. The
 // ratchet follows isocan's scripts/ratchet.mjs (Apache-2.0): bounds that only
 // report the wrong way.
-import { readCiUsage, readCiGate, ciOptions } from './ci.mjs';
+import { readCiUsage, ciOptions } from './ci.mjs';
+import { reusableGate } from './gate.mjs';
 import { hygieneOptions, draftsWaiting, longFiles } from './hygiene-measures.mjs';
 import { makeHygieneProposal, formatHygieneProposal, readHygieneProposals, hygieneRobotTargetReason } from './hygiene-proposals.mjs';
 import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
@@ -301,16 +302,18 @@ async function notes(ctx, dir) {
   catch (e) { if (['ENOENT', 'ENOTDIR'].includes(e.code)) return null; throw e; }
 }
 
-/** The project's gate, run once: { command, status, tests, ms }. */
+/**
+ * The project's gate, run once: { command, status, tests, ms }. CI's result
+ * for this exact clean commit stands in for it when gate.mjs's reusableGate
+ * finds one (the one rule every pass shares, phase 79): reused, it is not run here.
+ */
 const gateRun = ctx => once(ctx, 'gate', async () => {
   const command = ctx.config.check ?? CHECK;
   const named = gateWorkflowOf(ctx.config);
   if (named?.problem) throw new Error(named.problem);
   let reuse = { reused: false, reason: 'no explicitly configured CI workflow' };
   if (named && ctx.config.repo) {
-    let sha = '', clean = false;
-    try { sha = gitOut(ctx, ['rev-parse', 'HEAD']).trim(); clean = !gitOut(ctx, ['status', '--porcelain', '--untracked-files=all']).trim(); } catch { /* local gate remains available */ }
-    reuse = await readCiGate({ repo: ctx.config.repo, workflow: named.name, sha, clean, env: ctx.env, now: ctx.now });
+    reuse = await reusableGate({ root: ctx.root, config: ctx.config, env: stripTest(ctx.env), now: ctx.now });
     if (reuse.reused) return { command, ...reuse };
   }
   // Never a test runner's context (lesson 14); the project's .keel/keel.json `env` over it.
