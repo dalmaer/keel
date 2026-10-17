@@ -5,6 +5,11 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `keel release` writes them; `keel update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.31 — practice 0.8.31 (2026-10-16)
+
+- **`keel-morning` is started only by the passes your project installs.** Without the climb practice it names only `keel-night`; before, it also named `keel-climb` and `keel-robot`, workflows that did not exist there.
+- keel itself now has its own canvas, a performance persona, and the delivery plan (phases 79–83, goal G6) specced; none of these change your project.
+
 ## v0.8.30 — practice 0.8.30 (2026-10-15)
 
 - **A night with a plan you can shape** (phases 73–78, the "nightwatch"). Each night now writes its plan before it runs: keel's default plan (tonight's measures, the climb job it would pick, the robot's next issue, Loop findings to triage, personas' missed goals), or the one you shaped. The health page gains "Tonight's plan", and `docs/night/<date>.json` records how each item ended.
