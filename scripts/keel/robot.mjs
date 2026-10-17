@@ -194,9 +194,10 @@ export async function prepareRobot({ nightPlan = null, ...args }) {
   const reason = !applies ? result.reason
     : !items.length ? 'tonight\'s plan names no robot item, so the robot builds nothing tonight'
     : result.state === 'blocked' && result.reason === 'no pending robot issue' ? 'no robot item in tonight\'s plan could be admitted (each is ticked with why); no other issue is read' : result.reason;
+  const admitted = applies && result.planItem ? items.find(p => p.id === result.planItem)?.item : null;
   return {
     ...result, ...(reason !== undefined ? { reason } : {}),
-    nightPlan: { used: true, applies, date: nightPlan.date, item: applies ? result.planItem ?? null : null, ticks, willNotTouch: [...nightPlan.willNotTouch], ...(applies ? {} : { why: 'a writer\'s own event, not the night: tonight\'s plan does not choose it' }) },
+    nightPlan: { used: true, applies, date: nightPlan.date, item: applies ? result.planItem ?? null : null, ...(admitted ? { admitted: { lane: admitted.lane, number: admitted.number ?? null } } : {}), ticks, willNotTouch: [...nightPlan.willNotTouch], ...(applies ? {} : { why: 'a writer\'s own event, not the night: tonight\'s plan does not choose it' }) },
   };
 }
 
@@ -225,7 +226,8 @@ async function admitRobot({ root, repo, config, event, eventName, has, now = new
   const scanning = !routed && ['schedule','workflow_dispatch'].includes(eventName);
   let issues;
   // Tonight's plan (phase 76): its robot items, in its order, and no other issue is listed or read.
-  const tick = (candidate, status, note) => { if (candidate.planItem) planned.ticks.push({ id: candidate.planItem, status, note: robotRedact(note).slice(0, 1000) }); };
+  // Each tick carries the item as the robot read it (lane and number), so record never ticks an item reshaped since (keel#147).
+  const tick = (candidate, status, note) => { if (candidate.planItem) planned.ticks.push({ id: candidate.planItem, status, note: robotRedact(note).slice(0, 1000), admitted: { lane: candidate.planBudget.lane, number: candidate.planBudget.number ?? null } }); };
   if (planned && scanning) {
     issues = planned.items.map(p => ({ number: p.issue, planItem: p.id, planBudget: p.item }));
   } else if (eventName === 'schedule' || eventName === 'workflow_dispatch') {

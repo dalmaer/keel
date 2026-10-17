@@ -469,3 +469,35 @@ test('on CI the card keeps the night\'s journal: restored from the newest canvas
   await assert.rejects(publishPlanCard({ root: empty, date: NIGHT, yes: true, env: { ...env, KEEL_CANVAS_OUTPUT: join(empty, 'out') } }, { transport: f.transport }), e => e.exitCode === 1 && /could not be restored/.test(e.message));
   assert.equal(f.remote.adds, adds, 'nothing was written to the canvas');
 });
+
+// keel#149: the issues go where the links point, and the night's page is read where its record was.
+test('in a GitHub Actions run, --send lists, labels, opens and closes its issues in the run\'s own repository, the one the brief links into', async t => {
+  const p = await project(t, { issues: [{ number: 30, title: 'Good morning, 2026-10-04', state: 'OPEN' }] });
+  const r = keel(['morning', '--send', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'acme/anvils-fork' });
+  assert.equal(r.code, 0, r.err + r.out);
+  const calls = (await p.calls()).map(c => c.a);
+  assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'label create', 'issue create', 'issue close']);
+  assert.deepEqual(calls.map(a => a[a.indexOf('--repo') + 1]), Array(4).fill('acme/anvils-fork'), 'not the config\'s acme/anvils');
+  assert.match((await p.issuesNow()).find(i => i.number === 31).body, /https:\/\/github\.com\/acme\/anvils-fork\/blob\//);
+});
+
+test('while the night\'s PR is unmerged, the brief reads the night\'s health page from the night\'s branch, where its record came from, and links it there', async t => {
+  const p = await project(t);
+  // The night's PR is open: its branch holds the record and the page; the default branch has only an older page.
+  git(p.root, 'push', '-q', 'origin', `main:refs/heads/keel-night/${NIGHT}`);
+  await writeFile(join(p.root, 'docs/health/2026-10-04.md'), page('2026-10-04', 790000));
+  git(p.root, 'rm', '-q', `docs/night/${NIGHT}.json`, `docs/health/${NIGHT}.md`);
+  git(p.root, 'add', '-A'); git(p.root, 'commit', '-q', '-m', 'Acme: main without the night');
+  git(p.root, 'push', '-q', 'origin', 'main');
+  const found = await finalPlan({ root: p.root, date: NIGHT });
+  assert.deepEqual([found.from, found.branch], [`keel-night/${NIGHT}:docs/night/${NIGHT}.json`, `keel-night/${NIGHT}`]);
+  const h = await healthAround(p.root, CONFIG, NIGHT, { branch: found.branch });
+  assert.deepEqual([h.before.file, h.before.ref, h.after.file, h.after.ref], [`docs/health/${NIGHT}.md`, `keel-night/${NIGHT}`, 'docs/health/2026-10-06.md', `keel-night/${NIGHT}`]);
+  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  assert.equal(r.code, 0, r.err + r.out);
+  assert.equal(r.json().links.health, `https://github.com/acme/anvils/blob/keel-night/${NIGHT}/docs/health/${NIGHT}.md`);
+  assert.match(r.json().markdown, /760000 before → 741000 after/, 'the night\'s own numbers, not the older page\'s 790000');
+  // Merged, the checkout's page is the night's, linked at HEAD as before.
+  const merged = await project(t);
+  assert.equal(keel(['morning', '--date', NIGHT, '--json'], merged.root, { KEEL_GH: merged.gh }).json().links.health, LINKS.health);
+});

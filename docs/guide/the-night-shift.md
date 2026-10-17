@@ -214,8 +214,10 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   branch's history; one it cannot read is left alone), with a lease, so a
   `/goodnight` that lands at the same moment wins. A failed write is red.
 - **Ticking.** Each pass ticks its own item. The night ticks its measure
-  item; climb and the robot tick theirs on the plan branch as they publish;
-  `keel night tick` refuses an id the plan does not hold and a move back
+  item; climb and the robot tick theirs on the plan branch as they publish,
+  each tick carrying the item's lane and number as the pass admitted it, so
+  an item you reshape mid-run under the same id is never ticked with the old
+  one's outcome (the tick is refused and named); `keel night tick` refuses an id the plan does not hold and a move back
   from `done`.
 - **The record.** The night's PR commits the plan as it ended,
   `docs/night/<date>.json`, which the drain treats as data; the health page's
@@ -301,11 +303,15 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   what was tried; what failed, and why; what was left alone; what was not
   finished by `readyBy`; and what is yours next (each PR to review and merge,
   each failure to look at). It links the canvas when one is bound, the
-  health page and each PR.
+  health page and each PR. The night's health page is read from where its
+  record was: while the night's PR is unmerged, from that PR's branch, and
+  linked there.
 - **Sending** needs `"morning": { "assignee": "<your GitHub login>" }` in
   `.keel/keel.json`; without it `--send` refuses, naming the key. It labels
   the issue `keel:morning` and closes yesterday's. A second send for the same
-  night does nothing.
+  night does nothing. In a workflow run its issues go to the run's own
+  repository, the one the brief links into (a fork, a renamed repo);
+  elsewhere to `.keel/keel.json` `repo`.
 - **When.** `keel-morning.yml` sends it once every build item in the plan is
   done, failed, skipped or left alone, or at the plan's `readyBy` (default
   17:00 UTC), marking anything unfinished "not finished by" that time, never
@@ -319,7 +325,8 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   `keel-night/<date>-final`, that puts the final outcomes in
   `docs/night/<date>.json` and the page's "Tonight's plan", so a build that
   finishes after the brief still reaches the archive; a run with nothing new
-  changes nothing. The next night's drain merges it with the series.
+  commits nothing, but opens that PR if an earlier run pushed its branch
+  and failed to open it. The next night's drain merges it with the series.
 - **The card.** With a canvas in live mode that lists `night-plan` (`keel
   canvas live --card pulse --card night-plan --yes`), `keel morning --card
   --yes` publishes the plan as one card, edited in place each time an item
@@ -335,7 +342,11 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   and the job's own token, which only reads. The night and the card keep one
   canvas journal between runs (each restores the newest of the other's and
   its own), so a card edit is never mistaken for yours. While a night is
-  still publishing, the card waits for the next pass.
+  still publishing, the card waits for the next pass. A card run that left
+  no journal is passed over only when its own job results show the card
+  step never ran; otherwise (say the card published and the journal upload
+  failed) the next writer refuses rather than restore older state and make a
+  second card.
 
 ## What you'll see
 

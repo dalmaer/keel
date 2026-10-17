@@ -764,3 +764,30 @@ test('a night with no owner plan writes its default plan to the plan branch, and
   assert.equal(lost.written, false, 'mutation: a plain force push writes over the owner\'s plan');
   assert.deepEqual(raced.show(), plannedTonight(), 'the owner\'s plan stands');
 });
+
+// keel#147: the owner reshaped the plan while a pass ran, keeping an id; the old item's ticks never land on the new one.
+test('a tick carries the item as its pass admitted it, and one whose item kept its id but changed lane or number is refused, naming why', async t => {
+  const NUMBER = { measure: 'bundle_bytes', bound: 747000, better: 'lower' };
+  // Reshaped since the robot admitted it: robot-12 is now issue #14's, and climb-build measures another number.
+  const reshaped = designPlan([
+    designItem({ id: 'climb-tests', lane: 'climb:test-time', budget: null, result: null }),
+    designItem({ id: 'climb-build', lane: 'climb:build-time', number: { ...NUMBER, bound: 700000 }, budget: null, result: null }),
+    designItem({ id: 'robot-12', source: 'robot:#14', lane: 'robot:#14', budget: null, result: null }),
+  ]);
+  const { dir, show, temp } = await planRemote(t, reshaped);
+  await mkdir(join(temp, 'plan'), { recursive: true });
+  await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ state: 'ready', nightPlan: { used: true, applies: true, date: NIGHT, item: 'robot-12', admitted: { lane: 'robot:#12', number: NUMBER }, ticks: [], willNotTouch: [] } }));
+  const robotTick = await tickStep('keel-robot.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, PUBLISHED: 'success', JUDGED: 'success', PR: '31' });
+  assert.equal(robotTick.status, 0, robotTick.out);
+  assert.match(robotTick.out, /::warning::robot-12 not ticked done: "robot-12" changed since the pass admitted it \(robot:#12, `bundle_bytes` ≤ 747000; now robot:#14, `bundle_bytes` ≤ 747000\)/);
+  let plan = show();
+  const byId = id => plan.items.find(i => i.id === id);
+  assert.deepEqual([byId('robot-12').status, byId('robot-12').result], ['planned', null], 'the new item is never ticked with #12\'s outcome, so it is still admitted');
+  // Climb: its own item unchanged is ticked; the item it skipped, its number changed since, is not.
+  await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', admitted: { lane: 'climb:test-time', number: NUMBER }, skipped: [{ id: 'climb-build', note: 'climb runs one job a night', admitted: { lane: 'climb:build-time', number: NUMBER } }] } }));
+  const climbTick = await tickStep('keel-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time: kept 1' });
+  assert.equal(climbTick.status, 0, climbTick.out);
+  assert.match(climbTick.out, /::warning::climb-build not ticked skipped: "climb-build" changed since the pass admitted it/);
+  plan = show();
+  assert.deepEqual([byId('climb-tests').status, byId('climb-build').status], ['done', 'planned']);
+});

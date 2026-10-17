@@ -195,7 +195,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   const named = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('measure-it', 'night', { kind: 'measure', number: null }), planItem('faster-build', 'climb:build-time')]))]);
   assert.deepEqual([named.job, named.by, named.branch], ['build-time', 'plan', 'keel-climb/build-time/2026-10-06']);
   assert.match(named.why, /tonight's plan names it: faster-build, Acme faster-build/);
-  assert.deepEqual(named.plan, { used: true, date: '2026-10-06', shapedBy: 'owner', item: 'faster-build', skipped: [], willNotTouch: [] });
+  assert.deepEqual(named.plan, { used: true, date: '2026-10-06', shapedBy: 'owner', item: 'faster-build', admitted: { lane: 'climb:build-time', number: { measure: 'slow_tests', bound: 0, better: 'lower' } }, skipped: [], willNotTouch: [] });
   // Only the first climb item that may run: one not in "climb".jobs, or waiting on its open PR, is skipped, saying why.
   const second = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('perf-x', 'climb:perf'), planItem('tests-x', 'climb:test-time'), planItem('build-x', 'climb:build-time'), planItem('build-y', 'climb:build-time')]))], open);
   assert.deepEqual([second.job, second.plan.item], ['build-time', 'build-x']);
@@ -232,7 +232,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   await setConfig(dir, { climb: { jobs: ['test-time'], schedule: 'weekly' } });
   const weekly = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time')]))]);
   assert.equal(weekly.job, null);
-  assert.deepEqual(weekly.plan.skipped, [{ id: 'tests-x', note: 'climb did not run it: climb is weekly, on Mondays (UTC)' }]);
+  assert.deepEqual(weekly.plan.skipped.map(({ id, note }) => ({ id, note })), [{ id: 'tests-x', note: 'climb did not run it: climb is weekly, on Mondays (UTC)' }]);
 });
 
 test('a plan budget lowers a pass\'s minutes and never raises them', async t => {

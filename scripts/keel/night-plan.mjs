@@ -624,25 +624,42 @@ export async function tick({ root, id, status, note, link }) {
   return { data: { ok: true, path: PLAN, date: updated.date, item: next, from }, text: `${id}: ${from} → ${status}${note ? ` — ${note}` : ''}${link ? ` (${link})` : ''}` };
 }
 
+/**
+ * The item a pass admitted, as its ticks carry it (keel#147): its lane and
+ * its number, the definition the pass built. A plan reshaped while the pass
+ * ran can keep the id and change either; such a tick is refused, never
+ * applied to the new item.
+ */
+export const identityOf = it => ({ lane: it.lane, number: it.number ?? null });
+const numberKey = n => (n ? [n.measure, n.bound, n.better] : null);
+const sameItem = (a, b) => a.lane === b.lane && JSON.stringify(numberKey(a.number)) === JSON.stringify(numberKey(b.number));
+const identityLine = a => `${a.lane}${a.number ? `, \`${a.number.measure}\` ${a.number.better === 'higher' ? '≥' : '≤'} ${a.number.bound}` : ''}`;
+
 /** A tick's own fields, checked before any plan is read: throws NightPlanError. */
-function tickProblem({ status, note, link }) {
+function tickProblem({ status, note, link, admitted }) {
   if (!STATUSES.includes(status)) throw new NightPlanError(`--status is one of ${STATUSES.join(', ')} (got ${JSON.stringify(status)})`);
   if (note !== undefined && !isText(note, 1000)) throw new NightPlanError('--note is text, at most 1000 characters');
   if (link !== undefined && !isLink(link)) throw new NightPlanError('--link is an https URL or a repo path');
+  if (admitted !== undefined && !(isObject(admitted) && Object.keys(admitted).every(k => ['lane', 'number'].includes(k)) && isText(admitted.lane, 200) && (admitted.number === null || (isObject(admitted.number) && isText(admitted.number.measure, 200) && Number.isFinite(admitted.number.bound) && ['lower', 'higher'].includes(admitted.number.better))))) {
+    throw new NightPlanError('a tick\'s "admitted" is the item\'s { lane, number } as the pass admitted it');
+  }
 }
 
 /**
  * One tick on a plan, pure: keel night tick's rules (an id the plan holds, a
  * status of the six, never back from done; a done item may be ticked done
  * again, to mend its note) on any plan, so `record` ticks the plan branch's
- * copy exactly as `tick` ticks the working one. Returns { plan, item, from };
- * throws NightPlanError naming what it refused.
+ * copy exactly as `tick` ticks the working one. A tick that carries the item
+ * as the pass `admitted` it is refused when the plan's item of that id is now
+ * another lane or number. Returns { plan, item, from }; throws NightPlanError
+ * naming what it refused.
  */
-export function applyTick(current, { id, status, note, link }) {
-  tickProblem({ status, note, link });
+export function applyTick(current, { id, status, note, link, admitted }) {
+  tickProblem({ status, note, link, admitted });
   const at = current.items.findIndex(i => i.id === id);
   if (at < 0) throw new NightPlanError(`no item "${id}" in tonight's plan (${current.date}); its items: ${current.items.map(i => i.id).join(', ') || 'none'}`);
   const was = current.items[at];
+  if (admitted !== undefined && !sameItem(admitted, identityOf(was))) throw new NightPlanError(`"${id}" changed since the pass admitted it (${identityLine(admitted)}; now ${identityLine(identityOf(was))}): this tick is the old item's, never the new one's`);
   if (was.status === 'done' && status !== 'done') throw new NightPlanError(`"${id}" is done; a done item never moves back (to ${status})`);
   const result = { ...(was.result ?? {}), ...(note !== undefined ? { note } : {}), ...(link !== undefined ? { link } : {}) };
   const next = { ...was, status, result: Object.keys(result).length ? result : null };
@@ -711,15 +728,18 @@ export async function passPlan(file, date) {
  * decided on without building (`others`: [{ id, status, note }], each skipped
  * or failed with why), then its own item running, then done with the pull
  * request (`prUrl`) or failed with the reason (`failed`) and the run's link.
- * Notes are made one line of at most 1000 characters, as a tick needs.
+ * Notes are made one line of at most 1000 characters, as a tick needs. Each
+ * tick carries the item as the pass admitted it, when known (`admitted` for
+ * its own item, each other's own): record refuses it for a reshaped item.
  */
-export function passTicks({ item = null, others = [], prUrl = null, done = null, failed = null, runUrl = null }) {
+export function passTicks({ item = null, admitted = null, others = [], prUrl = null, done = null, failed = null, runUrl = null }) {
   const clip = s => String(s ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1000) || 'no reason given';
-  const ticks = others.map(o => ({ id: o.id, status: o.status ?? 'skipped', note: clip(o.note) }));
+  const as = a => (a ? { admitted: { lane: a.lane, number: a.number ?? null } } : {});
+  const ticks = others.map(o => ({ id: o.id, status: o.status ?? 'skipped', note: clip(o.note), ...as(o.admitted) }));
   if (item) {
-    ticks.push({ id: item, status: 'running' });
-    if (prUrl && isLink(prUrl)) ticks.push({ id: item, status: 'done', note: clip(done ?? 'pull request opened'), link: prUrl });
-    else ticks.push({ id: item, status: 'failed', note: clip(failed ?? 'no pull request was opened'), ...(runUrl && isLink(runUrl) ? { link: runUrl } : {}) });
+    ticks.push({ id: item, status: 'running', ...as(admitted) });
+    if (prUrl && isLink(prUrl)) ticks.push({ id: item, status: 'done', note: clip(done ?? 'pull request opened'), link: prUrl, ...as(admitted) });
+    else ticks.push({ id: item, status: 'failed', note: clip(failed ?? 'no pull request was opened'), ...(runUrl && isLink(runUrl) ? { link: runUrl } : {}), ...as(admitted) });
   }
   return ticks;
 }
@@ -746,7 +766,7 @@ function planGit(root, args, { env = process.env, input, allowFail = false } = {
  */
 export async function record({ root, date, ticks, remote = 'origin', env = process.env, attempts = 3 }) {
   if (!isDate(date)) throw new NightPlanError(`--date is the night's UTC date, YYYY-MM-DD (got ${JSON.stringify(date)})`);
-  if (!Array.isArray(ticks) || ticks.length > 64 || ticks.some(t => !isObject(t) || Object.keys(t).some(k => !['id', 'status', 'note', 'link'].includes(k)))) throw new NightPlanError('the ticks are a list of at most 64 { id, status, note?, link? }');
+  if (!Array.isArray(ticks) || ticks.length > 64 || ticks.some(t => !isObject(t) || Object.keys(t).some(k => !['id', 'status', 'note', 'link', 'admitted'].includes(k)))) throw new NightPlanError('the ticks are a list of at most 64 { id, status, note?, link?, admitted? }');
   for (const t of ticks) tickProblem(t);
   const ref = `refs/heads/${PLAN_BRANCH}`, local = 'refs/keel/night-plan-record';
   for (let attempt = 1; attempt <= attempts; attempt++) {
