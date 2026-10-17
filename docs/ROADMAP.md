@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**42 of 88 phases built; 34 owe a walk.** Built means implemented and checked; planned is not available.
+**42 of 88 phases built; 35 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `keel canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `keel canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-9/20 built; 7 owe a walk.
+9/20 built; 8 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -36,7 +36,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [84. A fix's test is shown to catch plausible wrong versions of the fix](phases/84-a-fix-s-test-is-shown-to-catch-plausible-wrong.md) | planned | 2026-10-16 | [62](phases/62-a-fix-is-proven-by-its-test-failing-without-it.md) | Specified 2026-10-16: keel prove --mutate shows a fix's test fails for nearly-right versions of the fix, not only without it. · [#169](https://github.com/dalmaer/keel/issues/169) |
 | [85. Properties guard keel's plan, tick and claim code](phases/85-properties-guard-keel-s-plan-tick-and-claim-code.md) | planned | 2026-10-16 | [70](phases/70-a-phase-being-built-is-claimed-and-keel-next.md), [73](phases/73-a-night-has-a-plan-written-before-it-runs-and.md) | Specified 2026-10-16: a seeded, shrinking, zero-dependency generator drives properties over the plan validator, ticks, claims and front matter. · [#170](https://github.com/dalmaer/keel/issues/170) |
 | [86. A whole night runs in one test](phases/86-a-whole-night-runs-in-one-test.md) | planned | 2026-10-16 | [73](phases/73-a-night-has-a-plan-written-before-it-runs-and.md), [76](phases/76-the-night-builds-what-the-plan-names-and-only.md), [77](phases/77-the-plan-lives-on-the-canvas-and-the-morning.md), [78](phases/78-the-night-s-plan-stays-live-the-card-ticks.md) | Specified 2026-10-16: one test runs a whole night (plan, a ticking pass, the morning and the card) and checks what the owner would see. · [#171](https://github.com/dalmaer/keel/issues/171) |
-| [87. Builders restate what done means first, and report in one shape](phases/87-builders-restate-what-done-means-first-and.md) | planned | 2026-10-16 | — | Specified 2026-10-16: builders restate the success criteria first and report in one shape the conductor checks. · [#172](https://github.com/dalmaer/keel/issues/172) |
+| [87. Builders restate what done means first, and report in one shape](phases/87-builders-restate-what-done-means-first-and.md) | partial, walk owed | 2026-10-16 | — | Built 2026-10-16: the conduct skill's brief ends with the restatement and fixes the report's sections in order; its verify step reads the restatement first and refuses a report missing an acceptance box or an exit code. Owes the owner one read of a conducted phase's report. · [#172](https://github.com/dalmaer/keel/issues/172) |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.

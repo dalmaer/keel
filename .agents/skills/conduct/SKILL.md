@@ -149,14 +149,20 @@ as often as you like. Do NOT run the whole check (`npm run check`): the
 conductor runs it once on the integrated tree. Never run a build beside
 another build.
 
-## What you return (under 600 words)
-1. What was built: the files, and one paragraph on how it works.
-2. The proof: exact commands from the repo root, each with its exit code and
-   the one line that says so. Not "tests pass", and not the whole output.
-3. What you couldn't do, why, and where you stopped.
-4. Candidate trajectory lines: dated, one claim each, about forty words, only
-   for things that change what comes after.
-5. Anything a later phase should know that the docs don't say.
+## What you return (under 600 words), these sections in this order
+0. Done means: your restatement, from below, word for word.
+1. What changed: the files and commits, and one paragraph on how it works.
+2. Each acceptance box: the test that proves it (file and test name), or why
+   it has none.
+3. Focused tests: each command you ran, from the repo root, with its exit
+   code. Not "tests pass", and not the whole check.
+4. Decisions the spec left open: what you chose, and why.
+5. What remains: what you couldn't do and where you stopped; candidate
+   trajectory lines (dated, one claim each, about forty words); anything a
+   later phase should know that the docs don't say.
+
+## Before any code
+Restate the success criteria in your own words before writing code.
 ```
 
 Spawn the subagent with the Agent tool (`general-purpose`), in the background.
@@ -178,6 +184,14 @@ A subagent's report isn't shown to the user; relay what matters.
 
 The builder's report is a map. The phase's **Proof** is the territory. Run it
 as written, from the repo root, and read exit codes, not tails.
+
+**Read the report's shape first.** (why: A report that skips a box or an exit code reads as done, and the gap is skimmed past.) Read the builder's
+restatement before anything else: where it differs from the phase's Done
+when, resolve that first, since the builder built what it restated. Then
+check every acceptance box is addressed (a test, or why not) and every
+focused command carries its exit code. A report missing either goes back
+down (below) before you run anything. Its commands are the builder's
+focused tests; the whole check stays yours, once, in §3.
 
 - `git pull --ff-only` **first**, if there is a remote.
 - Then mark the phase's new files intent-to-add: `git add -N <new files>`.
