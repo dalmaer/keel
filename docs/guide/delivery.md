@@ -210,8 +210,13 @@ and reports `workflow-concurrency` when:
   keel cannot establish is fixed (one reading `inputs.environment`, say) is
   named, never passed; a literal, `github.workflow`, `github.repository` and
   `vars.*` are fixed, and so is `${{ <condition> && '<name>' || <a per-run
-  skip group> }}` for the runs meeting the condition (keel-publish.yml's
-  form, whose condition is exactly its choose job's).
+  skip group> }}` when every job the group covers runs on that condition
+  alone: its `if:` is the condition, or it needs a job whose `if:` is (and
+  has no `always()`, `failure()` or `cancelled()`), so a run in the fallback
+  group publishes nothing (keel-publish.yml's form: its choose job's `if:`
+  is the group's condition, and advance needs choose). On an unconditional
+  job, `${{ github.run_attempt == 1 && 'deploy' || … }}` is named: a retry
+  would deploy in a group of its own.
 
 Only a workflow-level block covers a whole test workflow. Without one, every
 job needs its own per-ref, cancelling block: one compliant `unit` job does not

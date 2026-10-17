@@ -41,9 +41,10 @@ without) its gate passing.
   block covers a whole test workflow; otherwise every job needs its own. A
   group naming the run (`github.run_id`, `run_number`, `run_attempt`), the
   commit or the ref is not fixed, and one keel cannot establish is named;
-  `${{ <condition> && '<name>' || <a per-run skip group> }}` is fixed for the
-  runs that publish (keel-publish.yml's form, whose condition is exactly its
-  choose job's).
+  `${{ <condition> && '<name>' || <a per-run skip group> }}` is fixed only
+  when every job it covers runs on that condition alone (its `if:`, or a job
+  it needs; keel-publish.yml's form, whose choose job's `if:` is the
+  condition); on any other job its fallback group could deploy beside it.
 
 **Production is checked by the commit it serves** (phase 81, design items 3,
 4 and 8, after ledger's `verify-production.mjs` and live-SHA skip):

@@ -56,23 +56,85 @@ function contextsOf(expr) {
  * { fixed: false, kind: 'ref' | 'commit' | 'run' | 'unknown', reads }. A
  * literal name is fixed; so is one made of contexts every run shares
  * (github.workflow, github.repository). `${{ <condition> && '<name>' || <any> }}`
- * is fixed for the runs that publish: those meeting the condition share
- * `<name>`, the rest get a group of their own (keel-publish.yml's form). A
- * group naming the ref, the commit or the run is not; anything else keel
- * cannot establish, and says so rather than guess (#179).
+ * is fixed only when `gated(<condition>)` says no run outside the condition
+ * publishes (concurrencyProblems: every publishing job's `if:` is that
+ * condition, keel-publish.yml's form); otherwise its fallback group can
+ * publish beside `<name>` (a retry's own group, say), and it is not
+ * established (PR #182 review). A group naming the ref, the commit or the run
+ * is not fixed; anything else keel cannot establish, and says so rather than
+ * guess (#179).
  */
-export function groupFixity(group) {
+export function groupFixity(group, { gated = () => false } = {}) {
   if (!group) return { fixed: false, kind: 'unknown', reads: [] };
   const exprs = [...group.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map(m => m[1].trim());
   if (!exprs.length) return { fixed: true };
   const cond = /^\$\{\{\s*([\s\S]+)&&\s*'((?:[^']|'')+)'\s*\|\|\s*([\s\S]+?)\s*\}\}$/.exec(group.trim());
-  if (cond && balanced(cond[1])) return { fixed: true };
+  if (cond && balanced(cond[1])) {
+    if (gated(cond[1])) return { fixed: true };
+    return { fixed: false, kind: 'unknown', reads: [], why: `runs outside ${JSON.stringify(normExpr(cond[1]))} get another group, and no job's if: keeps them from publishing` };
+  }
   const reads = exprs.flatMap(contextsOf);
   if (exprs.some(e => PER_RUN.test(e))) return { fixed: false, kind: 'run', reads };
   if (exprs.some(e => PER_COMMIT.test(e))) return { fixed: false, kind: 'commit', reads };
   if (exprs.some(e => PER_REF.test(e))) return { fixed: false, kind: 'ref', reads };
   const unknown = reads.filter(r => !FIXED_CONTEXTS.has(r) && !/^vars\.[A-Za-z_]\w*$/.test(r));
   return unknown.length ? { fixed: false, kind: 'unknown', reads: unknown } : { fixed: true };
+}
+
+/** An expression as compared: no `${{ }}`, whitespace collapsed, parentheses around the whole of it dropped. */
+export function normExpr(e) {
+  let s = String(e ?? '').trim().replace(/^\$\{\{([\s\S]*)\}\}$/, '$1').replace(/\s+/g, ' ').trim();
+  for (;;) {
+    if (!s.startsWith('(') || !s.endsWith(')') || !balanced(s.slice(1, -1))) return s;
+    // The outer pair only when it encloses everything: "(a) || (b)" keeps its own.
+    let depth = 0, whole = true;
+    for (let k = 0; k < s.length - 1; k++) { if (s[k] === '(') depth++; else if (s[k] === ')' && --depth === 0) { whole = false; break; } }
+    if (!whole) return s;
+    s = s.slice(1, -1).trim();
+  }
+}
+
+/**
+ * Each job's own `if:` (normalized, null when unset or a form keel does not
+ * read) and `needs:` (names), from a workflow's text: { [name]: { if, needs, line } }.
+ */
+export function jobKeys(text) {
+  const lines = (text ?? '').split('\n');
+  const out = {};
+  for (const j of jobsOf(text)) {
+    let indent = null;
+    const keys = { if: null, needs: [], line: j.line };
+    for (let i = j.line; i < j.end; i++) {
+      const l = lines[i];
+      if (!l.trim() || /^\s*#/.test(l)) continue;
+      const at = l.search(/\S/);
+      indent ??= at;
+      if (at !== indent) continue;
+      const m = /^\s*(if|needs):[ \t]*(.*?)[ \t]*$/.exec(l);
+      if (!m) continue;
+      if (m[1] === 'if') { const s = scalar(m[2]); keys.if = s.error || !s.value ? null : normExpr(s.value); continue; }
+      const v = m[2].replace(/[ \t]+#.*$/, '');
+      if (v.startsWith('[')) keys.needs = v.replace(/^\[|\]$/g, '').split(',').map(x => x.trim().replace(/^(["'])(.*)\1$/, '$2')).filter(Boolean);
+      else if (v) keys.needs = [scalar(v).value].filter(Boolean);
+      else for (let k = i + 1; k < j.end && /^\s*-\s/.test(lines[k]); k++) keys.needs.push(lines[k].replace(/^\s*-\s*/, '').replace(/[ \t]+#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2'));
+    }
+    out[j.name] = keys;
+  }
+  return out;
+}
+
+/**
+ * Whether a job runs only on `cond`: its own `if:` is `cond`, or it needs a
+ * job that does and its `if:` (when set) has no always(), failure() or
+ * cancelled(), so a skipped need skips it too.
+ */
+function jobOnlyOn(keys, name, cond, seen = new Set()) {
+  const j = keys[name];
+  if (!j || seen.has(name)) return false;
+  seen.add(name);
+  if (j.if === cond) return true;
+  if (j.if && /\b(always|failure|cancelled)\s*\(/.test(j.if)) return false;
+  return j.needs.some(n => jobOnlyOn(keys, n, cond, seen));
 }
 
 /** Whether an expression's parentheses balance (outside quotes). */
@@ -374,10 +436,14 @@ export function concurrencyProblems(file, text, kind) {
     return out;
   }
   if (!blocks.length) return [`${file}: a publish or deploy workflow with no concurrency group: two can run at once; add concurrency: { group: <fixed name>, cancel-in-progress: false }`];
+  const keys = jobKeys(text), jobs = jobsOf(text);
   for (const b of readable) {
-    const f = groupFixity(b.group);
+    // A conditional group holds only where every job it covers runs on its condition alone (PR #182 review).
+    const covered = b.level === 'workflow' ? jobs.map(j => j.name) : jobs.filter(j => b.line > j.line && b.line <= j.end).map(j => j.name);
+    const gated = cond => covered.length > 0 && covered.every(n => jobOnlyOn(keys, n, normExpr(cond)));
+    const f = groupFixity(b.group, { gated });
     if (!f.fixed && f.kind !== 'unknown') out.push(`${file} (line ${b.line}): a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is not fixed: it names the ${f.kind}, so publishes of different ${f.kind}s can run at once; name one group for them all`);
-    else if (!f.fixed) out.push(`${file} (line ${b.line}): keel cannot establish that a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is fixed${f.reads.length ? ` (it reads ${f.reads.join(', ')})` : ''}: two deploys could run at once; name one group for them all, or write \${{ <the condition it publishes on> && '<fixed name>' || format('<name>-skip-{0}', github.run_id) }}`);
+    else if (!f.fixed) out.push(`${file} (line ${b.line}): keel cannot establish that a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is fixed${f.why ? `: ${f.why}` : f.reads.length ? ` (it reads ${f.reads.join(', ')})` : ''}: two deploys could run at once; name one group for them all, or write \${{ <the condition it publishes on> && '<fixed name>' || format('<name>-skip-{0}', github.run_id) }} with that condition as every job's if:`);
     if (b.cancel !== false && b.cancel !== undefined) out.push(`${file} (line ${b.line}): a publish or deploy workflow's cancel-in-progress is ${JSON.stringify(b.cancel)}: a deploy can be cancelled midway; set cancel-in-progress: false`);
   }
   return out;
