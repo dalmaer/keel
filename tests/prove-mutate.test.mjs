@@ -3,13 +3,17 @@
 // baseline first; caught only when a selected test fails; invalid and inconclusive apart, never caught.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, readdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { ENV, git, treeState } from './helpers/prove.mjs';
-import { mutantsOf, applyMutant, chooseMutants, codeMask, KINDS, MAX_MUTANTS } from '../lib/mutate.mjs';
+import * as mutateLib from '../lib/mutate.mjs';
+
+const { mutantsOf, applyMutant, chooseMutants, codeMask, KINDS, MAX_MUTANTS } = mutateLib;
+// Looked up when called, so this file still loads against a lib/mutate.mjs without it (keel prove's run without the fix).
+const notPlain = (...args) => mutateLib.notPlain(...args);
 
 const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(KEEL, 'bin', 'keel.mjs');
@@ -172,6 +176,35 @@ test('a runner read by exit code alone judges no mutant: it cannot tell a caught
   assert.equal(j.mutate.status, 'not run');
   assert.match(j.mutate.reason, /read by exit code alone/);
   assert.deepEqual([j.mutate.total, j.mutate.caught, j.mutate.line], [0, 0, null]);
+});
+
+test('a fix file that is a symlink to a file outside the repository is never mutated: the outside file is byte-identical', async t => {
+  const repo = await fixRepo(t, { base: { 'lib/keep.mjs': 'export const keep = 1;\n' }, fix: {}, tests: { 'tests/ext.test.mjs': [...TESTHEAD, "import { fits } from '../lib/ext.mjs';", "test('edges', () => { assert.equal(fits(0, 3), true); assert.equal(fits(3, 3), false); });", ''].join('\n') } });
+  // The fix adds lib/ext.mjs as a link to a file outside the repository: a mutant written there would change it.
+  const outside = join(dirname(repo.dir), 'outside.mjs');
+  await writeFile(outside, FITS_FIX);
+  await symlink(outside, join(repo.dir, 'lib', 'ext.mjs'));
+  const { j } = await mutate(repo, ['tests/ext.test.mjs', '--fix', 'lib/ext.mjs'], 1);
+  assert.equal(await readFile(outside, 'utf8'), FITS_FIX, 'the file outside the repository is unchanged');
+  assert.equal(j.mutate.status, 'not run');
+  assert.equal(j.mutate.reason, 'lib/ext.mjs is not mutated: lib/ext.mjs is a symlink, and a mutant written there could change a file outside the scratch copy');
+  assert.deepEqual([j.mutate.total, j.mutate.mutants.length], [0, 0]);
+});
+
+test('notPlain refuses a link anywhere on the path, and a file resolving outside', async t => {
+  const top = await mkdtemp(join(tmpdir(), 'keel-mutate-plain-'));
+  t.after(() => rm(top, { recursive: true, force: true }));
+  await mkdir(join(top, 'repo', 'lib'), { recursive: true });
+  await mkdir(join(top, 'elsewhere'));
+  await writeFile(join(top, 'repo', 'lib', 'a.mjs'), '');
+  await writeFile(join(top, 'elsewhere', 'b.mjs'), '');
+  await symlink(join(top, 'elsewhere'), join(top, 'repo', 'linked'));
+  const repo = join(top, 'repo');
+  assert.equal(await notPlain(repo, 'lib/a.mjs'), null);
+  assert.equal(await notPlain(repo, 'linked/b.mjs'), 'linked is a symlink');
+  assert.equal(await notPlain(repo, 'lib'), 'is not a regular file');
+  assert.equal(await notPlain(repo, '../elsewhere/b.mjs'), 'is not a plain repository path');
+  assert.equal(await notPlain(repo, 'lib/none.mjs'), 'lib/none.mjs does not exist');
 });
 
 test('a mutant that does not parse or import is invalid, never caught', async t => {
