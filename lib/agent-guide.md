@@ -840,10 +840,25 @@ bound, `ci.weights` for linux/windows/macos weights (dated defaults 1/2/10), and
 Incomplete API history is n/a unless observed usage already exceeds the bound.
 
 `ci.gateWorkflow` (or matching top-level `gateWorkflow`) authorizes exact clean
-SHA CI reuse for completed same-repo default-branch push success/failure within
-24h, using job completion timestamps. Conflicting aliases fail configuration;
+SHA CI reuse for a completed same-repo default-branch push success within 24h,
+using job completion timestamps. Conflicting aliases fail configuration;
 no usable result falls back locally. Reuse reports source/SHA/conclusion/age,
-never local gate time. `adopt --dry-run` and `adopt --with ... --dry-run` include
+never local gate time.
+
+### One gate result per commit
+
+`node scripts/keel/gate.mjs [--ci] [--json]` (night practice) is the gate,
+once per commit: `action` is `reused`, `skipped` or `ran`, with the reason it
+did not reuse or skip; exit is the gate's (2 usage or config). Reused: the
+run's `keel-test-runs` artifact holds the gate record for this commit and tree,
+clean, the same `check` (its hash), exit 0, and test runs under it with a test
+that ran and none failed; anything less runs. The night's gate measure, the
+loop's gate step and a pre-push hook use it; `--ci` (check.yml) never reuses.
+`"delivery": {"docsOnly": ["docs/", "**/*.md"]}`: a clean commit changing only
+those paths since the newest first-parent ancestor CI fully tested records
+`skipped: docs only` (kind `gate-skip`, never a test run); never against the
+parent. A list covering code or `package.json` is refused. Candidate trees
+(climb, tend, robot judges) and a dirty tree always run their own gate. `adopt --dry-run` and `adopt --with ... --dry-run` include
 `ciCost` for only newly-created workflows: triggers, source/window, monthly
 weighted estimates and total. Missing/incomplete history means unknown. Source
 is Keel's workflow history (`ci.historyRepo` override); `.keel/ci-history.json`

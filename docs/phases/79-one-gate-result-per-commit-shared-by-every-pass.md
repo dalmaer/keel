@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-16
 goal: G6
 spec: 2
 depends: [33, 15]
-note: "Specified 2026-10-16: CI keeps each commit's gate result and every keel pass reuses it instead of running the gate again."
-evidence: []
+note: "Partial 2026-10-16: scripts/keel/gate.mjs reuses CI's exact result (proven by its keel-test-runs records) for the night, the loop and pre-push, and skips docs-only commits; the judges' base gates still run their own."
+evidence: ["evidence/2026-10-16-gate-reuse.md"]
 issue: 162
 ---
 
@@ -26,10 +26,10 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 ## Acceptance
 
-- [ ] The gate workflow uploads `keel-test-runs` on success and failure, and adoption proposes it for a project's own CI. `tests/workflows.test.mjs`, `tests/adopt.test.mjs`
+- [x] The gate workflow uploads `keel-test-runs` on success and failure, and adoption proposes it for a project's own CI. `tests/workflows.test.mjs`, `tests/adopt.test.mjs`
 - [ ] Every pass that runs the gate reuses an exact, clean, successful result for its commit and runs the gate only without one, saying which. `tests/gate-reuse.test.mjs`
-- [ ] A result for another command, another tree, or a run with no tests is never reused. `tests/gate-reuse.test.mjs`
-- [ ] A doc-only commit records a skip, and a commit touching anything else runs the suite. `tests/gate-reuse.test.mjs`
+- [x] A result for another command, another tree, or a run with no tests is never reused. `tests/gate-reuse.test.mjs`
+- [x] A doc-only commit records a skip, and a commit touching anything else runs the suite. `tests/gate-reuse.test.mjs`
 - [ ] ⚑ by hand: the owner reads one week of keel's CI minutes before and after on the night's health page.
 
 ## Your part
@@ -56,7 +56,10 @@ By hand: the owner's week.
 
 - **24 hours** is the night's existing window; settled by use.
 - **Known limit**: a pass that tests a different tree than CI (climb's candidate branch) still runs its own gate; reuse is only for the exact commit.
+- **Settled 2026-10-16 (the build):** the evidence of a reusable result is the run's `keel-test-runs` records (a gate record for the commit and tree, clean, the same command's hash, exit 0, and a test run under it that ran a test and failed none), never a job's name: a name cannot say which command ran on which tree. Only a success is reused; a red CI result runs the gate again. Reuse still needs an explicit `ci.gateWorkflow`.
+- **Settled 2026-10-16:** docs-only is decided against the newest first-parent ancestor (at most 20 back) with a result of reuse grade at any age, and only for a clean commit; CI's own step (`gate.mjs --ci`) never reuses, it only skips or runs.
+- **Open: the judges' base gates.** climb's guard and the robot's judge run the gate on the base, the commit CI tested. The judge job holds no token by design (the agent's code runs in that step), and the robot's judge strips `GITHUB_*` from the gate's env, so CI's run is not like for like there. Carrying CI's verified records in from a trusted step before the agent's code runs is the likely shape; not built.
 
 ## Next action
 
-Extract the night's exact-commit reuse into one function and use it in the loop and the judges, with `tests/gate-reuse.test.mjs`.
+Decide the judges' base gates (Deliberately open): carry CI's verified base records into climb's guard and the robot's judge from a trusted step, or record that they keep running their own; then box 2 can be ticked. The owner's week of CI minutes waits on that.

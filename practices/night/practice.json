@@ -25,6 +25,7 @@
     { "path": "scripts/keel/robot-budget.mjs", "from": "scripts/keel/robot-budget.mjs", "kind": "managed" },
     { "path": "scripts/keel/robot-delivery.mjs", "from": "scripts/keel/robot-delivery.mjs", "kind": "managed" },
     { "path": "scripts/keel/test-ledger.mjs", "from": "scripts/keel/test-ledger.mjs", "kind": "managed" },
+    { "path": "scripts/keel/gate.mjs", "from": "scripts/keel/gate.mjs", "kind": "managed" },
     { "path": "scripts/keel/stalls.mjs", "from": "scripts/keel/stalls.mjs", "kind": "managed" },
     { "path": "scripts/keel/pr-body.mjs", "from": "scripts/keel/pr-body.mjs", "kind": "managed" },
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "night" }

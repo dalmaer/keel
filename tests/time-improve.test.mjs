@@ -64,7 +64,7 @@ test('budget source ownership transfer preserves installed bytes and rejects hum
 });
 test('shipped CI records the configured outer gate with night and preserves CI-only check exit',async t=>{
  const template=await readFile(new URL('../practices/ci/files/.github/workflows/check.yml',import.meta.url),'utf8');
- const block=template.split('      - name: Run the configured gate\n        run: |\n')[1].split('      # The test ledger')[0].split('\n').map(l=>l.slice(10)).join('\n');
+ const block=template.split('      - name: Run the configured gate\n')[1].split('        run: |\n')[1].split('      # The test ledger')[0].split('\n').map(l=>l.slice(10)).join('\n');
  for(const night of [false,true]){
   const root=await project(t),config={name:'Acme',tagline:'Acme CI',repo:'acme/anvils',practices:['base','agents-md','ci',...(night?['night']:[])],check:'printf Acme > marker; exit 7'};
   await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));assert.equal((await render(root)).ok,true);

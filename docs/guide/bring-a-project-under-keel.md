@@ -33,7 +33,12 @@ accepts later, or a decision to leave it local.
 The same rule decides the smaller cases. A file the project already has
 where keel would write one is **keep-local**, and makes its practice local.
 A project with its own CI workflow keeps `ci` local, because keel would
-otherwise add a second workflow running the same gate. The selected agent guide keeps
+otherwise add a second workflow running the same gate. When that workflow
+runs the gate but uploads no `keel-test-runs` artifact, adopt proposes keel's
+"Keep the test ledger" step for it (in `docs/keel-adoption.md`, never written
+into the workflow): without it CI keeps no result, and every keel pass runs the
+gate again on a commit CI already tested (phase 79; the night shift guide's
+"One gate result per commit"). The selected agent guide keeps
 every byte; keel's sections are appended under a heading of their own, and
 any rule the file already states in its own words is skipped rather than
 said twice.
