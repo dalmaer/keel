@@ -461,7 +461,13 @@ from `scripts/keel/ci.mjs` for read-only API walks.
 heuristics do not authorize reuse. The gate measure reuses only same-repo,
 default-branch **push** CI on the exact clean SHA. PR and fork runs are excluded.
 The newest candidate by update/attempt freshness must be a completed success,
-with validated matching jobs completed within 24 hours. Since phase 79 the
+with validated matching jobs completed within 24 hours by default. Set
+`ci.gateReuse` to `"until-change"` to reuse that same tested commit without an
+age cutoff; `"24-hours"` restores the default. Other values are configuration
+errors. This skips the gate, not the night: production collection, Loop pulls,
+reviews and other time-dependent observations still run. Expired/deleted
+artifacts or unavailable GitHub reads force a real gate; no separate last-tested
+marker can substitute for evidence. Since phase 79 the
 evidence is the run's `keel-test-runs` artifact, read through the test
 history's bounded ZIP reader: it must hold exactly one gate record for this
 commit (`kind: gate`, from `gate.mjs --ci` or `test-ledger.mjs --gate`) on the

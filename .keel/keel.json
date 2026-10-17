@@ -63,7 +63,8 @@
     }
   },
   "ci": {
-    "gateWorkflow": "check.yml"
+    "gateWorkflow": "check.yml",
+    "gateReuse": "until-change"
   },
   "robot": {
     "on": true,

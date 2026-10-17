@@ -99,8 +99,10 @@ alone. Fix it or file it. Never rerun until green — a rerun hides the flake.
 (why: A passing retry loses the evidence of an intermittent failure.)
 <!-- keel:end night -->
 
-**CI evidence names its source.** A configured gate may reuse recent CI only
-on the exact clean default-branch revision. Reused CI is not a local check.
+**CI evidence names its source.** A configured gate may reuse CI only
+on the exact clean default-branch revision. The default freshness window is 24
+hours; `ci.gateReuse: "until-change"` removes that age limit while retaining all
+evidence checks. Reused CI is not a local check.
 Weighted Actions minutes are usage estimates, not invoices; missing history
 stays unavailable. See [the night guide](docs/guide/the-night-shift.md).
 
