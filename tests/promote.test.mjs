@@ -92,13 +92,22 @@ console.log(JSON.stringify(routes[p]));
   return { env: { ...QUIET, KEEL_GH: gh }, asked: async () => (existsSync(log) ? await readFile(log, 'utf8') : '').split('\n').filter(Boolean) };
 }
 
-/** Production, stubbed: /api/version answers { commit: serving }, and / is 200. */
+/**
+ * Production, stubbed: /api/version answers { commit: serving }, and / is 200.
+ * Every answer closes its connection (PR #191, a CI flake): with keep-alive,
+ * fetch pools the socket of one promote's verify, the test then blocks the
+ * event loop for seconds in synchronous git and gh spawns, the server's
+ * keep-alive timer closes that socket in the same turn the next verify reuses
+ * it, and the read is an ECONNRESET instead of production's answer. A fresh
+ * connection per read leaves no pooled socket to race.
+ */
 async function production(t) {
   const state = { serving: null, reads: 0 };
   const server = createServer((req, res) => {
-    if (req.url === '/api/version') { state.reads++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ commit: state.serving })); }
-    if (req.url === '/') { res.writeHead(200); return res.end('ok'); }
-    res.writeHead(404); res.end('not found');
+    const close = { connection: 'close' };
+    if (req.url === '/api/version') { state.reads++; res.writeHead(200, { 'content-type': 'application/json', ...close }); return res.end(JSON.stringify({ commit: state.serving })); }
+    if (req.url === '/') { res.writeHead(200, close); return res.end('ok'); }
+    res.writeHead(404, close); res.end('not found');
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   t.after(() => new Promise(r => { server.closeAllConnections?.(); server.close(() => r()); }));
