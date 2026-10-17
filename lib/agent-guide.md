@@ -2002,7 +2002,7 @@ acceptance is checked, and a difference is not automatically an improvement.
 
 <!-- topic: prove | a fix is proven by its test failing without it, and the Proven-by: trailer that says so -->
 
-`keel prove <test file> [--name <pattern>] --fix <path>... [--base <ref>] [--trailer] [--evidence <phase>] [--json]`
+`keel prove <test file> [--name <pattern>] --fix <path>... [--base <ref>] [--mutate] [--trailer] [--evidence <phase>] [--json]`
 runs the named test twice and says whether it proves the fix. Every `fix:`
 commit carries the `Proven-by:` line it prints (the conduct skill's rule);
 the night's `escapes` measure notes the `fix:` commits without one.
@@ -2060,11 +2060,38 @@ the night's `escapes` measure notes the `fix:` commits without one.
   failure's first line>"` (for any verdict but VERIFIED, the reason).
   `--evidence <phase>` appends it, dated, to the first file the phase's
   front matter lists under `evidence:` (exit 2 when it lists none).
+- `--mutate` (phase 84) also shows the test catches nearly-right versions of
+  the fix. On the JavaScript and TypeScript lines the fix added or changed
+  (the diff from the base; every line of a new file) it makes five
+  mechanical mutations: flip a comparison (`<`/`<=`, `>`/`>=`,
+  `===`/`!==`, written with spaces), negate or drop an `if`/`while`
+  condition, swap `&&`/`||`, return early (where a statement starts inside a
+  block), change a numeric constant by one; never inside a string, comment,
+  template or regular expression. Each mutant alone, in its own scratch
+  copy; your tree is never written. The unmutated fix runs first and must
+  pass (else `baseline failed`, exit 1, no mutant judged). Each mutant runs
+  the selected test once (`--name` applies) and is read as above:
+  **caught** when a test that passed at the baseline fails; **survivor**
+  when the selected tests pass; **invalid** when it does not parse or
+  import; **inconclusive** when it times out, no selected test ran, a failed
+  test shares its name with another, or it is red with no baseline test
+  failing. A fix file that is a symlink, or has one on its path, is never
+  mutated (`not run`, exit 1): a mutant would be written through it. Invalid and inconclusive never count as
+  caught. At most 40 mutants, spread evenly over the changed lines; each run
+  limited to five times the baseline's time, at least 10 s. Survivors never
+  change the exit code: the conductor decides whether to strengthen the
+  test. With `--trailer` the trailer gains a second line,
+  `Mutants: <caught>/<total>`; `--evidence` records both.
 
 `--json` → `{verdict, reason, test, name, fix, base, runner, without: {ran,
 exit, red, loadError, tests, skipped, passed: [name], failed: [name], reason,
 failure: [line], first}, with: {…},
-line, trailer, evidence}`. Exit 0 when VERIFIED, 1 for NOT WORKING or
+line, trailer, evidence}`, and with `--mutate` `mutate: {status ('ran' |
+'baseline failed' | 'not run'), reason, total, caught, candidates, changed:
+[{file, lines}], limitMs, baseline: {red, tests, ms}, mutants: [{file, line,
+column, kind, from, to, mutation, result, reason}], survivors, invalid,
+inconclusive, line}`. Exit 0 when VERIFIED (and, with `--mutate`, the
+mutants ran), 1 for NOT WORKING or
 INCONCLUSIVE, 2 on usage (no test file, no `--fix`, a path outside the
 repository, not a git repository, `--name` a runner cannot apply, a phase
 with no evidence file).
