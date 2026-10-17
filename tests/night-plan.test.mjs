@@ -60,6 +60,15 @@ test('the validator accepts the design\'s schema and refuses an unknown field, a
   assert.match(validatePlan(designPlan([designItem({ result: { note: 'x', when: 'now' } })])).problems.join('\n'), /unknown field "result\.when"/);
   assert.match(validatePlan(designPlan([designItem({ number: { measure: 'bundle_bytes', bound: 1, better: 'lower', unit: 'kB' } })])).problems.join('\n'), /unknown field "number\.unit"/);
 
+  // readyBy is a real time (phase 85: shrunk case readyBy 2000-01-32T07:00:00Z, seed 283816414): its shape alone let
+  // an impossible day through, which Date.parse reads as no time, so the night was never over by it.
+  for (const readyBy of ['2000-01-32T07:00:00Z', '2026-13-01T07:00Z', '2026-02-30T07:00:00Z', '2026-10-15T24:00Z', '2026-10-15T07:60Z', '2026-10-15T07:00:60Z', '2026-10-15T07:00+24:00', '2026-10-15T07:00-03:60']) {
+    assert.match(validatePlan(designPlan(undefined, { readyBy })).problems.join('\n'), /plan: "readyBy" is null or a time with its zone/, readyBy);
+  }
+  for (const readyBy of ['2026-10-15T07:00Z', '2026-10-15T23:59:59Z', '2024-02-29T07:00:00+02:00', '2026-10-15T00:00-07:00']) {
+    assert.deepEqual(validatePlan(designPlan(undefined, { readyBy })).problems, [], readyBy);
+  }
+
   // A build item names its number first.
   for (const number of [null, undefined]) {
     const it = designItem({ id: 'no-number' });
