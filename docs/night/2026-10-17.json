@@ -50,8 +50,11 @@
       "budget": {
         "minutes": 45
       },
-      "status": "planned",
-      "result": null
+      "status": "failed",
+      "result": {
+        "note": "no pull request: climb test-time 2026-10-17: kept nothing; nothing was tried; 1 min",
+        "link": "https://github.com/dalmaer/keel/actions/runs/39024803339"
+      }
     },
     {
       "id": "robot-60",
