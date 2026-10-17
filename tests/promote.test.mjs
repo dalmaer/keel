@@ -206,8 +206,9 @@ test('keel promote refuses a commit not on the tested ref or without a passing g
   assert.equal(r.verify.ok, true);
   assert.deepEqual(a.refs(), { ...before, prod: a.C }, 'the tag moved; green and main did not');
   assert.match(a.p.promoteText(r), new RegExp(`keel promote: tag:prod moved ${a.A.slice(0, 7)} → ${a.C.slice(0, 7)}[\\s\\S]*keel verify: passed`));
-  // Again: production is already C, nothing to do. Forward to an earlier commit is a rollback, refused without --back.
-  assert.equal((await a.promote({ yes: true })).action, 'none');
+  // Again: the tag is already C: nothing is pushed, production is verified. Forward to an earlier commit is a rollback, refused without --back.
+  const again = await a.promote({ yes: true });
+  assert.deepEqual([again.action, again.exitCode, again.moved.moved, again.verify.ok], ['verify', 0, false, true]);
   await refused(a, { commit: a.A, yes: true }, new RegExp(`is earlier than production, tag:prod \\(${a.C.slice(0, 7)}\\): rolling back is keel promote --back ${a.A.slice(0, 7)}`));
 
   // It is a person's command: never in GitHub Actions.
@@ -303,7 +304,18 @@ test('--back moves the ref to an earlier tested commit with the same checks, and
   assert.match(still.verify.failures[0], new RegExp(`production serves ${a.C.slice(0, 7)}, not exactly ${a.A.slice(0, 7)}`));
   assert.match(still.next, new RegExp(`production does not serve exactly ${a.A.slice(0, 7)}`));
   assert.equal(a.refs().prod, a.A, 'the ref did move, once');
-  // Within the bound: production turns to A on the third read, and the rollback passes.
+  // PR #191 review: the same command again finds the ref already at A. Nothing is pushed, and the exact
+  // verify still runs: production still serving C is still a failure, never a success it did not see.
+  const retry = await a.promote({ commit: a.A, back: true, yes: true });
+  assert.deepEqual([retry.action, retry.exitCode, retry.moved.moved, retry.verify.ok, retry.verify.exact], ['verify', 1, false, false, true]);
+  assert.match(retry.verify.failures[0], new RegExp(`production serves ${a.C.slice(0, 7)}, not exactly ${a.A.slice(0, 7)}`));
+  const retryPreview = await a.promote({ commit: a.A, back: true });
+  assert.equal(retryPreview.exitCode, 3, 'without --yes it is still a preview');
+  assert.match(a.p.promoteText(retryPreview), /nothing to move \(--yes verifies production\)/);
+  a.prod.serve(a.A);
+  const landed = await a.promote({ commit: a.A, back: true, yes: true });
+  assert.deepEqual([landed.action, landed.exitCode, landed.moved.moved], ['verify', 0, false]);
+  assert.match(a.p.promoteText(landed), new RegExp(`tag:prod is already at ${a.A.slice(0, 7)}: not pushed, verified[\\s\\S]*serves exactly ${a.A.slice(0, 7)}`));  // Within the bound: production turns to A on the third read, and the rollback passes.
   a.git('push', '-q', '--force', 'origin', `${a.C}:refs/tags/prod`);
   let n = 0;
   a.prod.state.serving = null;

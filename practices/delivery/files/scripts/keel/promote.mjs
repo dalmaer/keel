@@ -22,7 +22,8 @@
 //     still a tested commit;
 //   - its direction: forward (no --back) never moves production to an
 //     ancestor of what it serves now, and --back only ever does.
-// Default commit: the tested ref's tip. Production already at the commit: nothing to do.
+// Default commit: the tested ref's tip. Production already at the commit (a
+// retry after a failed verify): nothing is pushed, and --yes still verifies it.
 //
 // Without --yes it previews (exit 3): the commit, what production serves now,
 // the commits that reach production (or, going back, leave it), and the
@@ -38,7 +39,7 @@
 // workflow keel installs runs it (tests/workflows.test.mjs). It runs on the
 // owner's machine with their git credentials.
 //
-// Exit codes: 0 moved and verified, or nothing to do; 1 refused, the push
+// Exit codes: 0 moved (or already there) and verified; 1 refused, the push
 // refused, or the verify failed; 2 a bad configuration or usage; 3 the
 // preview (nothing moved; --yes to move).
 import { spawnSync } from 'node:child_process';
@@ -125,7 +126,7 @@ function gateConfig(config, d) {
 
 /**
  * Everything before a move: the guard, and what would change. { action:
- * 'promote' | 'back' | 'none', ref, tested, testedTip, from, fromObject, to,
+ * 'promote' | 'back' | 'verify' (already there), ref, tested, testedTip, from, fromObject, to,
  * subject, arriving, leaving, gate, verify, reason }. A refusal throws (exit
  * 1, naming why); a bad configuration throws (exit 2).
  */
@@ -142,9 +143,10 @@ export async function plan({ root, config, commit = null, back = false, within =
   const base = { ref: d.promote.spec, tested: d.tested, testedTip: state.testedTip, from: state.from, fromObject: state.prodObject, to, back };
   // On the tested ref: only a commit the publisher has passed through is ever production.
   if (!ancestor(root, env, to, state.testedTip)) throw new PromoteError(`${short(to)} is not on ${d.tested} (its tip is ${short(state.testedTip)}): only a commit on the tested ref is promoted, and nothing was moved`, 1);
+  // Already there (a retry after a failed verify, say): nothing to push, but production is still verified (PR #191 review).
+  const already = state.from === to;
   // The direction: forward never goes back, and --back only does.
-  if (state.from === to) return { action: 'none', ...base, reason: `production (${d.promote.spec}) is already ${short(to)}: nothing to do` };
-  if (back) {
+  if (already) { /* no direction: the ref stays where it is */ } else if (back) {
     if (!state.from) throw new PromoteError(`production (${d.promote.spec}) does not exist on ${remote}: there is nothing to roll back`, 1);
     if (!ancestor(root, env, to, state.from)) throw new PromoteError(`${short(to)} is not earlier than production, ${where}: --back moves production to an ancestor of what it serves; to move it forward, keel promote ${short(to)}`, 1);
   } else if (state.from && ancestor(root, env, to, state.from)) {
@@ -158,10 +160,10 @@ export async function plan({ root, config, commit = null, back = false, within =
   const arriving = commitsIn(root, env, state.from ? [`${state.from}..${to}`] : [to]);
   const leaving = state.from ? commitsIn(root, env, [`${to}..${state.from}`]) : { count: 0, commits: [] };
   return {
-    action: back ? 'back' : 'promote', ...base, subject, arriving, leaving,
+    action: already ? 'verify' : back ? 'back' : 'promote', ...base, subject, arriving, leaving,
     gate: { workflow: g.workflow, runId: g.runId, attempt: g.attempt, tests: g.tests, completedAt: g.completedAt },
     verifies: { site: d.site, version: d.version, exact: back, within, every, smoke: d.smoke.length },
-    reason: back ? `${short(to)} is on ${d.tested}, earlier than production, and its gate passed` : `${short(to)} is on ${d.tested} and its gate passed`,
+    reason: already ? `${d.promote.spec} is already at ${short(to)}, which is on ${d.tested} and whose gate passed` : back ? `${short(to)} is on ${d.tested}, earlier than production, and its gate passed` : `${short(to)} is on ${d.tested} and its gate passed`,
   };
 }
 
@@ -180,9 +182,9 @@ export function move({ root, plan: p, config, env = process.env, remote = 'origi
  */
 export async function promote({ root, config, commit = null, back = false, yes = false, within = WITHIN, every = EVERY, env = process.env, remote = 'origin', fetch, request, download, now, sleep }) {
   const p = await plan({ root, config, commit, back, within, every, env, remote, request, download, now });
-  if (p.action === 'none') return { ...p, moved: null, exitCode: 0 };
   if (!yes) return { ...p, moved: null, preview: true, exitCode: 3 };
-  const moved = move({ root, plan: p, config, env, remote });
+  // The ref already there is not pushed again, and still verified: a retry is never a success it did not see.
+  const moved = p.action === 'verify' ? { moved: false, ref: p.ref, from: p.from, to: p.to } : move({ root, plan: p, config, env, remote });
   let v;
   try { v = await verify({ root, config, sha: p.to, exact: back, within, every, env, fetch, ...(sleep ? { sleep } : {}) }); }
   catch (e) { v = { ok: false, sha: p.to, site: p.verifies.site, exact: back, serving: null, failures: [`the verify could not run: ${e.message}`], smoke: [] }; }
@@ -197,11 +199,12 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 /** What a run says, a few lines: the preview, then what was moved and the verify. */
 export function promoteText(r) {
-  if (r.action === 'none') return `keel promote: ${r.reason}.`;
-  const lines = [`keel promote${r.back ? ' --back' : ''}: ${r.preview ? 'preview, nothing moved (--yes to move it)' : `${r.ref} moved ${short(r.from)} → ${short(r.to)}`}`,
-    `  production (${r.ref}): ${r.from ? short(r.from) : 'absent, created'} → ${short(r.to)} ${r.subject}`,
+  const already = r.action === 'verify';
+  const head = r.preview ? (already ? 'preview, nothing to move (--yes verifies production)' : 'preview, nothing moved (--yes to move it)') : already ? `${r.ref} is already at ${short(r.to)}: not pushed, verified` : `${r.ref} moved ${short(r.from)} → ${short(r.to)}`;
+  const lines = [`keel promote${r.back ? ' --back' : ''}: ${head}`,
+    `  production (${r.ref}): ${already ? `at ${short(r.to)}` : `${r.from ? short(r.from) : 'absent, created'} → ${short(r.to)}`} ${r.subject}`,
     `  ${r.reason}: ${r.gate.workflow} run ${r.gate.runId}, ${plural(r.gate.tests, 'test')} passed (${r.gate.completedAt}).`];
-  if (r.back) lines.push(...list(`  ${plural(r.leaving.count, 'commit')} leave production:`, r.leaving));
+  if (already) { /* nothing arrives or leaves */ } else if (r.back) lines.push(...list(`  ${plural(r.leaving.count, 'commit')} leave production:`, r.leaving));
   else {
     lines.push(...list(`  ${plural(r.arriving.count, 'commit')} reach production:`, r.arriving));
     if (r.leaving.count) lines.push(...list(`  and ${plural(r.leaving.count, 'commit')} production has now are not in ${short(r.to)} and leave it:`, r.leaving));

@@ -977,7 +977,7 @@ why; nothing moves. Without `--yes`: a preview, exit 3 (`preview: true`, `from`,
 `to`, `arriving`/`leaving` commits, `gate`, `verifies`). With `--yes`: one push
 with a lease on what it read, then `verify.mjs` (`--exact` for `--back`): exit
 0 verified, 1 failed with `next` suggesting `--back <previous>`; nothing else
-moves. Already there: `action: none`, exit 0. It refuses to run in GitHub
+moves. Already there (a retry): `action: verify`, nothing pushed, still verified. It refuses to run in GitHub
 Actions; no shipped workflow runs it. Only the owner runs it on a real project.
 
 ### Repository hygiene
