@@ -157,3 +157,60 @@ Malformed identities and non-string message/stack values cannot become exact evi
 
 Final integrated gate command: `npm run check`; contracts: `npm run typecheck`.
 Their result belongs to the implementation commit. Fleet retention remains unproven.
+
+## 2026-10-17: reviewed implementation and release runtime correction
+
+Implementation [PR #194](https://github.com/dalmaer/keel/pull/194) merged as
+`6f526cba7a794779d48a23f6c7ba5b4640257a7b`. Local integrated gate: 1,855 tests,
+zero failures, exit 0; typecheck exit 0. GitHub check, typecheck and impact passed.
+Claude's exact-head review reported no findings in the four core collector/state/
+verification/CLI files it read; it explicitly did not review workflow/docs surfaces.
+This scope is distinct from the prior independent review and local workflow tests.
+
+The final real Vercel adapter (error and fatal request logs) read
+2026-10-16T11:17:59.767Z–2026-10-17T11:17:59.767Z: exit 0, one attempt, zero
+returned events, unknown traffic and provider-completeness-unproven coverage.
+No repair is claimed production-verified.
+
+The first clean-checkout release attempt failed two existing test-ledger tests:
+concurrent parent/child correlation and redaction. That checkout selected system
+Node 24.13.0, below the required 24.21.0. Release rolled all version edits back and
+created no tag. Running `tests/test-ledger.test.mjs` on explicitly pinned Node
+24.21.0 passed all 80 tests (23,658 ms). The supported runtime is pinned for the
+subsequent release and rollout. The failed attempt is retained, not called a flake.
+
+### Release and fleet rollout
+
+v0.8.32 published at `b4410d1` after the supported-runtime full gate passed.
+The release rehearsal passed Duo, Cajones and Ledger. Isocan failed both with the
+candidate and on main; it is recorded as `main-red`, not a passed rehearsal.
+No release review or compatibility override was used.
+
+- [Duo #111](https://github.com/dalmaer/duo/pull/111) merged at `98cad943d2b7f4f24ee6eb6572b917e5fcfc9e69`;
+  [Deploy](https://github.com/dalmaer/duo/actions/runs/39030561367) succeeded.
+- [Cajones #83](https://github.com/dalmaer/cajones/pull/83) merged at `4cf4bc6bae853c127f2b08051734155d6d9c6e84`;
+  [Pages](https://github.com/dalmaer/cajones/actions/runs/39030559429) succeeded.
+- [Papa Tapes #1](https://github.com/dalmaer/papa-tapes/pull/1) merged at `04687b7ef461353daddd1e64197ff1c8effd876c`;
+  [publication](https://github.com/dalmaer/papa-tapes/actions/runs/39030391291) succeeded.
+
+Their clean primary checkouts were fast-forwarded and read back at practice
+0.8.32 with `production.enabled:false, applicability:not-applicable`. No browser
+error coverage or application production verification is inferred. Keel itself
+has the same explicit applicability setting. Papa Tapes media/editorial files
+were not changed. Duo/Cajones stale required-reviewer entries were removed in
+accordance with the owner's earlier instruction disabling that connector.
+
+Ledger's configured update is [PR #143](https://github.com/dalmaer/ledger/pull/143).
+A shallow-clone rollback test failed until full history was fetched; the named
+rollback proof then passed. A subsequent baseline-worker failure and a 49,399 ms
+isolated pass near its 50,000 ms bound remain tracked in
+[Keel #195](https://github.com/dalmaer/keel/issues/195). A serialized local update
+gate and the independent release rehearsal passed; those passes do not close
+the hygiene finding. Final PR CI and the nightly retention walk remain pending.
+
+Isocan's shallow-clone changelog failure was corrected by fetching history; all
+five focused changelog tests passed. Its next gate exposed a pending dynamic
+import after UI test teardown. A test-only async teardown now awaits nested
+imports; the focused file passed once (one test, 1.82 s). Application behavior,
+assertions and unhandled-error reporting were not changed. The corrected update
+is still being validated. Google access remains unavailable.

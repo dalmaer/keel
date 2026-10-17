@@ -4,7 +4,7 @@ since: 2026-10-17
 goal: G4
 spec: 2
 depends: [54, 73, 81]
-note: "Implemented with 24 focused tests and real provider probes. Full gate, reviewed release and fleet nightly retention walk pending; Google access needs reauthentication and a CI identity."
+note: "Released v0.8.32 after 1,855-test gate and reviewed PR #194. Static fleet rolled out; Ledger PR #143 and nightly retention proof pending; Isocan validation and Google access remain."
 evidence: ["evidence/88-production-errors.md"]
 ---
 
@@ -25,7 +25,7 @@ night, plan, robot and delivery flows; no parallel tracking system.
 - [x] Recurrence, redaction, overlap/replay and recovery preserve privacy and counts: `tests/production-errors.test.mjs`.
 - [x] Specs and issue preparation reuse existing authorization and durable recovery; the night/morning expose candidates and gaps: `tests/production-integration.test.mjs`.
 - [x] Verification refuses zero/unknown traffic, incomplete coverage or unproven deployment; recurrence is preserved: `tests/production-errors.test.mjs`.
-- [ ] CLI help, guides and managed rendering agree: `npm run check`, `npm run typecheck`.
+- [x] CLI help, guides and managed rendering agree: `npm run check`, `npm run typecheck`.
 - [ ] Real source collection and scheduled retention are verified on configured fleet projects, with unavailable and not-applicable projects explicitly recorded: `keel production collect --yes --json` and GitHub run links.
 
 ## Real surfaces
@@ -47,9 +47,9 @@ Walk each available provider through its public CLI and the final installed nigh
 
 ## Next action
 
-Run the integrated gate, land the reviewed practice, configure the fleet, and
-verify a nightly collection followed by restoration of its retained state.
-Isocan needs Google reauthentication and an approved CI reader identity.
+Finish Ledger PR #143 and verify nightly collection followed by restoration of
+its retained state. Finish Isocan validation; its collection needs Google
+reauthentication and an approved CI reader identity.
 
 ## Trajectory
 
