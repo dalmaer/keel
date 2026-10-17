@@ -35,6 +35,14 @@ line is in the commit body.
 | 5. `--trailer` records `Mutants: caught/total` | "only the changed lines of a committed fix are mutated, and --trailer records Mutants: caught/total" (`trailer` is the `Proven-by:` line, then `Mutants: 5/9`; the text ends with both) |
 | 6. ⚑ the owner reads one real fix's survivors | Not ticked: it waits for the owner. One run on a real keel fix is below, as a first look, not the owner's verdict. |
 
+PR #180's review (2026-10-17) added two guards, each proven by its test
+failing without the fix (the `Proven-by:` trailers are in the two `fix:`
+commits): "a fix file that is a symlink to a file outside the repository is
+never mutated: the outside file is byte-identical" (without the fix, the
+outside file was rewritten by a mutant) and "a failure of a test that shares
+its name with another is inconclusive, never caught" (without the fix, the
+`<` → `<=` mutant was counted caught).
+
 After the suite, `ps` showed no `count.test.mjs` process left running: the
 looping mutant's test child was killed with its group, not orphaned.
 

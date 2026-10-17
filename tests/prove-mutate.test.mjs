@@ -207,6 +207,24 @@ test('notPlain refuses a link anywhere on the path, and a file resolving outside
   assert.equal(await notPlain(repo, 'lib/none.mjs'), 'lib/none.mjs does not exist');
 });
 
+test('a failure of a test that shares its name with another is inconclusive, never caught', async t => {
+  const base = ['export function sign(n) {', '  return 1;', '}', ''].join('\n');
+  const fix = ['export function sign(n) {', '  if (n < 0) return -1;', '  return 1;', '}', ''].join('\n');
+  // Two tests named alike: a mutant failing one of them is matched only by its place among them.
+  const tst = [...TESTHEAD, "import { sign } from '../lib/sign.mjs';", "test('same', () => { assert.equal(sign(-2), -1); });", "test('same', () => { assert.equal(sign(0), 1); });", ''].join('\n');
+  const repo = await fixRepo(t, { base: { 'lib/sign.mjs': base }, fix: { 'lib/sign.mjs': fix }, tests: { 'tests/sign.test.mjs': tst } });
+  const { j } = await mutate(repo, ['tests/sign.test.mjs', '--fix', 'lib/sign.mjs'], 1);
+  const m = j.mutate;
+  assert.equal(m.status, 'ran');
+  assert.equal(m.baseline.tests, 2);
+  const flip = m.mutants.find(x => x.kind === 'comparison');
+  assert.equal(flip.mutation, '`<` → `<=`');
+  assert.equal(flip.result, 'inconclusive', 'only the second `same` fails: keel cannot say it is the one that passed');
+  assert.match(flip.reason, /^more than one test is named same: keel cannot tell which failed/);
+  assert.equal(m.caught, 0, JSON.stringify(m.mutants.filter(x => x.result === 'caught').map(where)));
+  assert.ok(m.mutants.every(x => x.result === 'inconclusive' && /more than one test is named same/.test(x.reason)), JSON.stringify(m.mutants.map(x => [where(x), x.result, x.reason])));
+});
+
 test('a mutant that does not parse or import is invalid, never caught', async t => {
   const base = ['export const DEFAULTS = {', '  limit: 2,', '};', ''].join('\n');
   const fix = ['export const DEFAULTS = {', '  limit: 3,', '};', "if (DEFAULTS.limit < 0) throw new Error('negative limit');", ''].join('\n');

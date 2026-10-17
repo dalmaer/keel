@@ -2051,8 +2051,10 @@ the night's `escapes` measure notes the `fix:` commits without one.
   the selected test once (`--name` applies) and is read as above:
   **caught** when a test that passed at the baseline fails; **survivor**
   when the selected tests pass; **invalid** when it does not parse or
-  import; **inconclusive** when it times out, no selected test ran, or it is
-  red with no baseline test failing. Invalid and inconclusive never count as
+  import; **inconclusive** when it times out, no selected test ran, a failed
+  test shares its name with another, or it is red with no baseline test
+  failing. A fix file that is a symlink, or has one on its path, is never
+  mutated (`not run`, exit 1): a mutant would be written through it. Invalid and inconclusive never count as
   caught. At most 40 mutants, spread evenly over the changed lines; each run
   limited to five times the baseline's time, at least 10 s. Survivors never
   change the exit code: the conductor decides whether to strengthen the
