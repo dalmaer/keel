@@ -292,6 +292,25 @@ test('each candidate is gated by the check its own tree names, not the integrato
   assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).check, 'node gate.mjs');
 });
 
+// PR #186 review: a gate that repairs a tracked file and exits 0 has passed its own tree, not the candidate.
+test('a gate that changes tracked files does not pass the candidate: it is sent back, and nothing of it is pushed', async t => {
+  const { a, b, origin, env } = await acme(t);
+  await change(a, 'claude/anvil', { 'anvil-two.txt': 'two anvils\n' }, env('m1'));
+  // A generated file committed stale; the gate regenerates it and passes.
+  await change(b, 'codex/stale', { 'generated.txt': 'STALE\n' }, env('m2'));
+  const { gate } = fakeGate();
+  const regenerating = async dir => {
+    const file = join(dir, 'generated.txt');
+    if ((await readFile(file, 'utf8').catch(() => '')) === 'STALE\n') await writeFile(file, 'FRESH\n');
+    return gate(dir);
+  };
+  const r = await integrate({ root: a }, { env: env('m1'), gate: regenerating });
+  assert.deepEqual(r.data.landed.map(l => l.branch), ['claude/anvil']);
+  assert.deepEqual(r.data.blocked.map(x => [x.branch, x.reason]), [['codex/stale', 'the gate changed tracked files']]);
+  assert.ok(!onMain(origin, 'generated.txt'), 'the unrepaired commit is not pushed');
+  assert.ok(onMain(origin, 'anvil-two.txt'));
+});
+
 test('only a tree the gate passed is pushable without gating it again', () => {
   const passed = new Set(['t-left']);
   assert.equal(pushable('t-left', passed), true);

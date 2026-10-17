@@ -909,7 +909,9 @@ held: exit 1, `refused`, `holder`, nothing done; a lock left by a dead run is
 the owner's to delete), and in a temporary worktree merges every ready change
 onto the default branch in the order marked ready and runs the full gate once:
 each tree's own `check` and `env`, never the integrator checkout's (a tree
-whose config names no runnable gate is sent back with that reason).
+whose config names no runnable gate is sent back with that reason). A pass
+counts only when HEAD and the tracked files are as gated; a gate that changed
+them sends the change back: `the gate changed tracked files`.
 A passing batch is one gate run and one push. A failing one accumulates by
 halves: each change is kept only if the tree with it, on top of what was kept
 before it, passes; a single failing change is tried alone once, to report
