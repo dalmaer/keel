@@ -1,0 +1,90 @@
+# keel's publisher (keel practice `delivery`; managed: keel render rewrites
+# it). keel phase 80; the design is keel's docs/research/2026-10-16-delivery.md,
+# items 1, 2 and 6, after isocan's scripts/release-order.sh.
+#
+# Many commits test at once; this moves the tested ref (.keel/keel.json
+# "delivery".tested, default green) one run at a time, to the newest commit
+# on main whose gate passed, and never writes main. Deploys follow the tested
+# ref, never main (keel's docs/guide/delivery.md).
+#
+# GitHub keeps only one *pending* run per concurrency group, so a late
+# trigger can replace a newer one. scripts/keel/publish.mjs therefore never
+# trusts the commit that started it: it reads main's history and each
+# commit's gate result itself, and whichever run survives publishes the
+# newest commit that passed.
+name: keel-publish
+
+on:
+  # The gate workflow finishing on main. Its name is shaped at render from
+  # .keel/keel.json "delivery".gateWorkflow (default: the project's gate).
+  workflow_run:
+    workflows: [check]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+# One publisher at a time, queued, never cancelled: a publish stopped midway
+# is worse than a late one. A run that will not publish (the gate failed, or
+# ran for a pull request) has a group of its own, so it never displaces a
+# queued publisher.
+concurrency:
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')) && 'publish' || format('publish-skip-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+# Each job asks for its own; nothing is granted by default.
+permissions: {}
+
+jobs:
+  # Read-only: which commit is the newest on main whose gate passed. Its
+  # token reads the repository and Actions, and nothing more.
+  choose:
+    if: (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      action: ${{ steps.choose.outputs.action }}
+      from: ${{ steps.choose.outputs.from }}
+      to: ${{ steps.choose.outputs.to }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The trigger's commit is recorded and never used: the newest passing
+      # commit is chosen from main's history, whatever started this run.
+      - name: Choose the newest commit on main whose gate passed
+        id: choose
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/keel/publish.mjs --plan --trigger "$TRIGGER"
+
+  # The one job that can write, and it writes one ref: the tested ref, with a
+  # lease on the value the choose job read. It calls no API, and runs main's
+  # publisher, never anything of the commit it publishes.
+  advance:
+    needs: choose
+    if: needs.choose.outputs.action == 'advance' || needs.choose.outputs.action == 'create'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Move the tested ref, with a lease
+        env:
+          FROM: ${{ needs.choose.outputs.from }}
+          TO: ${{ needs.choose.outputs.to }}
+        run: node scripts/keel/publish.mjs --advance --from "$FROM" --to "$TO"

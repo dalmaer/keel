@@ -10,7 +10,8 @@ import { readFile, readdir, mkdtemp, writeFile, rm, mkdir, symlink, cp } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load, fill, plan, PUSH_TRIGGERS, CROSS_REVIEW_WORKFLOW } from '../lib/practices.mjs';
+import { load, fill, plan, PUSH_TRIGGERS, CROSS_REVIEW_WORKFLOW, PUBLISH_WORKFLOW, PROJECT, shapePublish, gateNameIn } from '../lib/practices.mjs';
+import { concurrencyOf, concurrencyProblems, workflowKind } from '../practices/delivery/files/scripts/keel/delivery.mjs';
 import { run } from './helpers/run.mjs';
 import { AGENTS } from '../practices/night/files/scripts/keel/lib.mjs';
 import { runBlocks, inlineNode, shellProblems } from './helpers/workflows.mjs';
@@ -33,6 +34,7 @@ export const PREFIX = {
   'check.yml': null,
   'typecheck.yml': null,
   'keel-impact.yml': null,
+  'keel-publish.yml': null,
 };
 
 // Contributor-only workflows are deliberately not installed by a practice.
@@ -131,7 +133,7 @@ test('every workflow keel ships keeps the night shift\'s rules, as a template an
   assert.deepEqual(renderedWorkflowPaths([optional], [], new Set([optional.path])), [optional.path], 'an actual file is checked even when its practice is disabled');
   assert.deepEqual(renderedWorkflowPaths([optional], [], new Set()), [], 'a disabled absent workflow has only its template checked');
   assert.throws(() => renderedWorkflowPaths([optional], ['acme'], new Set()), /configured workflow missing: .*acme\.yml/, 'configured missing outputs cannot silently skip policy checks');
-  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-morning.yml', 'keel-night.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
+  assert.deepEqual(all.map(w => w.name).sort(), ['check.yml', 'claude.yml', 'keel-climb.yml', 'keel-cross-review.yml', 'keel-impact.yml', 'keel-loop.yml', 'keel-morning.yml', 'keel-night.yml', 'keel-publish.yml', 'keel-robot-route.yml', 'keel-robot.yml', 'keel-tend.yml']);
   for (const w of all) {
     assert.ok(Object.hasOwn(PREFIX, w.name), `${w.name}: name its own branch prefix in PREFIX`);
     assert.deepEqual(problems(w.name, w.template, w.declared), [], `${w.practice} ${w.path}`);
@@ -2778,4 +2780,151 @@ test('keel-morning\'s finalize opens the PR for its own pushed branch when nothi
   assert.equal(fresh.status, 0, fresh.out);
   assert.deepEqual(created(fresh.gh), ['keel-night/2026-10-15-final'], fresh.out);
   assert.notEqual(fresh.ref('refs/heads/keel-night/2026-10-15-final'), '', 'pushed');
+});
+
+// ---- phase 80: the publisher, and the concurrency rule --------------------------------------
+
+/** A workflow_run event of the gate workflow finishing, as keel-publish.yml's expressions read it. */
+const gateRun = ({ conclusion = 'success', event = 'push', branch = 'main', id = 301 } = {}) =>
+  ({ github: { event_name: 'workflow_run', ref: 'refs/heads/main', run_id: id, repository: ACME, event: { repository: { full_name: ACME, default_branch: 'main' }, workflow_run: { conclusion, event, head_branch: branch, head_sha: 'a'.repeat(40) } } } });
+const dispatch = ({ ref = 'refs/heads/main', id = 401 } = {}) => ({ github: { event_name: 'workflow_dispatch', ref, run_id: id, repository: ACME, event: { repository: { full_name: ACME, default_branch: 'main' } } } });
+
+/** One job of a workflow's text: from `  <name>:` to the next job at that indent. */
+const jobOf = (text, name) => {
+  const m = new RegExp(`\\n {2}${name}:\\n((?: {4}.*\\n|\\s*\\n)+)`).exec(text);
+  assert.ok(m, `no job ${name}`);
+  return m[1];
+};
+
+/**
+ * The publisher's own rules, on its text: [string]. It starts on the gate
+ * workflow completing on main, and by hand; one fixed group, never cancelled;
+ * nothing granted by default; the choose job only reads; only the advance job
+ * writes contents, and it calls no API (no GH_TOKEN) and pushes nothing in
+ * YAML (publish.mjs's lease does); values reach shell through env, never
+ * interpolated into a run line.
+ */
+export function publishProblems(text) {
+  const out = [];
+  if (!/^ {2}workflow_run:\n {4}workflows: \[[^\]\n]+\]\n {4}types: \[completed\]\n {4}branches: \[main\]\n/m.test(text)) out.push('not started by the gate workflow completing on main');
+  if (!/^ {2}workflow_dispatch:/m.test(text)) out.push('cannot be run by hand');
+  if (/^ {2}(push|pull_request|pull_request_target|schedule):/m.test(text)) out.push('started by something other than the gate finishing');
+  const blocks = concurrencyOf(text);
+  if (blocks.length !== 1 || blocks[0].level !== 'workflow') out.push('not exactly one workflow-level concurrency group');
+  out.push(...concurrencyProblems(PUBLISH_WORKFLOW, text, 'publish'));
+  if (!/^permissions: \{\}$/m.test(text)) out.push('grants permissions by default');
+  const choose = jobOf(text, 'choose'), advance = jobOf(text, 'advance');
+  if (!/ {4}permissions:\n {6}contents: read\n {6}actions: read\n(?! {6})/.test(choose)) out.push('choose holds more than contents: read and actions: read');
+  if (!/ {4}permissions:\n {6}contents: write\n(?! {6})/.test(advance)) out.push('advance holds more than contents: write');
+  if ((text.match(/: write\b/g) ?? []).length !== 1) out.push('a write permission outside the advance job');
+  if (!/ {4}needs: choose\n/.test(advance)) out.push('advance does not wait for choose');
+  if (/GH_TOKEN|secrets\./.test(advance)) out.push('advance holds an API token');
+  if (!/run: node scripts\/keel\/publish\.mjs --plan --trigger "\$TRIGGER"\n/.test(choose)) out.push('choose does not run publish.mjs --plan');
+  if (!/run: node scripts\/keel\/publish\.mjs --advance --from "\$FROM" --to "\$TO"\n/.test(advance)) out.push('advance does not run publish.mjs --advance from the plan');
+  for (const { line, n } of code(text)) {
+    if (/\bgit push\b/.test(line)) out.push(`line ${n}: pushes in YAML; publish.mjs moves the ref, with a lease`);
+    if (/^\s+run:.*\$\{\{/.test(line)) out.push(`line ${n}: an expression interpolated into a run line`);
+  }
+  return out;
+}
+
+test('phase 80: keel-publish.yml runs only after a successful gate on main (or by hand on main), queued in one group and never cancelled; a run that will not publish never displaces one', async () => {
+  const w = (await shipped()).find(x => x.name === 'keel-publish.yml');
+  assert.equal(w.practice, 'delivery');
+  assert.equal(w.optional, true);
+  const t = w.template;
+  assert.deepEqual(publishProblems(t), []);
+  const group = ctx => crossReviewGroup(t, ctx);
+  const cond = jobIf(t);
+  const runs = ctx => evalExpression(cond, ctx);
+  assert.equal(runs(gateRun()), true, 'the gate succeeded on a push to main');
+  assert.equal(group(gateRun()), 'publish');
+  assert.equal(runs(dispatch()), true, 'by hand on main');
+  assert.equal(group(dispatch()), 'publish');
+  for (const [why, ctx] of [
+    ['the gate failed', gateRun({ conclusion: 'failure' })],
+    ['the gate was cancelled', gateRun({ conclusion: 'cancelled' })],
+    ['a pull request\'s gate', gateRun({ event: 'pull_request' })],
+    ['a push to another branch', gateRun({ branch: 'acme-feature' })],
+    ['by hand on another branch', dispatch({ ref: 'refs/heads/acme-feature' })],
+  ]) assert.equal(runs(ctx), false, why);
+  // GitHub keeps one pending run per group: a run that will not publish has a group of its own.
+  assert.equal(group(gateRun({ conclusion: 'failure', id: 302 })), 'publish-skip-302');
+  assert.equal(group(gateRun({ event: 'pull_request', id: 303 })), 'publish-skip-303');
+  assert.notEqual(group(gateRun({ conclusion: 'failure', id: 304 })), group(gateRun({ conclusion: 'failure', id: 305 })));
+  // The advance job runs only on a plan that moves the ref.
+  assert.match(jobOf(t, 'advance'), / {4}if: needs\.choose\.outputs\.action == 'advance' \|\| needs\.choose\.outputs\.action == 'create'\n/);
+  // Mutations: each rule fails when broken.
+  for (const [why, from, to, pattern] of [
+    ['cancellable', 'cancel-in-progress: false', 'cancel-in-progress: true', /deploy can be cancelled/],
+    ['a per-commit group', "'publish' || format", "github.sha || format", /not fixed/],
+    ['a push trigger', '  workflow_dispatch: {}\n', '  workflow_dispatch: {}\n  push:\n    branches: [main]\n', /other than the gate/],
+    ['choose writes', '      contents: read\n      actions: read\n', '      contents: write\n      actions: read\n', /choose holds more|write permission outside/],
+    ['advance reads Actions', '      contents: write\n', '      contents: write\n      actions: read\n', /advance holds more/],
+    ['advance holds a token', '          FROM: ${{ needs.choose.outputs.from }}\n', '          GH_TOKEN: ${{ github.token }}\n          FROM: ${{ needs.choose.outputs.from }}\n', /API token/],
+    ['a YAML push', '        run: node scripts/keel/publish.mjs --advance --from "$FROM" --to "$TO"\n', '        run: git push origin "$TO:refs/heads/green"\n', /pushes in YAML|does not run publish\.mjs --advance/],
+    ['an interpolated sha', '--to "$TO"', '--to "${{ needs.choose.outputs.to }}"', /interpolated/],
+    ['granted by default', 'permissions: {}\n', 'permissions:\n  contents: write\n', /grants permissions by default|write permission outside/],
+  ]) {
+    const mutated = t.replace(from, to);
+    assert.notEqual(mutated, t, `${why}: the mutation did not apply`);
+    assert.ok(publishProblems(mutated).some(p => pattern.test(p)), `${why}: ${JSON.stringify(publishProblems(mutated))}`);
+  }
+});
+
+test('phase 80: keel-publish.yml names the gate workflow as GitHub does: the template for check, the project\'s name otherwise', async t => {
+  const w = (await shipped()).find(x => x.name === 'keel-publish.yml');
+  const facts = gateName => Object.defineProperty({ practices: ['delivery'] }, PROJECT, { value: { workspaces: [], ...(gateName ? { gateName } : {}) } });
+  assert.equal(shapePublish(w.template, facts(null)), w.template);
+  assert.equal(shapePublish(w.template, facts('check')), w.template);
+  assert.match(shapePublish(w.template, facts('Acme tests')), /\n {4}workflows: \["Acme tests"\]\n/);
+  assert.throws(() => shapePublish(w.template.replace('workflows: [check]', 'workflows: [x]'), facts('test')), /not the template's/);
+  // The name, read from the project: "delivery".gateWorkflow's file's name:, else the gate workflow's.
+  const root = await mkdtemp(join(tmpdir(), 'keel-publish-name-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, '.github/workflows'), { recursive: true });
+  await writeFile(join(root, '.github/workflows/check.yml'), 'name: check\non: push\n');
+  await writeFile(join(root, '.github/workflows/test.yml'), "name: 'Acme suite'\non: push\n");
+  await writeFile(join(root, '.github/workflows/bare.yml'), 'on: push\n');
+  assert.equal(await gateNameIn(root, { practices: ['night'] }), null, 'only with delivery on');
+  assert.equal(await gateNameIn(root, { practices: ['delivery'] }), 'check', 'check.yml, the default gate');
+  assert.equal(await gateNameIn(root, { practices: ['delivery'], ci: { gateWorkflow: 'test.yml' } }), 'Acme suite');
+  assert.equal(await gateNameIn(root, { practices: ['delivery'], ci: { gateWorkflow: 'check.yml' }, delivery: { gateWorkflow: 'test.yml' } }), 'Acme suite', '"delivery".gateWorkflow first');
+  assert.equal(await gateNameIn(root, { practices: ['delivery'], delivery: { gateWorkflow: 'bare.yml' } }), '.github/workflows/bare.yml', 'no name: GitHub names it by its path');
+  assert.equal(await gateNameIn(root, { practices: ['delivery'], delivery: { gateWorkflow: 'Acme CI' } }), 'Acme CI', 'a name is the name');
+});
+
+test('phase 80: the concurrency rule: test workflows cancel the superseded per ref; publish and deploy workflows are one fixed group, never cancelled; every workflow keel ships and keel\'s own keep it', async () => {
+  // Which workflow is which, read from its file and name.
+  assert.equal(workflowKind('.github/workflows/check.yml', 'name: check\n'), 'test');
+  assert.equal(workflowKind('.github/workflows/test.yml', 'name: test\n'), 'test');
+  assert.equal(workflowKind('.github/workflows/pages.yml', 'name: pages\n', { gate: 'pages.yml' }), 'test', 'the gate workflow, whatever its name');
+  assert.equal(workflowKind('.github/workflows/deploy.yml', 'name: deploy\n'), 'publish');
+  assert.equal(workflowKind('.github/workflows/release.yml', 'name: release\n', { gate: 'release.yml' }), 'publish', 'a gate that also publishes is held as a publisher: a deploy is never cancelled');
+  assert.equal(workflowKind('.github/workflows/keel-publish.yml', 'name: keel-publish\n'), 'publish');
+  assert.equal(workflowKind('.github/workflows/keel-night.yml', 'name: keel-night\n'), null);
+  // The rule on synthetic Acme workflows: each break is named, with the file and line.
+  const testWf = (group, cancel) => `name: test\non: push\nconcurrency:\n  group: ${group}\n${cancel === undefined ? '' : `  cancel-in-progress: ${cancel}\n`}jobs:\n  t:\n    runs-on: ubuntu-latest\n`;
+  const deploy = (group, cancel) => `name: deploy\non: push\njobs:\n  d:\n    runs-on: ubuntu-latest\n    concurrency:\n      group: ${group}\n${cancel === undefined ? '' : `      cancel-in-progress: ${cancel}\n`}`;
+  assert.deepEqual(concurrencyProblems('test.yml', testWf('test-${{ github.ref }}', true), 'test'), []);
+  assert.match(concurrencyProblems('test.yml', testWf('test-${{ github.ref }}', false), 'test').join('\n'), /^test\.yml \(line 3\): a test workflow's cancel-in-progress is false: a superseded test run keeps running/);
+  assert.match(concurrencyProblems('test.yml', testWf('test-${{ github.ref }}'), 'test').join('\n'), /cancel-in-progress is not set/);
+  assert.match(concurrencyProblems('test.yml', testWf('test', true), 'test').join('\n'), /is not per ref/);
+  assert.match(concurrencyProblems('test.yml', 'name: test\non: push\n', 'test').join('\n'), /^test\.yml: a test workflow with no concurrency group/);
+  assert.deepEqual(concurrencyProblems('deploy.yml', deploy('deploy', false), 'publish'), []);
+  assert.deepEqual(concurrencyProblems('deploy.yml', deploy('deploy'), 'publish'), [], 'unset is GitHub\'s default, false');
+  assert.deepEqual(concurrencyProblems('deploy.yml', 'name: deploy\nconcurrency: production\n', 'publish'), [], 'the one-line form');
+  assert.match(concurrencyProblems('deploy.yml', deploy('deploy', true), 'publish').join('\n'), /^deploy\.yml \(line 6\): a publish or deploy workflow's cancel-in-progress is true: a deploy can be cancelled midway/);
+  assert.match(concurrencyProblems('deploy.yml', deploy('deploy-${{ github.ref }}', false), 'publish').join('\n'), /is not fixed/);
+  assert.match(concurrencyProblems('deploy.yml', deploy('deploy-${{ github.sha }}', false), 'publish').join('\n'), /is not fixed/);
+  assert.match(concurrencyProblems('deploy.yml', 'name: deploy\non: push\n', 'publish').join('\n'), /no concurrency group: two can run at once/);
+  assert.deepEqual(concurrencyProblems('x.yml', '', null), [], 'a workflow the rule does not name is not checked');
+  // Every workflow keel ships, and keel's own, keep it.
+  const all = await shipped(), rendered = await renderedWorkflows(all);
+  for (const w of all) assert.deepEqual(concurrencyProblems(w.path, w.template, workflowKind(w.path, w.template, { gate: 'check.yml' })), [], w.path);
+  for (const n of (await readdir(join(KEEL, '.github/workflows'))).filter(n => /\.ya?ml$/.test(n))) {
+    const path = `.github/workflows/${n}`, text = rendered.get(path) ?? await readFile(join(KEEL, path), 'utf8');
+    assert.deepEqual(concurrencyProblems(path, text, workflowKind(path, text, { gate: 'check.yml' })), [], `keel's ${path}`);
+  }
+  assert.equal(workflowKind('.github/workflows/check.yml', all.find(w => w.name === 'check.yml').template), 'test', 'check.yml is held as a test workflow');
 });

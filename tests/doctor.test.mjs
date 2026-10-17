@@ -821,3 +821,27 @@ test('platform guard: doctor fails a tracked test calling hdiutil without a darw
 test('platform guard: keel\'s own tests are clean of it', async () => {
   assert.deepEqual(await platformLints(KEEL, JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8'))), []);
 });
+
+test('phase 80: with delivery on, doctor holds every workflow to the concurrency rule and names a bad "delivery" key; without it, neither', async t => {
+  const dir = await project(t);
+  const cfgPath = join(dir, '.keel', 'keel.json');
+  const deploy = 'name: deploy\non:\n  push:\n    branches: [green]\nconcurrency:\n  group: deploy-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  d:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo Acme\n';
+  await writeFile(join(dir, '.github/workflows/deploy.yml'), deploy);
+  const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
+  await writeFile(cfgPath, JSON.stringify(cfg, null, 2));
+  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('workflow-concurrency')), 'off: the rule is the delivery practice\'s');
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'] }, null, 2));
+  assert.equal(keel(['render'], dir).code, 0);
+  for (const f of ['.github/workflows/keel-publish.yml', 'scripts/keel/publish.mjs', 'scripts/keel/delivery.mjs']) assert.ok((await lstat(join(dir, f))).isFile(), f);
+  const on = doctor(dir).data;
+  const found = on.lint.filter(l => l.rule === 'workflow-concurrency');
+  assert.deepEqual(found.map(l => l.path).sort(), ['.github/workflows/deploy.yml', '.github/workflows/deploy.yml'], JSON.stringify(on.lint));
+  assert.ok(found.some(l => /is not fixed/.test(l.message)) && found.some(l => /deploy can be cancelled midway/.test(l.message)));
+  // check.yml (a test workflow) and keel-publish.yml (a publisher) keep it.
+  assert.ok(!on.lint.some(l => /check\.yml|keel-publish\.yml/.test(l.path)), JSON.stringify(on.lint));
+  await writeFile(join(dir, '.github/workflows/deploy.yml'), deploy.replace('deploy-${{ github.ref }}', 'deploy').replace('cancel-in-progress: true', 'cancel-in-progress: false'));
+  await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'], delivery: { tested: 'main' } }, null, 2));
+  const bad = doctor(dir).data;
+  assert.deepEqual(bad.lint.filter(l => l.rule === 'workflow-concurrency'), []);
+  assert.match(bad.lint.find(l => l.rule === 'delivery-config')?.message ?? '', /"delivery".tested cannot be main/);
+});

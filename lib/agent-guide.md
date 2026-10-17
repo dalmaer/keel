@@ -458,6 +458,11 @@ It exits 1 on findings (drift or a broken practice rule), 0 when clean.
   (a `health` that is not a relative directory inside the repo),
   `health-ignored` (the health directory is git-ignored, so the night's page
   is never committed; fix: set `health` to a directory that is not ignored),
+  `delivery-config` (a `delivery.tested` that is not a branch's short name or
+  is `main`, a bad `delivery.gateWorkflow`; delivery on, or those keys set),
+  `workflow-concurrency` (delivery on: a test or gate workflow without a
+  per-ref group and `cancel-in-progress: true`, or a publish/deploy/release
+  workflow without one fixed group and `cancel-in-progress: false`),
   `stack-unknown` (a `stack` tag outside the vocabulary; drift reads past
   it), `stack-evidence` (a declared tag nothing in the repo shows, or
   evidence for an undeclared one; with no `stack` at all it is a note naming
@@ -868,6 +873,23 @@ weighted estimates and total. Missing/incomplete history means unknown. Source
 is Keel's workflow history (`ci.historyRepo` override); `.keel/ci-history.json`
 can supply validated reader results offline (`KEEL_CI_OFFLINE=1`). See the night
 shift guide for cache format, API bounds, attribution and cadence assumptions.
+
+### Publishing the tested ref
+
+The optional `delivery` practice (`adopt --with delivery`, needs night):
+`keel-publish.yml` starts when the gate workflow finishes on main (push,
+success) or by hand on main; one group `publish`, never cancelled; a run that
+will not publish gets its own group. `node scripts/keel/publish.mjs [--plan]
+[--trigger <sha>] [--json]` never trusts its trigger: it walks main's
+first-parent history from `delivery.tested` (default `green`) to the tip,
+newest first, and moves the ref to the first commit whose gate run (the
+night's CI reader, `delivery.gateWorkflow` else the project's gate) succeeded,
+with a lease; it creates the ref on first use. `action` is `advance`/`create`
+(plan) or `advanced`/`created`, or `none` with the reason; `skipped` lists
+newer commits that had not passed. A diverged ref, a moved ref or an unreadable
+result is exit 1; config is exit 2. `--advance --from <sha|none> --to <sha>`
+is the write job's step. Never writes main. Deploys follow the tested ref
+(docs/guide/delivery.md).
 
 ### Repository hygiene
 

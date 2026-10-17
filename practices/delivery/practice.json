@@ -1,0 +1,12 @@
+{
+  "name": "delivery",
+  "summary": "Changes are verified in parallel and published one at a time: after the gate passes on main, one queued publisher (keel-publish.yml) moves the tested ref (delivery.tested, default green) to the newest commit on main whose gate passed, skipping any a later one has passed and refusing a diverged ref; it never writes main, and deploys follow the tested ref.",
+  "optional": true,
+  "requires": ["night"],
+  "secrets": [],
+  "files": [
+    { "path": ".github/workflows/keel-publish.yml", "from": ".github/workflows/keel-publish.yml", "kind": "managed" },
+    { "path": "scripts/keel/publish.mjs", "from": "scripts/keel/publish.mjs", "kind": "managed" },
+    { "path": "scripts/keel/delivery.mjs", "from": "scripts/keel/delivery.mjs", "kind": "managed" }
+  ]
+}
