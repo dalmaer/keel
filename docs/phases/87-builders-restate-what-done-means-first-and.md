@@ -1,11 +1,13 @@
 ---
-status: planned
+status: partial
+owes: walk
+waits: owner
 since: 2026-10-16
 goal: G0
 spec: 2
 depends: []
-note: "Specified 2026-10-16: builders restate the success criteria first and report in one shape the conductor checks."
-evidence: []
+note: "Built 2026-10-16: the conduct skill's brief ends with the restatement and fixes the report's sections in order; its verify step reads the restatement first and refuses a report missing an acceptance box or an exit code. Owes the owner one read of a conducted phase's report."
+evidence: ["evidence/2026-10-16-builder-shape.md"]
 issue: 172
 ---
 
@@ -25,8 +27,8 @@ The design is [Verification: tests that tell right from plausibly wrong](../rese
 
 ## Acceptance
 
-- [ ] The conduct skill's brief asks for the restatement and the report shape, and its verify step names the checks. `tests/skill.test.mjs`
-- [ ] The rendered skill in every adopted project carries the same text. `tests/practices.test.mjs`
+- [x] The conduct skill's brief asks for the restatement and the report shape, and its verify step names the checks. `tests/skill.test.mjs`
+- [x] The rendered skill in every adopted project carries the same text. `tests/practices.test.mjs`
 - [ ] ⚑ by hand: the owner reads one conducted phase's builder report and says whether it read faster.
 
 ## Your part
@@ -54,4 +56,8 @@ By hand: one report read.
 
 ## Next action
 
-Add the restatement, the report template and the conductor's checks to the conduct skill.
+Land this phase's PR (a practice change: cross-review first); then conduct one phase with the new shape, and the owner reads its builder report and answers with `keel walk done 87 --choice "<choice>"` (Your part).
+
+## Trajectory
+
+- **2026-10-16** — The restatement is section 0 of the report, so a builder run in the background still hands it over before anything else; the brief's last section asks for it before code. The skill has no word budget; the shape replaced the old five-item return list rather than adding to it.
