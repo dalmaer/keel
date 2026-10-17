@@ -28,7 +28,7 @@
 // what it saw: the version contained the commit and every smoke check matched.
 // Otherwise it fails, naming each check that did not hold. --record adds the
 // result to the branch keel-verify (verify.json, newest first, the last 30
-// and every failure of the last 72 hours),
+// and every failure of the last 72 hours, and each site's latest always),
 // where keel board and the morning brief read it.
 //
 // live <sha>: one read of the version path: does production already serve
@@ -216,7 +216,7 @@ export async function live({ root, config, sha, site, env = process.env, fetch, 
  * again, at most `attempts` times. A file there that is not a verify record is
  * never replaced (exit 1). { recorded: true, commit, branch }.
  */
-export function record({ root, result, remote = 'origin', env = process.env, attempts = 3, now = Date.now() }) {
+export function record({ root, result, remote = 'origin', env = process.env, attempts = 3, now = Date.now(), production = null }) {
   const entry = { sha: result.sha, ok: result.ok, at: result.at, site: result.site, serving: result.serving, failures: result.failures, ...(result.run ? { run: result.run } : {}) };
   const ref = `refs/heads/${VERIFY_BRANCH}`, local = 'refs/keel/verify/tip';
   const ok = (args, what, input) => {
@@ -236,7 +236,7 @@ export function record({ root, result, remote = 'origin', env = process.env, att
         try { results = verifyResults(shown.stdout); } catch (e) { throw new VerifyError(`${VERIFY_BRANCH}:${VERIFY_FILE} is not a verify record (${e.message}): it is left alone, and this result is not recorded`, 1); }
       }
     }
-    const text = `${JSON.stringify({ results: keptResults([entry, ...results], now) }, null, 2)}\n`;
+    const text = `${JSON.stringify({ results: keptResults([entry, ...results], now, { production }) }, null, 2)}\n`;
     const blob = ok(['hash-object', '-w', '--stdin'], 'cannot write the record', text);
     const tree = ok(['mktree'], 'cannot write the record', `100644 blob ${blob}\t${VERIFY_FILE}\n`);
     const commit = ok(['-c', 'user.name=keel-verify', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit-tree', tree, ...(tip ? ['-p', tip] : []), '-m', `keel verify: ${entry.ok ? 'passed' : 'failed'} for ${short(entry.sha)} (${entry.at})`], 'cannot write the record');
@@ -295,7 +295,7 @@ export async function run(args, { root = process.cwd(), env = process.env, fetch
   const r = await verify({ root, config, sha: o.sha, site: o.site, within: o.within, every: o.every, env, fetch });
   let text = verifyText(r), exitCode = r.ok ? 0 : 1;
   if (o.record) {
-    try { r.recorded = record({ root, result: r, env }); text += `\nRecorded on ${VERIFY_BRANCH} (${short(r.recorded.commit)}).`; }
+    try { r.recorded = record({ root, result: r, env, production: deliveryOf(config).site }); text += `\nRecorded on ${VERIFY_BRANCH} (${short(r.recorded.commit)}).`; }
     catch (e) { r.recorded = { recorded: false, why: e.message }; text += `\nNot recorded: ${e.message}`; exitCode = 1; }
   }
   return { data: r, text, exitCode };

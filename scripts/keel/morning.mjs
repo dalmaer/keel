@@ -266,13 +266,24 @@ export const VERIFY_MAX = 200;
  * VERIFY_KEEP, and every failure younger than VERIFY_HOLD_MS, so a burst of
  * passes never pushes out a failure before its brief has read it; then at
  * most VERIFY_MAX, and within the size its reader takes, the oldest dropped
- * first. Pure.
+ * first. Whatever the age, count or size, the latest result of each site is
+ * kept, so the board can always tell whether production's last verify failed
+ * (PR #182 review): production's (`production`, "delivery".site; null: every
+ * result is production's, so the newest) always, and each preview's while
+ * there are fewer than VERIFY_MAX sites (preview origins can be one per
+ * deploy, so theirs alone are bounded, newest first). Pure.
  */
-export function keptResults(results, now = Date.now()) {
+export function keptResults(results, now = Date.now(), { production = null } = {}) {
   const sorted = [...results].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-  let kept = sorted.filter((r, i) => i < VERIFY_KEEP || (!r.ok && Date.parse(r.at) > now - VERIFY_HOLD_MS)).slice(0, VERIFY_MAX);
-  while (kept.length > 1 && JSON.stringify({ results: kept }, null, 2).length > MAX_BYTES * 0.75) kept = kept.slice(0, -1);
-  return kept;
+  const latest = new Map();
+  for (const r of sorted) if (!latest.has(r.site)) latest.set(r.site, r);
+  const prod = production ? latest.get(production) : sorted[0];
+  const pinned = new Set([prod, ...[...latest.values()].filter(r => r !== prod).slice(0, VERIFY_MAX - 1)].filter(Boolean));
+  let rest = sorted.filter((r, i) => !pinned.has(r) && (i < VERIFY_KEEP || (!r.ok && Date.parse(r.at) > now - VERIFY_HOLD_MS)));
+  const size = () => JSON.stringify({ results: [...pinned, ...rest] }, null, 2).length;
+  rest = rest.slice(0, Math.max(0, VERIFY_MAX - pinned.size));
+  while (rest.length && size() > MAX_BYTES * 0.75) rest = rest.slice(0, -1);
+  return [...pinned, ...rest].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 }
 const FULL_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 

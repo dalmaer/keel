@@ -309,3 +309,19 @@ test('a burst of passes never drops a failure before its brief has read it; an o
   assert.equal(shown().length, 30);
   assert.ok(shown().every(r => r.ok));
 });
+
+// PR #182 review, round two: a four-day-old production failure fell out once 30 newer preview passes were recorded,
+// and the board, finding no production verify, dropped the owner's item though production never passed.
+test('the latest result of each site is kept whatever its age: an unresolved production failure outlives any number of preview passes', async t => {
+  const { prod, repo, v } = await setup(t);
+  const preview = 'https://preview-7.anvils.acme.example';
+  const at = h => new Date(Date.parse('2026-10-04T08:00:00Z') + h * 3600 * 1000).toISOString();
+  const base = { sha: repo.C, serving: repo.C };
+  const failure = { ...base, site: prod.site, ok: false, at: at(0), failures: ['GET /: expected 200, got 500'] };
+  v.record({ root: repo.root, result: failure, env: ENV, now: Date.parse(at(0)), production: prod.site });
+  for (let i = 0; i < 31; i++) v.record({ root: repo.root, result: { ...base, site: preview, ok: true, at: at(96 + i * 0.1), failures: [] }, env: ENV, now: Date.parse(at(96 + i * 0.1)), production: prod.site });
+  const results = verifyResults(execFileSync('git', ['--git-dir', repo.origin, 'show', `refs/heads/${VERIFY_BRANCH}:${VERIFY_FILE}`], { env: ENV, encoding: 'utf8' }));
+  const production = results.filter(r => r.site === prod.site);
+  assert.deepEqual(production.map(r => [r.at, r.ok]), [[failure.at, false]], 'production\'s last verify is still there, and still failed');
+  assert.equal(results.filter(r => r.site === preview).length, 30, 'the previews keep their usual 30');
+});
