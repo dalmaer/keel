@@ -281,3 +281,19 @@ test(`a fix of many lines runs at most ${MAX_MUTANTS} mutants, spread over its l
   assert.equal(new Set(m.mutants.map(x => x.line)).size, MAX_MUTANTS, 'one per line, over the changed lines');
   assert.ok(m.mutants.every(x => x.line >= 2 && x.line <= 46));
 });
+
+test('a run whose output passes the limit is killed, its whole group with it, and says it overflowed', async () => {
+  const { runTestLimited, runnerOf } = await import('../lib/prove.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'keel-mutate-flood-'));
+  try {
+    // A configured runner passes the file's output straight through, as node --test's own child does not.
+    await mkdir(join(dir, '.keel'));
+    await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ prove: { command: `${JSON.stringify(process.execPath)} {file}` } }));
+    await writeFile(join(dir, 'flood.test.mjs'), "import { writeSync } from 'node:fs';\nfor (;;) writeSync(1, 'x'.repeat(4096) + '\\n');\n");
+    const r = await runTestLimited(dir, runnerOf(dir), 'flood.test.mjs', null, 60_000, 256 * 1024);
+    assert.equal(r.overflowed, true);
+    assert.equal(r.timedOut, false);
+    assert.ok(r.output.length <= 256 * 1024, `kept ${r.output.length} bytes`);
+    assert.ok(r.ms < 60_000);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
