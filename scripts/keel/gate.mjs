@@ -302,8 +302,9 @@ export async function docsOnlySkip({ root, config, env = process.env, now = Date
   if (!docsOnlyOf(config)) return { skip: false, reason: 'no "delivery".docsOnly in .keel/keel.json' };
   const managed = lockedPaths(root, env);
   const docs = docsOnlyOf(config, { managed });
-  // Every path's mode at HEAD ("100755" an executable, "120000" a symlink), read once.
-  const modes = new Map((gitOut(root, env, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD']) ?? '').split('\0').filter(Boolean).map(l => { const tab = l.indexOf('\t'); return [l.slice(tab + 1), l.split(' ')[0]]; }));
+  // Every path's mode at a commit ("100755" an executable, "120000" a symlink): HEAD's once, each base's as it is tried.
+  const modesAt = rev => new Map((gitOut(root, env, ['ls-tree', '-r', '-z', '--full-tree', rev]) ?? '').split('\0').filter(Boolean).map(l => { const tab = l.indexOf('\t'); return [l.slice(tab + 1), l.split(' ')[0]]; }));
+  const modes = modesAt('HEAD');
   const { sha, clean } = revision(root, env);
   if (!sha || !clean) return { skip: false, reason: 'the tree is dirty or has no commit: docs-only is decided for a commit' };
   const ancestors = (gitOut(root, env, ['rev-list', '--first-parent', `--max-count=${depth + 1}`, 'HEAD']) ?? '').split('\n').filter(Boolean).slice(1);
@@ -312,8 +313,10 @@ export async function docsOnlySkip({ root, config, env = process.env, now = Date
     // A protected path is never docs only, even when a pattern reached it: the config check is the first line, this the last.
     const guarded = changed.filter(p => protectedPath(p, managed));
     if (guarded.length) return { skip: false, reason: `${guarded[0]}${guarded.length > 1 ? ` and ${guarded.length - 1} more` : ''} changed since ${base.slice(0, 7)} and is protected (it runs or configures the gate): never docs only` };
-    // Each file by its own extension and mode at HEAD (a deleted file by its extension), whatever the list says.
-    const notDocs = changed.filter(p => !docsFile(p, modes.has(p) ? modes.get(p) : null));
+    // Each file by its own extension and its mode on both sides (keel#177): deleting an executable or a
+    // symlink, or removing an executable bit, is not a text doc changing, whatever the list says.
+    const before = modesAt(base);
+    const notDocs = changed.filter(p => !docsFile(p, modes.get(p) ?? null) || !docsFile(p, before.get(p) ?? null));
     if (notDocs.length) return { skip: false, reason: `${notDocs[0]}${notDocs.length > 1 ? ` and ${notDocs.length - 1} more` : ''} changed since ${base.slice(0, 7)} and is not a text doc (an extension of ${DOC_EXTENSIONS.join(', ')}, or an image under docs/, never executable): not docs only` };
     const code = changed.filter(p => !docs.test(p));
     if (code.length) return { skip: false, reason: `${code[0]}${code.length > 1 ? ` and ${code.length - 1} more` : ''} changed since ${base.slice(0, 7)}, the newest commit CI could have tested before it: not docs only` };
