@@ -207,7 +207,7 @@
     },
     "scripts/keel/night-plan.mjs": {
       "practice": "night",
-      "sha256": "18976c0b1a7395fabb9c99111d2e1fcf4ec91b03bfd5062031ef4c5bf61a0b38"
+      "sha256": "c49e1ea4fdebda288d46c607eb172787ff715cb2fdf199137c43c74a6b41d11b"
     },
     "scripts/keel/persona.mjs": {
       "practice": "personas",

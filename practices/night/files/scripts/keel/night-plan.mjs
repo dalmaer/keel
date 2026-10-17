@@ -90,7 +90,7 @@ const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE = /^(?:default|owner|persona:[a-z0-9][a-z0-9-]*|loop:[A-Za-z0-9][A-Za-z0-9._-]*|health:[a-z][a-z0-9_]*|robot:#[1-9]\d*)$/;
 const LANE = /^(?:climb:[a-z][a-z0-9-]*|robot:#[1-9]\d*|loop|persona:[a-z0-9][a-z0-9-]*|night)$/;
-const READY_BY = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/;
+const READY_BY = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-](\d{2}):(\d{2}))$/;
 const ROBOT_HEAD = /^keel\/robot-([1-9]\d*)$/;
 
 export class NightPlanError extends Error {
@@ -112,6 +112,14 @@ const isDate = d => {
   if (typeof d !== 'string' || !DATE.test(d)) return false;
   const t = new Date(`${d}T00:00:00Z`);
   return Number.isFinite(t.getTime()) && t.toISOString().slice(0, 10) === d;
+};
+// A real time with its zone: its day a calendar day and each part in range. The shape alone lets 2026-10-32T07:00Z
+// through, which Date.parse reads as no time, so a night with an open build would never be over by readyBy.
+const isReadyBy = t => {
+  const m = typeof t === 'string' ? READY_BY.exec(t) : null;
+  if (!m || !isDate(m[1])) return false;
+  const [h, min, s, zh, zm] = m.slice(2).map(x => Number(x ?? 0));
+  return h < 24 && min < 60 && s < 60 && zh < 24 && zm < 60 && Number.isFinite(Date.parse(t));
 };
 const textList = (x, max = 64) => Array.isArray(x) && x.length <= max && x.every(s => isText(s, 500));
 
@@ -150,7 +158,7 @@ export function validatePlan(plan, { openRobotPrs = [], draft = false } = {}) {
   if (plan.schema !== SCHEMA) bad(`plan: "schema" is ${SCHEMA}`);
   if (!isDate(plan.date)) bad('plan: "date" is the night\'s UTC date, YYYY-MM-DD');
   if (!SHAPERS.includes(plan.shapedBy)) bad(`plan: "shapedBy" is ${SHAPERS.join(' or ')}`);
-  if (plan.readyBy !== null && !READY_BY.test(plan.readyBy ?? '')) bad('plan: "readyBy" is null or a time with its zone, like 2026-10-15T07:00:00Z');
+  if (plan.readyBy !== null && !isReadyBy(plan.readyBy)) bad('plan: "readyBy" is null or a time with its zone, like 2026-10-15T07:00:00Z');
   for (const k of ['willNotTouch', 'settledToday', 'leftOpen']) if (!textList(plan[k])) bad(`plan: "${k}" is a list of at most 64 lines of text`);
   if (!Array.isArray(plan.items) || plan.items.length > 64) { bad('plan: "items" is a list of at most 64 items'); return { ok: false, problems }; }
   const seen = new Set();
