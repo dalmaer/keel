@@ -170,7 +170,7 @@ export async function plan({ root, config, commit = null, back = false, within =
 /** Move the production ref from what the plan read to its commit, with a lease on that value; a throw (exit 1) when origin refuses. */
 export function move({ root, plan: p, config, env = process.env, remote = 'origin' }) {
   const { promote } = deliveryOf(config);
-  const r = git(root, env, ['push', '--quiet', '--no-verify', `--force-with-lease=${promote.ref}:${p.fromObject ?? ''}`, remote, `${p.to}:${promote.ref}`]);
+  const r = git(root, env, ['push', '--quiet', '--no-verify', '--no-follow-tags', `--force-with-lease=${promote.ref}:${p.fromObject ?? ''}`, remote, `${p.to}:${promote.ref}`]);
   if (r.status !== 0) throw new PromoteError(`${remote} refused moving ${promote.spec} to ${short(p.to)} (it moved since it was read, or a rule on the ref): ${(r.stderr || r.stdout).trim().split('\n').slice(-1)[0]}; nothing was moved`, 1);
   return { moved: true, ref: promote.spec, from: p.from, to: p.to };
 }

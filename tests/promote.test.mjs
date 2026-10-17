@@ -238,6 +238,16 @@ test('the move has a lease on the value it read: production moved by someone sin
   await refused(a, { yes: true }, /green, the tested ref, does not exist on origin: nothing has passed through the publisher yet/);
 });
 
+test('PR #191 review: the move pushes only the production ref, even with push.followTags set and an unpublished annotated tag on the way', async t => {
+  const a = await acme(t);
+  a.git('config', 'push.followTags', 'true');
+  a.git('tag', '-a', '-m', 'Acme v9', 'v9', a.B);
+  const read = await a.p.plan({ root: a.root, config: a.config, commit: a.C, env: a.stub.env });
+  a.p.move({ root: a.root, plan: read, config: a.config, env: a.stub.env });
+  assert.equal(a.refs().prod, a.C);
+  assert.equal(a.git('ls-remote', 'origin', 'refs/tags/v9'), '', 'the release tag stays unpublished');
+});
+
 test('"delivery".promote is validated, naming its key: a ref name, never the default branch nor the tested ref, and only with a site and version to verify', () => {
   const site = { site: 'https://anvils.acme.example', version: '/api/version' };
   for (const promote of ['tag:prod', 'branch:production', 'tag:release/prod', 'none']) assert.deepEqual(deliveryProblems({ delivery: { promote, ...site } }), [], promote);
