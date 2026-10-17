@@ -6,8 +6,10 @@
 // Zero imports beyond Node: keel's doctor reads this file in keel's own
 // tree, where the night's scripts are not beside it.
 //
-//   deliveryOf(config)        .keel/keel.json "delivery": { tested, gateWorkflow },
-//                             validated, each error naming its key
+//   deliveryOf(config)        .keel/keel.json "delivery": { tested, gateWorkflow,
+//                             site, version, smoke }, validated, each error
+//                             naming its key (site, version and smoke: phase 81's
+//                             verifier, scripts/keel/verify.mjs)
 //   concurrencyOf(text)       a workflow's concurrency blocks, read as text
 //   workflowKind(file, text, { gate })  'test', 'publish' or null
 //   concurrencyProblems(file, text, kind)  the rule, broken: [string]
@@ -33,6 +35,137 @@ export const TEST_WORDS = Object.freeze(['test', 'tests', 'check', 'checks', 'ci
  */
 const PER_REF = /\bgithub\.(ref|ref_name|head_ref)\b|\bpull_request\.number\b|\bissue\.number\b|\bhead_branch\b/;
 const PER_COMMIT = /\bgithub\.sha\b|\bhead_sha\b|\bpull_request\.head\.sha\b/;
+/** A group expression that names the run: every run lands in a group of its own (#179). */
+const PER_RUN = /\bgithub\.(run_id|run_number|run_attempt|job)\b/;
+/** Contexts that are the same for every run of a workflow: a group made of these and literals is fixed. */
+const FIXED_CONTEXTS = new Set(['github.workflow', 'github.repository', 'github.repository_owner', 'github.event.repository.name', 'github.event.repository.full_name', 'github.event.repository.default_branch']);
+
+/** The context paths an expression reads (literals, operators and function names aside). */
+function contextsOf(expr) {
+  const src = expr.replace(/'(?:[^']|'')*'/g, "''");
+  const out = [];
+  for (const m of src.matchAll(/[A-Za-z_][\w-]*(?:\.[A-Za-z_*][\w-]*|\[[^\]]*\])*(\s*\()?/g)) {
+    if (m[1] || ['true', 'false', 'null'].includes(m[0])) continue;
+    out.push(m[0]);
+  }
+  return out;
+}
+
+/**
+ * Whether a publish or deploy group is one fixed group: { fixed: true } or
+ * { fixed: false, kind: 'ref' | 'commit' | 'run' | 'unknown', reads }. A
+ * literal name is fixed; so is one made of contexts every run shares
+ * (github.workflow, github.repository). `${{ <condition> && '<name>' || <any> }}`
+ * is fixed only when `gated(<condition>)` says no run outside the condition
+ * publishes (concurrencyProblems: every publishing job's `if:` is that
+ * condition, keel-publish.yml's form); otherwise its fallback group can
+ * publish beside `<name>` (a retry's own group, say), and it is not
+ * established (PR #182 review). A group naming the ref, the commit or the run
+ * is not fixed; anything else keel cannot establish, and says so rather than
+ * guess (#179).
+ */
+export function groupFixity(group, { gated = () => false } = {}) {
+  if (!group) return { fixed: false, kind: 'unknown', reads: [] };
+  const exprs = [...group.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map(m => m[1].trim());
+  if (!exprs.length) return { fixed: true };
+  const cond = /^\$\{\{\s*([\s\S]+)&&\s*'((?:[^']|'')+)'\s*\|\|\s*([\s\S]+?)\s*\}\}$/.exec(group.trim());
+  if (cond && balanced(cond[1])) {
+    if (gated(cond[1])) return { fixed: true };
+    return { fixed: false, kind: 'unknown', reads: [], why: `runs outside ${JSON.stringify(normExpr(cond[1]))} get another group, and no job's if: keeps them from publishing` };
+  }
+  const reads = exprs.flatMap(contextsOf);
+  if (exprs.some(e => PER_RUN.test(e))) return { fixed: false, kind: 'run', reads };
+  if (exprs.some(e => PER_COMMIT.test(e))) return { fixed: false, kind: 'commit', reads };
+  if (exprs.some(e => PER_REF.test(e))) return { fixed: false, kind: 'ref', reads };
+  const unknown = reads.filter(r => !FIXED_CONTEXTS.has(r) && !/^vars\.[A-Za-z_]\w*$/.test(r));
+  return unknown.length ? { fixed: false, kind: 'unknown', reads: unknown } : { fixed: true };
+}
+
+/** An expression as compared: no `${{ }}`, whitespace collapsed, parentheses around the whole of it dropped. */
+export function normExpr(e) {
+  let s = String(e ?? '').trim().replace(/^\$\{\{([\s\S]*)\}\}$/, '$1').replace(/\s+/g, ' ').trim();
+  for (;;) {
+    if (!s.startsWith('(') || !s.endsWith(')') || !balanced(s.slice(1, -1))) return s;
+    // The outer pair only when it encloses everything: "(a) || (b)" keeps its own.
+    let depth = 0, whole = true;
+    for (let k = 0; k < s.length - 1; k++) { if (s[k] === '(') depth++; else if (s[k] === ')' && --depth === 0) { whole = false; break; } }
+    if (!whole) return s;
+    s = s.slice(1, -1).trim();
+  }
+}
+
+/**
+ * Each job's own `if:` (normalized, null when unset or a form keel does not
+ * read) and `needs:` (names), from a workflow's text: { [name]: { if, needs, line } }.
+ */
+export function jobKeys(text) {
+  const lines = (text ?? '').split('\n');
+  const out = {};
+  for (const j of jobsOf(text)) {
+    let indent = null;
+    const keys = { if: null, needs: [], line: j.line };
+    for (let i = j.line; i < j.end; i++) {
+      const l = lines[i];
+      if (!l.trim() || /^\s*#/.test(l)) continue;
+      const at = l.search(/\S/);
+      indent ??= at;
+      if (at !== indent) continue;
+      const m = /^\s*(if|needs):[ \t]*(.*?)[ \t]*$/.exec(l);
+      if (!m) continue;
+      if (m[1] === 'if') { const s = scalar(m[2]); keys.if = s.error || !s.value ? null : normExpr(s.value); continue; }
+      const v = m[2].replace(/[ \t]+#.*$/, '');
+      if (v.startsWith('[')) keys.needs = v.replace(/^\[|\]$/g, '').split(',').map(x => x.trim().replace(/^(["'])(.*)\1$/, '$2')).filter(Boolean);
+      else if (v) keys.needs = [scalar(v).value].filter(Boolean);
+      else for (let k = i + 1; k < j.end && /^\s*-\s/.test(lines[k]); k++) keys.needs.push(lines[k].replace(/^\s*-\s*/, '').replace(/[ \t]+#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2'));
+    }
+    out[j.name] = keys;
+  }
+  return out;
+}
+
+/**
+ * Whether a job runs only on `cond`: its own `if:` is `cond`, or it needs a
+ * job that does and its `if:` (when set) has no always(), failure() or
+ * cancelled(), so a skipped need skips it too.
+ */
+function jobOnlyOn(keys, name, cond, seen = new Set()) {
+  const j = keys[name];
+  if (!j || seen.has(name)) return false;
+  seen.add(name);
+  if (j.if === cond) return true;
+  if (j.if && /\b(always|failure|cancelled)\s*\(/.test(j.if)) return false;
+  return j.needs.some(n => jobOnlyOn(keys, n, cond, seen));
+}
+
+/** Whether an expression's parentheses balance (outside quotes). */
+function balanced(s) {
+  let depth = 0;
+  for (const c of s.replace(/'(?:[^']|'')*'/g, '')) {
+    if (c === '(') depth++;
+    else if (c === ')' && --depth < 0) return false;
+  }
+  return depth === 0;
+}
+
+/** A workflow's jobs: [{ name, line, end }] (end: the last line of the job, 1-based), read from the lines under a top-level `jobs:`. */
+export function jobsOf(text) {
+  const lines = (text ?? '').split('\n');
+  const start = lines.findIndex(l => /^jobs:[ \t]*(#.*)?$/.test(l));
+  if (start < 0) return [];
+  const out = [];
+  let indent = null, i = start + 1;
+  for (; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l.trim() || /^\s*#/.test(l)) continue;
+    const at = l.search(/\S/);
+    if (at === 0) break;
+    indent ??= at;
+    const m = at === indent ? /^\s*([A-Za-z_][\w-]*):/.exec(l) : null;
+    if (m) { if (out.length) out.at(-1).end = i; out.push({ name: m[1], line: i + 1, end: null }); }
+  }
+  if (out.length) out.at(-1).end = i;
+  return out;
+}
 
 /** A branch name keel will push the tested ref to: git's own rules, narrowed (no `..`, `@{`, control or glob characters). */
 function branchProblem(name) {
@@ -56,19 +189,68 @@ export function deliveryProblems(config) {
   if (d.gateWorkflow !== undefined && (typeof d.gateWorkflow !== 'string' || !d.gateWorkflow.trim() || d.gateWorkflow !== d.gateWorkflow.trim() || /[\r\n\0"\\]/.test(d.gateWorkflow))) {
     out.push('.keel/keel.json "delivery".gateWorkflow must be the gate workflow\'s file (like "check.yml") or the name GitHub shows for it');
   }
+  // The verifier's keys (phase 81): where production is, which path reports its commit, and what to smoke-test.
+  if (d.site !== undefined) {
+    const p = siteProblem(d.site);
+    if (p) out.push(`.keel/keel.json "delivery".site ${p}`);
+  }
+  if (d.version !== undefined) {
+    const p = pathProblem(d.version);
+    if (p) out.push(`.keel/keel.json "delivery".version ${p}, the path that reports the commit production serves (like "/api/version")`);
+  }
+  if (d.smoke !== undefined) {
+    if (!Array.isArray(d.smoke) || d.smoke.length > SMOKE_MAX) out.push(`.keel/keel.json "delivery".smoke must be a list of at most ${SMOKE_MAX} checks, each a path ("/") or { "path": "/", "status": 200 }`);
+    else d.smoke.forEach((c, i) => { const p = smokeProblem(c); if (p) out.push(`.keel/keel.json "delivery".smoke[${i}] ${p}`); });
+  }
+  if ((d.version !== undefined || d.smoke !== undefined) && d.site === undefined) out.push('.keel/keel.json "delivery".site is required with "delivery".version or "delivery".smoke: the production origin they are read from (like "https://anvils.acme.example")');
   return out;
+}
+
+/** How many smoke checks a project may name. */
+export const SMOKE_MAX = 50;
+
+/** An origin keel reads production at: https, or http on this machine only (a local preview). */
+export function siteProblem(site) {
+  let u;
+  try { if (typeof site !== 'string') throw new TypeError(); u = new URL(site); } catch { return `must be the production origin, like "https://anvils.acme.example" (got ${JSON.stringify(site)})`; }
+  if (u.username || u.password || u.search || u.hash || (u.pathname !== '/' && u.pathname !== '')) return `must be an origin alone, like "https://anvils.acme.example": no path, query, fragment or credentials (got ${JSON.stringify(site)})`;
+  if (u.protocol === 'https:') return null;
+  if (u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) return null;
+  return `must be https (http only on localhost or 127.0.0.1) (got ${JSON.stringify(site)})`;
+}
+
+function pathProblem(path) {
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || /[\s#\\\0]/.test(path) || path.length > 512) return `must be a path starting with "/" (got ${JSON.stringify(path)})`;
+  return null;
+}
+
+const statusOk = s => Number.isInteger(s) && s >= 100 && s <= 599;
+function smokeProblem(c) {
+  if (typeof c === 'string') return pathProblem(c) && `${pathProblem(c)}, or { "path": "/", "status": 200 }`;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'must be a path ("/") or { "path": "/", "status": 200 }';
+  const extra = Object.keys(c).filter(k => !['path', 'status'].includes(k));
+  if (extra.length) return `takes path and status only (got ${extra.join(', ')})`;
+  const p = pathProblem(c.path);
+  if (p) return `path ${p}`;
+  if (c.status !== undefined && !statusOk(c.status) && !(Array.isArray(c.status) && c.status.length && c.status.every(statusOk))) return `status must be an HTTP status code (100-599) or a list of them (got ${JSON.stringify(c.status)})`;
+  return null;
 }
 
 export class DeliveryError extends Error {
   constructor(message, exitCode = 2) { super(message); this.exitCode = exitCode; }
 }
 
-/** { tested, gateWorkflow (null: the project's gate workflow) }, or a throw (exit 2) naming the key. */
+/**
+ * { tested, gateWorkflow (null: the project's gate workflow), site, version,
+ * smoke: [{ path, status: [code] }] } (site and version null when unset; a
+ * smoke path alone expects 200), or a throw (exit 2) naming the key.
+ */
 export function deliveryOf(config) {
   const problems = deliveryProblems(config);
   if (problems.length) throw new DeliveryError(problems[0]);
   const d = config?.delivery ?? {};
-  return { tested: d.tested ?? TESTED, gateWorkflow: d.gateWorkflow ?? null };
+  const smoke = (d.smoke ?? []).map(c => typeof c === 'string' ? { path: c, status: [200] } : { path: c.path, status: c.status === undefined ? [200] : [c.status].flat() });
+  return { tested: d.tested ?? TESTED, gateWorkflow: d.gateWorkflow ?? null, site: d.site ? new URL(d.site).origin : null, version: d.version ?? null, smoke };
 }
 
 /** A workflow's top-level `name:`, unquoted, or null. */
@@ -230,17 +412,38 @@ export function concurrencyProblems(file, text, kind) {
   out.push(...unread);
   if (kind === 'test') {
     if (!blocks.length) return [`${file}: a test workflow with no concurrency group: a superseded run is never cancelled; add concurrency: { group: <name>-\${{ github.ref }}, cancel-in-progress: true }`];
-    const good = readable.filter(b => b.group && PER_REF.test(b.group) && b.cancel === true);
-    if (good.length) return out;
-    for (const b of readable) {
-      if (!b.group || !PER_REF.test(b.group)) out.push(`${file} (line ${b.line}): a test workflow's concurrency group ${JSON.stringify(b.group)} is not per ref: runs of every branch share one queue; name the ref in it (\${{ github.ref }})`);
-      if (b.cancel !== true) out.push(`${file} (line ${b.line}): a test workflow's cancel-in-progress is ${b.cancel === undefined ? 'not set (false)' : JSON.stringify(b.cancel)}: a superseded test run keeps running; set cancel-in-progress: true`);
+    const good = b => b.group && PER_REF.test(b.group) && b.cancel === true;
+    const testProblems = b => [
+      ...(!b.group || !PER_REF.test(b.group) ? [`${file} (line ${b.line}): a test workflow's concurrency group ${JSON.stringify(b.group)} is not per ref: runs of every branch share one queue; name the ref in it (\${{ github.ref }})`] : []),
+      ...(b.cancel !== true ? [`${file} (line ${b.line}): a test workflow's cancel-in-progress is ${b.cancel === undefined ? 'not set (false)' : JSON.stringify(b.cancel)}: a superseded test run keeps running; set cancel-in-progress: true`] : []),
+    ];
+    // Only a workflow-level block covers the whole workflow; one job's block covers that job alone (#179).
+    const top = readable.filter(b => b.level === 'workflow');
+    if (top.some(good)) return out;
+    const jobs = jobsOf(text);
+    const jobBlocks = readable.filter(b => b.level === 'job');
+    if (!jobBlocks.length || !jobs.length) {
+      for (const b of readable) out.push(...testProblems(b));
+      return out;
+    }
+    for (const b of top) out.push(...testProblems(b));
+    for (const j of jobs) {
+      const own = jobBlocks.filter(b => b.line > j.line && b.line <= j.end);
+      if (own.some(good)) continue;
+      if (own.length) for (const b of own) out.push(...testProblems(b).map(p => p.replace("a test workflow's", `a test workflow's job ${j.name}:`)));
+      else if (!blocks.some(b => b.unreadable && b.line > j.line && b.line <= j.end)) out.push(`${file} (line ${j.line}): a test workflow's job ${j.name} has no concurrency of its own, and no workflow-level block covers it: a superseded run of it keeps running; put concurrency: { group: <name>-\${{ github.ref }}, cancel-in-progress: true } at the workflow's top level, or on every job`);
     }
     return out;
   }
   if (!blocks.length) return [`${file}: a publish or deploy workflow with no concurrency group: two can run at once; add concurrency: { group: <fixed name>, cancel-in-progress: false }`];
+  const keys = jobKeys(text), jobs = jobsOf(text);
   for (const b of readable) {
-    if (!b.group || PER_REF.test(b.group) || PER_COMMIT.test(b.group)) out.push(`${file} (line ${b.line}): a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is not fixed: publishes of different refs or commits can run at once; name one group for them all`);
+    // A conditional group holds only where every job it covers runs on its condition alone (PR #182 review).
+    const covered = b.level === 'workflow' ? jobs.map(j => j.name) : jobs.filter(j => b.line > j.line && b.line <= j.end).map(j => j.name);
+    const gated = cond => covered.length > 0 && covered.every(n => jobOnlyOn(keys, n, normExpr(cond)));
+    const f = groupFixity(b.group, { gated });
+    if (!f.fixed && f.kind !== 'unknown') out.push(`${file} (line ${b.line}): a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is not fixed: it names the ${f.kind}, so publishes of different ${f.kind}s can run at once; name one group for them all`);
+    else if (!f.fixed) out.push(`${file} (line ${b.line}): keel cannot establish that a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is fixed${f.why ? `: ${f.why}` : f.reads.length ? ` (it reads ${f.reads.join(', ')})` : ''}: two deploys could run at once; name one group for them all, or write \${{ <the condition it publishes on> && '<fixed name>' || format('<name>-skip-{0}', github.run_id) }} with that condition as every job's if:`);
     if (b.cancel !== false && b.cancel !== undefined) out.push(`${file} (line ${b.line}): a publish or deploy workflow's cancel-in-progress is ${JSON.stringify(b.cancel)}: a deploy can be cancelled midway; set cancel-in-progress: false`);
   }
   return out;

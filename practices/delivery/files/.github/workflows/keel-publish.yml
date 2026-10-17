@@ -24,11 +24,12 @@ on:
   workflow_dispatch: {}
 
 # One publisher at a time, queued, never cancelled: a publish stopped midway
-# is worse than a late one. A run that will not publish (the gate failed, or
-# ran for a pull request) has a group of its own, so it never displaces a
-# queued publisher.
+# is worse than a late one. A run that will not publish (the gate failed, ran
+# for a pull request or on another branch, or a dispatch from another branch)
+# has a group of its own, so it never displaces a queued publisher: the group
+# is `publish` on exactly the choose job's condition.
 concurrency:
-  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')) && 'publish' || format('publish-skip-{0}', github.run_id) }}
+  group: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == github.event.repository.default_branch)) && 'publish' || format('publish-skip-{0}', github.run_id) }}
   cancel-in-progress: false
 
 # Each job asks for its own; nothing is granted by default.

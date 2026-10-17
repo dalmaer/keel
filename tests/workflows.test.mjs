@@ -2852,6 +2852,12 @@ test('phase 80: keel-publish.yml runs only after a successful gate on main (or b
   assert.equal(group(gateRun({ conclusion: 'failure', id: 302 })), 'publish-skip-302');
   assert.equal(group(gateRun({ event: 'pull_request', id: 303 })), 'publish-skip-303');
   assert.notEqual(group(gateRun({ conclusion: 'failure', id: 304 })), group(gateRun({ conclusion: 'failure', id: 305 })));
+  // #179: the group is `publish` on exactly the choose job's condition, so a dispatch from a feature branch never replaces a pending publisher.
+  assert.equal(group(dispatch({ ref: 'refs/heads/acme-feature', id: 306 })), 'publish-skip-306', 'by hand on another branch');
+  assert.equal(group(gateRun({ branch: 'acme-feature', id: 307 })), 'publish-skip-307', 'a push to another branch');
+  for (const ctx of [gateRun(), dispatch(), gateRun({ conclusion: 'failure' }), gateRun({ event: 'pull_request' }), gateRun({ branch: 'acme-feature' }), dispatch({ ref: 'refs/heads/acme-feature' })]) {
+    assert.equal(group(ctx) === 'publish', runs(ctx), `${JSON.stringify(ctx.github.event_name)} ${ctx.github.ref}: joins publish only when choose runs`);
+  }
   // The advance job runs only on a plan that moves the ref.
   assert.match(jobOf(t, 'advance'), / {4}if: needs\.choose\.outputs\.action == 'advance' \|\| needs\.choose\.outputs\.action == 'create'\n/);
   // Mutations: each rule fails when broken.
@@ -2946,4 +2952,49 @@ test('phase 80: the concurrency rule reads a flow mapping and quoted values, and
     const found = concurrencyProblems('deploy.yml', wf('deploy', value), 'publish');
     assert.ok(found.some(p => /cannot read this concurrency/.test(p)), `${why}: ${JSON.stringify(found)}`);
   }
+});
+
+// #179 (PR #178 review, round two): a run-specific deploy group passed as fixed, and one compliant job covered a whole test workflow.
+test('#179: a publish group naming the run is not fixed, one keel cannot establish is named, and only a workflow-level block covers every job of a test workflow', () => {
+  const deploy = group => `name: deploy\non: push\nconcurrency:\n  group: ${group}\n  cancel-in-progress: false\n`;
+  for (const g of ['deploy-${{ github.run_id }}', 'deploy-${{ github.run_number }}', "${{ format('deploy-{0}', github.run_attempt) }}", 'deploy-${{ github.sha }}']) {
+    assert.match(concurrencyProblems('deploy.yml', deploy(g), 'publish').join('\n'), /is not fixed: it names the (run|commit)/, g);
+  }
+  assert.match(concurrencyProblems('deploy.yml', deploy('deploy-${{ inputs.environment }}'), 'publish').join('\n'), /cannot establish .* is fixed \(it reads inputs\.environment\)/);
+  for (const g of ['production', 'deploy-${{ github.workflow }}', '${{ github.repository }}-deploy', 'deploy-${{ vars.ACME_STAGE }}']) {
+    assert.deepEqual(concurrencyProblems('deploy.yml', deploy(g), 'publish'), [], g);
+  }
+  // A test workflow: one compliant job no longer covers a job with none.
+  const unit = '  unit:\n    runs-on: ubuntu-latest\n    concurrency:\n      group: unit-${{ github.ref }}\n      cancel-in-progress: true\n    steps:\n      - run: npm test\n';
+  const integration = '  integration:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run test:integration\n';
+  const twoJobs = `name: test\non: push\njobs:\n${unit}${integration}`;
+  const found = concurrencyProblems('test.yml', twoJobs, 'test');
+  assert.equal(found.length, 1, JSON.stringify(found));
+  assert.match(found[0], /^test\.yml \(line 11\): a test workflow's job integration has no concurrency of its own/);
+  const bothJobs = `name: test\non: push\njobs:\n${unit}${unit.replace(/unit/g, 'integration')}`;
+  assert.deepEqual(concurrencyProblems('test.yml', bothJobs, 'test'), [], 'every job cancels the superseded');
+  const covered = `name: test\non: push\nconcurrency:\n  group: test-\${{ github.ref }}\n  cancel-in-progress: true\njobs:\n${unit}${integration}`;
+  assert.deepEqual(concurrencyProblems('test.yml', covered, 'test'), [], 'a workflow-level block covers every job');
+  const badJob = `name: test\non: push\njobs:\n${unit}${unit.replace(/unit/g, 'integration').replace('cancel-in-progress: true', 'cancel-in-progress: false')}`;
+  assert.match(concurrencyProblems('test.yml', badJob, 'test').join('\n'), /job integration: cancel-in-progress is false/);
+});
+
+// PR #182 review: `${{ github.run_attempt == 1 && 'deploy' || format('deploy-{0}', github.run_id) }}` on an unconditional
+// deploy job passed as fixed, though a retry gets its own group and deploys beside the first.
+test('PR #182: a conditional publish group is fixed only when every job it covers runs on its condition alone', () => {
+  const group = "${{ github.run_attempt == 1 && 'deploy' || format('deploy-{0}', github.run_id) }}";
+  const wf = jobs => `name: deploy\non: push\nconcurrency:\n  group: ${group}\n  cancel-in-progress: false\njobs:\n${jobs}`;
+  const job = (name, extra = '') => `  ${name}:\n    runs-on: ubuntu-latest\n${extra}    steps:\n      - run: ./deploy.sh\n`;
+  const problems = text => concurrencyProblems('deploy.yml', text, 'publish');
+  assert.match(problems(wf(job('deploy'))).join('\n'), /cannot establish .* is fixed: runs outside "github\.run_attempt == 1" get another group, and no job's if: keeps them from publishing/, 'an unconditional deploy job');
+  assert.match(problems(`name: deploy\non: push\nconcurrency:\n  group: ${group}\n`).join('\n'), /cannot establish/, 'no jobs to read');
+  assert.match(problems(wf(job('deploy', "    if: github.event_name == 'push'\n"))).join('\n'), /cannot establish/, 'another condition');
+  assert.deepEqual(problems(wf(job('deploy', '    if: ${{ (github.run_attempt == 1) }}\n'))), [], 'the job runs on the condition alone');
+  assert.deepEqual(problems(wf(job('plan', '    if: github.run_attempt == 1\n') + job('ship', '    needs: [plan]\n'))), [], 'a job needing one that runs on it is skipped with it');
+  assert.match(problems(wf(job('plan', '    if: github.run_attempt == 1\n') + job('ship', '    needs: plan\n    if: always()\n'))).join('\n'), /cannot establish/, 'always() runs it anyway');
+  assert.match(problems(wf(job('plan', '    if: github.run_attempt == 1\n') + job('other'))).join('\n'), /cannot establish/, 'every job, not one');
+  // A job-level group: that job's own if:.
+  const jobLevel = extra => `name: deploy\non: push\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n${extra}    concurrency:\n      group: ${group}\n    steps:\n      - run: ./deploy.sh\n`;
+  assert.match(problems(jobLevel('')).join('\n'), /cannot establish/);
+  assert.deepEqual(problems(jobLevel('    if: github.run_attempt == 1\n')), []);
 });

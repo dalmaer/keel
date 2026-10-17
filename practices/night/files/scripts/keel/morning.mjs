@@ -30,6 +30,10 @@
 // plan the night ran, each item at its furthest tick. Where passes record
 // their ticks durably is phase 76's to settle; it changes finalPlan only.
 //
+// With the delivery practice on, the brief also reads production's verifies
+// (keel phase 81: the branch keel-verify, below): each one that failed in the
+// day before the night started is a line first under "Your next".
+//
 // Exit: 0 done (sent, already sent, or not yet over); 2 usage, no plan for
 // the night, no assignee, or an input it cannot read; 1 a GitHub write
 // failed (the workflow goes red). gh is process.env.KEEL_GH || 'gh'.
@@ -239,6 +243,119 @@ export function linksOf(config, { repo = null, page = null, ref = null } = {}) {
   return { canvas, health: page ? (repo ? `https://github.com/${repo}/blob/${ref ?? 'HEAD'}/${page}` : page) : null };
 }
 
+// ---- production's verify (keel phase 81) -------------------------------------
+//
+// The delivery practice's scripts/keel/verify.mjs records each verify of
+// production on the branch keel-verify, file verify.json: { results: [newest
+// first, at most VERIFY_KEEP] }, each { sha, ok, at, site, serving, failures,
+// run? }. The board shows the latest when it failed; the brief lists each
+// that failed in the day before the night started, so every failure reaches
+// one brief, and only one. Read here, beside the brief, because delivery
+// requires night: the reader is always where the writer is.
+
+export const VERIFY_BRANCH = 'keel-verify';
+export const VERIFY_FILE = 'verify.json';
+export const VERIFY_KEEP = 30;
+/** A failure is kept this long whatever came after it: the brief that carries it is sent within a day and a half of it (PR #182 review). */
+export const VERIFY_HOLD_MS = 72 * 3600 * 1000;
+/** The file never grows past this many results, nor past three quarters of MAX_BYTES, so its reader never refuses it. */
+export const VERIFY_MAX = 200;
+
+/**
+ * What verify.json keeps of `results` (newest first) at `now`: the newest
+ * VERIFY_KEEP, and every failure younger than VERIFY_HOLD_MS, so a burst of
+ * passes never pushes out a failure before its brief has read it; then at
+ * most VERIFY_MAX, and within the size its reader takes, the oldest dropped
+ * first. Whatever the age, count or size, the latest result of each site is
+ * kept, so the board can always tell whether production's last verify failed
+ * (PR #182 review): production's (`production`, "delivery".site; null: every
+ * result is production's, so the newest) always, and each preview's while
+ * there are fewer than VERIFY_MAX sites (preview origins can be one per
+ * deploy, so theirs alone are bounded, newest first). Pure.
+ */
+export function keptResults(results, now = Date.now(), { production = null } = {}) {
+  const sorted = [...results].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const latest = new Map();
+  for (const r of sorted) if (!latest.has(r.site)) latest.set(r.site, r);
+  const prod = production ? latest.get(production) : sorted[0];
+  const pinned = new Set([prod, ...[...latest.values()].filter(r => r !== prod).slice(0, VERIFY_MAX - 1)].filter(Boolean));
+  let rest = sorted.filter((r, i) => !pinned.has(r) && (i < VERIFY_KEEP || (!r.ok && Date.parse(r.at) > now - VERIFY_HOLD_MS)));
+  const size = () => JSON.stringify({ results: [...pinned, ...rest] }, null, 2).length;
+  rest = rest.slice(0, Math.max(0, VERIFY_MAX - pinned.size));
+  while (rest.length && size() > MAX_BYTES * 0.75) rest = rest.slice(0, -1);
+  return [...pinned, ...rest].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+const FULL_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+
+/** One recorded verify, checked: the result, or null when it is not one. */
+function verifyResultOf(r) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+  if (!FULL_SHA.test(r.sha ?? '') || typeof r.ok !== 'boolean' || typeof r.at !== 'string' || !Number.isFinite(Date.parse(r.at))) return null;
+  if (!Array.isArray(r.failures) || r.failures.some(f => typeof f !== 'string')) return null;
+  if (r.ok && r.failures.length) return null;
+  if (!r.ok && !r.failures.length) return null;
+  return { sha: r.sha, ok: r.ok, at: r.at, site: typeof r.site === 'string' ? r.site : null, serving: FULL_SHA.test(r.serving ?? '') ? r.serving : null, failures: r.failures.map(one), run: typeof r.run === 'string' && /^https:\/\//.test(r.run) ? r.run : null };
+}
+
+/** verify.json's text as its results, newest first; a throw (MorningError) when it is not that file. */
+export function verifyResults(text) {
+  if (text.length > MAX_BYTES) throw new MorningError(`${VERIFY_FILE} is larger than ${MAX_BYTES} bytes`);
+  let data;
+  try { data = JSON.parse(text); } catch { throw new MorningError(`${VERIFY_FILE} is not JSON`); }
+  if (!data || !Array.isArray(data.results)) throw new MorningError(`${VERIFY_FILE} holds no "results" list`);
+  const results = data.results.map(verifyResultOf);
+  const bad = results.findIndex(r => !r);
+  if (bad >= 0) throw new MorningError(`${VERIFY_FILE} result ${bad} is not a verify result ({ sha, ok, at, failures })`);
+  return results.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
+/**
+ * The project's recorded verifies, from origin's keel-verify branch: { results }
+ * or { results: [], unread } when the branch cannot be read (never "no
+ * failures"); { results: [] } when there is no branch yet.
+ */
+export function readVerify(root) {
+  try {
+    if (!hasOrigin(root)) return { results: [], unread: 'no origin to read keel-verify from' };
+    const text = remoteFile(root, VERIFY_BRANCH, VERIFY_FILE);
+    return { results: text === null ? [] : verifyResults(text) };
+  } catch (e) {
+    return { results: [], unread: one(e?.message ?? e) };
+  }
+}
+
+/** Production's origin, .keel/keel.json "delivery".site, or null when it names none (or none that parses). */
+export function productionOf(config) {
+  const site = config?.delivery?.site;
+  try { return typeof site === 'string' ? new URL(site).origin : null; } catch { return null; }
+}
+
+/**
+ * Whether a result is of production: its site is "delivery".site. With no
+ * site configured, every result is taken as production's (there is nothing
+ * to tell a preview by). A preview (verify.mjs --site) is never production's,
+ * so its pass never clears production's failure (PR #182 review).
+ */
+export const isProduction = (r, production) => !production || r.site === production;
+
+/**
+ * The failed verifies the brief for the night `date` carries: those recorded
+ * in the day before the night started, of any site (a preview's too, said as
+ * a preview's). `passedSince` is a later pass of the same site only.
+ */
+export function verifyFailuresFor(results, date, { production = null } = {}) {
+  const end = Date.parse(`${date}T${pad(NIGHT_AT.hour)}:${pad(NIGHT_AT.minute)}:00Z`), start = end - 24 * 3600 * 1000;
+  return results.filter(r => !r.ok && Date.parse(r.at) >= start && Date.parse(r.at) < end)
+    .map(r => ({ ...r, preview: !isProduction(r, production), passedSince: results.some(o => o.ok && o.site === r.site && Date.parse(o.at) > Date.parse(r.at)) }));
+}
+
+/** One failed verify, as the brief and the board say it. */
+export function verifyLine(r) {
+  const who = r.preview ? `The preview ${r.site}` : 'Production';
+  const since = r.passedSince ? ` ${r.preview ? 'It' : 'Production'} has passed a verify since.` : '';
+  return `${who} failed its verify for \`${r.sha.slice(0, 7)}\` at ${r.at}${r.site && !r.preview ? ` (${r.site})` : ''}: ${r.failures.join('; ')}.${r.run ? ` ${r.run}` : ''}${since}`;
+}
+
 // ---- the brief ---------------------------------------------------------------
 
 const one = s => String(s).replace(/\s+/g, ' ').trim();
@@ -267,7 +384,7 @@ const isPr = link => /^https:\/\/[^/]+\/[^/]+\/[^/]+\/pull\/\d+$/.test(link ?? '
  * review, triage), failed and why, left alone (skipped, left alone, will not
  * touch), not finished (by readyBy when it passed), and the owner's next.
  */
-export function renderBrief({ plan, now = new Date(), health = {}, links = {} }) {
+export function renderBrief({ plan, now = new Date(), health = {}, links = {}, verify = null }) {
   const r = readiness(plan, now);
   const done = plan.items.filter(i => i.kind === 'build' && i.status === 'done');
   const tried = plan.items.filter(i => i.kind !== 'build' && i.status === 'done');
@@ -276,6 +393,9 @@ export function renderBrief({ plan, now = new Date(), health = {}, links = {} })
   const open = plan.items.filter(i => !TERMINAL.includes(i.status));
   const unfinishedHead = r.late ? `## Not finished by ${r.readyBy}` : '## Still going';
   const next = [
+    // Production first: a failed verify (phase 81), and a verify record that could not be read, never silence.
+    ...(verify?.failed ?? []).map(verifyLine),
+    ...(verify?.unread ? [`The verify record (${VERIFY_BRANCH}:${VERIFY_FILE}) could not be read: ${one(verify.unread)}. Whether production passed is unknown.`] : []),
     ...done.filter(i => isPr(i.result?.link)).map(i => `Review and merge ${i.result.link} (\`${i.id}\`): a person merges.`),
     ...failed.map(i => `Look at why \`${i.id}\` failed: ${i.result?.note ? one(i.result.note) : 'no reason was recorded'}.`),
     ...(r.late ? open.filter(i => i.kind === 'build').map(i => `\`${i.id}\` was not finished by ${r.readyBy}: its pass may still finish it, or tomorrow's plan takes it up.`) : []),
@@ -316,8 +436,14 @@ export async function brief({ root, date, env = process.env, now = new Date() })
   const health = await healthAround(root, config, night, { branch: found.branch });
   const tonight = health.before?.date === night ? health.before : null;
   const links = linksOf(config, { repo: repoOf(config, env), page: tonight?.file ?? null, ref: tonight?.ref ?? null });
-  const b = renderBrief({ plan: found.plan, now, health, links });
-  return { data: { ok: true, date: night, title: titleOf(night), from: found.from, sources: found.sources, readiness: b.readiness, sections: b.sections, next: b.next, links, markdown: b.markdown, plan: found.plan }, text: b.markdown.trimEnd() };
+  // Production's verifies (phase 81), with the delivery practice on: each failure of the day before the night.
+  let verify = null;
+  if (Array.isArray(config.practices) && config.practices.includes('delivery')) {
+    const v = readVerify(root);
+    verify = { failed: verifyFailuresFor(v.results, night, { production: productionOf(config) }), unread: v.unread ?? null };
+  }
+  const b = renderBrief({ plan: found.plan, now, health, links, verify });
+  return { data: { ok: true, date: night, title: titleOf(night), from: found.from, sources: found.sources, readiness: b.readiness, sections: b.sections, next: b.next, links, verify, markdown: b.markdown, plan: found.plan }, text: b.markdown.trimEnd() };
 }
 
 // ---- sending -----------------------------------------------------------------

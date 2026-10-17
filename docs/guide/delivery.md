@@ -23,9 +23,10 @@ rules (the design is
 keel adopt --with delivery
 ```
 
-This installs `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`
-and `scripts/keel/delivery.mjs` (it needs the `night` practice, whose CI
-reader it uses). In `.keel/keel.json`, all optional:
+This installs `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`,
+`scripts/keel/delivery.mjs` and `scripts/keel/verify.mjs` (it needs the
+`night` practice, whose CI reader and morning brief it uses). In
+`.keel/keel.json`, all optional:
 
 ```json
 "delivery": { "tested": "green", "gateWorkflow": "check.yml" }
@@ -105,12 +106,94 @@ start from the tested ref instead of `main`:
 
   with the job guarded on `github.event.workflow_run.conclusion == 'success'`,
   checking out the tested ref (`ref: green`), not the event's commit. A
-  publish run that moved nothing also completes, so the deploy may skip a
-  commit production already has (phase 81). Keep its concurrency one fixed
-  group with `cancel-in-progress: false`.
+  publish run that moved nothing also completes, so the deploy skips a
+  commit production already has (`verify.mjs live`, below). Keep its
+  concurrency one fixed group with `cancel-in-progress: false`.
 
 Then a commit reaches production only after its gate passed, and two changes
 in a row deploy once, the newer.
+
+## Checking production by the commit it serves
+
+A deploy command's exit code says the command finished, not that production
+serves the change. After a deploy, keel asks production which commit it serves
+and waits until that is the deployed commit or a descendant, then runs the
+project's smoke checks (after ledger's `verify-production.mjs`). In
+`.keel/keel.json`:
+
+```json
+"delivery": {
+  "site": "https://anvils.acme.example",
+  "version": "/api/version",
+  "smoke": ["/", { "path": "/login", "status": 307 }, { "path": "/health", "status": [200, 204] }]
+}
+```
+
+- `site`: the production origin; https (http only on localhost or 127.0.0.1).
+  `--site <origin>` overrides it, for a preview.
+- `version`: the path that reports the serving commit. keel accepts, from an
+  HTTP 2xx answer of at most 64 KiB: a JSON object with a `sha` or a `commit`
+  field (both: they must agree), a JSON string, or plain text that is the hash
+  alone. The hash is a full one (40 hex, or 64 for SHA-256), any case. A
+  short hash, a redirect or anything else is "cannot read", never a guess.
+- `smoke`: up to 50 checks, each a path (expects 200) or `{ "path", "status" }`
+  with a code or a list of codes. Redirects are not followed: a `307` is
+  checked as a `307`. Smoke checks are status codes, not end-to-end journeys.
+
+`site` is required with `version` or `smoke`. A bad value is an error naming
+its key, from the verifier (exit 2) and from `keel doctor` (`delivery-config`).
+
+```bash
+node scripts/keel/verify.mjs <sha> [--within 600] [--every 10] [--record] [--json]
+node scripts/keel/verify.mjs live <sha> [--json]
+```
+
+- **verify** reads the version path every `--every` seconds until production
+  serves the commit or a descendant (`git merge-base --is-ancestor` in this
+  checkout, which needs full history; a commit it lacks is fetched from origin
+  once, and one it still lacks is never "yes"), or `--within` seconds pass;
+  then reads each smoke path once. It passes (exit 0) only on what it saw;
+  otherwise it fails (exit 1), naming each check that did not hold: what
+  production served, after how many reads, and each smoke path's expected and
+  actual status.
+- **live** reads the version path once: exit 0 when production already
+  serves that commit or a descendant, 1 otherwise, including when it cannot
+  read it. A deploy step skips itself on yes, then verifies:
+
+  ```yaml
+  - name: Deploy, unless production already has it
+    env:
+      SHA: ${{ steps.tested.outputs.sha }}
+    run: |
+      if node scripts/keel/verify.mjs live "$SHA"; then echo "already live"; else ./deploy.sh; fi
+  - name: Verify production
+    env:
+      SHA: ${{ steps.tested.outputs.sha }}
+    run: node scripts/keel/verify.mjs "$SHA" --record
+  ```
+
+  The job that records needs `contents: write` (it pushes one data branch) and
+  a checkout with `fetch-depth: 0`.
+
+**Where the result goes.** `--record` adds the result to the branch
+`keel-verify`, file `verify.json` (newest first, the last 30, and every failure of the last 72 hours so a burst of passes never drops one before its brief reads it, and the latest result of each site whatever its age, so production's last verify is never lost to previews; each with the
+commit, the outcome, the time, the site, what production served, each failure
+and the Actions run), with a lease; a file there that is not a verify record
+is never replaced, nor is a `keel-verify` branch with no `verify.json`; every other file on the branch is kept. With the delivery practice on, the night's morning brief
+and `keel board` read it:
+
+- **The board**: when the latest verify failed, an owner's item, "production
+  failed its verify for `<sha>`", with each failure and the run. A later pass
+  clears it. Only production's results count (their site is `delivery.site`):
+  a preview's pass (`--site`) never clears production's failure. A record that
+  cannot be read is the `verify` source n/a, with why.
+- **The morning brief**: each verify that failed in the day before the night
+  started (07:23 UTC to 07:23 UTC) is a line first under "Your next", so every
+  failure reaches one brief, once, and says when the same site has passed
+  since. A preview's failure is said as the preview's.
+  A record it cannot read is said there too, never silence.
+
+A project may add its own channel (ledger's Telegram alert) beside these.
 
 ## The concurrency rule
 
@@ -121,9 +204,23 @@ and reports `workflow-concurrency` when:
   ci or gate) has no concurrency group per ref (`${{ github.ref }}`) with
   `cancel-in-progress: true`: superseded test runs keep running;
 - a **publish or deploy workflow** (named publish, deploy, release or promote)
-  has no concurrency group, a group per ref or commit, or
-  `cancel-in-progress` other than `false`: a deploy can be cancelled midway,
-  or two can run at once.
+  has no concurrency group, a group per ref, commit or run (`github.run_id`,
+  `github.run_number`, `github.run_attempt`), or `cancel-in-progress` other than `false`: a
+  deploy can be cancelled midway, or two can run at once. A group expression
+  keel cannot establish is fixed (one reading `inputs.environment`, say) is
+  named, never passed; a literal, `github.workflow`, `github.repository` and
+  `vars.*` are fixed, and so is `${{ <condition> && '<name>' || <a per-run
+  skip group> }}` when every job the group covers runs on that condition
+  alone: its `if:` is the condition, or it needs a job whose `if:` is (and
+  has no `always()`, `failure()` or `cancelled()`), so a run in the fallback
+  group publishes nothing (keel-publish.yml's form: its choose job's `if:`
+  is the group's condition, and advance needs choose). On an unconditional
+  job, `${{ github.run_attempt == 1 && 'deploy' || … }}` is named: a retry
+  would deploy in a group of its own.
+
+Only a workflow-level block covers a whole test workflow. Without one, every
+job needs its own per-ref, cancelling block: one compliant `unit` job does not
+cover an `integration` job with none.
 
 A workflow named neither way is not checked. A gate workflow that also
 publishes (isocan's `release.yml`) is held as a publisher.
@@ -154,7 +251,8 @@ on their own change and push. Phase 83 makes that one run:
 ## What it does not do
 
 - The publisher does not merge, and never writes `main`; `keel integrate`
-  does, and only with a tree its gate passed.
+  does, and only with a tree its gate passed. The verifier writes only the
+  `keel-verify` data branch, and only with `--record`.
 - The publisher does not batch untested commits into one test run; "newest
   passing wins" is its batching. `keel integrate` batches ready changes
   before `main` (above).
