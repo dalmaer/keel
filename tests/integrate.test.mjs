@@ -37,6 +37,8 @@ async function acme(t, { check = 'node gate.mjs', fast } = {}) {
   await writeFile(join(seed, 'gate.mjs'), GATE);
   await writeFile(join(seed, 'fast.mjs'), 'process.exit(process.env.FAST_FAIL ? 1 : 0);\n');
   await writeFile(join(seed, 'anvil.txt'), 'one anvil\n');
+  // Build output is ignored, as a project's is.
+  await writeFile(join(seed, '.gitignore'), 'dist/\n');
   execFileSync('git', ['init', '-q', '-b', 'main', seed]);
   git(seed, 'add', '-A');
   git(seed, 'commit', '-q', '-m', 'acme');
@@ -368,6 +370,32 @@ test('a change that edits its dependencies is sent back, not gated against the i
   assert.deepEqual(r.data.blocked.map(x => [x.branch, x.reason]), [['codex/deps', 'changes dependencies: install them in the integrator checkout, or integrate it alone after `npm ci`']]);
   assert.ok(linked.length && linked.every(Boolean), 'every gate that ran saw the checkout\'s install');
   assert.ok(!onMain(origin, 'package.json'));
+});
+
+// PR #186 review: ignored build output from one candidate's gate never reaches the next candidate's.
+test('ignored build output a rejected candidate\'s gate left is cleaned before the next gate run', async t => {
+  const { a, b, origin, env } = await acme(t);
+  await change(b, 'codex/bad', { 'broken.txt': 'BREAK\n' }, env('m2'));
+  await change(a, 'claude/good', { 'anvil-two.txt': 'two anvils\n' }, env('m1'));
+  git(a, 'checkout', '-q', 'main');
+  await mkdir(join(a, 'node_modules'));
+  const { gate } = fakeGate();
+  const leftovers = [];
+  // The gate builds into the ignored dist/, and fails on output it did not build this run.
+  const building = async dir => {
+    const stale = await readFile(join(dir, 'dist', 'out.txt'), 'utf8').then(() => true, () => false);
+    leftovers.push(stale);
+    const linked = await readdir(join(dir, 'node_modules')).then(() => true, () => false);
+    await mkdir(join(dir, 'dist'), { recursive: true });
+    await writeFile(join(dir, 'dist', 'out.txt'), 'built\n');
+    if (!linked) return { status: 1 };
+    return stale ? { status: 1 } : gate(dir);
+  };
+  const r = await integrate({ root: a }, { env: env('m1'), gate: building });
+  assert.deepEqual(leftovers.filter(Boolean), [], 'no gate run saw an earlier run\'s build output');
+  assert.deepEqual(r.data.landed.map(l => l.branch), ['claude/good']);
+  assert.deepEqual(r.data.blocked.map(x => x.branch), ['codex/bad']);
+  assert.ok(onMain(origin, 'anvil-two.txt'));
 });
 
 test('only a tree the gate passed is pushable without gating it again', () => {
