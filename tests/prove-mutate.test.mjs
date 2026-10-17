@@ -255,6 +255,18 @@ test('a mutant that does not parse is invalid even when the test imports the mod
   assert.equal(m.caught, m.total - 1, 'the number mutant is caught; the return mutant is not');
 });
 
+test('an unrelated preload does not switch the syntax check off: plain JavaScript that node parses is still judged by it', async t => {
+  const pkg = `${JSON.stringify({ name: 'acme', type: 'module', scripts: { test: 'node --import ./tests/setup.mjs --test tests/*.test.mjs' } }, null, 2)}\n`;
+  const base = ['export const config = {', '  limit: 2,', '};', ''].join('\n');
+  const fix = ['export const config = {', '  limit: 3,', '};', ''].join('\n');
+  const tst = [...TESTHEAD, "test('three', async () => { const { config } = await import('../lib/config.mjs'); assert.equal(config.limit, 3); });", ''].join('\n');
+  const repo = await fixRepo(t, { base: { 'package.json': pkg, 'tests/setup.mjs': 'globalThis.acmeSetup = true;\n', 'lib/config.mjs': base }, fix: { 'lib/config.mjs': fix }, tests: { 'tests/config.test.mjs': tst } });
+  const { j } = await mutate(repo, ['tests/config.test.mjs', '--fix', 'lib/config.mjs'], 0);
+  assert.deepEqual(j.mutate.invalid.map(where), ['lib/config.mjs:2 return return early, before this line']);
+  assert.match(j.mutate.invalid[0].reason, /^does not parse: SyntaxError/);
+  assert.equal(j.mutate.caught, j.mutate.total - 1);
+});
+
 test('a project that loads its own sources through a preload is not syntax-checked by bare node: its mutants are judged by its tests', async t => {
   // node --check knows no .jsx; the project's preload does, so only its own runner can say whether a mutant parses.
   const loader = ["import { register } from 'node:module';",
