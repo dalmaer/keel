@@ -33,6 +33,75 @@ export const TEST_WORDS = Object.freeze(['test', 'tests', 'check', 'checks', 'ci
  */
 const PER_REF = /\bgithub\.(ref|ref_name|head_ref)\b|\bpull_request\.number\b|\bissue\.number\b|\bhead_branch\b/;
 const PER_COMMIT = /\bgithub\.sha\b|\bhead_sha\b|\bpull_request\.head\.sha\b/;
+/** A group expression that names the run: every run lands in a group of its own (#179). */
+const PER_RUN = /\bgithub\.(run_id|run_number|run_attempt|job)\b/;
+/** Contexts that are the same for every run of a workflow: a group made of these and literals is fixed. */
+const FIXED_CONTEXTS = new Set(['github.workflow', 'github.repository', 'github.repository_owner', 'github.event.repository.name', 'github.event.repository.full_name', 'github.event.repository.default_branch']);
+
+/** The context paths an expression reads (literals, operators and function names aside). */
+function contextsOf(expr) {
+  const src = expr.replace(/'(?:[^']|'')*'/g, "''");
+  const out = [];
+  for (const m of src.matchAll(/[A-Za-z_][\w-]*(?:\.[A-Za-z_*][\w-]*|\[[^\]]*\])*(\s*\()?/g)) {
+    if (m[1] || ['true', 'false', 'null'].includes(m[0])) continue;
+    out.push(m[0]);
+  }
+  return out;
+}
+
+/**
+ * Whether a publish or deploy group is one fixed group: { fixed: true } or
+ * { fixed: false, kind: 'ref' | 'commit' | 'run' | 'unknown', reads }. A
+ * literal name is fixed; so is one made of contexts every run shares
+ * (github.workflow, github.repository). `${{ <condition> && '<name>' || <any> }}`
+ * is fixed for the runs that publish: those meeting the condition share
+ * `<name>`, the rest get a group of their own (keel-publish.yml's form). A
+ * group naming the ref, the commit or the run is not; anything else keel
+ * cannot establish, and says so rather than guess (#179).
+ */
+export function groupFixity(group) {
+  if (!group) return { fixed: false, kind: 'unknown', reads: [] };
+  const exprs = [...group.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map(m => m[1].trim());
+  if (!exprs.length) return { fixed: true };
+  const cond = /^\$\{\{\s*([\s\S]+)&&\s*'((?:[^']|'')+)'\s*\|\|\s*([\s\S]+?)\s*\}\}$/.exec(group.trim());
+  if (cond && balanced(cond[1])) return { fixed: true };
+  const reads = exprs.flatMap(contextsOf);
+  if (exprs.some(e => PER_RUN.test(e))) return { fixed: false, kind: 'run', reads };
+  if (exprs.some(e => PER_COMMIT.test(e))) return { fixed: false, kind: 'commit', reads };
+  if (exprs.some(e => PER_REF.test(e))) return { fixed: false, kind: 'ref', reads };
+  const unknown = reads.filter(r => !FIXED_CONTEXTS.has(r) && !/^vars\.[A-Za-z_]\w*$/.test(r));
+  return unknown.length ? { fixed: false, kind: 'unknown', reads: unknown } : { fixed: true };
+}
+
+/** Whether an expression's parentheses balance (outside quotes). */
+function balanced(s) {
+  let depth = 0;
+  for (const c of s.replace(/'(?:[^']|'')*'/g, '')) {
+    if (c === '(') depth++;
+    else if (c === ')' && --depth < 0) return false;
+  }
+  return depth === 0;
+}
+
+/** A workflow's jobs: [{ name, line, end }] (end: the last line of the job, 1-based), read from the lines under a top-level `jobs:`. */
+export function jobsOf(text) {
+  const lines = (text ?? '').split('\n');
+  const start = lines.findIndex(l => /^jobs:[ \t]*(#.*)?$/.test(l));
+  if (start < 0) return [];
+  const out = [];
+  let indent = null, i = start + 1;
+  for (; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l.trim() || /^\s*#/.test(l)) continue;
+    const at = l.search(/\S/);
+    if (at === 0) break;
+    indent ??= at;
+    const m = at === indent ? /^\s*([A-Za-z_][\w-]*):/.exec(l) : null;
+    if (m) { if (out.length) out.at(-1).end = i; out.push({ name: m[1], line: i + 1, end: null }); }
+  }
+  if (out.length) out.at(-1).end = i;
+  return out;
+}
 
 /** A branch name keel will push the tested ref to: git's own rules, narrowed (no `..`, `@{`, control or glob characters). */
 function branchProblem(name) {
@@ -230,17 +299,34 @@ export function concurrencyProblems(file, text, kind) {
   out.push(...unread);
   if (kind === 'test') {
     if (!blocks.length) return [`${file}: a test workflow with no concurrency group: a superseded run is never cancelled; add concurrency: { group: <name>-\${{ github.ref }}, cancel-in-progress: true }`];
-    const good = readable.filter(b => b.group && PER_REF.test(b.group) && b.cancel === true);
-    if (good.length) return out;
-    for (const b of readable) {
-      if (!b.group || !PER_REF.test(b.group)) out.push(`${file} (line ${b.line}): a test workflow's concurrency group ${JSON.stringify(b.group)} is not per ref: runs of every branch share one queue; name the ref in it (\${{ github.ref }})`);
-      if (b.cancel !== true) out.push(`${file} (line ${b.line}): a test workflow's cancel-in-progress is ${b.cancel === undefined ? 'not set (false)' : JSON.stringify(b.cancel)}: a superseded test run keeps running; set cancel-in-progress: true`);
+    const good = b => b.group && PER_REF.test(b.group) && b.cancel === true;
+    const testProblems = b => [
+      ...(!b.group || !PER_REF.test(b.group) ? [`${file} (line ${b.line}): a test workflow's concurrency group ${JSON.stringify(b.group)} is not per ref: runs of every branch share one queue; name the ref in it (\${{ github.ref }})`] : []),
+      ...(b.cancel !== true ? [`${file} (line ${b.line}): a test workflow's cancel-in-progress is ${b.cancel === undefined ? 'not set (false)' : JSON.stringify(b.cancel)}: a superseded test run keeps running; set cancel-in-progress: true`] : []),
+    ];
+    // Only a workflow-level block covers the whole workflow; one job's block covers that job alone (#179).
+    const top = readable.filter(b => b.level === 'workflow');
+    if (top.some(good)) return out;
+    const jobs = jobsOf(text);
+    const jobBlocks = readable.filter(b => b.level === 'job');
+    if (!jobBlocks.length || !jobs.length) {
+      for (const b of readable) out.push(...testProblems(b));
+      return out;
+    }
+    for (const b of top) out.push(...testProblems(b));
+    for (const j of jobs) {
+      const own = jobBlocks.filter(b => b.line > j.line && b.line <= j.end);
+      if (own.some(good)) continue;
+      if (own.length) for (const b of own) out.push(...testProblems(b).map(p => p.replace("a test workflow's", `a test workflow's job ${j.name}:`)));
+      else if (!blocks.some(b => b.unreadable && b.line > j.line && b.line <= j.end)) out.push(`${file} (line ${j.line}): a test workflow's job ${j.name} has no concurrency of its own, and no workflow-level block covers it: a superseded run of it keeps running; put concurrency: { group: <name>-\${{ github.ref }}, cancel-in-progress: true } at the workflow's top level, or on every job`);
     }
     return out;
   }
   if (!blocks.length) return [`${file}: a publish or deploy workflow with no concurrency group: two can run at once; add concurrency: { group: <fixed name>, cancel-in-progress: false }`];
   for (const b of readable) {
-    if (!b.group || PER_REF.test(b.group) || PER_COMMIT.test(b.group)) out.push(`${file} (line ${b.line}): a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is not fixed: publishes of different refs or commits can run at once; name one group for them all`);
+    const f = groupFixity(b.group);
+    if (!f.fixed && f.kind !== 'unknown') out.push(`${file} (line ${b.line}): a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is not fixed: it names the ${f.kind}, so publishes of different ${f.kind}s can run at once; name one group for them all`);
+    else if (!f.fixed) out.push(`${file} (line ${b.line}): keel cannot establish that a publish or deploy workflow's concurrency group ${JSON.stringify(b.group)} is fixed${f.reads.length ? ` (it reads ${f.reads.join(', ')})` : ''}: two deploys could run at once; name one group for them all, or write \${{ <the condition it publishes on> && '<fixed name>' || format('<name>-skip-{0}', github.run_id) }}`);
     if (b.cancel !== false && b.cancel !== undefined) out.push(`${file} (line ${b.line}): a publish or deploy workflow's cancel-in-progress is ${JSON.stringify(b.cancel)}: a deploy can be cancelled midway; set cancel-in-progress: false`);
   }
   return out;

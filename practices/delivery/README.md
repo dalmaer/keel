@@ -37,7 +37,13 @@ without) its gate passing.
 - `keel doctor` holds every workflow of a project with this practice to the
   concurrency rule (`workflow-concurrency`): a test or gate workflow has a
   per-ref group with `cancel-in-progress: true`; a publish or deploy workflow
-  has a fixed group with `cancel-in-progress: false`.
+  has a fixed group with `cancel-in-progress: false`. Only a workflow-level
+  block covers a whole test workflow; otherwise every job needs its own. A
+  group naming the run (`github.run_id`, `run_number`, `run_attempt`), the
+  commit or the ref is not fixed, and one keel cannot establish is named;
+  `${{ <condition> && '<name>' || <a per-run skip group> }}` is fixed for the
+  runs that publish (keel-publish.yml's form, whose condition is exactly its
+  choose job's).
 
 **Configuration** (`.keel/keel.json`): `"delivery": { "tested": "green",
 "gateWorkflow": "check.yml" }`. `tested` is a branch's short name, never the
