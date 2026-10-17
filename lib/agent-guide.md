@@ -913,7 +913,11 @@ onto the default branch in the order marked ready and runs the full gate once:
 each tree's own `check` and `env`, never the integrator checkout's (a tree
 whose config names no runnable gate is sent back with that reason). A pass
 counts only when HEAD and the tracked files are as gated; a gate that changed
-them sends the change back: `the gate changed tracked files`.
+them sends the change back: `the gate changed tracked files`. The checkout's
+`node_modules` is linked in only when the candidate's package.json and
+lockfiles are the checkout's byte for byte; otherwise it is sent back,
+`changes dependencies: …` (install them in the checkout, or integrate it
+alone after `npm ci`). No setup is run.
 A passing batch is one gate run and one push. A failing one accumulates by
 halves: each change is kept only if the tree with it, on top of what was kept
 before it, passes; a single failing change is tried alone once, to report

@@ -351,6 +351,25 @@ test('the drain is bounded: after MAX_ROUNDS it lets go and says what is still r
   assert.deepEqual(remoteRefs(origin, LOCK), []);
 });
 
+// PR #186 review: the checkout's node_modules is linked only for a candidate with the checkout's dependency files.
+test('a change that edits its dependencies is sent back, not gated against the integrator\'s old install', async t => {
+  const { a, b, origin, env } = await acme(t);
+  await change(a, 'claude/same', { 'anvil-two.txt': 'two anvils\n' }, env('m1'));
+  await change(b, 'codex/deps', { 'package.json': JSON.stringify({ name: 'acme', dependencies: { anvil: '2.0.0' } }) }, env('m2'));
+  git(a, 'checkout', '-q', 'main');
+  // The integrator checkout's install: untracked, as node_modules is.
+  await mkdir(join(a, 'node_modules'));
+  await writeFile(join(a, 'node_modules', 'anvil.txt'), 'anvil 1.0.0\n');
+  const { gate } = fakeGate();
+  const linked = [];
+  const seeing = async dir => { linked.push(await readFile(join(dir, 'node_modules', 'anvil.txt'), 'utf8').then(() => true, () => false)); return gate(dir); };
+  const r = await integrate({ root: a }, { env: env('m1'), gate: seeing });
+  assert.deepEqual(r.data.landed.map(l => l.branch), ['claude/same']);
+  assert.deepEqual(r.data.blocked.map(x => [x.branch, x.reason]), [['codex/deps', 'changes dependencies: install them in the integrator checkout, or integrate it alone after `npm ci`']]);
+  assert.ok(linked.length && linked.every(Boolean), 'every gate that ran saw the checkout\'s install');
+  assert.ok(!onMain(origin, 'package.json'));
+});
+
 test('only a tree the gate passed is pushable without gating it again', () => {
   const passed = new Set(['t-left']);
   assert.equal(pushable('t-left', passed), true);
