@@ -4,7 +4,7 @@ since: 2026-10-17
 goal: G4
 spec: 2
 depends: [54, 73, 81]
-note: "Released v0.8.32 after 1,855-test gate and reviewed PR #194. Static fleet rolled out; Ledger PR #143 and nightly retention proof pending; Isocan validation and Google access remain."
+note: "Released v0.8.32 after 1,855-test gate and reviewed PR #194. All six repos configured; Ledger cross-run retention verified. Ledger CI reader and Isocan Google access remain blocked; full scheduled collection is not proven."
 evidence: ["evidence/88-production-errors.md"]
 ---
 
@@ -47,9 +47,11 @@ Walk each available provider through its public CLI and the final installed nigh
 
 ## Next action
 
-Finish Ledger PR #143 and verify nightly collection followed by restoration of
-its retained state. Finish Isocan validation; its collection needs Google
-reauthentication and an approved CI reader identity.
+Obtain owner-approved CI reader credentials for Ledger and Isocan, and Google
+reauthentication for local Isocan collection. Then verify successful collection
+and retention through a complete night. Ledger already restored an unavailable
+observation across two bounded manual runs; that is not a successful full night.
+New recurring robot build/review budgets remain a separate owner decision.
 
 ## Trajectory
 

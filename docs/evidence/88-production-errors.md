@@ -206,11 +206,57 @@ rollback proof then passed. A subsequent baseline-worker failure and a 49,399 ms
 isolated pass near its 50,000 ms bound remain tracked in
 [Keel #195](https://github.com/dalmaer/keel/issues/195). A serialized local update
 gate and the independent release rehearsal passed; those passes do not close
-the hygiene finding. Final PR CI and the nightly retention walk remain pending.
+the hygiene finding. At this checkpoint final PR CI and the nightly retention walk were pending; the results below supersede that pending state.
 
 Isocan's shallow-clone changelog failure was corrected by fetching history; all
 five focused changelog tests passed. Its next gate exposed a pending dynamic
 import after UI test teardown. A test-only async teardown now awaits nested
 imports; the focused file passed once (one test, 1.82 s). Application behavior,
-assertions and unhandled-error reporting were not changed. The corrected update
-is still being validated. Google access remains unavailable.
+assertions and unhandled-error reporting were not changed. At this checkpoint the corrected update was still being validated; the results below supersede that pending state. Google access remains unavailable.
+
+
+### Final rollout and real recovery walk (2026-10-17)
+
+All six primary checkouts now contain the configuration. Ledger's local phase 36
+and generated roadmap changes were preserved; Isocan's untracked conduct skill
+was preserved. Neither was folded into this rollout.
+
+- [Ledger #143](https://github.com/dalmaer/ledger/pull/143) merged as
+  `30668ca0d6442e3ff74ea66df9c61ea83d241693` after
+  [PR CI](https://github.com/dalmaer/ledger/actions/runs/39030586229) passed.
+- [Isocan #494](https://github.com/dglazkov/isocan/pull/494) merged as
+  `ef096866cae3838c72860c086c238b0eadbcfd7f` after
+  [PR CI](https://github.com/dglazkov/isocan/actions/runs/39031346574) passed.
+  Local configured gate passed; required deep verification reported 9,124 passing
+  and 115 skipped tests. Its post-merge release and Pages workflows succeeded.
+
+`keel production collect --yes --json` from Ledger's primary checkout read
+2026-10-16T12:16:35.098Z–2026-10-17T12:16:35.098Z: exit 0, one attempt,
+zero returned errors, unknown traffic, partial coverage with
+`provider-completeness-unproven`. This is not proof of error-free production.
+Isocan's corresponding read, 2026-10-16T12:16:34.923Z–2026-10-17T12:16:34.923Z,
+exited 1 with unavailable coverage and `access-or-config`; the existing Google
+login cannot refresh (`invalid_grant`) and no approved CI reader is configured.
+
+Ledger's existing CI credential failed the Vercel user lookup with `User not found`
+(404), before log retrieval. Bounded manual diagnostics reproduced this on
+[CLI 59.23.2](https://github.com/dalmaer/ledger/actions/runs/39032200766) and
+[CLI 64.5.0](https://github.com/dalmaer/ledger/actions/runs/39032342399).
+Diagnostic workflow success means the probe ran, not that its provider calls
+succeeded. No secret was printed, created or rotated; production keeps its pinned
+CLI. Local login success does not establish CI authorization.
+
+The [first main night smoke](https://github.com/dalmaer/ledger/actions/runs/39031780717)
+retained an unavailable observation for 2026-10-16T12:16:08.059Z–2026-10-17T12:16:08.059Z.
+The [second main night smoke](https://github.com/dalmaer/ledger/actions/runs/39032223712)
+restored run `39031780717`, attempt 1, and retained both that failure and the new
+unavailable window ending 2026-10-17T12:22:57.157Z. Downloaded artifact envelopes
+passed the shipped `validateEnvelope`; the second had two windows and the exact
+prior failed observation. Both runs were deliberately cancelled after artifact
+retention to bound the smoke; neither is a passed full night. Collection's actual
+exit was 1 even where GitHub's continue-on-error step conclusion showed success.
+
+Phase 88 remains partial: collection authorization and a complete operational
+night remain unproven. No incident has been declared accepted or production-verified,
+and no new automatic repair budget was enabled. The installed spec/issue path
+reuses robot authorization and requires a person to merge its resulting PRs.
