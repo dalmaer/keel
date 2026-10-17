@@ -66,7 +66,8 @@ every night at 07:23 UTC (and by hand):
    GitHub emails. A measure outside its bound (exit 1) is news on the page,
    not red.
 5. The morning (phase 77): `keel-morning.yml` runs when keel-night,
-   keel-climb or keel-robot finish, and daily at 17:07 UTC (just after the
+   keel-climb or keel-robot finish (the last two only where the climb
+   practice installs them; without climb, keel-night alone), and daily at 17:07 UTC (just after the
    default `readyBy`; another `readyBy` is caught by the next pass to finish
    or the next daily run). `node scripts/keel/morning.mjs
    decide` reads tonight's plan as it finished (its record and the plan

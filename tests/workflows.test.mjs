@@ -10,7 +10,7 @@ import { readFile, readdir, mkdtemp, writeFile, rm, mkdir, symlink, cp } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load, fill, PUSH_TRIGGERS, CROSS_REVIEW_WORKFLOW } from '../lib/practices.mjs';
+import { load, fill, plan, PUSH_TRIGGERS, CROSS_REVIEW_WORKFLOW } from '../lib/practices.mjs';
 import { run } from './helpers/run.mjs';
 import { AGENTS } from '../practices/night/files/scripts/keel/lib.mjs';
 import { runBlocks, inlineNode, shellProblems } from './helpers/workflows.mjs';
@@ -2476,7 +2476,7 @@ test('a robot PR published on a night whose plan ticks fail still gets its other
  */
 export function morningProblems(text) {
   const out = [];
-  if (!/^on:\n {2}workflow_run:\n {4}workflows: \[keel-night, keel-climb, keel-robot\]\n {4}types: \[completed\]\n {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "[^"]+"\n {2}workflow_dispatch: \{\}\n/m.test(text)) out.push('not started by keel-night, keel-climb and keel-robot finishing, by a schedule and by hand');
+  if (!/^on:\n {2}workflow_run:\n {4}workflows: \[keel-night(?:, keel-climb, keel-robot)?\]\n {4}types: \[completed\]\n {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "[^"]+"\n {2}workflow_dispatch: \{\}\n/m.test(text)) out.push('not started by keel-night, keel-climb and keel-robot finishing, by a schedule and by hand');
   // Once a day, just after the default readyBy (17:00 UTC): the passes finishing cover the rest.
   const crons = [...text.matchAll(/^\s*-\s*cron:\s*"([^"]+)"/gm)].map(m => m[1]);
   if (crons.length !== 1 || !/^\d+ 17 \* \* \*$/.test(crons[0]) || Number(crons[0].split(' ')[0]) > 30) out.push(`one daily cron shortly after 17:00 UTC, the default readyBy (got ${JSON.stringify(crons)})`);
@@ -2617,6 +2617,30 @@ test('every needs.<job>.outputs.<name> a shipped workflow reads is exported by t
   const dropped = morning.replace('      plan: ${{ steps.decide.outputs.plan }}\n', '');
   assert.notEqual(dropped, morning, 'the mutation applies');
   assert.deepEqual(neededOutputProblems(dropped), ['needs.decide.outputs.plan: decide does not export plan']);
+});
+
+test('keel-morning.yml is started only by the passes a project installs: keel-night alone without climb, all three with it', async () => {
+  const practices = await load(), MORNING_WORKFLOW = '.github/workflows/keel-morning.yml';
+  const base = { name: 'Acme', tagline: 'Acme builds anvils.', repo: 'acme/anvils', practice: '0.0.0' };
+  const triggers = text => /^ {4}workflows: (\[[^\]]*\])$/m.exec(text)?.[1];
+  const dir = await mkdtemp(join(tmpdir(), 'keel-morning-'));
+  try {
+    for (const [names, expected] of [
+      [['base', 'agents-md', 'night'], '[keel-night]'],
+      [['base', 'agents-md', 'night', 'climb'], '[keel-night, keel-climb, keel-robot]'],
+    ]) {
+      const entries = await plan(dir, { ...base, practices: names }, practices);
+      const morning = entries.find(e => e.path === MORNING_WORKFLOW)?.content;
+      assert.ok(morning, `${names.join(',')}: keel-morning.yml is rendered`);
+      assert.equal(triggers(morning), expected, names.join(','));
+      const installed = new Set(entries.filter(e => e.path.startsWith('.github/workflows/')).map(e => e.path.split('/').pop().replace(/\.yml$/, '')));
+      for (const w of expected.slice(1, -1).split(', ')) assert.ok(installed.has(w), `${names.join(',')}: ${w} is a workflow the project installs`);
+      assert.deepEqual(morningProblems(morning), [], `${names.join(',')}: still the morning's shape`);
+      assert.deepEqual(neededOutputProblems(morning), [], `${names.join(',')}: every needs output exported`);
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+  // keel's own copy (climb on) keeps all three.
+  assert.equal(triggers(await readFile(join(KEEL, MORNING_WORKFLOW), 'utf8')), '[keel-night, keel-climb, keel-robot]');
 });
 
 test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, decides read-only, and only its send job writes issues; a failed send is red', async () => {
