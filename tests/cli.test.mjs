@@ -198,7 +198,8 @@ Measure the count.
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
       const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
       // phase claim needs a remote to push to, and this copy has none: exit 2, as JSON (tests/claim.test.mjs covers the verb).
-      assert.equal(r.code, name === 'issue' ? 3 : name === 'phase claim' ? 2 : 0, `${name}: ${r.err}${r.out}`);
+      // promote needs the delivery practice, which keel's copy has not taken: exit 2, as JSON (tests/promote.test.mjs covers the verb).
+      assert.equal(r.code, name === 'issue' ? 3 : ['phase claim', 'promote'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
       if (name === 'evidence rederive') {

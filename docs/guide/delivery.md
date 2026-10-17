@@ -24,7 +24,8 @@ keel adopt --with delivery
 ```
 
 This installs `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`,
-`scripts/keel/delivery.mjs` and `scripts/keel/verify.mjs` (it needs the
+`scripts/keel/delivery.mjs`, `scripts/keel/verify.mjs` and
+`scripts/keel/promote.mjs` (it needs the
 `night` practice, whose CI reader and morning brief it uses). In
 `.keel/keel.json`, all optional:
 
@@ -195,6 +196,62 @@ and `keel board` read it:
 
 A project may add its own channel (ledger's Telegram alert) beside these.
 
+## Promoting production
+
+Where a project promotes by hand (isocan moves a `prod` tag, and its deploy
+follows the tag), `keel promote` is that gesture with a guard on it. Name the
+ref in `.keel/keel.json`:
+
+```json
+"delivery": { "promote": "tag:prod", "site": "https://anvils.acme.example", "version": "/api/version" }
+```
+
+`promote` is `"tag:<name>"` or `"branch:<name>"` (never the default branch, nor
+the tested ref), or `"none"`; a project without one has no promote. It needs
+`site` and `version`, because every promotion ends in a verify.
+
+```bash
+keel promote                    # preview: the tested ref's tip; nothing moves (exit 3)
+keel promote <commit> --yes     # move production there, then verify it
+keel promote --back <commit>    # preview a rollback; --yes to do it
+```
+
+**The guard**, before anything moves. Each refusal names why and exits 1:
+
+- the commit is on the tested ref as origin has it now (its tip or an
+  ancestor of it). A commit on `main` the publisher has not passed through,
+  or one off `main`, is refused;
+- its gate passed: phase 79's result, the same one the night reuses. That
+  is CI's exact, clean, successful run of the gate workflow on that commit
+  (`delivery.gateWorkflow`, else `ci.gateWorkflow`), with `keel-test-runs`
+  records showing the gate's command passing with tests. The 24-hour reuse
+  window does not apply here: a commit tested last week is still tested;
+- forward never moves production to an ancestor of what it serves now (that
+  is `--back`), and `--back` only does.
+
+**The preview** shows the commit, what production is now, each commit that
+reaches production (or, going back, leaves it), the gate run that passed and
+the verify that will follow. `--yes` moves the one ref, with a lease on the
+value it read, so a ref someone moved meanwhile is refused, not overwritten.
+
+**After moving** it runs `verify.mjs`: production must report the commit or a
+descendant within `--within` seconds (default 600), then pass its smoke
+checks. A failure says what production served and suggests `keel promote
+--back <what production was>`; it never moves anything itself.
+
+**Rolling back verifies the exact commit.** Going forward, a descendant
+serving is fine. Going back it is the failure: production still serving the
+newer commit would contain the older one. So `--back` passes only when
+production reports exactly the commit it went back to (`verify.mjs
+--exact`), within the same bounded wait.
+
+**Who.** It runs on the owner's machine with their git credentials. It
+refuses to run in GitHub Actions, and no workflow keel installs runs it
+(`tests/workflows.test.mjs`). Deciding when to promote is still a person's
+call. isocan's "not while somebody is presenting" is one keel does not
+encode. Anyone who can push the tag can still move it by hand: keel guards
+its own command, not the ref.
+
 ## The concurrency rule
 
 With delivery on, `keel doctor` reads every workflow in `.github/workflows`
@@ -228,7 +285,9 @@ publishes (isocan's `release.yml`) is held as a publisher.
 ## What it does not do
 
 - It does not merge, and never writes `main`. The verifier writes only the
-  `keel-verify` data branch, and only with `--record`.
+  `keel-verify` data branch, and only with `--record`. `keel promote` writes
+  only the production ref, and only with `--yes`.
+- It does not promote on its own. No workflow runs `keel promote`.
 - It does not batch untested commits into one test run; "newest passing wins"
   is the batching (agent sessions handing off to one integrator is phase 83).
 - A merge queue is an alternative a project may add; keel does not require it.

@@ -244,7 +244,7 @@ exec git "$@"
 // ---- configuration --------------------------------------------------------------------------
 
 test('"delivery" is validated, each error naming its key; a tested ref named for the default branch is refused', async t => {
-  const unset = { site: null, version: null, smoke: [] }; // the verifier's keys (phase 81)
+  const unset = { site: null, version: null, smoke: [], promote: null }; // the verifier's keys (phase 81) and promote's (phase 82)
   assert.deepEqual(deliveryOf({}), { tested: 'green', gateWorkflow: null, ...unset });
   assert.deepEqual(deliveryOf({ delivery: { tested: 'tested/dev', gateWorkflow: 'test.yml', docsOnly: ['docs/'] } }), { tested: 'tested/dev', gateWorkflow: 'test.yml', ...unset });
   for (const [delivery, key] of [

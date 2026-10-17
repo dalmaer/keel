@@ -7,14 +7,14 @@ Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
 Verbs (all take `--json`; parse JSON, never prose):
 
 - `keel status` — goals, built counts, the next phase
-- `keel next` — next free phase; ready, free or claimed; `--project <p>`
+- `keel next` — next free phase; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress
 - `keel phase new|list|claim` — scaffold, list or claim phases
 - `keel render` — render practices; `--check` reads only (exit 1)
 - `keel init [dir] --description "<paragraph>"` — new project; `--github` exit 3
-- `keel adopt [dir]` — adopt what a repo satisfies; `--dry-run` writes nothing
-- `keel doctor` — drift and practice lints; `--fix <path> restore|eject` (exit 3)
-- `keel update` — migrations, re-render, check; PR branch (exit 3) or `--local`
+- `keel adopt [dir]` — adopt a repo; `--dry-run` writes nothing
+- `keel doctor` — drift, lints; `--fix <path> restore|eject` (exit 3)
+- `keel update` — migrate, re-render; PR branch (exit 3) or `--local`
 - `keel lessons` — send lessons and drift home; exit 3
 - `keel learn` — lessons → proposals and decisions
 - `keel improve` — measures, bounds, one proposal; `--report` a health page
@@ -31,6 +31,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel issue new --agent` — rubric issue preview; `--yes` creates it
 - `keel review <repo>#<n>` — a PR's review comments; `--wait`; `--close` answers
 - `keel board` — whose turn: a local page; `--fresh`
+- `keel promote [<commit>]` — tested commit to prod; `--back`
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, live, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
@@ -912,6 +913,25 @@ delivery on, `keel board` lists production's (site = `delivery.site`) failed
 latest verify as the owner's (source `verify`; a preview's pass never clears
 it) and the morning brief puts each failure of the day before the night
 first under "Your next"; an unreadable record is said, never silence.
+`--exact` accepts the commit alone, never a descendant (a rollback's verify).
+
+### Promoting production
+
+`keel promote [<commit>] [--yes] [--within <s>] [--every <s>] [--json]` and
+`keel promote --back <commit> …` (delivery, phase 82) run the project's
+`scripts/keel/promote.mjs`. `delivery.promote` names production's ref
+(`"tag:prod"`, `"branch:production"`; never the default branch or the tested
+ref; `"none"` or unset: no promote; needs `site` and `version`). The commit
+(default: the tested ref's tip on origin) must be on the tested ref and have
+phase 79's gate result (`gate.mjs` `ciResult`, the gate workflow
+`delivery.gateWorkflow` else `ci.gateWorkflow`, at any age); forward never goes
+to an ancestor of production, `--back` only does. Refusals are exit 1, naming
+why; nothing moves. Without `--yes`: a preview, exit 3 (`preview: true`, `from`,
+`to`, `arriving`/`leaving` commits, `gate`, `verifies`). With `--yes`: one push
+with a lease on what it read, then `verify.mjs` (`--exact` for `--back`): exit
+0 verified, 1 failed with `next` suggesting `--back <previous>`; nothing else
+moves. Already there: `action: none`, exit 0. It refuses to run in GitHub
+Actions; no shipped workflow runs it. Only the owner runs it on a real project.
 
 ### Repository hygiene
 

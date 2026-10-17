@@ -263,6 +263,30 @@ test('no shipped workflow reaches back to keel: no keel repo, no keel token, no 
   ]) assert.ok(reachesBack(text).length, `${why}: expected a problem`);
 });
 
+/** Each line of a workflow (comments aside) that would promote production: keel promote, or its script. [string]. */
+export function promotes(text) {
+  return code(text).filter(({ line }) => /\bkeel(\.mjs)?\s+promote\b|outputs\.cli \}\}\s+promote\b|\bpromote\.mjs\b/.test(line)).map(({ line, n }) => `line ${n}: ${line.trim()}`);
+}
+
+test('phase 82: no workflow keel installs runs keel promote, as a template or as rendered on keel; promotion is a person\'s command', async () => {
+  const all = await shipped(), rendered = await renderedWorkflows(all);
+  assert.ok(all.length > 10, 'every shipped workflow is read');
+  for (const w of all) {
+    assert.deepEqual(promotes(w.template), [], `${w.practice} ${w.path}`);
+    if (rendered.has(w.path)) assert.deepEqual(promotes(rendered.get(w.path)), [], `keel's ${w.path}`);
+  }
+  for (const n of (await readdir(join(KEEL, '.github/workflows'))).filter(n => /\.ya?ml$/.test(n))) {
+    assert.deepEqual(promotes(await readFile(join(KEEL, '.github/workflows', n), 'utf8')), [], `keel's ${n}`);
+  }
+  // Mutations: each way a workflow could promote is caught; a comment is not a run.
+  const publish = all.find(w => w.name === 'keel-publish.yml').template;
+  const step = run => publish.replace(/\n {6}- name: /, `\n      - run: ${run}\n      - name: `);
+  for (const run of ['npx keel promote --yes', 'node bin/keel.mjs promote --back "$SHA" --yes', 'node scripts/keel/promote.mjs --yes', '${{ steps.keel.outputs.cli }} promote --yes']) {
+    assert.ok(promotes(step(run)).length, `${run}: expected a problem`);
+  }
+  assert.deepEqual(promotes(`# keel promote is the owner's\n${publish}`), [], 'a comment names it without running it');
+});
+
 /** A workflow's jobs, by their two-space keys under jobs:: [{ id, text }]. */
 export function jobsOf(text) {
   const at = text.search(/^jobs:\n/m);
