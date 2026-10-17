@@ -342,7 +342,11 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   and the job's own token, which only reads. The night and the card keep one
   canvas journal between runs (each restores the newest of the other's and
   its own), so a card edit is never mistaken for yours. While a night is
-  still publishing, the card waits for the next pass.
+  still publishing, the card waits for the next pass. A card run that left
+  no journal is passed over only when its own job results show the card
+  step never ran; otherwise (say the card published and the journal upload
+  failed) the next writer refuses rather than restore older state and make a
+  second card.
 
 ## What you'll see
 
