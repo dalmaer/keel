@@ -6,8 +6,10 @@
 // Zero imports beyond Node: keel's doctor reads this file in keel's own
 // tree, where the night's scripts are not beside it.
 //
-//   deliveryOf(config)        .keel/keel.json "delivery": { tested, gateWorkflow },
-//                             validated, each error naming its key
+//   deliveryOf(config)        .keel/keel.json "delivery": { tested, gateWorkflow,
+//                             site, version, smoke }, validated, each error
+//                             naming its key (site, version and smoke: phase 81's
+//                             verifier, scripts/keel/verify.mjs)
 //   concurrencyOf(text)       a workflow's concurrency blocks, read as text
 //   workflowKind(file, text, { gate })  'test', 'publish' or null
 //   concurrencyProblems(file, text, kind)  the rule, broken: [string]
@@ -125,19 +127,68 @@ export function deliveryProblems(config) {
   if (d.gateWorkflow !== undefined && (typeof d.gateWorkflow !== 'string' || !d.gateWorkflow.trim() || d.gateWorkflow !== d.gateWorkflow.trim() || /[\r\n\0"\\]/.test(d.gateWorkflow))) {
     out.push('.keel/keel.json "delivery".gateWorkflow must be the gate workflow\'s file (like "check.yml") or the name GitHub shows for it');
   }
+  // The verifier's keys (phase 81): where production is, which path reports its commit, and what to smoke-test.
+  if (d.site !== undefined) {
+    const p = siteProblem(d.site);
+    if (p) out.push(`.keel/keel.json "delivery".site ${p}`);
+  }
+  if (d.version !== undefined) {
+    const p = pathProblem(d.version);
+    if (p) out.push(`.keel/keel.json "delivery".version ${p}, the path that reports the commit production serves (like "/api/version")`);
+  }
+  if (d.smoke !== undefined) {
+    if (!Array.isArray(d.smoke) || d.smoke.length > SMOKE_MAX) out.push(`.keel/keel.json "delivery".smoke must be a list of at most ${SMOKE_MAX} checks, each a path ("/") or { "path": "/", "status": 200 }`);
+    else d.smoke.forEach((c, i) => { const p = smokeProblem(c); if (p) out.push(`.keel/keel.json "delivery".smoke[${i}] ${p}`); });
+  }
+  if ((d.version !== undefined || d.smoke !== undefined) && d.site === undefined) out.push('.keel/keel.json "delivery".site is required with "delivery".version or "delivery".smoke: the production origin they are read from (like "https://anvils.acme.example")');
   return out;
+}
+
+/** How many smoke checks a project may name. */
+export const SMOKE_MAX = 50;
+
+/** An origin keel reads production at: https, or http on this machine only (a local preview). */
+export function siteProblem(site) {
+  let u;
+  try { if (typeof site !== 'string') throw new TypeError(); u = new URL(site); } catch { return `must be the production origin, like "https://anvils.acme.example" (got ${JSON.stringify(site)})`; }
+  if (u.username || u.password || u.search || u.hash || (u.pathname !== '/' && u.pathname !== '')) return `must be an origin alone, like "https://anvils.acme.example": no path, query, fragment or credentials (got ${JSON.stringify(site)})`;
+  if (u.protocol === 'https:') return null;
+  if (u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) return null;
+  return `must be https (http only on localhost or 127.0.0.1) (got ${JSON.stringify(site)})`;
+}
+
+function pathProblem(path) {
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || /[\s#\\\0]/.test(path) || path.length > 512) return `must be a path starting with "/" (got ${JSON.stringify(path)})`;
+  return null;
+}
+
+const statusOk = s => Number.isInteger(s) && s >= 100 && s <= 599;
+function smokeProblem(c) {
+  if (typeof c === 'string') return pathProblem(c) && `${pathProblem(c)}, or { "path": "/", "status": 200 }`;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'must be a path ("/") or { "path": "/", "status": 200 }';
+  const extra = Object.keys(c).filter(k => !['path', 'status'].includes(k));
+  if (extra.length) return `takes path and status only (got ${extra.join(', ')})`;
+  const p = pathProblem(c.path);
+  if (p) return `path ${p}`;
+  if (c.status !== undefined && !statusOk(c.status) && !(Array.isArray(c.status) && c.status.length && c.status.every(statusOk))) return `status must be an HTTP status code (100-599) or a list of them (got ${JSON.stringify(c.status)})`;
+  return null;
 }
 
 export class DeliveryError extends Error {
   constructor(message, exitCode = 2) { super(message); this.exitCode = exitCode; }
 }
 
-/** { tested, gateWorkflow (null: the project's gate workflow) }, or a throw (exit 2) naming the key. */
+/**
+ * { tested, gateWorkflow (null: the project's gate workflow), site, version,
+ * smoke: [{ path, status: [code] }] } (site and version null when unset; a
+ * smoke path alone expects 200), or a throw (exit 2) naming the key.
+ */
 export function deliveryOf(config) {
   const problems = deliveryProblems(config);
   if (problems.length) throw new DeliveryError(problems[0]);
   const d = config?.delivery ?? {};
-  return { tested: d.tested ?? TESTED, gateWorkflow: d.gateWorkflow ?? null };
+  const smoke = (d.smoke ?? []).map(c => typeof c === 'string' ? { path: c, status: [200] } : { path: c.path, status: c.status === undefined ? [200] : [c.status].flat() });
+  return { tested: d.tested ?? TESTED, gateWorkflow: d.gateWorkflow ?? null, site: d.site ? new URL(d.site).origin : null, version: d.version ?? null, smoke };
 }
 
 /** A workflow's top-level `name:`, unquoted, or null. */

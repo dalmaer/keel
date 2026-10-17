@@ -501,3 +501,45 @@ test('while the night\'s PR is unmerged, the brief reads the night\'s health pag
   const merged = await project(t);
   assert.equal(keel(['morning', '--date', NIGHT, '--json'], merged.root, { KEEL_GH: merged.gh }).json().links.health, LINKS.health);
 });
+
+// Phase 81: a failed verify of production is a line in the next morning brief, once.
+test('a failed verify is a line in the next morning brief: each failure of the day before the night, in exactly one brief; an unreadable record is said', async t => {
+  const sha = 'a1b2c3d'.padEnd(40, '0'), site = 'https://anvils.acme.example', run = 'https://github.com/acme/anvils/actions/runs/7';
+  const result = (at, ok, failures = ok ? [] : ['GET /login: expected 307, got 500']) => ({ sha, ok, at, site, serving: sha, failures, ...(ok ? {} : { run }) });
+  // The day before the night of 2026-10-05 started (07:23 UTC): from 2026-10-04 07:23 to 2026-10-05 07:23.
+  const results = [result('2026-10-05T09:00:00Z', false), result('2026-10-05T07:00:00Z', true), result('2026-10-04T20:00:00Z', false), result('2026-10-04T07:00:00Z', false)];
+  const { verifyFailuresFor, verifyLine } = morningModule;
+  const tonight = verifyFailuresFor(results, NIGHT);
+  assert.deepEqual(tonight.map(r => [r.at, r.passedSince]), [['2026-10-04T20:00:00Z', true]]);
+  assert.deepEqual(verifyFailuresFor(results, '2026-10-06').map(r => r.at), ['2026-10-05T09:00:00Z'], 'one that failed after the night started is the next brief\'s');
+  assert.deepEqual(verifyFailuresFor(results, '2026-10-04').map(r => r.at), ['2026-10-04T07:00:00Z']);
+  // Every failure in exactly one night's brief.
+  const nights = ['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07'];
+  for (const r of results.filter(r => !r.ok)) assert.equal(nights.filter(d => verifyFailuresFor(results, d).some(f => f.at === r.at)).length, 1, r.at);
+  const line = `Production failed its verify for \`a1b2c3d\` at 2026-10-04T20:00:00Z (${site}): GET /login: expected 307, got 500. ${run} Production has passed a verify since.`;
+  assert.equal(verifyLine(tonight[0]), line);
+  const b = renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS, verify: { failed: tonight, unread: null } });
+  assert.equal(b.next[0], line, 'production first, under Your next');
+  assert.match(b.markdown, new RegExp(`## Your next\\n\\n- ${line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
+  assert.equal(renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS, verify: { failed: [], unread: null } }).markdown, renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS }).markdown, 'nothing failed: the brief is as before');
+  assert.match(renderBrief({ plan: finished(), now: AFTER, verify: { failed: [], unread: 'git ls-remote exited 128' } }).next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: git ls-remote exited 128\. Whether production passed is unknown\.$/);
+
+  // End to end: with delivery on, the brief reads origin's keel-verify branch.
+  const p = await project(t, { config: { ...CONFIG, practices: ['night', 'delivery'] } });
+  const write = (args, input) => execFileSync('git', args, { cwd: p.root, input, encoding: 'utf8' }).trim();
+  const b2 = write(['hash-object', '-w', '--stdin'], JSON.stringify({ results }));
+  const tree = write(['mktree'], `100644 blob ${b2}\tverify.json\n`);
+  write(['push', '-q', 'origin', `${write(['commit-tree', tree, '-m', 'keel verify'])}:refs/heads/keel-verify`]);
+  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  assert.equal(r.code, 0, r.err + r.out);
+  assert.equal(r.json().next[0], line);
+  assert.deepEqual(await p.calls(), [], 'reading the record never calls gh');
+  // Without delivery, the record is not read and the brief is as before.
+  const off = await project(t);
+  assert.doesNotMatch(keel(['morning', '--date', NIGHT, '--json'], off.root, { KEEL_GH: off.gh }).json().markdown, /verify/);
+  // A record that is not one: said in the brief, never "nothing failed".
+  const bad = write(['hash-object', '-w', '--stdin'], '{"results": "Acme"}');
+  const badTree = write(['mktree'], `100644 blob ${bad}\tverify.json\n`);
+  write(['push', '-q', '--force', 'origin', `${write(['commit-tree', badTree, '-m', 'not a record'])}:refs/heads/keel-verify`]);
+  assert.match(keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh }).json().next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
+});
