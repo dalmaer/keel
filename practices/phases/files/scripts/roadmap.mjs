@@ -411,8 +411,8 @@ export function parsePhase(file, raw) {
     } catch { fail(`${file}: invalid JSON value for ${key}`); }
   }
   if (!STATUSES.includes(meta.status)) fail(`${file}: invalid status ${meta.status}`);
-  if (typeof meta.since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(meta.since)
-      || new Date(meta.since).toISOString().slice(0, 10) !== meta.since) fail(`${file}: invalid since date`);
+  // isDate, not a bare toISOString: 2026-01-32 is no time, and toISOString throws a RangeError that names no file.
+  if (!isDate(meta.since)) fail(`${file}: invalid since date`);
   for (const key of ['note', 'goal']) {
     if (typeof meta[key] !== 'string' || !meta[key].trim()) fail(`${file}: missing ${key}`);
   }
