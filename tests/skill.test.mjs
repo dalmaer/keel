@@ -296,6 +296,46 @@ test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-
   assert.match(await readFile(join(KEEL, 'AGENTS.md'), 'utf8'), /A `fix:` commit\s+carries a `Proven-by:` trailer/);
 });
 
+// Phase 87: the builder restates done first and reports in one shape; the conductor checks the shape before anything runs.
+test('the conduct skill\'s brief asks for the restatement and the report shape, and its verify step names the checks', async () => {
+  const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
+  // The brief's template has its own `## ` headings, so §1 runs to §2.
+  const brief = skill.slice(skill.indexOf('\n## 1.'), skill.indexOf('\n## 2.')), fence = brief.slice(brief.indexOf('```\n'), brief.indexOf('\n```', brief.indexOf('```\n') + 4));
+  // The brief ends with the restatement, before any code.
+  const last = fence.slice(fence.lastIndexOf('\n## '));
+  assert.match(last, /^\n## Before any code\nRestate the success criteria in your own words before writing code\.\s*$/);
+  // The report: fixed sections, in order, the restatement first.
+  const report = fence.slice(fence.indexOf('## What you return'), fence.indexOf('## Before any code'));
+  assert.match(report, /these sections in this order/);
+  const order = [/\n0\. Done means: your restatement/, /\n1\. What changed: the files and commits/, /\n2\. Each acceptance box: the test that proves it[\s\S]*?or why\s+it has none/,
+    /\n3\. Focused tests: each command you ran, from the repo root, with its exit\s+code/, /\n4\. Decisions the spec left open/, /\n5\. What remains/];
+  let at = -1;
+  for (const re of order) {
+    const m = re.exec(report);
+    assert.ok(m, `${re} in the report`);
+    assert.ok(m.index > at, `${re} in order`);
+    at = m.index;
+  }
+  // Builders still test by file; the whole check is the conductor's.
+  assert.match(report, /not the whole check/);
+  assert.match(brief, /Do NOT run the whole check \(`\{\{check\}\}`\): the\s+conductor runs it once on the integrated tree/);
+  // Verify: the restatement first, then the boxes and the exit codes, before anything runs; the gate stays in §3.
+  const verify = section(2);
+  const rule = verify.slice(verify.indexOf('**Read the report\'s shape first.**'), verify.indexOf('\n\n', verify.indexOf('**Read the report\'s shape first.**')));
+  assert.match(rule, /^\*\*Read the report's shape first\.\*\* \(why: [^)\n]+\)/);
+  assert.match(rule, /restatement before anything else: where it differs from the phase's Done\s+when, resolve that first/);
+  assert.match(rule, /check every acceptance box is addressed[\s\S]*?every\s+focused command carries its exit code/);
+  assert.match(rule, /A report missing either goes back\s+down/);
+  assert.match(rule, /the whole check stays yours, once, in §3/);
+  assert.ok(verify.indexOf(rule) < verify.indexOf('`git pull --ff-only`'), 'the shape is read before anything runs');
+  assert.doesNotMatch(verify, /\*\*The whole check, once\*\*/);
+  // keel's own copy says it too (render --self).
+  const mine = await readFile(join(KEEL, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  assert.ok(mine.includes(rule));
+  assert.ok(mine.includes('Restate the success criteria in your own words before writing code.'));
+});
+
 // Phase 74: /goodnight shapes tonight's plan, only when the owner asks, and writes only on "that's the plan".
 test('the conduct skill\'s /goodnight runs only when asked, shows the opening, shapes by the owner\'s words, and writes only on "that\'s the plan"', async () => {
   const skill = await readFile(join(KEEL, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');

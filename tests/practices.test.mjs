@@ -172,7 +172,11 @@ test('a render into an empty directory, plus one phase, passes its own npm run c
     const run = node(KEEL, RENDER, '--into', dir);
     assert.equal(run.status, 0, run.stderr);
     assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isSymbolicLink());
-    assert.match(await readFile(join(dir, '.claude/skills/conduct/SKILL.md'), 'utf8'), /^---\nname: conduct/);
+    const conduct = await readFile(join(dir, '.claude/skills/conduct/SKILL.md'), 'utf8');
+    assert.match(conduct, /^---\nname: conduct/);
+    // Phase 87: the adopted project's skill carries the restatement, the report shape and the conductor's checks.
+    for (const line of ['Restate the success criteria in your own words before writing code.', '0. Done means: your restatement', '**Read the report\'s shape first.**'])
+      assert.ok(conduct.includes(line), line);
     const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
     assert.match(agents, /^# Working on Acme\n/);
     assert.match(agents, /<!-- keel:begin conduct -->\n\*\*Conduct the walk\.\*\*/);
