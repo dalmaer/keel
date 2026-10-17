@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
-import { WORKFLOW, TEND_WORKFLOW, git, commit, acme, climb, json } from './helpers/climb.mjs';
+import { WORKFLOW, TEND_WORKFLOW, NIGHT, git, commit, acme, climb, json } from './helpers/climb.mjs';
 
 const DAY = '2026-10-10';
 
@@ -249,4 +249,52 @@ test('#68: climb.mjs held names the checkout\'s state as one line, and with --si
   }
   // sandbox --job takes tend alone: a climb job's rules are its guard's.
   assert.equal(climb(dir, ['sandbox', '--base', head, '--head', head, '--job', 'test-time']).status, 2);
+});
+
+// keel#147: willNotTouch holds for the head that is pushed, keel's own rotation commit included.
+test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a plan that will not touch .keel/climb.json gets no rotation commit; any other keeps it', async t => {
+  const { bare, base } = await origin(t);
+  const BRANCH = `keel-climb/test-time/${DAY}`, target = `refs/heads/${BRANCH}`;
+  const text = await readFile(WORKFLOW, 'utf8');
+  const agent = await checkout(t, bare, 'agent');
+  git(agent, ['switch', '-q', '-c', BRANCH]);
+  const kept = await commit(agent, { 'src/acme.mjs': 'export const anvil = 1;\n' }, 'acme: a faster anvil');
+  const bundle = join(await temp(t, 'bundle'), 'night.bundle');
+  git(agent, ['bundle', 'create', bundle, `${base}..refs/heads/${BRANCH}`]);
+  const gh = await quietGh(t);
+  const publish = async willNotTouch => {
+    run('git', ['update-ref', '-d', target], { cwd: bare });
+    const pub = await checkout(t, bare, 'publish');
+    await cp(join(NIGHT, 'night-plan.mjs'), join(pub, 'scripts/keel/night-plan.mjs'));
+    const pubTemp = await temp(t, 'publish-temp');
+    await mkdir(join(pubTemp, 'night/record'), { recursive: true });
+    await mkdir(join(pubTemp, 'plan'), { recursive: true });
+    await cp(bundle, join(pubTemp, 'night/night.bundle'));
+    await writeFile(join(pubTemp, 'night/body.md'), 'acme\n');
+    await writeFile(join(pubTemp, 'plan/night-plan.json'), JSON.stringify({ schema: 1, date: DAY, shapedBy: 'owner', readyBy: null, willNotTouch, settledToday: [], leftOpen: [], items: [] }));
+    return stepIn(text, pub, "Open the climb's pull request", { RUNNER_TEMP: pubTemp, GITHUB_SHA: base, PLAN_USED: 'true', KEPT: '1', LINE: 'climb test-time: kept 1', JOB: 'test-time', DAY, BRANCH, VALIDATED: kept, BASE: 'main', GH_TOKEN: 'acme', PATH: `${gh}:${process.env.PATH}` });
+  };
+  // The owner listed keel's state file: the kept change is pushed alone, and the night is remembered by its record.
+  const held = await publish(['.keel/climb.json']);
+  assert.equal(held.status, 0, held.out);
+  assert.match(held.out, /::notice::Tonight's plan will not touch \.keel\/climb\.json: no rotation commit/);
+  assert.equal(pushed(bare, target), kept, 'no rotation commit on top of the kept change');
+  // A willNotTouch that does not cover it: the rotation commit, as before, and the pushed head passes the check.
+  const other = await publish(['lib/anvil.mjs', '.keel/climb']);
+  assert.equal(other.status, 0, other.out);
+  const tip = pushed(bare, target);
+  assert.equal(git(bare, ['rev-parse', `${tip}^`]), kept);
+  assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.keel/climb.json']);
+  // A plan that cannot be read: nothing is pushed.
+  run('git', ['update-ref', '-d', target], { cwd: bare });
+  const pub = await checkout(t, bare, 'unread');
+  await cp(join(NIGHT, 'night-plan.mjs'), join(pub, 'scripts/keel/night-plan.mjs'));
+  const pubTemp = await temp(t, 'unread-temp');
+  await mkdir(join(pubTemp, 'night/record'), { recursive: true });
+  await mkdir(join(pubTemp, 'plan'), { recursive: true });
+  await cp(bundle, join(pubTemp, 'night/night.bundle'));
+  await writeFile(join(pubTemp, 'plan/night-plan.json'), 'not a plan');
+  const unread = await stepIn(text, pub, "Open the climb's pull request", { RUNNER_TEMP: pubTemp, GITHUB_SHA: base, PLAN_USED: 'true', KEPT: '1', JOB: 'test-time', DAY, BRANCH, VALIDATED: kept, BASE: 'main', PATH: `${gh}:${process.env.PATH}` });
+  assert.notEqual(unread.status, 0, unread.out);
+  assert.equal(pushed(bare, target), '', 'nothing pushed');
 });

@@ -11,8 +11,10 @@
 #     keel-climb/<job>/ PR waits for a person to read it. With tonight's
 #     plan on the branch keel-night-plan (phase 76), only the plan's first
 #     climb item that may run, or nothing; its willNotTouch is refused like
-#     the off-limits paths, its minutes may lower the budget, never raise it,
-#     and the publish job ticks its items on that branch.
+#     the off-limits paths (on the pushed head too: a willNotTouch naming
+#     .keel/climb.json stops the rotation commit), its minutes may lower the
+#     budget, never raise it, and the publish job ticks its items on that
+#     branch.
 #   - The agent never pushes and never merges: its tools let git read, stage,
 #     commit and switch, nothing more. It is time-boxed to the budget.
 #   - Three jobs, so the agent never holds a credential that can write
@@ -805,13 +807,31 @@ jobs:
           case "$KEPT" in *[!0-9]*) echo "::error::The judge's count ($KEPT) is not a number; nothing is pushed."; exit 1 ;; esac
           state=$(node -e 'console.log(JSON.stringify({ last: { job: process.argv[1], date: process.argv[2], kept: Number(process.argv[3]) } }, null, 2))' "$JOB" "$DAY" "$KEPT")
           blob=$(printf '%s\n' "$state" | git hash-object -w --stdin)
-          if [ "$(git rev-parse -q --verify "$head:.keel/climb.json" || true)" != "$blob" ]; then
+          # A plan whose willNotTouch covers .keel/climb.json holds for keel's
+          # own commit too (keel#147): no rotation commit, and the night is
+          # remembered by its record alone. Exit 3: covered; anything else
+          # but 0 is a plan that cannot be read, and nothing is pushed.
+          covered=0
+          if [ "$PLAN_USED" = true ]; then
+            node --input-type=module -e '
+              import { planWillNotTouch, touchRules, touchedBy, STATE } from "./scripts/keel/climb.mjs";
+              process.exit(touchedBy(STATE, touchRules(await planWillNotTouch(process.argv[1])).paths) ? 3 : 0);
+            ' "$RUNNER_TEMP/plan/night-plan.json" || covered=$?
+          fi
+          case "$covered" in
+            0) ;;
+            3) echo "::notice::Tonight's plan will not touch .keel/climb.json: no rotation commit; the next pick reads this night's record (the keel-climb artifact)." ;;
+            *) echo "::error::Tonight's plan could not be read for its willNotTouch; nothing is pushed."; exit 1 ;;
+          esac
+          if [ "$covered" = 0 ] && [ "$(git rev-parse -q --verify "$head:.keel/climb.json" || true)" != "$blob" ]; then
             index="$RUNNER_TEMP/rotation.index"
             GIT_INDEX_FILE="$index" git read-tree "$head"
             GIT_INDEX_FILE="$index" git update-index --add --cacheinfo "100644,$blob,.keel/climb.json"
             tree=$(GIT_INDEX_FILE="$index" git write-tree)
             head=$(git -c user.name=keel-climb -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit-tree "$tree" -p "$head" -m "keel climb: $JOB $DAY, rotation state")
           fi
+          # willNotTouch, checked again on the head that is pushed.
+          if [ "$PLAN_USED" = true ]; then node scripts/keel/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own night, so force is safe here and nowhere else.
           git push --force origin "$head:refs/heads/keel-climb/$JOB/$DAY"
@@ -892,6 +912,6 @@ jobs:
             const { plan } = JSON.parse(readFileSync(pick, "utf8"));
             const e = process.env;
             const failed = e.JUDGED !== "success" ? `the climb did not finish: its judge ended ${e.JUDGED || "unrun"}` : e.OPENED === "failure" ? "the judge kept a change, and its pull request could not be opened" : `no pull request: ${e.LINE || "the night kept nothing"}`;
-            writeFileSync(out, JSON.stringify(passTicks({ item: plan.item, others: plan.skipped, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: e.LINE, failed, runUrl: e.RUN })));
+            writeFileSync(out, JSON.stringify(passTicks({ item: plan.item, admitted: plan.admitted, others: plan.skipped, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: e.LINE, failed, runUrl: e.RUN })));
           ' "$RUNNER_TEMP/plan/pick.json" "$RUNNER_TEMP/plan-ticks.json"
           node scripts/keel/night-plan.mjs record --date "$DAY" --ticks "$RUNNER_TEMP/plan-ticks.json"

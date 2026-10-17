@@ -118,13 +118,15 @@ const hasOrigin = root => git(root, ['remote', 'get-url', 'origin']).status === 
  * final branch, the night PR's branch, the checkout), else the plan branch,
  * else the working plan; each base item takes its furthest tick from any
  * place (terminal over running over planned; ties go to the plan branch,
- * then the records, then the working plan).
+ * then the records, then the working plan). `branch` is the origin branch
+ * the base came from, or null for the checkout: the night's health page is
+ * read from there too (healthAround).
  */
 export async function finalPlan({ root, date }) {
   const places = [];
   const remote = hasOrigin(root);
   const record = recordOf(date);
-  const at = async (from, read) => {
+  const at = async (from, read, branch = null) => {
     const text = await read();
     if (text === null) { places.push({ from, state: 'absent' }); return; }
     if (text.length > MAX_BYTES) { places.push({ from, state: `refused: larger than ${MAX_BYTES} bytes` }); return; }
@@ -133,18 +135,18 @@ export async function finalPlan({ root, date }) {
     const v = validatePlan(plan);
     if (!v.ok) places.push({ from, state: `refused: ${v.problems[0]}` });
     else if (plan.date !== date) places.push({ from, state: `another night (${plan.date})` });
-    else places.push({ from, state: 'read', plan });
+    else places.push({ from, state: 'read', plan, branch });
   };
   if (remote) {
-    await at(`${PLAN_BRANCH}:${PLAN}`, () => remoteFile(root, PLAN_BRANCH, PLAN));
-    await at(`${finalBranchOf(date)}:${record}`, () => remoteFile(root, finalBranchOf(date), record));
-    await at(`keel-night/${date}:${record}`, () => remoteFile(root, `keel-night/${date}`, record));
+    await at(`${PLAN_BRANCH}:${PLAN}`, () => remoteFile(root, PLAN_BRANCH, PLAN), PLAN_BRANCH);
+    await at(`${finalBranchOf(date)}:${record}`, () => remoteFile(root, finalBranchOf(date), record), finalBranchOf(date));
+    await at(`keel-night/${date}:${record}`, () => remoteFile(root, `keel-night/${date}`, record), `keel-night/${date}`);
   }
   await at(record, () => localFile(root, record));
   await at(PLAN, () => localFile(root, PLAN));
   const read = places.filter(p => p.plan);
   const sources = places.map(({ from, state }) => ({ from, state }));
-  if (!read.length) return { plan: null, from: null, sources };
+  if (!read.length) return { plan: null, from: null, branch: null, sources };
   const isRecord = p => p.from.endsWith(record);
   const base = read.find(isRecord) ?? read.find(p => p.from.startsWith(PLAN_BRANCH)) ?? read[0];
   // The highest-ranked tick from any place, the base's own included; a tie
@@ -156,23 +158,41 @@ export async function finalPlan({ root, date }) {
     const top = Math.max(...ticks.map(o => rank(o.status)));
     return ticks.find(o => rank(o.status) === top);
   });
-  return { plan: { ...base.plan, items }, from: base.from, sources };
+  return { plan: { ...base.plan, items }, from: base.from, branch: base.branch, sources };
 }
 
 /**
  * The night's numbers: `before`, the health page dated the night (measured
  * before the builds; else the newest before it), and `after`, the first page
- * dated after it (the next night's), each { date, file, rows } or null.
+ * dated after it (the next night's), each { date, file, rows, ref? } or null.
+ * `branch` is where finalPlan read the night's record (keel#149): while the
+ * night's PR is unmerged its page is on that branch alone, so a page there is
+ * read from there (`ref`, for its link), else from the checkout. finalPlan
+ * has fetched it; a branch git cannot list throws, never "no page".
  */
-export async function healthAround(root, config, date) {
+export async function healthAround(root, config, date, { branch = null } = {}) {
   let dir;
   try { dir = healthDirOf(config); } catch (e) { throw new MorningError(`the health directory: ${e.message}`); }
+  const dated = n => /^\d{4}-\d{2}-\d{2}\.md$/.test(n);
   let names;
-  try { names = (await readdir(join(root, dir))).filter(n => /^\d{4}-\d{2}-\d{2}\.md$/.test(n)).sort(); }
+  try { names = (await readdir(join(root, dir))).filter(dated); }
   catch (e) { if (!['ENOENT', 'ENOTDIR'].includes(e.code)) throw new MorningError(`cannot read the health directory ${dir}: ${e.code ?? e.message}`); names = []; }
+  const ref = branch && branch !== PLAN_BRANCH ? `refs/remotes/origin/${branch}` : null;
+  let there = [];
+  if (ref) {
+    const ls = git(root, ['ls-tree', '--name-only', ref, '--', `${dir}/`]);
+    if (ls.status !== 0) throw new MorningError(`cannot list ${dir} on the branch ${branch}: git ls-tree exited ${ls.status ?? ls.error?.code}`);
+    there = ls.stdout.split('\n').map(l => l.slice(dir.length + 1)).filter(dated);
+  }
+  names = [...new Set([...names, ...there])].sort();
   const page = async name => {
     if (!name) return null;
     const file = `${dir}/${name}`;
+    if (there.includes(name)) {
+      const s = git(root, ['show', `${ref}:${file}`]);
+      if (s.status !== 0) throw new MorningError(`cannot read ${file} on the branch ${branch}: git show exited ${s.status ?? s.error?.code}`);
+      return { date: name.slice(0, 10), file, rows: healthRows(s.stdout), ref: branch };
+    }
     const text = await localFile(root, file);
     return text === null ? null : { date: name.slice(0, 10), file, rows: healthRows(text) };
   };
@@ -201,14 +221,14 @@ const REPO = /^[\w.-]+\/[\w.-]+$/;
  */
 export const repoOf = (config, env = {}) => (env.GITHUB_ACTIONS === 'true' && REPO.test(env.GITHUB_REPOSITORY ?? '') ? env.GITHUB_REPOSITORY : REPO.test(config?.repo ?? '') ? config.repo : null);
 
-/** The links the brief carries: the canvas when one is bound, the health page (on GitHub when the repo is known). */
-export function linksOf(config, { repo = null, page = null } = {}) {
+/** The links the brief carries: the canvas when one is bound, the health page (on GitHub when the repo is known, at `ref` when it is on a branch). */
+export function linksOf(config, { repo = null, page = null, ref = null } = {}) {
   const c = config?.canvas;
   let canvas = null;
   if (c?.provider === 'isocan' && typeof c.home === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(c.canvasId ?? '')) {
     try { const u = new URL(c.home); if (['http:', 'https:'].includes(u.protocol)) canvas = `${u.origin}/p/${c.canvasId}`; } catch { /* no canvas link */ }
   }
-  return { canvas, health: page ? (repo ? `https://github.com/${repo}/blob/HEAD/${page}` : page) : null };
+  return { canvas, health: page ? (repo ? `https://github.com/${repo}/blob/${ref ?? 'HEAD'}/${page}` : page) : null };
 }
 
 // ---- the brief ---------------------------------------------------------------
@@ -285,8 +305,9 @@ export async function brief({ root, date, env = process.env, now = new Date() })
   const config = await configOf(root);
   const found = await finalPlan({ root, date: night });
   if (!found.plan) throw new MorningError(`no plan for the night of ${night}: ${found.sources.map(s => `${s.from} ${s.state}`).join('; ')}`);
-  const health = await healthAround(root, config, night);
-  const links = linksOf(config, { repo: repoOf(config, env), page: health.before?.date === night ? health.before.file : null });
+  const health = await healthAround(root, config, night, { branch: found.branch });
+  const tonight = health.before?.date === night ? health.before : null;
+  const links = linksOf(config, { repo: repoOf(config, env), page: tonight?.file ?? null, ref: tonight?.ref ?? null });
   const b = renderBrief({ plan: found.plan, now, health, links });
   return { data: { ok: true, date: night, title: titleOf(night), from: found.from, sources: found.sources, readiness: b.readiness, sections: b.sections, next: b.next, links, markdown: b.markdown, plan: found.plan }, text: b.markdown.trimEnd() };
 }
@@ -301,11 +322,12 @@ function gh(root, env, args, what, { input, json = false, exitCode = 1 } = {}) {
   if (!json) return r.stdout;
   try { return JSON.parse(r.stdout); } catch { throw new MorningError(`cannot ${what}: gh did not print JSON`, exitCode); }
 }
-const repoArgs = config => (typeof config?.repo === 'string' && /^[\w.-]+\/[\w.-]+$/.test(config.repo) ? ['--repo', config.repo] : []);
+// The repository the brief links into is the one its issues go to (keel#149): repoOf, the run's own in Actions.
+const repoArgs = (config, env) => { const repo = repoOf(config, env); return repo ? ['--repo', repo] : []; };
 
 /** Every keel:morning issue, open or closed: [{ number, title, state }]. */
 export function morningIssues(root, config, env = process.env) {
-  const rows = gh(root, env, ['issue', 'list', ...repoArgs(config), '--label', LABEL, '--state', 'all', '--limit', '200', '--json', 'number,title,state'], `list the ${LABEL} issues`, { json: true, exitCode: 2 });
+  const rows = gh(root, env, ['issue', 'list', ...repoArgs(config, env), '--label', LABEL, '--state', 'all', '--limit', '200', '--json', 'number,title,state'], `list the ${LABEL} issues`, { json: true, exitCode: 2 });
   if (!Array.isArray(rows)) throw new MorningError(`cannot list the ${LABEL} issues: gh did not print a JSON list`);
   return rows.filter(i => Number.isSafeInteger(i?.number) && typeof i.title === 'string').sort((a, b) => a.number - b.number);
 }
@@ -331,14 +353,14 @@ export async function send({ root, date, env = process.env, now = new Date() }) 
   const issues = morningIssues(root, config, env);
   const same = issues.find(i => i.title === title);
   if (same) return { data: { ok: true, sent: false, date: b.data.date, issue: same.number, why: 'already sent' }, text: `${title}: already sent as #${same.number}; nothing sent again.` };
-  gh(root, env, ['label', 'create', LABEL, ...repoArgs(config), '--force', '--color', 'FBCA04', '--description', 'keel: the morning brief'], `make the label ${LABEL}`);
-  const out = gh(root, env, ['issue', 'create', ...repoArgs(config), '--title', title, '--assignee', assignee, '--label', LABEL, '--body-file', '-'], `open the issue "${title}"`, { input: b.data.markdown });
+  gh(root, env, ['label', 'create', LABEL, ...repoArgs(config, env), '--force', '--color', 'FBCA04', '--description', 'keel: the morning brief'], `make the label ${LABEL}`);
+  const out = gh(root, env, ['issue', 'create', ...repoArgs(config, env), '--title', title, '--assignee', assignee, '--label', LABEL, '--body-file', '-'], `open the issue "${title}"`, { input: b.data.markdown });
   const url = out.trim().split('\n').at(-1);
   const number = Number(/\/issues\/(\d+)$/.exec(url)?.[1]);
   if (!Number.isSafeInteger(number)) throw new MorningError(`opened "${title}" but gh printed no issue URL (${one(url).slice(0, 200)})`, 1);
   const closed = [];
   for (const prev of issues.filter(i => i.state === 'OPEN' && i.number !== number)) {
-    gh(root, env, ['issue', 'close', String(prev.number), ...repoArgs(config), '--comment', `Superseded by #${number} (keel morning).`], `close the previous brief #${prev.number}`);
+    gh(root, env, ['issue', 'close', String(prev.number), ...repoArgs(config, env), '--comment', `Superseded by #${number} (keel morning).`], `close the previous brief #${prev.number}`);
     closed.push(prev.number);
   }
   return { data: { ok: true, sent: true, date: b.data.date, issue: number, url, assignee, closed, readiness: b.data.readiness }, text: `${title}: sent as ${url}, assigned to ${assignee}${closed.length ? `; closed ${closed.map(n => `#${n}`).join(', ')}` : ''}.` };

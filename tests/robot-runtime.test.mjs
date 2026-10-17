@@ -1111,7 +1111,7 @@ test('with a plan, the robot admits only the plan\'s issues: no robot item admit
  // The plan names #2: #2, though #1 is older and admissible; no scan, and #1 is never read. (Mutation: scanning as before admits #1.)
  const planned=await scan(nightPlanOf([nightItem('robot-2',2,{budget:{minutes:10}})]));
  assert.deepEqual([planned.state,planned.issueNumber,planned.planItem],['ready',2,'robot-2']);
- assert.deepEqual(planned.nightPlan,{used:true,applies:true,date:'2026-10-10',item:'robot-2',ticks:[],willNotTouch:['acme.txt']});
+ assert.deepEqual(planned.nightPlan,{used:true,applies:true,date:'2026-10-10',item:'robot-2',admitted:{lane:'robot:#2',number:{measure:'slow_tests',bound:0,better:'lower'}},ticks:[],willNotTouch:['acme.txt']});
  assert.deepEqual(issueReads(),[`/repos/${repo}/issues/2`]);
  // A plan budget lowers the build's minutes and never raises them.
  assert.equal(planned.buildSeconds,10*60);
@@ -1129,7 +1129,7 @@ test('with a plan, the robot admits only the plan\'s issues: no robot item admit
  assert.equal(failing.state,'blocked');
  assert.match(failing.reason,/no robot item in tonight's plan could be admitted/);
  assert.equal(failing.nightPlan.item,null);
- assert.deepEqual(failing.nightPlan.ticks.map(x=>[x.id,x.status]),[['robot-2','failed']]);
+ assert.deepEqual(failing.nightPlan.ticks.map(x=>[x.id,x.status,x.admitted.lane]),[['robot-2','failed','robot:#2']]);
  assert.match(failing.nightPlan.ticks[0].note,/^the robot refused #2: rubric: /);
  assert.deepEqual(issueReads(),[`/repos/${repo}/issues/2`]);
  assert.ok(failing.rejections[0].triage,'its triage question is still asked');

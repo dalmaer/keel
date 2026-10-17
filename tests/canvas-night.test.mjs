@@ -89,7 +89,7 @@ function shell(yaml) {
   const block = yaml.split('      - name: Project the night onto its canvas\n')[1].split('\n      - name:')[0];
   return block.split('        run: |\n')[1].split('\n').map(l => l.startsWith('          ') ? l.slice(10) : l).join('\n');
 }
-async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {} } = {}) {
+async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {}, jobs = {} } = {}) {
   const root = await fixture(t, { ...binding, enabled, cadence: 'nightly' });
   if (local) { await mkdir(join(root, '.keel/canvas')); await writeFile(join(root, '.keel/canvas/manifest.json'), JSON.stringify(initialManifest())); }
   const bin = join(root, 'bin'); await mkdir(bin);
@@ -112,6 +112,7 @@ if(a[0]==='api') {
  let out;
  if(a[1].includes('/workflows/')) out={workflow_runs:${JSON.stringify(runs)}};
  else if(a[1].includes('/contents/')) { const enabled=!${JSON.stringify(disabledShas)}.includes(a[1].split('ref=')[1]); const c=JSON.stringify({canvas:{enabled,cadence:'nightly'}}); out={encoding:'base64',content:Buffer.from(c).toString('base64'),size:c.length}; }
+ else if(a[1].includes('/jobs')) { const p=a[1].split('?')[0].split('/'); const listed=${JSON.stringify(jobs)}[p[p.indexOf('runs')+1]+'-'+p[p.indexOf('attempts')+1]]; if(!listed) process.exit(94); out={total_count:listed.length,jobs:listed}; }
  else if(a[1].includes('/attempts/')) out=${JSON.stringify(priorAttempt ?? null)};
  else if(a[1].includes('/artifacts')) out={artifacts:${JSON.stringify(artifacts)}};
  else process.exit(92);
@@ -298,6 +299,12 @@ test('a failed rerun of an old night falls back in time order: a night that ran 
 // Phase 78: keel-morning's plan card writes the same canvas, so the night and the card keep one journal.
 const cardRun = (extra = {}) => trustedRun({ path: '.github/workflows/keel-morning.yml', event: 'workflow_run', ...extra });
 const cardArtifact = r => ({ ...artifactFor(r), name: `keel-canvas-card-${r.run_attempt}` });
+/** keel-morning's jobs as one attempt ran them: its card job, with its publish step's conclusion (null: the job itself was skipped). */
+const cardJobs = (attempt, publish) => [
+  { name: 'decide', status: 'completed', conclusion: 'success', run_attempt: attempt },
+  { name: 'card', status: 'completed', conclusion: publish === null ? 'skipped' : publish === 'success' ? 'success' : 'failure', run_attempt: attempt,
+    steps: publish === null ? [] : [{ name: 'Is the card set up?', status: 'completed', conclusion: 'success' }, { name: 'Publish the plan card', status: 'completed', conclusion: publish }, { name: 'Keep the canvas journal', status: 'completed', conclusion: publish === 'skipped' ? 'skipped' : 'failure' }] },
+];
 test('the night restores the newest canvas writer, the plan card\'s attempt when it ran last; a keel-morning run that never reached its card is skipped', async t => {
   const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
   const card = cardRun({ id: 160, run_started_at: '2026-10-08T10:40:00Z' });
@@ -306,7 +313,7 @@ test('the night restores the newest canvas writer, the plan card\'s attempt when
   assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'the card\'s journal, newer than the night\'s (mutation: list only keel-night.yml and this restores 100)');
   assert.ok(out.ghCalls.some(a => /actions\/workflows\/keel-morning\.yml\/runs/.test(a[1] ?? '')));
   // A keel-morning run with no card artifact (its card job never ran: canvas not set for the card, or no plan) never touched the canvas.
-  const skipped = await workflow(t, { runs: [card, night], artifacts: [artifactFor(night)], bundle: { provenance: provenanceFor(night) } });
+  const skipped = await workflow(t, { runs: [card, night], artifacts: [artifactFor(night)], jobs: { '160-1': cardJobs(1, 'skipped') }, bundle: { provenance: provenanceFor(night) } });
   assert.equal(skipped.status, 0, skipped.stderr);
   assert.deepEqual(skipped.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['100']);
   // Its provenance must still name the attempt it came from.
@@ -314,7 +321,7 @@ test('the night restores the newest canvas writer, the plan card\'s attempt when
   assert.notEqual(forged.status, 0);
   assert.ok(!forged.calls.some(a => a[1] === 'canvas'));
   // A night whose canvas artifact is missing is still refused: only keel-morning may have skipped its card.
-  const missing = await workflow(t, { runs: [card, night], artifacts: [], bundle: { provenance: provenanceFor(night) } });
+  const missing = await workflow(t, { runs: [card, night], artifacts: [], jobs: { '160-1': cardJobs(1, null) }, bundle: { provenance: provenanceFor(night) } });
   assert.notEqual(missing.status, 0);
 });
 
@@ -324,10 +331,42 @@ test('a keel-morning rerun with no card artifact falls back to its own earlier a
   const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
   const first = cardRun({ id: 160, run_attempt: 1, run_started_at: '2026-10-08T10:40:00Z', conclusion: 'failure' });
   const rerun = cardRun({ id: 160, run_attempt: 2, run_started_at: '2026-10-08T11:05:00Z' });
-  const out = await workflow(t, { runs: [rerun, night], priorAttempt: first, artifacts: [cardArtifact(first), artifactFor(night)], bundle: { provenance: provenanceFor(first) } });
+  // Attempt 2 reran the send alone: the card job its list shows is attempt 1's, carried over.
+  const out = await workflow(t, { runs: [rerun, night], priorAttempt: first, artifacts: [cardArtifact(first), artifactFor(night)], jobs: { '160-2': [...cardJobs(1, 'success'), { name: 'send', status: 'completed', conclusion: 'success', run_attempt: 2 }] }, bundle: { provenance: provenanceFor(first) } });
   assert.equal(out.status, 0, out.stderr);
   assert.ok(out.ghCalls.some(a => a[1]?.endsWith('/runs/160/attempts/1')), 'the earlier attempt is read');
   assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'attempt 1\'s journal, not the older night\'s');
+});
+
+// #152: the card published, then its journal's upload failed. No artifact is not proof the card never ran.
+test('a keel-morning attempt with no card journal is skipped only when its job results show the card step never ran; otherwise recovery refuses, the canvas untouched', async t => {
+  const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
+  const card = cardRun({ id: 160, run_started_at: '2026-10-08T10:40:00Z', conclusion: 'failure' });
+  for (const [why, jobs] of [
+    ['the card step published, then the upload failed', cardJobs(1, 'success')],
+    ['the card step failed part way', cardJobs(1, 'failure')],
+    ['the card step was cancelled', cardJobs(1, 'cancelled')],
+    ['two card jobs', [...cardJobs(1, 'skipped'), cardJobs(1, 'success')[1]]],
+    ['the card job still running', [{ name: 'card', status: 'in_progress', conclusion: null, run_attempt: 1, steps: [] }]],
+    ['no publish step among its steps', [{ name: 'card', status: 'completed', conclusion: 'success', run_attempt: 1, steps: [{ name: 'Is the card set up?', status: 'completed', conclusion: 'success' }] }]],
+  ]) {
+    const out = await workflow(t, { runs: [card, night], artifacts: [artifactFor(night)], jobs: { '160-1': jobs }, bundle: { provenance: provenanceFor(night) } });
+    assert.notEqual(out.status, 0, why);
+    assert.match(out.stdout + out.stderr, /it may have published the card/, why);
+    assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run'), [], `${why}: no older journal is restored`);
+    assert.ok(!out.calls.some(a => a[1] === 'canvas'), `${why}: the canvas is untouched`);
+  }
+  // Positive evidence it never ran: the card job skipped, its publish step skipped, or no card job in the attempt.
+  for (const [why, jobs] of [['card job skipped', cardJobs(1, null)], ['publish step skipped', cardJobs(1, 'skipped')], ['no card job', cardJobs(1, null).slice(0, 1)]]) {
+    const out = await workflow(t, { runs: [card, night], artifacts: [artifactFor(night)], jobs: { '160-1': jobs }, bundle: { provenance: provenanceFor(night) } });
+    assert.equal(out.status, 0, `${why}: ${out.stderr}`);
+    assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['100'], why);
+  }
+  // The names it reads are the card job's and its publish step's, as keel-morning.yml has them.
+  const { CARD_JOB, CARD_STEP } = await import('../practices/night/files/scripts/keel/canvas-recovery.mjs');
+  const morning = await readFile(resolve('practices/night/files/.github/workflows/keel-morning.yml'), 'utf8');
+  assert.ok(morning.includes(`\n  ${CARD_JOB}:\n    needs: decide\n`));
+  assert.ok(morning.includes(`      - name: ${CARD_STEP}\n        id: canvas\n`));
 });
 
 test('the card waits (exit 3, the canvas untouched) while another canvas writer runs; the night still refuses to race', async t => {

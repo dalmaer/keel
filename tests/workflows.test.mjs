@@ -2504,7 +2504,7 @@ export function morningProblems(text) {
   // after a send, or a build that finished after a brief sent at readyBy, still reaches the
   // archive. Its own no-change check (git status --porcelain) makes repeats harmless.
   if (!(jobs.finalize ?? '').includes("    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n")) out.push('finalize: runs whenever the night is over, never gated on the brief being unsent');
-  if (!/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n\s+echo "Nothing changed[^\n]*\n\s+exit 0/.test(jobs.finalize ?? '')) out.push('finalize: a run with nothing new changes nothing (git status --porcelain)');
+  if (!/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n(?:\s+#[^\n]*\n)*\s+if [^\n]*; then\n\s+echo "Nothing changed[^\n]*\n\s+exit 0/.test(jobs.finalize ?? '')) out.push('finalize: a run with nothing new changes nothing (git status --porcelain)');
   if (!(jobs.send ?? '').includes("&& needs.decide.outputs.assignee == 'set'")) out.push('send: runs only with an assignee');
   if (!/\n {8}run: node scripts\/keel\/morning\.mjs send --date "\$DAY"\n(?:\n| *#[^\n]*\n)*$/.test(`${jobs.send ?? ''}\n`)) out.push('send: the send is its step\'s whole command, so its failure fails the run');
   if (!/node scripts\/keel\/morning\.mjs decide --github-output "\$GITHUB_OUTPUT"/.test(jobs.decide ?? '')) out.push('decide: runs morning.mjs decide into the job\'s outputs');
@@ -2672,7 +2672,7 @@ test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, 
     ['send twice', t.replace(" && needs.decide.outputs.sent != 'true' && needs.decide.outputs.assignee", ' && needs.decide.outputs.assignee'), /send: runs only when decide says the night is over and unsent/],
     ['finalize gated on the brief', t.replace("  finalize:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n", "  finalize:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true'\n"), /finalize: runs whenever the night is over, never gated/],
     ['finalize before the night is over', t.replace("  finalize:\n    needs: decide\n    if: needs.decide.outputs.ready == 'true'\n", '  finalize:\n    needs: decide\n'), /finalize: runs whenever the night is over/],
-    ['finalize with no no-change check', t.replace(/if \[ -z "\$\(git status --porcelain -- "\$\{PATHS\[@\]\}"\)" \]; then\n(\s+)echo "Nothing changed[^\n]*\n\s+exit 0\n/, ''), /finalize: a run with nothing new changes nothing/],
+    ['finalize with no no-change check', t.replace(/\n\s+echo "Nothing changed: [^\n]*\n\s+exit 0/, ''),/finalize: a run with nothing new changes nothing/],
     ['a secret', t.replace('GH_TOKEN: ${{ github.token }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps', 'GH_TOKEN: ${{ secrets.MAIL_TOKEN }}\n      DAY: ${{ needs.decide.outputs.day }}\n    steps'), /no secret/],
     ['no timeout', t.replace(/(  send:\n(?:.*\n)*?) {4}timeout-minutes: \d+\n/, '$1'), /send: no timeout/],
     ['the card writes issues', t.replace('      contents: read\n      actions: read\n', '      contents: read\n      actions: read\n      issues: write\n'), /card: only the send job may write issues/],
@@ -2683,4 +2683,66 @@ test('phase 77: keel-morning.yml starts when a pass finishes and on a schedule, 
     const found = morningProblems(changed);
     assert.ok(found.some(p => expected.test(p)), `${why}: ${JSON.stringify(found)}`);
   }
+});
+
+/**
+ * Run keel-morning's finalize step, as the workflow has it, in a synthetic
+ * Acme clone of a bare origin: morning.mjs finalize and pr-body.mjs are stubs
+ * (finalize writes `final` as the night's record), gh logs its calls and
+ * lists no open PR. `main` and `own` are the record on the default branch and
+ * on keel-night/<day>-final (null: no such branch). Returns { status, out, gh, ref }.
+ */
+async function finalizeStep(t, { main, own, final }) {
+  const morning = await readFile(join(KEEL, 'practices/night/files/.github/workflows/keel-morning.yml'), 'utf8');
+  const step = runBlocks(morning).find(b => b.step === 'Open the night\'s final pull request');
+  assert.ok(step, 'the finalize job has its step');
+  const base = await mkdtemp(join(tmpdir(), 'keel-wf-final-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const day = '2026-10-15', origin = join(base, 'origin.git'), seed = join(base, 'seed'), dir = join(base, 'acme'), bin = join(base, 'bin'), temp = join(base, 'tmp'), log = join(base, 'gh.jsonl');
+  for (const d of [bin, temp, join(seed, 'docs/night'), join(seed, 'scripts/keel'), join(seed, '.keel')]) await mkdir(d, { recursive: true });
+  const git = (cwd, args) => { const r = run('git', args, { cwd }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout; };
+  git(base, ['init', '-q', '--bare', '-b', 'main', origin]);
+  git(seed, ['init', '-q', '-b', 'main']);
+  await writeFile(join(seed, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+  await writeFile(join(seed, 'scripts/keel/lib.mjs'), 'export const healthDirIn = () => "docs/health";\n');
+  await writeFile(join(seed, 'scripts/keel/morning.mjs'), `import { writeFileSync } from 'node:fs';\nwriteFileSync('docs/night/${day}.json', process.env.FINAL);\nwriteFileSync(process.argv.at(-1), '{}');\n`);
+  await writeFile(join(seed, 'scripts/keel/pr-body.mjs'), 'console.log("The night as it finished.");\n');
+  await writeFile(join(seed, `docs/night/${day}.json`), main);
+  git(seed, ['add', '-A']);
+  git(seed, ['commit', '-q', '-m', 'Acme']);
+  git(seed, ['push', '-q', origin, 'HEAD:refs/heads/main']);
+  if (own !== null) {
+    await writeFile(join(seed, `docs/night/${day}.json`), own);
+    git(seed, ['commit', '-q', '--allow-empty', '-am', 'keel night: as it finished']);
+    git(seed, ['push', '-q', origin, `HEAD:refs/heads/keel-night/${day}-final`]);
+  }
+  git(base, ['clone', '-q', origin, dir]);
+  await writeFile(join(bin, 'gh'), `#!${process.execPath}\nrequire('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');\n`, { mode: 0o755 });
+  const r = run('bash', ['-e', '-c', step.script], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp, DAY: day, BASE: 'main', FINAL: final } });
+  const gh = (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  return { status: r.status, out: r.stdout + r.stderr, gh, ref: name => run('git', ['rev-parse', '--verify', '-q', name], { cwd: origin }).stdout.trim() };
+}
+
+// keel#149: a PR create that failed after the push is retried by the next run, though nothing changed since.
+test('keel-morning\'s finalize opens the PR for its own pushed branch when nothing changed since; with nothing new anywhere it asks nothing of GitHub', async t => {
+  const created = gh => gh.filter(a => a[0] === 'pr' && a[1] === 'create').map(a => a[a.indexOf('--head') + 1]);
+  // An earlier run pushed keel-night/<d>-final and its PR create failed: this run, unchanged, opens it.
+  const retry = await finalizeStep(t, { main: '{"old":true}\n', own: '{"final":true}\n', final: '{"final":true}\n' });
+  assert.equal(retry.status, 0, retry.out);
+  assert.deepEqual(created(retry.gh), ['keel-night/2026-10-15-final'], retry.out);
+  assert.match(retry.out, /making sure its PR is open/);
+  // Its branch already holds what main holds (merged): nothing to open.
+  const merged = await finalizeStep(t, { main: '{"final":true}\n', own: '{"final":true}\n', final: '{"final":true}\n' });
+  assert.equal(merged.status, 0, merged.out);
+  assert.deepEqual(merged.gh, [], merged.out);
+  // No branch of its own and main already final: nothing changes, nothing is asked of GitHub.
+  const none = await finalizeStep(t, { main: '{"final":true}\n', own: null, final: '{"final":true}\n' });
+  assert.equal(none.status, 0, none.out);
+  assert.deepEqual(none.gh, [], none.out);
+  assert.match(none.out, /Nothing changed: the night's archive already holds its final outcomes/);
+  // Something new: committed, pushed and its PR opened, as before.
+  const fresh = await finalizeStep(t, { main: '{"old":true}\n', own: null, final: '{"final":true}\n' });
+  assert.equal(fresh.status, 0, fresh.out);
+  assert.deepEqual(created(fresh.gh), ['keel-night/2026-10-15-final'], fresh.out);
+  assert.notEqual(fresh.ref('refs/heads/keel-night/2026-10-15-final'), '', 'pushed');
 });

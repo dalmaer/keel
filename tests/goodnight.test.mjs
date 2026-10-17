@@ -517,3 +517,23 @@ test('the rubric drafted from a Loop finding: the finding\'s problem, its number
   assert.equal(preview.ok, true);
   assert.equal(robotRubricRefusal(preview.body), null);
 });
+
+// #148: a Loop slug long enough to pass 64 after loop- is still a suggestion goodnight add takes.
+test('a long Loop slug makes a suggestion id within the plan\'s 64, bounded like admit() with -2 on a collision, its slug kept whole in source', async t => {
+  const f = await acme(t);
+  const stem = 'acme-anvils-that-ring-far-too-loudly-when-struck-by-hammers';
+  const long = [`${stem}-a`, `${stem}-b`];
+  assert.deepEqual(long.map(s => s.length), [61, 61]);
+  for (const s of long) await writeFile(join(f.root, `docs/loop/${s}.md`), finding(`Ringing ${s.at(-1)}`, 'decision: accepted\nrank: later\nphase: 1\nsince: 2026-10-01\nnote: Quieter anvils.\n'));
+  const say = async (...args) => (await goodnight({ root: f.root, args, env: f.env }, { board })).data;
+  const loops = (await say()).suggestions.filter(s => long.some(l => s.source === `loop:${l}`));
+  assert.deepEqual(loops.map(s => s.source), long.map(l => `loop:${l}`), 'the slug stays whole in source');
+  assert.deepEqual(loops.map(s => s.id), [`loop-${stem}`.slice(0, 60), `${`loop-${stem}`.slice(0, 60)}-2`]);
+  for (const s of loops) {
+    assert.ok(s.id.length <= 64, s.id);
+    assert.match((await say('add', s.id)).said, new RegExp(`added ${s.id}$`));
+  }
+  const d = JSON.parse(await readFile(join(f.root, DRAFT), 'utf8'));
+  assert.deepEqual(validatePlan(d, { draft: true }).problems, []);
+  assert.ok(!(await say()).suggestions.some(s => long.some(l => s.source === `loop:${l}`)), 'added, it is no longer a thing to try');
+});

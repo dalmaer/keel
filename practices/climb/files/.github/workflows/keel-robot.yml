@@ -460,7 +460,7 @@ jobs:
             const { nightPlan } = JSON.parse(readFileSync(admitted, "utf8"));
             const e = process.env;
             const failed = e.PUBLISHED !== "success" ? "the robot could not publish its candidate (see this run)" : e.JUDGED !== "success" ? `the robot built no candidate that passed its judge (the judge ended ${e.JUDGED || "unrun"})` : "no pull request was opened";
-            writeFileSync(out, JSON.stringify(passTicks({ item: nightPlan.item, others: nightPlan.ticks, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: "the robot opened or updated its pull request; other-provider review follows, and a person merges", failed, runUrl: e.RUN })));
+            writeFileSync(out, JSON.stringify(passTicks({ item: nightPlan.item, admitted: nightPlan.admitted, others: nightPlan.ticks, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: "the robot opened or updated its pull request; other-provider review follows, and a person merges", failed, runUrl: e.RUN })));
           ' "$RUNNER_TEMP/plan/robot-plan.json" "$RUNNER_TEMP/plan-ticks.json"
           node scripts/keel/night-plan.mjs record --date "$DAY" --ticks "$RUNNER_TEMP/plan-ticks.json"
   review-agent:
