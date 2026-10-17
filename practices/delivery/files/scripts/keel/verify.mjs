@@ -213,8 +213,9 @@ export async function live({ root, config, sha, site, env = process.env, fetch, 
  * Add a verify's result to keel-verify:verify.json on `remote` (newest first,
  * what morning.mjs keptResults keeps: the last 30, and every failure until
  * its brief has read it), with a lease on the tip it read; a lost race is read
- * again, at most `attempts` times. A file there that is not a verify record is
- * never replaced (exit 1). { recorded: true, commit, branch }.
+ * again, at most `attempts` times. A file there that is not a verify record, or a
+ * branch with none, is never replaced (exit 1); every other file on the branch
+ * is kept. { recorded: true, commit, branch }.
  */
 export function record({ root, result, remote = 'origin', env = process.env, attempts = 3, now = Date.now(), production = null }) {
   const entry = { sha: result.sha, ok: result.ok, at: result.at, site: result.site, serving: result.serving, failures: result.failures, ...(result.run ? { run: result.run } : {}) };
@@ -231,14 +232,16 @@ export function record({ root, result, remote = 'origin', env = process.env, att
     if (listed.status === 0) {
       ok(['fetch', '--quiet', '--no-tags', remote, `+${ref}:${local}`], `cannot fetch ${VERIFY_BRANCH}`);
       tip = ok(['rev-parse', '--verify', `${local}^{commit}`], `cannot read ${VERIFY_BRANCH}`);
+      // An existing branch is keel's only when it holds a verify record: anything else is someone's, and never overwritten (PR #182 review).
       const shown = git(root, env, ['show', `${tip}:${VERIFY_FILE}`]);
-      if (shown.status === 0) {
-        try { results = verifyResults(shown.stdout); } catch (e) { throw new VerifyError(`${VERIFY_BRANCH}:${VERIFY_FILE} is not a verify record (${e.message}): it is left alone, and this result is not recorded`, 1); }
-      }
+      if (shown.status !== 0) throw new VerifyError(`${VERIFY_BRANCH} exists on ${remote} and holds no ${VERIFY_FILE}: it is not keel's verify record, so it is left alone, and this result is not recorded`, 1);
+      try { results = verifyResults(shown.stdout); } catch (e) { throw new VerifyError(`${VERIFY_BRANCH}:${VERIFY_FILE} is not a verify record (${e.message}): it is left alone, and this result is not recorded`, 1); }
     }
     const text = `${JSON.stringify({ results: keptResults([entry, ...results], now, { production }) }, null, 2)}\n`;
     const blob = ok(['hash-object', '-w', '--stdin'], 'cannot write the record', text);
-    const tree = ok(['mktree'], 'cannot write the record', `100644 blob ${blob}\t${VERIFY_FILE}\n`);
+    // The tip's own tree with verify.json replaced: every other entry stays as it was.
+    const others = tip ? ok(['ls-tree', '-z', tip], `cannot read ${VERIFY_BRANCH}'s tree`).split('\0').filter(e => e && e.split('\t').slice(1).join('\t') !== VERIFY_FILE) : [];
+    const tree = ok(['mktree', '-z'], 'cannot write the record', [...others, `100644 blob ${blob}\t${VERIFY_FILE}`].map(e => `${e}\0`).join(''));
     const commit = ok(['-c', 'user.name=keel-verify', '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com', 'commit-tree', tree, ...(tip ? ['-p', tip] : []), '-m', `keel verify: ${entry.ok ? 'passed' : 'failed'} for ${short(entry.sha)} (${entry.at})`], 'cannot write the record');
     const pushed = git(root, env, ['push', '--quiet', '--no-verify', `--force-with-lease=${ref}:${tip ?? ''}`, remote, `${commit}:${ref}`]);
     if (pushed.status === 0) return { recorded: true, commit, branch: VERIFY_BRANCH };

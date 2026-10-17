@@ -325,3 +325,30 @@ test('the latest result of each site is kept whatever its age: an unresolved pro
   assert.deepEqual(production.map(r => [r.at, r.ok]), [[failure.at, false]], 'production\'s last verify is still there, and still failed');
   assert.equal(results.filter(r => r.site === preview).length, 30, 'the previews keep their usual 30');
 });
+
+// PR #182 review, round two: recording replaced keel-verify's whole tree with verify.json alone, and overwrote a
+// branch that held no verify record at all.
+test('recording keeps every other file on keel-verify, and refuses a keel-verify branch that holds no verify record', async t => {
+  const { prod, repo, v } = await setup(t);
+  const result = { sha: repo.C, ok: true, at: '2026-10-04T08:00:00.000Z', site: prod.site, serving: repo.C, failures: [] };
+  const remoteTip = () => execFileSync('git', ['--git-dir', repo.origin, 'rev-parse', `refs/heads/${VERIFY_BRANCH}`], { env: ENV, encoding: 'utf8' }).trim();
+  const files = () => execFileSync('git', ['--git-dir', repo.origin, 'ls-tree', '-r', '--name-only', `refs/heads/${VERIFY_BRANCH}`], { env: ENV, encoding: 'utf8' }).trim().split('\n');
+  const branch = async entries => {
+    repo.git('checkout', '-q', '--orphan', `acme-verify-${Object.keys(entries).length}`);
+    repo.git('rm', '-q', '-rf', '--cached', '.');
+    for (const [p, body] of Object.entries(entries)) { await mkdir(join(repo.root, p, '..'), { recursive: true }); await writeFile(join(repo.root, p), body); repo.git('add', '-f', p); }
+    repo.git('commit', '-qm', 'Acme: the branch');
+    repo.git('push', '-q', '--force', 'origin', `HEAD:refs/heads/${VERIFY_BRANCH}`);
+    repo.git('checkout', '-q', '-f', 'main');
+  };
+  // A keel-verify that is someone else's (no verify.json): refused, left exactly as it was.
+  await branch({ 'README.md': '# Acme notes\n' });
+  const theirs = remoteTip();
+  assert.throws(() => v.record({ root: repo.root, result, env: ENV }), e => e.exitCode === 1 && /holds no verify\.json: it is not keel's verify record, so it is left alone/.test(e.message));
+  assert.equal(remoteTip(), theirs);
+  // A record beside other files: verify.json is updated, every other file kept.
+  await branch({ [VERIFY_FILE]: JSON.stringify({ results: [] }), 'README.md': '# Acme notes\n', 'notes/anvils.md': 'Anvils.\n' });
+  v.record({ root: repo.root, result, env: ENV });
+  assert.deepEqual(files().sort(), ['README.md', 'notes/anvils.md', VERIFY_FILE]);
+  assert.equal(verifyResults(execFileSync('git', ['--git-dir', repo.origin, 'show', `refs/heads/${VERIFY_BRANCH}:${VERIFY_FILE}`], { env: ENV, encoding: 'utf8' })).length, 1);
+});

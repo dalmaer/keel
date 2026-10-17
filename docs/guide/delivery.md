@@ -179,7 +179,7 @@ node scripts/keel/verify.mjs live <sha> [--json]
 `keel-verify`, file `verify.json` (newest first, the last 30, and every failure of the last 72 hours so a burst of passes never drops one before its brief reads it, and the latest result of each site whatever its age, so production's last verify is never lost to previews; each with the
 commit, the outcome, the time, the site, what production served, each failure
 and the Actions run), with a lease; a file there that is not a verify record
-is never replaced. With the delivery practice on, the night's morning brief
+is never replaced, nor is a `keel-verify` branch with no `verify.json`; every other file on the branch is kept. With the delivery practice on, the night's morning brief
 and `keel board` read it:
 
 - **The board**: when the latest verify failed, an owner's item, "production
