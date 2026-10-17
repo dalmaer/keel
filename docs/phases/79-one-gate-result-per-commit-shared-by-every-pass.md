@@ -54,7 +54,9 @@ By hand: the owner's week.
 
 ## Deliberately open
 
-- **24 hours** is the night's existing window; settled by use.
+- **24 hours** was settled as the default window. Phase 89 (2026-10-17) adds
+  an explicit `ci.gateReuse: "until-change"` opt-in; all source and test evidence
+  checks still apply.
 - **Known limit**: a pass that tests a different tree than CI (climb's candidate branch) still runs its own gate; reuse is only for the exact commit.
 - **Settled 2026-10-16 (the build):** the evidence of a reusable result is the run's `keel-test-runs` records (a gate record for the commit and tree, clean, the same command's hash, exit 0, and a test run under it that ran a test and failed none), never a job's name: a name cannot say which command ran on which tree. Only a success is reused; a red CI result runs the gate again. Reuse still needs an explicit `ci.gateWorkflow`.
 - **Settled 2026-10-16:** docs-only is decided against the newest first-parent ancestor (at most 20 back) with a result of reuse grade at any age, and only for a clean commit; CI's own step (`gate.mjs --ci`) never reuses, it only skips or runs.

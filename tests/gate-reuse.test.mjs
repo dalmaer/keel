@@ -124,10 +124,102 @@ test('the gate reuses an exact, clean, successful CI result for HEAD and says so
   assert.match(gateLine(ran), /^keel gate: ran `node -e .*`: exit 0 \(not reused: .+\)$/);
 });
 
-test('CI\'s own gate step (--ci) never reuses: it is the result the others reuse', async t => {
+const UNTIL_CHANGE = { ...CONFIG, ci: { ...CONFIG.ci, gateReuse: 'until-change' } };
+
+test('until-change reuses old evidence without executing the gate; default and explicit 24-hours expire it', async t => {
+  for (const config of [UNTIL_CHANGE, CONFIG, { ...CONFIG, ci: { ...CONFIG.ci, gateReuse: '24-hours' } }]) {
+    const a = await acme(t, { config });
+    const stub = await ghStub(t, actions([{ ...a.head(), minutes: 30 * 24 * 60 }]));
+    const r = await gate({ root: a.root, config, env: stub.env, stdio: 'pipe' });
+    const unlimited = config.ci.gateReuse === 'until-change';
+    assert.equal(r.action, unlimited ? 'reused' : 'ran');
+    assert.equal(a.ran(), !unlimited, 'the real command marker proves whether execution happened');
+    if (unlimited) {
+      assert.equal(r.source, 'github-actions');
+      assert.equal(r.tests, 1);
+      assert.ok(r.ageMs > gateModule.DAY);
+    } else assert.match(r.reasons.join(' '), /24-hour/);
+  }
+});
+
+test('explicit age windows override policy, including old docs-only ancestry', async t => {
   const a = await acme(t);
-  const stub = await ghStub(t, actions([a.head()]));
-  const r = await gate({ root: a.root, config: CONFIG, env: stub.env, ci: true, stdio: 'pipe' });
+  const head = a.head();
+  const stub = await ghStub(t, actions([{ ...head, minutes: 30 * 24 * 60 }]));
+  const ask = (config, maxAgeMs) => ciResult({ config, ...head, clean: true, env: stub.env, maxAgeMs });
+  assert.equal((await ask(CONFIG, Infinity)).reused, true);
+  assert.match((await ask(UNTIL_CHANGE, gateModule.DAY)).reason, /24-hour/);
+  await a.commit('docs/guide.md');
+  const r = await docsOnlySkip({ root: a.root, config: { ...CONFIG, delivery: { docsOnly: ['docs/'] } }, env: stub.env });
+  assert.equal(r.skip, true);
+  assert.equal(r.base, head.sha);
+});
+
+test('invalid gateReuse values are configuration errors even with an explicit age override or --ci', async t => {
+  const a = await acme(t);
+  const stub = await ghStub(t, actions([]));
+  const invalid = e => e.exitCode === 2 && /ci.*gateReuse.*24-hours.*until-change/.test(e.message);
+  for (const gateReuse of [null, false, true, 0, 86400000, '', 'forever', 'Until-change', 'until-change ', [], {}]) {
+    const config = { ...CONFIG, ci: { ...CONFIG.ci, gateReuse } };
+    for (const maxAgeMs of [undefined, Infinity]) {
+      await assert.rejects(ciResult({ config, ...a.head(), clean: true, env: stub.env, maxAgeMs }), invalid, JSON.stringify(gateReuse));
+    }
+    await assert.rejects(gate({ root: a.root, config, env: stub.env, ci: true, stdio: 'pipe' }), invalid);
+  }
+  assert.equal(a.ran(), false);
+  assert.deepEqual(await stub.asked(), [], 'invalid policy is rejected before requesting evidence');
+});
+
+test('until-change still runs for failed or missing evidence and changed or dirty trees', async t => {
+  for (const why of ['failed run', 'failed ledger', 'missing run', 'missing artifact', 'changed', 'dirty']) {
+    const a = await acme(t, { config: UNTIL_CHANGE });
+    const head = a.head();
+    const evidence = { ...head, minutes: 30 * 24 * 60 };
+    if (why === 'failed run') evidence.conclusion = 'failure';
+    if (why === 'failed ledger') evidence.records = records({ ...head, status: 1 });
+    if (why === 'missing artifact') evidence.artifacts = [];
+    const stub = await ghStub(t, actions(why === 'missing run' ? [] : [evidence]));
+    if (why === 'changed') await a.commit('anvil.mjs', 'export const anvil = 2;\n');
+    if (why === 'dirty') await writeFile(join(a.root, 'anvil.mjs'), 'export const anvil = 2;\n');
+    const r = await gate({ root: a.root, config: UNTIL_CHANGE, env: stub.env, stdio: 'pipe' });
+    assert.equal(r.action, 'ran', why);
+    assert.equal(r.status, 0, why);
+    assert.equal(a.ran(), true, why);
+    assert.doesNotMatch(r.reasons.join(' '), /24-hour/, why);
+  }
+});
+
+test('until-change preserves command, tree, clean evidence, source and latest-attempt guards', async t => {
+  const a = await acme(t, { config: UNTIL_CHANGE });
+  const head = a.head();
+  for (const [why, change, pattern] of [
+    ['command', c => { c.records = records({ ...head, command: 'npm test' }); }, /another command/],
+    ['tree', c => { c.records = records({ ...head, tree: 'c'.repeat(40) }); }, /another tree/],
+    ['dirty ledger', c => { c.records = records({ ...head, gateExtra: { dirty: true } }); }, /dirty/],
+    ['no tests', c => { c.records = records({ ...head, tests: [] }); }, /no test ran/],
+    ['source repo', () => {}, /no completed success/],
+    ['source branch', () => {}, /no completed success/],
+    ['latest attempt', () => {}, /no completed success/],
+  ]) {
+    const c = { ...head, minutes: 30 * 24 * 60 };
+    change(c);
+    const fixture = actions([c]);
+    const rows = fixture.routes[`repos/${repo}/actions/workflows/7/runs?head_sha=${head.sha}`];
+    if (why === 'source repo') rows.workflow_runs[0].head_repository.full_name = 'acme/other';
+    if (why === 'source branch') rows.workflow_runs[0].head_branch = 'candidate';
+    if (why === 'latest attempt') rows.workflow_runs.push({ ...rows.workflow_runs[0], id: 101, run_attempt: 2, status: 'in_progress', conclusion: null, updated_at: ago(1) });
+    rows.total_count = rows.workflow_runs.length;
+    const stub = await ghStub(t, fixture);
+    const r = await ciResult({ config: UNTIL_CHANGE, ...head, clean: true, env: stub.env });
+    assert.equal(r.reused, false, why);
+    assert.match(r.reason, pattern, why);
+  }
+});
+
+test('CI\'s own gate step (--ci) never reuses: it is the result the others reuse', async t => {
+  const a = await acme(t, { config: UNTIL_CHANGE });
+  const stub = await ghStub(t, actions([{ ...a.head(), minutes: 30 * 24 * 60 }]));
+  const r = await gate({ root: a.root, config: UNTIL_CHANGE, env: stub.env, ci: true, stdio: 'pipe' });
   assert.equal(r.action, 'ran');
   assert.equal(a.ran(), true);
   assert.deepEqual(await stub.asked(), [], 'without docsOnly it reads nothing from GitHub');
@@ -137,17 +229,17 @@ test('CI\'s own gate step (--ci) never reuses: it is the result the others reuse
 });
 
 test('the night\'s gate measure reuses through the same function, with the tests CI ran; a dirty tree runs its own', async t => {
-  const a = await acme(t);
-  const stub = await ghStub(t, actions([a.head()]));
+  const a = await acme(t, { config: UNTIL_CHANGE });
+  const stub = await ghStub(t, actions([{ ...a.head(), minutes: 30 * 24 * 60 }]));
   const selected = MEASURES.filter(m => m.id === 'gate');
-  const [g] = await measure({ root: a.root, config: CONFIG, env: stub.env, measures: selected });
+  const [g] = await measure({ root: a.root, config: UNTIL_CHANGE, env: stub.env, measures: selected });
   assert.equal(g.value, 0);
   assert.equal(g.facts.source, 'github-actions');
   assert.equal(g.facts.tests, 1);
   assert.match(g.detail, /not run locally/);
   assert.equal(a.ran(), false);
   await writeFile(join(a.root, 'anvil.mjs'), 'export const anvil = 2;\n');
-  const [dirty] = await measure({ root: a.root, config: CONFIG, env: stub.env, measures: selected });
+  const [dirty] = await measure({ root: a.root, config: UNTIL_CHANGE, env: stub.env, measures: selected });
   assert.equal(dirty.facts.source, 'local-command');
   assert.match(dirty.facts.reuseUnavailable, /dirty/);
   assert.equal(a.ran(), true);
@@ -232,9 +324,11 @@ test('CI runs that are not an exact, completed, successful, recent result of the
     ['an unreadable archive', { zip: bytes, artifacts: [{ id: 9, name: 'keel-test-runs', expired: false, size_in_bytes: bytes.length, workflow_run: { id: 100, head_sha: sha } }] }, /unreadable/],
   ];
   for (const [why, commit, pattern] of refused) {
-    const r = await ask(commit);
-    assert.equal(r.reused, false, why);
-    assert.match(r.reason, pattern, why);
+    for (const config of why === 'older than 24 hours' ? [CONFIG] : [CONFIG, UNTIL_CHANGE]) {
+      const r = await ask({ ...commit, ...(config === UNTIL_CHANGE ? { minutes: 30 * 24 * 60 } : {}) }, { config });
+      assert.equal(r.reused, false, why);
+      assert.match(r.reason, pattern, why);
+    }
   }
   assert.match((await ciResult({ config: CONFIG, sha, tree, clean: false, env: ENV })).reason, /dirty/, 'a dirty local tree');
   assert.match((await ciResult({ config: { ...CONFIG, ci: undefined }, sha, tree, clean: true, env: ENV })).reason, /explicitly configured/, 'discovery never authorizes reuse');

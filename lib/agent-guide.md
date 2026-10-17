@@ -848,7 +848,11 @@ Incomplete API history is n/a unless observed usage already exceeds the bound.
 
 `ci.gateWorkflow` (or matching top-level `gateWorkflow`) authorizes exact clean
 SHA CI reuse for a completed same-repo default-branch push success within 24h,
-using job completion timestamps. Conflicting aliases fail configuration;
+using job completion timestamps. `ci.gateReuse: "until-change"` removes only
+the age cutoff; omitted or `"24-hours"` keeps it. Unknown policy values are
+configuration errors. Missing/expired artifacts still run the gate. This does
+not skip fresh-data work such as production logs or Loop collection.
+Conflicting aliases fail configuration;
 no usable result falls back locally. Reuse reports source/SHA/conclusion/age,
 never local gate time.
 

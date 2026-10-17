@@ -10,7 +10,9 @@
 //
 //   reused   an exact, clean, completed, successful result for HEAD, from the
 //            gate workflow .keel/keel.json names (ci.gateWorkflow), a push to
-//            the default branch, completed within 24 hours, whose
+//            the default branch, completed within 24 hours by default
+//            (ci.gateReuse: "24-hours"). "until-change" removes only that age
+//            limit; all evidence checks still apply. Its
 //            keel-test-runs artifact holds the gate's own record: the same
 //            command (its hash), this commit and tree, a clean tree, exit 0,
 //            and test runs under it that ran at least one test and failed
@@ -265,15 +267,26 @@ function ledgerVerifier({ repo, sha, tree, command, download }) {
   };
 }
 
+/** The reuse policy changes age alone; even an explicit window must validate it. */
+function gateReuseAge(config) {
+  const policy = config?.ci?.gateReuse;
+  if (policy === undefined || policy === '24-hours') return DAY;
+  if (policy === 'until-change') return Infinity;
+  throw new GateError('.keel/keel.json "ci".gateReuse must be "24-hours" or "until-change"');
+}
+
 /**
  * CI's result for `sha` (its tree `tree`), reused only as the module's
  * header says: { reused: true, source: 'github-actions', workflow, runId,
  * attempt, sha, conclusion, ageMs, completedAt, status: 0, tests,
  * testEvidence } or { reused: false, reason }. Needs .keel/keel.json `repo`
  * and an explicit ci.gateWorkflow (discovery never authorizes reuse).
- * `maxAgeMs` is the window (24 hours; the docs-only rule's base has none).
+ * `maxAgeMs` overrides ci.gateReuse (24 hours by default, Infinity for
+ * "until-change"); the docs-only rule's base has none. Policy is always validated.
  */
-export async function ciResult({ config, sha, tree, clean, env = process.env, now = Date.now(), maxAgeMs = DAY, request, download, limits }) {
+export async function ciResult({ config, sha, tree, clean, env = process.env, now = Date.now(), maxAgeMs, request, download, limits }) {
+  const policyAge = gateReuseAge(config);
+  if (maxAgeMs === undefined) maxAgeMs = policyAge;
   const named = gateWorkflowOf(config);
   if (named?.problem) throw new GateError(named.problem);
   if (!named) return { reused: false, reason: 'no explicitly configured CI workflow (.keel/keel.json ci.gateWorkflow)' };
@@ -339,6 +352,7 @@ export async function recordSkip(root, { skip, command }) {
  * commit, else run the check. { action: reused|skipped|ran, status, reason?, … }.
  */
 export async function gate({ root, config, env = process.env, ci = false, now = Date.now(), stdio = 'inherit', request, download }) {
+  gateReuseAge(config);
   const command = config.check ?? CHECK;
   const reasons = [];
   if (!ci) {
