@@ -234,12 +234,25 @@ test('a mutant that does not parse or import is invalid, never caught', async t 
   const m = j.mutate;
   assert.deepEqual(m.invalid.map(where), ['lib/limits.mjs:2 return return early, before this line',
     'lib/limits.mjs:4 condition negate `DEFAULTS.limit < 0`', 'lib/limits.mjs:4 condition drop `DEFAULTS.limit < 0` (always true)']);
-  assert.match(m.invalid[0].reason, /^does not parse or import: SyntaxError/, 'a return inside an object literal does not parse');
+  assert.match(m.invalid[0].reason, /^does not parse: SyntaxError/, 'a return inside an object literal does not parse');
   assert.match(m.invalid[1].reason, /^does not parse or import: /, 'a throw at import');
   assert.deepEqual(m.survivors.map(where), ['lib/limits.mjs:4 comparison `<` → `<=`', 'lib/limits.mjs:4 number `0` → `1`']);
   assert.equal(m.caught, 1, 'only the limit the test reads');
   assert.equal(m.total, 6);
   assert.equal(m.line, 'Mutants: 1/6', 'the invalid count against the total, never for it');
+});
+
+test('a mutant that does not parse is invalid even when the test imports the module inside its body', async t => {
+  const base = ['export const config = {', '  limit: 2,', '};', ''].join('\n');
+  const fix = ['export const config = {', '  limit: 3,', '};', ''].join('\n');
+  const tst = [...TESTHEAD, "test('three', async () => { const { config } = await import('../lib/config.mjs'); assert.equal(config.limit, 3); });", ''].join('\n');
+  const repo = await fixRepo(t, { base: { 'lib/config.mjs': base }, fix: { 'lib/config.mjs': fix }, tests: { 'tests/config.test.mjs': tst } });
+  const { j } = await mutate(repo, ['tests/config.test.mjs', '--fix', 'lib/config.mjs'], 0);
+  const m = j.mutate;
+  assert.deepEqual(m.invalid.map(where), ['lib/config.mjs:2 return return early, before this line']);
+  assert.match(m.invalid[0].reason, /^does not parse: SyntaxError/);
+  assert.equal(m.line, `Mutants: ${m.caught}/${m.total}`);
+  assert.equal(m.caught, m.total - 1, 'the number mutant is caught; the return mutant is not');
 });
 
 test('a mutant that does not finish is stopped at the time limit and reported inconclusive', async t => {
