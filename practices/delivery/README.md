@@ -28,9 +28,12 @@ without) its gate passing.
 - Least privilege: the job that chooses reads (`contents: read`,
   `actions: read`); only the job that moves the ref has `contents: write`, and
   it calls no API.
-- Deploys follow the tested ref (a trigger on a push to it), or the publish
-  run finishing; never a push to `main`. `docs/guide/delivery.md` in keel says
-  how, for a Cloud Build trigger and for a workflow deploy.
+- Deploys follow the tested ref, never a push to `main`. A service outside
+  GitHub Actions (isocan's Cloud Build) can trigger on a push to it; an
+  Actions deploy starts on `workflow_run` of keel-publish completing, never on
+  a push to the tested ref, because GitHub starts no workflow for a push made
+  with `GITHUB_TOKEN`, which is what the publisher pushes with.
+  `docs/guide/delivery.md` in keel says how, for both.
 - `keel doctor` holds every workflow of a project with this practice to the
   concurrency rule (`workflow-concurrency`): a test or gate workflow has a
   per-ref group with `cancel-in-progress: true`; a publish or deploy workflow

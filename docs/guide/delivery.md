@@ -86,12 +86,15 @@ before it pushes. Exit codes: 0 moved, created or nothing to do; 1 refused;
 Keel does not deploy; each project keeps its own mechanism. It only has to
 start from the tested ref instead of `main`:
 
-- **A deploy service watching a branch** (isocan's Cloud Build trigger): point
-  the trigger at the tested ref. isocan already deploys its dev home on a push
-  to `green`; nothing else changes.
-- **A workflow that deploys on push** (ledger's `deploy.yml` on every push to
-  `main`): start it on the tested ref instead, either a push to it, or the
-  publisher finishing:
+- **A deploy service outside GitHub Actions, watching a branch** (isocan's
+  Cloud Build trigger): point the trigger at the tested ref. isocan already
+  deploys its dev home on a push to `green`; nothing else changes. A push by
+  the publisher reaches such a service like any other push.
+- **A GitHub Actions workflow that deploys** (ledger's `deploy.yml` on every
+  push to `main`): start it on the publisher finishing, **never on a push to
+  the tested ref**. The publisher pushes with the workflow's own
+  `GITHUB_TOKEN`, and GitHub starts no workflow for a push made with that
+  token, so an `on: push` to `green` would never run. Instead:
 
   ```yaml
   on:
@@ -100,8 +103,11 @@ start from the tested ref instead of `main`:
       types: [completed]
   ```
 
-  and check out the tested ref (`ref: green`), not the event's commit. Keep
-  its concurrency one fixed group with `cancel-in-progress: false`.
+  with the job guarded on `github.event.workflow_run.conclusion == 'success'`,
+  checking out the tested ref (`ref: green`), not the event's commit. A
+  publish run that moved nothing also completes, so the deploy may skip a
+  commit production already has (phase 81). Keep its concurrency one fixed
+  group with `cancel-in-progress: false`.
 
 Then a commit reaches production only after its gate passed, and two changes
 in a row deploy once, the newer.

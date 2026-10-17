@@ -61,6 +61,7 @@ By hand: the owner's two pushes.
 - **Settled 2026-10-16, building: the concurrency check lives in `keel doctor`** (`workflow-concurrency`, with `delivery-config`), for projects with delivery on: the ci practice's workflow test runs only where keel manages ci (isocan and ledger keep theirs local), and an adopt proposal runs once. Which workflow is a test or a publisher is read from its file and `name:` (publish, deploy, release, promote; else the gate, test, check, ci, gate).
 - **Settled 2026-10-16, building: keel does not turn delivery on for itself**: it deploys nothing, and the publisher would push a `green` branch to dalmaer/keel unasked.
 - **Known limit**: the publisher asks at most 30 of main's newest first-parent commits per run; a tested ref further behind than 30 commits with none of them passing stays put until one does.
+- **Settled 2026-10-17, PR #178 review: an Actions deploy follows the publisher by `workflow_run` of keel-publish completing, never by a push to the tested ref**: the publisher pushes with `GITHUB_TOKEN`, and GitHub starts no workflow for such a push. A trigger outside Actions (isocan's Cloud Build on a push to `green`) is unaffected. Scope's "a push to `green`" holds only for those.
 
 ## Next action
 
