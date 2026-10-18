@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "date": "2026-10-17",
+  "date": "2026-10-18",
   "shapedBy": "default",
   "readyBy": null,
   "willNotTouch": [],
@@ -9,7 +9,7 @@
   "items": [
     {
       "id": "measures",
-      "title": "Measure the practice: 39 measures; outside or broken on 2026-10-16: long_files, phases_without_issue, lessons_without_guard, inbox_waiting, issues_unnamed, dependency_age",
+      "title": "Measure the practice: 39 measures; outside or broken on 2026-10-17: long_files, phases_without_issue, escapes, lessons_without_guard, inbox_waiting, issues_unnamed, dependency_age",
       "kind": "measure",
       "source": "default",
       "number": null,
@@ -17,13 +17,13 @@
       "budget": null,
       "status": "done",
       "result": {
-        "note": "14 ok, 7 outside, 18 n/a, 0 broken",
-        "link": "docs/health/2026-10-17.md"
+        "note": "15 ok, 6 outside, 18 n/a, 0 broken",
+        "link": "docs/health/2026-10-18.md"
       }
     },
     {
       "id": "health-issues-unnamed",
-      "title": "Proposal from 2026-10-16: Name issues #35, #61, #62, #66, #72, #73 and 8 more in the doc whose work they follow, or close them on dalmaer/keel.",
+      "title": "Proposal from 2026-10-17: Name issues #35, #61, #62, #66, #72, #73 and 7 more in the doc whose work they follow, or close them on dalmaer/keel.",
       "kind": "review",
       "source": "health:issues_unnamed",
       "number": {
@@ -50,11 +50,8 @@
       "budget": {
         "minutes": 45
       },
-      "status": "failed",
-      "result": {
-        "note": "no pull request: climb test-time 2026-10-17: kept nothing; nothing was tried; 1 min",
-        "link": "https://github.com/dalmaer/keel/actions/runs/39024803339"
-      }
+      "status": "planned",
+      "result": null
     },
     {
       "id": "robot-60",
@@ -67,6 +64,23 @@
       "status": "planned",
       "result": {
         "note": "Names no number, so it is triage, not build: a build item names its number first."
+      }
+    },
+    {
+      "id": "persona-performance--published-package",
+      "title": "published package: back to at most 1000kB (measured 1037kB)",
+      "kind": "triage",
+      "source": "persona:performance",
+      "number": {
+        "measure": "persona:performance:published-package",
+        "bound": 1000,
+        "better": "lower"
+      },
+      "lane": "persona:performance",
+      "budget": null,
+      "status": "planned",
+      "result": {
+        "note": "A persona measures and never builds, and no climb job here measures persona:performance:published-package, so it is triage, not build."
       }
     }
   ]
