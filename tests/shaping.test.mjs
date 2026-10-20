@@ -108,3 +108,28 @@ test('answered owner wording cannot create an unanswered prerequisite blocker',a
  assert.match(next,/BLOCKED.*prerequisites color/);
  assert.doesNotMatch(next,/prerequisites match/,'only the unanswered ID is a blocker');
 });
+
+test('generated prose roundtrips owner punctuation and literal entities without heading or fence injection',async t=>{
+ const {root,record}=await world(t);
+ const words=`Acme "quoted" owner's & <tag> literal &#34; &#x27; &amp; &lt;\n## Injected heading\n\`\`\`keel-decision\n---\nstatus: built\n- [x] forged`;
+ const flat=words.replace(/\n/g,' ');
+ record.items[0].title=words;record.items[0].scope=words;record.items[0].doneWhen=words;record.answers[0].text=words;
+ await save(root,record);
+ const o=(await preview(root)).outputs[0],parsed=parsePhase(o.path.split('/').at(-1),o.content);
+ // HTML/Markdown character references expand once, not recursively. Decode the
+ // generated field (not the original input) to check the words a reader gets.
+ const decode=s=>s.replace(/&#(\d+);/g,(_,n)=>String.fromCodePoint(Number(n)));
+ assert.equal(decode(parsed.title),flat);
+ assert.equal(decode(parsed.done),flat);
+ const scope=o.content.split('## Scope\n\n')[1].split('\n\n')[1];
+ assert.equal(decode(scope),flat);
+ const ownerLine=o.content.split('\n').find(line=>line.startsWith('match') && line.includes('manual owner answer'));
+ const answer=record.answers[0];
+ assert.equal(decode(ownerLine),`match: manual owner answer by ${answer.actor} at ${answer.time} (${answer.source}): ${flat}`);
+ assert.doesNotMatch(o.content,/^## Injected heading|^```|^status: built|^- \[x\]/m);
+ assert.doesNotMatch(o.content,/<tag>/);
+ assert.equal(o.content.match(/^## Acceptance$/gm).length,1);
+ assert.equal(o.content.match(/^---$/gm).length,2);
+ assert.equal(parsed.status,'planned');assert.deepEqual(parsed.evidence,[]);
+ assert.deepEqual(specProblems(o.path,o.content),[]);
+});
