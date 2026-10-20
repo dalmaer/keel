@@ -1,10 +1,10 @@
 ---
-status: built
+status: partial
 since: 2026-10-20
 goal: G0
 spec: 2
 depends: [90]
-note: "Local shaping, reviewed drafts and recovery pass packed and adopted checks; live use remains."
+note: "PR #208 reached three review rounds; owner decision required for the reproduced tilde-fence injection finding before landing."
 evidence: ["evidence/2026-10-20-shaping.md"]
 ---
 
@@ -26,7 +26,7 @@ Keep the existing authorities and authorization boundaries.
 - [x] An input change invalidates the reviewed digest without deleting earlier choices: `tests/shaping.test.mjs`.
 - [x] Retries and interrupted multi-file writes recover the same drafts without overwriting edited files: `tests/shaping.test.mjs`.
 - [x] Milestone projects receive previews without archived local plans; no command starts a model or creates an issue: `tests/shaping-cli.test.mjs`.
-- [x] Packed commands, rendered guide and local review preserve the preview through a fresh process: `tests/shaping-cli.test.mjs`.
+- [ ] Packed commands, rendered guide and local review preserve the preview through a fresh process: `tests/shaping-cli.test.mjs`.
 
 ## Real surfaces
 
@@ -53,7 +53,7 @@ Whether a proposed proof is sufficient remains a conductor judgment. The first r
 
 ## Next action
 
-Observe an approved shaping session with real owner choices; compare the resulting drafts with the reviewed record.
+Owner decides how PR #208 proceeds at its three-round review limit. Recommended: authorize one additional repair/review round to escape tildes and prove generated prose cannot open a Markdown fence. Do not merge until the finding is repaired and the corrected head passes review and CI.
 
 ## Trajectory
 
@@ -62,3 +62,5 @@ Observe an approved shaping session with real owner choices; compare the resulti
 2026-10-20: Independent review caught a blocker inferred from formatted owner words. The fix derives unanswered prerequisites from structured IDs; a red-without/green-with regression proves the correction.
 
 2026-10-20: A second review found that composing two escaping passes corrupted owner wording. Single-pass escaping now preserves rendered text, with a verified roundtrip regression for literal entities and structural injection attempts.
+
+2026-10-20: Third review reproduced a tilde-fence injection in generated prose. A scope of `~~~` passed validation and emitted an unescaped code fence. This invalidates complete rendering acceptance. The finding is classified security/fix-first; no further fix or merge proceeds without the owner’s decision at the review limit.

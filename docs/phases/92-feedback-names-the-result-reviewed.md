@@ -4,7 +4,7 @@ since: 2026-10-20
 goal: G4
 spec: 2
 depends: [54, 91]
-note: "Authorized specification; implementation and real-use evidence remain."
+note: "Authorized and planned; waits for phase 91 and the owner decision at PR #208 review limit."
 evidence: []
 ---
 
