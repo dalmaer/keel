@@ -12,6 +12,7 @@ import { sandboxProblems, packageProblem, OFF_LIMITS, INSTALL_FILES } from './te
 import { missingTests, ranOn, packageDirs, lastResult, willNotTouchProblems } from './climb.mjs';
 import { buildItems, planMinutes, passPlan } from './night-plan.mjs';
 import { prBody } from './pr-body.mjs';
+import { decisionContext, decisionBrief, decisionExitCode } from './decision-context.mjs';
 import { readRuns } from './test-ledger.mjs';
 
 const BOT = 'github-actions[bot]';
@@ -304,6 +305,10 @@ async function admitRobot({ root, repo, config, event, eventName, has, now = new
     const refusal = robotRubricRefusal(issue.body);
     if (refusal) return reject(refusal, { ...common, triage: true });
     const parsed = parseRobotRubric(issue.body);
+    const decisionBundle = await decisionContext({ root, issue: `${repo}#${issue.number}`, issueBody: issue.body });
+    if (decisionExitCode(decisionBundle)) return reject(`required decision context ${decisionBundle.state}: ${decisionBundle.gaps.map(g => g.code).join(', ')}`, { decisionBundle });
+    common.decisionBundle = decisionBundle;
+    common.decisionDigest = decisionBundle.digest;
 
     const pulls = await robotPages(github, `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0] + ':keel/robot-' + issue.number)}`);
     if (pulls.length > 1) return reject('multiple robot pull requests; owner resolution needed', common);
@@ -473,6 +478,7 @@ export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNu
 
 export function validateRobotPlan(plan, { repo, baseSha }) {
   if (plan?.state !== 'ready' || plan.repo !== repo || plan.baseSha !== baseSha || !robotSha(baseSha) || !robotId(plan.issueNumber) || plan.branch !== `keel/robot-${plan.issueNumber}` || !Number.isSafeInteger(plan.cursor) || plan.cursor < 0 || !/^[A-Za-z0-9_-]{1,128}$/.test(plan.instanceId) || !['claude','codex'].includes(plan.author) || !['claude','codex'].includes(plan.reviewer) || plan.author === plan.reviewer || (plan.previousHead !== null && !robotSha(plan.previousHead)) || (plan.nightPlan !== undefined && !(Array.isArray(plan.nightPlan?.willNotTouch ?? []) && (plan.nightPlan?.willNotTouch ?? []).every(p => typeof p === 'string')))) throw new Error('robot handoff identity mismatch');
+  if (plan.decisionDigest !== undefined && !hash64(plan.decisionDigest)) throw Error('invalid decision digest');
   return plan;
 }
 async function revalidateIssue(plan, github) {
@@ -481,7 +487,7 @@ async function revalidateIssue(plan, github) {
   return issue;
 }
 function publicationPlan(plan) {
-  return Object.fromEntries(['state','repo','baseSha','issueNumber','issueHash','authorization','cursor','instanceId','author','reviewer','previousHead','prNumber','branch'].map(k => [k,plan[k]]));
+  return Object.fromEntries(['state','repo','baseSha','issueNumber','issueHash','authorization','cursor','instanceId','author','reviewer','previousHead','prNumber','branch','decisionDigest'].map(k => [k,plan[k]]));
 }
 function publicationBody(plan, headSha) {
   return `<!-- keel:robot-publication ${JSON.stringify({version:1,plan:publicationPlan(plan),headSha})} -->\nTrusted publication intent; recovery may publish only this judged head.`;
@@ -548,10 +554,10 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
     summary:{lead:`Robot candidate for issue #${plan.issueNumber}; acceptance remains with the owner.`,files:files.map(robotText)},
     evidence:{gate:`Configured full gate passed on base ${baseSha} and candidate ${headSha}; no executed test dropped.`},
     danger:{door:'two-way',why:'Reverting this candidate restores its file changes; operational effects and acceptance still require owner review.',surfaces:['adopted project','published package']},
-    notes:[`Closes #${plan.issueNumber}`,robotText(message) || 'Agent supplied no final message.',`Other-provider review pending (${plan.reviewer}); only a person merges.`],
+    notes:[`Closes #${plan.issueNumber}`, ...(hash64(plan.decisionDigest) ? [`Decision digest used: ${plan.decisionDigest}`] : []),robotText(message) || 'Agent supplied no final message.',`Other-provider review pending (${plan.reviewer}); only a person merges.`],
     impact:{declaration:{version:1,phases:[],decisions:[],supersedes:[],evidence:[],reconciliation:'none',reason:'Trusted diff contains no phase, decision, evidence, research/design or project-record changes; record updates are blocked by the robot sandbox. This candidate does not establish acceptance.'}},
   })}`;
-  const body = pr ? robotContinuation({...plan,headSha}) + robotText(message) : newBody;
+  const body = pr ? robotContinuation({...plan,headSha}) + (hash64(plan.decisionDigest) ? `Decision digest used: ${plan.decisionDigest}\n\n` : '') + robotText(message) : newBody;
   if (body.length > 60_000) throw new Error('PR conversation exceeds safe update bound; owner resolution needed');
   const comments = await robotPages(github, `/repos/${repo}/issues/${plan.issueNumber}/comments`);
   const intent = publicationOf(comments,repo,plan.issueNumber);
@@ -599,7 +605,7 @@ export async function robotComment({ plan, result, message = '', github = robotG
   const marker = noteMarker(plan,result);
   if (comments.some(c => isBot(c.user) && c.body?.startsWith(marker + '\n'))) return {posted:false,already:true};
   const state = ['published','failed','question'].includes(result.state) ? `<!-- keel:robot-state ${JSON.stringify({ repo: plan.repo, issueNumber: plan.issueNumber, issueHash: plan.issueHash, cursor: plan.cursor, instanceId: plan.instanceId ?? `issue-${plan.issueNumber}`, headSha: result.headSha ?? plan.previousHead ?? null, completedAt: new Date(now).toISOString(), previousCompletedAt: plan.previousCompletedAt ?? null })} -->\n` : '';
-  const body = `${marker}\n${state}${result.prUrl ? `PR: ${result.prUrl}\n\n` : ''}${robotText(result.reason ?? result.state)}\n\n${robotText(message)}`;
+  const body = `${marker}\n${state}${hash64(plan.decisionDigest) ? `Decision digest used: ${plan.decisionDigest}\n\n` : ''}${result.prUrl ? `PR: ${result.prUrl}\n\n` : ''}${robotText(result.reason ?? result.state)}\n\n${robotText(message)}`;
   const response = await github({method:'POST', path:`/repos/${plan.repo}/issues/${plan.issueNumber}/comments`, body:{body}});
   if (response.status !== 201) throw new Error('issue response could not be confirmed');
   return {posted:true};
@@ -690,6 +696,19 @@ export async function robotCli(args, env = process.env) {
     if (problems.length) throw new Error(problems.join('; '));
     return {ok:true};
   }
+  if (command === 'context') {
+    const plan = await json(join(temp, 'robot-plan.json'));
+    const issue = await robotRead(robotGithub, `/repos/${repo}/issues/${plan.issueNumber}`);
+    if (issue.number !== plan.issueNumber || issue.html_url !== `https://github.com/${repo}/issues/${plan.issueNumber}` || sha256(issue.body ?? '') !== plan.issueHash) throw Error('issue changed before dispatch; prepare again');
+    const bundle = await decisionContext({ root, issue: `${repo}#${plan.issueNumber}`, issueBody: issue.body });
+    const brief = decisionBrief(bundle);
+    plan.decisionBundle = bundle; plan.decisionDigest = bundle.digest;
+    await write('robot-plan.json', plan);
+    const protocol = await readFile(join(root, '.agents/robot/PROTOCOL.md'), 'utf8');
+    await mkdir(join(temp, ROBOT_BRIEF), { recursive: true });
+    await writeFile(join(temp, ROBOT_BRIEF, 'robot-prompt.md'), `${protocol}\n\n${brief}\n## Trusted allocation and untrusted issue data\n${JSON.stringify(plan, null, 2)}\n`);
+    return { state: bundle.state, decisionDigest: bundle.digest };
+  }
   if (command === 'prepare') {
     // Tonight's plan (phase 76): the plan branch's copy the workflow fetched, when there is one; dated
     // tonight (UTC) and valid, it narrows the scan; otherwise the robot admits as before, saying why.
@@ -706,7 +725,7 @@ export async function robotCli(args, env = process.env) {
     if (plan.state === 'ready') {
       const protocol = await readFile(join(root,'.agents/robot/PROTOCOL.md'),'utf8');
       await mkdir(join(temp,ROBOT_BRIEF),{recursive:true});
-      await writeFile(join(temp,ROBOT_BRIEF,'robot-prompt.md'),`${protocol}\n\n## Trusted allocation and untrusted issue data\n${JSON.stringify(plan,null,2)}\n`);
+      await writeFile(join(temp,ROBOT_BRIEF,'robot-prompt.md'),`${protocol}\n\n${decisionBrief(plan.decisionBundle)}\n## Trusted allocation and untrusted issue data\n${JSON.stringify(plan,null,2)}\n`);
     }
     return plan;
   }

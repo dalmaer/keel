@@ -343,3 +343,24 @@ test('overruns remain recorded but cannot promote even with otherwise winning pa
   await assert.rejects(w.call('apply'), /fresh audit/);
   assert.equal((await w.call('status')).runs.filter(r => r.finish).length, 6);
 });
+
+test('source-bound decision receipts refresh on handoff and reject caller fabricated digests', async t => {
+  const w = await world(t);
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('git', ['init','-q'], {cwd:w.root});
+  execFileSync('git', ['add','.'], {cwd:w.root});
+  execFileSync('git', ['commit','-qm','Acme'], {cwd:w.root});
+  await mkdir(join(w.root,'docs/phases'),{recursive:true});await mkdir(join(w.root,'docs/decisions'));
+  await writeFile(join(w.root,'docs/phases/00-acme.md'),'# Acme\n## Reconciliation\n```keel-reconciliation\n{"version":1,"decisions":["docs/decisions/store.md#store"]}\n```\n');
+  const path=join(w.root,'docs/decisions/store.md');
+  const put=owner=>writeFile(path,`<a id="store"></a>\n## Store\nAcme storage\n\`\`\`keel-decision\n${JSON.stringify({version:1,id:'store',status:'accepted',scope:['storage'],decided_by:owner,decided_at:'2026-01-01'})}\n\`\`\`\n`);
+  await put('Acme owner');await w.call('start',spec());
+  await assert.rejects(w.call('begin',descriptor('forged',{decisionDigest:'a'.repeat(64)})),/not caller supplied/);
+  const begun=await w.call('begin',descriptor('r',{decisionTarget:{kind:'phase',ref:'0'}}));
+  assert.equal(begun.runs[0].decisionDigest,begun.decisionBundle.digest);
+  await put('Acme changed owner');
+  await assert.rejects(w.call('handoff',handoff('r',{decisionDigest:'b'.repeat(64)})),/not caller supplied/);
+  const handed=await w.call('handoff',handoff('r'));assert.notEqual(handed.decisionBundle.digest,begun.decisionBundle.digest);
+  assert.equal(handed.runs[0].handoffs[0].decisionDigest,handed.decisionBundle.digest);
+  await rm(path);await assert.rejects(w.call('handoff',handoff('r',{id:'handoff2'})),/required decision context unavailable/);
+});

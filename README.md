@@ -206,6 +206,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel morning` | The night's brief: done, tried, failed and why, left alone, your next; `--send` opens the assigned "Good morning" issue, once a night; `--card` keeps the plan as a live canvas card |
 | `keel retro sessions` | Reserve and record bounded handoff trials; audit, promote and roll back within an explicit envelope (`keel improve --sessions` reads the same evidence) |
 | `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
+| `keel decision context` | Read scoped decisions for `--phase <id>` or `--issue <owner/repo#n>`; refresh before dispatch or resume |
 | `keel evidence rederive <phase>` | Preview structured measurements from a phase’s evidence; `--yes` reruns them and compares dated old/new values without rewriting history |
 | `keel prove <test> --fix <path>...` | A fix is proven by its test failing without it: runs the test with the fix reverted in a scratch copy of the repository, then with it, and prints VERIFIED, NOT WORKING or INCONCLUSIVE; `--trailer` gives the `Proven-by:` line a `fix:` commit carries. Never touches your tree |
 
@@ -280,3 +281,8 @@ Adoption previews include monthly weighted-minute estimates for newly added
 workflows, with history and coverage. `keel improve` reports `ci_minutes`;
 `ci.gateWorkflow` can reuse completed CI on the exact clean default-branch SHA.
 These usage estimates are not invoices. [CI usage and reuse](docs/guide/the-night-shift.md#actions-usage-and-reusing-ci).
+
+Builders can read current scoped choices with
+`keel decision context --phase <id> --json` (or `--issue <owner/repo#n>`).
+See [decision context](docs/reconciliation.md#decision-context-for-a-builder)
+for read bounds, provenance, exit states and dispatch/resume checks.

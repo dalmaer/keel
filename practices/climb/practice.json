@@ -3,6 +3,10 @@
   "summary": "Climb nights: on a schedule, an agent improves one number (the suite's time, a flaky test, the build's time, the project's own benchmark) or proposes for the owner (a distill pass over its lessons, a rank for each Loop finding) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR and decides every proposal. With \"tend\" set, a weekly tend pass resolves the night's record findings the same way.",
   "optional": true,
   "requires": ["night"],
+  "runtimeFiles": [
+    { "practice": "reconciliation", "path": "scripts/keel/reconcile.mjs" },
+    { "practice": "reconciliation", "path": "scripts/keel/decision-context.mjs" }
+  ],
   "secrets": [
     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each climb night spends model tokens up to .keel/keel.json climb.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/keel-climb.yml" },
     { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-climb.yml" },

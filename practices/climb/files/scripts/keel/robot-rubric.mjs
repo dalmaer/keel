@@ -21,7 +21,11 @@ export function validateRobotRubric(value) {
     if (!Array.isArray(list) || list.length > ROBOT_RUBRIC_LIMITS.items || list.some(v => !text(v) || v.length > ROBOT_RUBRIC_LIMITS.itemChars)) bad(field, 'list', `${field} needs an explicit array of at most ${ROBOT_RUBRIC_LIMITS.items} nonblank strings (${ROBOT_RUBRIC_LIMITS.itemChars} characters each); [] means none`);
     else rubric[field] = list.map(v => v.trim());
   }
-  for (const field of Object.keys(value)) if (!['version', ...fields, ...lists].includes(field)) bad(field, 'unknown', 'unknown rubric field');
+  if (value.decisions !== undefined) {
+    if (!Array.isArray(value.decisions) || value.decisions.length > 100 || value.decisions.some(v => !text(v) || v.length > 1024)) bad('decisions', 'list', 'decisions needs bounded explicit references');
+    else rubric.decisions = [...value.decisions];
+  }
+  for (const field of Object.keys(value)) if (!['version', 'decisions', ...fields, ...lists].includes(field)) bad(field, 'unknown', 'unknown rubric field');
   if (JSON.stringify(rubric).length > ROBOT_RUBRIC_LIMITS.totalChars) bad('rubric', 'size', `rubric exceeds ${ROBOT_RUBRIC_LIMITS.totalChars} characters`);
   if (!problems.length && render(rubric).length > ROBOT_RUBRIC_LIMITS.bodyChars - 1000) bad('rubric', 'size', 'escaped rubric exceeds the issue body budget');
   return { ok: !problems.length, rubric: problems.length ? null : rubric, problems };

@@ -140,6 +140,11 @@ Keep implemented, merged, production-verified and lived-in distinct. A merge
 never checks acceptance. Review correction proposals against fresh source
 facts; preserve historical evidence and the scope of replaced decisions.
 
+Before briefing or resuming a builder, run `keel decision context --phase <id>
+--json` (or `--issue <owner/repo#n>`). Carry its source digest and keep accepted
+choices separate from proposals. Broken required references stop dispatch;
+`not-configured` preserves legacy behavior and is not verified coverage.
+
 For projects configured with `phases.source: "milestones"`, GitHub owns the
 plan and keel reads it. Deadlines are `due`, never `after`; issue or milestone
 closure is source planning state, never acceptance. Edit the plan in GitHub
