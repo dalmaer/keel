@@ -133,3 +133,39 @@ test('generated prose roundtrips owner punctuation and literal entities without 
  assert.equal(parsed.status,'planned');assert.deepEqual(parsed.evidence,[]);
  assert.deepEqual(specProblems(o.path,o.content),[]);
 });
+
+test('every generated prose field preserves block-looking text without opening code blocks',async t=>{
+ const {root,record}=await world(t);
+ await writeFile(join(root,'docs/decisions/storage.md'),decision());
+ record.items[0].decisions=['docs/decisions/storage.md#store'];
+ const decode=s=>s.replace(/&#(\d+);/g,(_,n)=>String.fromCodePoint(Number(n)));
+ for(const words of ['~~~ Acme fence','   ~~~~ Acme fence','    Acme indented code','\tAcme tab code','\n    ~~~ Acme newline fence']) {
+  const flat=words.replace(/\n/g,' '),w=record.items[0],a=record.answers[0];
+  for(const field of ['title','problem','scope','doneWhen'])w[field]=words;
+  w.surfaces[0].proof=words;
+  for(const field of ['actor','source','text'])a[field]=words;
+  await save(root,record);
+  const p=await preview(root),o=p.outputs[0],lines=o.content.split('\n');
+  assert.doesNotMatch(o.content,/^(?: {0,3}~{3,}| {4}|\t)/m,`prose must not start a code block: ${JSON.stringify(words)}`);
+  assert.equal(decode(lines.find(l=>l.startsWith('# ')).slice(2)),flat);
+  assert.equal(decode(o.content.split('## Done when\n\n')[1].split('\n\n')[0]),flat);
+  const scope=o.content.split('## Scope\n\n')[1].split('\n\n');
+  assert.equal(decode(scope[0]),flat);assert.equal(decode(scope[1]),flat);
+  assert.ok(decode(o.content).includes(`- ${w.surfaces[0].name}: ${flat}`));
+  assert.ok(decode(o.content).includes(`match: manual owner answer by ${flat} at ${a.time} (${flat}): ${flat}`));
+  assert.equal(lines.filter(l=>l==='## Next action').length,1);
+  assert.equal(lines.filter(l=>l==='```keel-reconciliation').length,1);
+  assert.equal(lines.filter(l=>l==='```').length,1);
+  assert.deepEqual(specProblems(o.path,o.content),[]);
+  await writeShape(root,'idea.json',p.digest);
+  assert.equal(await readFile(join(root,o.path),'utf8'),o.content);
+  await rm(join(root,o.path));
+ }
+});
+
+test('phase dependencies cannot borrow phase numbers from robot previews',async t=>{
+ const {root,record}=await world(t);
+ record.items.push({...structuredClone(record.items[0]),id:'robot',kind:'robot',phase:0,depends:[]});
+ record.items[0].depends=['robot'];await save(root,record);
+ await assert.rejects(preview(root),/phase cannot depend on a robot preview/);
+});
