@@ -58,3 +58,5 @@ Observe an approved shaping session with real owner choices; compare the resulti
 ## Trajectory
 
 2026-10-20: Recovery must ignore only its own exact generated draft bytes when recomputing source context. The resolver verifies hashes and excludes no file containing decision metadata. Otherwise the first successful write could invalidate its own retry. Milestone previews reject external local-phase dependencies rather than treating unknown references as valid.
+
+2026-10-20: Independent review caught a blocker inferred from formatted owner words. The fix derives unanswered prerequisites from structured IDs; a red-without/green-with regression proves the correction.

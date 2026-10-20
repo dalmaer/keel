@@ -91,3 +91,20 @@ test('minimal independent fixture is supported and oversized escaped drafts refu
  record.items[0].doneWhen='&'.repeat(4000);record.items[0].proof=Array.from({length:16},(_,i)=>`node test-${i}.mjs`);await save(root,record);
  await assert.rejects(preview(root),/generated phase exceeds/);await assert.rejects(readdir(join(root,'.keel/shaping')),{code:'ENOENT'});
 });
+
+test('answered owner wording cannot create an unanswered prerequisite blocker',async t=>{
+ const {root,record}=await world(t);
+ record.answers[0].text='Keep the wording "unanswered; owner required" in the Acme explanation.';
+ await save(root,record);
+ const p=await preview(root),o=p.outputs[0],parsed=parsePhase(o.path.split('/').at(-1),o.content);
+ assert.doesNotMatch(parsed.next,/BLOCKED/);
+ assert.match(parsed.next,/Review this draft and proof sufficiency/);
+ assert.match(o.content,/unanswered; owner required/,'the actual owner words are retained');
+ record.questions.push({...structuredClone(record.questions[0]),id:'color'});
+ record.items[0].ownerPrerequisites.push('color');
+ await save(root,record);
+ const pending=(await preview(root)).outputs[0];
+ const next=parsePhase(pending.path.split('/').at(-1),pending.content).next;
+ assert.match(next,/BLOCKED.*prerequisites color/);
+ assert.doesNotMatch(next,/prerequisites match/,'only the unanswered ID is a blocker');
+});
