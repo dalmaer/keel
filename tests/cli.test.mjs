@@ -197,11 +197,12 @@ Measure the count.
     // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
       const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
+      // shape needs an explicit record; its packed lifecycle is covered separately.
       // decision needs a source revision; this copied tree has no git history.
       // phase claim, ready and integrate need a remote to push to, and this copy has none: exit 2, as JSON
       // (tests/claim.test.mjs and tests/integrate.test.mjs cover the verbs). promote needs the delivery practice,
       // which keel's copy has not taken: exit 2, as JSON (tests/promote.test.mjs covers the verb).
-      assert.equal(r.code, name === 'issue' ? 3 : ['phase claim', 'ready', 'integrate', 'promote', 'decision'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
+      assert.equal(r.code, name === 'issue' ? 3 : ['phase claim', 'ready', 'integrate', 'promote', 'decision', 'shape'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
       if (name === 'evidence rederive') {

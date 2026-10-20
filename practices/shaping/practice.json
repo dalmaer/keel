@@ -1,0 +1,11 @@
+{
+  "name": "shaping",
+  "summary": "Review bounded ideas and attributed choices before seeding local plans.",
+  "optional": true,
+  "requires": [],
+  "files": [
+    {"path":"docs/shaping.md","from":"docs/shaping.md","kind":"managed"},
+    {"path":"docs/templates/shaping.json","from":"docs/templates/shaping.json","kind":"seeded"},
+    {"path":"AGENTS.md","from":"AGENTS.block.md","kind":"block","block":"shaping"}
+  ]
+}

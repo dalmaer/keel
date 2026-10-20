@@ -1,7 +1,6 @@
 # keel — agent cold start
 
-Keel installs project practices; init/adopt also run outside a project.
-Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
+Read `.keel/keel.json`’s `guide`, or AGENTS.md/CLAUDE.md.
 
 Verbs (all take `--json`; parse JSON, never prose):
 
@@ -9,7 +8,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel next` — next free phase; `--project <p>`
 - `keel goal list|show|add|retire` — goals and progress
 - `keel phase new|list|claim` — scaffold, list or claim phases
-- `keel ready|integrate` — hand off; one gate, one push
+- `keel ready|integrate` — hand off; one gate
 - `keel render` — render practices; `--check` reads only (exit 1)
 - `keel init [dir] --description "<p>"` — new project; `--github` exit 3
 - `keel adopt [dir]` — adopt a repo; `--dry-run` writes nothing
@@ -24,7 +23,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel drain <prefix>` — newest passing PR per queue; exit 3
 - `keel night plan|tick` — the plan
 - `keel goodnight` — shape it
-- `keel morning` — the brief; `--send`
+- `keel morning` — brief; `--send`
 - `keel production` — status, collect, spec, verify
 - `keel fleet` — fleet practice, health, CI
 - `keel fleet update` — PRs for projects behind; exit 3
@@ -36,6 +35,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, live, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
+- `keel shape check|render|plan` — local review and digest-approved drafts
 - `keel decision context` — scoped choices for `--phase` or `--issue`
 - `keel evidence rederive <phase>` — preview; `--yes` reruns
 - `keel prove <test> --fix <path>...` — red without the fix?
@@ -53,10 +53,9 @@ Rules:
 - ⚑ steps (creating repos, secrets, Pages, issues elsewhere, scheduled model
   spend) wait for the owner's yes.
 
-Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
-3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
+Exits: 0 ok; 1 failure; 2 usage; 3 needs owner's yes. JSON errors: `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision` `shape`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -2424,3 +2423,25 @@ refreshDecisionContext, decisionBrief and decisionExitCode. Refresh recomputes
 from source; never reuse a saved bundle as proof. Reconciliation stays standalone;
 climb imports only its two runtime scripts for robot briefs; reconciliation
 remains opt-in, including its workflows and checks.
+
+<!-- topic: shape | Shape an idea into reviewed local work -->
+
+Opt in with `keel adopt --with shaping` (or init `--with shaping`). Read
+`docs/shaping.md` and named source records first. Ask only unresolved aims,
+taste, authority or resources. Implementation advice is a recommendation.
+
+- `keel shape check <file> --json`: bounded version-1 validation, no writes.
+- `keel shape render <file> --output <new-directory> --json`: escaped local
+  HTML and text; creates an immutable preview receipt.
+- `keel shape plan <file> --json`: exact phase bytes and robot rubric previews;
+  saves the digest receipt locally, never creates an issue or launches a model.
+- `keel shape plan <file> --yes --digest <reviewed-digest> --json`: write those
+  drafts exclusively. Changed sources require a newly reviewed digest; a changed
+  destination refuses recovery. Retry the same digest after an interruption.
+
+Paths are repository-relative, with no symlink traversal. Inputs are at most
+256 KiB, 12 questions and 20 work items. Attributed owner answers are manual
+provenance, never authenticated. Unanswered questions and proposed decisions
+remain unresolved. Proof is named, never verified; the conductor judges it.
+Milestone-backed projects receive previews only. Existing choices stay in their
+source records; proposed replacements need manual reciprocal scoped links.

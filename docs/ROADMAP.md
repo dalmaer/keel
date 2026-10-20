@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**44 of 93 phases built; 39 owe a walk.** Built means implemented and checked; planned is not available.
+**45 of 93 phases built; 39 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `keel canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `keel canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -13,7 +13,7 @@ Goals are outcomes, not dates. Counts are derived; superseded work is retired, n
 
 Every rule keel will ship is already holding on keel: phases own status, the roadmap is checked, lessons are shapes, and the conductor can walk the plan.
 
-10/22 built; 10 owe a walk.
+11/22 built; 10 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ Every rule keel will ship is already holding on keel: phases own status, the roa
 | [86. A whole night runs in one test](phases/86-a-whole-night-runs-in-one-test.md) | partial, walk owed | 2026-10-16 | [73](phases/73-a-night-has-a-plan-written-before-it-runs-and.md), [76](phases/76-the-night-builds-what-the-plan-names-and-only.md), [77](phases/77-the-plan-lives-on-the-canvas-and-the-morning.md), [78](phases/78-the-night-s-plan-stays-live-the-card-ticks.md) | Built 2026-10-17: tests/night-box.test.mjs runs one night end to end through the shipped workflows' own steps (goodnight, plan, measure, the climb tick, decide, finalize, send, the card) with a frozen clock, a bare origin, a stub gh and the fake isocan, and reads the brief and the card; breaking any one stage names it. Owes the owner a look at it in CI. · [#171](https://github.com/dalmaer/keel/issues/171) |
 | [87. Builders restate what done means first, and report in one shape](phases/87-builders-restate-what-done-means-first-and.md) | partial, walk owed | 2026-10-16 | — | Built 2026-10-16: the conduct skill's brief ends with the restatement and fixes the report's sections in order; its verify step reads the restatement first and refuses a report missing an acceptance box or an exit code. Owes the owner one read of a conducted phase's report. · [#172](https://github.com/dalmaer/keel/issues/172) |
 | [90. Builders receive the decisions that still apply](phases/90-builders-receive-current-decisions.md) | built | 2026-10-20 | [26](phases/26-reconciliation.md), [87](phases/87-builders-restate-what-done-means-first-and.md) | Scoped decision context is implemented and checked through packed, adopted and workflow surfaces; live use remains. |
-| [91. An idea becomes work without losing the owner choices](phases/91-ideas-become-plans-with-attributed-choices.md) | planned | 2026-10-20 | [90](phases/90-builders-receive-current-decisions.md) | Authorized specification; implementation and real-use evidence remain. |
+| [91. An idea becomes work without losing the owner choices](phases/91-ideas-become-plans-with-attributed-choices.md) | built | 2026-10-20 | [90](phases/90-builders-receive-current-decisions.md) | Local shaping, reviewed drafts and recovery pass packed and adopted checks; live use remains. |
 
 - **0 done when:** A fresh clone of keel passes `npm run check` on GitHub Actions, and `/conduct keel` can read the next phase and its next action from the repo alone.
 - **1 done when:** Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.

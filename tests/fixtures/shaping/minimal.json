@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "acme",
+  "revision": 1,
+  "date": "2026-10-20",
+  "goal": "G0",
+  "sources": [],
+  "questions": [],
+  "answers": [],
+  "proposedDecisions": [],
+  "items": [{
+    "id": "search", "kind": "phase", "phase": 1,
+    "title": "Acme search returns an exact match",
+    "problem": "Acme has no search behavior.",
+    "scope": "Implement exact match lookup.",
+    "doneWhen": "An existing Acme entry is returned for its exact key.",
+    "proof": ["node --test tests/search.test.mjs"],
+    "depends": ["phase:0"],
+    "decisions": [],
+    "ownerPrerequisites": [],
+    "surfaces": []
+  }]
+}

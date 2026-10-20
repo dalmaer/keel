@@ -10,7 +10,7 @@ const stable = x => JSON.stringify(x, (_, v) => v && typeof v === 'object' && !A
 const strings = x => Array.isArray(x) && x.every(s => typeof s === 'string' && s.trim());
 export const DECISION_LIMITS = Object.freeze({ records: 100, bytes: 2 * 1024 * 1024, hops: 20 });
 
-export async function decisionContext({ root, phase, issue, issueBody }) {
+export async function decisionContext({ root, phase, issue, issueBody, generatedPhases = [] }) {
   const out = { schema: 1, target: { kind: phase !== undefined ? 'phase' : 'issue', ref: String(phase ?? issue ?? '') }, revision: null, sources: [], decisions: [], proposals: [], gaps: [] };
   const gap = (code, ref, message, unavailable = false) => out.gaps.push({ code, ref, message, unavailable });
   let bytes = 0, count = 0;
@@ -47,6 +47,7 @@ export async function decisionContext({ root, phase, issue, issueBody }) {
   let refs = [];
   try {
     root = await realpath(root);
+    if (!Array.isArray(generatedPhases) || generatedPhases.length > 20 || generatedPhases.some(s => !/^docs\/phases\/\d+-[a-z0-9-]+\.md$/.test(s?.path ?? '') || !/^[a-f0-9]{64}$/.test(s?.hash ?? ''))) throw Error('invalid generated phase exclusions');
     if ((phase !== undefined) === (issue !== undefined)) throw Error('exactly one phase or issue required');
     if (phase !== undefined && !/^\d+$/.test(String(phase))) throw Error('phase must be a nonnegative integer');
     if (issue !== undefined && !/^[\w.-]+\/[\w.-]+#[1-9]\d*$/.test(issue)) throw Error('issue must be owner/repo#n');
@@ -103,6 +104,17 @@ export async function decisionContext({ root, phase, issue, issueBody }) {
             await inventory(`${path}/${name}`, depth + 1);
           }
         } else if (path.endsWith('.md')) {
+          // Shaping recovery may omit its exact generated drafts from the inventory.
+          // Recheck bytes and syntax here: no exclusion can hide a decision record.
+          // Explicit decision references still pass through read/load below.
+          const generated = generatedPhases.find(s => s.path === path);
+          if (generated && stat.isFile() && stat.size <= 262144) {
+            const bytes = await readFile(target);
+            if (bytes.length <= 262144 && hash(bytes) === generated.hash) {
+              const doc = markdown(bytes.toString('utf8'));
+              if (!doc.unclosed && !doc.fences.some(f => f.type === 'keel-decision')) return;
+            }
+          }
           const doc = await read(path);
           for (const f of doc.fences.filter(f => f.type === 'keel-decision' && (path.startsWith('docs/decisions/') || f.section.explicit))) {
             const v = jsonFence(f);
