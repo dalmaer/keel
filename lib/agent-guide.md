@@ -1,7 +1,6 @@
 # keel — agent cold start
 
-Keel installs phases, roadmaps, lessons and evidence.
-Run in a project; init/adopt also run outside one.
+Keel installs project practices; init/adopt also run outside a project.
 Read `.keel/keel.json`’s `guide`; otherwise AGENTS.md or CLAUDE.md.
 
 Verbs (all take `--json`; parse JSON, never prose):
@@ -37,14 +36,15 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, live, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
+- `keel decision context` — scoped choices for `--phase` or `--issue`
 - `keel evidence rederive <phase>` — preview; `--yes` reruns
 - `keel prove <test> --fix <path>...` — red without the fix?
-- `keel release <x.y.z> --notes <file>` — review, version, tag
+- `keel release` — review, version, tag
 - `keel help` — verbs
-- `keel --agent-help` — cold start; `<topic>` or `all` for details
-- `keel --version` — CLI, commit, practice
+- `keel --agent-help` — `<topic>` or `all` for details
+- `keel --version` — version
 
-Rules that bite:
+Rules:
 
 - Status lives in each `docs/phases/NN-*.md` front matter. Never edit
   `docs/ROADMAP.md`; it is generated.
@@ -56,7 +56,7 @@ Rules that bite:
 Exit codes: 0 ok; 1 found a failure; 2 usage, or not in a project;
 3 a ⚑ step needs the owner's yes, nothing done. Under `--json` an error is `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -2398,3 +2398,29 @@ failing the workflow. Nightly cadence shorter than the configured coverage
 window is not assumed continuous. Plan triage, health and morning expose
 candidates and gaps. Exit 0 observed/prepared; 1 unavailable/inconclusive; 2 refused;
 3 preview. All commands accept `--json`.
+
+<!-- topic: decision | current scoped decisions for builders -->
+
+`keel decision context --phase <id> --json` reads the phase's explicit
+`keel-reconciliation.decisions`. `--issue <owner/repo#n>` reads GitHub issue
+rubric `decisions` and `keel-impact.decisions`, requiring the local config's repo
+to match. Arbitrary prose is never an instruction or a reference source.
+
+Read-only schema 1 returns target, revision, sources ({path, anchor, hash}),
+decisions (ref, scope, decided_by, decided_at, statement, chain), proposals,
+gaps, state and digest. Hashes cover working-tree bytes, including the bounded
+metadata inventory used to discover missing reciprocal successors. No references
+means `not-configured`, not verified coverage. Exit 0: complete or not configured;
+1: contradictory records; 2: invalid or unavailable required input. Reads stop at
+100 decision records, 2 MiB total and 20 supersession hops. Paths cannot escape
+the repo or traverse symlinks. Local records never cause URL fetches.
+
+Re-run before dispatch and resume; broken required context blocks both. Include
+accepted choices separately from proposals and unresolved choices, and report
+the digest used and task conflicts. At a safe boundary report source changes for
+reconciliation. Attribution is not authentication; no permission is granted.
+Installed resolver: scripts/keel/decision-context.mjs exports decisionContext,
+refreshDecisionContext, decisionBrief and decisionExitCode. Refresh recomputes
+from source; never reuse a saved bundle as proof. Reconciliation stays standalone;
+climb imports only its two runtime scripts for robot briefs; reconciliation
+remains opt-in, including its workflows and checks.

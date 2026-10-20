@@ -90,3 +90,39 @@ are still outside this typed slice.
 
 The compiler and type fixtures are development tools; neither they nor emitted
 JavaScript are required by an installed CLI or adopted project.
+
+## Share installed runtime files between practices
+
+A practice's `files` entries remain the single source and owner of its targets.
+Use `requires` only when the consuming project must explicitly enable the whole
+other practice. It validates that selection; it does not enable optional
+practices automatically.
+
+For a shared runtime without the other practice's workflows or checks, declare
+an explicit list in the consumer's `practice.json`:
+
+```json
+"runtimeFiles": [
+  { "practice": "reconciliation", "path": "scripts/keel/reconcile.mjs" },
+  { "practice": "reconciliation", "path": "scripts/keel/decision-context.mjs" }
+]
+```
+
+Each reference must resolve to an unconditional managed `.mjs` file immediately
+under `scripts/keel/`. Missing, seeded, conditional, symlink and workflow targets
+are rejected. List every required sibling explicitly; imports are not recursive.
+Keep JavaScript imports static and test the installed sibling layout.
+
+Rendering includes those exact files and retains their original `practice` in
+`.keel/lock.json`. Selecting both practices still writes each target once. Later
+renders and updates retain these lock rows while the consumer is selected, even
+when the source practice remains disabled. No workflow, secret, template, check
+or configuration membership is inherited. For example, climb receives the two
+scripts above while reconciliation's record checks remain off.
+
+A source practice declared in `local` suppresses its runtime imports; individually
+`ejected` paths are also left alone. Existing unlocked human files are reported
+as edited, never overwritten. Missing required runtime modules stop the robot
+before dispatch; the renderer does not restore an ejected or local runtime.
+Test init and update from the packed CLI, including repeated updates, retained
+source ownership, absent optional workflows, and local/ejected refusal paths.

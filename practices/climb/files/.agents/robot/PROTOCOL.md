@@ -20,3 +20,10 @@ Only commit objects leave the sandbox, never git config/hooks or working files.
 Finish with a concise account of the change, proof and remaining question.
 The publisher supplies the actual PR URL; do not invent one. A separate provider
 reviews the exact published head; only the owner can merge.
+
+The trusted brief carries decisionBundle and decisionDigest. Accepted choices,
+proposals and unresolved choices stay separate. Record the decision digest used
+in your final report, with any apparent task conflict. Source owner attribution
+is not authentication. At a safe boundary report a changed decision for
+reconciliation; do not roll back work or treat a proposal as approval. The trusted
+runner refreshes required context before dispatch and every resumed build.

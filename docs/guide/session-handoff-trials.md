@@ -177,3 +177,10 @@ The initial delivery proves the protocol, not that 250k improves Keel. Follow
 normal authorized work, retain unsuccessful experiments, and promote fleet-wide
 defaults only after real comparable evidence. See the
 [design and limits](../specs/session-handoff-trials.md).
+
+A run descriptor may include `decisionTarget: {"kind":"phase","ref":"0"}`
+(or kind `issue`, with `owner/repo#n`). Begin and handoff resolve it afresh,
+refuse broken required context and retain `decisionDigest`; responses include
+`decisionBundle`. Before a resumed builder starts, run `keel decision context`
+again for that target and revalidate claim ownership. Existing runs without a
+target keep their previous behavior; owner choices and suggestions remain distinct.

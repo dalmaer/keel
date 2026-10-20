@@ -30,13 +30,13 @@ function prosePRs(text, repo) {
   if (repo) for (const match of references.matchAll(/(?<![\w./-])PR\s*#?([1-9]\d*)\b/gi)) keys.add(`${repo}#${match[1]}`);
   return keys;
 }
-function refParts(ref) {
+export function refParts(ref) {
   if (!string(ref) || ref.length > 1024) throw Error('invalid record reference');
   const [path, anchor, ...rest] = ref.split('#');
   if (rest.length || !/^docs\/(?:phases\/|projects\/|decisions\/|research\/|evidence\/|design\.md$)/.test(path) || !path.endsWith('.md') || /[\\\x00-\x1f%:]/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..') || (anchor !== undefined && !/^[\w.-]+$/.test(anchor))) throw Error(`unsafe record reference: ${ref}`);
   return { path, anchor };
 }
-async function safePath(root, path) {
+export async function safePath(root, path) {
   let current = root;
   for (const part of path.split('/')) {
     current = join(current, part);
@@ -45,7 +45,7 @@ async function safePath(root, path) {
   }
   return current;
 }
-function markdown(text) {
+export function markdown(text) {
   const sections = [], fences = [], prose = [];
   let section = { title: '', anchor: null, explicit: false, lines: [] }, fence = null, pending = null;
   const ancestry = [];
@@ -56,6 +56,11 @@ function markdown(text) {
       if (new RegExp(`^ {0,3}${fence.char}{${fence.size},}\\s*$`).test(line)) { fences.push({ ...fence, body: fence.lines.join('\n'), section }); fence = null; }
       else fence.lines.push(line);
       continue;
+    }
+    // A standalone anchor before a heading belongs to that next section. Defer
+    // attaching it until content appears, preserving anchors after headings too.
+    if (pending && line.trim() && !/^(#{1,6})\s+/.test(line) && !/<a\s+(?:id|name)=/.test(line)) {
+      section.anchor = pending; section.explicit = true; pending = null;
     }
     const f = /^ {0,3}(`{3,}|~{3,})([^\s]*)\s*$/.exec(line);
     if (f) { fence = { char: f[1][0], size: f[1].length, type: f[2], lines: [], section }; continue; }
@@ -68,12 +73,12 @@ function markdown(text) {
       const historical = /^(?:trajectory|history|historical|evidence|proof)\b/i.test(heading[2]) || ancestry.some(s => s.historical);
       section = { historical, title: heading[2], level: heading[1].length, anchor: a?.[1] || pending || `${slug}${count ? `-${count}` : ''}`, explicit: !!(a || pending), lines: [] };
       sections.push(section); ancestry.push(section); pending = null;
-    } else if (a) { pending = a[1]; section.anchor = a[1]; section.explicit = true; }
+    } else if (a) { pending = a[1]; continue; }
     section.lines.push(line); prose.push(line);
   }
   return { sections, fences, prose: prose.join('\n'), unclosed: fence };
 }
-function jsonFence(f) {
+export function jsonFence(f) {
   const v = JSON.parse(f.body);
   if (!object(v) || v.version !== 1) throw Error(`${f.type} requires an object with version 1`);
   return v;

@@ -83,13 +83,6 @@ jobs:
           ROBOT_HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
           ROBOT_HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
         run: node scripts/keel/robot.mjs prepare --json
-      # Upload BEFORE any untrusted agent runs: immutable admission, not agent-written metadata.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: robot-plan
-          path: ${{ runner.temp }}/robot-plan.json
-          if-no-files-found: error
-          retention-days: 7
       - name: Read the config
         if: steps.prepare.outputs.ready == 'true'
         id: config
@@ -181,6 +174,19 @@ jobs:
           mkdir -p .keel/agent-git/info
           echo "/.keel/agent-git/" >> .keel/agent-git/info/exclude
           mkdir -p /tmp/keel-codex
+      - name: Refresh required decisions before dispatch or resume
+        if: steps.prepare.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node "$RUNNER_TEMP/trusted/robot.mjs" context --json
+      # Upload BEFORE any untrusted agent runs: immutable admission, not agent-written metadata.
+      - if: always() && steps.prepare.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: robot-plan
+          path: ${{ runner.temp }}/robot-plan.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Require Claude subprocess isolation
         if: steps.prepare.outputs.ready == 'true' && steps.prepare.outputs.author == 'claude'
         shell: bash

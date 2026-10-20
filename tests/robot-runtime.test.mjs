@@ -14,7 +14,7 @@ import { formatRobotRubric } from '../practices/climb/files/scripts/keel/robot-r
 // Load exactly the shipped sibling layout, as adopted projects do.
 const runtime = await mkdtemp(join(tmpdir(), 'acme-robot-runtime-'));
 after(() => rm(runtime, {recursive:true, force:true}));
-for (const dir of ['practices/night/files/scripts/keel', 'practices/climb/files/scripts/keel']) {
+for (const dir of ['practices/night/files/scripts/keel', 'practices/climb/files/scripts/keel', 'practices/reconciliation/files/scripts/keel']) {
   for (const name of await readdir(dir)) if (name.endsWith('.mjs')) await cp(join(dir,name),join(runtime,name));
 }
 const { prepareRobot,publishRobotTriage,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,prepareRobotReview,robotSandbox,robotFetch,robotClosingProblems } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
@@ -1174,4 +1174,17 @@ test('robot admits the issue keel goodnight drafts from an accepted Loop finding
  const handMade=formatRobotRubric({...loopRubric(bare,number),change:'see the finding',prerequisites:['the finding cites a file']});
  const blocked=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:api({body:handMade}).github});
  assert.deepEqual([blocked.state,blocked.triage,blocked.reason],['blocked',true,'prerequisite verification unavailable; resolve prerequisites before labelling']);
+});
+
+test('robot decision admission refuses missing sources and retains digest in its trusted report', async t => {
+ const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify({repo,...config}));
+ await mkdir(join(root,'docs/decisions'),{recursive:true});
+ const ref='docs/decisions/store.md#store';
+ const a=api({body:formatRobotRubric({...rubric,decisions:[ref]})});
+ const prepare=()=>prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ assert.equal((await prepare()).state,'blocked');
+ await writeFile(join(root,'docs/decisions/store.md'),'<a id="store"></a>\n# Store\nAcme storage\n```keel-decision\n'+JSON.stringify({version:1,id:'store',status:'accepted',scope:['storage'],decided_by:'Acme owner',decided_at:'2026-01-01'})+'\n```\n');
+ const plan=await prepare();assert.equal(plan.state,'ready',plan.reason);assert.equal(plan.decisionBundle.state,'complete');assert.equal(plan.decisionDigest,plan.decisionBundle.digest);
+ await robotComment({plan,result:{state:'failed',reason:'Acme fixture'},github:a.github,now});
+ assert.ok(a.writes.at(-1).body.body.includes(`Decision digest used: ${plan.decisionDigest}`));
 });

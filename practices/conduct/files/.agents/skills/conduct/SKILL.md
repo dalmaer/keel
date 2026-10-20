@@ -120,6 +120,18 @@ lessons by path and heading. In words, the brief carries only what the docs
 - who else is working in the tree;
 - where to stop.
 
+Before dispatch **and before every resume**, run
+`keel decision context --phase <N> --json` in the target checkout. Exit 1 or 2
+blocks work until the records are repaired or the target is explicitly revised.
+Exit 0 with `not-configured` preserves legacy behavior; it is not verified coverage.
+Include the returned bundle (or a scratchpad path to its exact JSON) in the brief:
+accepted choices, proposals and gaps stay separate. Re-run immediately before
+use to refresh working-tree hashes and revision; never trust a saved digest alone.
+At the next safe boundary, re-resolve and report changed decisions for reconciliation.
+Do not terminate running agents or roll back their work automatically. Source owner
+attribution is evidence, not authentication; the bundle grants no new permission.
+A handoff retains the target and digest; resuming also revalidates claim ownership.
+
 Aim for under 600 words.
 
 ```
@@ -129,6 +141,7 @@ Contract: docs/phases/<NN-name>.md. Design: <doc> <sections>.
 Real surfaces: <the phase's list, word for word, or none>; build so each one can be proven there.
 Trajectory that binds you: <one line each, only ones that change what you build>.
 Decided here, not in the docs: <…>
+Decision context: <bundle path, state and digest; separate accepted choices/proposals/gaps>
 
 ## Who else is in the tree   (another builder's paths, and which red checks are theirs)
 ## What you own
@@ -151,7 +164,8 @@ conductor runs it once on the integrated tree (with a remote, through
 (`claims/integrate`) lets one run at a time.
 
 ## What you return (under 600 words), these sections in this order
-0. Done means: your restatement, from below, word for word.
+0. Done means: your restatement, from below, word for word. Name the decision
+   digest used and any apparent conflict between the task and accepted choices.
 1. What changed: the files and commits, and one paragraph on how it works.
 2. Each acceptance box: the test that proves it (file and test name), or why
    it has none.

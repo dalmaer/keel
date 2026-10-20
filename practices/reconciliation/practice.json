@@ -10,6 +10,11 @@
       "kind": "managed"
     },
     {
+      "path": "scripts/keel/decision-context.mjs",
+      "from": "scripts/keel/decision-context.mjs",
+      "kind": "managed"
+    },
+    {
       "path": ".github/workflows/keel-impact.yml",
       "from": ".github/workflows/keel-impact.yml",
       "kind": "managed"

@@ -39,11 +39,11 @@
     },
     ".agents/robot/PROTOCOL.md": {
       "practice": "climb",
-      "sha256": "e248ed14c31ead6fa66e8a39b86736b0954ec92e7793113055c66930180199a9"
+      "sha256": "3b9a12dd1539d3e41521f846d070f24875c97baa93a3a2067a089f24e55a99db"
     },
     ".agents/skills/conduct/SKILL.md": {
       "practice": "conduct",
-      "sha256": "5e4865716b34bdba644a735101ff4e6d403e05506c67a55fa6b65f9da2c702d2"
+      "sha256": "58ace3f4ddc34cbf792335a20e9a312eae8a071c4504c559e16dc29373f49b52"
     },
     ".agents/skills/keel/SKILL.md": {
       "practice": "agents-md",
@@ -91,7 +91,7 @@
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
-      "sha256": "261a5f03dfadc391086b52731f3b9b72b8bc7af4963363724240903996798377"
+      "sha256": "e60b8dd4029854357f9294a995c7c21bdd7ba3a95c87554b62cf1584eff7572d"
     },
     ".github/workflows/keel-tend.yml": {
       "practice": "climb",
@@ -135,7 +135,7 @@
     },
     "docs/reconciliation.md": {
       "practice": "reconciliation",
-      "sha256": "5586b4b1349310d76a981edf4f8fc6baba3db069a4d1b818d845b1532ca1ff13"
+      "sha256": "c61e29599d532c917fa68a1da13c3a0af0945d8a0c7b5adaf7abbb72552d4f17"
     },
     "docs/templates/evidence.md": {
       "practice": "evidence",
@@ -164,6 +164,10 @@
     "scripts/keel/cross-review.mjs": {
       "practice": "cross-review",
       "sha256": "0c666c476ac1ac7c5fb36c60a2d1d7287dbc38ecbcd440f3942a08a8e0094d0b"
+    },
+    "scripts/keel/decision-context.mjs": {
+      "practice": "reconciliation",
+      "sha256": "150e3bf9a947358ccccc34e1b0dd3345a1daa9229a4182524bc4a5063bdefeb0"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",
@@ -243,7 +247,7 @@
     },
     "scripts/keel/reconcile.mjs": {
       "practice": "reconciliation",
-      "sha256": "847174e42609f6a64c7cdae60d8a5e23ee5f033e5d95eb497053e9adad784e69"
+      "sha256": "186346d9f1c5ce92fdbfd18376cf5931ebd34fd40c30f9ec97d2cc997c54a2ba"
     },
     "scripts/keel/robot-budget.mjs": {
       "practice": "night",
@@ -259,11 +263,11 @@
     },
     "scripts/keel/robot-rubric.mjs": {
       "practice": "climb",
-      "sha256": "868d432ffb23883c66c3634b910814f4e08cfce8ee0970a438cbca3ec7fcdef4"
+      "sha256": "1ed9528aec394dbec1931ea40dcd966455dd57268d78994cbe95239ffacca374"
     },
     "scripts/keel/robot.mjs": {
       "practice": "climb",
-      "sha256": "e78d8388cd7d717bdf46cd5ea3946b5b22671e31037d8460444dc0aeb69cf15e"
+      "sha256": "91a06dd3cab91d9ff90c3f5a01070037b592603bbb978f53ebc838b1cb5fc150"
     },
     "scripts/keel/stalls.mjs": {
       "practice": "night",

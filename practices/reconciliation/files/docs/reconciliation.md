@@ -56,3 +56,35 @@ migration, custom Loop step, or dependency change edits actual records, replace
 that declaration with the affected references and review the reconciliation;
 the diff check grants no exemption for bots. Existing open PRs and local bot
 configurations are not rewritten: add the declaration to their bodies/configs.
+
+## Decision context for a builder
+
+Run `keel decision context --phase <id> --json` before dispatch and resume.
+For an issue use `--issue <owner/repo#n>`; its repository must match local config.
+Phase references come from `keel-reconciliation.decisions`; issue references from
+rubric `decisions` or `keel-impact.decisions`. Unstructured issue prose is data.
+
+The read-only schema-1 bundle includes target, revision, sources with path,
+anchor and content hash, scoped decisions with owner/date and supersession chain,
+separate proposals, gaps, state and deterministic digest. Working-tree edits
+invalidate the digest. No references is explicitly `not-configured` (exit 0),
+not verified coverage. Complete is exit 0; contradictions are exit 1; unavailable
+required context or invalid input is exit 2. Either nonzero result blocks work.
+Bounded explicit metadata indexing finds incoming replacements even when a
+reciprocal link was omitted: at most 100 decisions, 2 MiB and 20 hops. Unsafe
+paths and symlinks are refused. Proposed successors displace nothing.
+
+Conductor and robot briefs retain the bundle; reports name the digest used and
+any apparent conflict. Re-read before dispatch or resume, and report changes at
+safe boundaries. Recorded owner attribution is not authentication and grants no
+merge, deployment or spend permission. Source records remain authoritative.
+The installed `decision-context.mjs` exports `decisionContext({root, phase,
+issue, issueBody})`, `refreshDecisionContext({root, bundle, issueBody})`,
+`decisionBrief(bundle)` and `decisionExitCode(bundle)`. Refresh returns
+`{bundle, changed, allowed}`. Issue callers must supply a fresh body; missing
+input fails closed. The standalone `reconcile.mjs` has no new imports.
+
+Climb imports only the two managed runtime scripts through its `runtimeFiles`
+declaration. This preserves their source owner without enabling reconciliation's
+workflows, templates, secrets or checks. Reconciliation remains explicitly opt-in.
+Local practice overrides and ejected files remain project-owned.

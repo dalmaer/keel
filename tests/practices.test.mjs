@@ -5,7 +5,7 @@ import { run as spawnRun, testsRan } from './helpers/run.mjs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load, claims, fill, plan, config, wanted } from '../lib/practices.mjs';
+import { load, claims, fill, plan, config, wanted, targets } from '../lib/practices.mjs';
 import { optionalPractices } from './helpers/practices.mjs';
 import { copyProject } from './helpers/copy-project.mjs';
 
@@ -333,4 +333,47 @@ test('optional production secrets are validated and needed only for configured V
       await assert.rejects(load(dir),/secrets/);
     }
   } finally { await rm(dir,{recursive:true,force:true}); }
+});
+
+
+test('runtime imports keep one owner without enabling optional practice surfaces or overwriting local work', async t => {
+  const dir = await temp('runtime-imports');t.after(() => rm(dir,{recursive:true,force:true}));
+  const practices = await load();
+  const cfg = {...ACME, practices:[...ACME.practices,'night','climb']};
+  const selected = targets(cfg,practices);
+  for (const path of ['scripts/keel/reconcile.mjs','scripts/keel/decision-context.mjs']) {
+    const matches=selected.filter(f=>f.path===path);assert.equal(matches.length,1);assert.equal(matches[0].practice,'reconciliation');
+  }
+  assert.ok(!selected.some(f=>f.path==='.github/workflows/keel-impact.yml'));
+  assert.ok(!selected.some(f=>f.path==='docs/reconciliation.md'));
+  const both=targets({...cfg,practices:[...cfg.practices,'reconciliation']},practices);
+  assert.equal(both.filter(f=>f.path==='scripts/keel/reconcile.mjs').length,1);
+  assert.ok(both.some(f=>f.path==='.github/workflows/keel-impact.yml'));
+  const local=targets({...cfg,local:{reconciliation:'Acme owns these scripts'}},practices);
+  assert.ok(!local.some(f=>f.path==='scripts/keel/reconcile.mjs'));
+  await mkdir(join(dir,'scripts/keel'),{recursive:true});
+  await writeFile(join(dir,'scripts/keel/reconcile.mjs'),'// Acme human runtime\n');
+  const entries=await plan(dir,cfg,practices);
+  assert.equal(entries.find(f=>f.path==='scripts/keel/reconcile.mjs').state,'edited');
+});
+
+test('runtime declarations cannot import workflows, absent files, seeded files or symlinks', async t => {
+  const dir=await temp('runtime-validation');t.after(()=>rm(dir,{recursive:true,force:true}));
+  for(const name of ['source','consumer'])await mkdir(join(dir,name,'files'),{recursive:true});
+  await mkdir(join(dir,'source/files/scripts/keel'),{recursive:true});
+  await writeFile(join(dir,'source/files/scripts/keel/acme.mjs'),'// Acme\n');
+  await writeFile(join(dir,'consumer/files/README.md'),'Acme\n');
+  const source=kind=>({name:'source',summary:'Acme source',requires:[],files:[{path:'scripts/keel/acme.mjs',from:'scripts/keel/acme.mjs',kind}]});
+  const consumer=path=>({name:'consumer',summary:'Acme consumer',requires:[],runtimeFiles:[{practice:'source',path}],files:[{path:'README.md',from:'README.md',kind:'seeded'}]});
+  await writeFile(join(dir,'source/practice.json'),JSON.stringify(source('managed')));
+  for(const path of ['.github/workflows/acme.yml','scripts/keel/missing.mjs','../acme.mjs']){
+    await writeFile(join(dir,'consumer/practice.json'),JSON.stringify(consumer(path)));
+    await assert.rejects(load(dir),/runtime/);
+  }
+  await writeFile(join(dir,'consumer/practice.json'),JSON.stringify(consumer('scripts/keel/acme.mjs')));
+  await writeFile(join(dir,'source/practice.json'),JSON.stringify(source('seeded')));
+  await assert.rejects(load(dir),/unconditional managed script/);
+  const linked=source('managed');linked.files=[{path:'scripts/keel/acme.mjs',kind:'managed',link:'other.mjs'}];
+  await writeFile(join(dir,'source/practice.json'),JSON.stringify(linked));
+  await assert.rejects(load(dir),/unconditional managed script/);
 });
