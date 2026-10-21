@@ -10,6 +10,11 @@ verification and registration in phase 94. This document
 supersedes the local-first delivery recommendation in [the UX spec](web-ui.md),
 not the existing local board. No deployment or access has been established.
 
+The full operating goal additionally covers routine history/execution, fleet
+updates and lessons, scoped provider setup and capacity-aware routing on mobile
+and desktop. [Fleet operations](web-fleet-operations.md) extends this contract
+with phases 102–108; phase 101 verifies the first workspace, not the entire goal.
+
 ## What the owner gets
 
 Sign in, open Home and understand each project's situation. Home leads with
@@ -254,7 +259,8 @@ must not be available to arbitrary branches or pull requests.
 | 98 | Guided testing and exact-result feedback (also depends on 92) |
 | 99 | Visual change journal with private artifact delivery |
 | 100 | Daily work, learning and explicit migration/export |
-| 101 | Real-project access, human acceptance, restore and lived-in trial |
+| 101 | First workspace: real-project access, human acceptance, restore and lived-in trial |
+| 102–108 | [Full fleet operations](web-fleet-operations.md#delivery-and-proof): routines, workers, connections/capacity, updates, routing and mobile/desktop acceptance |
 
 Each [phase](../phases/) owns exact acceptance and proof. Test paths in planned
 phases are implementation targets, not existing passing checks. The owner can
@@ -274,8 +280,11 @@ usable throughout.
   Supabase PostgREST preserves the zero-runtime-dependency contract.
 - Backup destination, private media adapter and any paid upgrade remain open.
 - Team membership/multi-tenant service, additional identity providers, generic
-  execution workers and new agent spend: outside this first private instance.
+  shell execution: outside this private instance. Supported worker adapters and
+  policy-bound routing are planned in phases 104/106; additional spend still
+  needs an explicit budget.
 - Workspace schema additions and retention periods: version them in the phase
   that implements them; defaults cannot silently publish or discard observations.
-- Production verification and lived-in usefulness: phase 101, never inferred
+- Production verification and lived-in usefulness: phase 101 for the first
+  workspace and phase 108 for full fleet operations, never inferred
   from synthetic tests, a successful login callback or a merged PR.

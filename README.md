@@ -159,7 +159,11 @@ Keel's hosted UI is being built around a Home screen that answers three things:
 Guided walks will retain “works”, “does not work” and “cannot test yet” observations;
 recent additions will include screenshots, tested revisions and links to try them.
 Project cards will refresh independently, retain source freshness, and preserve
-an open decision or walk when new updates arrive.
+an open decision or walk when new updates arrive. The full goal is to operate
+every authorized project from mobile and desktop: inspect every observed routine
+run, learn across the fleet, compare versions and launch update PRs, manage scoped
+provider credentials, and route work using explicit capacity and budget policies.
+Fleet-wide views and each project use the same records and controls.
 
 **Available today:** the CLI, the local `keel board`, and external workspace
 manifest validation/initialization. The first Vercel project has been created,
@@ -170,7 +174,10 @@ verification before registration. Phase status lives in [the roadmap](docs/ROADM
 is built; [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
 is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) and
 [96: Home](docs/phases/96-home-explains-every-project.md) follow. Decisions,
-walks, visual changes and real-use verification follow in phases 97–101.
+walks, visual changes and initial real-use verification follow in phases 97–101.
+[Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
+history/execution, fleet updates, provider capacity and model routing, then verify
+complete mobile/desktop operating journeys. These capabilities are planned.
 
 ### Keep application code and private data separate
 
