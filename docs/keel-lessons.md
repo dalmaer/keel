@@ -8,7 +8,7 @@ A row with an empty *Where* applies to every project; a tagged row only to
 projects with that stack. Read this beside the project's own table
 (`docs/lessons.md`) before adding a guard: the shape is usually already here.
 
-This project's stack (`stack` in `.keel/keel.json`): `node`, `github-actions`. 55 of keel's lessons apply: every universal one, and those tagged for this stack.
+This project's stack (`stack` in `.keel/keel.json`): `node`, `github-actions`, `vercel`. 55 of keel's lessons apply: every universal one, and those tagged for this stack.
 
 | # | The shape of it | What it cost | Guard | Where |
 | --- | --- | --- | --- | --- |
