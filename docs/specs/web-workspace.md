@@ -9,7 +9,8 @@ connected to production. The approved read-only GitHub App is installed; phase 9
 verifies deployed owner login, logout and access removal on Node v24.21.0. Phase 94
 still owes the independent backup destination. This document
 supersedes the local-first delivery recommendation in [the UX spec](web-ui.md),
-not the existing local board. The rich Home and operating journeys remain phased work.
+not the existing local board. Phase 96 implements the read-only Home; decision
+writes, guided observations, media and full operating journeys remain phased work.
 
 The full operating goal additionally covers routine history/execution, fleet
 updates and lessons, scoped provider setup and capacity-aware routing on mobile

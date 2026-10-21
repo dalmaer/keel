@@ -1,11 +1,10 @@
 ---
-status: partial
+status: built
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [95]
-owes: walk
-note: "Read-only Home and bounded storage pass focused checks; deployed browser walkthrough remains."
+note: "Read-only Home passed source, database, deployed desktop/360px and keyboard checks; write operations remain phased."
 evidence: ["evidence/2026-10-21-web-home.md"]
 ---
 
@@ -27,7 +26,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 - [x] Local phases, projects-shaped plans and milestones retain their authority and source gaps: `tests/web-projects.test.mjs`.
 - [x] Home prioritizes decisions, ready walks and changes; refresh never mutates project records: `tests/web-home.test.mjs`.
 - [x] Incremental updates preserve active cards and report cursor gaps, denied access and partial coverage: `tests/web-events.test.mjs`.
-- [ ] ⚑ By hand: desktop/mobile keyboard walkthrough identifies the next human action and an unavailable source on actual projects: `docs/guide/web-workspace-setup.md`.
+- [x] ⚑ By hand: desktop/mobile keyboard walkthrough identifies the next human action and an unavailable source on actual projects: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
 
@@ -50,11 +49,15 @@ A useful read-only Home can ship here; decision and walk buttons remain unavaila
 
 ## Next action
 
-Deploy the committed source and walk the actual authorized Home at desktop and 360px with keyboard navigation and reduced-motion inspection.
+None. Lived-in evidence requires repeated owner use across real projects.
 
 ## Trajectory
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
+
+- **2026-10-21** — Concurrent large project reads exhausted the global budget without completing any project. Sequential project scheduling with concurrent blob reads now converges across refreshes; incomplete models remain due.
+- **2026-10-21** — Unchanged source revisions still require calendar-based reclassification, and secondary provider limits require a durable pause distinct from observed quota. Regressions and migration 003 establish both.
+- **2026-10-21** — Vercel traced shared planning filesystem paths into development fixtures. Explicit bundle exclusions and literal browser assets were verified through actual deployment; fixture tests alone had not exposed this boundary.
 
 ## Your part
 
