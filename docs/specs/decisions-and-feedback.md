@@ -222,6 +222,13 @@ revision and exact previous digest, preserving earlier words and resolutions.
 One immutable version cannot acquire different bytes. A different result version
 creates another observation. Revisions are appended atomically under a local
 writer lock; concurrent or stale revisions refuse instead of overwriting.
+An interrupted writer may leave the lock behind. This slice fails closed with
+`writer_busy`; elapsed time is not evidence that a writer stopped. A lock alone
+does not block reads; incomplete records or temporary files remain explicit gaps.
+Recovery requires the owner to confirm all feedback writers stopped
+before removing only the empty `.keel/feedback/.lock` directory. Preserve every
+observation, snapshot and temporary file for inspection; no automatic cleanup or
+lock takeover is implied.
 A verified retained snapshot survives deletion/change of the original pathname.
 A missing or corrupted retained snapshot is a gap and prevents a proposal.
 
@@ -251,6 +258,18 @@ blocks routing. Local phase references are planning context, never GitHub closur
 or acceptance facts. Explicit conflicts must resolve to currently accepted
 canonical decisions and produce a reopening proposal for phase 91, never an
 accepted replacement. Broken required references block the proposal.
+
+For a reopening, the publication record supplies `shaping`: an explicitly
+authored version-1 phase-91 shaping record. Require it rather than inventing a
+goal, proof command, plan item or owner answer from feedback. Validate it with
+the existing shaping validator and require every conflicted canonical decision
+in its item decision references or proposed supersession references. Resolve all
+canonical references in that draft freshly as well. Preserve supplied manual
+answers as attribution, never authentication or acceptance. The read-only output
+returns the unchanged validated draft and `keel shape check` handoff; saving it,
+reviewing it and approving any shaping output remain separate actions. Missing
+drafts report `shaping_draft_required`. Prove the returned draft through the
+existing phase-91 inspection/preview path, not just a new output tag.
 
 For an issue proposal, reuse the exact normalized rubric, subject and instance
 identity derivation used by `issue new --agent`. Its output includes the exact
