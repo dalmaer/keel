@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [97, 98, 99]
-note: "Authorized web workspace sequence; acceptance remains unverified."
+note: "Daily source views, private lesson copies and exact exports specified; implementation and real transfer proof remain."
 evidence: []
 ---
 
@@ -17,6 +17,8 @@ The owner can inspect daily work and shared lessons, migrate selected workspace 
 ## Scope
 
 Implement morning/night read and draft views, learning catalogue, setup diagnostics and previewed workspace migration. Use the command inventory for staged capability delivery; CLI/link-out remains available for advanced operations. Shared private lessons retain provenance; publishing an anonymized reusable lesson is an explicit export.
+
+Implementation: [Daily work, private learning and reviewed transfers](../specs/web-daily-learning.md).
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
@@ -45,11 +47,13 @@ claims of existing checks or passing results.
 
 ## Deliberately open
 
+**2026-10-21:** The first migration kind is a reviewed copy of one to three lesson records to the pinned private workspace; originals remain. Other records are explicitly unsupported. Export is an exact reviewed download, not publication. Evening drafts are unsaved previews; runner publication stays with later operating phases. The implementation contract settles these boundaries.
+
 This phase ships daily/learning views and migration. Full routine execution, fleet rollout and model routing follow in phases 102–108 under the expanded operating goal; their worker and permission contracts are not implied by a read-only view.
 
 ## Next action
 
-Ship read-only daily/learning surfaces, then implement migration and explicit export with recovery.
+Build the source readers, private learning/transfer adapters and desktop/mobile views against the implementation contract; keep write gates off until approved and retain exact real-source proof.
 
 ## Trajectory
 

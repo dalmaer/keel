@@ -110,3 +110,16 @@ asserting their initial visibility before a response. Immediate polling, normal
 interval and hidden-page no-read assertions remain. No runtime code changed.
 Conductor reran `node --import ./tests/helpers/hermetic.mjs --test tests/web-events.test.mjs`: exit 0, 12/12.
 The original integrated failure is preserved; a fresh full gate is still required.
+
+## Corrected integration
+
+`keel ready --check 'npm run typecheck' --json` on `515d891`: exit 0.
+`keel integrate --json`: exit 0, one gate, merged to main
+`8b28114613becd56513c45d38ec16d659828d37c`. All 2,133 tests and the roadmap, render
+and inbox guards passed. Pinned stall checks passed; the ledger reported no
+flaky or slower test, with one busy run omitted from timing comparison. The first
+attempt remains above. This merge does not deploy or activate private storage.
+
+The retrospective worksheet reported real work but no local session transcript.
+Navigation, check automation, standards, AGENTS health, tool economy, no-op rules
+and information gaps were reviewed; no unselected retrospective rule was applied.
