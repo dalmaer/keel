@@ -4,8 +4,8 @@ since: 2026-10-21
 goal: G7
 spec: 2
 depends: [93]
-note: "Setup worksheet and priced hosting candidate prepared; owner must select host/account, private repository and GitHub App owner before connection."
-evidence: []
+note: "Owner selected Vercel; private repository created and verified. Vercel login/team, durable storage and GitHub App binding remain."
+evidence: ["evidence/2026-10-21-vercel-workspace-connections.md"]
 ---
 
 # The private instance has approved connections
@@ -25,7 +25,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 - [ ] ⚑ By hand: owner approves exact repository, hosting target, price and GitHub App permission matrix: `docs/guide/web-workspace-setup.md`.
 - [ ] ⚑ By hand: verify workspace repository privacy and selected installation repositories with fresh GitHub API facts: `docs/guide/web-workspace-setup.md`.
-- [ ] ⚑ By hand: verify Node version, HTTPS callback origin, persistent private volume, secret injection and backup destination on the selected host: `docs/guide/web-workspace-setup.md`.
+- [ ] ⚑ By hand: verify Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
 
@@ -43,13 +43,15 @@ claims of existing checks or passing results.
 
 ## Deliberately open
 
-Host, domain, private repo name, installation owner and price require owner input. No synthetic connection can satisfy the live resource checks.
+**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. Vercel account/team, storage adapter, domain, installation owner and price remain open. No synthetic connection can satisfy the live resource checks.
 
 ## Next action
 
-Obtain the owner's host/account and private repository choice using the prepared setup worksheet; confirm the exact provider recipe, GitHub App permissions and current price before creating resources.
+Complete Vercel login and select the account/team, then approve concrete storage and GitHub App bindings using the updated setup recipe. Repository privacy is verified; login, storage and installation are not.
 
 ## Trajectory
+
+- **2026-10-21** — Owner selected Vercel, superseding the unprovisioned Render candidate. Stateless concurrent functions require external transactions and bounded polling; phase 93 remains the local filesystem adapter. Private repository creation succeeded; Vercel login is required.
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
 
@@ -93,7 +95,7 @@ Obtain the owner's host/account and private repository choice using the prepared
 
 ### 3. Connection and approval
 
-- **Ask:** Verify Node version, HTTPS callback origin, persistent private volume, secret injection and backup destination on the selected host.
+- **Ask:** Verify Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host.
 
 - **Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
 
@@ -108,5 +110,3 @@ Obtain the owner's host/account and private repository choice using the prepared
 - **Then:** Record exactly what was observed; keep missing checks open and name the next action.
 
 - **Ready when:** The owner has selected accounts and reviewed the concrete deployment recipe and price.
-
-- **2026-10-21** — Prepared a Render single-instance candidate and current compute/disk estimate in the setup guide. No resource, secret, repository or deployment was created; account and destination choices remain with the owner.

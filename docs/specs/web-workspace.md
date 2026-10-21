@@ -3,7 +3,8 @@
 Implementation contract, 21 October 2026. The owner authorized the web UI and
 phased build in this conversation. Public application code, private shared
 workspace data and project-owned Keel records are the accepted direction.
-Provider, accounts, domain and spending remain owner decisions. This document
+The owner selected Vercel on 21 October 2026. Account/team, storage resources,
+domain and spending remain to be bound in phase 94. This document
 supersedes the local-first delivery recommendation in [the UX spec](web-ui.md),
 not the existing local board. No deployment or access has been established.
 
@@ -25,8 +26,8 @@ It proves no live integration or acceptance.
 ```text
 Browser -- HTTPS + session --> Keel web service (public source, private instance)
                                   |-- GitHub identity + selected repositories
-                                  |-- private workspace Git checkout
-                                  |-- private runtime volume / artifact adapter
+                                  |-- private workspace records via GitHub API
+                                  |-- external transactional store / private artifact adapter
                                   `-- bounded source adapters per project
 ```
 
@@ -47,13 +48,19 @@ is authoritative for users/repos; names are display/routing labels refreshed fro
 GitHub. Removed membership or revoked credentials invalidate access. A workspace
 owner does not automatically gain access to every private project.
 
-The public app can be cloned/deployed without copying anyone's data. An explicit
-manifest and runtime directory are required; no fallback to code-root `.keel`,
+The public app can be cloned/deployed without copying anyone's data. The local
+adapter requires an explicit manifest and runtime directory; the Vercel adapter
+requires explicit workspace repository and storage bindings; no fallback to
+code-root `.keel`,
 `fleet.json`, a developer's home directory or a public repository. Existing CLI
 fleet configuration remains supported. Migration is a separate, previewed phase;
 never delete it until the replacement has been read back successfully.
 
 ## Phase 93: explicit external workspace boundary
+
+This is the local development/export adapter. Its filesystem proof does not
+establish hosted storage on Vercel; hosted requests must never use `/tmp` or
+process memory as durable state.
 
 Add `keel workspace inspect|init --manifest <absolute-file> --state <absolute-dir>
 [--yes] [--json]`. `inspect` reads only; `init` previews (exit 3) until `--yes`.
@@ -111,12 +118,14 @@ JSON write endpoint is introduced.
 
 ## Login and access
 
-Phase 94 connects the first private instance: select a host with Node >=24.21,
-HTTPS termination, private persistent storage, secret injection and backups;
+Phase 94 connects the first private instance on Vercel: selected account/team,
+HTTPS origin, external durable storage, secret injection and backup destination;
 approve a private workspace repository and a GitHub App with selected repository
-access. These are explicit owner resource steps. A provider-specific deployment
-recipe and actual price must precede creation. Use existing resources when
-selected; do not assume a subscription, domain or account.
+access. The [setup recipe](../guide/web-workspace-setup.md) names prices and
+remaining resource decisions. No subscription, paid upgrade or domain is assumed.
+Select Node 24.x, then verify the deployed `process.version` satisfies >=24.21.0:
+Vercel selects a major version and rolls patch releases automatically.
+[Node versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
 
 Phase 95 implements login with a GitHub App user authorization flow and opaque
 server-side sessions. Validate state, single-use expiring authorization attempts,
@@ -153,9 +162,13 @@ than treating event payloads as authoritative state. Validate webhook signatures
 on raw bytes before parsing, reject replayed delivery IDs, then refresh the
 relevant source. [GitHub webhook validation](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries).
 
-An authenticated event stream invalidates affected cards; reconnect resumes from
-an event cursor or requests a full bounded snapshot after a gap. Polling fallback
-is bounded. Freeze a card's interaction snapshot while a decision/walk is open;
+Authenticated bounded polling with conditional requests and cursors updates
+affected cards initially. A cursor gap requests a fresh bounded snapshot. Pause
+polling in hidden tabs and back off on errors. Persist webhook delivery receipts
+and refresh hints before acknowledging; consume bounded work in later requests,
+never rely on a function continuing after its response. A long-lived event stream
+is a later transport choice, not a prerequisite for dynamic Home. Freeze a card's
+interaction snapshot while a decision/walk is open;
 show “Source changed” and require a fresh preview before applying. Queue new
 arrivals behind “N new updates”, preserve focus and scroll, and respect reduced
 motion. Personal pins/snoozes/seen markers never alter project records.
@@ -165,7 +178,8 @@ motion. Personal pins/snoozes/seen markers never alter project records.
 Decision detail includes the actual question, evidence, alternatives,
 recommendation, consequence and authority. Reuse phase 90 decision context and
 phase 91 shaping. A recommendation is never a recorded owner choice. Preview
-exact source changes; apply against the reviewed digest under a project lock,
+exact source changes; apply against the reviewed digest under a durable
+per-project lease with fencing,
 retain an operation ID and receipt, and show GitHub commit/PR outcome separately
 from local persistence. Public-repo writes show the exact outbound material.
 
@@ -193,8 +207,12 @@ from the public application's repository.
 
 ## Implementation and operations
 
-Stay within zero runtime dependencies/no build: Node HTTP/server modules,
-standalone browser modules, CSS and existing domain readers. Shared board
+Stay within zero runtime dependencies/no build: native Node request handlers,
+standalone browser modules, CSS and existing domain readers. Vercel supports
+framework-free JavaScript functions; no Next.js or provider SDK is implicitly
+approved. Use documented HTTP storage APIs with native fetch, or settle an
+explicit dependency exception before selecting an SDK-only adapter.
+[Node runtime](https://vercel.com/docs/functions/runtimes/node-js). Shared board
 classification stays in domain functions; the hosted server has its own request
 identity boundary. It is not the loopback board exposed on a public interface.
 No repository-provided scripts execute in the web request process. Operations
@@ -202,13 +220,25 @@ that require a real checkout/runner remain unavailable with a clear reason until
 an isolated runner and its approved budget exist. All command mappings can ship
 as read/link-out before in-app execution.
 
-Single instance/private volume initially; serialized mutation plus durable
-receipts. Any scale-out phase must replace these assumptions before adding
-replicas. Back up workspace Git and encrypted runtime artifacts separately;
+Vercel Functions are stateless and may run concurrently. Their read-only
+filesystem and temporary scratch space are not durable storage.
+[Runtime limits](https://vercel.com/docs/functions/runtimes).
+Use an external transactional store for sessions, single-use authorization
+attempts, drafts, operation intents/receipts, leases and refresh cursors. Require
+atomic compare-and-swap, unique operation keys, bounded expiry and schema
+migrations. Persist an intent before an external write; reconcile uncertain
+outcomes before retry. A process mutex cannot protect competing instances.
+Unavailable storage denies authentication/mutation; never fall back to memory.
+Private Git remains the shared-record authority and media has a separate private
+object adapter. Neither Git nor a blob bucket substitutes for session transactions.
+
+Back up workspace Git, durable database records and private artifacts separately;
 exclude caches and expire restored sessions. Reconcile unresolved operations
 before replay after restore. Audit records retain actor, project, operation,
 source digest and outcome, with no tokens/raw feedback. Log only bounded error
-codes. Validate secret-free packaging and source maps/static assets.
+codes. Validate secret-free packaging and static assets. Preview deployments use
+synthetic data and separate credentials/storage; production callbacks and secrets
+must not be available to arbitrary branches or pull requests.
 
 ## Phases and release criteria
 
@@ -232,8 +262,11 @@ usable throughout.
 
 ## Deliberately open
 
-- Host, domain, private repo name and installation owner: decide in phase 94
-  from a concrete deployment recipe and current price; no resource created here.
+- **Settled 2026-10-21:** owner selected Vercel and a private workspace repository;
+  phase 94 records the sanitized provisioning result.
+- Vercel account/team, database/API adapter, private media adapter, domain,
+  installation owner and spending: bind in phase 94 from the setup recipe.
+  Database and media SDK support must fit the dependency contract before approval.
 - Team membership/multi-tenant service, additional identity providers, generic
   execution workers and new agent spend: outside this first private instance.
 - Workspace schema additions and retention periods: version them in the phase

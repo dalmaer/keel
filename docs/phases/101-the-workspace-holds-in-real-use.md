@@ -16,7 +16,7 @@ The owner repeatedly uses the hosted workspace across real projects and a restor
 
 ## Scope
 
-Run the full human acceptance journey and backup/restore drill on the approved deployment; measure actual usefulness, verify revocation and preserve unresolved receipts. Record deployment, production verification and lived-in observations separately.
+Restore private Git records, transactional database records and private media separately, expiring restored sessions. Run the full human acceptance journey and backup/restore drill on the approved deployment; measure actual usefulness, verify revocation and preserve unresolved receipts. Record deployment, production verification and lived-in observations separately.
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
