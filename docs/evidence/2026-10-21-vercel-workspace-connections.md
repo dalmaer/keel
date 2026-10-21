@@ -84,3 +84,11 @@ remain pending; no database, media store, secret or application was deployed.
 Supabase's documented HTTP API resolves the runtime SDK concern without a
 dependency exception. Free-plan inactivity and backup limits remain explicit.
 Phase 94 is still partial; selecting Node 24.x does not verify a serving patch.
+
+The first integration attempt for the authenticated-project record caught a
+new guide-format error: the bare Vercel `--global-config` option was read as a
+Keel flag. Focused `node --import ./tests/helpers/hermetic.mjs --test
+tests/guides.test.mjs` exited 1 before correction, then 0 after spelling the full
+Vercel command. `keel prove tests/guides.test.mjs --fix
+docs/guide/web-workspace-setup.md --trailer` exited 0, VERIFIED: red without the
+change, green with it. No product code or checker was changed.

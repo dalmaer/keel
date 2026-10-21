@@ -79,8 +79,8 @@ limits; paid resources, overages and backups need a concrete owner decision.
 1. Run `vercel login` locally, then inspect `vercel whoami` and `vercel teams ls`.
    Select the exact account/team; never paste tokens into the conversation.
    If login succeeds interactively but the agent reports logged out, compare
-   config locations. Use the documented `--global-config <saved-config-dir>`
-   option with the existing login; do not print or copy credentials.
+   config locations. Use the documented `vercel whoami --global-config <saved-config-dir>`
+   command with the existing login; do not print or copy credentials.
 2. Bind the private repository's numeric ID and workspace manifest privately.
    Start with an empty project list until the owner selects project access.
    Re-read privacy through the GitHub API; local manifest validation is not proof.
