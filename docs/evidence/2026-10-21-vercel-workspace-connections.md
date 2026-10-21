@@ -49,3 +49,38 @@ The Vercel choice replaces an unprovisioned Render proposal. Phase 93's local
 filesystem boundary remains built with its original evidence; it does not prove
 serverless persistence. Updated phases require shared transactional state and
 bounded polling before hosted access can be claimed.
+
+## Follow-up: authenticated Vercel project (21 October 2026)
+
+The owner completed login and explicitly selected the existing Pro team. CLI
+65.0.0 initially read a different config location because this shell sets
+`XDG_CONFIG_HOME`; `--global-config <existing-macOS-config-directory>` reused the
+saved login successfully. No credential was printed or copied. An unintended
+login flow started by the teams command was cancelled after finding that login.
+
+- `vercel whoami --global-config <saved-config-dir> --no-color`: exit 0;
+  authenticated as the selected owner.
+- `vercel teams ls` with the same config: exit 0; two teams returned. Owner
+  chose the Pro team before any resource was created.
+- `vercel project ls --scope <selected-team>` with that config: exit 0; no
+  existing Keel project.
+- `vercel project create keel --scope <selected-team>`: exit 0; created.
+- `vercel project inspect keel --json --scope <selected-team>`: exit 0;
+  returned project/owner identity, Node 24.x setting and no framework.
+- `vercel api /v9/projects/keel/domains --scope <selected-team>`: exit 0;
+  assigned verified provider domain returned. This is not a live app check.
+- `gh api user/installations`: exit 1, HTTP 403 because this endpoint requires
+  an App user token. Existing CLI credentials cannot establish installation
+  coverage through that endpoint; do not interpret refusal as zero installs.
+- `vercel integration add supabase --help --scope <selected-team>`: exit 0;
+  confirmed `free` plan $0/month and `iad1` as an available region. Read only.
+- Private setup JSON parsed successfully; `git diff --check`: exit 0.
+  Identifiers, resource proposal and sanitized setup history were committed
+  and pushed only to the verified private workspace repository.
+
+Every Vercel command above used the saved config explicitly. Full exact private
+identities are in the private setup receipt. Storage and GitHub App approval
+remain pending; no database, media store, secret or application was deployed.
+Supabase's documented HTTP API resolves the runtime SDK concern without a
+dependency exception. Free-plan inactivity and backup limits remain explicit.
+Phase 94 is still partial; selecting Node 24.x does not verify a serving patch.

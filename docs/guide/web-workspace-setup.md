@@ -29,17 +29,20 @@ GitHub. This does not create a repository, host a service or authenticate anyone
 ## Selected host: Vercel (21 October 2026)
 
 The owner selected Vercel and a private workspace repository. The repository
-was created and its privacy read back through GitHub; the Vercel CLI requires a
-fresh login. No Vercel project, database, Blob store or GitHub App was provisioned.
+was created and its privacy read back through GitHub. The owner subsequently
+authenticated and selected an existing Pro team. The Vercel project is created;
+its assigned domain and Node 24.x setting were read back. No application is
+deployed, and no database, Blob store or GitHub App has been provisioned yet.
+Exact account, project and domain identifiers live in the private workspace repo.
 The earlier Render single-instance candidate was not approved or created and is
 superseded by this choice. The local filesystem adapter above remains supported;
 it is not the storage implementation for hosted requests.
 
 | Layer | Proposed binding | Remaining decision/check |
 | --- | --- | --- |
-| Application | Public Keel source; framework-free Node functions and browser modules | Vercel account/team, project, region, actual Node >=24.21.0 |
+| Application | Public Keel source; framework-free Node functions and browser modules | Account/team and project verified; region and actual Node >=24.21.0 remain |
 | Shared records | Owner-selected private GitHub repository | Numeric identity retained privately; manifest and selected project list |
-| Sessions/drafts/receipts | External transactional database; Neon via Marketplace is a candidate | Account, plan, region, supported API/dependency contract, restore policy |
+| Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free trial proposed | Owner approval for Free/iad1, production-only connection, restore policy |
 | Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
 | Identity | GitHub App authorization, selected repositories only | App owner, exact callback origin, installation scope and permissions |
 | Secrets | Vercel server-side environment configuration | Approved names/resources, production-only scope, rotation and revocation |
@@ -56,13 +59,13 @@ retired Vercel Postgres product.
 - Private GitHub repositories are included in GitHub Free; no incremental
   repository charge. [GitHub pricing](https://github.com/pricing).
 - Vercel Hobby is $0 for eligible personal, non-commercial use. Pro starts at
-  $20/month plus usage. Existing account and plan are unknown; selecting Vercel
-  does not authorize a paid upgrade. [Pricing](https://vercel.com/pricing),
+  $20/month plus usage. The owner selected an existing Pro team; no subscription upgrade, new seat
+  or paid add-on was created. Future deployment usage is billed on that team. [Pricing](https://vercel.com/pricing),
   [Hobby eligibility](https://vercel.com/docs/plans/hobby).
-- Neon has a $0 Free plan with limits; paid plans are usage-based. Free history
-  is limited and is not a sufficient independent backup policy by itself.
-  Marketplace checkout terms must be read before provisioning.
-  [Neon pricing](https://neon.com/pricing).
+- Supabase Marketplace lists `free` at $0/month. Free includes a 500 MB
+  database and pauses after one week of inactivity; use it for the initial trial.
+  Paid upgrades and an independent backup destination remain owner decisions.
+  [Supabase pricing](https://supabase.com/pricing).
 - Private Blob incurs storage/operations/transfer usage against plan allowances;
   function delivery can incur additional transfer charges. Quote the selected
   account's allowances and overage settings before creation.
@@ -75,11 +78,19 @@ limits; paid resources, overages and backups need a concrete owner decision.
 
 1. Run `vercel login` locally, then inspect `vercel whoami` and `vercel teams ls`.
    Select the exact account/team; never paste tokens into the conversation.
+   If login succeeds interactively but the agent reports logged out, compare
+   config locations. Use the documented `--global-config <saved-config-dir>`
+   option with the existing login; do not print or copy credentials.
 2. Bind the private repository's numeric ID and workspace manifest privately.
    Start with an empty project list until the owner selects project access.
    Re-read privacy through the GitHub API; local manifest validation is not proof.
 3. Choose database/API adapter and backup destination. Verify atomic single-use
    authorization, versioned drafts, unique intents and cross-instance leases.
+   The current proposal uses Supabase PostgREST HTTP and narrow SQL functions
+   for atomic state transitions. Deny anonymous and client-authenticated access
+   to all runtime tables/functions; only the authorized backend may use them.
+   [HTTP API](https://supabase.com/docs/guides/api/sql-to-rest),
+   [database functions](https://supabase.com/docs/guides/database/functions).
    Native fetch needs a documented provider API; do not reverse-engineer an SDK
    endpoint to preserve zero dependencies. An SDK-only choice requires an explicit
    repository dependency exception before implementation. Defer media provisioning
