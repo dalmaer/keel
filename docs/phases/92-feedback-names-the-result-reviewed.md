@@ -1,10 +1,10 @@
 ---
-status: planned
-since: 2026-10-20
+status: designed
+since: 2026-10-21
 goal: G4
 spec: 2
 depends: [54, 91]
-note: "Authorized and planned; waits for phase 91 to land after PR #208 review and CI. The additional repair round does not authorize a merge."
+note: "Local capture, private revision storage, explicit publication handoff and resolution contracts settled; implementation and proof remain."
 evidence: []
 ---
 
@@ -24,7 +24,7 @@ Keep the existing authorities and authorization boundaries.
 - [ ] Capture retains immutable result identity and reports missing versions without replacing them with latest: `tests/feedback.test.mjs`.
 - [ ] Source replay deduplicates, edits retain prior words, and feedback on a new result remains distinct: `tests/feedback.test.mjs`.
 - [ ] Open, closed and unknown work states produce the specified route or gap; a conflicting decision produces a reopening proposal: `tests/feedback-route.test.mjs`.
-- [ ] Remote preparation reuses issue intents and requires an exact outbound preview; ambiguous writes never duplicate work: `tests/feedback-route.test.mjs`.
+- [ ] Publication handoff preserves the existing robot preview/intent identity and exact outbound payload; delivery and ambiguous-write recovery reuse the existing issue API: `tests/feedback-route.test.mjs`.
 - [ ] Raw text is absent from Git exports, ordinary canvas snapshots, night artifacts and logs; capacity errors preserve stored work: `tests/feedback.test.mjs`.
 - [ ] The board reports pending work and resolution links, and fresh-process capture/list/propose works with an unavailable adapter: `tests/feedback-cli.test.mjs`.
 
@@ -54,8 +54,10 @@ Automatic canvas comment collection is deferred until the installed public API s
 
 ## Next action
 
-Implement explicit local feedback capture and immutable result validation before adding board projection or provider collection.
+Implement the dated phase-92 contract: pure validation/routing, bounded private store, digest-bound capture/resolution, explicit issue handoff and metadata-only board projection. Run the named proofs and packed/adopted lifecycle; automatic provider collection remains unavailable.
 
 ## Trajectory
+
+- **2026-10-21** — Guided web walks require the same immutable feedback model. Keep pure domain logic separate from local storage. Proposal-only capture does not claim remote delivery; handoff reuses the existing issue preview and journal identities. Explicit resolution and conflict attribution complete previously unnamed local transitions.
 
 - **2026-10-20** — Phase 50 has an outstanding deployed canvas walk. Explicit local capture does not depend on that walk; the existing canvas receipt format is an optional input and automatic collection remains deferred.

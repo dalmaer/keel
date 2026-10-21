@@ -4,7 +4,7 @@ since: 2026-10-20
 goal: G0
 spec: 2
 depends: [90]
-note: "Local proof complete after the authorized repair round; PR #208 still requires corrected-head review and CI before an owner merge decision."
+note: "Local and packed proof complete; PR #208 merged on 2026-10-21. Merge is source state, not additional acceptance evidence."
 evidence: ["evidence/2026-10-20-shaping.md"]
 ---
 
@@ -53,7 +53,7 @@ Whether a proposed proof is sufficient remains a conductor judgment. The first r
 
 ## Next action
 
-Complete corrected-head review and CI for PR #208, then leave the merge decision to the owner. The authorized additional repair round does not authorize merging or starting phase 92.
+None for implementation. PR #208 was merged at `eec9566ce6ddea20665fb4d560d5f4ec29c528e7` on 2026-10-21; future live use remains distinct from its local acceptance proof.
 
 ## Trajectory
 
