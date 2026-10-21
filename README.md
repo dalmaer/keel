@@ -163,8 +163,9 @@ an open decision or walk when new updates arrive.
 
 **Available today:** the CLI, the local `keel board`, and external workspace
 manifest validation/initialization. The first Vercel project has been created,
-but **hosted sign-in and Home are not deployed**. Database and GitHub App access
-are proposed, not connected. Phase status lives in [the roadmap](docs/ROADMAP.md):
+but **hosted sign-in and Home are not deployed**. Supabase Free is connected to
+production; the read-only GitHub App is approved and awaiting GitHub identity
+verification before registration. Phase status lives in [the roadmap](docs/ROADMAP.md):
 [93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md)
 is built; [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
 is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) and
@@ -244,7 +245,7 @@ even if you verified privacy separately with `gh`. Run
 The selected hosting design uses Vercel Node functions, the private data repo,
 an external transactional database, and a GitHub App installed on selected
 repositories. Vercel's temporary filesystem cannot hold durable sessions or
-drafts. Supabase Free through Marketplace is the current database proposal;
+drafts. The first instance uses Supabase Free through Marketplace;
 private screenshot storage is a later phase. Verify current plan limits, price
 and backup needs before provisioning.
 
