@@ -518,3 +518,120 @@ test('absent ejected managed targets remain excluded so rendering cannot recreat
   assert.deepEqual(next.ejected, ['scripts/plates/improve.mjs', 'AGENTS.md#agents-md', '.agents/skills/conduct/SKILL.md', 'docs/acme-owned.md#keel-local-rule']);
   await absent(root, 'scripts/plates/improve.mjs');
 });
+
+test('package migration preserves script-key references and executes the npm gate after paths move', async t => {
+  const root = await fixture(t);
+  const scripts = { keel: 'node scripts/keel/check.mjs', check: 'npm run keel', yarnGate: 'yarn keel', pnpmGate: 'pnpm run keel', 'keel-tools': 'node -e "console.log(\'keel-tools\')"', tools: 'npm run keel-tools' };
+  await put(root, 'package.json', JSON.stringify({ name: 'acme-keel-tools', scripts }));
+  await applyRename(root);
+  const pkg = JSON.parse(await get(root, 'package.json'));
+  assert.deepEqual(pkg.scripts, { ...scripts, keel: 'node scripts/plates/check.mjs' });
+  const result = run('npm', ['run', 'check', '--offline'], { cwd: root });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /scripts\/plates\/check.mjs/);
+});
+
+test('unrelated root and nested package manifests and locks retain dependency identities and exact lock bytes', async t => {
+  const root = await fixture(t);
+  const pkg = { name: 'acme-keel-tools', dependencies: { '@acme/keel-tools': '1.0.0' }, scripts: { check: 'echo keel-tools' } };
+  const lock = JSON.stringify({ name: pkg.name, lockfileVersion: 3, packages: { '': pkg, 'node_modules/@acme/keel-tools': { version: '1.0.0', resolved: 'https://registry.npmjs.org/@acme/keel-tools/-/keel-tools-1.0.0.tgz', integrity: 'sha512-keel', license: 'Acme keel license' } } });
+  for (const dir of ['', 'packages/acme/']) {
+    await put(root, dir + 'package.json', JSON.stringify(pkg));
+    await put(root, dir + 'package-lock.json', lock);
+  }
+  git(root, 'add', 'package.json', 'package-lock.json', 'packages');
+  await applyRename(root);
+  for (const dir of ['', 'packages/acme/']) {
+    assert.deepEqual(JSON.parse(await get(root, dir + 'package.json')), pkg);
+    assert.equal(await get(root, dir + 'package-lock.json'), lock);
+  }
+});
+
+for (const version of [1, 2, 3]) test(`npm lock v${version} migrates only the exact product Git dependency and remains consistent offline`, async t => {
+  const root = await fixture(t), ref = 'a'.repeat(40), old = 'git+ssh://git@github.com/dalmaer/keel.git#' + ref;
+  const pkg = { name: 'acme', version: '1.0.0', dependencies: { keel: 'github:dalmaer/keel#' + ref, '@acme/keel-tools': '1.0.0' } };
+  const other = { version: '1.0.0', resolved: 'https://registry.npmjs.org/@acme/keel-tools/-/keel-tools-1.0.0.tgz', integrity: 'sha512-keel' };
+  const lock = { name: 'acme', version: '1.0.0', lockfileVersion: version, requires: true,
+    ...(version >= 2 ? { packages: { '': { name: 'acme', version: '1.0.0', dependencies: pkg.dependencies }, 'node_modules/keel': { name: 'keel', version: '0.8.0', resolved: old, license: 'MIT' }, 'node_modules/@acme/keel-tools': other } } : {}),
+    ...(version <= 2 ? { dependencies: { keel: { version: old }, '@acme/keel-tools': other } } : {}) };
+  const dir = version === 2 ? 'packages/acme/' : '';
+  await put(root, dir + 'package.json', JSON.stringify(pkg)); await put(root, dir + 'package-lock.json', JSON.stringify(lock));
+  git(root, 'add', dir + 'package.json', dir + 'package-lock.json');
+  await applyRename(root);
+  const next = JSON.parse(await get(root, dir + 'package-lock.json')), manifest = JSON.parse(await get(root, dir + 'package.json'));
+  assert.equal(manifest.dependencies.plates, 'github:dalmaer/plates#' + ref);assert.equal(manifest.dependencies.keel, undefined);
+  if (version >= 2) { assert.deepEqual(next.packages[''].dependencies, manifest.dependencies);assert.equal(next.packages['node_modules/plates'].resolved, old.replace('/keel.git#', '/plates.git#'));assert.equal(next.packages['node_modules/keel'], undefined);assert.equal(next.packages['node_modules/plates'].name, 'keel', 'locked source metadata still describes the original pinned commit');assert.deepEqual(next.packages['node_modules/@acme/keel-tools'], other); }
+  if (version <= 2) { assert.equal(next.dependencies.plates.version, old.replace('/keel.git#', '/plates.git#'));assert.equal(next.dependencies.keel, undefined);assert.deepEqual(next.dependencies['@acme/keel-tools'], other); }
+  const result = run('npm', ['ls', '--package-lock-only', '--offline', '--json'], { cwd: join(root, dir) });
+  assert.equal(result.status, 0, result.stderr);assert.ok(JSON.parse(result.stdout).dependencies.plates);
+});
+
+test('script calls retain consumer aliases while explicit CLI calls use Plates without touching quoted prose', async t => {
+  const root = await fixture(t), scripts = {
+    keel: 'keel doctor', plates: 'echo acme-owned', prekeel: 'echo acme-setup',
+    calls: 'npm run keel && pnpm run keel && yarn run keel && pnpm keel && yarn keel',
+    cli: 'keel doctor && npx keel doctor && npm exec -- keel doctor && pnpm exec keel doctor && yarn exec keel doctor',
+    prose: 'node -e "console.log(\'npx keel\')"',
+  };
+  await put(root, 'package.json', JSON.stringify({ scripts }));await applyRename(root);
+  const next = JSON.parse(await get(root, 'package.json')).scripts;
+  assert.deepEqual(next, { ...scripts, keel: 'plates doctor', cli: scripts.cli.replaceAll('keel doctor', 'plates doctor') });
+});
+
+test('ambiguous or unsupported relevant locks refuse before migration and unrelated opaque locks stay byte-identical', async t => {
+  for (const shape of ['collision', 'mismatch', 'transitive', 'future', 'yarn', 'pnpm', 'bun']) {
+    const root = await fixture(t), spec = 'github:dalmaer/keel#' + 'a'.repeat(40);
+    const pkg = { dependencies: { keel: spec } }, lock = { lockfileVersion: 3, packages: { '': { dependencies: { keel: spec } }, 'node_modules/keel': { version: '1.0.0', resolved: 'git+https://github.com/dalmaer/keel.git#' + 'a'.repeat(40) } } };
+    if (shape === 'collision') lock.packages['node_modules/plates'] = { version: '1.0.0' };
+    if (shape === 'mismatch') lock.packages[''].dependencies.keel = 'github:dalmaer/keel#other';
+    if (shape === 'transitive') lock.packages['packages/acme'] = { dependencies: { keel: spec } };
+    if (shape === 'future') lock.lockfileVersion = 99;
+    const path = ({ yarn: 'yarn.lock', pnpm: 'pnpm-lock.yaml', bun: 'bun.lockb' })[shape] ?? 'package-lock.json';
+    const content = shape === 'bun' ? Buffer.from([0, 1, 2, 3]) : ['yarn', 'pnpm'].includes(shape) ? spec : JSON.stringify(lock);
+    await put(root, 'package.json', JSON.stringify(pkg));await put(root, path, content);git(root, 'add', 'package.json', path);
+    const before = git(root, 'status', '--porcelain');
+    await assert.rejects(planRename(root), /conflict|disagree|unsupported/);
+    assert.equal(git(root, 'status', '--porcelain'), before);await absent(root, '.plates');
+  }
+  const root = await fixture(t), bytes = Buffer.from([0, 1, 2, 3]);
+  for (const [path, content] of [['yarn.lock', 'keel-tools@1.0.0:\n  resolved https://acme.test/keel-tools.tgz\n'], ['pnpm-lock.yaml', 'keel-tools: acme-keel\n'], ['bun.lockb', bytes]]) { await put(root, path, content);git(root, 'add', path); }
+  await applyRename(root);
+  assert.equal(await get(root, 'yarn.lock'), 'keel-tools@1.0.0:\n  resolved https://acme.test/keel-tools.tgz\n');
+  assert.equal(await get(root, 'pnpm-lock.yaml'), 'keel-tools: acme-keel\n');assert.deepEqual(await readFile(join(root, 'bun.lockb')), bytes);
+});
+
+test('npm shrinkwrap follows the same product migration and refuses dependency-name collisions across fields', async t => {
+  const root = await fixture(t), spec = 'github:dalmaer/keel#' + 'a'.repeat(40);
+  await put(root, 'package.json', JSON.stringify({ dependencies: { keel: spec }, devDependencies: { plates: '1.0.0' } }));
+  await assert.rejects(planRename(root), /conflicting keel and plates dependencies/);
+  await put(root, 'package.json', JSON.stringify({ optionalDependencies: { keel: spec } }));
+  await put(root, 'npm-shrinkwrap.json', JSON.stringify({ lockfileVersion: 3, packages: { '': { optionalDependencies: { keel: spec } }, 'node_modules/keel': { version: '1.0.0', resolved: 'git+https://github.com/dalmaer/keel.git#' + 'a'.repeat(40), optional: true } } }));
+  git(root, 'add', 'package.json', 'npm-shrinkwrap.json');await applyRename(root);
+  const lock = JSON.parse(await get(root, 'npm-shrinkwrap.json'));
+  assert.equal(lock.packages[''].optionalDependencies.plates, spec.replace('/keel#', '/plates#'));
+  assert.equal(lock.packages['node_modules/plates'].optional, true);
+});
+
+test('CLI migration preserves quoted separators and nested commands while renaming unquoted command positions', async t => {
+  const root = await fixture(t), scripts = {
+    keel: '  keel doctor', npm: ' npm exec -- keel doctor', pnpm: 'pnpm exec keel doctor', yarn: 'yarn exec keel doctor',
+    quoted: `node -e "console.log('example; keel doctor && npx keel doctor')"`,
+    quotedCommand: '"keel" doctor', nested: 'echo "$(keel doctor)" && keel doctor',
+    escaped: 'node -e "console.log(\\"example; keel doctor\\")" && keel doctor',
+    incomplete: `echo "example; keel doctor`,
+  };
+  await put(root, 'package.json', JSON.stringify({ scripts }));await applyRename(root);
+  const next = JSON.parse(await get(root, 'package.json')).scripts;
+  assert.deepEqual(next, { ...scripts, keel: '  plates doctor', npm: ' npm exec -- plates doctor', pnpm: 'pnpm exec plates doctor', yarn: 'yarn exec plates doctor', escaped: 'node -e "console.log(\\"example; keel doctor\\")" && plates doctor' });
+});
+
+test('workflow and shell callers retain package script aliases after migration and execute the gate', async t => {
+  const root = await fixture(t);
+  await put(root, 'package.json', JSON.stringify({ scripts: { keel: 'node scripts/keel/check.mjs', check: 'npm run keel' } }));
+  const workflow = 'jobs:\n  check:\n    steps:\n      - run: npm run keel\n      - run: pnpm run keel\n      - run: yarn run keel\n      - run: yarn keel\n      - run: pnpm keel\n      - run: keel doctor\n';
+  await put(root, '.github/workflows/acme.yml', workflow);await put(root, 'scripts/acme-gate.sh', 'npm run keel\n');
+  git(root, 'add', 'package.json', '.github/workflows/acme.yml', 'scripts/acme-gate.sh');await applyRename(root);
+  assert.equal(await get(root, '.github/workflows/acme.yml'), workflow.replace('run: keel doctor', 'run: plates doctor'));
+  assert.equal(await get(root, 'scripts/acme-gate.sh'), 'npm run keel\n');
+  const result = run('sh', ['scripts/acme-gate.sh'], { cwd: root });assert.equal(result.status, 0, result.stderr);assert.match(result.stdout, /scripts\/plates\/check.mjs/);
+});
