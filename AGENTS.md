@@ -243,6 +243,15 @@ original upload after uncertainty instead of sending bytes again. Bucket and
 retention activation need owner approval; expiry preserves receipts and never
 starts cleanup. See [the changes guide](docs/guide/web-changes.md).
 
+Hosted daily views retain immutable nightly sources and distinguish configured
+allowance, allocated minutes and unknown actual usage. Evening drafts are unsaved
+previews and never invoke runners. Learning copies only one to three selected
+lesson records to new typed files in the pinned private workspace, under its own
+write gate. Keep original records and uncertain operation identities; recheck the
+original receipt instead of dispatching again. Export only explicitly reviewed
+exact text after current source and digest approval. Declared import attribution
+is not a verified transfer receipt. See [the daily and learning guide](docs/guide/web-daily-learning.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for
