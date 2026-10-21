@@ -196,6 +196,14 @@ production verification or lived-in use. The projection is read-only and
 incomplete reads stay visible. Adoption preserves existing local plans and
 proposes this source only when there is no local plan to replace.
 
+**A private web workspace** (G7, authorized 21 October 2026). The
+[UX specification](specs/web-ui.md), [complete CLI mapping](specs/web-ui-command-map.md)
+and [storage/access contract](specs/web-workspace.md) define phases 93–101.
+Public Keel owns application code; a private workspace owns shared records;
+projects retain their own planning/acceptance authority. Home prioritizes human
+decisions, guided testing and visible recent changes. Runtime data stays outside
+Git; no deployment or project access is implied by this specification.
+
 ### 6. The night shift (phases 10, 11)
 
 The rules come from isocan's "night shift's pull requests", and each one was
