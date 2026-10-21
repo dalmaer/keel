@@ -1,11 +1,12 @@
 ---
-status: designed
+status: partial
+owes: walk
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [96, 98]
-note: "Private capture slots and source-owned change packages specified; implementation and owner resource approval remain."
-evidence: []
+note: "Journal, private capture receipts and recovery implemented; hosted activation, provider proof and owner walk remain."
+evidence: ["evidence/2026-10-21-web-visual-journal.md"]
 ---
 
 # Recent changes are visible and testable
@@ -25,9 +26,9 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Every user-facing UI change package includes relevant desktop/mobile captures, a preview/try link and exploration steps, or an explicit unavailability reason, plus source/revision and bounded media references: `tests/web-changes.test.mjs`.
-- [ ] Media routes deny cross-project access, traversal, executable uploads and unsafe remote fetches: `tests/web-media.test.mjs`.
-- [ ] Stale, missing and expired captures remain distinct from current serving evidence: `tests/web-changes.test.mjs`.
+- [x] Every user-facing UI change package includes relevant desktop/mobile captures, a preview/try link and exploration steps, or an explicit unavailability reason, plus source/revision and bounded media references: `tests/web-changes.test.mjs`.
+- [x] Media routes deny cross-project access, traversal, executable uploads and unsafe remote fetches: `tests/web-media.test.mjs`.
+- [x] Stale, missing and expired captures remain distinct from current serving evidence: `tests/web-changes.test.mjs`.
 - [ ] ⚑ By hand: owner opens a real captured addition, tries its environment and reaches the matching walk using keyboard/mobile controls: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
@@ -51,11 +52,13 @@ Retention duration is an owner setting with safe bounds. Public export remains s
 
 ## Next action
 
-Build the versioned journal and private artifact adapter against synthetic providers; verify the exact bucket/configuration and retention proposal before requesting activation approval.
+Obtain the fresh Vercel authenticator code for hosted migrations. Approve a private `keel-captures` bucket in the existing Supabase project, 90-day retention and a 256 MiB application cap; verify hosted storage/roles/concurrency and serving revision, then complete the owner captured-addition walk. No paid upgrade or public export is included.
 
 ## Trajectory
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
+
+- **2026-10-21** — Capture attachment requirements need a stable identity independent of display order or title. Stale captures retain original provenance separately from new requirements; source availability exposes observed and implementation revisions. The browser walk and independent review established these distinctions.
 
 ## Your part
 

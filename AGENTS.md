@@ -236,9 +236,16 @@ original operation URL after uncertainty, never submit another mutation. A
 verified source commit remains distinct from a real owner or production walk.
 See [the guided-walk contract](docs/specs/web-guided-walks.md).
 
+Source-owned `docs/changes/<id>.json` packages describe additions; private media
+receipts attach captures without editing those records. Keep availability
+attributed, compare only matching actual capture contexts, and recover the
+original upload after uncertainty instead of sending bytes again. Bucket and
+retention activation need owner approval; expiry preserves receipts and never
+starts cleanup. See [the changes guide](docs/guide/web-changes.md).
+
 ## Rules for keel's code
 
-- **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for
+- **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for
   tests. Installing from `main` must work.
 - **Check the contracts without compiling the runtime.** `npm ci --ignore-scripts`
   installs development-only type tooling. Run `npm run typecheck` alongside

@@ -38,6 +38,13 @@ The receipt retains the original source head and slot requirements. Changed slot
 requirements make an old attachment stale, while display-only title/reordering
 changes do not. Historical artifacts remain inspectable in the private library.
 
+Captures are shared by the instance's currently authorized owners for that
+project; uploader attribution is retained. This differs from an individual's
+private testing draft. Request identities also include the initiating actor,
+so two owners choosing the same client request ID cannot claim one another's
+upload. Slot replacement uses project-scoped compare-and-swap. Every delivery,
+list, recovery and mutation still checks current project authorization.
+
 UI work needs desktop/mobile slots or explicit reasons; nonvisual work uses a
 bounded supplied excerpt with provenance or a reason. No generated artwork stands
 in for evidence. Bytes, storage identity and declared provenance can be checked;

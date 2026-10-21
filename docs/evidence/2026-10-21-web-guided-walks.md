@@ -70,3 +70,9 @@ main `0c3c261f8dcd0b188284e70fc00280bf7c0f6f22`; phase 98's claim was then relea
 The earlier failed attempt remains above. No hosted deployment or owner walk is
 implied by this merge. GitHub typecheck passed on this revision; the check workflow
 was still running when this record was written.
+
+That GitHub check was subsequently cancelled when Renovate PR 109 merged the
+Node update at descendant `3fbf6a9ea18067d5f590d89c69a70170bd46ff5a`. The descendant's
+[check run](https://github.com/dalmaer/keel/actions/runs/39679112473) passed, as did
+its typecheck. This is CI on the descendant with the Node update, not an exact
+revision CI result for `0c3c261` and not a substitute for the local integrated gate.
