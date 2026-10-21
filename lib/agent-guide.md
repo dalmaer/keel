@@ -2270,7 +2270,7 @@ one command without changing its output or exit status. It records timing
 boundaries, not arguments or payloads; subprocess internals remain opaque.
 See `docs/development.md`. These tools are not required by adopters.
 
-Keel needs Node 24.21.0 or later and git. It is a checkout plus a link;
+Keel needs Node 24.22.1 or later and git. It is a checkout plus a link;
 there is no registry and no build step.
 Keel is public, so with nothing installed, `npx` runs it from GitHub: put
 `npx -y github:dalmaer/keel` wherever a command says `keel`

@@ -72,10 +72,16 @@ test('a hanging abort-aware request times out, clears in-flight and backs off be
 
 test('client scheduling starts the first visible read immediately and then resumes its normal interval', async () => {
   // A scheduler/transport harness only; this makes no browser layout or focus claim.
-  const root={dataset:{endpoint:'/api/home',cursor,projectId:''}}, scheduled=[], requests=[];
-  const document={hidden:false,querySelector:selector=>selector==='[data-home-root]'?root:null,addEventListener(){},removeEventListener(){}};
+  const scheduled=[], requests=[];
+  const cards=[{dataset:{search:'Acme studio',groups:'attention'}},{dataset:{search:'Acme API',groups:'waiting'}}];
+  const root={dataset:{endpoint:'/api/home',cursor,projectId:''},querySelectorAll(selector){assert.equal(selector,'[data-filterable]');return cards;}};
+  const search={value:'studio',addEventListener(){},removeEventListener(){}};
+  const filter={value:'all',addEventListener(){},removeEventListener(){}};
+  const elements={'[data-home-root]':root,'[data-home-search]':search,'[data-home-filter]':filter};
+  const document={hidden:false,querySelector:selector=>elements[selector]??null,addEventListener(){},removeEventListener(){}};
   const window={location:{origin:'https://acme.test'},setTimeout(callback,delay){ scheduled.push({callback,delay}); return scheduled.length; },clearTimeout(){}};
   const client=startHomeClient({document,window,fetch:async(url,options)=>{requests.push({url,options});return{status:304};},renderHomeSnapshot:()=>{throw new Error('An unchanged source read must not render.');}});
+  assert.equal(cards[0].hidden,false); assert.equal(cards[1].hidden,true,'initial filtering applies before any source response');
   assert.equal(scheduled.length,1); assert.equal(scheduled[0].delay,0);
   await scheduled[0].callback();
   assert.equal(requests.length,1); assert.equal(requests[0].options.method,'GET');

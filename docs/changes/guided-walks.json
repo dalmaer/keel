@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "id": "guided-walks",
+  "title": "Test an addition step by step",
+  "outcome": "Record what worked, what failed and what you could not test, then resume your private observations without losing the result version.",
+  "kind": "ui",
+  "publishedAt": "2026-10-21",
+  "revision": "5ca5453311518a8a9f4f60fdc37e5c5fed707420",
+  "paths": [
+    "docs/phases/98-guided-walks-preserve-what-was-tested.md",
+    "docs/evidence/2026-10-21-web-guided-walks.md"
+  ],
+  "pr": null,
+  "availability": {
+    "state": "awaiting-deploy",
+    "environment": "Keel production",
+    "observedAt": "2026-10-21T21:24:48.000Z",
+    "observedRevision": null,
+    "reason": "The implementation is merged. Hosted migrations and production-serving verification remain open; synthetic browser checks are recorded separately."
+  },
+  "preview": {
+    "url": null,
+    "reason": "Hosted guided walks await the approved database migrations and deployment."
+  },
+  "explore": [
+    "Open an authored walk and confirm the exact result and actual environment.",
+    "Save a failed or blocked step with what you observed, then reload and inspect its history.",
+    "After retesting the current result, review the exact acceptance preview and its source visibility."
+  ],
+  "walk": {
+    "id": null,
+    "reason": "The real owner walkthrough will be authored for the verified deployment; the phase evidence retains the pending steps."
+  },
+  "captures": [
+    {
+      "id": "desktop-after",
+      "role": "after",
+      "revision": "5ca5453311518a8a9f4f60fdc37e5c5fed707420",
+      "viewport": "desktop",
+      "scenario": "Guided walk acceptance preview with synthetic Acme data",
+      "reason": "A real desktop browser capture exists in the phase evidence; private media attachment awaits the approved media store."
+    },
+    {
+      "id": "mobile-after",
+      "role": "after",
+      "revision": "5ca5453311518a8a9f4f60fdc37e5c5fed707420",
+      "viewport": "mobile",
+      "scenario": "Guided walk acceptance preview with synthetic Acme data",
+      "reason": "A real mobile-width browser capture exists in the phase evidence; private media attachment awaits the approved media store."
+    }
+  ],
+  "nonvisual": null
+}

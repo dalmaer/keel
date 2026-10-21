@@ -32,7 +32,7 @@ test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inpu
 
 test('public signin/assets and signed-in scaffold are responsive, escaped and never expose tokens or config', async () => {
   const h = harness();
-  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css']) {
+  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css']) {
     const response = await h.service(h.request(path)), content = await response.text();
     assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|KEEL_WEB_CONFIG/);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -78,8 +78,8 @@ test('migration restricts public roles and deployment routes all requests throug
 });
 
 test('service enforces the supported runtime boundary', () => {
-  for (const version of ['22.99.0', '24.20.9', 'invalid']) assert.throws(() => requireRuntime(version), /unsupported_runtime/);
-  for (const version of ['24.21.0', '24.22.0', '26.0.0']) assert.doesNotThrow(() => requireRuntime(version));
+  for (const version of ['22.99.0', '24.20.9', '24.21.99', '24.22.0', 'invalid']) assert.throws(() => requireRuntime(version), /unsupported_runtime/);
+  for (const version of ['24.22.1', '24.22.2', '24.23.0', '26.0.0']) assert.doesNotThrow(() => requireRuntime(version));
 });
 
 test('extracted npm package launches with external config and serves through the real HTTP boundary', async t => {
@@ -107,7 +107,7 @@ import { request } from 'node:http';
 const server = await serve(['--config', ${JSON.stringify(configPath)}, '--port', '0', '--json']);
 try {
   const responses = [];
-  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css']) responses.push(await new Promise((resolve, reject) => {
+  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css']) responses.push(await new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'keel.acme.test' } }, res => {
       let text = ''; res.on('data', value => { text += value; }); res.on('end', () => resolve({ status: res.statusCode, text, cookies: res.headers['set-cookie'] }));
     }); req.on('error', reject); req.end();

@@ -58,3 +58,21 @@ The owner walk, after the approved migrations and deployment:
 3. After the actual result is ready, retest its prerequisites and steps, then author the final observation and source-valid choice.
 4. Review every outbound file and its visibility. Source submission additionally requires separately approved Contents-write access and the existing write opt-in.
 5. Inspect the original verified commit receipt and compare the selected acceptance item, evidence and roadmap to that commit. Record the serving revision separately; a source commit is not production verification.
+
+
+## Integration result recorded after the phase commit
+
+On 2026-10-21, the corrected branch head `53fa87263ea086184676114a9f138cbf3a475f34`
+passed `keel ready --check 'npm run typecheck' --json` (exit 0) and
+`keel integrate --json` (exit 0). The integrator ran one gate on that revised
+tree: all 2086 tests passed, followed by roadmap/render/inbox guards. It pushed
+main `0c3c261f8dcd0b188284e70fc00280bf7c0f6f22`; phase 98's claim was then released.
+The earlier failed attempt remains above. No hosted deployment or owner walk is
+implied by this merge. GitHub typecheck passed on this revision; the check workflow
+was still running when this record was written.
+
+That GitHub check was subsequently cancelled when Renovate PR 109 merged the
+Node update at descendant `3fbf6a9ea18067d5f590d89c69a70170bd46ff5a`. The descendant's
+[check run](https://github.com/dalmaer/keel/actions/runs/39679112473) passed, as did
+its typecheck. This is CI on the descendant with the Node update, not an exact
+revision CI result for `0c3c261` and not a substitute for the local integrated gate.
