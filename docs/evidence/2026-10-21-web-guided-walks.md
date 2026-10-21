@@ -18,6 +18,14 @@ Conductor commands, run independently of builder reports:
 
 The final `npm run typecheck` runs through `keel ready --check "npm run typecheck"`. The integrated `npm run check` runs once through `keel integrate`; it covers the complete suite, roadmap, managed renders and lesson inbox. Their resulting revision and exits belong in the integration record after this evidence is committed.
 
+### First integration attempt
+
+On committed source `5ca5453311518a8a9f4f60fdc37e5c5fed707420`, `keel ready --check 'npm run typecheck' --json` exited 0. The subsequent `keel integrate --json` exited 1 without pushing main: 2085 of 2086 tests passed. The existing `tests/prove-mutate.test.mjs` test “a mutant that does not finish is stopped at the time limit and reported inconclusive” expected exactly one inconclusive mutant. Under suite load, the return-early mutant also exceeded its 1500 ms test deadline and was correctly reported inconclusive. The assertion rejected that second timeout. This failed attempt remains evidence; a passing isolated retry alone cannot resolve it. The test ledger reported no flaky or slower comparison, omitting this busy run.
+
+The unchanged named test passed alone as a diagnostic. The correction keeps the 1500 ms deadline, requires the known infinite-loop mutant to time out, and checks that every other timeout remains inconclusive rather than caught. Seven total mutants, no survivors/invalid results, exact accounting and bounded completion remain required. Other tests retain exact caught-count assertions. The builder ran `node --import ./tests/helpers/hermetic.mjs --test tests/prove-mutate.test.mjs`: exit 0, 19 passed. The conductor independently ran the named timeout test: exit 0, 1 passed. No production code changed.
+
+`node bin/keel.mjs prove tests/prove-mutate.test.mjs --name '^a mutant that does not finish is stopped at the time limit and reported inconclusive$' --fix tests/prove-mutate.test.mjs --trailer` exited 1 with a green with-fix test and an **INCONCLUSIVE** result: the selected test is itself the fix, so reverting it would run a different test. This is an assertion-contract correction, not a verified production fix. The revised tree requires another integrated gate.
+
 Independent review reproduced a target-binding defect: a changed acceptance target could retain passes. The fix invalidates observations monotonically when the target changes. A second service-level probe changed both the phase and the acceptance item, retained history, cleared current passes/confirmation/final observation and refused preview. Six focused regressions passed; no additional blockers remained in the final review. Decision context was `not-configured`, digest `bd856c53f3a4d873a3397246506583d3de12e9543bb8ce218217b3c6afed5a62`; this is not verified architecture coverage.
 
 ## By hand
