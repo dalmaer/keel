@@ -208,6 +208,18 @@ A merged fix is not production verification: require serving-revision evidence,
 a complete observation window, traffic or an approved probe, and no recurrence.
 See [the production guide](docs/guide/production-errors.md).
 
+## Private result feedback
+
+`plates feedback capture|list|propose|resolve` binds observations to the exact
+reviewed result. Capture and resolution preview before `--yes --digest`; proposals
+never publish, accept work or start an agent. Preserve prior words and resolutions,
+verify retained result bytes and keep missing versions or routing facts as gaps.
+Raw words and snapshots stay in ignored private storage; board/canvas/night views
+receive metadata only. Keep authored input files outside Git or explicitly ignored.
+Selected outbound text has its own exact destination/body preview and uses the
+existing issue-delivery flow. See `plates --agent-help feedback` and
+[the feedback guide](docs/guide/feedback.md).
+
 ## Private web workspace
 
 `plates workspace inspect|init --manifest <absolute-file> --state <absolute-dir>`

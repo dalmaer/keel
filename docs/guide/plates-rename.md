@@ -28,7 +28,7 @@ plates migrate /path/to/project --yes --digest <digest-from-preview> --json
 plates render --check
 ```
 
-Review the preview's exact paths, changes, and refusals. The digest binds application to that inventory. The migration validates managed-file hashes before changing them, refuses conflicting destinations, and preserves opaque runtime journals byte for byte. Its recovery receipt lives in Git metadata, outside the directory being renamed. An interrupted migration resumes the recorded operation; it does not invent a fresh plan over partial state. After migration, render the current practices through the normal reviewed update flow, run the project's own gate, and commit its complete file moves together.
+Review the preview's exact paths, changes, and refusals. The digest binds application to that inventory. The migration validates managed-file hashes before changing them, refuses conflicting destinations, and preserves opaque runtime journals byte for byte. Previously ignored runtime targets retain local Git-ignore protection before their bytes move. Its recovery receipt lives in Git metadata, outside the directory being renamed. An interrupted migration resumes the recorded operation; it does not invent a fresh plan over partial state. After migration, render the current practices through the normal reviewed update flow, run the project's own gate, and commit its complete file moves together.
 
 Release rehearsal can apply this migration inside its disposable clone before testing the candidate practices. It keeps the original commit for a baseline comparison and pushes nothing. Ordinary project updates do not silently migrate a real checkout.
 

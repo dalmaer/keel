@@ -29,6 +29,10 @@ Phase 93 adds workspace setup as a separate command, not a board flag.
 
 | Command | Every argument / option beyond `--json` | UX and boundary |
 | --- | --- | --- |
+| `feedback capture` | `<file>`, paired `--yes --digest <sha256>` | Local private result capture with immutable version and exact preview approval. Web capture remains phase 98 work. |
+| `feedback list` | No further arguments | Metadata and explicit coverage; no private words in ordinary Home/canvas exports. |
+| `feedback propose` | `<id>`, required `--record <publication-file>` | Exact excerpt/destination and existing issue handoff preview; never posts or starts work. |
+| `feedback resolve` | `<id>`, required `--record <resolution-file>`, paired `--yes --digest <sha256>` | Reviewed local linked/declined/superseded outcome; does not establish acceptance. |
 | `decision context` | Exactly one of `--phase <id>`, `--issue <owner/repo#n>` | Decision context drawer; keep accepted decisions, proposals and gaps separate; source digest prevents stale submission. |
 | `shape check` / `shape render` | `<file>` | Validate or inspect structured planning answers; owner attribution is evidence, not authentication. |
 | `shape plan` | `<file>`, `--output <new-directory>`, `--yes`, `--digest <reviewed-digest>` | Preview generated planning artifacts and exact digest; approve to write only into a new destination. |

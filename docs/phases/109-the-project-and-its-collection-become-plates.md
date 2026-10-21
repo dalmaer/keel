@@ -60,4 +60,4 @@ Finish integrated checks, reviewed source and consumer changes, then perform rep
 - **Keeps it open:** Needs changes | Cannot check yet
 - **Takes:** One authentication and browser review session.
 - **Then:** Record the observed result and keep any unverified acceptance open.
-- **Ready when:** GitHub offers the account challenge; the final product walkthrough follows successful deployment of the tested revision.
+- **Ready when:** The tested revision is deployed; account verification already succeeded. A new provider challenge, if offered, must be completed through its official flow.

@@ -38,6 +38,7 @@ Verbs (`--json` for data):
 - `plates retro` — worksheet; `capture` records; `sessions` trials
 - `plates workspace inspect|init` — explicit external storage
 - `plates shape check|render|plan` — reviewed drafts
+- `plates feedback` — capture, list, propose, resolve
 - `plates decision context` — scoped choices for `--phase` or `--issue`
 - `plates evidence rederive <phase>` — preview; `--yes` reruns
 - `plates prove <test> --fix <path>...` — red without the fix?
@@ -57,7 +58,7 @@ Rules:
 
 Exits: 0 ok; 1 failure; 2 usage; 3 needs owner's yes. JSON errors: `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision` `shape` `workspace`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision` `shape` `workspace` `feedback`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -1785,6 +1786,12 @@ start was not reviewed: exit 1, saying so).
 
 <!-- topic: board | whose turn it is: the owner's board, and the verbs that settle its items -->
 
+The local board also projects private feedback as `feedback`: coverage state,
+pending count, at most 30 metadata rows and an omitted count. Rows expose IDs,
+revisions, states, gap counts and safe resolution links only. Pending and
+unavailable rows come first. Raw observations and retained results never enter
+this projection; `feedback` help describes the local review commands.
+
 `plates board --json` → `{ok, root, name, today, counts: {owner, broken, agent,
 time, external}, items: [{waits, kind, title, why, read, link, source,
 actions: [{id, label, verb, args, note?}]}], sources: [{source, state: ok|partial|n/a,
@@ -2471,3 +2478,50 @@ identities must be unique. Unknown fields are refused. Keep credentials out.
 JSON returns `{operation, mode, paths: {manifest, state}, workspace, projects,
 state: "ready"|"uninitialized", privacy: {state: "unverified"}}`. This local
 command does not contact GitHub, prove repository privacy, or establish login.
+
+<!-- topic: feedback | private observations on exact reviewed results -->
+
+`feedback capture <file>` previews an authored schema-1 observation. Apply only
+with `--yes --digest <exact-preview-sha256>`. `feedback list` returns metadata
+and explicit coverage. `feedback propose <id> --record <publication-file>` is
+read-only; `feedback resolve <id> --record <resolution-file>` previews a local
+outcome and uses the same paired approval flags to apply. Every command takes
+`--json`. Preview exits 3, success 0, invalid/refused 2.
+
+Capture requires project repository, stable `source: {id, kind: "manual"}`,
+`author: {kind: "manual", name}`, UTC `observedAt`, `words`, `revision`,
+`previousDigest`, and `result: {sourceRevision, artifactId, version, contentHash,
+file?}`. Use the actual full commit and SHA-256 of explicitly selected result
+bytes. Optional `result.work: {kind: "phase"|"issue"|"pr", ref}` and `anchor`
+preserve context. Optional `conflicts: [{ref, reason}]` explicitly attributes
+accepted-decision disagreement; no semantic conflict detection is implied.
+
+Private revisions and snapshots stay in Git-ignored `.plates/feedback/`, with
+0700 directories and 0600 files. Store safety is verified before writes;
+previews create no exclusions. A store-local `.npmignore` excludes retained
+copies from ordinary npm exports; conflicting exclusions refuse, and project-root
+package exclusions stay untouched. Git identity must be available to verify the
+private storage boundary. Keep authored input files private too. Never
+paste raw words or snapshots into logs, night reports or ordinary canvas data.
+Capture/list/board output is metadata only. Missing versions remain gaps;
+never replace a reviewed version with latest. Changed words require the next
+revision and previous digest; earlier words remain.
+
+Publication records bind `feedbackDigest`, exact `excerpt`, `destination`,
+`title`, and existing version-1 robot `rubric`. Only this explicit preview may
+show selected outbound material. Fresh issue/PR facts determine follow-up
+versus linked repair; unknown facts block routing. Explicit conflicts propose
+reopening accepted decisions, never superseding them. Reopening requires an
+explicit `shaping` version-1 record in the publication input; validate it through
+the returned `shape check` handoff. Missing drafts report `shaping_draft_required`.
+Plates invents no goal, proof or owner answer. Use the returned issue
+handoff inputs with separately approved `issue new --agent`; that existing
+intent journal owns uncertain-write recovery. Propose never posts or launches.
+
+Resolution records bind `feedbackDigest`, `state`, manual `actor` and UTC `at`.
+`linked` requires `reference`; `declined` requires `reason`; `superseded` requires
+another existing observation's ID in `supersededBy`. Preview then apply its exact
+digest. Editing after resolution returns the new revision to pending. Closure
+never establishes acceptance. Limits: 1,000 observations, 50 MiB total, 256 KiB
+per record, 2 MiB per result; refusal preserves existing work, with no cleanup.
+Local CLI support does not imply deployed web capture (phase 98).

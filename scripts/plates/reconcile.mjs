@@ -395,6 +395,12 @@ export async function verifyProposal({ root, proposal, github = false, env = pro
   return out;
 }
 
+// Only Git's actual base/head diff can establish a record move. Keep record
+// classes separate: moving a phase outside its record surface is still deletion.
+const impactRecordKind = path => /^docs\/phases\/.*\.md$/.test(path) && !/\/README\.md$/i.test(path) || /^docs\/projects\/.*\/phases\.md$/.test(path) ? 'phase'
+  : /^docs\/decisions\/.*\.md$/.test(path) && !/\/README\.md$/i.test(path) ? 'decision'
+  : /^docs\/(research\/.*\.md|design\.md)$/.test(path) ? 'anchored' : null;
+
 export async function checkImpact({ root, base, head, body, changedFiles }) {
   const out = result();
   const bad = (message, path = '') => out.findings.push(issue('pr-impact-missing', path, message));
@@ -407,9 +413,32 @@ export async function checkImpact({ root, base, head, body, changedFiles }) {
     if (!['updated', 'unchanged', 'none'].includes(declaration.reconciliation) || ['phases', 'decisions', 'supersedes', 'evidence'].some(k => !strings(declaration[k] ?? [])) || (declaration.unchanged !== undefined && (!object(declaration.unchanged) || Object.values(declaration.unchanged).some(v => !string(v))))) throw Error('Invalid impact declaration');
   } catch (e) { bad(e.message); return out; }
   const actualDiff = changedFiles === undefined;
+  const renamed = new Map(), previousPath = new Map();
   if (actualDiff) {
     if (![base, head].every(x => typeof x === 'string' && /^[a-f\d]{7,64}$/i.test(x))) { out.unknown.push(issue('impact-diff', '', 'Valid base and head SHAs are required')); return out; }
-    try { const { stdout } = await exec('git', ['diff', '--name-only', '--no-renames', '-z', `${base}...${head}`, '--'], { cwd: root, timeout: 15000, maxBuffer: LIMIT }); changedFiles = stdout.split('\0').filter(Boolean); }
+    try {
+      const { stdout } = await exec('git', ['diff', '--name-status', '--find-renames=50%', `-l${MAX_FILES}`, '-z', `${base}...${head}`, '--'], { cwd: root, timeout: 15000, maxBuffer: LIMIT });
+      const fields = stdout.split('\0');
+      if (fields.pop() !== '') throw Error('Incomplete changed-file list');
+      changedFiles = [];
+      for (let i = 0; i < fields.length;) {
+        const status = fields[i++], path = fields[i++];
+        if (!string(path) || !/^(?:[ADMTUXB]|R(?:100|0\d{2}))$/.test(status)) throw Error('Invalid changed-file status');
+        changedFiles.push(path);
+        if (status.startsWith('R')) {
+          const next = fields[i++];
+          if (!string(next)) throw Error('Incomplete rename evidence');
+          changedFiles.push(next);
+          const kind = impactRecordKind(path);
+          if (kind && kind === impactRecordKind(next)) {
+            refParts(path); refParts(next);
+            if (renamed.has(path) || previousPath.has(next)) throw Error('Ambiguous record rename');
+            renamed.set(path, next); previousPath.set(next, path);
+          }
+        }
+        if (changedFiles.length > MAX_FILES) throw Error('Changed-file list exceeds bounded coverage');
+      }
+    }
     catch (e) { out.unknown.push(issue('impact-diff', '', e.message)); return out; }
   }
   if (!strings(changedFiles)) { out.unknown.push(issue('impact-diff', '', 'Invalid changed-file list')); return out; }
@@ -424,10 +453,11 @@ export async function checkImpact({ root, base, head, body, changedFiles }) {
       if (!changedFiles.includes(path) && !string(declaration.unchanged?.[ref])) bad(`Unchanged record requires its own reason: ${ref}`, path);
     } catch (e) { bad(e.message, ref); }
   }
-  for (const path of changedFiles) if ((/^docs\/(phases|decisions)\/.*\.md$/.test(path) && !/\/README\.md$/i.test(path)) || /^docs\/projects\/.*\/phases\.md$/.test(path)) {
+  const currentPaths = [...new Set(changedFiles.map(path => renamed.get(path) ?? path))];
+  for (const path of currentPaths) if (['phase', 'decision'].includes(impactRecordKind(path))) {
     if (![...(declaration.phases ?? []), ...(declaration.decisions ?? [])].some(ref => ref.split('#')[0] === path)) bad('Directly edited record omitted from declaration', path);
   }
-  for (const path of changedFiles.filter(p => /^docs\/(research\/.*\.md|design\.md)$/.test(p))) {
+  for (const path of currentPaths.filter(p => impactRecordKind(p) === 'anchored')) {
     try {
       refParts(path);
       let previous = [];
@@ -437,10 +467,11 @@ export async function checkImpact({ root, base, head, body, changedFiles }) {
         const { stdout: mergeBase } = await exec('git', ['merge-base', base, head], { cwd: root, timeout: 15000, maxBuffer: LIMIT });
         const revision = mergeBase.trim();
         if (!/^[a-f\d]{40,64}$/i.test(revision)) throw Error('Invalid merge-base revision');
-        const { stdout: entries } = await exec('git', ['ls-tree', revision, '--', path], { cwd: root, timeout: 15000, maxBuffer: LIMIT });
+        const original = previousPath.get(path) ?? path;
+        const { stdout: entries } = await exec('git', ['ls-tree', revision, '--', original], { cwd: root, timeout: 15000, maxBuffer: LIMIT });
         if (entries.trim()) {
           if (!/^100(?:644|755) blob /.test(entries)) throw Error('Base record is not a regular file');
-          const { stdout } = await exec('git', ['show', `${revision}:${path}`], { cwd: root, timeout: 15000, maxBuffer: LIMIT });
+          const { stdout } = await exec('git', ['show', `${revision}:${original}`], { cwd: root, timeout: 15000, maxBuffer: LIMIT });
           previous = markdown(stdout).fences;
         }
       }

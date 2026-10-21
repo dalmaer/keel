@@ -194,6 +194,59 @@ test('actual git diff and CLI event validate coverage; JSON exits 0/1/2', async 
   }
 });
 
+test('actual Git record renames require the new declaration and never excuse unrelated deletion or fixture paths', async t => {
+  const next = 'docs/phases/01-acme-store.md', removed = 'docs/phases/02-unrelated.md';
+  const original = phase(), unrelated = '# Separate Acme phase\n' + 'Unrelated acceptance and ownership.\n'.repeat(40);
+  const root = await fixture(t, { [phasePath]: original, [removed]: unrelated });
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q'); git('add', '.'); git('commit', '-qm', 'Acme original records');
+  const base = git('rev-parse', 'HEAD');
+  git('mv', phasePath, next); git('commit', '-qm', 'Acme moves record');
+  let head = git('rev-parse', 'HEAD');
+  assert.match(git('diff', '--name-status', '--find-renames=50%', `${base}...${head}`), /^R100\t/);
+  const body = fence('keel-impact', { reconciliation: 'updated', phases: [next] });
+  const accepted = await checkImpact({ root, base, head, body });
+  assert.deepEqual([accepted.findings, accepted.unknown], [[], []]);
+  const omitted = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'none', reason: 'Acme rename' }) });
+  assert.ok(omitted.findings.some(f => f.path === next && f.message.includes('omitted')));
+  const oldOnly = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'updated', phases: [phasePath] }) });
+  assert.ok(oldOnly.findings.some(f => f.path === next && f.message.includes('omitted')));
+  const supplied = await checkImpact({ root, base, head, body, changedFiles: [phasePath, next] });
+  assert.ok(supplied.findings.some(f => f.path === phasePath && f.message.includes('omitted')), 'caller paths cannot establish a rename');
+  assert.equal(git('show', `${base}:${phasePath}`), original.trim());
+  await rm(join(root, removed)); git('add', '.'); git('commit', '-qm', 'Acme deletes unrelated record');
+  head = git('rev-parse', 'HEAD');
+  const deleted = await checkImpact({ root, base, head, body });
+  assert.ok(deleted.findings.some(f => f.path === removed && f.message.includes('omitted')));
+  const declaredDeletion = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'updated', phases: [next, removed] }) });
+  assert.ok(declaredDeletion.findings.some(f => f.path === removed && f.message.includes('ENOENT')));
+  git('mv', next, 'notes.md'); git('commit', '-qm', 'Acme moves phase outside record surface');
+  const outside = await checkImpact({ root, base, head: git('rev-parse', 'HEAD'), body: fence('keel-impact', { reconciliation: 'none', reason: 'Acme moves notes' }) });
+  assert.ok(outside.findings.some(f => f.path === phasePath && f.message.includes('omitted')), 'a rename outside the record surface cannot hide deletion');
+});
+
+test('renamed research reads old decision fences at the merge base and preserves their impact obligations', async t => {
+  const old = 'docs/research/acme-choice.md', next = 'docs/research/acme-storage-choice.md';
+  const prose = '# Acme investigation\n' + Array.from({ length: 80 }, (_, i) => `Acme observation ${i}: the storage constraint remains.\n`).join('');
+  const original = prose + decision('store');
+  const root = await fixture(t, { [old]: original });
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q'); git('add', '.'); git('commit', '-qm', 'Acme original choice');
+  const base = git('rev-parse', 'HEAD');
+  git('mv', old, next); git('commit', '-qm', 'Acme moves choice');
+  const body = fence('keel-impact', { reconciliation: 'updated', decisions: [`${next}#store`] });
+  const accepted = await checkImpact({ root, base, head: git('rev-parse', 'HEAD'), body });
+  assert.deepEqual([accepted.findings, accepted.unknown], [[], []]);
+  await put(root, next, prose); git('add', '.'); git('commit', '-qm', 'Acme removes moved choice');
+  const head = git('rev-parse', 'HEAD');
+  assert.match(git('diff', '--name-status', '--find-renames=50%', `${base}...${head}`), /^R\d+\t/, 'the real diff still identifies the move after the fence is deleted');
+  const omitted = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'none', reason: 'Acme research rename' }) });
+  assert.ok(omitted.findings.some(f => f.path === `${next}#store` && f.message.includes('anchored decision')));
+  const erased = await checkImpact({ root, base, head, body });
+  assert.ok(erased.findings.some(f => f.path === `${next}#store` && f.message.includes('missing anchor')));
+  assert.equal(git('show', `${base}:${old}`), original.trim(), 'the original decision provenance is unchanged');
+});
+
 test('impact covers actual anchored research/design decisions, not illustrative fences', async t => {
   const root = await fixture(t, { 'docs/research/store.md': decision('store'), 'docs/design.md': decision('design'), [phasePath]: phase() });
   const declaration = { reconciliation: 'updated', phases: [phasePath] };

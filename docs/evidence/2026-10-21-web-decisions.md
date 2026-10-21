@@ -143,3 +143,29 @@ No decision write has been attempted against a real repository. Hosted migration
 concurrent SQL proof, required practice PR review and production walkthrough remain
 open. The existing read-only Home is still the serving application; this evidence
 does not establish phase 97 as built or lived-in.
+
+## Reviewed integration
+
+PR #214 was merged on 2026-10-21 at 19:53:49 UTC into
+`1b1ad767c2aa77fa7beacca767dba04ca1ddb426`. Claude reviewed corrected head
+`6816674dc7d4ade12bac45d51e612a19a8e4dbb1`; the timeout finding was fixed
+and the remaining P3 availability limitation is tracked in
+[issue #215](https://github.com/dalmaer/keel/issues/215). There were no unanswered
+review comments when `keel review dalmaer/keel#214 --gate --json` exited 0.
+
+The corrected-head GitHub check run `39663633896` and typecheck run
+`39663633863` succeeded. This is CI evidence, separate from the local gate.
+`node bin/keel.mjs ready --check 'npm run typecheck' --json` exited 0, followed
+by `node bin/keel.mjs integrate --json`: exit 0, one integrated `npm run check`
+gate, 2006/2006 tests, roadmap/render/inbox guards passed. The hygiene block
+reported no flaky or slower test; one busy run was omitted and no run lacked
+load context. The phase claim was released after the merge.
+
+Hosted migration 004, App Contents-write approval and a real owner choice remain
+open. Integration does not establish deployment, real source delivery or lived-in
+acceptance. The existing read-only Home remains the serving revision.
+
+Post-merge CI on the exact integrated main revision
+`1b1ad767c2aa77fa7beacca767dba04ca1ddb426` also succeeded: GitHub check run
+`39665599688` and typecheck run `39665599652`, observed 2026-10-21. These
+are remote CI results, not another local gate or production verification.

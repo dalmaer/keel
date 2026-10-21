@@ -1,7 +1,7 @@
 import './helpers/hermetic.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readlink, symlink, rm, stat, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readlink, symlink, link, rm, stat, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -267,4 +267,129 @@ return { mode: own.mode, name: keel.name, lessons: keel.lessons, shape: keel.pha
   assert(after.includes('const plates ='));
   assert(!after.includes('keel.loop'));
   assert.deepEqual(new Function(after)(), new Function(before)());
+});
+
+const ignored = (root, path) => {
+  try { git(root, 'check-ignore', '--no-index', '-q', path); return true; }
+  catch (error) { if (error.status === 1) return false; throw error; }
+};
+
+test('private feedback stays ignored before publication with byteexact records and package guards', async t => {
+  const root = await fixture(t), exclude = await get(root, '.git/info/exclude');
+  const rules = exclude + '\n# user rule retained\n/personal-cache/\n/.keel/feedback/\n';
+  await put(root, '.git/info/exclude', rules);
+  const secret = Buffer.from('private Acme feedback\0opaque-keel-operation\xff', 'binary');
+  await put(root, '.keel/feedback/records/acme.json', secret);
+  await put(root, '.keel/feedback/.npmignore', '*\n');
+  const preview = await planRename(root), publicJson = JSON.stringify(preview);
+  assert(preview.privacy.patterns.includes('/.plates/feedback/'));
+  assert(!publicJson.includes('private Acme feedback'));
+  assert(!publicJson.includes(secret.toString('base64')));
+  assert(!publicJson.includes('# user rule retained'));
+  assert.equal(await get(root, '.git/info/exclude'), rules);
+  await absent(root, '.git/plates-rename');
+  const privateIndex = preview.files.findIndex(file => file.to === '.plates/feedback/records/acme.json');
+  let checked = false;
+  await applyRename(root, { digest: preview.digest, afterBackup(index) {
+    if (index !== privateIndex) return;
+    checked = true;
+    assert(ignored(root, '.plates/feedback/records/acme.json'));
+    assert(ignored(root, '.keel/feedback/records/acme.json'));
+  } });
+  assert(checked);
+  assert.deepEqual(await readFile(join(root, '.plates/feedback/records/acme.json')), secret);
+  assert.equal(await get(root, '.plates/feedback/.npmignore'), '*\n');
+  const after = await get(root, '.git/info/exclude');
+  assert(after.startsWith(rules));
+  assert(ignored(root, '.plates/feedback/future.json'));
+  assert(!ignored(root, '.plates/public.json'));
+  assert(!ignored(root, '.plates/plates.json'));
+  assert(!git(root, 'status', '--porcelain', '--untracked-files=all').includes('feedback'));
+  const stage = execFileSync('git', ['-C', root, 'add', '--dry-run', '.'], { encoding: 'utf8' });
+  assert(!stage.includes('feedback'));
+  assert.equal((await applyRename(root)).state, 'already-migrated');
+  assert.equal(await get(root, '.git/info/exclude'), after);
+});
+
+test('tracked ignore rewrites protect both old and new literal runtime files through recovery', async t => {
+  const root = await fixture(t), path = '.keel/test-runs/acme[1]*?.json';
+  await put(root, path, 'private test run');
+  await put(root, '.gitignore', '/.keel/test-runs/*.json\n');
+  git(root, 'add', '.gitignore'); git(root, 'commit', '-qm', 'Acme runtime privacy');
+  const preview = await planRename(root);
+  const ignoreIndex = preview.files.findIndex(file => file.from === '.gitignore');
+  await assert.rejects(applyRename(root, { digest: preview.digest, afterOperation(index) {
+    if (index !== ignoreIndex) return;
+    assert(ignored(root, path));
+    assert(ignored(root, '.plates/test-runs/acme[1]*?.json'));
+    throw Error('stop after ignore rewrite');
+  } }), /stop after ignore rewrite/);
+  const protectedRules = await get(root, '.git/info/exclude');
+  assert(protectedRules.includes('/.plates/test-runs/acme\\[1\\]\\*\\?.json'));
+  // The old rule is retained narrowly: a similar old filename is not covered.
+  assert(!ignored(root, '.keel/test-runs/acme11-other.json'));
+  await applyRename(root, { digest: preview.digest });
+  assert.equal(await get(root, '.plates/test-runs/acme[1]*?.json'), 'private test run');
+  assert.equal(await get(root, '.git/info/exclude'), protectedRules);
+});
+
+test('private backup crash recovers without duplicate excludes and refuses exclude drift', async t => {
+  const root = await fixture(t);
+  await put(root, '.git/info/exclude', '/.keel/feedback/\n');
+  await put(root, '.keel/feedback/secret.json', 'private receipt identity');
+  const preview = await planRename(root), index = preview.files.findIndex(file => file.to === '.plates/feedback/secret.json');
+  await assert.rejects(applyRename(root, { digest: preview.digest, afterBackup(at) {
+    if (at === index) throw Error('private backup interrupted');
+  } }), /private backup interrupted/);
+  await absent(root, '.keel/feedback/secret.json'); await absent(root, '.plates/feedback/secret.json');
+  const rules = await get(root, '.git/info/exclude');
+  assert(ignored(root, '.plates/feedback/secret.json'));
+  assert.equal(await get(root, `.git/plates-rename/before-${index}`), 'private receipt identity');
+  assert.equal((await stat(join(root, '.git/plates-rename'))).mode & 0o777, 0o700);
+  assert.equal((await stat(join(root, '.git/plates-rename/receipt.json'))).mode & 0o777, 0o600);
+  await put(root, '.git/info/exclude', rules + '# human edit\n');
+  await assert.rejects(applyRename(root, { digest: preview.digest }), /Git exclude changed/);
+  await absent(root, '.plates/feedback/secret.json');
+  assert.equal(await get(root, '.git/info/exclude'), rules + '# human edit\n');
+  await put(root, '.git/info/exclude', rules);
+  await applyRename(root, { digest: preview.digest });
+  assert.equal(await get(root, '.plates/feedback/secret.json'), 'private receipt identity');
+  assert.equal(await get(root, '.git/info/exclude'), rules);
+});
+
+test('unsafe exclude file or directory refuses preview without following links', async t => {
+  for (const kind of ['file', 'directory', 'hardlink', 'fifo']) {
+    const root = await fixture(t);
+    await put(root, 'outside/exclude', 'outside bytes');
+    if (kind === 'file') {
+      await rm(join(root, '.git/info/exclude'));
+      await symlink('../../outside/exclude', join(root, '.git/info/exclude'));
+    } else if (kind === 'directory') {
+      await rm(join(root, '.git/info'), { recursive: true });
+      await symlink('../outside', join(root, '.git/info'));
+    } else {
+      await rm(join(root, '.git/info/exclude'));
+      if (kind === 'hardlink') await link(join(root, 'outside/exclude'), join(root, '.git/info/exclude'));
+      else execFileSync('mkfifo', [join(root, '.git/info/exclude')]);
+    }
+    await assert.rejects(planRename(root), /unsafe(?: or oversized)? Git exclude/);
+    assert.equal(await get(root, 'outside/exclude'), 'outside bytes');
+    await absent(root, '.plates');
+  }
+});
+
+test('changed exclude preview or conflicting canonical negation refuses before private data moves', async t => {
+  const root = await fixture(t);
+  await put(root, '.git/info/exclude', '/.keel/feedback/\n');
+  await put(root, '.keel/feedback/secret.json', 'private feedback');
+  const preview = await planRename(root);
+  await put(root, '.git/info/exclude', '/.keel/feedback/\n# new user rule\n');
+  await assert.rejects(applyRename(root, { digest: preview.digest }), /preview changed/);
+  await absent(root, '.plates');
+  await put(root, '.gitignore', '!/.plates/feedback/secret.json\n');
+  git(root, 'add', '.gitignore');
+  const rules = await get(root, '.git/info/exclude');
+  await assert.rejects(planRename(root), /ignore rules conflict/);
+  assert.equal(await get(root, '.git/info/exclude'), rules);
+  assert.equal(await get(root, '.keel/feedback/secret.json'), 'private feedback');
 });
