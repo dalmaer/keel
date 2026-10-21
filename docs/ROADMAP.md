@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**45 of 102 phases built; 39 owe a walk.** Built means implemented and checked; planned is not available.
+**46 of 102 phases built; 39 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `keel canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `keel canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -269,12 +269,12 @@ Each change is verified in parallel and published one at a time; production move
 
 An authenticated owner sees the right projects, makes source-backed decisions, tests exact revisions step by step, and discovers recent changes without publishing private workspace data.
 
-0/9 built.
+1/9 built.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [93. Workspace data stays outside public code](phases/93-workspace-data-stays-outside-public-code.md) | designed | 2026-10-21 | — | Authorized web workspace sequence; external storage boundary is the first implementation slice. |
-| [94. The private instance has approved connections](phases/94-private-instance-has-approved-connections.md) | planned | 2026-10-21 | [93](phases/93-workspace-data-stays-outside-public-code.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [93. Workspace data stays outside public code](phases/93-workspace-data-stays-outside-public-code.md) | built | 2026-10-21 | — | External storage boundary verified in focused tests and the extracted package; login and remote privacy are later phases. |
+| [94. The private instance has approved connections](phases/94-private-instance-has-approved-connections.md) | partial | 2026-10-21 | [93](phases/93-workspace-data-stays-outside-public-code.md) | Setup worksheet and priced hosting candidate prepared; owner must select host/account, private repository and GitHub App owner before connection. |
 | [95. Sign-in scopes every project](phases/95-sign-in-scopes-every-project.md) | planned | 2026-10-21 | [94](phases/94-private-instance-has-approved-connections.md) | Authorized web workspace sequence; acceptance remains unverified. |
 | [96. Home explains every project](phases/96-home-explains-every-project.md) | planned | 2026-10-21 | [95](phases/95-sign-in-scopes-every-project.md) | Authorized web workspace sequence; acceptance remains unverified. |
 | [97. Decisions change the reviewed source](phases/97-decisions-change-the-reviewed-source.md) | planned | 2026-10-21 | [90](phases/90-builders-receive-current-decisions.md), [91](phases/91-ideas-become-plans-with-attributed-choices.md), [96](phases/96-home-explains-every-project.md) | Authorized web workspace sequence; acceptance remains unverified. |

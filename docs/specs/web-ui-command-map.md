@@ -24,7 +24,7 @@ reports. Only explicitly selected operations may write project records.
 ## Inventory update, 21 October 2026
 
 The original audit below remains dated to its source revision. Rechecked the
-registry at `eeb0dbb` for the new public surfaces; these supplement that audit.
+registry at `eeb0dbb` (44 verbs) for the new public surfaces; these supplement that audit.
 Phase 93 adds workspace setup as a separate command, not a board flag.
 
 | Command | Every argument / option beyond `--json` | UX and boundary |

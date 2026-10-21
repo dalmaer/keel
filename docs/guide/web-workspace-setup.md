@@ -52,6 +52,47 @@ secret; webhook signing secret only when that route exists. Store stable
 provider IDs and the allowlisted owner identity privately. Return public setup
 evidence as sanitized state/coverage, never tokens, private names or membership.
 
+## Prepared hosting candidate: Render (not selected or provisioned)
+
+A small single-instance service fits the initial filesystem-backed design. As
+checked on 21 October 2026, Render lists a 512 MB / 0.5 CPU service at $7/month
+and persistent disks at $0.25/GB/month: **$7.25/month for compute plus a 1 GB
+disk**, before bandwidth, additional workspace charges, tax or separate backup
+storage. This is a sizing proposal, not a measured capacity result or a spending
+approval. [Current pricing](https://render.com/pricing).
+
+Use a Docker service with the approved Node >=24.21 runtime, public source
+checked out at `/app`, and one private disk mounted at `/var/data`. Keep the
+private workspace checkout at `/var/data/workspace` and runtime state at
+`/var/data/state`; the directories are siblings. Disable automatic deploy until
+the deployment gate can identify the tested serving revision. Use the assigned
+HTTPS service origin initially; a custom domain is optional.
+
+Render disks persist across deploys and have daily snapshots retained for at
+least seven days. Disk-backed services have deployment downtime; do not promise
+horizontal replicas or uninterrupted deploys. The application must still verify
+its own backup consistency and restore receipts. An independent encrypted export
+destination remains an owner selection before phase 101.
+[Disk lifecycle](https://render.com/docs/disks),
+[deploy behavior](https://render.com/docs/deploys).
+
+Store the GitHub App key in a secret file under `/etc/secrets` and other secrets
+in provider-injected environment variables. Docker keeps secret files outside
+application source; the provider's native runtime also places secret files in
+its service root, which is why this recipe selects Docker. No private repository
+credential belongs in an image layer, Docker build argument, Git remote URL or
+command output. Bootstrap private records at runtime using bounded GitHub API
+reads, not repository scripts. [Secret injection](https://render.com/docs/configure-environment-variables).
+
+The service entry point, Dockerfile, health route, bootstrap adapter and exact
+callback path are phase 95 implementation work. Do not deploy a placeholder
+listener and count it as authenticated access. Phase 94 can register the intended
+origin/configuration after owner approval; phase 95 proves the running service.
+Before creating anything, fill in: approved Render workspace, service name,
+region, GitHub App owner, private repository account/name, selected project repos
+and approved price. Recheck pricing at that time. Reusing another existing host
+replaces this candidate without changing the data ownership contract.
+
 ## Acceptance worksheet for later phases
 
 1. Sign in at the approved HTTPS origin; inspect only authorized projects.

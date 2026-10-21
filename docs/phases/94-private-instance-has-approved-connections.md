@@ -1,10 +1,10 @@
 ---
-status: planned
+status: partial
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [93]
-note: "Authorized web workspace sequence; acceptance remains unverified."
+note: "Setup worksheet and priced hosting candidate prepared; owner must select host/account, private repository and GitHub App owner before connection."
 evidence: []
 ---
 
@@ -47,7 +47,7 @@ Host, domain, private repo name, installation owner and price require owner inpu
 
 ## Next action
 
-Present the prepared setup worksheet; obtain the owner's host/account/repository choice and exact resource approval, then connect it.
+Obtain the owner's host/account and private repository choice using the prepared setup worksheet; confirm the exact provider recipe, GitHub App permissions and current price before creating resources.
 
 ## Trajectory
 
@@ -108,3 +108,5 @@ Present the prepared setup worksheet; obtain the owner's host/account/repository
 - **Then:** Record exactly what was observed; keep missing checks open and name the next action.
 
 - **Ready when:** The owner has selected accounts and reviewed the concrete deployment recipe and price.
+
+- **2026-10-21** — Prepared a Render single-instance candidate and current compute/disk estimate in the setup guide. No resource, secret, repository or deployment was created; account and destination choices remain with the owner.

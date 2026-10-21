@@ -1,11 +1,11 @@
 ---
-status: designed
+status: built
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: []
-note: "Authorized web workspace sequence; external storage boundary is the first implementation slice."
-evidence: []
+note: "External storage boundary verified in focused tests and the extracted package; login and remote privacy are later phases."
+evidence: ["evidence/2026-10-21-web-workspace-boundary.md"]
 ---
 
 # Workspace data stays outside public code
@@ -23,10 +23,10 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Valid bounded manifests and duplicate/unknown/invalid input refusals do not expose rejected values: `tests/workspace.test.mjs`.
-- [ ] Canonical paths reject application overlap, Git-contained state, unsafe aliases, unowned state and mismatched markers without modifying existing data: `tests/workspace.test.mjs`.
-- [ ] Preview is read-only, explicit initialization is private and retries are idempotent across processes: `tests/workspace-cli.test.mjs`.
-- [ ] JSON, help, strict arguments and package-installed execution work without a source checkout: `tests/workspace-cli.test.mjs`.
+- [x] Valid bounded manifests and duplicate/unknown/invalid input refusals do not expose rejected values: `tests/workspace.test.mjs`.
+- [x] Canonical paths reject application overlap, Git-contained state, unsafe aliases, unowned state and mismatched markers without modifying existing data: `tests/workspace.test.mjs`.
+- [x] Preview is read-only, explicit initialization is private and retries are idempotent across processes: `tests/workspace-cli.test.mjs`.
+- [x] JSON, help, strict arguments and package-installed execution work without a source checkout: `tests/workspace-cli.test.mjs`.
 
 ## Real surfaces
 
@@ -50,8 +50,10 @@ Remote repository privacy, authentication and hosted deployment remain unverifie
 
 ## Next action
 
-Implement the external workspace resolver and CLI, then prove the packed lifecycle.
+None. Hosted resource connection follows in phase 94.
 
 ## Trajectory
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
+
+- **2026-10-21** — Review found that opening a named pipe before checking its type could block a bounded read. The reader now validates the leaf and descriptor and opens nonblocking; a real FIFO test proves refusal.

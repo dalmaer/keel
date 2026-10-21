@@ -89,7 +89,9 @@ be a regular file outside the installed application tree (CLI_ROOT). Runtime
 state must be outside every Git working tree, outside the application and
 manifest directory, and cannot contain either of them. Resolve symlinks before
 checking overlap; reject symlink files/entries for the marker and state leaf.
-The state parent must already exist; no recursive creation of arbitrary parents.
+Reads reject nonregular files before opening and validate the descriptor after
+opening nonblocking; a FIFO must not suspend inspection. The state parent must
+already exist; no recursive creation of arbitrary parents.
 Reject filesystem root, existing non-directory or unowned nonempty state.
 
 `init --yes` creates a private directory (0700) and an exclusive 0600 JSON marker
