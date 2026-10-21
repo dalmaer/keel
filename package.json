@@ -13,6 +13,8 @@
   "files": [
     "bin/",
     "lib/",
+    "api/",
+    "vercel.json",
     "practices/",
     "docs/lessons.md",
     "migrations/",
