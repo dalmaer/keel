@@ -16,7 +16,7 @@ The deployed service authenticates its owner and denies every project, artifact 
 
 ## Scope
 
-Implement the GitHub App authorization flow, external session store, per-request access policy, logout/revocation, CSRF/origin controls and deployment entry point. Reuse phase 93 paths; keep all tokens server-side.
+Implement the GitHub App authorization flow, external session store, per-request access policy, logout/revocation, CSRF/origin controls and deployment entry point. Reuse phase 93 manifest validation; use explicit hosted storage bindings rather than filesystem paths on Vercel. Keep all tokens server-side.
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
@@ -25,6 +25,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 - [ ] Login rejects replay, bad state, expired attempts and unsafe return paths; sessions rotate and expire: `tests/web-auth.test.mjs`.
 - [ ] Denied membership, revoked access and unauthorized project/media/stream requests reveal no private records: `tests/web-access.test.mjs`.
+- [ ] Independent function instances atomically consume authorization attempts, revoke sessions and preserve versioned writes; unavailable storage fails closed: `tests/web-store.test.mjs`.
 - [ ] Mutation routes enforce origin and CSRF; public static/package output contains no secrets: `tests/web-server.test.mjs`.
 - [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin: `docs/guide/web-workspace-setup.md`.
 
@@ -39,7 +40,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 Named test paths are implementation targets until this phase is built, not
 claims of existing checks or passing results.
 
-- `node --import ./tests/helpers/hermetic.mjs --test tests/web-auth.test.mjs tests/web-access.test.mjs tests/web-server.test.mjs`
+- `node --import ./tests/helpers/hermetic.mjs --test tests/web-auth.test.mjs tests/web-access.test.mjs tests/web-server.test.mjs tests/web-store.test.mjs`
 - `npm run check`
 - `npm run typecheck`
 - Walk the named real surfaces; retain exact commands, exit codes, source revisions and observed outcomes in dated evidence.

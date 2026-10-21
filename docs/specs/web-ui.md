@@ -438,7 +438,7 @@ that every successful process produced complete evidence.
 1. Resolve project and checkout; load capability and source revision.
 2. Preview concrete effects, including local files, remote destination and price.
 3. Execute only the chosen action; revalidate source and authority under a
-   per-project mutation lock. A stale preview is rejected and refreshed.
+   durable per-project mutation lease with fencing across Vercel instances. A stale preview is rejected and refreshed.
 4. Record success, partial completion, refusal or uncertain delivery; refresh
    affected source readers. Never blindly retry an uncertain remote write.
 

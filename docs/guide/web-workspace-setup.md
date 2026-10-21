@@ -4,7 +4,7 @@ Design/setup worksheet, 21 October 2026. Phase 93 provides local manifest and
 state initialization. Hosted login and Home are subsequent phases, not commands
 you can run today. See [the contract](../specs/web-workspace.md).
 
-## Prepare the data boundary
+## Prepare the local data boundary
 
 Keep three separate locations, for example (illustrative Acme paths):
 
@@ -14,7 +14,7 @@ Keep three separate locations, for example (illustrative Acme paths):
 
 The paths are explicit; the runtime directory's parent must exist. Do not put
 credentials in the manifest. Create the version 1 manifest from the contract,
-then, once phase 93 is built:
+then use the built phase 93 commands:
 
 ```sh
 keel workspace inspect --manifest /srv/keel/workspace/workspace.json --state /srv/keel/state --json
@@ -26,72 +26,87 @@ Preview exits 3 and writes nothing. Explicit initialization is idempotent for
 the same identity. Remote privacy remains unverified until checked through
 GitHub. This does not create a repository, host a service or authenticate anyone.
 
-## Select and approve the first instance (phase 94)
+## Selected host: Vercel (21 October 2026)
 
-| Choice | Required information | Resource action |
+The owner selected Vercel and a private workspace repository. The repository
+was created and its privacy read back through GitHub; the Vercel CLI requires a
+fresh login. No Vercel project, database, Blob store or GitHub App was provisioned.
+The earlier Render single-instance candidate was not approved or created and is
+superseded by this choice. The local filesystem adapter above remains supported;
+it is not the storage implementation for hosted requests.
+
+| Layer | Proposed binding | Remaining decision/check |
 | --- | --- | --- |
-| Workspace repo | Account/name; reuse or create; verify `private` and numeric repo ID | Creating a repo needs the owner's yes |
-| Host | Existing host/account or new provider; Node >=24.21, HTTPS, secret injection, private persistent volume, backups | Quote the actual plan/storage/backup price before provisioning |
-| Origin | Approved HTTPS URL/domain and exact callback URL | Domain purchase/DNS changes need the owner's selected destination |
-| GitHub App | App owner, selected project repos, private workspace repo | Register/install only after approval of exact permissions |
-| Runtime storage | Private absolute path, capacity, backup destination | Verify outside Git and application paths; no public bucket |
+| Application | Public Keel source; framework-free Node functions and browser modules | Vercel account/team, project, region, actual Node >=24.21.0 |
+| Shared records | Owner-selected private GitHub repository | Numeric identity retained privately; manifest and selected project list |
+| Sessions/drafts/receipts | External transactional database; Neon via Marketplace is a candidate | Account, plan, region, supported API/dependency contract, restore policy |
+| Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
+| Identity | GitHub App authorization, selected repositories only | App owner, exact callback origin, installation scope and permissions |
+| Secrets | Vercel server-side environment configuration | Approved names/resources, production-only scope, rotation and revocation |
 
-No provider or price has been selected. Phase 94 first fills this worksheet with
-a concrete provider-specific recipe and current pricing, then requests approval.
-The choice can reuse existing resources; do not imply they are free or available.
+Vercel functions cannot keep durable state on their local filesystem. Use
+bounded GitHub API reads and external storage, not a persistent checkout or disk.
+[Function runtimes](https://vercel.com/docs/functions/runtimes).
+New Postgres resources are provisioned through Marketplace providers, not the
+retired Vercel Postgres product.
+[Marketplace storage](https://vercel.com/docs/marketplace-storage).
 
-Initial GitHub App permission proposal: repository Metadata read and Contents
-read, selected repositories only. User authorization provides the user-access
-intersection. Webhook subscription is optional for the first bounded polling
-reader. Add Issues/Pull requests read only when their adapters ship; add source
-write permissions separately with the decision/walk operation. No administration,
-Actions execution, workflow-write or organization-wide installation requirement.
+### Price worksheet (checked 21 October 2026)
 
-Secrets to inject, never commit: App private key/client secret and server session
-secret; webhook signing secret only when that route exists. Store stable
-provider IDs and the allowlisted owner identity privately. Return public setup
-evidence as sanitized state/coverage, never tokens, private names or membership.
+- Private GitHub repositories are included in GitHub Free; no incremental
+  repository charge. [GitHub pricing](https://github.com/pricing).
+- Vercel Hobby is $0 for eligible personal, non-commercial use. Pro starts at
+  $20/month plus usage. Existing account and plan are unknown; selecting Vercel
+  does not authorize a paid upgrade. [Pricing](https://vercel.com/pricing),
+  [Hobby eligibility](https://vercel.com/docs/plans/hobby).
+- Neon has a $0 Free plan with limits; paid plans are usage-based. Free history
+  is limited and is not a sufficient independent backup policy by itself.
+  Marketplace checkout terms must be read before provisioning.
+  [Neon pricing](https://neon.com/pricing).
+- Private Blob incurs storage/operations/transfer usage against plan allowances;
+  function delivery can incur additional transfer charges. Quote the selected
+  account's allowances and overage settings before creation.
+  [Blob pricing](https://vercel.com/docs/vercel-blob/usage-and-pricing).
 
-## Prepared hosting candidate: Render (not selected or provisioned)
+No total operating price is approved yet. Prefer existing resources and explicit
+limits; paid resources, overages and backups need a concrete owner decision.
 
-A small single-instance service fits the initial filesystem-backed design. As
-checked on 21 October 2026, Render lists a 512 MB / 0.5 CPU service at $7/month
-and persistent disks at $0.25/GB/month: **$7.25/month for compute plus a 1 GB
-disk**, before bandwidth, additional workspace charges, tax or separate backup
-storage. This is a sizing proposal, not a measured capacity result or a spending
-approval. [Current pricing](https://render.com/pricing).
+### Connection recipe
 
-Use a Docker service with the approved Node >=24.21 runtime, public source
-checked out at `/app`, and one private disk mounted at `/var/data`. Keep the
-private workspace checkout at `/var/data/workspace` and runtime state at
-`/var/data/state`; the directories are siblings. Disable automatic deploy until
-the deployment gate can identify the tested serving revision. Use the assigned
-HTTPS service origin initially; a custom domain is optional.
+1. Run `vercel login` locally, then inspect `vercel whoami` and `vercel teams ls`.
+   Select the exact account/team; never paste tokens into the conversation.
+2. Bind the private repository's numeric ID and workspace manifest privately.
+   Start with an empty project list until the owner selects project access.
+   Re-read privacy through the GitHub API; local manifest validation is not proof.
+3. Choose database/API adapter and backup destination. Verify atomic single-use
+   authorization, versioned drafts, unique intents and cross-instance leases.
+   Native fetch needs a documented provider API; do not reverse-engineer an SDK
+   endpoint to preserve zero dependencies. An SDK-only choice requires an explicit
+   repository dependency exception before implementation. Defer media provisioning
+   until its adapter and price are selected; phase 95 does not need screenshots.
+4. Create the approved Vercel project from public application source with Node
+   24.x, no framework/build requirement and an assigned HTTPS origin. Check the
+   actual runtime patch before treating it as compatible. Entry points and the
+   authenticated service ship in phase 95; a placeholder is not working login.
+5. Register/install the approved GitHub App. Initial permissions: Metadata read
+   and Contents read, selected workspace/project repositories only. Add Issues
+   and Pull requests read when adapters need them; approve writes separately when
+   decision/walk operations ship. No Actions or administration access is needed.
+6. Configure the exact HTTPS callback and server-only App private key, client
+   secret, session secret and database credential. Webhook signing secret is
+   needed only when that route ships. Preview deployments use synthetic resources
+   and separate credentials; untrusted branches must not receive production data.
+7. Record provider IDs, permission matrix, secret names (never values), price,
+   region, origin, serving revision and backup destination privately. Public
+   evidence records only sanitized coverage. Phase 94 remains partial until real
+   bindings are checked; phase 95 proves actual login and access denial.
 
-Render disks persist across deploys and have daily snapshots retained for at
-least seven days. Disk-backed services have deployment downtime; do not promise
-horizontal replicas or uninterrupted deploys. The application must still verify
-its own backup consistency and restore receipts. An independent encrypted export
-destination remains an owner selection before phase 101.
-[Disk lifecycle](https://render.com/docs/disks),
-[deploy behavior](https://render.com/docs/deploys).
-
-Store the GitHub App key in a secret file under `/etc/secrets` and other secrets
-in provider-injected environment variables. Docker keeps secret files outside
-application source; the provider's native runtime also places secret files in
-its service root, which is why this recipe selects Docker. No private repository
-credential belongs in an image layer, Docker build argument, Git remote URL or
-command output. Bootstrap private records at runtime using bounded GitHub API
-reads, not repository scripts. [Secret injection](https://render.com/docs/configure-environment-variables).
-
-The service entry point, Dockerfile, health route, bootstrap adapter and exact
-callback path are phase 95 implementation work. Do not deploy a placeholder
-listener and count it as authenticated access. Phase 94 can register the intended
-origin/configuration after owner approval; phase 95 proves the running service.
-Before creating anything, fill in: approved Render workspace, service name,
-region, GitHub App owner, private repository account/name, selected project repos
-and approved price. Recheck pricing at that time. Reusing another existing host
-replaces this candidate without changing the data ownership contract.
+Private Blob reads require authentication and can use a server-side bearer
+request, then an authorized app route. The browser never receives a storage
+token; responses must use private caching. The documented upload path uses the
+SDK or CLI, so the zero-dependency upload adapter is still a phase 99 design
+choice. Do not claim native-fetch uploads are already supported.
+[Private Blob](https://vercel.com/docs/vercel-blob/private-storage).
 
 ## Acceptance worksheet for later phases
 
@@ -104,7 +119,7 @@ replaces this candidate without changing the data ownership contract.
    explicitly submit; inspect only the intended acceptance change.
 6. Open a real screenshot's provenance and follow Try it to the matching surface.
 7. Revoke access and verify denial; logout and check session invalidation.
-8. Restore a backup into an isolated approved target. Confirm sessions are expired,
+8. Restore Git records, database state and private media into an isolated approved target. Confirm sessions are expired,
    unresolved operations are reconciled before replay, and private artifacts and
    source records retain coverage. Record the actual observation window.
 
