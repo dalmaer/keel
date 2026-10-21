@@ -4,7 +4,7 @@ since: 2026-10-21
 goal: G7
 spec: 2
 depends: [94]
-note: "Service and local proof complete; owner identity checks, hosted SQL concurrency, deployment and live login remain."
+note: "Service, local proof and hosted SQL role/concurrency checks complete; App installation/client secret, deployment and live login remain."
 evidence: ["evidence/2026-10-21-web-auth-service.md"]
 ---
 
@@ -25,7 +25,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 - [x] Login rejects replay, bad state, expired attempts and unsafe return paths; sessions rotate and expire: `tests/web-auth.test.mjs`.
 - [x] Denied membership, revoked access and unauthorized project/media/stream requests reveal no private records: `tests/web-access.test.mjs`.
-- [ ] Independent function instances atomically consume authorization attempts, revoke sessions and preserve versioned writes; unavailable storage fails closed: `tests/web-store.test.mjs`.
+- [x] Independent function instances atomically consume authorization attempts, revoke sessions and preserve versioned writes; unavailable storage fails closed: `tests/web-store.test.mjs`.
 - [x] Mutation routes enforce origin and CSRF; public static/package output contains no secrets: `tests/web-server.test.mjs`.
 - [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin, with serving Node >=24.21.0 verified: `docs/guide/web-workspace-setup.md`.
 
@@ -51,9 +51,11 @@ Public signup, additional identity providers and multi-tenant hosting are outsid
 
 ## Next action
 
-Complete GitHub Confirm access and Vercel database verification, then register/install the approved App, apply the migration and verify independent database connections. Configure production secrets, deploy, and walk owner login/logout/denied access with serving Node >=24.21.0. Keep phase 96 behind this acceptance boundary until the remaining database proof is established.
+Install the registered App on the prepared selected repositories, add its OAuth client secret to production, and verify the installation bindings. Deploy and walk owner login/logout/denied access with serving Node >=24.21.0. Hosted SQL concurrency and role checks are now established; keep phase 96 behind the remaining deployed-login acceptance boundary.
 
 ## Trajectory
+
+- **2026-10-21** — Hosted SQL proof now exercises overlapping transactions on distinct PostgreSQL backend connections. The Vercel query editor accepts one prepared statement, so the unchanged migration body ran inside one atomic dollar-quoted DO block. Runtime deployment and owner login remain separate acceptance work.
 
 - **2026-10-21** — User-to-server GitHub App authorization needs no installation private key. Explicit numeric bindings and private membership read at one commit establish the access intersection. Local adapter concurrency and embedded SQL proof remain distinct from hosted multi-connection verification.
 

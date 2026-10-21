@@ -168,12 +168,14 @@ Fleet-wide views and each project use the same records and controls.
 **Available today:** the CLI, the local `keel board`, and external workspace
 manifest validation/initialization. The first Vercel project has been created,
 but **hosted sign-in and Home are not deployed**. Supabase Free is connected to
-production; the read-only GitHub App is approved and awaiting GitHub identity
-verification before registration. Phase status lives in [the roadmap](docs/ROADMAP.md):
+production, with its authentication schema, role restrictions and concurrent
+SQL operations verified. The read-only GitHub App is registered; installation
+and its OAuth client secret remain pending. Phase status lives in [the roadmap](docs/ROADMAP.md):
 [93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md)
 is built; [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
 is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) now has
-a service implementation and local verification, with live acceptance still open.
+a service implementation, local verification and hosted database proof, with
+deployed login acceptance still open.
 [96: Home](docs/phases/96-home-explains-every-project.md) follows. Decisions,
 walks, visual changes and initial real-use verification follow in phases 97–101.
 [Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine

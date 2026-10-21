@@ -6,8 +6,8 @@ since: 2026-10-21
 goal: G7
 spec: 2
 depends: [93]
-note: "Private repository, Vercel project and Supabase Free production connection verified. Approved GitHub App waits on owner identity verification; no application deployed."
-evidence: ["evidence/2026-10-21-vercel-workspace-connections.md"]
+note: "Private repository, Vercel project and Supabase Free production connection verified. GitHub App registered; selected installation and backup destination remain; no application deployed."
+evidence: ["evidence/2026-10-21-vercel-workspace-connections.md", "evidence/2026-10-21-web-auth-service.md"]
 ---
 
 # The private instance has approved connections
@@ -45,11 +45,11 @@ claims of existing checks or passing results.
 
 ## Deliberately open
 
-**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. The owner also selected an existing Pro team; the project and assigned domain are verified. The owner approved Supabase Free/iad1/production-only and the read-only selected-repository GitHub App. Database provisioning and connection are verified; App registration, backup and serving-runtime checks remain open. No synthetic connection can satisfy the live resource checks.
+**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. The owner also selected an existing Pro team; the project and assigned domain are verified. The owner approved Supabase Free/iad1/production-only and the read-only selected-repository GitHub App. Database provisioning, connection and App registration are verified; installation, backup and serving-runtime checks remain open. No synthetic connection can satisfy the live resource checks.
 
 ## Next action
 
-Complete GitHub’s Confirm access identity check, then register/install the already-approved read-only App and verify its selected repositories. Verify the backup destination before closing the connection walk. The actual serving Node patch is verified during phase 95 deployment. Vercel login/team/project and repository privacy are verified; application login is not.
+Complete installation of the registered read-only App on the two prepared repositories and verify the selection through fresh API facts. Verify the backup destination before closing the connection walk. The actual serving Node patch is verified during phase 95 deployment. Vercel login/team/project and repository privacy are verified; application login is not.
 
 ## Trajectory
 
