@@ -11,32 +11,32 @@ evidence: ["evidence/2026-10-09-ci-usage.md"]
 issue: 48
 ---
 
-# CI cost is a measure, and adoption says what keel adds
+# CI cost is a measure, and adoption says what plates adds
 
 ## Done when
 
-The night reports each workflow's weighted minutes for the last 7 days (each job rounded up to a minute, configurable defaults Linux ×1, Windows ×2 and macOS ×10) against a bound the project sets; the night's gate measure reuses the result of the project's own CI on the same commit instead of running the gate again; `keel adopt --dry-run` states the weighted minutes a month keel's workflows would add; and one metered project has run a month with them.
+The night reports each workflow's weighted minutes for the last 7 days (each job rounded up to a minute, configurable defaults Linux ×1, Windows ×2 and macOS ×10) against a bound the project sets; the night's gate measure reuses the result of the project's own CI on the same commit instead of running the gate again; `plates adopt --dry-run` states the weighted minutes a month plates's workflows would add; and one metered project has run a month with them.
 
 ## Scope
 
 The design is [Adopting projects that already have a practice](../research/2026-10-09-adopting-projects-that-ship-to-main.md), change 4.
 
-- **The measure** `ci_minutes`: from the Actions API (bounded, paginated runs and jobs, including run attempts), each job rounded up to a whole minute and multiplied by its runner's configured weight (Linux 1, Windows 2, macOS 10; overridable), by workflow, for the last 7 days; bound `.keel/keel.json` `"ci": { "weeklyMinutes": N }`. keel's own workflows are listed apart, so the owner sees what keel costs.
-- **The gate, reused**: when `.keel/keel.json` names the project's CI workflow (`"ci": { "gateWorkflow": "ci.yml" }`), the night's `gate` measure reads that workflow's conclusion on the night's exact commit instead of running the check; it reuses a completed success or failure on the exact clean revision within 24 hours, and runs the check when no usable result is available. Conflicting top-level and nested workflow names are a configuration error.
-- **Adoption states it**: `keel adopt --dry-run` lists each workflow keel would add with its trigger and an estimate in weighted minutes a month (from keel's own history of that workflow), and the total.
+- **The measure** `ci_minutes`: from the Actions API (bounded, paginated runs and jobs, including run attempts), each job rounded up to a whole minute and multiplied by its runner's configured weight (Linux 1, Windows 2, macOS 10; overridable), by workflow, for the last 7 days; bound `.plates/plates.json` `"ci": { "weeklyMinutes": N }`. plates's own workflows are listed apart, so the owner sees what plates costs.
+- **The gate, reused**: when `.plates/plates.json` names the project's CI workflow (`"ci": { "gateWorkflow": "ci.yml" }`), the night's `gate` measure reads that workflow's conclusion on the night's exact commit instead of running the check; it reuses a completed success or failure on the exact clean revision within 24 hours, and runs the check when no usable result is available. Conflicting top-level and nested workflow names are a configuration error.
+- **Adoption states it**: `plates adopt --dry-run` lists each workflow plates would add with its trigger and an estimate in weighted minutes a month (from plates's own history of that workflow), and the total.
 
 ## Acceptance
 
-- [x] `ci_minutes` rounds each job up, applies each runner's multiplier, groups by workflow, separates keel's own, and is outside its bound when over it; n/a without the API, never zero. `tests/ci.test.mjs`, `tests/improve-measures.test.mjs`
+- [x] `ci_minutes` rounds each job up, applies each runner's multiplier, groups by workflow, separates plates's own, and is outside its bound when over it; n/a without the API, never zero. `tests/ci.test.mjs`, `tests/improve-measures.test.mjs`
 - [x] With `gateWorkflow` set, the night's gate measure reads that workflow's conclusion on the commit and runs no check; without a run, it runs the check as today. `tests/ci.test.mjs`, `tests/night.test.mjs`
-- [x] `keel adopt --dry-run` lists keel's added workflows with a monthly minutes estimate and a total. `tests/adopt.test.mjs`
-- [ ] ⚑ by hand: a month on one metered project; the owner compares keel's minutes with the estimate.
+- [x] `plates adopt --dry-run` lists plates's added workflows with a monthly minutes estimate and a total. `tests/adopt.test.mjs`
+- [ ] ⚑ by hand: a month on one metered project; the owner compares plates's minutes with the estimate.
 
 ## Your part
 
-- **Ask:** After a month on a metered project, compare what keel's workflows actually cost with what the dry run estimated.
-- **Why:** A project that pays for its minutes should know what keel adds before it says yes.
-- **Look at:** The night's `ci_minutes` line, keel's own workflows.
+- **Ask:** After a month on a metered project, compare what plates's workflows actually cost with what the dry run estimated.
+- **Why:** A project that pays for its minutes should know what plates adds before it says yes.
+- **Look at:** The night's `ci_minutes` line, plates's own workflows.
 - **Choices:** Close enough | Estimate was off
 - **Takes:** 5 minutes.
 - **Then:** Close enough: the phase is built. Off: the estimate's source is fixed and the gap goes into the evidence.

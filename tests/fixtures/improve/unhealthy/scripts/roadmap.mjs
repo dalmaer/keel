@@ -84,7 +84,7 @@ export function validateGraph(phases, goals) {
     if (!goalIds.has(p.goal)) fail(`${p.file}: unknown goal ${p.goal}`);
     byId.set(p.id, p);
   }
-  // A goal with no phase yet is allowed (keel goal add); keel doctor reports it.
+  // A goal with no phase yet is allowed (plates goal add); plates doctor reports it.
   const visiting = new Set(), visited = new Set();
   const visit = id => {
     if (visiting.has(id)) fail(`dependency cycle at phase ${id}`);
@@ -117,7 +117,7 @@ export function focus({ phases, goals }) {
 
 export async function collect(root = ROOT) {
   const docs = resolve(root, 'docs');
-  const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(resolve(root, '.plates/plates.json'), 'utf8'));
   const names = (await readdir(resolve(docs, 'phases'))).filter(n => n.endsWith('.md') && n !== 'README.md');
   const phases = await Promise.all(names.map(async file => parsePhase(file, await readFile(resolve(docs, 'phases', file), 'utf8'))));
   phases.sort((a, b) => a.id - b.id);
@@ -152,7 +152,7 @@ export function render({ config, phases, goals, links = [] }) {
     const group = phases.filter(p => p.goal === g.id);
     lines.push(`${level} ${g.id} — ${g.title}`, '', ...(g.retired ? [`Retired ${g.retired}`, ''] : []), g.outcome, '');
     if (!group.length) {
-      lines.push(g.retired ? 'No phases.' : `No phases yet — \`keel phase new --goal ${g.id}\`.`, '');
+      lines.push(g.retired ? 'No phases.' : `No phases yet — \`plates phase new --goal ${g.id}\`.`, '');
       return;
     }
     const built = group.filter(p => DONE.includes(p.status)).length;

@@ -11,7 +11,7 @@
 // template fails at any status, and a phase with `spec: 2` must name the
 // check behind every acceptance box and list its Real surfaces, and never ask
 // for a night measure with no bound (the selftest refuses one). Writing the
-// roadmap does not: a phase just drafted by `keel phase new` still lists.
+// roadmap does not: a phase just drafted by `plates phase new` still lists.
 // It notes, never refuses, a phase with an open ⚑ walk and no ## Your part
 // (yourPartNotes): the owner's ask in plain words is advice to write.
 import { readFile, readdir, writeFile, stat, lstat } from 'node:fs/promises';
@@ -38,16 +38,16 @@ export const STATUSES = ['planned', 'designed', 'partial', 'built', 'lived-in', 
 export const DONE = ['built', 'lived-in'];
 const SECTIONS = ['Done when', 'Scope', 'Acceptance', 'Proof', 'Deliberately open', 'Next action'];
 const FIELDS = ['status', 'since', 'goal', 'spec', 'depends', 'note', 'evidence', 'issue', 'review', 'owes', 'after', 'waits'];
-/** `review: wait` opts a phase in to waiting for its PR's reviewers (keel phase 41); absent is the default: no wait. */
+/** `review: wait` opts a phase in to waiting for its PR's reviewers (plates phase 41); absent is the default: no wait. */
 export const REVIEW_VALUES = Object.freeze(['wait']);
 /**
- * `owes: walk` (keel phase 44), valid only on a partial phase: its building is
+ * `owes: walk` (plates phase 44), valid only on a partial phase: its building is
  * done and its rest is a walk or time. Its dependents may proceed and the next
  * phase skips it; it stays partial, because built still means proven.
  */
 export const OWES_VALUES = Object.freeze(['walk']);
 /**
- * `waits:` (keel phase 51), only beside `owes: walk`: whose the walk is. The
+ * `waits:` (plates phase 51), only beside `owes: walk`: whose the walk is. The
  * owner's read (the default: a ⚑ box is the owner's), a date or a number of
  * nights (time), or a thing outside (a secret set, another repo's release).
  */
@@ -59,7 +59,7 @@ const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !N
 /** Today as YYYY-MM-DD on this machine's calendar (the owner's day, not UTC's). */
 export const localToday = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 /**
- * `after: YYYY-MM-DD` (keel phase 51): not buildable before that date. With a
+ * `after: YYYY-MM-DD` (plates phase 51): not buildable before that date. With a
  * `today`, a phase is dated while today is before it; with `today` null (the
  * generated roadmap, which must not go stale when a day passes), any phase
  * still carrying `after:` is dated, and the roadmap says "on or after".
@@ -90,7 +90,7 @@ export const PLACEHOLDERS = Object.freeze([
   'A known limitation that could make this phase\'s output wrong (a suggestion, a count, a verdict): its effect, and when it is settled. Here, never only in a design\'s prose.',
   'One concrete action that advances this phase.',
   '**YYYY-MM-DD** — Claim. Evidence.',
-  '**Ask:** What the owner does, in one plain sentence, with no keel words.',
+  '**Ask:** What the owner does, in one plain sentence, with no plates words.',
   '**Why:** What it settles or unblocks, in one sentence.',
   '**Look at:** The one thing to read or open first; a [link](url) is fine.',
   '**Choices:** First choice | Second choice',
@@ -105,7 +105,7 @@ const TEST_PATH = /(?<![\w./-])tests\/[\w./-]*\w/g;
 const strip = line => line.trim().replace(/^- \[[ x]\]\s*/, '').replace(/^-\s+/, '').trim();
 
 /**
- * A phase's `## Your part` (keel phase 51's follow-up): what the owner is
+ * A phase's `## Your part` (plates phase 51's follow-up): what the owner is
  * asked, in plain words, for a phase with a ⚑ walk. One bullet per field,
  * `- **Ask:** …`; Choices are split on " | ", and so is Keeps it open (the
  * choices, among Choices, that record an answer and leave the walk open);
@@ -245,7 +245,7 @@ export function isWalk(text) {
  * build): a path to run (`./scripts/build.sh`), a known tool and its
  * arguments (`npm run build`), a word followed by a flag (`pytest -q`), or
  * any span of two words or more that starts lowercase, listed tool or not
- * (`keel doctor`, `make release`: Codex on duo#84). A label starting with a
+ * (`plates doctor`, `make release`: Codex on duo#84). A label starting with a
  * capital (`Start practice`: cajones#56), a single bare name (`codex/`,
  * `machine_prs`) and a JSON setting are not.
  */
@@ -304,7 +304,7 @@ function unboundedNames(item) {
 /**
  * spec 2: a Scope or Acceptance item asking for a night measure with no bound.
  * The night's selftest refuses a measure the unhealthy fixture never puts
- * outside, so such a phase cannot be wired as written (keel phase 42). A
+ * outside, so such a phase cannot be wired as written (plates phase 42). A
  * measure whose Deliberately open or Trajectory names it with the selftest
  * has been faced, and passes.
  */
@@ -434,7 +434,7 @@ export function parsePhase(file, raw) {
     if (!WAITS_VALUES.includes(meta.waits)) fail(`${file}: waits ${JSON.stringify(meta.waits)} is not one this script knows (${WAITS_VALUES.join(', ')}; absent is owner)`);
     if (meta.owes !== 'walk') fail(`${file}: waits: ${meta.waits} says whose walk is owed, so it goes with owes: walk (this phase owes none)`);
   }
-  if (meta.spec !== undefined && (!Number.isSafeInteger(meta.spec) || meta.spec < 1 || meta.spec > SPEC)) fail(`${file}: spec ${meta.spec} is not one this script knows (1–${SPEC}); keel update brings a newer one`);
+  if (meta.spec !== undefined && (!Number.isSafeInteger(meta.spec) || meta.spec < 1 || meta.spec > SPEC)) fail(`${file}: spec ${meta.spec} is not one this script knows (1–${SPEC}); plates update brings a newer one`);
   const body = block[2];
   const title = /^# (.+)$/m.exec(body)?.[1]?.trim();
   if (!title) fail(`${file}: missing title`);
@@ -483,7 +483,7 @@ export function validateGraph(phases, goals) {
     if (!goalIds.has(p.goal)) fail(`${p.file}: unknown goal ${p.goal}`);
     byId.set(p.id, p);
   }
-  // A goal with no phase yet is allowed (keel goal add); keel doctor reports it.
+  // A goal with no phase yet is allowed (plates goal add); plates doctor reports it.
   const visiting = new Set(), visited = new Set();
   const visit = id => {
     if (visiting.has(id)) fail(`dependency cycle at phase ${id}`);
@@ -512,15 +512,15 @@ export function nextPhase(phases, include = () => true, today = localToday()) {
 }
 
 /**
- * Whether the project counts lived-in (`.keel/keel.json` `"phases": { "livedIn": true }`).
+ * Whether the project counts lived-in (`.plates/plates.json` `"phases": { "livedIn": true }`).
  * Off by default: the roadmap counts built only. A `lived-in` status stays valid and done either way.
  */
 export function livedInOf(config = {}) {
   const phases = config?.phases;
   if (phases === undefined) return false;
-  if (!phases || typeof phases !== 'object' || Array.isArray(phases)) fail(`.keel/keel.json: "phases" must be an object, like {"livedIn": true}`);
+  if (!phases || typeof phases !== 'object' || Array.isArray(phases)) fail(`.plates/plates.json: "phases" must be an object, like {"livedIn": true}`);
   if (phases.livedIn === undefined) return false;
-  if (typeof phases.livedIn !== 'boolean') fail(`.keel/keel.json: "phases.livedIn" must be true or false (absent is false)`);
+  if (typeof phases.livedIn !== 'boolean') fail(`.plates/plates.json: "phases.livedIn" must be true or false (absent is false)`);
   return phases.livedIn;
 }
 
@@ -549,8 +549,8 @@ export function focus({ phases, goals }, today = localToday()) {
 
 export async function collect(root = ROOT) {
   const docs = resolve(root, 'docs');
-  const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
-  if (milestoneSource(config)) fail('GitHub milestones are read-only; use keel next or keel status, not the local file roadmap');
+  const config = JSON.parse(await readFile(resolve(root, '.plates/plates.json'), 'utf8'));
+  if (milestoneSource(config)) fail('GitHub milestones are read-only; use plates next or plates status, not the local file roadmap');
   livedInOf(config);
   const names = (await readdir(resolve(docs, 'phases'))).filter(n => n.endsWith('.md') && n !== 'README.md');
   const raws = await Promise.all(names.map(async file => [file, await readFile(resolve(docs, 'phases', file), 'utf8')]));
@@ -577,7 +577,7 @@ export async function collect(root = ROOT) {
 
 export function render({ config, phases, goals, links = [] }) {
   // The generated file never reads the clock: a day passing must not make it stale.
-  // A dated phase is named "on or after" its date; keel next names it from that day.
+  // A dated phase is named "on or after" its date; plates next names it from that day.
   const next = focus({ phases, goals }, null);
   const later = datedLine(phases, goals, null);
   const lived = livedInOf(config);
@@ -604,7 +604,7 @@ export function render({ config, phases, goals, links = [] }) {
     const group = phases.filter(p => p.goal === g.id);
     lines.push(`${level} ${g.id} — ${g.title}`, '', ...(g.retired ? [`Retired ${g.retired}`, ''] : []), g.outcome, '');
     if (!group.length) {
-      lines.push(g.retired ? 'No phases.' : `No phases yet — \`keel phase new --goal ${g.id}\`.`, '');
+      lines.push(g.retired ? 'No phases.' : `No phases yet — \`plates phase new --goal ${g.id}\`.`, '');
       return;
     }
     const built = group.filter(p => DONE.includes(p.status)).length;
@@ -761,7 +761,7 @@ export async function measurementAdvice(root) {
 
 export async function run({ root = ROOT, mode = 'write', today = localToday() } = {}) {
   if (mode === 'check') {
-    const config = JSON.parse(await readFile(resolve(root, '.keel/keel.json'), 'utf8'));
+    const config = JSON.parse(await readFile(resolve(root, '.plates/plates.json'), 'utf8'));
     if (milestoneSource(config)) return 'Local roadmap check inactive: phases.source is milestones; archived local plan preserved (remote coverage is not checked).';
   }
   const data = await collect(root);

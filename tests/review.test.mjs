@@ -1,4 +1,4 @@
-// keel review (phase 41): a PR's review comments read deterministically,
+// plates review (phase 41): a PR's review comments read deterministically,
 // which are answered, waiting for the reviewer, and answering each one —
 // against a stub gh that answers the GraphQL and REST calls and refuses any
 // write the test does not expect. Fixtures are Acme.
@@ -10,26 +10,26 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { answerOf, parseTarget, summarizedHead } from '../lib/review.mjs';
-import { reviewFragment, windowFragment, graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/keel/lib.mjs';
+import { reviewFragment, windowFragment, graphqlData, reviewComments, reviewConfigOf, fromWindow, readRepoReviews, unansweredPrs, WINDOW_TAIL, WINDOW_THREADS, WINDOW_CONVO, WINDOW_BODIES, SOLO_READS } from '../practices/night/files/scripts/plates/lib.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const HEAD = 'abc1234abc1234abc1234abc1234abc1234abc1';
 const OLD = 'def5678def5678def5678def5678def5678def5';
 
 // ---- the stub gh -----------------------------------------------------------------
 
 /**
- * A gh for keel review. State: head, threads [{id, isResolved, path, line,
+ * A gh for plates review. State: head, threads [{id, isResolved, path, line,
  * comments: [{databaseId, author, body, createdAt}], more?}], comments (conversation),
  * bodies (reviews' top-level bodies, GraphQL), more{Threads,Comments,Reviews},
  * reviews [{user, commit_id, state, after?}] (a review with `after: k` appears
- * from the k-th reviews read on), contents (the repo's .keel/keel.json, or
+ * from the k-th reviews read on), contents (the repo's .plates/plates.json, or
  * absent: 404), down (every call fails), writes (posts and mutations allowed).
  * Every call is logged; a write the test did not allow exits 1.
  */
 async function stubGh(t, state) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-review-gh-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-review-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const path = join(dir, 'gh'), statePath = join(dir, 'state.json'), log = join(dir, 'gh.log');
   await writeFile(statePath, JSON.stringify({ head: HEAD, threads: [], comments: [], reviews: [], reviewReads: 0, ...state }));
@@ -66,7 +66,7 @@ if (argv[0] === 'api' && argv.includes('--include')) {
     save();
   } else if (path.includes('/contents/')) {
     if (!s.contents) { status = 404; data = {}; }
-    else data = { path: '.keel/keel.json', encoding: 'base64', content: Buffer.from(JSON.stringify(s.contents)).toString('base64') };
+    else data = { path: '.plates/plates.json', encoding: 'base64', content: Buffer.from(JSON.stringify(s.contents)).toString('base64') };
   } else {
     const number = /issues\\/(\\d+)$/.exec(path);
     data = number ? s.agentIssues.find(i => i.number === Number(number[1])) : s.agentIssues;
@@ -104,7 +104,7 @@ if (argv[0] === 'api' && argv.includes('--include')) {
   // GitHub's pages: 100 a page, page=N (1 when none is named).
   const pg = Number((/[?&]page=(\\d+)/.exec(argv[1]) ?? [])[1] ?? 1);
   console.log(JSON.stringify(s.reviews.filter(r => (r.after ?? 0) <= s.reviewReads).slice((pg - 1) * 100, pg * 100).map(r => ({ user: { login: r.user }, state: r.state ?? 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-06T10:00:00Z' }))));
-} else if (argv[0] === 'api' && argv[1].endsWith('/contents/.keel/keel.json')) {
+} else if (argv[0] === 'api' && (argv[1].endsWith('/contents/.plates/plates.json') || argv[1].endsWith('/contents/.keel/keel.json'))) {
   if (!s.contents) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }
   console.log(JSON.stringify({ content: Buffer.from(JSON.stringify(s.contents)).toString('base64') }));
 } else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
@@ -122,15 +122,15 @@ const writesIn = calls => calls.filter(c => c.includes('POST') || c.some(a => a.
 
 /** An Acme project whose repo is acme/app, with a "review" config. */
 async function project(t, review = { reviewers: ['acme-reviewer[bot]'], wait: 0.02 }) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-review-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-review-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'));
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', ...(review === null ? {} : { review }) }));
+  await mkdir(join(dir, '.plates'));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', ...(review === null ? {} : { review }) }));
   return dir;
 }
-const keel = (cwd, gh, args, env = {}) => {
+const plates = (cwd, gh, args, env = {}) => {
   // The read receipt goes in the project's temp dir, never the developer's cache.
-  const r = run(process.execPath, [BIN, 'review', ...args], { cwd, env: { ...cleanEnv(), KEEL_GH: gh.path, KEEL_REVIEW_POLL_MS: '40', KEEL_CACHE: join(cwd, '.keel-cache'), ...env } });
+  const r = run(process.execPath, [BIN, 'review', ...args], { cwd, env: { ...cleanEnv(), PLATES_GH: gh.path, PLATES_REVIEW_POLL_MS: '40', PLATES_CACHE: join(cwd, '.plates-cache'), ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
 
@@ -146,14 +146,14 @@ const ON_HEAD = { user: 'acme-reviewer[bot]', commit_id: HEAD };
 test('one answered and one unanswered comment: exit 1, the unanswered one named with its first line', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [ANSWERED, UNANSWERED, RESOLVED, SELF_REPLY], reviews: [ON_HEAD] });
-  const r = keel(dir, gh, ['acme/app#3']);
+  const r = plates(dir, gh, ['acme/app#3']);
   assert.equal(r.code, 1, r.err + r.out);
   assert.match(r.out, /^ {2}UNANSWERED PRRT_open {2}acme-reviewer {2}skates\.js:12 {2}P1 The skates have no brakes\.$/m);
   assert.match(r.out, /UNANSWERED PRRT_self/, 'a reviewer replying to itself is not an answer');
   assert.match(r.out, /answered +PRRT_done  acme-reviewer  rocket\.js:3  The fuse is short\./);
   assert.match(r.out, /resolved +PRRT_resolved  acme-reviewer  thread  Rename the anvil\./);
   assert.match(r.out, /--close PRRT_open,PRRT_self --fixed <commit> \| --tracked <issue\|version> \| --not-valid "<why>"/);
-  const d = keel(dir, gh, ['acme/app#3', '--json']);
+  const d = plates(dir, gh, ['acme/app#3', '--json']);
   assert.equal(d.code, 1);
   const data = d.json();
   assert.deepEqual([data.unanswered, data.answered, data.ok], [2, 2, false]);
@@ -165,53 +165,53 @@ test('every comment answered: exit 0, and a reviewer\'s conversation comment cou
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [ANSWERED, RESOLVED], reviews: [ON_HEAD],
     comments: [{ id: 'IC_1', ...c(51, 'acme-reviewer', 'Codex review: two findings.', '2026-10-05') }, { id: 'IC_2', ...c(52, 'acme-owner', '> Codex review: two findings.\n\nBoth answered.', '2026-10-06') }] });
-  const r = keel(dir, gh, ['acme/app#3', '--json']);
+  const r = plates(dir, gh, ['acme/app#3', '--json']);
   assert.equal(r.code, 0, r.out);
   assert.deepEqual(r.json().comments.map(x => [x.id, x.kind, x.answered]), [['PRRT_done', 'thread', true], ['PRRT_resolved', 'thread', true], ['IC_1', 'comment', true]]);
   // The same comment with nobody after it: unanswered.
   const alone = await stubGh(t, { threads: [], reviews: [ON_HEAD], comments: [{ id: 'IC_1', ...c(51, 'acme-reviewer', 'Codex review: two findings.') }] });
-  const a = keel(dir, alone, ['acme/app#3', '--json']);
+  const a = plates(dir, alone, ['acme/app#3', '--json']);
   assert.equal(a.code, 1);
   assert.deepEqual(a.json().comments.map(x => [x.id, x.answered]), [['IC_1', false]]);
   // A reviewer's status board (a sticky comment opening with a hidden marker) is listed and owes no answer.
   const board = await stubGh(t, { reviews: [ON_HEAD], threads: [{ id: 'PRRT_badge', isResolved: true, comments: [c(81, 'acme-reviewer', '**<sub><sub>![P1 Badge](https://img.acme.test/p1.svg)</sub></sub>  Close the hatch**'), c(82, 'acme-owner', 'Closed in abc1234.')] }],
     comments: [{ id: 'IC_board', ...c(91, 'acme-reviewer', '<!-- acme-review-summary -->\n\n## Acme Review Summary\n\n| Review | Status |') }] });
-  const b = keel(dir, board, ['acme/app#3', '--json']);
+  const b = plates(dir, board, ['acme/app#3', '--json']);
   assert.equal(b.code, 0, b.out);
   assert.deepEqual(b.json().comments.map(x => [x.id, x.status ?? false, x.answered, x.text]), [['PRRT_badge', false, true, 'P1 Badge Close the hatch'], ['IC_board', true, true, 'Acme Review Summary']]);
-  assert.match(keel(dir, board, ['acme/app#3']).out, /status +IC_board/);
+  assert.match(plates(dir, board, ['acme/app#3']).out, /status +IC_board/);
   // With no reviewer named, conversation comments are not read; threads are.
   const none = await project(t, null);
-  assert.equal(keel(none, alone, ['acme/app#3']).code, 0);
+  assert.equal(plates(none, alone, ['acme/app#3']).code, 0);
 });
 
 test('GitHub unreadable exits 2, never 0: gh down, no such PR, an incomplete read, a bad review config', async t => {
   const dir = await project(t);
   for (const [why, state] of [['down', { down: true }], ['no PR', { noPr: true }], ['more threads than one page', { moreThreads: true, threads: [ANSWERED] }]]) {
     const gh = await stubGh(t, state);
-    const r = keel(dir, gh, ['acme/app#3', '--json']);
+    const r = plates(dir, gh, ['acme/app#3', '--json']);
     assert.equal(r.code, 2, `${why}: ${r.out}${r.err}`);
     assert.match(r.json().error, /GitHub could not be read/, why);
-    assert.equal(keel(dir, gh, ['acme/app#3']).code, 2, `${why} (text)`);
+    assert.equal(plates(dir, gh, ['acme/app#3']).code, 2, `${why} (text)`);
   }
   const bad = await project(t, { reviewers: 'acme-reviewer' });
-  const r = keel(bad, await stubGh(t, {}), ['acme/app#3']);
+  const r = plates(bad, await stubGh(t, {}), ['acme/app#3']);
   assert.equal(r.code, 2);
   assert.match(r.err, /"reviewers" must be a list of GitHub logins/);
-  assert.equal(keel(dir, await stubGh(t, {}), ['acme/app']).code, 2, 'a target with no number is usage');
+  assert.equal(plates(dir, await stubGh(t, {}), ['acme/app']).code, 2, 'a target with no number is usage');
 });
 
-test('reviewers: the project here, else the PR repo\'s own .keel/keel.json, else none; [bot] is the same login', async t => {
+test('reviewers: the project here, else the PR repo\'s own .plates/plates.json, else none; [bot] is the same login', async t => {
   assert.deepEqual(reviewConfigOf({}), { reviewers: [], wait: 10 });
   for (const bad of [{ review: [] }, { review: { reviewers: [''] } }, { review: { wait: 0 } }, { review: { wait: '5' } }, { review: { reviewer: [] } }]) {
     assert.ok(reviewConfigOf(bad).problem, JSON.stringify(bad));
   }
   const elsewhere = await project(t, null); // its repo is acme/app; the PR is acme/shop's
   const gh = await stubGh(t, { contents: { name: 'Shop', review: { reviewers: ['acme-reviewer'] } }, reviews: [{ user: 'acme-reviewer[bot]', commit_id: HEAD }] });
-  const d = keel(elsewhere, gh, ['acme/shop#3', '--json']).json();
-  assert.deepEqual([d.reviewers, d.reviewersFrom, d.reviewed[0].head], [['acme-reviewer'], "acme/shop's .keel/keel.json", true]);
-  const none = keel(elsewhere, await stubGh(t, {}), ['https://github.com/acme/shop/pull/3', '--json']).json();
-  assert.deepEqual([none.reviewers, none.reviewersFrom], [[], 'acme/shop has no .keel/keel.json']);
+  const d = plates(elsewhere, gh, ['acme/shop#3', '--json']).json();
+  assert.deepEqual([d.reviewers, d.reviewersFrom, d.reviewed[0].head], [['acme-reviewer'], "acme/shop's .plates/plates.json", true]);
+  const none = plates(elsewhere, await stubGh(t, {}), ['https://github.com/acme/shop/pull/3', '--json']).json();
+  assert.deepEqual([none.reviewers, none.reviewersFrom], [[], 'acme/shop has no .plates/plates.json']);
   assert.deepEqual(parseTarget('#3', 'acme/app'), { repo: 'acme/app', number: 3 });
 });
 
@@ -220,7 +220,7 @@ test('reviewers: the project here, else the PR repo\'s own .keel/keel.json, else
 test('--wait returns when the named reviewer\'s review on the head commit appears', async t => {
   const dir = await project(t, { reviewers: ['acme-reviewer'], wait: 0.5 });
   const gh = await stubGh(t, { threads: [ANSWERED], reviews: [{ user: 'acme-reviewer[bot]', commit_id: OLD }, { user: 'acme-reviewer[bot]', commit_id: HEAD, after: 3 }] });
-  const r = keel(dir, gh, ['acme/app#3', '--wait', '--json']);
+  const r = plates(dir, gh, ['acme/app#3', '--wait', '--json']);
   assert.equal(r.code, 0, r.out + r.err);
   const d = r.json();
   assert.equal(d.waited.timedOut, false);
@@ -236,34 +236,34 @@ test('--wait counts a named reviewer\'s summary that marks the head commit compl
   assert.equal(summarizedHead(board(HEAD).replace('Completed', 'Running'), HEAD), false, 'still running');
   const dir = await project(t, { reviewers: ['acme-reviewer'], wait: 0.01 });
   const done = await stubGh(t, { threads: [ANSWERED], comments: [{ id: 'IC_board', databaseId: 77, author: 'acme-reviewer[bot]', body: board(HEAD), createdAt: '2026-10-06T10:00:00Z' }] });
-  const r = keel(dir, done, ['acme/app#3', '--wait', '--json']);
+  const r = plates(dir, done, ['acme/app#3', '--wait', '--json']);
   assert.equal(r.code, 0, r.out + r.err);
   assert.deepEqual([r.json().waited.timedOut, r.json().reviewed[0].head], [false, true]);
   const stale = await stubGh(t, { threads: [ANSWERED], comments: [{ id: 'IC_board', databaseId: 77, author: 'acme-reviewer[bot]', body: board(OLD), createdAt: '2026-10-06T10:00:00Z' }] });
-  assert.equal(keel(dir, stale, ['acme/app#3', '--wait', '--json']).json().waited.timedOut, true);
+  assert.equal(plates(dir, stale, ['acme/app#3', '--wait', '--json']).json().waited.timedOut, true);
 });
 
 test('--wait on timeout says so, exit 1: a timeout is never "no comments"', async t => {
   const dir = await project(t, { reviewers: ['acme-reviewer'], wait: 0.005 });
   const gh = await stubGh(t, { reviews: [{ user: 'acme-reviewer[bot]', commit_id: OLD }] });
-  const r = keel(dir, gh, ['acme/app#3', '--wait']);
+  const r = plates(dir, gh, ['acme/app#3', '--wait']);
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /Waited 0\.005 min: timed out; acme-reviewer has not reviewed abc1234\. Not "no comments"/);
   assert.match(r.out, /acme-reviewer last reviewed def5678, not the head/);
   const none = await project(t, null);
-  const n = keel(none, gh, ['acme/app#3', '--wait', '--json']);
+  const n = plates(none, gh, ['acme/app#3', '--wait', '--json']);
   assert.equal(n.code, 0, 'no reviewer named: nothing to wait for');
   assert.equal(n.json().waited.timedOut, false);
 });
 
 test('--gate (a phase that opted in to review: wait) exits 0 only when every comment is answered and the head was reviewed', async t => {
   const dir = await project(t);
-  const notYet = keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: [{ user: 'acme-reviewer[bot]', commit_id: OLD }] }), ['acme/app#3', '--gate']);
+  const notYet = plates(dir, await stubGh(t, { threads: [ANSWERED], reviews: [{ user: 'acme-reviewer[bot]', commit_id: OLD }] }), ['acme/app#3', '--gate']);
   assert.equal(notYet.code, 1);
   assert.match(notYet.out, /Gate: acme-reviewer\[bot\] has not reviewed the head commit yet/);
-  assert.equal(keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: [{ user: 'acme-reviewer[bot]', commit_id: OLD }] }), ['acme/app#3']).code, 0, 'without --gate, an unreviewed head is not a failure');
-  assert.equal(keel(dir, await stubGh(t, { threads: [ANSWERED, UNANSWERED], reviews: [ON_HEAD] }), ['acme/app#3', '--gate']).code, 1, 'an unanswered comment holds the gate');
-  assert.equal(keel(dir, await stubGh(t, { threads: [ANSWERED, RESOLVED], reviews: [ON_HEAD] }), ['acme/app#3', '--gate']).code, 0);
+  assert.equal(plates(dir, await stubGh(t, { threads: [ANSWERED], reviews: [{ user: 'acme-reviewer[bot]', commit_id: OLD }] }), ['acme/app#3']).code, 0, 'without --gate, an unreviewed head is not a failure');
+  assert.equal(plates(dir, await stubGh(t, { threads: [ANSWERED, UNANSWERED], reviews: [ON_HEAD] }), ['acme/app#3', '--gate']).code, 1, 'an unanswered comment holds the gate');
+  assert.equal(plates(dir, await stubGh(t, { threads: [ANSWERED, RESOLVED], reviews: [ON_HEAD] }), ['acme/app#3', '--gate']).code, 0);
 });
 
 // ---- answering ---------------------------------------------------------------------
@@ -273,14 +273,14 @@ test('--close posts the reply and resolves for fixed and not-valid; posts and le
   const threads = [UNANSWERED, { ...SELF_REPLY }, { id: 'PRRT_track', comments: [c(61, 'acme-reviewer', 'Anvils rust.')] }];
   const gh = await stubGh(t, { threads, reviews: [ON_HEAD], writes: true,
     comments: [{ id: 'IC_9', ...c(71, 'acme-reviewer', 'Codex: the README is wrong.') }] });
-  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1, 'read first: a comment is closed only after it was read');
-  const fixed = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234', '--json']);
+  assert.equal(plates(dir, gh, ['acme/app#3']).code, 1, 'read first: a comment is closed only after it was read');
+  const fixed = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234', '--json']);
   assert.equal(fixed.code, 0, fixed.out + fixed.err);
   assert.deepEqual(fixed.json().closed, [{ id: 'PRRT_open', kind: 'thread', answer: 'fixed', replied: true, resolved: true }]);
-  const tracked = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_track', '--tracked', '#12']);
+  const tracked = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_track', '--tracked', '#12']);
   assert.equal(tracked.code, 0, tracked.err);
   assert.match(tracked.out, /PRRT_track: replied, left open \(tracked\)/);
-  const nv = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_self,IC_9', '--not-valid', 'the wheels are steel; see skates.js:40']);
+  const nv = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_self,IC_9', '--not-valid', 'the wheels are steel; see skates.js:40']);
   assert.equal(nv.code, 0, nv.err);
   const calls = writesIn(await gh.calls());
   const posts = calls.filter(x => x.includes('POST'));
@@ -294,7 +294,7 @@ test('--close posts the reply and resolves for fixed and not-valid; posts and le
   const s = await gh.state();
   assert.deepEqual(s.threads.map(x => [x.id, !!x.isResolved]), [['PRRT_open', true], ['PRRT_self', true], ['PRRT_track', false]]);
   // Read again: every comment answered now.
-  assert.equal(keel(dir, gh, ['acme/app#3']).code, 0);
+  assert.equal(plates(dir, gh, ['acme/app#3']).code, 0);
 });
 
 test('--close refuses a not-valid with no reason, a fixed with no commit, and an unknown id, posting nothing', async t => {
@@ -312,7 +312,7 @@ test('--close refuses a not-valid with no reason, a fixed with no commit, and an
     ['--close', 'PRRT_nope', '--fixed', 'abc1234'],
     ['--fixed', 'abc1234'],
   ]) {
-    const r = keel(dir, gh, ['acme/app#3', ...args, '--json']);
+    const r = plates(dir, gh, ['acme/app#3', ...args, '--json']);
     assert.equal(r.code, 2, `${args.join(' ')}: ${r.out}`);
     assert.equal(typeof r.json().error, 'string');
   }
@@ -324,10 +324,10 @@ test('--close refuses a not-valid with no reason, a fixed with no commit, and an
 
 // ---- not a gate ----------------------------------------------------------------------
 
-test('nothing in keel refuses a merge because of an open thread: drain, fleet update and update read no reviews', async () => {
-  for (const file of ['practices/night/files/scripts/keel/drain.mjs', 'lib/fleet.mjs', 'lib/update.mjs', 'lib/night.mjs', 'practices/night/files/.github/workflows/keel-night.yml']) {
-    const text = await readFile(join(KEEL, file), 'utf8');
-    assert.doesNotMatch(text, /reviewThreads|reviewComments|keel review|review\.mjs/, `${file} reads reviews`);
+test('nothing in plates refuses a merge because of an open thread: drain, fleet update and update read no reviews', async () => {
+  for (const file of ['practices/night/files/scripts/plates/drain.mjs', 'lib/fleet.mjs', 'lib/update.mjs', 'lib/night.mjs', 'practices/night/files/.github/workflows/plates-night.yml']) {
+    const text = await readFile(join(PLATES, file), 'utf8');
+    assert.doesNotMatch(text, /reviewThreads|reviewComments|plates review|review\.mjs/, `${file} reads reviews`);
   }
   // The rule's own reader never gates: an unanswered comment is a count and a name, not a refusal.
   const pr = { number: 3, reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [{ id: 'PRRT_x', isResolved: false, comments: { nodes: [{ databaseId: 1, author: { login: 'acme-reviewer' }, body: 'x', createdAt: '2026-10-05T00:00:00Z' }] } }] } };
@@ -402,11 +402,11 @@ test('a connection GitHub could not read (null beside other data) is refused, ne
   assert.throws(() => reviewComments(fromWindow(windowed, ['acme-reviewer']).pr, ['acme-reviewer']), /without its conversation comments/);
 });
 
-test('a thread with more comments than one page is an incomplete read: keel review exits 2, never a count', async t => {
+test('a thread with more comments than one page is an incomplete read: plates review exits 2, never a count', async t => {
   assert.throws(() => reviewComments(prOf({ threads: [{ id: 'T_long', more: true, comments: [c(1, 'acme-reviewer', 'One.'), c(2, 'acme-owner', 'Two.')] }] })), e => e.incomplete === true && /more comments in a review thread than one page/.test(e.message));
   const dir = await project(t);
   for (const state of [{ threads: [{ ...ANSWERED, more: true }] }, { moreReviews: true }, { moreComments: true }]) {
-    const r = keel(dir, await stubGh(t, { reviews: [ON_HEAD], ...state }), ['acme/app#3', '--json']);
+    const r = plates(dir, await stubGh(t, { reviews: [ON_HEAD], ...state }), ['acme/app#3', '--json']);
     assert.equal(r.code, 2, JSON.stringify(state) + r.out);
     assert.match(r.json().error, /GitHub could not be read: #3 has more .* than one page; the read is incomplete/);
   }
@@ -417,26 +417,26 @@ test('a PR past 100 reviews is read page by page (each reply is a review): the h
   // 130 reviews; the reviewer's on the head is the 120th (the REST read's second page).
   const many = [...Array.from({ length: 119 }, () => ({ user: 'acme-owner', commit_id: OLD })), ON_HEAD, ...Array.from({ length: 10 }, () => ({ user: 'acme-owner', commit_id: HEAD }))];
   const paged = await stubGh(t, { threads: [ANSWERED], reviews: many });
-  assert.equal(keel(dir, paged, ['acme/app#3', '--gate']).code, 0, 'the head was reviewed, on page 2');
+  assert.equal(plates(dir, paged, ['acme/app#3', '--gate']).code, 0, 'the head was reviewed, on page 2');
   assert.ok((await paged.calls()).some(a => a.includes('repos/acme/app/pulls/3/reviews?per_page=100&page=2')), 'page 2 was read');
   // The bodies (GraphQL): the first page says there is more; the next page, by its cursor, holds an unanswered body.
   const later = { id: 'PRR_late', databaseId: 801, author: 'acme-reviewer[bot]', body: 'P1: the fuse is still short.', createdAt: '2026-10-06T11:00:00Z' };
   const bodies = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', laterBodies: [later] });
-  const read = keel(dir, bodies, ['acme/app#3', '--json']);
+  const read = plates(dir, bodies, ['acme/app#3', '--json']);
   assert.equal(read.code, 1, read.out + read.err);
   assert.ok(read.json().comments.some(x => x.id === 'PRR_late' && !x.answered), 'the body on the second page is read, and unanswered');
   // Exactly 2000 reviews (20 full pages): the 21st page is read, empty, and the read is whole; 2001 is not.
   const exactly = Array.from({ length: 2000 }, (_, i) => (i === 1999 ? ON_HEAD : { user: 'acme-owner', commit_id: OLD }));
-  assert.equal(keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: exactly }), ['acme/app#3', '--gate']).code, 0, '2000 reviews, the head reviewed on the last');
-  const over = keel(dir, await stubGh(t, { threads: [ANSWERED], reviews: [...exactly, { user: 'acme-owner', commit_id: OLD }] }), ['acme/app#3', '--json']);
+  assert.equal(plates(dir, await stubGh(t, { threads: [ANSWERED], reviews: exactly }), ['acme/app#3', '--gate']).code, 0, '2000 reviews, the head reviewed on the last');
+  const over = plates(dir, await stubGh(t, { threads: [ANSWERED], reviews: [...exactly, { user: 'acme-owner', commit_id: OLD }] }), ['acme/app#3', '--json']);
   assert.equal(over.code, 2, over.out);
   assert.match(over.json().error, /more than 2000 reviews; the read is incomplete/);
   // The bodies' first read is page 1: MAX_REVIEW_PAGES in all, so 20 pages that end there are whole, 21 are not.
-  const pagesOf = async n => { const g = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] }); keel(dir, g, ['acme/app#3', '--json']); return (await g.calls()).filter(a => a.some(x => String(x).includes('$after'))).length; };
+  const pagesOf = async n => { const g = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] }); plates(dir, g, ['acme/app#3', '--json']); return (await g.calls()).filter(a => a.some(x => String(x).includes('$after'))).length; };
   assert.equal(await pagesOf(), 19, 'the first read and 19 more: 20 pages in all');
   // Pages without end: past MAX_REVIEW_PAGES the read is incomplete (exit 2), never a count.
   const endless = await stubGh(t, { threads: [ANSWERED], reviews: [ON_HEAD], moreReviews: true, cursor: 'C1', endless: true, laterBodies: [] });
-  const r = keel(dir, endless, ['acme/app#3', '--json']);
+  const r = plates(dir, endless, ['acme/app#3', '--json']);
   assert.equal(r.code, 2, r.out);
   assert.match(r.json().error, /the read is incomplete/);
 });
@@ -444,13 +444,13 @@ test('a PR past 100 reviews is read page by page (each reply is a review): the h
 test('--close on a review body posts a comment that quotes and links it, so the read sees it answered', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { reviews: [ON_HEAD], writes: true, bodies: [{ id: 'PRR_9', databaseId: 77, author: 'acme-reviewer', body: '**Acme Review**: the crate has no lid.', createdAt: '2026-10-05T09:00:00Z' }] });
-  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1);
-  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRR_9', '--fixed', 'abc1234']);
+  assert.equal(plates(dir, gh, ['acme/app#3']).code, 1);
+  const r = plates(dir, gh, ['acme/app#3', '--close', 'PRR_9', '--fixed', 'abc1234']);
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /PRR_9: replied \(a review body has no thread to resolve\)/);
   const [post] = writesIn(await gh.calls());
   assert.equal(post.at(-1), 'body=> Acme Review: the crate has no lid.\n\n**Fixed** in abc1234. Validated against the code first.\n\nhttps://github.com/acme/app/pull/3#pullrequestreview-77');
-  assert.equal(keel(dir, gh, ['acme/app#3']).code, 0);
+  assert.equal(plates(dir, gh, ['acme/app#3']).code, 0);
 });
 
 // ---- closed only after it was read (the owner, 7 Oct: four threads posted after the last read were closed unread) ----
@@ -458,33 +458,33 @@ test('--close on a review body posts a comment that quotes and links it, so the 
 // No clock is compared: each comment that arrives after a read is dated before it, and must still count as new.
 const arrived = () => ({ id: 'PRRT_new', path: 'hatch.js', line: 7, comments: [c(71, 'acme-reviewer', '**P1** The hatch opens inward.', '2000-01-01')] });
 
-test('a read leaves a receipt in keel\'s cache: the ids it showed, when, and the head; the newest read replaces it', async t => {
+test('a read leaves a receipt in plates\'s cache: the ids it showed, when, and the head; the newest read replaces it', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [UNANSWERED, ANSWERED], reviews: [ON_HEAD] });
   const before = Date.now();
-  assert.equal(keel(dir, gh, ['acme/app#3', '--json']).code, 1);
-  const path = join(dir, '.keel-cache', 'reviews', 'acme__app__3.json');
+  assert.equal(plates(dir, gh, ['acme/app#3', '--json']).code, 1);
+  const path = join(dir, '.plates-cache', 'reviews', 'acme__app__3.json');
   const first = JSON.parse(await readFile(path, 'utf8'));
   assert.deepEqual([first.head, first.ids, first.threads, first.seen], [HEAD, ['PRRT_open', 'PRRT_done'], { PRRT_open: 1, PRRT_done: 2 }, []]);
   assert.ok(Date.parse(first.at) >= before - 1000 && Date.parse(first.at) <= Date.now(), first.at);
   await gh.change(s => s.threads.push(arrived()));
-  keel(dir, gh, ['acme/app#3']);
+  plates(dir, gh, ['acme/app#3']);
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).ids, ['PRRT_open', 'PRRT_done', 'PRRT_new'], 'the text read records too, and replaces the last');
 });
 
 test('--close refuses an id never read (no receipt), naming it, and posts nothing; "all" is not an id', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [UNANSWERED, SELF_REPLY], reviews: [ON_HEAD], writes: true });
-  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234']);
+  const r = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234']);
   assert.equal(r.code, 2, r.out + r.err);
-  assert.match(r.err, /not read yet: PRRT_open \(acme-reviewer, skates\.js:12\): run keel review acme\/app#3, validate it, then close it/);
+  assert.match(r.err, /not read yet: PRRT_open \(acme-reviewer, skates\.js:12\): run plates review acme\/app#3, validate it, then close it/);
   assert.match(r.err, /not read yet: PRRT_self \(acme-reviewer, thread\)/);
   assert.match(r.err, /nothing posted/);
-  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'all', '--fixed', 'abc1234']).code, 2, 'no bulk form');
+  assert.equal(plates(dir, gh, ['acme/app#3', '--close', 'all', '--fixed', 'abc1234']).code, 2, 'no bulk form');
   assert.equal(writesIn(await gh.calls()).length, 0);
   // Read, then the same close posts.
-  keel(dir, gh, ['acme/app#3']);
-  const ok = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234']);
+  plates(dir, gh, ['acme/app#3']);
+  const ok = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234']);
   assert.equal(ok.code, 0, ok.err);
   assert.equal(writesIn(await gh.calls()).filter(x => x.includes('POST')).length, 2);
 });
@@ -492,35 +492,35 @@ test('--close refuses an id never read (no receipt), naming it, and posts nothin
 test('--close refuses when a comment arrived since the last read, naming it, and posts nothing; a fresh read lets it through', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [UNANSWERED, SELF_REPLY], reviews: [ON_HEAD], writes: true });
-  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1);
+  assert.equal(plates(dir, gh, ['acme/app#3']).code, 1);
   await gh.change(s => s.threads.push(arrived()));
-  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234', '--json']);
+  const r = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open,PRRT_self', '--fixed', 'abc1234', '--json']);
   assert.equal(r.code, 2, r.out + r.err);
   assert.match(r.json().error, /arrived since your last read \([^)]+\): PRRT_new \(acme-reviewer, hatch\.js:7\) P1 The hatch opens inward\./);
   assert.doesNotMatch(r.json().error, /not read yet/, 'the ids named were read');
   assert.equal(writesIn(await gh.calls()).length, 0, 'nothing posted');
   // Naming the new one does not get it closed either: it was never read.
-  const named = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_new', '--fixed', 'abc1234']);
+  const named = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_new', '--fixed', 'abc1234']);
   assert.equal(named.code, 2);
   assert.match(named.err, /not read yet: PRRT_new/);
   // A reviewer's follow-up on a thread that was read: the thread is unread again.
-  keel(dir, gh, ['acme/app#3']);
+  plates(dir, gh, ['acme/app#3']);
   await gh.change(s => s.threads[0].comments.push(c(12, 'acme-reviewer', 'Also the left skate.', '2000-01-01')));
-  const follow = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
+  const follow = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
   assert.equal(follow.code, 2);
   assert.match(follow.err, /not read yet: PRRT_open \(acme-reviewer, skates\.js:12\), a follow-up since your last read/);
   assert.equal(writesIn(await gh.calls()).length, 0);
   // Read again: now it closes, and the answers it posts are not news to the next close.
-  keel(dir, gh, ['acme/app#3']);
-  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
-  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_self,PRRT_new', '--not-valid', 'the hatch is a door; see hatch.js:7']).code, 0);
+  plates(dir, gh, ['acme/app#3']);
+  assert.equal(plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
+  assert.equal(plates(dir, gh, ['acme/app#3', '--close', 'PRRT_self,PRRT_new', '--not-valid', 'the hatch is a door; see hatch.js:7']).code, 0);
 });
 
 test('--close refuses an id read on a different PR', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [UNANSWERED], reviews: [ON_HEAD], writes: true });
-  assert.equal(keel(dir, gh, ['acme/app#4']).code, 1);
-  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
+  assert.equal(plates(dir, gh, ['acme/app#4']).code, 1);
+  const r = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
   assert.equal(r.code, 2, r.out + r.err);
   assert.match(r.err, /not read yet: PRRT_open/);
   assert.equal(writesIn(await gh.calls()).length, 0);
@@ -529,8 +529,8 @@ test('--close refuses an id read on a different PR', async t => {
 test('arrived since is by id and count, never by clock: a comment dated before the read is still new, a review body or conversation comment too', async t => {
   const dir = await project(t);
   const gh = await stubGh(t, { threads: [UNANSWERED], reviews: [ON_HEAD], writes: true, comments: [{ id: 'IC_old', ...c(50, 'wile-e', 'Nice skates.') }] });
-  assert.equal(keel(dir, gh, ['acme/app#3']).code, 1);
-  const receipt = JSON.parse(await readFile(join(dir, '.keel-cache', 'reviews', 'acme__app__3.json'), 'utf8'));
+  assert.equal(plates(dir, gh, ['acme/app#3']).code, 1);
+  const receipt = JSON.parse(await readFile(join(dir, '.plates-cache', 'reviews', 'acme__app__3.json'), 'utf8'));
   assert.deepEqual(receipt.seen, ['IC_old'], 'every conversation comment the PR had, shown or not');
   const at = Date.parse(receipt.at);
   // Dated a day before the read, posted after it.
@@ -538,17 +538,17 @@ test('arrived since is by id and count, never by clock: a comment dated before t
     s.bodies = [{ id: 'PRR_late', databaseId: 78, author: 'acme-reviewer', body: '**Acme Review**: the brakes squeal.', createdAt: new Date(at - 86_400_000).toISOString() }];
     s.comments.push({ id: 'IC_late', ...c(79, 'acme-reviewer', 'Codex: also the bell.', '2000-01-01') });
   });
-  const r = keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
+  const r = plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']);
   assert.equal(r.code, 2, r.out + r.err);
   assert.match(r.err, /arrived since your last read \([^)]+\): PRR_late \(acme-reviewer, review\) Acme Review: the brakes squeal\./);
   assert.match(r.err, /arrived since your last read \([^)]+\): IC_late \(acme-reviewer, conversation\)/);
   assert.doesNotMatch(r.err, /IC_old/, 'a comment the read saw is not new, shown or not');
   assert.equal(writesIn(await gh.calls()).length, 0, 'nothing posted');
-  // The PR author's own comments and keel's answers are not news: after a read, two closes in a row go through.
-  keel(dir, gh, ['acme/app#3']);
+  // The PR author's own comments and plates's answers are not news: after a read, two closes in a row go through.
+  plates(dir, gh, ['acme/app#3']);
   await gh.change(s => s.comments.push({ id: 'IC_author', ...c(80, 'acme-owner', 'Pushed a fix.', '2000-01-01') }));
-  assert.equal(keel(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
-  const r2 = keel(dir, gh, ['acme/app#3', '--close', 'PRR_late,IC_late', '--fixed', 'abc1234']);
+  assert.equal(plates(dir, gh, ['acme/app#3', '--close', 'PRRT_open', '--fixed', 'abc1234']).code, 0);
+  const r2 = plates(dir, gh, ['acme/app#3', '--close', 'PRR_late,IC_late', '--fixed', 'abc1234']);
   assert.equal(r2.code, 0, r2.err);
 });
 
@@ -634,11 +634,11 @@ test('the repo-wide read reads alone, with the full fragment, each PR the window
   assert.throws(() => unansweredPrs(many, R, '2026-10-08'), e => e.incomplete === true);
 });
 
-test('keel review reads a window first and the full fragment only when a list overflows it; it says what the read cost, and warns under the quota floor', async t => {
+test('plates review reads a window first and the full fragment only when a list overflows it; it says what the read cost, and warns under the quota floor', async t => {
   const dir = await project(t);
   const queries = async gh => (await gh.calls()).filter(x => x[1] === 'graphql').map(x => x.find(a => a.startsWith('query=')));
   let gh = await stubGh(t, { reviews: [ON_HEAD], threads: [UNANSWERED, ANSWERED], rate: { cost: 1, remaining: 4321, resetAt: '2026-10-08T22:00:00Z' } });
-  let r = keel(dir, gh, ['acme/app#3', '--json']);
+  let r = plates(dir, gh, ['acme/app#3', '--json']);
   assert.equal(r.code, 1, r.err);
   let q = await queries(gh);
   assert.equal(q.length, 1, 'one read');
@@ -648,16 +648,16 @@ test('keel review reads a window first and the full fragment only when a list ov
   assert.equal(r.json().warning, null);
   // A thread longer than the window: read again, with the full fragment.
   gh = await stubGh(t, { reviews: [ON_HEAD], threads: [{ ...ANSWERED, more: true }] });
-  keel(dir, gh, ['acme/app#3', '--json']);
+  plates(dir, gh, ['acme/app#3', '--json']);
   q = await queries(gh);
   assert.equal(q.length, 2);
   assert.match(q[1], /reviewThreads\(first: 100\)[\s\S]*comments\(first: 100\)/);
   // Under the floor it still reads (it was asked for) and says so.
   gh = await stubGh(t, { reviews: [ON_HEAD], threads: [ANSWERED], rate: { cost: 1, remaining: 900, resetAt: '2026-10-08T22:00:00Z' } });
-  r = keel(dir, gh, ['acme/app#3', '--json']);
+  r = plates(dir, gh, ['acme/app#3', '--json']);
   assert.equal(r.code, 0, r.err);
   assert.match(r.json().warning, /your GitHub quota is low: 900 left until \d\d:\d\d/);
-  assert.match(keel(dir, gh, ['acme/app#3']).out, /Warning: your GitHub quota is low: 900 left/);
+  assert.match(plates(dir, gh, ['acme/app#3']).out, /Warning: your GitHub quota is low: 900 left/);
 });
 
 const AGENT_RUBRIC = { version: 1, problem: 'Acme sorting fails.', reproduction: 'Run Acme regression.', acceptance: 'Both keys retained.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
@@ -673,29 +673,29 @@ test('review content receipts reject full-body edits before creation and during 
       ...(during ? { editOnCreate: kind } : {}),
     });
     const args = [...await agentArgs(dir), '--yes'];
-    keel(dir, gh, ['acme/app#3', '--json']);
+    plates(dir, gh, ['acme/app#3', '--json']);
     if (!during) await gh.change(s => {
       const rows = kind === 'inline' ? s.threads[0].comments : kind === 'reply' ? s.threads[1].comments : s[kind];
       rows[rows.length - 1].body += '\nAcme changed evidence';
     });
-    const result = keel(dir, gh, args);
+    const result = plates(dir, gh, args);
     assert.equal(result.code, 2, result.out + result.err);
     assert.match(result.out, /review (?:content )?changed/);
     let state = await gh.state();
     assert.equal((state.agentIssues ?? []).length, during ? 1 : 0);
     assert.equal(state.threads[0].comments.length, 1, 'no stale tracked reply');
-    keel(dir, gh, ['acme/app#3', '--json']);
-    const retry = keel(dir, gh, args);
+    plates(dir, gh, ['acme/app#3', '--json']);
+    const retry = plates(dir, gh, args);
     assert.equal(retry.code, 0, retry.out + retry.err);
     state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
   });
 });
 test('review content receipts accept reordered properties and sequential own answers', async t => {
   const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED, { id: 'PRRT_two', comments: [c(20, 'acme-reviewer', 'Acme second defect')] }], writes: true });
-  keel(dir, gh, ['acme/app#3', '--json']);
+  plates(dir, gh, ['acme/app#3', '--json']);
   await gh.change(s => { s.reorder = true; });
   for (const id of ['PRRT_open', 'PRRT_two']) {
-    const result = keel(dir, gh, ['acme/app#3', '--close', id, '--fixed', 'abc1234', '--json']);
+    const result = plates(dir, gh, ['acme/app#3', '--close', id, '--fixed', 'abc1234', '--json']);
     assert.equal(result.code, 0, result.out + result.err);
   }
   const state = await gh.state();
@@ -710,12 +710,12 @@ test('review content receipts tolerate actual window/full author projections but
       threads: [UNANSWERED], writes: true, windowAuthor: true,
       ...(during ? { fullOnCreate: true, ...(edited ? { editOnCreate: 'inline' } : {}) } : {}),
     });
-    keel(dir, gh, ['acme/app#3', '--json']);
+    plates(dir, gh, ['acme/app#3', '--json']);
     if (!during) await gh.change(s => {
       s.windowAuthor = false;
       if (edited) s.threads[0].comments[0].body += '\nAcme changed evidence';
     });
-    const result = keel(dir, gh, [...await agentArgs(dir), '--yes']);
+    const result = plates(dir, gh, [...await agentArgs(dir), '--yes']);
     assert.equal(result.code, edited ? 2 : 0, result.out + result.err);
     const state = await gh.state();
     assert.equal(state.threads[0].comments.length, edited ? 1 : 2);
@@ -726,13 +726,13 @@ test('review content receipts tolerate actual window/full author projections but
 test('review content receipts require fresh read for legacy receipts and detect deleted replies', async t => {
   for (const legacy of [true, false]) await t.test(legacy ? 'legacy' : 'deleted reply', async t => {
     const dir = await project(t), gh = await stubGh(t, { threads: [{ ...UNANSWERED, comments: [...UNANSWERED.comments, c(12, 'acme-reviewer', 'Acme follow-up')] }], writes: true });
-    keel(dir, gh, ['acme/app#3', '--json']);
+    plates(dir, gh, ['acme/app#3', '--json']);
     if (legacy) {
-      const path = join(dir, '.keel-cache', 'reviews', 'acme__app__3.json');
+      const path = join(dir, '.plates-cache', 'reviews', 'acme__app__3.json');
       const receipt = JSON.parse(await readFile(path, 'utf8')); delete receipt.content; delete receipt.contentVersion;
       await writeFile(path, JSON.stringify(receipt));
     } else await gh.change(s => { s.threads[0].comments.pop(); });
-    const result = keel(dir, gh, [...await agentArgs(dir), '--yes']);
+    const result = plates(dir, gh, [...await agentArgs(dir), '--yes']);
     assert.equal(result.code, 2, result.out + result.err);
     assert.match(result.out, /read .*again/); assert.equal(writesIn(await gh.calls()).length, 0);
   });
@@ -744,37 +744,37 @@ async function agentArgs(dir) {
 test('review agent issue requires fresh receipt before even approved creation and rechecks changed head', async t => {
   const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true });
   const args = await agentArgs(dir);
-  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(plates(dir, gh, [...args, '--yes']).code, 2);
   assert.equal(writesIn(await gh.calls()).length, 0);
-  keel(dir, gh, ['acme/app#3', '--json']);
+  plates(dir, gh, ['acme/app#3', '--json']);
   await gh.change(s => { s.head = OLD; });
-  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(plates(dir, gh, [...args, '--yes']).code, 2);
   assert.equal(writesIn(await gh.calls()).length, 0);
-  keel(dir, gh, ['acme/app#3', '--json']);
+  plates(dir, gh, ['acme/app#3', '--json']);
   await gh.change(s => { s.threads[0].comments.push(c(100, 'acme-reviewer', 'Acme follow-up')); });
-  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
+  assert.equal(plates(dir, gh, [...args, '--yes']).code, 2);
   assert.equal(writesIn(await gh.calls()).length, 0);
 });
 test('review agent issue previews OFF then creates once and supplies verified tracked link leaving thread open', async t => {
   const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true });
   const args = await agentArgs(dir);
-  keel(dir, gh, ['acme/app#3', '--json']);
-  const preview = keel(dir, gh, args);
+  plates(dir, gh, ['acme/app#3', '--json']);
+  const preview = plates(dir, gh, args);
   assert.equal(preview.code, 3, preview.out + preview.err);
   assert.equal(preview.json().state, 'preview'); assert.equal(writesIn(await gh.calls()).length, 0);
-  const created = keel(dir, gh, [...args, '--yes']);
+  const created = plates(dir, gh, [...args, '--yes']);
   assert.equal(created.code, 0, created.out + created.err);
   assert.equal(created.json().value, 'https://github.com/acme/app/issues/10');
   const st = await gh.state(); assert.deepEqual(st.agentIssues[0].labels, []); assert.equal(st.threads[0].isResolved, undefined);
   assert.equal(st.threads[0].comments.length, 2);
-  const retry = keel(dir, gh, [...args, '--yes']);
+  const retry = plates(dir, gh, [...args, '--yes']);
   assert.equal(retry.code, 0, retry.out + retry.err);
   const after = await gh.state(); assert.equal(after.agentIssues.length, 1); assert.equal(after.threads[0].comments.length, 2);
 });
 test('review agent issue creation grammar rejects explicit tracking references multiple targets and bare tracked elsewhere', async t => {
   const dir = await project(t), gh = await stubGh(t, {}), args = await agentArgs(dir);
   for (const bad of [args.map(x => x === 'PRRT_open' ? 'PRRT_open,PRRT_two' : x), [...args, '--close', 'PRRT_two'], [...args.slice(0, 4), 'acme/app#12', ...args.slice(4)], [...args, '--fixed', 'abc1234'], ['acme/app#3', '--close', 'PRRT_open', '--tracked']]) {
-    const r = keel(dir, gh, bad); assert.equal(r.code, 2, r.out + r.err);
+    const r = plates(dir, gh, bad); assert.equal(r.code, 2, r.out + r.err);
   }
   assert.equal((await gh.calls()).length, 0);
 });
@@ -783,28 +783,28 @@ test('review agent issue creation grammar rejects explicit tracking references m
 test('review agent issue lost reply response recovers without duplicate issue or tracked reply', async t => {
   const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, loseReply: true });
   const args = await agentArgs(dir);
-  keel(dir, gh, ['acme/app#3', '--json']);
-  const first = keel(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
-  const retry = keel(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
+  plates(dir, gh, ['acme/app#3', '--json']);
+  const first = plates(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
+  const retry = plates(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
   const state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
 });
 test('review agent issue new evidence during creation requires reread before tracked reply', async t => {
   const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, followupOnCreate: true });
   const args = await agentArgs(dir);
-  keel(dir, gh, ['acme/app#3', '--json']);
-  const first = keel(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
+  plates(dir, gh, ['acme/app#3', '--json']);
+  const first = plates(dir, gh, [...args, '--yes']); assert.equal(first.code, 2, first.out);
   assert.match(first.out, /review changed/);
   let state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 2);
-  assert.equal(keel(dir, gh, [...args, '--yes']).code, 2);
-  keel(dir, gh, ['acme/app#3', '--json']);
-  const retry = keel(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
+  assert.equal(plates(dir, gh, [...args, '--yes']).code, 2);
+  plates(dir, gh, ['acme/app#3', '--json']);
+  const retry = plates(dir, gh, [...args, '--yes']); assert.equal(retry.code, 0, retry.out + retry.err);
   state = await gh.state(); assert.equal(state.agentIssues.length, 1); assert.equal(state.threads[0].comments.length, 3);
 });
 test('review agent issue uncertain creation never supplies a tracked reply or retries POST', async t => {
   const dir = await project(t), gh = await stubGh(t, { threads: [UNANSWERED], writes: true, agentFailPost: true });
-  const args = await agentArgs(dir); keel(dir, gh, ['acme/app#3', '--json']);
+  const args = await agentArgs(dir); plates(dir, gh, ['acme/app#3', '--json']);
   for (let i = 0; i < 2; i++) {
-    const result = keel(dir, gh, [...args, '--yes']); assert.equal(result.code, 2, result.out); assert.equal(result.json().state, 'pending'); assert.equal(result.json().issue, null);
+    const result = plates(dir, gh, [...args, '--yes']); assert.equal(result.code, 2, result.out); assert.equal(result.json().state, 'pending'); assert.equal(result.json().issue, null);
   }
   assert.equal(writesIn(await gh.calls()).length, 1);
   const state = await gh.state(); assert.equal(state.threads[0].comments.length, 1);
@@ -826,7 +826,7 @@ const ic = (id, login, body) => ({ id, user: { login }, body, created_at: '2026-
  * or a write not allowed, exits 1. Every call is logged.
  */
 async function pushGh(t, state) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-review-push-gh-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-review-push-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const path = join(dir, 'gh'), statePath = join(dir, 'state.json'), log = join(dir, 'gh.log');
   await writeFile(statePath, JSON.stringify({ comments: [], ...state }));
@@ -864,9 +864,9 @@ console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1);
     state: async () => JSON.parse(await readFile(statePath, 'utf8')),
   };
 }
-const pushIssue = (findings, over = {}) => ({ number: 12, title: `keel review after ${PUSHED.slice(0, 7)}`, state: 'OPEN', url: 'https://github.com/acme/app/issues/12', createdAt: '2026-10-09T10:00:00Z', author: { login: 'app/github-actions', is_bot: true }, body: pushRecord(findings), ...over });
+const pushIssue = (findings, over = {}) => ({ number: 12, title: `plates review after ${PUSHED.slice(0, 7)}`, state: 'OPEN', url: 'https://github.com/acme/app/issues/12', createdAt: '2026-10-09T10:00:00Z', author: { login: 'app/github-actions', is_bot: true }, body: pushRecord(findings), ...over });
 
-test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its findings by id, which are answered, and a receipt of what it showed', async t => {
+test('phase 60: plates review <repo>@<sha> reads the push\'s tracking issue: its findings by id, which are answered, and a receipt of what it showed', async t => {
   assert.deepEqual(parseTarget('acme/app@BBBBBBBB'), { repo: 'acme/app', sha: 'bbbbbbbb' });
   assert.deepEqual(parseTarget('@bbbbbbb', 'acme/app'), { repo: 'acme/app', sha: 'bbbbbbb' });
   assert.deepEqual(parseTarget('#3', 'acme/app'), { repo: 'acme/app', number: 3 }, 'a PR is still a PR');
@@ -876,146 +876,146 @@ test('phase 60: keel review <repo>@<sha> reads the push\'s tracking issue: its f
   const forged = pushIssue([F1, F2], { number: 13, author: { login: 'acme-owner' }, body: pushRecord([]) });
   const other = pushIssue([], { number: 11, body: pushRecord([], 'd'.repeat(40)) });
   const gh = await pushGh(t, { issues: [pushIssue([F1, F2]), forged, other], comments: [ic(501, 'acme-owner', '**F2** `src/latch.js:3`: **Not valid:** the latch closes in open(), line 8.'), ic(502, 'acme-owner', 'Looking at F1 now.')] });
-  const r = keel(dir, gh, [`acme/app@${PUSHED.slice(0, 7)}`]);
+  const r = plates(dir, gh, [`acme/app@${PUSHED.slice(0, 7)}`]);
   assert.equal(r.code, 1, r.err + r.out);
   assert.match(r.out, /^acme\/app@bbbbbbb — the review after the push, by codex \(aaaaaaa\.\.bbbbbbb\): #12 \(open\) https:\/\/github\.com\/acme\/app\/issues\/12$/m);
   assert.match(r.out, /^2 findings, 1 unanswered$/m);
   assert.match(r.out, /^ {2}UNANSWERED F1 {2}src\/lid\.js:12 {2}P1 The hinge is never checked\.$/m);
   assert.match(r.out, /^ {2}not-valid {2}F2 {2}src\/latch\.js:3 {2}P2 The latch defaults open\.$/m);
-  assert.match(r.out, /keel review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
-  const d = keel(dir, gh, [`acme/app@${PUSHED}`, '--json']).json();
+  assert.match(r.out, /plates review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
+  const d = plates(dir, gh, [`acme/app@${PUSHED}`, '--json']).json();
   assert.deepEqual([d.sha, d.from, d.issue, d.unanswered, d.answered, d.ok], [PUSHED, FROM, 12, 1, 1, false]);
   assert.deepEqual(d.comments.map(c => [c.id, c.answered, c.answer, c.url]), [['F1', false, null, F1.url], ['F2', true, 'not-valid', null]]);
-  // keel#65: every comment the receipt marks read is shown, whole, in prose and JSON: here a follow-up that is no answer.
+  // plates#65: every comment the receipt marks read is shown, whole, in prose and JSON: here a follow-up that is no answer.
   assert.deepEqual(d.followUps.map(f => [f.id, f.author, f.body]), [['502', 'acme-owner', 'Looking at F1 now.']]);
   assert.match(r.out, /^1 other comment on #12, read before closing:\n {2}502 {2}acme-owner {2}\S+\n {4}Looking at F1 now\.$/m);
-  // keel#65: an answer naming no finding (F9, where only F1 and F2 exist) answered nothing: it is shown as any comment is,
+  // plates#65: an answer naming no finding (F9, where only F1 and F2 exist) answered nothing: it is shown as any comment is,
   // never marked read unseen, and a close refuses it until it is read.
   const own = await project(t);
   const stray = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true, comments: [ic(601, 'acme-reviewer', '**F9** `src/lid.js:1`: **Fixed** in abc1234. Validated against the code first.')] });
   const at = `acme/app@${PUSHED.slice(0, 7)}`;
-  const shown = keel(own, stray, [at, '--json']).json();
+  const shown = plates(own, stray, [at, '--json']).json();
   assert.deepEqual(shown.followUps.map(f => [f.id, f.body]), [['601', '**F9** `src/lid.js:1`: **Fixed** in abc1234. Validated against the code first.']]);
   assert.deepEqual(shown.comments.map(c => c.answered), [false, false], 'it answered no finding');
-  assert.match(keel(own, stray, [at]).out, /^1 other comment on #12, read before closing:\n {2}601 {2}acme-reviewer {2}\S+\n {4}\*\*F9\*\*/m);
-  // keel#65: another workflow's comment (github-actions too, no keel marker) is news; only the workflow's own, marked, is not.
-  const actions = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true, comments: [ic(611, 'github-actions[bot]', 'Deploy preview: the lid renders upside down.'), ic(612, 'github-actions[bot]', '<!-- keel:review-after-note -->\nkeel\'s own note.')] });
-  assert.deepEqual(keel(own, actions, [at, '--json']).json().followUps.map(f => [f.id, f.author]), [['611', 'github-actions[bot]']]);
+  assert.match(plates(own, stray, [at]).out, /^1 other comment on #12, read before closing:\n {2}601 {2}acme-reviewer {2}\S+\n {4}\*\*F9\*\*/m);
+  // plates#65: another workflow's comment (github-actions too, no plates marker) is news; only the workflow's own, marked, is not.
+  const actions = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true, comments: [ic(611, 'github-actions[bot]', 'Deploy preview: the lid renders upside down.'), ic(612, 'github-actions[bot]', '<!-- keel:review-after-note -->\nplates\'s own note.')] });
+  assert.deepEqual(plates(own, actions, [at, '--json']).json().followUps.map(f => [f.id, f.author]), [['611', 'github-actions[bot]']]);
   // Arrived after the read: news, so the close refuses until it is read.
   const later = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true });
-  keel(own, later, [at]);
+  plates(own, later, [at]);
   const st = await later.state();
   st.comments.push(ic(602, 'acme-reviewer', '**F9** `src/lid.js:1`: **Fixed** in abc1234.'));
   await writeFile(join(dirname(later.path), 'state.json'), JSON.stringify(st));
-  const refused = keel(own, later, [at, '--close', 'F1', '--fixed', 'abc1234']);
+  const refused = plates(own, later, [at, '--close', 'F1', '--fixed', 'abc1234']);
   assert.equal(refused.code, 2, refused.out);
   assert.match(refused.err, /arrived since your last read \(.*\): comment 602 \(acme-reviewer\)/);
   // The receipt: by the full sha, the findings shown and every comment the issue had.
-  const receipt = JSON.parse(await readFile(join(dir, '.keel-cache', 'reviews', `acme__app__after-${PUSHED}.json`), 'utf8'));
+  const receipt = JSON.parse(await readFile(join(dir, '.plates-cache', 'reviews', `acme__app__after-${PUSHED}.json`), 'utf8'));
   assert.deepEqual([receipt.head, receipt.ids, receipt.seen], [PUSHED, ['F1', 'F2'], ['501', '502']]);
   assert.equal((await gh.calls()).filter(c => c.includes('POST') || c.includes('PATCH')).length, 0, 'a read writes nothing');
   // Every finding answered: exit 0. No review recorded for a sha: exit 2, never "nothing to answer".
   const all = await pushGh(t, { issues: [pushIssue([F2])], comments: [ic(501, 'acme-owner', '**F2** `src/latch.js:3`: **Fixed** in abc1234. Validated against the code first.')] });
-  assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 10)}`]).code, 0);
-  const none = keel(dir, all, ['acme/app@1234567']);
+  assert.equal(plates(dir, all, [`acme/app@${PUSHED.slice(0, 10)}`]).code, 0);
+  const none = plates(dir, all, ['acme/app@1234567']);
   assert.equal(none.code, 2);
   assert.match(none.err, /no review after the push ends at 1234567 on acme\/app/);
-  assert.equal(keel(dir, all, [`acme/app@${PUSHED.slice(0, 7)}`, '--wait']).code, 2, 'nothing waits on a push');
-  // keel#65: a start records where reviews begin and reviews nothing: never a review with no findings, exit 0.
+  assert.equal(plates(dir, all, [`acme/app@${PUSHED.slice(0, 7)}`, '--wait']).code, 2, 'nothing waits on a push');
+  // plates#65: a start records where reviews begin and reviews nothing: never a review with no findings, exit 0.
   const startBody = `<!-- keel:review-after ${JSON.stringify({ from: null, to: PUSHED, alone: false, start: true, agent: null, findings: [] })} -->\n**Review after the push starts here**`;
   const started = await pushGh(t, { issues: [pushIssue([], { number: 14, body: startBody })] });
-  const notReviewed = keel(dir, started, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']);
+  const notReviewed = plates(dir, started, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']);
   assert.equal(notReviewed.code, 1, notReviewed.out);
   assert.match(notReviewed.err + notReviewed.out, /acme\/app@bbbbbbb was not reviewed: the review after the push started its record there \(#14\)/);
   // A start and a later real review of the same sha (none expected, but never ambiguous): the review is read.
   const both = await pushGh(t, { issues: [pushIssue([F2]), pushIssue([], { number: 14, body: startBody })], comments: [] });
-  assert.deepEqual(keel(dir, both, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']).json().comments.map(c => c.id), ['F2']);
+  assert.deepEqual(plates(dir, both, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']).json().comments.map(c => c.id), ['F2']);
 });
 
-test('phase 60: a finding keeps its whole text, from the record to keel review\'s JSON and a tracked finding\'s keel:agent draft (keel#65)', async t => {
+test('phase 60: a finding keeps its whole text, from the record to plates review\'s JSON and a tracked finding\'s keel:agent draft (plates#65)', async t => {
   const dir = await project(t);
   const long = { ...F1, text: `The hinge is never checked.\n\nRepro: open a lid whose hinge is null; open() throws.\n\nFix: ${'guard the hinge before turning it. '.repeat(12)}`.trim() };
   assert.ok(long.text.length > 300);
   const gh = await pushGh(t, { issues: [pushIssue([long, F2])], writes: true });
   const at = `acme/app@${PUSHED.slice(0, 7)}`;
-  const d = keel(dir, gh, [at, '--json']).json();
+  const d = plates(dir, gh, [at, '--json']).json();
   assert.equal(d.comments[0].text, `P1 ${long.text}`, 'whole, not a one-line excerpt');
-  const r = keel(dir, gh, [at]);
+  const r = plates(dir, gh, [at]);
   assert.match(r.out, /^ {2}UNANSWERED F1 {2}src\/lid\.js:12 {2}P1 The hinge is never checked\. Repro: .*…$/m, 'the list shows one line of it');
-  const draft = keel(dir, gh, [at, '--close', 'F1', '--tracked', '#40', '--json']).json().work[0].draft;
+  const draft = plates(dir, gh, [at, '--close', 'F1', '--tracked', '#40', '--json']).json().work[0].draft;
   assert.ok(draft.body.includes(long.text), 'the draft carries the whole finding');
 });
 
-test('phase 60: an older push\'s review is found however many newer ones there are: every page until it is, and an incomplete read is never "no review" (keel#65)', async t => {
+test('phase 60: an older push\'s review is found however many newer ones there are: every page until it is, and an incomplete read is never "no review" (plates#65)', async t => {
   const dir = await project(t);
   const newer = Array.from({ length: 249 }, (_, i) => pushIssue([F2], { number: 1000 - i, body: pushRecord([F2], (i + 1).toString(16).padStart(40, 'd')) }));
   const gh = await pushGh(t, { issues: [...newer, pushIssue([F1])] });
-  const r = keel(dir, gh, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']);
+  const r = plates(dir, gh, [`acme/app@${PUSHED.slice(0, 7)}`, '--json']);
   assert.equal(r.code, 1, r.err);
   assert.deepEqual(r.json().comments.map(c => c.id), ['F1'], 'the 250th issue, on the third page');
   const pages = (await gh.calls()).filter(c => c[0] === 'api' && c[1].includes('labels=')).map(c => /page=(\d+)$/.exec(c[1])[1]);
   assert.deepEqual(pages, ['1', '2', '3']);
   // Found on the first page: no more is read.
   const first = await pushGh(t, { issues: [pushIssue([F1]), ...newer] });
-  assert.equal(keel(dir, first, [`acme/app@${PUSHED.slice(0, 7)}`]).code, 1);
+  assert.equal(plates(dir, first, [`acme/app@${PUSHED.slice(0, 7)}`]).code, 1);
   assert.equal((await first.calls()).filter(c => c[0] === 'api' && c[1].includes('labels=')).length, 1);
   // The list ends without it: no review recorded, exit 2.
   const absent = await pushGh(t, { issues: newer });
-  const none = keel(dir, absent, [`acme/app@${PUSHED.slice(0, 7)}`]);
+  const none = plates(dir, absent, [`acme/app@${PUSHED.slice(0, 7)}`]);
   assert.equal(none.code, 2);
   assert.match(none.err, /no review after the push ends at bbbbbbb/);
 });
 
-test('phase 60: keel review <repo>@<sha> --close answers each finding it read with a comment on the issue, and closes the issue once every finding is answered; tracked drafts a keel:agent issue', async t => {
+test('phase 60: plates review <repo>@<sha> --close answers each finding it read with a comment on the issue, and closes the issue once every finding is answered; tracked drafts a keel:agent issue', async t => {
   const dir = await project(t);
   const gh = await pushGh(t, { issues: [pushIssue([F1, F2])], writes: true });
   const at = `acme/app@${PUSHED.slice(0, 7)}`;
   // Never read: refused, nothing posted.
-  const unread = keel(dir, gh, [at, '--close', 'F1', '--fixed', 'abc1234']);
+  const unread = plates(dir, gh, [at, '--close', 'F1', '--fixed', 'abc1234']);
   assert.equal(unread.code, 2);
-  assert.match(unread.err, /not read yet: F1: run keel review acme\/app@bbbbbbb, validate it, then close it/);
-  assert.match(keel(dir, gh, [at, '--close', 'F9', '--fixed', 'abc1234']).err, /not a finding of the review after bbbbbbb on acme\/app: F9/);
+  assert.match(unread.err, /not read yet: F1: run plates review acme\/app@bbbbbbb, validate it, then close it/);
+  assert.match(plates(dir, gh, [at, '--close', 'F9', '--fixed', 'abc1234']).err, /not a finding of the review after bbbbbbb on acme\/app: F9/);
   assert.equal((await gh.calls()).filter(c => c.includes('POST')).length, 0);
   // Read, then F1 tracked: a reply on the issue, the issue stays open (F2 is unanswered), and a keel:agent draft.
-  assert.equal(keel(dir, gh, [at]).code, 1);
-  const tracked = keel(dir, gh, [at, '--close', 'F1', '--tracked', '#40', '--json']);
+  assert.equal(plates(dir, gh, [at]).code, 1);
+  const tracked = plates(dir, gh, [at, '--close', 'F1', '--tracked', '#40', '--json']);
   assert.equal(tracked.code, 0, tracked.err);
   const td = tracked.json();
   assert.deepEqual([td.closed.map(c => c.id), td.left, td.issueClosed], [['F1'], ['F2'], false]);
   assert.deepEqual(td.work[0].draft.labels, ['keel:agent']);
   assert.match(td.work[0].draft.title, /^P1 src\/lid\.js:12: The hinge is never checked\.$/);
-  assert.match(td.work[0].draft.body, /keel review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
+  assert.match(td.work[0].draft.body, /plates review acme\/app@bbbbbbb --close F1 --fixed <commit>/);
   let s = await gh.state();
-  // keel#65: the push's tracked reply says the finding is answered and the issue may close, never "left open".
+  // plates#65: the push's tracked reply says the finding is answered and the issue may close, never "left open".
   assert.equal(s.comments.at(-1).body, '**F1** `src/lid.js:12`: **Valid, tracked** in #40: the fix is tracked there, so this finding is answered and this review\'s issue can close.');
   assert.doesNotMatch(s.comments.at(-1).body, /Left open/);
   assert.equal(s.issues[0].state, 'OPEN');
   // A comment arrives from someone else: closing refuses until it is read.
   s.comments.push(ic(777, 'acme-reviewer', 'F2 is worse than it looks.'));
   await writeFile(join(dirname(gh.path), 'state.json'), JSON.stringify(s));
-  const arrived = keel(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open()']);
+  const arrived = plates(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open()']);
   assert.equal(arrived.code, 2);
   assert.match(arrived.err, /arrived since your last read \(.*\): comment 777 \(acme-reviewer\) F2 is worse than it looks\./);
-  // Read again: the read shows that comment whole before it marks it read (keel#65); keel's own answer (F1's) is not news.
-  const reread = keel(dir, gh, [at]);
+  // Read again: the read shows that comment whole before it marks it read (plates#65); plates's own answer (F1's) is not news.
+  const reread = plates(dir, gh, [at]);
   assert.equal(reread.code, 1);
   assert.match(reread.out, /^1 other comment on #12, read before closing:\n {2}777 {2}acme-reviewer {2}\S+\n {4}F2 is worse than it looks\.$/m);
   // F2 answered: every finding is, so the issue closes.
-  const last = keel(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open(), line 8']);
+  const last = plates(dir, gh, [at, '--close', 'F2', '--not-valid', 'the latch closes in open(), line 8']);
   assert.equal(last.code, 0, last.err);
   assert.match(last.out, /^#12 closed: every finding is answered$/m);
   s = await gh.state();
   assert.equal(s.issues[0].state, 'CLOSED');
   assert.ok((await gh.calls()).some(c => c.join(' ') === 'api -X PATCH repos/acme/app/issues/12 -f state=closed -f state_reason=completed'));
   // Read after: nothing unanswered.
-  assert.equal(keel(dir, gh, [at]).code, 0);
+  assert.equal(plates(dir, gh, [at]).code, 0);
 });
 
 
 test('merged review grammar rejects agent issue creation for commit targets before any GitHub read', async t => {
   const dir = await project(t), gh = await pushGh(t, { issues: [pushIssue([F1])], writes: true });
   const args = await agentArgs(dir); args[0] = `acme/app@${PUSHED}`;
-  const r = keel(dir, gh, [...args, '--yes']);
+  const r = plates(dir, gh, [...args, '--yes']);
   assert.equal(r.code, 2); assert.match(r.err + r.out, /requires a PR target/);
   assert.equal((await gh.calls()).length, 0);
 });
@@ -1027,8 +1027,8 @@ test('agent issue canonical rubric identity survives reordered keys in manual an
     const reviewArgs = await agentArgs(dir);
     const args = mode === 'review' ? ['review', ...reviewArgs, '--yes']
       : ['issue', 'new', '--agent', '--title', 'Fix Acme equality', '--rubric', join(dir, 'rubric.json'), '--yes', '--json'];
-    const invoke = () => run(process.execPath, [BIN, ...args], { cwd: dir, env: { ...cleanEnv(), KEEL_GH: gh.path, KEEL_CACHE: join(dir, '.keel-cache') } });
-    if (mode === 'review') keel(dir, gh, ['acme/app#3', '--json']);
+    const invoke = () => run(process.execPath, [BIN, ...args], { cwd: dir, env: { ...cleanEnv(), PLATES_GH: gh.path, PLATES_CACHE: join(dir, '.plates-cache') } });
+    if (mode === 'review') plates(dir, gh, ['acme/app#3', '--json']);
     const first = invoke(); assert.equal(first.status, mode === 'review' ? 2 : 0, first.stdout + first.stderr);
     const reordered = Object.fromEntries(Object.entries(AGENT_RUBRIC).reverse().map(([key, value]) => [key, typeof value === 'string' ? `  ${value}  ` : value]));
     await writeFile(join(dir, 'rubric.json'), JSON.stringify(reordered, null, 2));
@@ -1103,4 +1103,19 @@ test('robot continuation reviews require complete exact-head bot metadata withou
     assert.equal(reviewComments({...pr,reviews:conn([review(initial)]),comments:conn([])}).length,1);
   }
   for(const fragment of [reviewFragment(),windowFragment()]) assert.match(fragment,/comments\((?:first|last): \d+\).*author \{ __typename login \} body createdAt url/);
+});
+
+test('review reader verifies repository rename before counting legacy robot findings and keeps original bytes', async () => {
+ const {prepareRobotReview}=await import('../practices/night/files/scripts/plates/lib.mjs');
+ const repo='acme/app',old='acme/previous',head='a'.repeat(40),bot={__typename:'Bot',login:'github-actions'},conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
+ const mark={version:1,repo:old,issueNumber:7,instanceId:'issue-7',author:'claude',headSha:head,cursor:0};
+ const review={id:'PRR_acme',databaseId:12,author:bot,commit:{oid:head},submittedAt:'2026-10-01T00:00:00Z',body:`<!-- keel:robot-review ${head} codex -->\nReviewed by codex; built by claude.\n\n[P1] Acme loses rows.`};
+ const pr={number:8,url:`https://github.com/${repo}/pull/8`,author:bot,headRefName:'keel/robot-7',headRefOid:head,repository:{nameWithOwner:repo},headRepository:{nameWithOwner:repo},body:`<!-- keel:robot-delivery ${JSON.stringify(mark)} -->`,reviewThreads:conn([]),comments:conn([]),reviews:conn([review])};
+ const original=JSON.stringify(pr),github=async()=>({status:200,data:{id:7,full_name:repo}});
+ await prepareRobotReview(pr,github);assert.equal(reviewComments(pr).length,1);assert.equal(JSON.stringify(pr),original);
+ const lists=await readRepoReviews(async()=>({open:conn([JSON.parse(original)]),merged:conn([])}),'2026-10-02',{github});assert.equal(reviewComments(lists.open.nodes[0]).length,1);
+ await assert.rejects(()=>prepareRobotReview(JSON.parse(original),async({path})=>path===`/repos/${old}`?{status:200,data:{id:8,full_name:old}}:github()),/repository identity mismatch/);
+ await assert.rejects(()=>prepareRobotReview(JSON.parse(original),async()=>({status:403})),/unavailable/);
+ // A JSON property cannot spoof the non-serialized verifier state.
+ assert.deepEqual(reviewComments({...JSON.parse(original),repositoryAliases:[old]}),[]);
 });

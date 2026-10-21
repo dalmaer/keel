@@ -1,4 +1,4 @@
-// The night in a box's GitHub (keel phase 86): a stub gh with a state file,
+// The night in a box's GitHub (plates phase 86): a stub gh with a state file,
 // for tests/night-box.test.mjs. It knows the calls a night makes of GitHub
 // and nothing else: issues (the morning's brief, the robot's queue), labels,
 // pull requests (list, create, edit) and the contents API for the plan branch,
@@ -6,13 +6,13 @@
 // Every other call fails, as an unreachable GitHub does, so a stage that
 // starts needing GitHub shows up as a failure, never as an empty answer.
 //
-// KEEL_BOX_GH_STATE: the state file ({ issues, prs, nextIssue, nextPr });
-// KEEL_BOX_GH_LOG: each call appended as JSON; KEEL_BOX_ORIGIN: the bare repo.
+// PLATES_BOX_GH_STATE: the state file ({ issues, prs, nextIssue, nextPr });
+// PLATES_BOX_GH_LOG: each call appended as JSON; PLATES_BOX_ORIGIN: the bare repo.
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const a = process.argv.slice(2);
-const { KEEL_BOX_GH_STATE: STATE, KEEL_BOX_GH_LOG: LOG, KEEL_BOX_ORIGIN: ORIGIN } = process.env;
+const { PLATES_BOX_GH_STATE: STATE, PLATES_BOX_GH_LOG: LOG, PLATES_BOX_ORIGIN: ORIGIN } = process.env;
 const opt = f => (a.includes(f) ? a[a.indexOf(f) + 1] : undefined);
 const input = opt('--body-file') === '-' ? readFileSync(0, 'utf8') : opt('--body-file') ? readFileSync(opt('--body-file'), 'utf8') : null;
 appendFileSync(LOG, `${JSON.stringify({ a, input })}\n`);

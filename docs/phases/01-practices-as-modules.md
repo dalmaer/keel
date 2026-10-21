@@ -3,21 +3,21 @@ status: built
 since: 2026-10-02
 goal: G0
 depends: [0]
-note: "Seven practices (base, agents-md, phases, evidence, lessons, conduct, ci) render keel's own files; render --self --check in npm run check keeps the two copies one. Not yet rendered into a real project."
+note: "Seven practices (base, agents-md, phases, evidence, lessons, conduct, ci) render plates's own files; render --self --check in npm run check keeps the two copies one. Not yet rendered into a real project."
 evidence: ["evidence/2026-10-02-practices.md"]
 ---
 
-# The practice is a set of modules keel can install, including on itself
+# The practice is a set of modules plates can install, including on itself
 
 ## Done when
 
-Keel's own practice files are rendered from `practices/<name>/`, and re-rendering them onto keel changes no bytes.
+Plates's own practice files are rendered from `practices/<name>/`, and re-rendering them onto plates changes no bytes.
 
 ## Scope
 
 Extract what phase 0 hand-installed into practices: `phases` (generator, test,
 contract, templates), `lessons`, `evidence`, `conduct` (skill + doorway),
-`agents-md` (the keel blocks of AGENTS.md), `ci`. Each has a `README.md` (the
+`agents-md` (the plates blocks of AGENTS.md), `ci`. Each has a `README.md` (the
 failure it prevents, the rule, its lineage), a `practice.json` (files, each
 `managed`/`block`/`seeded`, what it requires, its `source` if adapted from
 upstream), and its templates. A renderer that takes a project config and writes
@@ -25,11 +25,11 @@ them. Not the CLI (phase 2) and not drift detection (phase 5).
 
 ## Acceptance
 
-- [x] Every practice file on keel is accounted for by exactly one practice.
-- [x] A render onto keel is a no-op (`git diff --exit-code`).
+- [x] Every practice file on plates is accounted for by exactly one practice.
+- [x] A render onto plates is a no-op (`git diff --exit-code`).
 - [x] A render into an empty temp directory produces a tree whose `npm run check` passes after one generated phase.
 - [x] `conduct`'s `practice.json` pins `source: dglazkov/isocan .claude/skills/conduct/SKILL.md @ 7227f325`.
-- [x] Project names in templates come from config; none says "Keel" or "Cajones" by accident.
+- [x] Project names in templates come from config; none says "Plates" or "Cajones" by accident.
 
 ## Proof
 

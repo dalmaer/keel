@@ -15,31 +15,31 @@ create a hosted workspace.
 
 ## What it does, and why it works that way
 
-The answer is already spread over six places keel knows: the phase files,
+The answer is already spread over six places plates knows: the phase files,
 loose ends, review comments on open PRs, the newest health page, the inbox
-and the fleet. `keel board` reads them all and sorts every open item by what
+and the fleet. `plates board` reads them all and sorts every open item by what
 it waits on, in the order you read them:
 
 - **Yours**: walks owed (a phase whose building is done and whose ⚑ box is
   your read), the night's proposal, lessons to decide, a question a session
   asked you, a step marked "⚑ yours" (a repo to keep or delete, lessons to
-  send home), a phase claim (`keel phase claim`) nobody has pushed to for
+  send home), a phase claim (`plates phase claim`) nobody has pushed to for
   seven days: release it by hand (the item says how) or leave it, because
-  keel never releases a claim for you. A PR at its review-round limit
-  (three rounds unless `.keel/keel.json` says otherwise) is yours too, with
+  plates never releases a claim for you. A PR at its review-round limit
+  (three rounds unless `.plates/plates.json` says otherwise) is yours too, with
   its round count and open findings: merge with the rest tracked, split it,
   or close it. A fleet project's PR is held to that project's own limit, read
   with the fleet. When its config cannot be read, the board says so beside
   its sources and holds that project's PRs to no limit: they stay under
   Broken by their unanswered comments, and none is assumed to be at three.
-- **Broken**: a red CI on a fleet project's default branch, a draft keel
-  update PR ("acme/ledger: keel update v0.8.26 fails ledger's check": the
+- **Broken**: a red CI on a fleet project's default branch, a draft plates
+  update PR ("acme/ledger: plates update v0.8.26 fails ledger's check": the
   fleet kept an update whose check failed; its description says what to
   fix), review comments
   unanswered on an open PR you or an agent opened (Claude, Codex, a bot). A
   PR someone else opened waits outside, as "Someone else's PR": its review is
   theirs to answer.
-- **The agent's**: buildable phases in the order `keel next` would take
+- **The agent's**: buildable phases in the order `plates next` would take
   them, then the agent's loose ends (branches, uncommitted files, open PRs).
 - **Waiting on time**: a phase dated `after:` a day still to come, a walk
   that `waits: time` (a week of green nights).
@@ -49,7 +49,7 @@ Plus a fleet strip: each project's practice version, health and CI.
 It derives nothing its sources do not already say. Two facts used to live
 only in prose, so the phase files now say them:
 
-- `after: 2026-11-01` — not buildable before that day; `keel next` skips it.
+- `after: 2026-11-01` — not buildable before that day; `plates next` skips it.
 - `waits: owner | time | external` beside `owes: walk` — whose walk it is.
 
 A source that cannot be read (GitHub offline, no fleet here) is shown as
@@ -69,7 +69,7 @@ has not read the phase:
 ## Your part
 
 - **Ask:** Decide whether to keep two rules added on 6 October: …
-- **Why:** Keel keeps extra process only if fewer defects slip through after it; …
+- **Why:** Plates keeps extra process only if fewer defects slip through after it; …
 - **Look at:** The table, its last row first; how it was counted is in the evidence (a link).
 - **Choices:** Keep both | Drop the proof-plan rule | Drop the test-run record | Not enough data yet
 - **Keeps it open:** Not enough data yet
@@ -106,17 +106,17 @@ never a failure).
 
 ### Answers are recorded, never typed twice
 
-Each "yours" item carries the actions that settle it, and each runs a keel
+Each "yours" item carries the actions that settle it, and each runs a plates
 verb, so the board never writes a file its own way:
 
 - a walk with a Your part: each choice runs
-  `keel walk done <phase> --choice "<choice>"` (with `--note` when you
+  `plates walk done <phase> --choice "<choice>"` (with `--note` when you
   wrote one);
 - a walk without one: **Done — looks good**, or **Done, with a note**, runs
-  `keel walk done <phase> --note "<what you saw>"`;
+  `plates walk done <phase> --note "<what you saw>"`;
 - the night's proposal: **Accept** or **Decline** runs
-  `keel walk decide --proposal <page> --accept|--decline "<why>"`;
-- a lesson: **Accept** or **Decline** runs `keel learn decide`.
+  `plates walk decide --proposal <page> --accept|--decline "<why>"`;
+- a lesson: **Accept** or **Decline** runs `plates learn decide`.
 
 A verb that changes the repo leaves the change as a working-tree diff and
 says so. Committing stays the conductor's: the gate runs first, always.
@@ -124,9 +124,9 @@ says so. Committing stays the conductor's: the gate runs first, always.
 ## The commands
 
 ```bash
-keel board                # a page on 127.0.0.1; the URL (with its token) is printed
-keel board --open         # the same, opened in your browser
-keel board --json         # every item, for an agent or a script
+plates board                # a page on 127.0.0.1; the URL (with its token) is printed
+plates board --open         # the same, opened in your browser
+plates board --json         # every item, for an agent or a script
 ```
 
 - `--open` when you want the browser to come up on its own.
@@ -148,19 +148,19 @@ page carries a strict Content-Security-Policy: nothing loads from
 elsewhere, and its one inline style and script run only with that load's
 nonce. It reads the files fresh on every load and every refresh; Ctrl-C
 stops it. GitHub is read less often: the reviews, loose-ends' PRs and the
-fleet are kept 10 minutes in keel's cache, so the minute-by-minute refresh
-asks GitHub nothing; **Refresh** (and `keel board --json --fresh`) reads
+fleet are kept 10 minutes in plates's cache, so the minute-by-minute refresh
+asks GitHub nothing; **Refresh** (and `plates board --json --fresh`) reads
 again. The reviews stop under the quota floor (1000 GraphQL points left of
 the hour's 5000, shared by every tool on your login), saying "saving your
 GitHub quota (N left until HH:MM)", and the footer says when GitHub was read,
 what that cost and what is left.
 
 ```bash
-keel walk done 44 --note "Dropped one on a coyote; it landed."
-keel walk done 12 --box 3 --note "Read the page on a phone."
-keel walk done 34 --choice "Not enough data yet" --note "Look again after November's review."
-keel walk decide --proposal docs/health/2026-10-08.md --decline "Phase 52 covers it."
-keel walk decide --proposal docs/health/2026-10-08.md --accept
+plates walk done 44 --note "Dropped one on a coyote; it landed."
+plates walk done 12 --box 3 --note "Read the page on a phone."
+plates walk done 34 --choice "Not enough data yet" --note "Look again after November's review."
+plates walk decide --proposal docs/health/2026-10-08.md --decline "Phase 52 covers it."
+plates walk decide --proposal docs/health/2026-10-08.md --accept
 ```
 
 - `walk done` checks the phase's open ⚑ box, appends your note to the
@@ -177,12 +177,12 @@ keel walk decide --proposal docs/health/2026-10-08.md --accept
   not walked: it is refused, and nothing is written.
 - For ordinary proposals, `walk decide` writes one line at the end of the page's Proposal section,
   `**Decided <date>: accepted|declined** — why`. The board and
-  `keel loose-ends` stop listing it. An accepted proposal becomes a phase
-  with `keel phase new`.
+  `plates loose-ends` stop listing it. An accepted proposal becomes a phase
+  with `plates phase new`.
 
 Long-file hygiene proposals carry a source-bound instance. Use the board's
 **Accept**/**Decline** actions or
-`keel walk decide --proposal <page> --instance <id> --accept` (or `--decline
+`plates walk decide --proposal <page> --instance <id> --accept` (or `--decline
 "<why>"`). Acceptance validates the current source and approved robot policy
 before filing through the existing issue journal. Robot off, changed source or
 uncertain delivery remains explicit; retry recovers the same intent. The issue
@@ -234,7 +234,7 @@ phase, `r` refreshes, `?` lists the keys, `Esc` closes or clears. Every
 control is a real button, so the page works without a mouse and reads
 aloud; an action's result is announced.
 
-`keel board --json` exits **0** when it drew the board, whatever it found.
+`plates board --json` exits **0** when it drew the board, whatever it found.
 `walk` exits **0** when it wrote, **2** on a refusal (a box that is not a
 walk, a choice not in the list, a proposal already decided), with nothing
 written.
@@ -242,9 +242,9 @@ written.
 ## What it never does
 
 - It never commits, pushes, merges or answers a review. A PR's review is
-  answered with `keel review --close`, linked from the board.
+  answered with `plates review --close`, linked from the board.
 - It is not hosted: the board is this machine's, with your `gh` login.
-- It is not the agent's queue: the agent still runs `keel next`.
+- It is not the agent's queue: the agent still runs `plates next`.
 
 ## See also
 
@@ -252,6 +252,6 @@ written.
   `waits:` and `after:` in a phase's front matter.
 - [Loose ends and the retro](loose-ends-and-retro.md): one of the board's
   sources.
-- `keel --agent-help board`: the exact reference.
+- `plates --agent-help board`: the exact reference.
 - [`docs/research/2026-10-08-whose-turn-board.md`](../research/2026-10-08-whose-turn-board.md):
   the design.

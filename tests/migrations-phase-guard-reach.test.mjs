@@ -14,7 +14,7 @@ async function put(root, path, content) {
   await writeFile(join(root, path), typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`);
 }
 async function scratch(t) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-phase-guard-acme-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-phase-guard-acme-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }
@@ -31,7 +31,7 @@ test('0007 survives a files/milestones/files roundtrip after 0005 is recorded, a
   const config = { name: 'Acme', repo: 'acme/anvils', tagline: 'Acme ships anvils.', practice: version,
     practices: ['base', 'agents-md', 'phases', 'night'], check: 'npm run check',
     migrations: ['0004-test-ledger'], phases: { source: 'files' } };
-  await put(root, '.keel/keel.json', config);
+  await put(root, '.plates/plates.json', config);
   // Unusual formatting and unrelated human scripts must survive byte for byte.
   const script = 'node --test tests/acme.test.mjs';
   const pkg = `{\n\t"name" : "acme",\n\t"scripts" : { "check": "npm test", "test" : "${script}", "ship": "echo Acme ships" }\n}\n`;
@@ -42,18 +42,18 @@ test('0007 survives a files/milestones/files roundtrip after 0005 is recorded, a
   const generated = run(process.execPath, ['scripts/roadmap.mjs'], { cwd: root });
   assert.equal(generated.status, 0, generated.stderr);
   const archives = Object.fromEntries(await Promise.all(['docs/phases/01-acme.md', 'docs/goals.json', 'docs/ROADMAP.md',
-    'scripts/roadmap.mjs', 'tests/roadmap.test.mjs', 'tests/keel-generated.test.mjs'].map(async p => [p, await read(root, p)])));
+    'scripts/roadmap.mjs', 'tests/roadmap.test.mjs', 'tests/plates-generated.test.mjs'].map(async p => [p, await read(root, p)])));
   config.phases.source = 'milestones';
-  await put(root, '.keel/keel.json', config);
+  await put(root, '.plates/plates.json', config);
   git(root, 'init', '-q', '-b', 'main'); save(root);
-  const deps = { version, cliRoot: resolve('.'), env: { ...cleanEnv(), KEEL_GH: '/no-real-gh', KEEL_CACHE: join(root, '.keel/cache') } };
+  const deps = { version, cliRoot: resolve('.'), env: { ...cleanEnv(), PLATES_GH: '/no-real-gh', PLATES_CACHE: join(root, '.plates/cache') } };
   const updateLocal = () => update({ dir: root, local: true, selfUpdate: false }, deps);
   const milestonePlan = await collect(root, all, { done: taken(config) });
   assert.deepEqual(milestonePlan.applied.map(m => m.id), ['0005-test-ledger-reach']);
   assert.ok(milestonePlan.skipped.includes(repair.id));
   const milestoneUpdate = await updateLocal();
   assert.deepEqual(milestoneUpdate.data.migrations.map(m => m.id), ['0005-test-ledger-reach']);
-  const recorded = JSON.parse(await read(root, '.keel/keel.json'));
+  const recorded = JSON.parse(await read(root, '.plates/plates.json'));
   assert.ok(recorded.migrations.includes('0005-test-ledger-reach'));
   assert.ok(!recorded.migrations.includes(repair.id));
   assert.equal(await read(root, 'package.json'), pkg);
@@ -61,14 +61,14 @@ test('0007 survives a files/milestones/files roundtrip after 0005 is recorded, a
   save(root);
   assert.equal((await updateLocal()).data.changed, false, 'same-version milestone update remains idle');
   recorded.phases.source = 'files';
-  await put(root, '.keel/keel.json', recorded); save(root);
+  await put(root, '.plates/plates.json', recorded); save(root);
   const plan = await collect(root, all, { done: taken(recorded) });
   assert.deepEqual(plan.applied.map(m => m.id), [repair.id]);
   assert.deepEqual([...plan.edits.keys()], ['package.json']);
   const repaired = await updateLocal();
   assert.deepEqual(repaired.data.migrations.map(m => m.id), [repair.id]);
   assert.equal(repaired.data.check.ok, true, 'the real updated project gate passed');
-  const nextScript = `${script} tests/roadmap.test.mjs tests/keel-generated.test.mjs`;
+  const nextScript = `${script} tests/roadmap.test.mjs tests/plates-generated.test.mjs`;
   assert.equal(await read(root, 'package.json'), pkg.replace(JSON.stringify(script), JSON.stringify(nextScript)));
   assert.equal(await repair.applies(await view(root)), false, 'idempotent even without the recorded id');
   save(root);
@@ -92,7 +92,7 @@ test('0007 respects local phases, ejected tests, existing gate coverage and non-
   const repair = all.find(m => m.id === '0007-phase-guard-reach');
   assert.ok(repair, '0007-phase-guard-reach must be registered');
   const root = await scratch(t);
-  const guards = ['tests/roadmap.test.mjs', 'tests/keel-generated.test.mjs'];
+  const guards = ['tests/roadmap.test.mjs', 'tests/plates-generated.test.mjs'];
   const base = { practices: ['phases', 'night', 'ci'], check: 'npm run check', migrations: ['0005-test-ledger-reach'] };
   for (const [extra, script, check, missing] of [
     [{ phases: { source: 'milestones' } }, 'node --test tests/acme.test.mjs', 'npm test', []],
@@ -107,7 +107,7 @@ test('0007 respects local phases, ejected tests, existing gate coverage and non-
     [{}, `node --test tests/acme.test.mjs ${guards[0]}`, 'npm test', [guards[1]]],
   ]) {
     const config = { ...base, ...extra };
-    await put(root, '.keel/keel.json', config);
+    await put(root, '.plates/plates.json', config);
     await put(root, 'package.json', { name: 'acme', scripts: { test: script, check } });
     await put(root, 'app/package.json', '{"scripts":{"test":"node --test"}}\n');
     const result = await collect(root, [repair], { done: taken(config) });

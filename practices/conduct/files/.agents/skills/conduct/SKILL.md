@@ -5,12 +5,12 @@ argument-hint: "[status | <phase number> | one]"
 ---
 
 <!-- Source: dglazkov/isocan .claude/skills/conduct/SKILL.md @ 7227f325 (Apache-2.0).
-     Adapted by keel for one-file-per-phase projects (docs/phases/NN-*.md).
-     Keel manages this file: change it upstream in keel, or send the change home with `keel lessons`. -->
+     Adapted by plates for one-file-per-phase projects (docs/phases/NN-*.md).
+     Plates manages this file: change it upstream in plates, or send the change home with `plates lessons`. -->
 
 # conduct: one phase, verified, recorded, committed
 
-Keel lesson references name the [Keel catalogue](https://github.com/dalmaer/keel/blob/main/docs/lessons.md), not this project’s local lesson numbers.
+Plates lesson references name the [Plates catalogue](https://github.com/dalmaer/plates/blob/main/docs/lessons.md), not this project’s local lesson numbers.
 
 The phases in `docs/phases/` are the contract. Each one is a file. Its front
 matter owns its status, and its sections say **Done when**, **Acceptance**,
@@ -51,33 +51,33 @@ step below: the walk ends at the local commit on `main`. Say so in the report.
 - `/conduct status`: orient and report. Change nothing.
 - `/conduct <N>`: conduct that phase and stop. If a phase it depends on isn't
   built (a partial phase marked `owes: walk` counts as done here, as for
-  `keel next`), conduct that one first and say so.
+  `plates next`), conduct that one first and say so.
 - `/conduct one`: the next phase only, then stop.
 
 ## 0. Orient
 
 The roadmap command is the project's, never assumed. Read it first:
 
-- `.keel/keel.json` `"practices"` lists `phases` (keel's roadmap): `node
+- `.plates/plates.json` `"practices"` lists `phases` (plates's roadmap): `node
   scripts/roadmap.mjs --next` says the next phase whose dependencies are
   built, and its next action (`npm run next` too, where `package.json` has
   that alias); `node scripts/roadmap.mjs --json` says everything.
-- `.keel/keel.json` `"local"` names `phases` (the project keeps its own
-  roadmap, and keel's `scripts/roadmap.mjs` is not installed): use the
+- `.plates/plates.json` `"local"` names `phases` (the project keeps its own
+  roadmap, and plates's `scripts/roadmap.mjs` is not installed): use the
   scripts its `package.json` names (`next`, else `roadmap`, else what
   `"loop"` `"afterRender"` runs). If none says which phase is next, read the
   phase files' front matter: the lowest-numbered phase not built whose
   `depends:` are built.
 
-**Claim the phase before you build it.** (why: Two sessions built one phase at once, and one of them was thrown away.) With keel's roadmap and a remote,
-the first step for a phase is `keel phase claim <N>`, before the brief: it
+**Claim the phase before you build it.** (why: Two sessions built one phase at once, and one of them was thrown away.) With plates's roadmap and a remote,
+the first step for a phase is `plates phase claim <N>`, before the brief: it
 pushes `claims/phase-<N>`, a branch every session and provider can see.
-`keel next` lists the phases that are ready and unclaimed, and the claimed
+`plates next` lists the phases that are ready and unclaimed, and the claimed
 ones with their holder. A refusal names who holds the phase: take another free
 phase, or stop. Never build a claimed phase, and never release a claim that
 is not yours: a stale one is the owner's, on the board. If the claims could
 not be read, stop and say so. When the phase is committed to `main`,
-`keel phase claim <N> --release` clears the branch.
+`plates phase claim <N> --release` clears the branch.
 
 Then read, in this order:
 
@@ -100,7 +100,7 @@ Keep the conductor's own context lean, because it outlives every builder:
 - **The docs agree.** (why: Contradictory contracts let a build satisfy one document and violate another.) If the phase's Proof, its Acceptance and the design
   disagree, fix the docs first, as their own commit. Building on a
   contradiction produces something that satisfies one document and not the other.
-- **Its dependencies are built.** (why: An unbuilt prerequisite makes downstream proof depend on a promise.) `depends:` says which phases. Conduct an unbuilt one first; a partial one marked `owes: walk` counts as built here (its rest is a walk, not work), as for `keel next`.
+- **Its dependencies are built.** (why: An unbuilt prerequisite makes downstream proof depend on a promise.) `depends:` says which phases. Conduct an unbuilt one first; a partial one marked `owes: walk` counts as built here (its rest is a walk, not work), as for `plates next`.
 - **⚑ steps are asked, not done.** (why: External resources and spending create obligations for the owner.) List them to the user with the price, and
   get a yes for each. Before stopping to ask, do every part that doesn't need
   the answer, so the ask is the only thing left.
@@ -110,7 +110,7 @@ Keep the conductor's own context lean, because it outlives every builder:
 Write the brief to a scratchpad file, so it can be reread, reused if the
 subagent must be restarted, and quoted in the commit.
 
-**Point, don't paste.** (why: Keel lesson 5: repeated context and verification cost more than they catch.) The subagent can read the repo, and `{{guide}}` is
+**Point, don't paste.** (why: Plates lesson 5: repeated context and verification cost more than they catch.) The subagent can read the repo, and `{{guide}}` is
 already in its context. Name the phase file, the design sections and the
 lessons by path and heading. In words, the brief carries only what the docs
 *don't* say:
@@ -121,7 +121,7 @@ lessons by path and heading. In words, the brief carries only what the docs
 - where to stop.
 
 Before dispatch **and before every resume**, run
-`keel decision context --phase <N> --json` in the target checkout. Exit 1 or 2
+`plates decision context --phase <N> --json` in the target checkout. Exit 1 or 2
 blocks work until the records are repaired or the target is explicitly revised.
 Exit 0 with `not-configured` preserves legacy behavior; it is not verified coverage.
 Include the returned bundle (or a scratchpad path to its exact JSON) in the brief:
@@ -160,7 +160,7 @@ evidence: the conductor writes the record.
 The test files you touched or wrote, by path (`node --test tests/<file>`),
 as often as you like. Do NOT run the whole check (`{{check}}`): the
 conductor runs it once on the integrated tree (with a remote, through
-`keel integrate`). Two full gates never run beside each other: the integrator's lock
+`plates integrate`). Two full gates never run beside each other: the integrator's lock
 (`claims/integrate`) lets one run at a time.
 
 ## What you return (under 600 words), these sections in this order
@@ -211,7 +211,7 @@ focused tests; the whole check stays yours, once, in §3.
 - `git pull --ff-only` **first**, if there is a remote.
 - Then mark the phase's new files intent-to-add: `git add -N <new files>`.
   Anything that measures with `git ls-files` can't see an untracked file
-  locally, and it will fail the same check in CI after the commit (Keel lesson 10).
+  locally, and it will fail the same check in CI after the commit (Plates lesson 10).
   Never stage before an autostash pull: the pull hands staged changes back unstaged.
 - `git status --short`: only the phase's files changed, no leftovers, no
   `.env`, nothing under `docs/phases/`.
@@ -257,7 +257,7 @@ When the proof holds, and only then, write the record, all in one change:
   with what waits), with `since` (today) and a `note` saying in one line why
   it stands there. Add the evidence path, relative to `docs/`
   (`evidence/<date>-<slug>.md`). Check the Acceptance boxes that the proof
-  actually showed. keel's roadmap check (`scripts/roadmap.mjs`) fails a
+  actually showed. plates's roadmap check (`scripts/roadmap.mjs`) fails a
   phase whose boxes are all checked and evidence named but whose status
   wasn't moved; a project's own roadmap may not check it, so check it
   yourself there.
@@ -283,7 +283,7 @@ When the proof holds, and only then, write the record, all in one change:
   dated, saying what settled them.
 - **Next action** for the phase: the next step if it isn't built; once it
   is built, `None.` (or what lived-in needs, when the project counts it:
-  `"phases": {"livedIn": true}` with keel's roadmap). A partial phase whose
+  `"phases": {"livedIn": true}` with plates's roadmap). A partial phase whose
   building is done and whose rest is a walk gets `owes: walk` and a Next
   action naming the walk. A project that keeps its own phases (`"local"`
   names `phases`) follows its own roadmap's rules for both: it may not read
@@ -296,15 +296,15 @@ When the proof holds, and only then, write the record, all in one change:
   same commit. A test catches the tables; nothing catches the prose but you.
 - **Other phases** this one changed the facts for: `grep -rn` the term across
   `docs/` and fix each mention.
-- The project's roadmap command (§0; `node scripts/roadmap.mjs` with keel's).
+- The project's roadmap command (§0; `node scripts/roadmap.mjs` with plates's).
 
 Then **the whole check, once**, on the final tree, record included:
 `{{check}}`. It is the only full run, and it comes last so it covers what
 you commit (the roadmap check in it reads the status you just set). Builders
 tested by file; this is the integrated tree. If something fails, re-run just
 that, alone, before calling it a flake; after a fix, run the whole check again.
-With a remote, that one run is `keel integrate`'s, after the commit (§4):
-finish with `keel ready` and leave the full gate to the integrator. Without a
+With a remote, that one run is `plates integrate`'s, after the commit (§4):
+finish with `plates ready` and leave the full gate to the integrator. Without a
 remote, run it here.
 
 ## 4. Commit
@@ -320,8 +320,8 @@ tree the gate just checked in §3; if anything changes after it, run it again.
   wall time. It carries the gate's result line from §3 (`{{check}}`: exit
   code, test count), which the evidence can't, since the evidence is
   written before the gate runs.
-- **A fix is proven by its test failing without it.** (why: Keel lesson 38: a check can stay green without evaluating its claim.) A `fix:` commit
-  carries a `Proven-by:` trailer, from `keel prove <test> --fix <the fix's
+- **A fix is proven by its test failing without it.** (why: Plates lesson 38: a check can stay green without evaluating its claim.) A `fix:` commit
+  carries a `Proven-by:` trailer, from `plates prove <test> --fix <the fix's
   files> --trailer`: it runs the test in a scratch copy with the fix
   reverted, then in another with it, and never touches the tree. Only
   VERIFIED proves the fix. NOT WORKING means the test does not catch the bug:
@@ -339,46 +339,46 @@ Land on `main`, no pull request (unless the phase waits for review, below):
    the tree creates files between your read and your stage.
 3. With a remote, commit on the phase's branch (`<provider>/phase-<N>`), never
    on `main`: the integrator is what writes `main`. Read `git show --stat HEAD`.
-4. **Finish with `keel ready`.** (why: Two sessions that each ran the full gate and pushed ran the expensive path twice for two changes.) It runs only the fast checks
-   (`"delivery".fast` in `.keel/keel.json`, and each `--check "<cmd>"`: your
+4. **Finish with `plates ready`.** (why: Two sessions that each ran the full gate and pushed ran the expensive path twice for two changes.) It runs only the fast checks
+   (`"delivery".fast` in `.plates/plates.json`, and each `--check "<cmd>"`: your
    focused tests), pushes the branch and records it as `ready/<branch>`. It
    never runs the full gate, and refuses a check that is the full gate.
-5. **Then `keel integrate`.** It takes the lock (`claims/integrate`), merges
+5. **Then `plates integrate`.** It takes the lock (`claims/integrate`), merges
    every ready change onto `main`, runs `{{check}}` once on the combined tree
    and pushes it. Its report (how many gate runs, exit, what landed) is the
    gate's result line for this phase: record it in the next commit, as for
    proofs that need the commit. A failing batch is
    narrowed until each failing change is found; the rest land, and the
    failing one is sent back blocked, with the reason. One sent back is yours:
-   fix it on its branch and `keel ready` again. Refused because another
+   fix it on its branch and `plates ready` again. Refused because another
    integrator holds the lock: stop there; that one takes your change too
    (it reads the ready changes again before it lets go). If its report does
-   not name yours, run `keel integrate` again once the lock is free.
+   not name yours, run `plates integrate` again once the lock is free.
    Follow CI on the commit it pushed while preparing the next brief.
    With no remote, stop at the local commit: there is no push and no CI.
 
 **Reviews.** (why: An unanswered finding hides whether it was fixed, tracked or rejected.) Every PR the conductor opens or merges (a phase that waits for
-review, `keel fleet update`'s PRs, a climb or tend PR): when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered.
-Read them with `keel review <repo>#<n>` (`--wait` first when the PR is new:
+review, `plates fleet update`'s PRs, a climb or tend PR): when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered.
+Read them with `plates review <repo>#<n>` (`--wait` first when the PR is new:
 reviewers post minutes after CI). The three replies:
 
 ```sh
-keel review <repo>#<n> --close <id>[,<id>…] --fixed <commit>      # valid, fixed: names the commit; resolves
-keel review <repo>#<n> --close <id> --tracked <#issue|vX.Y.Z>    # valid, tracked: names where; stays open
-keel review <repo>#<n> --close <id> --not-valid "<why>"          # says why, citing the code; resolves
+plates review <repo>#<n> --close <id>[,<id>…] --fixed <commit>      # valid, fixed: names the commit; resolves
+plates review <repo>#<n> --close <id> --tracked <#issue|vX.Y.Z>    # valid, tracked: names where; stays open
+plates review <repo>#<n> --close <id> --not-valid "<why>"          # says why, citing the code; resolves
 ```
 
 Several ids go in one call, comma-separated; never loop over them in the
-shell. Read with `keel review` right before closing; `--close` refuses what
+shell. Read with `plates review` right before closing; `--close` refuses what
 you have not read (and anything that arrived since the read), so never build
 the id list from a query. A valid finding is fixed in its own commit before the reply names it.
 Not a gate: an open thread never refuses a merge, and the night counts what
 is left (`reviews_unanswered`).
 
-**A review that keeps going is the owner's.** (why: One PR went ten review rounds of fix-and-push before anyone decided.) A round is one push a reviewer answered with a finding. When `keel review <repo>#<n>` exits 3 the PR
-is at its round limit (three unless `.keel/keel.json` `"review": {"rounds": N}`
+**A review that keeps going is the owner's.** (why: One PR went ten review rounds of fix-and-push before anyone decided.) A round is one push a reviewer answered with a finding. When `plates review <repo>#<n>` exits 3 the PR
+is at its round limit (three unless `.plates/plates.json` `"review": {"rounds": N}`
 says otherwise): stop pushing fixes. Sort each open finding you have read
-with `keel review <repo>#<n> --class security|overwrite|approval|other <ids>`
+with `plates review <repo>#<n> --class security|overwrite|approval|other <ids>`
 (it records the kind and answers nothing), then report the choice it prints
 to the owner: merge with the rest tracked, split, or close. Never merge it
 yourself.
@@ -387,19 +387,19 @@ yourself.
 about): its front matter says `review: wait`, or its issue carries the label
 `keel:wait-for-review` (`gh issue view <n> --json labels`). It lands through a
 PR instead of a push to `main`: push the phase's commit to `phase-<N>`, open
-the PR, `keel review <repo>#<n> --wait`, answer every comment, and merge only
-when `keel review <repo>#<n> --gate` exits 0 (every comment answered, each
+the PR, `plates review <repo>#<n> --wait`, answer every comment, and merge only
+when `plates review <repo>#<n> --gate` exits 0 (every comment answered, each
 named reviewer has reviewed the head commit). The default is neither: no PR,
 no wait.
 
-**In keel itself, a practice change is reviewed before a release**
-(`.keel/keel.json` says `"keel": "self"`). A change under `practices/`,
+**In plates itself, a practice change is reviewed before a release**
+(`.plates/plates.json` says `"plates": "self"`). A change under `practices/`,
 `migrations/` or `docs/lessons.md` is what the fleet receives, so it lands as
 a `claude/` PR: push it to `claude/phase-<N>`, open the PR, and wait for the
 other provider's review (cross-review: Codex reviews `claude/` PRs) with
-`keel review <repo>#<n> --wait`. Answer every comment; after a fix, comment
+`plates review <repo>#<n> --wait`. Answer every comment; after a fix, comment
 `/review` so the head is reviewed again. Merge when every comment is answered
-and someone other than the PR's author has reviewed its head. `keel release`
+and someone other than the PR's author has reviewed its head. `plates release`
 refuses a practice commit that came any other way, naming it; only the
 owner's `--unreviewed "<why>"` goes past it, never `--yes`. Records
 (`docs/phases/`, evidence, the roadmap) and CLI-only changes may still go to
@@ -418,7 +418,7 @@ After the commit, when the phase did real work (its commit changed more than
 `docs/`), look at how the session went, not only what it built:
 
 ```sh
-keel retro --worksheet --since <the brief's base commit>   # the commit before the phase's first
+plates retro --worksheet --since <the brief's base commit>   # the commit before the phase's first
 ```
 
 The worksheet holds counts and transcript pointers, never transcript text:
@@ -434,9 +434,9 @@ phase report, most serious first, each typed:
 - **check**: anything mechanical (a lint, a test, a guard in a script).
   Mechanical violations get deterministic checks;
 - **guide/skill line**: a judgment call only;
-- **lesson**: a failure shape, through `keel learn`.
+- **lesson**: a failure shape, through `plates learn`.
 
-**The owner picks.** (why: Keel lesson 51: advice is not the person’s decision.) Nothing is applied unpicked: candidates live in the
+**The owner picks.** (why: Plates lesson 51: advice is not the person’s decision.) Nothing is applied unpicked: candidates live in the
 report, not the repo, until the owner picks one; a picked check is built as
 its own small change (or a phase). Never run a retro from the night or a
 climb: unattended, it finds false positives and keeps fixing them.
@@ -466,25 +466,25 @@ it's yours.
 ## /goodnight
 
 `/goodnight` is the owner saying what tonight is for. It is not a phase and
-not the walk: it shapes the plan the night runs (`keel goodnight`; keel's
+not the walk: it shapes the plan the night runs (`plates goodnight`; plates's
 `--agent-help night` has the detail).
 
-**Run it only when the owner asks.** (why: A plan offered unasked is keel choosing the night, which the default plan already does without a person.) Only `/goodnight`, or the owner's own words asking for it,
+**Run it only when the owner asks.** (why: A plan offered unasked is plates choosing the night, which the default plan already does without a person.) Only `/goodnight`, or the owner's own words asking for it,
 starts it. Never offer a plan unasked: not at the end of a walk, not when the
 owner says they are stopping, not on a closed session. Without it the night
-runs keel's default plan, and that is fine.
+runs plates's default plan, and that is fine.
 
-1. **Show the opening.** (why: The owner chooses from what keel read; a summary from memory hides what changed today.) Run `keel goodnight` and give the owner what it
+1. **Show the opening.** (why: The owner chooses from what plates read; a summary from memory hides what changed today.) Run `plates goodnight` and give the owner what it
    says: settled today, left open, tonight's plan and the things to try. Say
    any `not read:` line as it is; never fill a gap with a guess.
 2. **Shape it by the owner's words.** (why: An item reworded by the agent is no longer the promise the owner made.) Each change they ask for is one
-   command: `keel goodnight add <id>` (a thing to try) or `add --title "<their
+   command: `plates goodnight add <id>` (a thing to try) or `add --title "<their
    words>"`, `drop <id>`, `edit <id> --title "<their words>"`, `budget <id>
    <minutes>`, `skip <path-or-id>`. Use their words as they said them. A
    refusal names why (a sixth build item, a build with no number, something
    settled today): tell them, and let them choose; never work around it.
    Show the draft after each change.
-3. **Write it only on "that's the plan".** (why: The push is the summons; a plan the owner never agreed to would run as theirs.) Run `keel goodnight --yes` only
+3. **Write it only on "that's the plan".** (why: The push is the summons; a plan the owner never agreed to would run as theirs.) Run `plates goodnight --yes` only
    when the owner says that's the plan, or plainly the same. Anything else,
    including silence or leaving, writes nothing, and the night runs the
    default plan. Then say what was pushed, and stop.

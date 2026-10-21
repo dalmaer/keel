@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fill } from '../lib/practices.mjs';
 import { run } from './helpers/run.mjs';
-import { shellWords, flagsIn } from '../practices/night/files/scripts/keel/test-ledger.mjs';
-import { nodePlan, readReceiptPlan, suiteCollector, isStallsReceipt } from '../practices/night/files/scripts/keel/time-receipts.mjs';
+import { shellWords, flagsIn } from '../practices/night/files/scripts/plates/test-ledger.mjs';
+import { nodePlan, readReceiptPlan, suiteCollector, isStallsReceipt } from '../practices/night/files/scripts/plates/time-receipts.mjs';
 
 test('receipt JSON boundary round-trips producer plans and rejects malformed claims', async t => {
   const root = await mkdtemp(join(tmpdir(), 'acme-receipt-'));
@@ -15,7 +15,7 @@ test('receipt JSON boundary round-trips producer plans and rejects malformed cla
   await writeFile(join(root, 'tests/acme.test.mjs'), '');
   const options = {root, words: s => s.split(' '), flags: words => words.filter(s => s.startsWith('--')).map(s => ({words: [s]}))};
   const plan = await nodePlan({...options, script: 'node --test tests/acme.test.mjs'});
-  const read = value => readReceiptPlan({KEEL_SUITE_PLAN: JSON.stringify(value)});
+  const read = value => readReceiptPlan({PLATES_SUITE_PLAN: JSON.stringify(value)});
   assert.equal(plan.available, true);
   assert.deepEqual(await read(plan), plan);
   const globPlan = await nodePlan({...options, script: 'node --test tests/*.test.mjs'});
@@ -42,7 +42,7 @@ test('receipt JSON boundary round-trips producer plans and rejects malformed cla
     {...plan, executionSettings: {...plan.executionSettings, selection: [1]}},
     {...absent, expectedFiles: []}, {...absent, reason: null}];
   for (const value of malformed) assert.equal(await read(value), null, JSON.stringify(value));
-  assert.equal(await readReceiptPlan({KEEL_SUITE_PLAN: '{'}), null);
+  assert.equal(await readReceiptPlan({PLATES_SUITE_PLAN: '{'}), null);
   assert.equal(await readReceiptPlan({}), null);
 });
 

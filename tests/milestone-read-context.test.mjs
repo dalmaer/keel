@@ -10,13 +10,13 @@ import { looseEnds } from '../lib/looseends.mjs';
 import { board } from '../lib/board.mjs';
 import { rememberQuota } from '../lib/quota.mjs';
 
-const cli = resolve('bin/keel.mjs');
+const cli = resolve('bin/plates.mjs');
 async function fixture(t, config = milestoneConfig) {
-  const base = await mkdtemp(join(tmpdir(), 'keel-milestone-context-'));
+  const base = await mkdtemp(join(tmpdir(), 'plates-milestone-context-'));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'acme');
-  await mkdir(join(root, '.keel'), { recursive: true });
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await mkdir(join(root, '.plates'), { recursive: true });
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   const log = join(base, 'gh.log'), source = join(base, 'source.json'), gh = join(base, 'gh');
   await writeFile(log, '');
   await writeFile(gh, `#!${process.execPath}
@@ -29,8 +29,8 @@ if (args[0] === 'api' && args[1] === 'graphql') {
 }
 console.error('Acme: other GitHub reads unavailable'); process.exit(1);
 `, { mode: 0o755 });
-  const env = { ...process.env, KEEL_GH: gh, KEEL_CACHE: join(base, 'cache'), KEEL_CLAUDE_DIR: join(base, 'claude'), ACME_LOG: log, ACME_SOURCE: source };
-  delete env.KEEL_MILESTONES_OFFLINE;
+  const env = { ...process.env, PLATES_GH: gh, PLATES_CACHE: join(base, 'cache'), PLATES_CLAUDE_DIR: join(base, 'claude'), ACME_LOG: log, ACME_SOURCE: source };
+  delete env.PLATES_MILESTONES_OFFLINE;
   const setSource = async (nodes, more) => {
     const data = response(nodes, more); data.data.rateLimit.cost = 7;
     await writeFile(source, JSON.stringify(data));
@@ -122,9 +122,9 @@ test('board refresh propagates freshness and accounting to a fleet checkout mile
   const git = args => { const r = run('git', ['-C', f.root, ...args], { env: f.env }); assert.equal(r.status, 0, r.stderr); };
   git(['init']); git(['remote', 'add', 'origin', 'https://github.com/acme/anvils.git']);
   const home = join(f.base, 'home');
-  await mkdir(join(home, '.keel'), { recursive: true });
-  await writeFile(join(home, '.keel/keel.json'), JSON.stringify({ name: 'Acme home', keel: 'self', practices: [] }));
-  await writeFile(join(home, 'fleet.json'), JSON.stringify([{ repo: 'acme/anvils', role: 'managed' }]));
+  await mkdir(join(home, '.plates'), { recursive: true });
+  await writeFile(join(home, '.plates/plates.json'), JSON.stringify({ name: 'Acme home', plates: 'self', practices: [] }));
+  await writeFile(join(home, 'plates.json'), JSON.stringify([{ repo: 'acme/anvils', role: 'managed' }]));
   const deps = { env: f.env, roadmap: async () => ({ config: {}, phases: [], goals: [] }), reviews: async () => ({ items: [] }), fleet: async () => ({ repos: [] }), robotStatus: async () => ({ policy: { enabled: false }, budget: { state: 'off' } }) };
   const first = await board({ root: home }, deps);
   assert.ok(first.items.some(i => i.title === 'acme/anvils: Acme issue 10'));

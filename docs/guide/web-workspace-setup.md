@@ -1,4 +1,4 @@
-# Set up a private Keel web workspace
+# Set up a private Plates web workspace
 
 Setup guide, updated 21 October 2026. Phase 93 provides local manifest and state
 initialization. The first private service is deployed: owner GitHub login,
@@ -14,9 +14,9 @@ See [the contract](../specs/web-workspace.md) for the storage boundaries.
 
 ## Create or reuse a private data repository
 
-You need Node >=24.21.0, Git, the Keel CLI and GitHub CLI. Authenticate with
+You need Node >=24.21.0, Git, the Plates CLI and GitHub CLI. Authenticate with
 `gh auth login`. Choose your own account/organization and repo name: the examples
-use `acme/keel-data`. Never put your private workspace records in the public
+use `acme/plates-data`. Never put your private workspace records in the public
 application repo. Repository creation is an owner-approved resource action;
 private repositories are included in GitHub Free, but other features and usage
 have their own limits. [GitHub pricing](https://github.com/pricing).
@@ -25,15 +25,15 @@ For a new repository:
 
 ```sh
 mkdir -p "$HOME/code"
-gh repo create acme/keel-data --private --description "Private Keel workspace records" --add-readme
-gh repo view acme/keel-data --json nameWithOwner,isPrivate,id
-gh repo clone acme/keel-data "$HOME/code/keel-data"
+gh repo create acme/plates-data --private --description "Private Plates workspace records" --add-readme
+gh repo view acme/plates-data --json nameWithOwner,isPrivate,id
+gh repo clone acme/plates-data "$HOME/code/plates-data"
 ```
 
 For an existing repository, skip creation and reuse its checkout or clone it to
 an unused destination. Read back `isPrivate: true` before adding private content;
 a missing or inaccessible repo is not proof of privacy. Preserve existing files.
-The checkout must be outside the installed Keel application tree. Store its
+The checkout must be outside the installed Plates application tree. Store its
 provider ID in private setup records, not in public application documentation.
 
 Create `workspace.json` in the private checkout using this schema, substituting
@@ -44,7 +44,7 @@ your own account, identity and display name:
   "version": 1,
   "id": "acme",
   "name": "Acme",
-  "repo": "acme/keel-data",
+  "repo": "acme/plates-data",
   "projects": []
 }
 ```
@@ -53,7 +53,7 @@ Use an empty project list until you have selected the projects to include. IDs
 use lowercase letters, digits and hyphens, start with a letter and have a
 64-character maximum. Repository values are `owner/name`, not URLs. Unknown
 fields are rejected; do not add deployment settings or secrets to the manifest.
-The full version 1 schema is in `keel --agent-help workspace`.
+The full version 1 schema is in `plates --agent-help workspace`.
 
 Add secret/runtime exclusions to your private repo's ignore file without replacing
 its existing entries: `.env`, `.env.*`, `*.pem`, `*.key`, `.vercel/` and `runtime/`.
@@ -62,13 +62,13 @@ rejects state inside any working tree even when ignored. After validation below,
 review and commit only the intended records:
 
 ```sh
-cd "$HOME/code/keel-data"
+cd "$HOME/code/plates-data"
 git diff -- .gitignore workspace.json
 git status --short
 git add .gitignore workspace.json
 git diff --cached --check
 git diff --cached -- .gitignore workspace.json
-git commit -m "Configure private Keel workspace"
+git commit -m "Configure private Plates workspace"
 git push
 ```
 
@@ -87,10 +87,10 @@ Add a project to the manifest by replacing the empty array with entries such as:
 
 Project IDs and repository identities must be unique; the workspace repository
 cannot also be a project. Re-run inspect after edits. Listing a repo grants no
-access and changes no project files. For a project already using Keel, retain its
-`.keel/keel.json`, planning source, decisions and evidence there. For a new or
+access and changes no project files. For a project already using Plates, retain its
+`.plates/plates.json`, planning source, decisions and evidence there. For a new or
 existing project that needs adoption, follow [Start a project](start-a-project.md)
-or [Bring a project under Keel](bring-a-project-under-keel.md).
+or [Bring a project under Plates](bring-a-project-under-plates.md).
 
 The authentication service checks the intersection of workspace membership,
 GitHub App installation and the signed-in user's repository access. Phase 95
@@ -99,7 +99,7 @@ implements that boundary; local manifest validation does not verify it.
 ### Shared lessons and the existing inbox
 
 The private workspace can hold shared private lesson records, but this foundation
-does not redirect the existing lesson workflow. `keel lessons` still uses the
+does not redirect the existing lesson workflow. `plates lessons` still uses the
 configured inbox. A folder of shared lessons in a private data repo does not
 change the visibility of any issue destination. Retain the current fleet and
 inbox until an explicit migration has been previewed and verified; phase 100
@@ -111,9 +111,9 @@ owns that work. See [Lessons and learning](lessons-and-learning.md) and
 The runtime directory is separate from the private checkout, never inside it.
 For example, these illustrative server paths keep the three locations separate:
 
-- `/srv/keel/app`: installed public application, read-only in deployment.
-- `/srv/keel/workspace/workspace.json`: manifest in a private repository checkout.
-- `/srv/keel/state`: private persistent runtime directory, outside any Git tree.
+- `/srv/plates/app`: installed public application, read-only in deployment.
+- `/srv/plates/workspace/workspace.json`: manifest in a private repository checkout.
+- `/srv/plates/state`: private persistent runtime directory, outside any Git tree.
 
 The paths are explicit; the runtime directory's parent must exist. Do not put
 credentials in the manifest. Create the version 1 manifest from the contract,
@@ -122,9 +122,9 @@ for a home directory layout, the README uses a checkout under `$HOME/code` and
 state under `$HOME/.local/state`:
 
 ```sh
-keel workspace inspect --manifest /srv/keel/workspace/workspace.json --state /srv/keel/state --json
-keel workspace init --manifest /srv/keel/workspace/workspace.json --state /srv/keel/state --json
-keel workspace init --manifest /srv/keel/workspace/workspace.json --state /srv/keel/state --yes --json
+plates workspace inspect --manifest /srv/plates/workspace/workspace.json --state /srv/plates/state --json
+plates workspace init --manifest /srv/plates/workspace/workspace.json --state /srv/plates/state --json
+plates workspace init --manifest /srv/plates/workspace/workspace.json --state /srv/plates/state --yes --json
 ```
 
 Preview exits 3 and writes nothing. Explicit initialization is idempotent for
@@ -155,7 +155,7 @@ it is not the storage implementation for hosted requests.
 
 | Layer | Binding or planned binding | Remaining decision/check |
 | --- | --- | --- |
-| Application | Public Keel source; framework-free Node functions and browser modules | Production deployment in iad1; serving Node v24.21.0 verified |
+| Application | Public Plates source; framework-free Node functions and browser modules | Production deployment in iad1; serving Node v24.21.0 verified |
 | Shared records | Owner-selected private GitHub repository | Numeric identity, manifest, members file and selected project list retained privately |
 | Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free/iad1 connected to production | Authentication schema, role denials and concurrent SQL verified; restore destination remains |
 | Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
@@ -210,9 +210,9 @@ limits; paid resources, overages and backups need a concrete owner decision.
 
    ```sh
    vercel project ls --scope acme-team
-   vercel project create keel-workspace --scope acme-team
-   vercel project inspect keel-workspace --scope acme-team --json
-   vercel api /v9/projects/keel-workspace/domains --scope acme-team
+   vercel project create plates-workspace --scope acme-team
+   vercel project inspect plates-workspace --scope acme-team --json
+   vercel api /v9/projects/plates-workspace/domains --scope acme-team
    ```
 
    Substitute the selected team and project. Skip creation if reusing an existing

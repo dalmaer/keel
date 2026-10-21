@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp,writeFile,chmod,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { robotGithub,robotAssociation,robotContinuation,robotContinuationOf,robotDeliveryMetadata,readRobotDelivery } from '../practices/night/files/scripts/keel/robot-delivery.mjs';
+import { robotGithub,robotAssociation,robotContinuation,robotContinuationOf,robotDeliveryMetadata,readRobotDelivery } from '../practices/night/files/scripts/plates/robot-delivery.mjs';
 const repo='acme/anvils',headSha='a'.repeat(40),baseSha='b'.repeat(40);
 const mark={repo,issueNumber:1,instanceId:'acme-1',author:'claude',headSha,cursor:0};
 const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,body:robotAssociation(mark),user:{type:'Bot',login:'github-actions[bot]'},state:'open',head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{sha:baseSha,repo:{full_name:repo}}};
@@ -21,7 +21,7 @@ test('robot delivery verifies repository issue instance and head, distinguishes 
 test('robot gh transport uses actual HTTP include framing and bounded structured writes, never shell interpolation',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'acme-robot-gh-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  const gh=join(dir,'gh');await writeFile(gh,`#!${process.execPath}\nprocess.stdout.write('HTTP/2.0 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify({permission:'admin',user:{login:'acme',type:'User'}}));\n`);await chmod(gh,0o755);
- const before=process.env.KEEL_GH;process.env.KEEL_GH=gh;t.after(()=>{if(before===undefined)delete process.env.KEEL_GH;else process.env.KEEL_GH=before;});
+ const before=process.env.PLATES_GH;process.env.PLATES_GH=gh;t.after(()=>{if(before===undefined)delete process.env.PLATES_GH;else process.env.PLATES_GH=before;});
  const r=await robotGithub({method:'GET',path:`/repos/${repo}/collaborators/acme/permission`});assert.equal(r.status,200);assert.equal(r.data.permission,'admin');
  assert.equal((await robotGithub({path:`/repos/${repo}`})).status,200);
  await assert.rejects(robotGithub({method:'GET',path:'https://example.test/'}),/invalid/);
@@ -51,4 +51,14 @@ test('robot continuation delivery resolves canonical exact-head bot comments and
  for(const comments of invalid)await assert.rejects(robotDeliveryMetadata({repo,pr:current,github:async()=>({status:200,data:comments})}),/metadata/);
  await assert.rejects(robotDeliveryMetadata({repo,pr:current,github:async()=>({status:200,data:Array(100).fill(comment)})}),/coverage incomplete/);
  assert.equal((await robotDeliveryMetadata({repo,pr:current,github:async()=>({status:200,data:[comment,{...comment,id:9}]})})).association.headSha,next);
+});
+
+test('delivery preserves old canonical markers across only a verified numeric repository rename', async()=>{
+ const old='acme/previous',legacy={...pr,body:robotAssociation({...mark,repo:old})},original=legacy.body;
+ const github=async({path})=>({status:200,data:path===`/repos/${repo}`||path===`/repos/${old}`?{id:7,full_name:repo}:path.includes('/pulls?')?[{number:2}]:legacy});
+ const facts=await readRobotDelivery({repo,issueNumber:1,instanceId:mark.instanceId,github});assert.equal(facts.state,'open');assert.equal(legacy.body,original);
+ const metadata=await robotDeliveryMetadata({repo,pr:legacy,github});assert.equal(metadata.association.repo,old);
+ for(const response of [{status:403},{status:200,data:{id:8,full_name:old}}]){
+  const denied=await readRobotDelivery({repo,issueNumber:1,instanceId:mark.instanceId,github:r=>r.path===`/repos/${old}`?response:github(r)});assert.equal(denied.state,'unknown');
+ }
 });

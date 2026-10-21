@@ -15,7 +15,7 @@ async function fixture(t) {
   await mkdir(root);
   const env = { ...process.env, CI: '', GITHUB_ACTIONS: '', GITLAB_CI: '', TF_BUILD: '', BUILDKITE: '',
     GIT_AUTHOR_DATE: '2020-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2020-01-01T00:00:00Z' };
-  delete env.KEEL_GIT;
+  delete env.PLATES_GIT;
   const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   git(root, 'init', '-b', 'main');
   await writeFile(join(root, 'source.txt'), 'Acme\n');
@@ -166,7 +166,7 @@ test('a registered directory replaced by an external symlink is protected', asyn
 
 test('CI and invalid inputs do not touch Git', async () => {
   for (const env of [{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }]) {
-    const result = await staleWorktrees({ root: '/does-not-exist', env: { ...env, KEEL_GIT: '/not-a-command' } });
+    const result = await staleWorktrees({ root: '/does-not-exist', env: { ...env, PLATES_GIT: '/not-a-command' } });
     assert.match(result.na, /CI/);
     assert.equal(result.value, undefined);
     assert.deepEqual(result.facts.worktrees, []);

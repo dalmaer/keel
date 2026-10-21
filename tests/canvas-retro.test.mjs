@@ -15,11 +15,11 @@ function git(root, ...args) {
   return r.stdout.trim();
 }
 async function world(t) {
-  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'keel-capture-')));
+  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'plates-capture-')));
   t.after(() => rm(tmp, { recursive: true, force: true }));
   const root = join(tmp, 'acme');
-  await mkdir(join(root, '.keel'), { recursive: true });
-  await writeFile(join(root, '.keel/keel.json'), '{"name":"Acme"}');
+  await mkdir(join(root, '.plates'), { recursive: true });
+  await writeFile(join(root, '.plates/plates.json'), '{"name":"Acme"}');
   git(root, 'init', '-q');
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'Acme initial');
   const since = git(root, 'rev-parse', 'HEAD');
@@ -32,13 +32,13 @@ async function world(t) {
     candidates: [{ id: 'acme-check', type: 'check', action: 'Check missing source coverage.', decision: { status: 'pending' }, links: [], evidence: [] }],
   };
   const record = join(tmp, 'candidate.json');
-  const env = { ...process.env, KEEL_CLAUDE_DIR: join(tmp, 'claude') };
+  const env = { ...process.env, PLATES_CLAUDE_DIR: join(tmp, 'claude') };
   const write = () => writeFile(record, JSON.stringify(input));
   await write();
   return { tmp, root, input, record, env, write, output: join(root, 'docs/retros', `${ID}.json`) };
 }
 async function transcript(w) {
-  const dir = join(w.env.KEEL_CLAUDE_DIR, 'projects', encodeDir(w.root));
+  const dir = join(w.env.PLATES_CLAUDE_DIR, 'projects', encodeDir(w.root));
   await mkdir(dir, { recursive: true });
   const timestamp = new Date(Date.now() + 60_000).toISOString();
   await writeFile(join(dir, 'acme-session.jsonl'), [
@@ -155,7 +155,7 @@ test('schema, privacy and reference validation reject unsafe authored fields wit
 
 test('configured repository directory works and path or symlink escapes cannot write outside it', async t => {
   const w = await world(t);
-  const config = path => writeFile(join(w.root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', retros: { dir: path } }));
+  const config = path => writeFile(join(w.root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', retros: { dir: path } }));
   for (const path of ['../outside', w.tmp, 'docs/../../outside', '.git/retros', 'docs\\retros', 'docs/../retros']) {
     await config(path);
     assert.equal((await capture({ ...w, yes: true })).exitCode, 2, path);

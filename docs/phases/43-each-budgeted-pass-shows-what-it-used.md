@@ -6,7 +6,7 @@ since: 2026-10-07
 goal: G4
 spec: 2
 depends: [35, 38, 42]
-note: "Built and on GitHub: the Budget line (agent-step minutes per run from GitHub, ran out, a suggestion; runs whose agent never started skipped); the night of 2026-10-07 (run 37580217231, keel#26) wrote tend 2 of 30, climb 3, 0 of 45. Waits on the owner's read after four or more tend runs."
+note: "Built and on GitHub: the Budget line (agent-step minutes per run from GitHub, ran out, a suggestion; runs whose agent never started skipped); the night of 2026-10-07 (run 37580217231, plates#26) wrote tend 2 of 30, climb 3, 0 of 45. Waits on the owner's read after four or more tend runs."
 evidence: ["evidence/2026-10-07-budget-use.md"]
 issue: 25
 ---
@@ -15,7 +15,7 @@ issue: 25
 
 ## Done when
 
-keel's health page shows a Budget line for tend and climb: the agent step's minutes in each of the last runs (at most 8), which ran out, and a suggestion (extend, shorten to N, hold, or too few to say), read from GitHub's record of the runs; and the owner has read tend's line and kept or changed its budget by it.
+plates's health page shows a Budget line for tend and climb: the agent step's minutes in each of the last runs (at most 8), which ran out, and a suggestion (extend, shorten to N, hold, or too few to say), read from GitHub's record of the runs; and the owner has read tend's line and kept or changed its budget by it.
 
 ## Scope
 
@@ -32,12 +32,12 @@ The design is [Budget use](../research/2026-10-06-budget-use.md).
 - [x] From synthetic runs: minutes per run from the agent step, a cancelled or full step counted as ran out, a run without the step skipped, and each suggestion (extend, shorten to N, hold, too few); mutation: not counting a cancelled step as ran out fails the test. `tests/improve-budget.test.mjs`
 - [x] The step map equals the name of each shipped workflow's claude-code-action step; mutation: renaming tend's step in its workflow fails the test. `tests/workflows.test.mjs`
 - [x] The health page has a Budget entry for each pass that is on and none for one that is off; GitHub unreadable is n/a with why, never an empty line. `tests/improve-budget.test.mjs`
-- [x] keel's health page, after the night runs on GitHub, shows tend's real entry (its runs so far). `gh pr view <n> -R dalmaer/keel --json body`
+- [x] plates's health page, after the night runs on GitHub, shows tend's real entry (its runs so far). `gh pr view <n> -R dalmaer/plates --json body`
 - [ ] ⚑ by hand: after four or more tend runs, the owner reads tend's line and keeps or changes the budget.
 
 ## Your part
 
-- **Ask:** Read the "Budget" line on keel's health page and decide whether the weekly tidy-up keeps its 30-minute limit or gets a different one.
+- **Ask:** Read the "Budget" line on plates's health page and decide whether the weekly tidy-up keeps its 30-minute limit or gets a different one.
 - **Why:** The limit caps what each pass may spend; the line suggests extend, shorten or hold from how long the real runs took.
 - **Look at:** The "Budget:" line near the top of the latest [health page](../health/).
 - **Choices:** Keep 30 minutes | Change it
@@ -47,14 +47,14 @@ The design is [Budget use](../research/2026-10-06-budget-use.md).
 
 ## Real surfaces
 
-- GitHub API: the Actions runs and jobs of keel-tend.yml and keel-climb.yml on keel.
-- Workflow shell: keel-night.yml on GitHub Actions, writing the line.
+- GitHub API: the Actions runs and jobs of plates-tend.yml and plates-climb.yml on plates.
+- Workflow shell: plates-night.yml on GitHub Actions, writing the line.
 - Fleet over time: tend's runs over four or more weeks.
 
 ## Proof
 
 - Automated: `node --test tests/improve-budget.test.mjs tests/workflows.test.mjs`, with the mutations above; `npm run check`.
-- On GitHub: the next keel night's health page carries tend's line.
+- On GitHub: the next plates night's health page carries tend's line.
 - By hand: the owner's read, weeks later.
 
 ## Deliberately open

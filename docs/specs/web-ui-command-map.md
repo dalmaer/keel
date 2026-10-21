@@ -1,19 +1,19 @@
-# Keel CLI → web UX inventory
+# Plates CLI → web UX inventory
 
 Companion to [the web UI proposal](web-ui.md). Audited 20 October 2026 at
 `d60ea553f51d9a0ee8558b706de8f7526e28777c`. Scope: every registered public
-`keel` verb, its positional arguments and options, global dispatch flags, and
+`plates` verb, its positional arguments and options, global dispatch flags, and
 the user-facing installed-practice surfaces that deserve a place in the UX.
-Internal workflow/script flags are not additional public `keel` commands.
+Internal workflow/script flags are not additional public `plates` commands.
 
 Sources: [`lib/cli.mjs`](../../lib/cli.mjs),
 [`lib/agent-guide.md`](../../lib/agent-guide.md), and forwarded parsers in
 [`canvas`](../../lib/canvas.mjs), [`goodnight`](../../lib/goodnight.mjs),
 [`session trials`](../../lib/session-trials.mjs),
 [`production wrapper`](../../lib/production.mjs),
-[`production runtime`](../../practices/night/files/scripts/keel/production.mjs),
-[`promote`](../../practices/delivery/files/scripts/keel/promote.mjs), and
-[`persona`](../../practices/personas/files/scripts/keel/persona.mjs).
+[`production runtime`](../../practices/night/files/scripts/plates/production.mjs),
+[`promote`](../../practices/delivery/files/scripts/plates/promote.mjs), and
+[`persona`](../../practices/personas/files/scripts/plates/persona.mjs).
 
 All treatments below are proposed. “First” means Home/first human workflow;
 “Later” means a useful subsequent workspace; “Advanced” means inspect/copy/open
@@ -105,7 +105,7 @@ semantics as different things.
 | `promote` | Optional `<commit>`, `--yes`, `--within <seconds>`, `--every <seconds>` | Review tested commit, range, gate, target ref and verification timing; execute as a tracked operation. | Later |
 | `promote --back` | `<commit>` after `--back`, `--yes`, `--within`, `--every` | Separate rollback flow with exact serving-revision verification and honest failure result. | Later |
 
-The UI does not invent a generic `keel merge`, `keel deploy`, or `keel agent run`.
+The UI does not invent a generic `plates merge`, `plates deploy`, or `plates agent run`.
 Use GitHub or a supported existing operation for those responsibilities.
 
 ## Night, morning and measured health
@@ -212,7 +212,7 @@ schema from the actual action, not suggest that `--record` is required everywher
 
 ## Installed-practice surfaces outside the public verb registry
 
-These matter to a rich UX even though typing `keel loop` or `keel climb` is not
+These matter to a rich UX even though typing `plates loop` or `plates climb` is not
 supported. Their complete internal script surface is not the public CLI audit;
 user-facing operations described by agent-help are mapped here to prevent the
 product from overlooking them.
@@ -220,7 +220,7 @@ product from overlooking them.
 | Surface | Relevant arguments / operations | UX decision |
 | --- | --- | --- |
 | `node scripts/loop.mjs` | `pull` (`--no-prove`), `list --json` (`-d <decision>`), `propose <slug> --rank now\|next\|later\|never --phase <n\|new>` or `--project <name\|new>`, optional `--lesson`, `--note`, `--read`; `decide <slug> <decision>`; `push` (`--dry-run`, `--yes`), `mine --yes`, `render --check`, `prove [slug]` | Learning workspace: evidence, ranking, home and owner decision. Pull/prove may spend under configured policy; no automatic model call on opening a finding. Milestones disable local phase-homing. |
-| `node scripts/keel/climb.mjs` | `config`; `pick --date --force --plan`; `measure <job> --runs --baseline`; `compare --base --candidate --rounds --decide --final`; `prove-steady --test --runs --decide`; `guard --base --job`; `harmless --path --why`; `distill [propose …]`; `loop-pull`; `revert --why`; `settle`; `report --body --state --issue`; `agent-ran --agent --outcome --file --minutes --started`; `sandbox --plan` | Show measured attempts, margin, budget, kept/reverted result and PR. Leave low-level mutation, worktree, sandbox and report plumbing to the runner. Never turn compare/decide into a casual chart control. |
+| `node scripts/plates/climb.mjs` | `config`; `pick --date --force --plan`; `measure <job> --runs --baseline`; `compare --base --candidate --rounds --decide --final`; `prove-steady --test --runs --decide`; `guard --base --job`; `harmless --path --why`; `distill [propose …]`; `loop-pull`; `revert --why`; `settle`; `report --body --state --issue`; `agent-ran --agent --outcome --file --minutes --started`; `sandbox --plan` | Show measured attempts, margin, budget, kept/reverted result and PR. Leave low-level mutation, worktree, sandbox and report plumbing to the runner. Never turn compare/decide into a casual chart control. |
 | Tend via climb | `tend-pick`, `tend-input --record`, `tend-note --finding --propose\|--tried`, `guard --job tend`, `tend-report --body` | Night work detail with source findings, tried/proposed outcomes and PR. Show its restriction against silently accepting phases/evidence. |
 | Delivery scripts | `publish --plan` and workflow `--trigger` / `--advance --from --to`; `verify <sha> --within --every --record --json`, `verify live <sha>`, preview `--site`, exact revision checks | Visualize tested-ref selection and verification. Publishing remains the guarded workflow; previews never clear a production failure. |
 | Robot, ledger, roadmap and workflow plumbing | Existing configured jobs, rubric, allowances, test ledger, generated roadmap, production recovery | Read their evidence through existing readers. No duplicate scheduler, raw workflow editor, generated-roadmap editor or arbitrary command console. Scoped write-only provider credential setup belongs to phase 103, not workflow plumbing. |
@@ -240,8 +240,8 @@ as canvas and retro are expanded here even where registered under one verb.
 The registry is inspectable without executing any of the operations:
 
 ```sh
-node bin/keel.mjs help --json
-node bin/keel.mjs --agent-help all --json
+node bin/plates.mjs help --json
+node bin/plates.mjs --agent-help all --json
 node --input-type=module -e 'import {verbs,FLAGS} from "./lib/cli.mjs"; console.log(JSON.stringify({verbs:[...verbs].map(([name,v])=>({name,usage:v.usage})),flags:FLAGS},null,2))'
 ```
 

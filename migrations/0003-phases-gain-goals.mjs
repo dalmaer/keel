@@ -2,16 +2,16 @@
 //
 // A ledger-shaped project keeps one file per phase with status, since, note and
 // an optional issue, but no `goal:`, no docs/goals.json, and only some of
-// keel's six sections. Adopt leaves its phases `local`. This migration
+// plates's six sections. Adopt leaves its phases `local`. This migration
 // converts the structure:
 //   - writes docs/goals.json: one goal per group in docs/phases/README.md (a
 //     `## heading` whose lines link phase files, every phase in exactly one
 //     group), else a single goal from the project's tagline;
-//   - adds `goal: G<n>` to each phase's front matter, and each of keel's six
+//   - adds `goal: G<n>` to each phase's front matter, and each of plates's six
 //     sections a phase lacks, marked as added here. A `**Done when.**` line
 //     the phase already has is copied under the heading, not moved;
 //   - then converges like 0001: if every phase parses, the project's own
-//     roadmap gives way to keel's and phases moves from `local` to `practices`.
+//     roadmap gives way to plates's and phases moves from `local` to `practices`.
 //
 // It applies ONLY when every built or lived-in phase already names evidence.
 // It never writes evidence, and never a placeholder page: an evidence file
@@ -25,11 +25,11 @@ import { converge } from './0001-milestone-to-goal.mjs';
 
 export const id = '0003-phases-gain-goals';
 export const to = '0.3.0';
-export const summary = 'phases without goals gain docs/goals.json, a goal each and keel\'s missing sections (marked as added), and keel\'s roadmap replaces the project\'s own — only once every built phase names evidence; it never writes evidence';
+export const summary = 'phases without goals gain docs/goals.json, a goal each and plates\'s missing sections (marked as added), and plates\'s roadmap replaces the project\'s own — only once every built phase names evidence; it never writes evidence';
 
 const PHASE = /^\d+-[a-z0-9-]+\.md$/;
 const SECTIONS = ['Done when', 'Scope', 'Acceptance', 'Proof', 'Deliberately open', 'Next action'];
-const ADDED = '(Added by keel migration 0003; this phase did not record it before keel.)';
+const ADDED = '(Added by plates migration 0003; this phase did not record it before plates.)';
 
 const frontOf = raw => /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw)?.[1] ?? '';
 const field = (front, key) => new RegExp(`^${key}:\\s*"?([^"\\n]*?)"?\\s*$`, 'm').exec(front)?.[1];
@@ -86,7 +86,7 @@ export function groupsOf(readme, files) {
 
 const sentence = text => /[.!?]$/.test(text) ? text : `${text}.`;
 
-/** The phase with `goal:` set and keel's missing sections appended, each marked. */
+/** The phase with `goal:` set and plates's missing sections appended, each marked. */
 function convert(raw, goal) {
   const front = frontOf(raw);
   const head = raw.slice(0, raw.indexOf(front) + front.length);
@@ -99,14 +99,14 @@ function convert(raw, goal) {
   const proven = done && namesEvidence(front);
   const said = /^\*\*Done when\.?\*\*:?\s*(.+)$/m.exec(body)?.[1]?.trim();
   const text = {
-    'Done when': said ? `${said} (Copied from this phase's **Done when.** line by keel migration 0003.)` : `${ADDED} Write the one sentence someone else could check.`,
+    'Done when': said ? `${said} (Copied from this phase's **Done when.** line by plates migration 0003.)` : `${ADDED} Write the one sentence someone else could check.`,
     Scope: ADDED,
     Acceptance: proven
       ? `- [x] The Done when above held; the evidence this phase names is what was checked. ${ADDED}`
       : `- [ ] The Done when above. ${ADDED}`,
     Proof: proven ? `The evidence this phase names. ${ADDED}` : ADDED,
     'Deliberately open': ADDED,
-    'Next action': done ? `None: built before keel. ${ADDED}` : `Write this phase's Scope, Acceptance and Proof, then conduct it. ${ADDED}`,
+    'Next action': done ? `None: built before plates. ${ADDED}` : `Write this phase's Scope, Acceptance and Proof, then conduct it. ${ADDED}`,
   };
   for (const s of SECTIONS) {
     if (new RegExp(`^## ${s}\\s*$`, 'm').test(body)) continue;

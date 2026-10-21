@@ -11,12 +11,12 @@ evidence: ["evidence/2026-10-02-goals.md"]
 
 ## Done when
 
-`keel goal add|list|show|retire` edits `docs/goals.json`, regenerates the roadmap, and `keel goal show G1 --json` reports its phases, how many are built and lived-in, and the next one.
+`plates goal add|list|show|retire` edits `docs/goals.json`, regenerates the roadmap, and `plates goal show G1 --json` reports its phases, how many are built and lived-in, and the next one.
 
 ## Scope
 
 Goals are outcomes, not dates; progress is derived, never stored. `retire`
-needs a reason and keeps the goal visible as retired. `keel phase new --goal G1`
+needs a reason and keeps the goal visible as retired. `plates phase new --goal G1`
 scaffolds a phase from the template under the next free number.
 
 ## Acceptance

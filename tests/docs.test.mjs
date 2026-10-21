@@ -1,4 +1,4 @@
-// What keel tells people can't fall behind what keel does (phase 18, lesson 16).
+// What plates tells people can't fall behind what plates does (phase 18, lesson 16).
 // The README's verb tables are read against the live verb registry, and its
 // practices table against practices/, both ways — the same shape as the
 // agent guide's surface test in tests/cli.test.mjs.
@@ -11,7 +11,7 @@ import { verbs, announced, CLI_ROOT } from '../lib/cli.mjs';
 const README = join(CLI_ROOT, 'README.md');
 const registered = () => [...verbs.keys()].filter(v => v !== 'help');
 
-/** The practices keel ships: every practices/<dir> with a practice.json, by its name. */
+/** The practices plates ships: every practices/<dir> with a practice.json, by its name. */
 async function practices() {
   const out = [];
   for (const d of await readdir(join(CLI_ROOT, 'practices'), { withFileTypes: true })) {
@@ -39,8 +39,8 @@ function tables(text) {
 /** The verbs README's "Verb" tables name, expanded the way the agent guide's are. */
 export function readmeVerbs(text) {
   const firsts = tables(text).filter(t => t.header[0] === 'Verb').flatMap(t => t.rows.map(r => r[0]));
-  const spans = firsts.flatMap(c => [...c.matchAll(/`keel ([^`]+)`/g)].map(m => m[1].replace(/\\\|/g, '|')));
-  return announced(spans.map(s => `- \`keel ${s}\``).join('\n'));
+  const spans = firsts.flatMap(c => [...c.matchAll(/`plates ([^`]+)`/g)].map(m => m[1].replace(/\\\|/g, '|')));
+  return announced(spans.map(s => `- \`plates ${s}\``).join('\n'));
 }
 
 /** The practices README's "Practice" table names (the first backticked word of each row). */
@@ -51,18 +51,18 @@ export function readmePractices(text) {
 
 const covers = (line, name) => line === name || line.startsWith(`${name} `);
 
-/** Every disagreement between the README and what keel registers and ships. */
+/** Every disagreement between the README and what plates registers and ships. */
 export function docGaps(text, names, shipped) {
   const said = readmeVerbs(text), told = readmePractices(text);
   const gaps = [];
-  for (const n of names) if (!said.some(l => covers(l, n))) gaps.push(`verb missing from README: keel ${n}`);
-  for (const l of said) if (!names.some(n => covers(l, n))) gaps.push(`README names an unregistered verb: keel ${l}`);
+  for (const n of names) if (!said.some(l => covers(l, n))) gaps.push(`verb missing from README: plates ${n}`);
+  for (const l of said) if (!names.some(n => covers(l, n))) gaps.push(`README names an unregistered verb: plates ${l}`);
   for (const p of shipped) if (!told.includes(p)) gaps.push(`practice missing from README: ${p}`);
   for (const p of told) if (!shipped.includes(p)) gaps.push(`README names a practice that does not exist: ${p}`);
   for (const line of text.split('\n')) {
-    const verbsHere = [...line.matchAll(/`keel ([^`]+)`/g)].flatMap(m => announced(`- \`keel ${m[1].replace(/\\\|/g, '|')}\``));
+    const verbsHere = [...line.matchAll(/`plates ([^`]+)`/g)].flatMap(m => announced(`- \`plates ${m[1].replace(/\\\|/g, '|')}\``));
     const hit = verbsHere.find(l => names.some(n => covers(l, n)));
-    if (hit && /\bplanned\b|\bcoming\b|not yet built/i.test(line)) gaps.push(`README calls a registered verb unbuilt: keel ${hit}: ${line.trim()}`);
+    if (hit && /\bplanned\b|\bcoming\b|not yet built/i.test(line)) gaps.push(`README calls a registered verb unbuilt: plates ${hit}: ${line.trim()}`);
   }
   return gaps;
 }
@@ -87,18 +87,18 @@ test('each kind of drift fails the check (mutations of the README text, in memor
   const added = t => gaps(t).filter(g => !base.includes(g));
 
   // A verb row removed.
-  const releaseRow = text.split('\n').find(l => l.startsWith('| `keel release`'));
+  const releaseRow = text.split('\n').find(l => l.startsWith('| `plates release`'));
   assert.ok(releaseRow);
-  assert.deepEqual(added(text.replace(`${releaseRow}\n`, '')), ['verb missing from README: keel release']);
+  assert.deepEqual(added(text.replace(`${releaseRow}\n`, '')), ['verb missing from README: plates release']);
   // One word dropped from a word list.
-  assert.deepEqual(added(text.replace('`keel goal list\\|show\\|add\\|retire`', '`keel goal list\\|show\\|add`')), ['verb missing from README: keel goal retire']);
+  assert.deepEqual(added(text.replace('`plates goal list\\|show\\|add\\|retire`', '`plates goal list\\|show\\|add`')), ['verb missing from README: plates goal retire']);
   // A fake verb row added.
-  assert.deepEqual(added(text.replace(releaseRow, `${releaseRow}\n| \`keel frobnicate\` | Acme does a thing |`)), ['README names an unregistered verb: keel frobnicate']);
+  assert.deepEqual(added(text.replace(releaseRow, `${releaseRow}\n| \`plates frobnicate\` | Acme does a thing |`)), ['README names an unregistered verb: plates frobnicate']);
   // A registered verb written as planned, coming, or not yet built.
   for (const word of ['planned', 'coming', 'not yet built']) {
     const g = added(text.replace(releaseRow, `${releaseRow.replace(/ \|$/, '')} (${word}) |`));
     assert.equal(g.length, 1, word);
-    assert.match(g[0], /^README calls a registered verb unbuilt: keel release/);
+    assert.match(g[0], /^README calls a registered verb unbuilt: plates release/);
   }
   // A practice row removed.
   const nightRow = text.split('\n').find(l => l.startsWith('| `night`'));
@@ -107,5 +107,5 @@ test('each kind of drift fails the check (mutations of the README text, in memor
   // A fake practice row added.
   assert.deepEqual(added(text.replace(nightRow, `${nightRow}\n| \`acme\` | Acme things | Acme failures |`)), ['README names a practice that does not exist: acme']);
   // A newly registered verb with no row.
-  assert.deepEqual(docGaps(text, [...names, 'frobnicate'], shipped).filter(g => !base.includes(g)), ['verb missing from README: keel frobnicate']);
+  assert.deepEqual(docGaps(text, [...names, 'frobnicate'], shipped).filter(g => !base.includes(g)), ['verb missing from README: plates frobnicate']);
 });

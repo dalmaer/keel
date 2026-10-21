@@ -46,7 +46,7 @@ test('a spawned child sees the same git', () => {
 // hostile global config (signing on, with a signer that always fails; no
 // identity) still never reaches their git (review of PR 58, phase 65's proof).
 test('a test file run alone, without npm test\'s --import, is hermetic too', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-hostile-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-hostile-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const hostile = join(dir, 'gitconfig');
   await writeFile(hostile, '[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = false\n[user]\n\tuseConfigOnly = true\n');

@@ -6,12 +6,12 @@ import { join, resolve } from 'node:path';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { rederive, runMeasurement, LIMITS } from '../lib/evidence.mjs';
 
-const BIN = resolve('bin/keel.mjs');
+const BIN = resolve('bin/plates.mjs');
 // Execution requires POSIX process-group cleanup; parsing and previews are portable.
 const posixExecution = { skip: process.platform === 'win32' ? 'execution requires POSIX process groups' : false };
 const CHILD = resolve('tests/helpers/evidence-child.mjs');
 const record = (more = {}) => ({ id: 'acme-count', argv: [process.execPath, '-e', 'console.log(12)'], cwd: '.', value: 10, unit: 'characters', date: '2024-02-29', ...more });
-const fence = records => '\n```keel-measurements\n' + JSON.stringify(records) + '\n```\n';
+const fence = records => '\n```plates-measurements\n' + JSON.stringify(records) + '\n```\n';
 const phase = (refs = ['evidence/acme.md']) => `---
 status: planned
 since: 2026-10-11
@@ -34,10 +34,10 @@ None.
 Measure.
 `;
 async function fixture(t, records = [record()]) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-evidence-acme-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-evidence-acme-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const dir of ['.keel', 'docs/phases', 'docs/evidence']) await mkdir(join(root, dir), { recursive: true });
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['phases'] }));
+  for (const dir of ['.plates', 'docs/phases', 'docs/evidence']) await mkdir(join(root, dir), { recursive: true });
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['phases'] }));
   await writeFile(join(root, 'docs/phases/64-acme.md'), phase());
   await writeFile(join(root, 'docs/evidence/acme.md'), fence(records));
   return root;
@@ -93,7 +93,7 @@ test('rejects malformed schema, impossible dates, duplicate records and duplicat
     await writeFile(join(root, 'docs/evidence/acme.md'), fence([bad]));
     await assert.rejects(rederive({ root, phase: 64, yes: true }), { exitCode: 2 });
   }
-  for (const text of ['```keel-measurements\n[]', '```keel-measurements\n{}\n```', '```keel-measurements\nnope\n```', fence([record(), record()])]) {
+  for (const text of ['```plates-measurements\n[]', '```plates-measurements\n{}\n```', '```plates-measurements\nnope\n```', fence([record(), record()])]) {
     await writeFile(join(root, 'docs/evidence/acme.md'), text);
     await assert.rejects(rederive({ root, phase: 64 }), { exitCode: 2 });
   }
@@ -104,7 +104,7 @@ test('rejects malformed schema, impossible dates, duplicate records and duplicat
 
 test('rejects unsafe references, symlink escapes and non-directory cwd', async t => {
   const root = await fixture(t);
-  const outside = await mkdtemp(join(tmpdir(), 'keel-evidence-outside-'));
+  const outside = await mkdtemp(join(tmpdir(), 'plates-evidence-outside-'));
   t.after(() => rm(outside, { recursive: true, force: true }));
   await writeFile(join(outside, 'acme.md'), fence([record()]));
   await symlink(outside, join(root, 'outside'));
@@ -136,11 +136,11 @@ test('selected source and shape reject before reading archived files; shared pla
   const root = await fixture(t);
   await rm(join(root, 'docs'), { recursive: true });
   for (const config of [{ phases: { source: 'milestones' } }, { phases: { shape: 'projects' } }, { local: { phases: 'Acme custom' } }]) {
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ practices: ['base'], ...config }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ practices: ['base'], ...config }));
     await assert.rejects(rederive({ root, phase: 64 }), /selected planning source or shape is unsupported/);
   }
   for (const phases of [{ source: 'typo' }, { ownerLabel: '' }]) {
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ phases }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ phases }));
     await assert.rejects(rederive({ root, phase: 64 }), /phases\.(source|ownerLabel)/);
   }
 });
@@ -160,7 +160,7 @@ test('PR104: malformed external config cannot authorize archived measurement exe
     ...[undefined, null, [], 'base,phases', {}, ['phases', null], ['']].map(practices => ({ practices, local: { phases: 'Acme local plan' } })),
     ...[null, [], 'phases'].map(local => ({ practices: ['phases'], local }))];
   for (const config of configs) {
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
     const result = cli(root, ['--yes']);
     assert.equal(result.code, 2, JSON.stringify(config));
     assert.match(result.data.error, /config must be an object|practices must be a nonempty array|local must be an object/);
@@ -181,7 +181,7 @@ test('PR104: inline code comment markers cannot hide real measurements or expose
     await writeFile(join(root, 'docs/evidence/acme.md'), prose + '\n' + fence([record()]) + '\n-->');
     const result = cli(root, ['--yes']);
     assert.equal(result.code, 2);
-    assert.match(result.data.error, /no explicit keel-measurements/);
+    assert.match(result.data.error, /no explicit plates-measurements/);
   }
 });
 
@@ -192,7 +192,7 @@ test('PR104: commented and unclosed-comment measurements never execute', async t
     await writeFile(join(root, 'docs/evidence/acme.md'), 'Acme draft <!--\n' + fence([hidden]) + end);
     const result = cli(root, ['--yes']);
     assert.equal(result.code, 2);
-    assert.match(result.data.error, /no explicit keel-measurements/);
+    assert.match(result.data.error, /no explicit plates-measurements/);
     await assert.rejects(readFile(join(root, 'acme-marker')), { code: 'ENOENT' });
   }
 });
@@ -381,4 +381,13 @@ test('help and version never load the evidence executor', () => {
   `;
   const result = run(process.execPath, ['--input-type=module', '-e', script]);
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('historical Keel measurement fences remain executable evidence without rewriting provenance', async t => {
+  const root = await fixture(t);
+  const file = join(root, 'docs/evidence/acme.md');
+  const original = (await readFile(file, 'utf8')).replace('plates-measurements', 'keel-measurements');
+  await writeFile(file, original);
+  assert.equal(cli(root).data.records.length, 1);
+  assert.equal(await readFile(file, 'utf8'), original);
 });

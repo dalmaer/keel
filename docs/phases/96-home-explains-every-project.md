@@ -18,7 +18,7 @@ Authenticated Home shows decisions, ready walks, recent additions and project su
 
 Implement bounded source adapters and versioned project/action view models; reuse board classification and planning variants. Render Home with stable IDs, source freshness, queued updates and deep links. Initial actions inspect/link out only. Use bounded authenticated polling with cursors, conditional reads, hidden-tab pause and backoff; no persistent function or in-memory refresh job is assumed.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

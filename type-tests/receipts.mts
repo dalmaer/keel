@@ -1,7 +1,7 @@
 // Compile-only assertions import actual production exports. An unused
 // suppression directive fails the check if a contract silently becomes permissive.
-import { nodePlan, suiteCollector, readReceiptPlan, isStallsReceipt, stallsEvidence } from '../practices/night/files/scripts/keel/time-receipts.mjs';
-import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
+import { nodePlan, suiteCollector, readReceiptPlan, isStallsReceipt, stallsEvidence } from '../practices/night/files/scripts/plates/time-receipts.mjs';
+import { robotPolicy } from '../practices/climb/files/scripts/plates/robot-policy.mjs';
 
 type Plan = Awaited<ReturnType<typeof nodePlan>>;
 const unavailable: Plan = {version: 1, available: false, invocationId: 'acme', reason: 'unknown selection'};
@@ -13,7 +13,7 @@ const falseAvailable: Plan = {version: 1, available: true, invocationId: 'acme'}
 declare const external: unknown;
 // @ts-expect-error Unknown external JSON is not a validated plan.
 suiteCollector({root: '/acme', flagsHash: 'acme', plan: external});
-const plan = await readReceiptPlan({KEEL_SUITE_PLAN: '{}'});
+const plan = await readReceiptPlan({PLATES_SUITE_PLAN: '{}'});
 const collector = suiteCollector({root: '/acme', flagsHash: 'acme', plan});
 collector.push(external);
 const receipt = collector.finish();

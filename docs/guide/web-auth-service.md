@@ -21,12 +21,12 @@ fetches the manifest and membership file at the same current default-branch
 commit through the signed-in user's GitHub App token. The private repository
 must remain private and accessible through the selected App installation.
 
-Set `KEEL_WEB_CONFIG` to an explicit JSON object in the production deployment:
+Set `PLATES_WEB_CONFIG` to an explicit JSON object in the production deployment:
 
 ```json
 {
   "version": 1,
-  "origin": "https://keel.example.com",
+  "origin": "https://plates.example.com",
   "ownerIds": [1],
   "appId": 11,
   "clientId": "replace-with-github-app-client-id",
@@ -62,10 +62,10 @@ Set these only in the production deployment's secret store:
 
 | Variable | Purpose |
 | --- | --- |
-| `KEEL_GITHUB_CLIENT_SECRET` | GitHub App OAuth code exchange |
+| `PLATES_GITHUB_CLIENT_SECRET` | GitHub App OAuth code exchange |
 | `SUPABASE_URL` | Explicit HTTPS Supabase project origin; Marketplace name supported directly |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only PostgREST authentication; Marketplace name supported directly |
-| `KEEL_SESSION_ENCRYPTION_KEY` | Base64 encoding of 32 cryptographically random bytes for AES-256-GCM |
+| `PLATES_SESSION_ENCRYPTION_KEY` | Base64 encoding of 32 cryptographically random bytes for AES-256-GCM |
 
 Generate the encryption key directly into the approved secret store without
 printing it or saving it in Git. Neither the anon key nor a frontend key can
@@ -80,8 +80,8 @@ to the selected private Supabase database through its owner SQL interface before
 starting the service. Home requires all three migrations.
 The migration is transactional and can be reapplied. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
-outer `begin;` and `commit;`) in `DO $keel_migration$ BEGIN ... END
-$keel_migration$;`. This keeps schema creation and permission changes atomic;
+outer `begin;` and `commit;`) in `DO $plates_migration$ BEGIN ... END
+$plates_migration$;`. This keeps schema creation and permission changes atomic;
 do not run its statements individually. Migration 001 creates a private,
 RLS-enabled table and a narrowly scoped `public.keel_web_rpc` function. The
 function has an empty search path and fully qualified table references. Public,

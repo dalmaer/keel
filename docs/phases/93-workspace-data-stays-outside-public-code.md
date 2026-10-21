@@ -18,7 +18,7 @@ An explicitly configured external workspace can be inspected and initialized fro
 
 Implement the version 1 manifest validator, canonical path resolver, exclusive ownership marker and workspace inspect/init CLI described in the workspace contract. This slice performs no network calls and makes no remote privacy claim.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance
@@ -30,7 +30,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Real surfaces
 
-- Published package: pack and extract the CLI, then inspect, preview, initialize and retry an external Acme workspace from a directory without a Keel source checkout.
+- Published package: pack and extract the CLI, then inspect, preview, initialize and retry an external Acme workspace from a directory without a Plates source checkout.
 - Owner's machine: run fresh-process CLI initialization and mismatch refusal against disposable external Acme paths; verify source status is unchanged.
 
 ## Proof

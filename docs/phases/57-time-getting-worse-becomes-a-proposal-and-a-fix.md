@@ -19,7 +19,7 @@ The night measures time against bounds (`gate_time`, `time_creep`, `wall_clock_t
 
 ## Scope
 
-The design is [The robot, and keel's sense of time](../research/2026-10-09-robot-and-time.md), phase 57.
+The design is [The robot, and plates's sense of time](../research/2026-10-09-robot-and-time.md), phase 57.
 
 - **Measures** (the night, from the ledger, phase 56):
   - `gate_time`: the gate's wall time, against a bound the project sets, or 1.25 × its four-week median.
@@ -27,9 +27,9 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
   - `wall_clock_tests`: tests `--stalls` named that are not pinned yet.
   - `inconclusive_share`: tests inconclusive in half their runs.
   - `critical_file`: a test file whose verified duration dominates complete comparable suites, with the sample and runner-up margins in the timing proposal contract (lesson 57). The fix proposed is to split it, naming its slowest tests as the cut, or to run its independent checks concurrently.
-  - `worked_around`: from `keel time` on the conductor's machine. keel-side only, n/a in CI.
+  - `worked_around`: from `plates time` on the conductor's machine. plates-side only, n/a in CI.
 - **Each measure names its fix**: a measure outside its bound carries the change it proposes, with the command that shows the problem and the measure that shows it mended: "move `<test>` to mock timers (failed under stalls, seed N)"; "split `<file>`: its tests take as long as the whole gate"; "`<test>` was waited out N times this week".
-- **Accepted means verified**: accepting a time proposal on the board (`keel walk decide --accept`) creates or recovers the rubric-shaped issue and links it from the health page. With the robot off, verified unlabelled creation succeeds and waits for the owner. With the robot enabled but its required label missing, retain accepting plus the verified issue and reason; retry never duplicates or automatically relabels it.
+- **Accepted means verified**: accepting a time proposal on the board (`plates walk decide --accept`) creates or recovers the rubric-shaped issue and links it from the health page. With the robot off, verified unlabelled creation succeeds and waits for the owner. With the robot enabled but its required label missing, retain accepting plus the verified issue and reason; retry never duplicates or automatically relabels it.
 - **The loop closes**: the next night's measure, after the fix's PR merges, is written into the health page beside the proposal: inside, outside, or unavailable when comparable evidence is insufficient.
 
 ## Acceptance
@@ -44,7 +44,7 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 ## Your part
 
 - **Ask:** When the night proposes a fix for something that has got slower, accept or decline it on the board, then merge the robot's fix if it looks right.
-- **Why:** It is the whole loop: keel notices, proposes, builds and checks, and you only decide.
+- **Why:** It is the whole loop: plates notices, proposes, builds and checks, and you only decide.
 - **Look at:** The health page's proposal and the robot's PR.
 - **Choices:** Accept | Decline
 - **Takes:** 5 minutes per proposal.

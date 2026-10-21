@@ -1,4 +1,4 @@
-// Every PR keel opens can be judged in a minute (phase 39): scripts/keel/pr-body.mjs
+// Every PR plates opens can be judged in a minute (phase 39): scripts/plates/pr-body.mjs
 // writes Summary (a picture), Evidence (before and after) and Merge danger (a
 // door and its blast radius), in that order, from structured input. Each rule
 // is mutation-checked: a copy of the module with the rule edited out must
@@ -10,14 +10,14 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
-import * as pr from '../practices/night/files/scripts/keel/pr-body.mjs';
+import * as pr from '../practices/night/files/scripts/plates/pr-body.mjs';
 import { SURFACES as ROADMAP_SURFACES } from '../practices/phases/files/scripts/roadmap.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DIR = join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const DIR = join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates');
 const SECTIONS = ['## Summary', '## Evidence', '## Merge danger'];
 
-async function scratch(t, prefix = 'keel-pr-body-') {
+async function scratch(t, prefix = 'plates-pr-body-') {
   const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
@@ -27,7 +27,7 @@ async function scratch(t, prefix = 'keel-pr-body-') {
 async function mutant(t, from, to) {
   const text = await readFile(join(DIR, 'pr-body.mjs'), 'utf8');
   assert.ok(text.includes(from), `the mutation's target is still in the source: ${from}`);
-  const dir = await scratch(t, 'keel-pr-body-mutant-');
+  const dir = await scratch(t, 'plates-pr-body-mutant-');
   await copyFile(join(DIR, 'lib.mjs'), join(dir, 'lib.mjs'));
   await writeFile(join(dir, 'pr-body.mjs'), text.replace(from, to));
   return import(pathToFileURL(join(dir, 'pr-body.mjs')).href);
@@ -50,8 +50,8 @@ function bodyProblems(body) {
 }
 
 const INPUT = () => ({
-  summary: { lead: 'Acme from keel practice 0.6.0 to 0.7.0.', files: ['scripts/keel/pr-body.mjs', '.github/workflows/keel-night.yml', 'AGENTS.md', { path: 'docs/goals.json', note: 'migration 0001-milestone-to-goal' }, 'scripts/keel/improve.mjs'] },
-  evidence: { gate: '`npm run check` exit 0', rows: [{ what: 'keel practice', before: '0.6.0', after: '0.7.0' }] },
+  summary: { lead: 'Acme from plates practice 0.6.0 to 0.7.0.', files: ['scripts/plates/pr-body.mjs', '.github/workflows/plates-night.yml', 'AGENTS.md', { path: 'docs/goals.json', note: 'migration 0001-milestone-to-goal' }, 'scripts/plates/improve.mjs'] },
+  evidence: { gate: '`npm run check` exit 0', rows: [{ what: 'plates practice', before: '0.6.0', after: '0.7.0' }] },
   danger: { door: 'one-way', why: 'migration 0001-milestone-to-goal rewrote docs/goals.json.', surfaces: ['adopted project'] },
   notes: 'Acme gets the current conductor.',
   impact: { declaration: { version: 1, reconciliation: 'none' } },
@@ -60,9 +60,9 @@ const INPUT = () => ({
 test('three sections in order from structured input; notes after; the keel-impact block last', () => {
   const body = pr.prBody(INPUT());
   assert.deepEqual(bodyProblems(body), [], body);
-  assert.match(body, /```text\n├── \.github\/workflows\/\n│   └── keel-night\.yml\n├── docs\/\n│   └── goals\.json {2}\(migration 0001-milestone-to-goal\)\n├── scripts\/keel\/\n│   ├── improve\.mjs\n│   └── pr-body\.mjs\n└── AGENTS\.md\n```/);
+  assert.match(body, /```text\n├── \.github\/workflows\/\n│   └── plates-night\.yml\n├── docs\/\n│   └── goals\.json {2}\(migration 0001-milestone-to-goal\)\n├── scripts\/plates\/\n│   ├── improve\.mjs\n│   └── pr-body\.mjs\n└── AGENTS\.md\n```/);
   assert.match(body, /^Gate: `npm run check` exit 0$/m);
-  assert.match(body, /^\| keel practice \| 0\.6\.0 \| 0\.7\.0 \|$/m);
+  assert.match(body, /^\| plates practice \| 0\.6\.0 \| 0\.7\.0 \|$/m);
   assert.match(body, /^One-way door: migration 0001/m);
   assert.match(body, /^Blast radius: adopted project\.$/m);
   assert.ok(body.indexOf('## Notes') > body.indexOf('## Merge danger'));
@@ -106,11 +106,11 @@ test("the surfaces are phase 32's, the same list the phases practice's roadmap c
 test('the CLI prints the body from --input, with --files as the summary; bad input is exit 2', async t => {
   const dir = await scratch(t);
   await writeFile(join(dir, 'in.json'), JSON.stringify({ ...INPUT(), summary: { lead: 'The night of 2026-10-05.', files: [] } }));
-  await writeFile(join(dir, 'files.txt'), 'docs/health/2026-10-05.md\n.keel/bounds.json\n\n');
+  await writeFile(join(dir, 'files.txt'), 'docs/health/2026-10-05.md\n.plates/bounds.json\n\n');
   const r = run(process.execPath, [join(DIR, 'pr-body.mjs'), '--input', join(dir, 'in.json'), '--files', join(dir, 'files.txt')]);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(bodyProblems(r.stdout), []);
-  assert.match(r.stdout, /The night of 2026-10-05\.\n\n```text\n├── \.keel\/\n│   └── bounds\.json\n└── docs\/health\/\n    └── 2026-10-05\.md\n```/);
+  assert.match(r.stdout, /The night of 2026-10-05\.\n\n```text\n├── \.plates\/\n│   └── bounds\.json\n└── docs\/health\/\n    └── 2026-10-05\.md\n```/);
   await writeFile(join(dir, 'bad.json'), JSON.stringify({ ...INPUT(), danger: { door: 'trap', why: 'x' } }));
   const b = run(process.execPath, [join(DIR, 'pr-body.mjs'), '--input', join(dir, 'bad.json')]);
   assert.equal(b.status, 2);
@@ -131,7 +131,7 @@ test('mutations: dropping Merge danger, or the none-recorded line, or reordering
 });
 
 test("improve's --pr-input names the file the night's body input goes to", async () => {
-  const { parseArgs } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  const { parseArgs } = await import('../practices/night/files/scripts/plates/improve.mjs');
   assert.deepEqual(parseArgs(['--report', '--pr-input', 'acme/pr.json', '--transcripts', 'acme/t']), { report: true, prInput: resolve('acme/pr.json'), transcripts: resolve('acme/t') });
   assert.throws(() => parseArgs(['--pr-input']), /--pr-input needs a value/);
 });

@@ -3,10 +3,10 @@
 You are on a climb night: one job, one number, a fixed budget of minutes.
 Your work becomes one pull request that a person reads and merges, or
 closes. Nothing you do merges by itself. Read `AGENTS.md` first; this brief
-adds to it and never overrides it. (keel practice `climb`; managed: keel
+adds to it and never overrides it. (plates practice `climb`; managed: plates
 render rewrites it.)
 
-**Every number you report comes from `node scripts/keel/climb.mjs`.** Never
+**Every number you report comes from `node scripts/plates/climb.mjs`.** Never
 time things yourself, never estimate, never round a number it printed into
 a nicer one. Never delete, skip or weaken a test. One change per commit; its
 numbers go in the message, and `compare --decide` writes them there for you.
@@ -14,13 +14,13 @@ numbers go in the message, and `compare --decide` writes them there for you.
 ## The six rules
 
 1. **Baseline first.** The workflow has already run
-   `node scripts/keel/climb.mjs measure <job> --baseline`: the median of k
-   runs and their spread, in `.keel/climb/night.json`. Read it before you
+   `node scripts/plates/climb.mjs measure <job> --baseline`: the median of k
+   runs and their spread, in `.plates/climb/night.json`. Read it before you
    change anything. You can re-measure with `measure <job> --json`.
 2. **One change at a time.** Make one change, run the project's tests on what
    you touched, and commit it alone, with a subject that says what it does.
 3. **Measured against noise.** Then run
-   `node scripts/keel/climb.mjs compare --base HEAD~1 --decide --json`. It runs
+   `node scripts/plates/climb.mjs compare --base HEAD~1 --decide --json`. It runs
    the base and your commit alternately, in the same job, for two rounds, and
    keeps the change only when it beats the base by the margin in both. On
    keep it adds the numbers to your commit; on revert it resets the branch to
@@ -29,12 +29,12 @@ numbers go in the message, and `compare --decide` writes them there for you.
    is `prove-steady --test "<file>: <name>" --decide` (the one test, every
    run passing on one clean tree).
 4. **Behaviour unchanged.** After a kept change, run
-   `node scripts/keel/climb.mjs guard --json`: the project's gate passes, and
+   `node scripts/plates/climb.mjs guard --json`: the project's gate passes, and
    every test that ran on the night's base still ran (the test ledger), and
    the job's own guard (hygiene: no timeout or retry as the fix; build-time:
    the build's output byte-identical, or a `harmless` reason per changed
    path). If it fails, run
-   `node scripts/keel/climb.mjs revert --why "<what failed>"`. No output,
+   `node scripts/plates/climb.mjs revert --why "<what failed>"`. No output,
    exit code or file format changes; no dependency is added (the sandbox
    refuses a lockfile, `.npmrc` or a `package.json` change beyond its
    `scripts`, and any install script).
@@ -61,14 +61,14 @@ decide: that is the person's, always.
 
 The workflow opens the PR and does not wait for its reviewers. Whoever takes
 it up after you (a person, or the conductor) reads its reviews with
-`keel review <repo>#<n>`, and the rule is theirs and yours alike: when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered (fixed,
+`plates review <repo>#<n>`, and the rule is theirs and yours alike: when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies; never leave one unanswered (fixed,
 naming the commit; tracked, naming where; not valid, saying why). You never
 run `gh`; make each commit message say why the change is right, so an answer
 can cite it.
 
 ## What you may run
 
-Read, Edit, Write, Glob, Grep; `node scripts/keel/climb.mjs …`;
+Read, Edit, Write, Glob, Grep; `node scripts/plates/climb.mjs …`;
 `node scripts/loop.mjs list …` and `propose …` (a loop night); `npm test`
 and `npm run …`; git `status`, `diff`, `log`, `show`, `add`, `commit`,
 `switch` and `worktree`. Not `git push`, not `gh`, not anything that

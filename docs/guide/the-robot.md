@@ -2,7 +2,7 @@
 
 The robot extends the optional `climb` practice. It is OFF until the owner
 approves a project and weekly allowance and sets `robot.on: true` with a positive
-`robot.budgetMinutes` in that project's `.keel/keel.json`. Building or previewing
+`robot.budgetMinutes` in that project's `.plates/plates.json`. Building or previewing
 an issue does not enable it. The allowance includes build and other-provider
 review agent time; unknown or exhausted usage blocks work and appears on the board.
 
@@ -21,9 +21,9 @@ Prepare a synthetic example rubric as JSON:
 ```
 
 ```sh
-keel issue new --agent --title 'Preserve equal Acme keys' --rubric rubric.json --json
+plates issue new --agent --title 'Preserve equal Acme keys' --rubric rubric.json --json
 # Read the preview, then explicitly approve the issue write:
-keel issue new --agent --title 'Preserve equal Acme keys' --rubric rubric.json --yes --json
+plates issue new --agent --title 'Preserve equal Acme keys' --rubric rubric.json --yes --json
 ```
 
 Preview exits 3 and changes nothing remotely. With robot OFF, approved issues
@@ -36,8 +36,8 @@ The structural rubric does not prove that the requested change is safe.
 To track a freshly read review comment in a new issue:
 
 ```sh
-keel review acme/app#3
-keel review acme/app#3 --close PRRT_acme --tracked --file-agent-issue --title 'Preserve equal Acme keys' --rubric rubric.json
+plates review acme/app#3
+plates review acme/app#3 --close PRRT_acme --tracked --file-agent-issue --title 'Preserve equal Acme keys' --rubric rubric.json
 # Add --yes only after reading the preview.
 ```
 
@@ -55,7 +55,7 @@ label someone removed. The owner decides whether to apply the label manually
 or leave the issue unqueued. Review creation does not post a tracked reply for
 this outcome.
 
-Keep `.keel/robot-issues` durable operational intents when moving the checkout.
+Keep `.plates/robot-issues` durable operational intents when moving the checkout.
 The same work retries with the same instance. Recovery checks exact markers and
 issue identity, including closed issues. An uncertain write is not repeated when
 no matching issue is found. Lookup is bounded to 500 issues; incomplete history
@@ -137,7 +137,7 @@ block work. A person reads and merges; the robot does not merge itself.
 Runtime changes require owner verification. Both gates run under the runtime
 selected from the trusted checkout, so the robot refuses changes to `.nvmrc`,
 `.node-version` and `.tool-versions`, including nested files, deletion and rename.
-Existing guards also protect workflows, keel configuration and package metadata
+Existing guards also protect workflows, plates configuration and package metadata
 such as `engines`, `volta`, `devEngines` and `packageManager`. Unlike climb, the
 robot may not change any package.json `"scripts"`: the judge runs the configured
 gate, so a changed script needs owner verification. Scripts are compared by
@@ -186,14 +186,14 @@ that require changing those records need owner reconciliation.
 
 
 Time proposals use the same durable issue journal. Accept with
-`keel walk decide --proposal <health-page> --instance <id> --accept`;
+`plates walk decide --proposal <health-page> --instance <id> --accept`;
 that explicit decision authorizes creation without another `--yes`. With robot
 OFF the issue is unlabelled. If robot is enabled but its label is absent,
 acceptance remains incomplete with the verified issue link; an owner must resolve
 queueing, and retry will not restore a removed label or create a duplicate.
 
 For a `critical_file` proposal, a split or execution-settings change needs an exhaustive owner-reviewed mapping:
-`keel walk decide --proposal <health-page> --instance <id> --map <mapping.json>`.
+`plates walk decide --proposal <health-page> --instance <id> --map <mapping.json>`.
 It binds the original and successor test identities/settings to the verified PR
 head. Mappings cannot change identity kind, project scope, runner or machine
 class, and are not supported for other time measures. The original proposal
@@ -203,7 +203,7 @@ inside, outside or unavailable. A merge itself is not evidence of improvement.
 Two real proposal-to-fix walks remain required before this loop is lived-in.
 
 Long-file hygiene proposals also use this journal, through
-`keel walk decide --proposal <health-page> --instance <id> --accept`. Their
+`plates walk decide --proposal <health-page> --instance <id> --accept`. Their
 canonical Git blob, line count and recorded working-byte digest must still match, and robot delivery requires an
 approved project policy with a positive weekly allowance. When robot is off,
 this path stays blocked and creates no issue. A changed source needs a refreshed

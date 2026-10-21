@@ -32,23 +32,23 @@ test('guide consumers: Claude invocation loads the configured guide without chan
   const f = all.get('claude').files.find(f => f.path === '.github/workflows/claude.yml');
   const text = practices.fill(f.template, { name: 'Acme', repo: 'acme/acme', guide: 'WORKING.md' }, f.path);
   const args = text.split('claude_args: |')[1];
-  assert.match(args, /--append-system-prompt "Before working, read \.keel\/keel\.json\. If it names a guide, read and follow that file\./);
+  assert.match(args, /--append-system-prompt "Before working, read \.plates\/plates\.json\. If it names a guide, read and follow that file\./);
   assert.match(args, /--allowedTools/);
   assert.doesNotMatch(text, /^\s+prompt(?:_file)?:/m, 'a direct prompt would switch the mention workflow into automation mode');
 });
 
 test('guide consumers: standalone tend accepts the trusted canonical guide and denies candidate grants', async t => {
   const dir = await acme(t, { config: { guide: 'WORKING.md' }, files: { 'WORKING.md': '# Acme\n', 'OTHER.md': '# Other\n' } });
-  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
   assert.equal(m.tendSurface('.github/README.md'), true, 'legacy README surface; sandbox still prohibits workflows');
   assert.equal(m.tendSurface('docs/.hidden.md'), true, 'legacy docs surface');
   let base = git(dir, ['rev-parse', 'HEAD']);
   let head = await commit(dir, { 'WORKING.md': '# Acme rules\n' }, 'Acme\n\nTend: acme');
   assert.deepEqual(m.tendCheck(dir, base, head).refused, []);
   base = head;
-  head = await commit(dir, { '.keel/keel.json': JSON.stringify({ guide: 'OTHER.md' }), 'OTHER.md': '# New rules\n' }, 'Acme\n\nTend: acme');
+  head = await commit(dir, { '.plates/plates.json': JSON.stringify({ guide: 'OTHER.md' }), 'OTHER.md': '# New rules\n' }, 'Acme\n\nTend: acme');
   assert.ok(m.tendCheck(dir, base, head).refused.some(s => s.startsWith('OTHER.md: outside')));
-  assert.ok(m.sandboxProblems(dir, base, head).some(s => s.startsWith('.keel/keel.json:')));
+  assert.ok(m.sandboxProblems(dir, base, head).some(s => s.startsWith('.plates/plates.json:')));
 });
 
 test('guide consumers: tend resolves base aliases, including directories, without trusting candidate links', async t => {
@@ -56,7 +56,7 @@ test('guide consumers: tend resolves base aliases, including directories, withou
   await mkdir(join(dir, 'aliases'));
   await symlink('../rules/WORKING.md', join(dir, 'aliases/CLAUDE.md'));
   git(dir, ['add', '-A']); git(dir, ['commit', '-qm', 'Acme alias']);
-  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
   let base = git(dir, ['rev-parse', 'HEAD']);
   let head = await commit(dir, { 'rules/WORKING.md': '# Updated\n' }, 'Acme\n\nTend: acme');
   assert.deepEqual(m.tendCheck(dir, base, head).refused, []);
@@ -65,15 +65,15 @@ test('guide consumers: tend resolves base aliases, including directories, withou
   head = await commit(dir, { 'OTHER.md': '# Candidate\n' }, 'Acme\n\nTend: acme');
   assert.ok(m.tendCheck(dir, base, head).refused.some(s => s.startsWith('OTHER.md: outside')));
   await symlink('rules', join(dir, 'guide-dir'));
-  base = await commit(dir, { '.keel/keel.json': JSON.stringify({ guide: 'guide-dir/WORKING.md' }) }, 'Acme base');
+  base = await commit(dir, { '.plates/plates.json': JSON.stringify({ guide: 'guide-dir/WORKING.md' }) }, 'Acme base');
   head = await commit(dir, { 'rules/WORKING.md': '# Directory alias\n' }, 'Acme\n\nTend: acme');
   assert.deepEqual(m.tendCheck(dir, base, head).refused, []);
 });
 
 test('guide consumers: configured guide cannot authorize evidence, secrets or control paths', async t => {
-  for (const path of ['docs/evidence/acme.md', '.env', 'secrets.md', '.git/config', '.keel/keel.json', '.github/WORKING.md', 'scripts/keel/WORKING.md', '../WORKING.md']) {
+  for (const path of ['docs/evidence/acme.md', '.env', 'secrets.md', '.git/config', '.plates/plates.json', '.github/WORKING.md', 'scripts/plates/WORKING.md', '../WORKING.md']) {
     const dir = await acme(t, { config: { guide: path } });
-    const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+    const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
     assert.equal(m.tendSurface(path, path), false, path);
     if (path === '.git/config' || path.startsWith('../')) continue;
     const base = git(dir, ['rev-parse', 'HEAD']);
@@ -83,17 +83,17 @@ test('guide consumers: configured guide cannot authorize evidence, secrets or co
 });
 
 test('guide consumers: tend refuses escaping and cyclic aliases and a canonical guide replaced by a link', async t => {
-  for (const target of ['../WORKING.md', '/tmp/WORKING.md', 'CLAUDE.md', 'missing/../WORKING.md', '.keel/../WORKING.md']) {
+  for (const target of ['../WORKING.md', '/tmp/WORKING.md', 'CLAUDE.md', 'missing/../WORKING.md', '.plates/../WORKING.md']) {
     const dir = await acme(t, { config: { guide: 'CLAUDE.md' }, files: { 'WORKING.md': '# Acme\n' } });
     await symlink(target, join(dir, 'CLAUDE.md'));
     git(dir, ['add', '-A']); git(dir, ['commit', '-qm', 'Acme base']);
-    const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+    const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
     const base = git(dir, ['rev-parse', 'HEAD']);
     const head = await commit(dir, { 'WORKING.md': '# Changed\n' }, 'Acme\n\nTend: acme');
     assert.ok(m.tendCheck(dir, base, head).refused.some(s => s.startsWith('WORKING.md: outside')), target);
   }
   const dir = await acme(t, { config: { guide: 'WORKING.md' }, files: { 'WORKING.md': '# Acme\n' } });
-  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
   const base = git(dir, ['rev-parse', 'HEAD']);
   await rm(join(dir, 'WORKING.md')); await symlink('/tmp/Acme.md', join(dir, 'WORKING.md'));
   git(dir, ['add', '-A']); git(dir, ['commit', '-qm', 'Acme\n\nTend: acme']);
@@ -103,11 +103,11 @@ test('guide consumers: tend refuses escaping and cyclic aliases and a canonical 
 test('guide consumers: tend accepts hidden guides without granting protected hidden paths', async t => {
   for (const guide of ['.cursorrules', '.guides/WORKING.md']) {
     const dir = await acme(t, { config: { guide }, files: { [guide]: '# Acme\n' } });
-    const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+    const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
     const base = git(dir, ['rev-parse', 'HEAD']);
     const head = await commit(dir, { [guide]: '# Acme updated\n' }, 'Acme\n\nTend: acme');
     assert.deepEqual(m.tendCheck(dir, base, head).refused, []);
-    for (const path of ['.env.local', '.aws/credentials', '.claude/settings.json', '.codex/config.toml', '.git/config', '.keel/keel.json']) {
+    for (const path of ['.env.local', '.aws/credentials', '.claude/settings.json', '.codex/config.toml', '.git/config', '.plates/plates.json']) {
       assert.equal(m.tendSurface(path, path), false, path);
     }
   }
@@ -118,7 +118,7 @@ test('guide consumers: tend accepts a safe intermediate alias to the repository 
   await mkdir(join(dir, 'docs'), { recursive: true });
   await symlink('..', join(dir, 'docs/root'));
   git(dir, ['add', 'docs/root']); git(dir, ['commit', '-qm', 'Acme root alias']);
-  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
   const base = git(dir, ['rev-parse', 'HEAD']);
   const head = await commit(dir, { 'WORKING.md': '# Acme updated\n' }, 'Acme\n\nTend: acme');
   assert.deepEqual(m.tendCheck(dir, base, head).refused, []);

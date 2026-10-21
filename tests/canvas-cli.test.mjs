@@ -8,15 +8,15 @@ import { join, resolve } from 'node:path';
 import { run } from './helpers/run.mjs';
 import { parseCanvasArgs } from '../lib/canvas.mjs';
 import { parseGuide, COLD_START_LIMIT, surfaceGaps, verbs, FLAGS } from '../lib/cli.mjs';
-const BIN = resolve('bin/keel.mjs');
+const BIN = resolve('bin/plates.mjs');
 async function world(t) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'keel-canvas-cli-')));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'plates-canvas-cli-')));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'Acme/app', practices: [] }));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', repo: 'Acme/app', practices: [] }));
   const fake = join(root, 'fake-remote');
   await writeFile(fake, '#!/bin/sh\nprintf "called\\n" >> "$ACME_CALLS"\nexit 71\n', { mode: 0o755 });
-  const env = { ...process.env, KEEL_ISOCAN: fake, ISOCAN: fake, KEEL_GH: fake, ACME_CALLS: join(root, 'remote-calls'), KEEL_CLAUDE_DIR: join(root, 'no-sessions') };
+  const env = { ...process.env, PLATES_ISOCAN: fake, ISOCAN: fake, PLATES_GH: fake, ACME_CALLS: join(root, 'remote-calls'), PLATES_CLAUDE_DIR: join(root, 'no-sessions') };
   return { root, env, cli(args, cwd = root) {
     const r = run(process.execPath, [BIN, ...args, '--json'], { cwd, env });
     assert.equal(r.stderr, '', r.stderr);
@@ -73,24 +73,24 @@ test('canvas help announces the shipped verb within the existing cold-start budg
   const help = w.cli(['--agent-help', 'canvas']);
   assert.equal(help.code, 0);
   assert.match(JSON.stringify(help.data), /Limited mode/);
-  assert.match(JSON.stringify(help.data), /KEEL_ISOCAN/);
+  assert.match(JSON.stringify(help.data), /PLATES_ISOCAN/);
   assert.deepEqual(parseCanvasArgs('sync', ['--dry-run', '--json']), { dryRun: true });
 });
 
 
 test('test helper refuses canvas network boundaries without explicit fakes', () => {
   const env = { ...process.env };
-  delete env.KEEL_GH;
-  delete env.KEEL_ISOCAN;
-  assert.throws(() => run(process.execPath, [BIN, 'canvas', 'snapshot', '--github'], { env }), /KEEL_GH/);
+  delete env.PLATES_GH;
+  delete env.PLATES_ISOCAN;
+  assert.throws(() => run(process.execPath, [BIN, 'canvas', 'snapshot', '--github'], { env }), /PLATES_GH/);
   for (const operation of ['connect', 'sync', 'status', 'disconnect', 'night']) {
-    assert.throws(() => run(process.execPath, [BIN, 'canvas', operation], { env }), /KEEL_ISOCAN/);
+    assert.throws(() => run(process.execPath, [BIN, 'canvas', operation], { env }), /PLATES_ISOCAN/);
   }
 });
 
 test('retro capture previews, persists with yes, and keeps the worksheet read-only', async t => {
   const w = await world(t);
-  for (const args of [['init', '-q', '-b', 'main'], ['add', '.keel/keel.json'], ['commit', '-qm', 'Acme initial record']]) {
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '.plates/plates.json'], ['commit', '-qm', 'Acme initial record']]) {
     const r = run('git', args, { cwd: w.root, env: w.env });
     assert.equal(r.status, 0, r.stderr);
   }
@@ -121,7 +121,7 @@ test('night delegates disabled publishing without collection or remote calls', a
 
 test('connect previews the audience, applies only with yes, then disconnect preserves the remote', async t => {
   const w = await world(t);
-  await writeFile(w.env.KEEL_ISOCAN, `#!/bin/sh
+  await writeFile(w.env.PLATES_ISOCAN, `#!/bin/sh
 printf '%s\\n' "$*" >> "$ACME_CALLS"
 case "$*" in
   --version) printf '0.1.0 (b61f7c1, Acme)\\n' ;;
@@ -133,11 +133,11 @@ case "$*" in
 esac
 `, { mode: 0o755 });
   const args = ['canvas', 'connect', '--canvas', 'https://acme.invalid/p/acme-canvas', '--audience', 'owner-only'];
-  const before = await readFile(join(w.root, '.keel/keel.json'), 'utf8');
+  const before = await readFile(join(w.root, '.plates/plates.json'), 'utf8');
   const preview = w.cli(args);
   assert.equal(preview.code, 3, JSON.stringify(preview.data));
   assert.equal(preview.data.changes[0].audience, 'owner-only');
-  assert.equal(await readFile(join(w.root, '.keel/keel.json'), 'utf8'), before);
+  assert.equal(await readFile(join(w.root, '.plates/plates.json'), 'utf8'), before);
   const connected = w.cli([...args, '--yes']);
   assert.equal(connected.code, 0, JSON.stringify(connected.data));
   assert.equal(w.cli(['canvas', 'status']).data.state, 'connected');
@@ -151,7 +151,7 @@ esac
 test('canvas state symlinks cannot redirect a disconnect write', async t => {
   const w = await world(t);
   await mkdir(join(w.root, 'external'));
-  await symlink(join(w.root, 'external'), join(w.root, '.keel/canvas'));
+  await symlink(join(w.root, 'external'), join(w.root, '.plates/canvas'));
   const r = w.cli(['canvas', 'disconnect', '--yes']);
   assert.equal(r.code, 2, JSON.stringify(r.data));
   assert.match(r.data.error, /symlink/);
@@ -169,10 +169,10 @@ test('a saved snapshot renders locally, and sync planning never sends a mutation
   assert.ok(files.some(p => p.endsWith('.md')));
   assert.ok(files.some(p => p.endsWith('.json')));
   assert.ok(!(await readdir(w.root)).includes('remote-calls'));
-  const config = JSON.parse(await readFile(join(w.root, '.keel/keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(w.root, '.plates/plates.json'), 'utf8'));
   config.canvas = { provider: 'isocan', projectKey: 'acme-project', home: 'https://acme.invalid', canvasId: 'acme-canvas', enabled: true, audience: 'owner-only', actorId: 'acme-writer', privacy: 'summary', mode: 'immutable' };
-  await writeFile(join(w.root, '.keel/keel.json'), JSON.stringify(config));
-  await writeFile(w.env.KEEL_ISOCAN, `#!/bin/sh
+  await writeFile(join(w.root, '.plates/plates.json'), JSON.stringify(config));
+  await writeFile(w.env.PLATES_ISOCAN, `#!/bin/sh
 printf '%s\\n' "$*" >> "$ACME_CALLS"
 case "$*" in
   --version) printf '0.1.0 (b61f7c1, Acme)\\n' ;;
@@ -181,9 +181,9 @@ case "$*" in
   *) exit 71 ;;
 esac
 `, { mode: 0o755 });
-  await mkdir(join(w.root, '.keel/canvas'));
+  await mkdir(join(w.root, '.plates/canvas'));
   const manifest = JSON.stringify({ schema: 1, projectKey: 'acme-project', home: 'https://acme.invalid', canvasId: 'acme-canvas', items: {}, groups: {}, receipts: [], pending: null });
-  await writeFile(join(w.root, '.keel/canvas/manifest.json'), manifest);
+  await writeFile(join(w.root, '.plates/canvas/manifest.json'), manifest);
   // Recollect against the binding: stable project identity belongs to the target.
   assert.equal(w.cli(['canvas', 'snapshot', '--output', 'bound.json']).code, 0);
   const plan = w.cli(['canvas', 'sync', '--snapshot', 'bound.json']);
@@ -193,8 +193,8 @@ esac
   assert.equal(dryRun.code, 0, JSON.stringify(dryRun.data));
   const calls = await readFile(w.env.ACME_CALLS, 'utf8');
   assert.doesNotMatch(calls.split('\n').filter(line => !line.includes('--help')).join('\n'), /\b(?:add|edit|delete|create|rm)\b/);
-  assert.equal(await readFile(join(w.root, '.keel/canvas/manifest.json'), 'utf8'), manifest);
-  assert.deepEqual(await readdir(join(w.root, '.keel/canvas')), ['manifest.json']);
+  assert.equal(await readFile(join(w.root, '.plates/canvas/manifest.json'), 'utf8'), manifest);
+  assert.deepEqual(await readdir(join(w.root, '.plates/canvas')), ['manifest.json']);
 });
 
 test('configured transport failures return JSON exit 1 without leaking tool output', async t => {
@@ -234,7 +234,7 @@ test('render JSON stays concise for 275 entities while files retain the full vis
 test('sync rejects a snapshot from another binding before transport or mutation', async t => {
   const w = await world(t);
   const config = { name: 'Acme', canvas: { provider: 'isocan', projectKey: 'acme-target', home: 'https://acme.invalid', canvasId: 'acme-canvas', enabled: true } };
-  await writeFile(join(w.root, '.keel/keel.json'), JSON.stringify(config));
+  await writeFile(join(w.root, '.plates/plates.json'), JSON.stringify(config));
   const snapshot = { schema: 1, project: { key: 'acme-other', name: 'Acme', repo: null }, revision: { commit: null, dirty: null }, generatedAt: '2026-10-08T12:00:00.000Z', entities: [], coverage: [], observations: [], relations: [], metrics: [], warnings: [] };
   await writeFile(join(w.root, 'other.json'), JSON.stringify(snapshot));
   const r = w.cli(['canvas', 'sync', '--snapshot', 'other.json', '--yes']);
@@ -246,7 +246,7 @@ test('sync rejects a snapshot from another binding before transport or mutation'
 test('snapshot accepts repeated root-relative lifecycle artifacts and histories for the chosen cohort window', async t => {
   const w = await world(t);
   const project = { key: 'acme-cohort', name: 'Acme', repo: 'Acme/app' };
-  await writeFile(join(w.root, '.keel/keel.json'), JSON.stringify({ name: project.name, repo: project.repo, canvas: { projectKey: project.key } }));
+  await writeFile(join(w.root, '.plates/plates.json'), JSON.stringify({ name: project.name, repo: project.repo, canvas: { projectKey: project.key } }));
   await mkdir(join(w.root, 'records'));
   await mkdir(join(w.root, 'subdir'));
   const day = days => new Date(Date.now() - days * 86400000).toISOString();
@@ -283,7 +283,7 @@ test('snapshot lifecycle input flags reject unsafe paths, bad JSON and invalid w
   await writeFile(join(w.root, 'bad.json'), '{not JSON');
   await symlink(join(w.root, 'bad.json'), join(w.root, 'linked.json'));
   for (const flag of ['--artifact', '--history']) {
-    for (const path of ['/private/tmp/acme.json', '../acme.json', 'records/../acme.json', './bad.json', 'bad.json#x', 'linked.json', 'missing.json', 'bad.json', '.keel']) {
+    for (const path of ['/private/tmp/acme.json', '../acme.json', 'records/../acme.json', './bad.json', 'bad.json#x', 'linked.json', 'missing.json', 'bad.json', '.plates']) {
       const r = w.cli(['canvas', 'snapshot', flag, path]);
       assert.equal(r.code, 2, JSON.stringify({ flag, path, r }));
       assert.equal(r.data.exitCode, 2);
@@ -309,7 +309,7 @@ test('live and rebase preview first, validate flags before transport, and change
   assert.deepEqual(parseCanvasArgs('live', ['--no-keep']), { noKeep: true });
   assert.deepEqual(parseCanvasArgs('live', ['--card', 'loop-across-projects', '--card', 'pulse']), { cards: ['loop-across-projects', 'pulse'] });
   assert.deepEqual(parseCanvasArgs('rebase', ['--card', 'loop-across-projects', '--onto', 'ver_acme', '--yes']), { card: 'loop-across-projects', onto: 'ver_acme', yes: true });
-  await writeFile(w.env.KEEL_ISOCAN, `#!/bin/sh
+  await writeFile(w.env.PLATES_ISOCAN, `#!/bin/sh
 printf '%s\\n' "$*" >> "$ACME_CALLS"
 case "$*" in
   --version) printf '0.1.0 (7bb1f4e, Acme)\\n' ;;
@@ -325,12 +325,12 @@ esac
   assert.equal(connected.code, 0, JSON.stringify(connected.data));
   assert.equal(connected.data.binding.mode, 'immutable', 'a new connection is never live by itself');
   assert.equal(connected.data.capabilities.conditionalWrites, true);
-  const before = await readFile(join(w.root, '.keel/keel.json'), 'utf8');
+  const before = await readFile(join(w.root, '.plates/plates.json'), 'utf8');
   const preview = w.cli(['canvas', 'live', '--keep', '14']);
   assert.equal(preview.code, 3, JSON.stringify(preview.data));
   assert.deepEqual(preview.data.changes.map(c => c.action), ['set-mode', 'set-retention', 'create-live-on-first-sync']);
   assert.match(preview.data.warnings.join('\n'), /No atomic multi-card publication/);
-  assert.equal(await readFile(join(w.root, '.keel/keel.json'), 'utf8'), before);
+  assert.equal(await readFile(join(w.root, '.plates/plates.json'), 'utf8'), before);
   assert.equal(w.cli(['canvas', 'live', '--keep', '14', '--yes']).code, 0);
   const status = w.cli(['canvas', 'status']);
   assert.deepEqual([status.data.binding.mode, status.data.binding.keepVersions], ['live', 14]);
@@ -340,11 +340,11 @@ esac
   assert.equal(w.cli(['canvas', 'live', '--card', 'loop-across-projects', '--yes']).data.binding.liveKeys[0], 'loop-across-projects');
   assert.equal(w.cli(['canvas', 'live', '--card', 'pulse', '--yes']).code, 0);
   assert.equal(w.cli(['canvas', 'rebase']).data.state, 'unchanged');
-  // The flag is --onto because --version is keel's own; it must reach the adapter.
+  // The flag is --onto because --version is plates's own; it must reach the adapter.
   const onto = w.cli(['canvas', 'rebase', '--onto', 'ver_acme', '--yes']);
   assert.deepEqual([onto.code, onto.data.operation, onto.data.state], [0, 'rebase', 'unchanged']);
   assert.equal(w.cli(['canvas', 'live', '--off', '--yes']).data.state, 'immutable');
-  const config = JSON.parse(await readFile(join(w.root, '.keel/keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(w.root, '.plates/plates.json'), 'utf8'));
   assert.deepEqual([config.canvas.mode, config.canvas.keepVersions, config.name], ['immutable', undefined, 'Acme']);
   const calls = await readFile(w.env.ACME_CALLS, 'utf8');
   assert.doesNotMatch(calls.split('\n').filter(line => !line.includes('--help')).join('\n'), /\b(?:add|edit|delete|create|rm|prune)\b/);

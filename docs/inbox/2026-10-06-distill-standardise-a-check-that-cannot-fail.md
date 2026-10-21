@@ -25,7 +25,7 @@ migration: no
 
 ## Our read
 
-docs/lessons.md rows 14, 38; practices/night/files/scripts/keel/improve.mjs
+docs/lessons.md rows 14, 38; practices/night/files/scripts/plates/improve.mjs
 
 ## Decision
 

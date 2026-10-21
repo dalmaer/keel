@@ -26,13 +26,13 @@ night, plan, robot and delivery flows; no parallel tracking system.
 - [x] Specs and issue preparation reuse existing authorization and durable recovery; the night/morning expose candidates and gaps: `tests/production-integration.test.mjs`.
 - [x] Verification refuses zero/unknown traffic, incomplete coverage or unproven deployment; recurrence is preserved: `tests/production-errors.test.mjs`.
 - [x] CLI help, guides and managed rendering agree: `npm run check`, `npm run typecheck`.
-- [ ] Real source collection and scheduled retention are verified on configured fleet projects, with unavailable and not-applicable projects explicitly recorded: `keel production collect --yes --json` and GitHub run links.
+- [ ] Real source collection and scheduled retention are verified on configured fleet projects, with unavailable and not-applicable projects explicitly recorded: `plates production collect --yes --json` and GitHub run links.
 
 ## Real surfaces
 
-- Owner's machine: run read-only bounded gcloud and Vercel collection with `keel production collect --yes --json`.
+- Owner's machine: run read-only bounded gcloud and Vercel collection with `plates production collect --yes --json`.
 - Workflow shell: observe the installed night and verify retained artifacts in the following run.
-- Adopted project: run `keel production status --json` and collection from each configured repository.
+- Adopted project: run `plates production status --json` and collection from each configured repository.
 
 ## Proof
 

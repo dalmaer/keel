@@ -1,19 +1,19 @@
-// Render the practices a project has switched on (.keel/keel.json "practices").
+// Render the practices a project has switched on (.plates/plates.json "practices").
 //
-//   node scripts/render.mjs --self             render onto keel itself
-//   node scripts/render.mjs --self --check     exit 1, naming each path, if keel's
+//   node scripts/render.mjs --self             render onto plates itself
+//   node scripts/render.mjs --self --check     exit 1, naming each path, if plates's
 //                                              practice files differ from practices/
 //   node scripts/render.mjs --into <dir>       render onto another project (its
-//                                              .keel/keel.json must exist)
+//                                              .plates/plates.json must exist)
 //   --json                                     the plan, for an agent
 //
 // Managed files and blocks are rewritten; seeded files are written only when
-// absent and never compared. Phase 2 wraps this in bin/keel.mjs.
+// absent and never compared. Phase 2 wraps this in bin/plates.mjs.
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { render } from '../lib/practices.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const json = args.includes('--json'), check = args.includes('--check');
 const label = e => e.block ? `${e.path}#${e.block}` : e.path;
@@ -21,7 +21,7 @@ const label = e => e.block ? `${e.path}#${e.block}` : e.path;
 try {
   const into = args.indexOf('--into');
   if (args.includes('--self') === (into >= 0)) throw new Error('usage: render.mjs (--self | --into <dir>) [--check] [--json]');
-  const root = into >= 0 ? resolve(args[into + 1] ?? '') : KEEL;
+  const root = into >= 0 ? resolve(args[into + 1] ?? '') : PLATES;
   if (into >= 0 && !args[into + 1]) throw new Error('--into needs a directory');
   const result = await render(root, { check });
   const counts = {};

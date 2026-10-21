@@ -1,4 +1,4 @@
-// keel adopt: an existing project comes under keel without losing what is its
+// plates adopt: an existing project comes under plates without losing what is its
 // own. Fixtures are synthetic (tests/fixtures/adopt/acme-*): acme-groove is
 // shaped like a project with milestones, a check:all gate and a pages
 // workflow; acme-fold like one whose phases carry only status/since/issue/note,
@@ -15,11 +15,11 @@ import { fileURLToPath } from 'node:url';
 import { load, fill, wanted } from '../lib/practices.mjs';
 import { pinsEvery, optionalPractices } from './helpers/practices.mjs';
 import { adopt, appendBlocks, readmeTagline, detectCheck, workflowTriggers, ledgerCommand, testsPlan, testsLines, adoptionReport, HEADING, REPORT, LEDGER_UPLOAD_STEP } from '../lib/adopt.mjs';
-import { testsConfigProblems, readRuns, busyCoverage, hygiene } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { testsConfigProblems, readRuns, busyCoverage, hygiene } from '../practices/night/files/scripts/plates/test-ledger.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-const FIXTURES = join(KEEL, 'tests', 'fixtures', 'adopt');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+const FIXTURES = join(PLATES, 'tests', 'fixtures', 'adopt');
 const VERSION = { cli: '0.0.0', commit: null, practice: '0.0.0' };
 const ENV = {
   ...process.env,
@@ -27,13 +27,13 @@ const ENV = {
   GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test',
   GIT_CONFIG_NOSYSTEM: '1',
 };
-const keel = (args, cwd = KEEL) => {
+const plates = (args, cwd = PLATES) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env: ENV });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
 async function scratch(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-adopt-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-adopt-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -64,11 +64,11 @@ const states = data => Object.fromEntries(data.practices.map(p => [p.name, p.sta
 /**
  * The files an adopt writes, derived from the practices' practice.json: every
  * managed or seeded file (or link) of a switched-on practice the project did
- * not already have, plus keel's own fixed files. Blocks land in a file that is
+ * not already have, plus plates's own fixed files. Blocks land in a file that is
  * there or written by its practice. `have` is the project's paths before. [path], sorted.
  */
 function shippedFiles(practices, on, have) {
-  const out = new Set(['.keel/keel.json', '.keel/lock.json', REPORT]);
+  const out = new Set(['.plates/plates.json', '.plates/lock.json', REPORT]);
   for (const p of practices.values()) if (on[p.name] === 'on') {
     // A conditional file (practice.json "when") only while its condition holds: these fixtures set no contracts.
     for (const f of p.files) if (f.kind !== 'block' && wanted(f, {}) && !(f.path in have)) out.add(f.path);
@@ -81,7 +81,7 @@ test('a dry run changes nothing, for either fixture', async () => {
   for (const name of ['acme-groove', 'acme-fold']) {
     const dir = join(FIXTURES, name);
     const before = await tree(dir);
-    const r = keel(['adopt', dir, '--dry-run', '--json']);
+    const r = plates(['adopt', dir, '--dry-run', '--json']);
     assert.equal(r.code, 0, r.err);
     const data = JSON.parse(r.out);
     assert.equal(data.dryRun, true);
@@ -112,20 +112,20 @@ test('acme-groove: milestones make phases local; its gate is check:all; its work
 test('a project\'s own CI that keeps no gate result gets the test ledger\'s upload proposed, never written (phase 79)', async t => {
   // acme-groove's pages.yml runs the gate and uploads nothing (ledger's test.yml was the case).
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-groove'), dryRun: true }, { version: VERSION });
-  assert.match(data.config.local.ci, /add keel's "Keep the test ledger" step \(the keel-test-runs artifact, red or green\) after its gate in pages\.yml/);
+  assert.match(data.config.local.ci, /add plates's "Keep the test ledger" step \(the plates-test-runs artifact, red or green\) after its gate in pages\.yml/);
   const report = adoptionReport({ ...data, ledgerUpload: { where: '.github/workflows/pages.yml', step: LEDGER_UPLOAD_STEP } });
   assert.match(report, /## Keep the gate's result\n\n\.github\/workflows\/pages\.yml runs the gate but keeps none of its result/);
   assert.ok(report.includes(`\`\`\`yaml\n${LEDGER_UPLOAD_STEP}\n\`\`\``));
-  // The step proposed is keel's own check.yml step, byte for byte: never a second spelling of it.
-  const check = await readFile(join(KEEL, 'practices/ci/files/.github/workflows/check.yml'), 'utf8');
+  // The step proposed is plates's own check.yml step, byte for byte: never a second spelling of it.
+  const check = await readFile(join(PLATES, 'practices/ci/files/.github/workflows/check.yml'), 'utf8');
   assert.ok(check.includes(`${LEDGER_UPLOAD_STEP}\n`), 'the proposed step is check.yml\'s');
   // Adopted for real: the report carries the step, and the project's workflow is left as it was.
   const dir = await copyFixture(t, 'acme-groove');
   const before = await readFile(join(dir, '.github/workflows/pages.yml'), 'utf8');
-  const r = keel(['adopt', dir, '--json']);
+  const r = plates(['adopt', dir, '--json']);
   assert.equal(r.code, 0, r.err);
   assert.equal(await readFile(join(dir, '.github/workflows/pages.yml'), 'utf8'), before, 'adopt never edits the project\'s workflow');
-  assert.match(await readFile(join(dir, REPORT), 'utf8'), /## Keep the gate's result[\s\S]*name: keel-test-runs/);
+  assert.match(await readFile(join(dir, REPORT), 'utf8'), /## Keep the gate's result[\s\S]*name: plates-test-runs/);
   // A workflow that already keeps it: no proposal.
   const kept = await copyFixture(t, 'acme-groove');
   await writeFile(join(kept, '.github/workflows/pages.yml'), `${before}${LEDGER_UPLOAD_STEP}\n`);
@@ -159,7 +159,7 @@ test('adopting acme-groove keeps AGENTS.md\'s bytes, passes its own gate, and a 
   const dir = await copyFixture(t, 'acme-groove');
   const agentsBefore = await readFile(join(dir, 'AGENTS.md'), 'utf8');
   const before = await tree(dir);
-  const r = keel(['adopt', dir, '--json']);
+  const r = plates(['adopt', dir, '--json']);
   assert.equal(r.code, 0, r.err);
   const data = JSON.parse(r.out);
 
@@ -167,17 +167,17 @@ test('adopting acme-groove keeps AGENTS.md\'s bytes, passes its own gate, and a 
   assert.ok(agents.startsWith(agentsBefore), 'existing AGENTS.md prose must be kept byte for byte');
   const tail = agents.slice(agentsBefore.length);
   assert.match(tail, new RegExp(`^\\n${HEADING}\\n`));
-  for (const id of ['agents-md', 'evidence', 'lessons', 'conduct']) assert.match(tail, new RegExp(`<!-- keel:begin ${id} -->\\n\\S[\\s\\S]*?<!-- keel:end ${id} -->`));
-  assert.doesNotMatch(tail, /keel:begin phases/);
+  for (const id of ['agents-md', 'evidence', 'lessons', 'conduct']) assert.match(tail, new RegExp(`<!-- plates:begin ${id} -->\\n\\S[\\s\\S]*?<!-- plates:end ${id} -->`));
+  assert.doesNotMatch(tail, /plates:begin phases/);
 
   // Every byte the project had is still there, except AGENTS.md, which only grew.
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
-  for (const path of ['.keel/keel.json', REPORT, 'CLAUDE.md', '.nvmrc', '.agents/skills/conduct/SKILL.md', 'docs/templates/evidence.md']) assert.ok(after[path], `${path} not written`);
+  for (const path of ['.plates/plates.json', REPORT, 'CLAUDE.md', '.nvmrc', '.agents/skills/conduct/SKILL.md', 'docs/templates/evidence.md']) assert.ok(after[path], `${path} not written`);
   assert.equal(after['.claude/skills/conduct'], '-> ../../.agents/skills/conduct');
   assert.equal(after['.github/workflows/check.yml'], undefined);
 
-  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
   assert.equal(config.check, 'npm run check:all');
   assert.equal(config.practice, data.config.practice);
   assert.ok(config.local.phases && config.local.ci);
@@ -188,10 +188,10 @@ test('adopting acme-groove keeps AGENTS.md\'s bytes, passes its own gate, and a 
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
   assert.ok(testsRan(gate.stdout + gate.stderr) > 0, `the gate ran no tests:\n${gate.stdout}${gate.stderr}`);
   assert.match(gate.stdout + gate.stderr, /every phase names a known milestone/);
-  assert.equal(keel(['render', '--check'], dir).code, 0, 'the adopted project renders clean');
+  assert.equal(plates(['render', '--check'], dir).code, 0, 'the adopted project renders clean');
 
   const settled = await tree(dir);
-  const again = keel(['adopt', dir, '--json']);
+  const again = plates(['adopt', dir, '--json']);
   assert.equal(again.code, 0, again.err);
   assert.deepEqual(JSON.parse(again.out).written, []);
   assert.deepEqual(await tree(dir), settled, 're-running adopt changed files');
@@ -200,9 +200,9 @@ test('adopting acme-groove keeps AGENTS.md\'s bytes, passes its own gate, and a 
 test('adopting acme-fold writes no phase, evidence, check or claude file and keeps its own', async t => {
   const dir = await copyFixture(t, 'acme-fold');
   const before = await tree(dir);
-  const r = keel(['adopt', dir]);
+  const r = plates(['adopt', dir]);
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /Local variants and proposals: docs\/keel-adoption\.md/);
+  assert.match(r.out, /Local variants and proposals: docs\/plates-adoption\.md/);
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) if (path !== 'AGENTS.md') assert.equal(after[path], hash, `${path} changed`);
   const added = Object.keys(after).filter(p => !(p in before)).sort();
@@ -210,23 +210,23 @@ test('adopting acme-fold writes no phase, evidence, check or claude file and kee
   // (phase 40's retro: phases 33 and 39 each had to edit a list here).
   const { data } = await adopt({ dir: join(FIXTURES, 'acme-fold'), dryRun: true }, { version: VERSION });
   const expected = shippedFiles(await load(), states(data), before);
-  assert.deepEqual(added, expected, 'adopt writes exactly the switched-on practices\' files it lacked, and keel\'s own');
-  assert.ok(expected.includes('.github/workflows/keel-night.yml') && expected.includes('renovate.json'), 'the night shift and Renovate beside its own workflows');
+  assert.deepEqual(added, expected, 'adopt writes exactly the switched-on practices\' files it lacked, and plates\'s own');
+  assert.ok(expected.includes('.github/workflows/plates-night.yml') && expected.includes('renovate.json'), 'the night shift and Renovate beside its own workflows');
   for (const own of ['.github/workflows/claude.yml', '.github/workflows/check.yml']) assert.ok(!expected.includes(own), `never a second ${own}`);
   // Mutation, both ways: one file more, or one fewer, than the practices say fails.
-  assert.notDeepEqual([...added, 'scripts/keel/acme.mjs'].sort(), expected, 'an extra file would pass');
-  assert.notDeepEqual(added.filter(p => p !== 'scripts/keel/drain.mjs'), expected, 'a missing file would pass');
+  assert.notDeepEqual([...added, 'scripts/plates/acme.mjs'].sort(), expected, 'an extra file would pass');
+  assert.notDeepEqual(added.filter(p => p !== 'scripts/plates/drain.mjs'), expected, 'a missing file would pass');
   const gate = run('npm', ['run', 'check'], { cwd: dir, env: ENV });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
   assert.ok(testsRan(gate.stdout + gate.stderr) > 0, `the gate ran no tests:\n${gate.stdout}${gate.stderr}`);
   assert.match(gate.stdout + gate.stderr, /every phase has a status/);
 });
 
-test('a project that already is keel-shaped switches everything on, and its files stay as they are', async t => {
+test('a project that already is plates-shaped switches everything on, and its files stay as they are', async t => {
   const dir = join(await scratch(t), 'acme-notes');
-  const init = keel(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']);
+  const init = plates(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']);
   assert.equal(init.code, 0, init.err);
-  await rm(join(dir, '.keel'), { recursive: true });
+  await rm(join(dir, '.plates'), { recursive: true });
   const before = await tree(dir);
   const { data } = await adopt({ dir }, { version: VERSION });
   const optional = optionalPractices();
@@ -234,7 +234,7 @@ test('a project that already is keel-shaped switches everything on, and its file
   assert.equal(data.config.local, undefined);
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) assert.equal(after[path], hash, `${path} changed`);
-  assert.deepEqual(Object.keys(after).filter(p => !(p in before)).sort(), ['.keel/keel.json', '.keel/lock.json', REPORT]);
+  assert.deepEqual(Object.keys(after).filter(p => !(p in before)).sort(), ['.plates/plates.json', '.plates/lock.json', REPORT]);
 });
 
 test('a bare project: phases off, so is what needs them; ci on and runs its gate', async t => {
@@ -267,7 +267,7 @@ test('a CLAUDE guide is retained while a conflicting skill directory makes condu
   assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isDirectory());
 });
 
-test('the night shift\'s practices go local where the project already does the job, and keel\'s own files never count as the project\'s', async t => {
+test('the night shift\'s practices go local where the project already does the job, and plates\'s own files never count as the project\'s', async t => {
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-bot', scripts: { check: 'node -e 0' } }));
   await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
@@ -282,7 +282,7 @@ test('the night shift\'s practices go local where the project already does the j
   assert.deepEqual(data.secrets.map(s => s.name), [], 'the night needs no secret: it runs from the project\'s own scripts');
   const again = await adopt({ dir }, { version: VERSION });
   // (The report also lists the AGENTS.md the first run seeded, as kept: not this test's concern.)
-  assert.deepEqual(again.data.written.filter(p => p !== REPORT), [], 'keel-night.yml and scripts/keel/, once written, are not the project\'s own');
+  assert.deepEqual(again.data.written.filter(p => p !== REPORT), [], 'plates-night.yml and scripts/plates/, once written, are not the project\'s own');
   assert.equal(again.data.config.local.ci, data.config.local.ci);
 });
 
@@ -307,21 +307,21 @@ test('tagline and gate detection', () => {
   assert.deepEqual(detectCheck({ scripts: { test: 'vitest run', typecheck: 'tsc' } }), { check: null, from: 'none found' });
 });
 
-test('check.yml runs the config\'s check; keel\'s own stays byte-identical', async () => {
+test('check.yml runs the config\'s check; plates\'s own stays byte-identical', async () => {
   const practices = await load();
   const f = practices.get('ci').files.find(f => f.path === '.github/workflows/check.yml');
-  const keelConfig = JSON.parse(await readFile(join(KEEL, '.keel/keel.json'), 'utf8'));
-  assert.equal(fill(f.template, keelConfig, f.path), await readFile(join(KEEL, '.github/workflows/check.yml'), 'utf8'));
+  const platesConfig = JSON.parse(await readFile(join(PLATES, '.plates/plates.json'), 'utf8'));
+  assert.equal(fill(f.template, platesConfig, f.path), await readFile(join(PLATES, '.github/workflows/check.yml'), 'utf8'));
   const custom = fill(f.template, { check: 'npm run check:all' }, f.path);
-  assert.match(custom, /if \[ -f scripts\/keel\/test-ledger\.mjs \]; then\n +node scripts\/keel\/test-ledger\.mjs --gate\n +else\n +npm run check:all\n +fi/);
+  assert.match(custom, /if \[ -f scripts\/plates\/test-ledger\.mjs \]; then\n +node scripts\/plates\/test-ledger\.mjs --gate\n +else\n +npm run check:all\n +fi/);
   assert.doesNotMatch(custom, /\{\{check\}\}/);
 });
 
 test('the conduct block and skill name the project\'s gate, never a bare npm run check', async t => {
   const dir = await copyFixture(t, 'acme-groove');
-  assert.equal(keel(['adopt', dir]).code, 0);
+  assert.equal(plates(['adopt', dir]).code, 0);
   const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
-  const block = /<!-- keel:begin conduct -->\n([\s\S]*?)<!-- keel:end conduct -->/.exec(agents)[1];
+  const block = /<!-- plates:begin conduct -->\n([\s\S]*?)<!-- plates:end conduct -->/.exec(agents)[1];
   const skill = await readFile(join(dir, '.agents/skills/conduct/SKILL.md'), 'utf8');
   for (const [what, text] of [['conduct block', block], ['SKILL.md', skill]]) {
     assert.match(text, /`npm run check:all`/, what);
@@ -329,21 +329,21 @@ test('the conduct block and skill name the project\'s gate, never a bare npm run
   }
 });
 
-test('--setup and repeated --env land in .keel/keel.json; a bad --env writes nothing', async t => {
+test('--setup and repeated --env land in .plates/plates.json; a bad --env writes nothing', async t => {
   const dir = await copyFixture(t, 'acme-groove');
   const before = await tree(dir);
-  const bad = keel(['adopt', dir, '--env', 'acme-flag=1', '--json']);
+  const bad = plates(['adopt', dir, '--env', 'acme-flag=1', '--json']);
   assert.equal(bad.code, 2, bad.out);
   assert.deepEqual(await tree(dir), before);
-  assert.equal(keel(['adopt', dir, '--env', 'NOEQUALS']).code, 2);
-  const r = keel(['adopt', dir, '--setup', 'npm ci && npm ci --prefix web', '--env', 'ACME_SYNC=0', '--env', 'ACME_MODE=a=b', '--json']);
+  assert.equal(plates(['adopt', dir, '--env', 'NOEQUALS']).code, 2);
+  const r = plates(['adopt', dir, '--setup', 'npm ci && npm ci --prefix web', '--env', 'ACME_SYNC=0', '--env', 'ACME_MODE=a=b', '--json']);
   assert.equal(r.code, 0, r.err + r.out);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.equal(cfg.setup, 'npm ci && npm ci --prefix web');
   assert.deepEqual(cfg.env, { ACME_SYNC: '0', ACME_MODE: 'a=b' });
   // A second adopt without the flags keeps them.
-  assert.equal(keel(['adopt', dir]).code, 0);
-  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).env, { ACME_SYNC: '0', ACME_MODE: 'a=b' });
+  assert.equal(plates(['adopt', dir]).code, 0);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8')).env, { ACME_SYNC: '0', ACME_MODE: 'a=b' });
 });
 
 // A block whose rule the project's AGENTS.md already states in its own words is
@@ -359,33 +359,33 @@ async function stated(t, agents) {
 test('adopt does not append a block whose first bold sentence AGENTS.md already states', async t => {
   const own = '# Acme\n\nOur own rules.\n\n**Lessons are shapes,\nnot  incidents.** We keep ours in docs/lessons.md.\n';
   const dir = await stated(t, own);
-  const r = keel(['adopt', dir, '--json']);
+  const r = plates(['adopt', dir, '--json']);
   assert.equal(r.code, 0, r.err + r.out);
   const data = JSON.parse(r.out);
   assert.equal(status(data, 'AGENTS.md#lessons'), 'skip');
   assert.equal(status(data, 'AGENTS.md#agents-md'), 'create', 'a rule it does not state is still appended');
   const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
   assert.ok(agents.startsWith(own), 'every byte kept');
-  assert.doesNotMatch(agents, /keel:begin lessons/);
-  assert.match(agents, /keel:begin agents-md/);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  assert.doesNotMatch(agents, /plates:begin lessons/);
+  assert.match(agents, /plates:begin agents-md/);
+  const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.deepEqual(cfg.blocksSkipped, ['lessons']);
   assert.ok(cfg.practices.includes('lessons'), 'the practice stays on; only its block is skipped');
   assert.match(await readFile(join(dir, REPORT), 'utf8'), /`AGENTS\.md#lessons` — the project's AGENTS\.md already states this rule/);
-  const check = keel(['render', '--check'], dir);
+  const check = plates(['render', '--check'], dir);
   assert.equal(check.code, 0, check.out + check.err);
   assert.doesNotMatch(check.out + check.err, /missing/);
-  const doc = keel(['doctor'], dir);
+  const doc = plates(['doctor'], dir);
   assert.match(doc.out, /Blocks not appended \(information; the project's AGENTS\.md already states each rule\): AGENTS\.md#lessons/);
-  assert.ok(!JSON.parse(keel(['doctor', '--json'], dir).out).drift.some(d => d.path === 'AGENTS.md#lessons'));
+  assert.ok(!JSON.parse(plates(['doctor', '--json'], dir).out).drift.some(d => d.path === 'AGENTS.md#lessons'));
   // Re-running is a no-op.
-  const again = JSON.parse(keel(['adopt', dir, '--json']).out);
+  const again = JSON.parse(plates(['adopt', dir, '--json']).out);
   assert.deepEqual(again.written, []);
 });
 
-test('adopt appends the block when AGENTS.md does not state its rule, or states it only inside keel markers', async t => {
+test('adopt appends the block when AGENTS.md does not state its rule, or states it only inside plates markers', async t => {
   for (const agents of ['# Acme\n\nOur own rules: lessons go in a table.\n',
-    '# Acme\n\n<!-- keel:begin agents-md -->\n**Lessons are shapes, not incidents.**\n<!-- keel:end agents-md -->\n']) {
+    '# Acme\n\n<!-- plates:begin agents-md -->\n**Lessons are shapes, not incidents.**\n<!-- plates:end agents-md -->\n']) {
     const dir = await stated(t, agents);
     const { data } = await adopt({ dir, dryRun: true }, { version: VERSION });
     assert.equal(status(data, 'AGENTS.md#lessons'), 'create', agents);
@@ -425,63 +425,63 @@ test('adopt records repo from a github.com origin of the project\'s own git repo
   assert.equal(nested.data.config.repo, undefined);
   assert.match(nested.text, /^Repo: unset — not its own git repository/m);
   // An existing repo is never overwritten.
-  await mkdir(join(outer, '.keel'));
-  await writeFile(join(outer, '.keel', 'keel.json'), JSON.stringify({ name: 'outer', repo: 'acme/kept', practices: ['base'] }));
+  await mkdir(join(outer, '.plates'));
+  await writeFile(join(outer, '.plates', 'plates.json'), JSON.stringify({ name: 'outer', repo: 'acme/kept', practices: ['base'] }));
   const kept = await adopt({ dir: outer, dryRun: true }, { version: VERSION });
   assert.equal(kept.data.config.repo, 'acme/kept');
 });
 
 test('--with on an adopted project adds only that practice: its files, block and lock rows; every other byte stays', async t => {
   const dir = join(await scratch(t), 'acme-notes');
-  const init = keel(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']);
+  const init = plates(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']);
   assert.equal(init.code, 0, init.err);
   await writeFile(join(dir, '.stitch.json'), '{ "workspace": "acme-0000-workspace" }\n');
-  // A managed file keel has moved on from (behind: the bytes are the lock's, not today's template).
-  const lockPath = join(dir, '.keel', 'lock.json');
+  // A managed file plates has moved on from (behind: the bytes are the lock's, not today's template).
+  const lockPath = join(dir, '.plates', 'lock.json');
   const old = '// Acme: an older drain\n';
-  await writeFile(join(dir, 'scripts', 'keel', 'drain.mjs'), old);
+  await writeFile(join(dir, 'scripts', 'plates', 'drain.mjs'), old);
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  lock.files['scripts/keel/drain.mjs'].sha256 = createHash('sha256').update(old).digest('hex');
+  lock.files['scripts/plates/drain.mjs'].sha256 = createHash('sha256').update(old).digest('hex');
   await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
-  const cfgBefore = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel', 'keel.json'), `${JSON.stringify({ ...cfgBefore, practice: '0.0.1', loop: { run: 'npm run loop --' } }, null, 2)}\n`);
+  const cfgBefore = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates', 'plates.json'), `${JSON.stringify({ ...cfgBefore, practice: '0.0.1', loop: { run: 'npm run loop --' } }, null, 2)}\n`);
   const agentsBefore = await readFile(join(dir, 'AGENTS.md'), 'utf8');
   const lockBefore = JSON.parse(await readFile(lockPath, 'utf8'));
   const before = await tree(dir);
 
   // A project with its own loop script: refused, nothing written.
   await writeFile(join(dir, 'scripts', 'loop.ts'), '// Acme\'s own Loop triage.\n');
-  let r = keel(['adopt', dir, '--with', 'loop']);
+  let r = plates(['adopt', dir, '--with', 'loop']);
   assert.equal(r.code, 1);
   assert.match(r.err, /--with loop: loop would be local here — the project triages Loop with its own scripts\/loop\.ts.*nothing written/);
   await rm(join(dir, 'scripts', 'loop.ts'));
   assert.deepEqual(await tree(dir), before);
 
-  r = keel(['adopt', dir, '--with', 'loop', '--dry-run', '--json']);
+  r = plates(['adopt', dir, '--with', 'loop', '--dry-run', '--json']);
   assert.equal(r.code, 0, r.err);
   assert.deepEqual(JSON.parse(r.out).added, ['loop']);
   assert.deepEqual(await tree(dir), before, 'a dry run writes nothing');
 
-  r = keel(['adopt', dir, '--with', 'loop', '--json']);
+  r = plates(['adopt', dir, '--with', 'loop', '--json']);
   assert.equal(r.code, 0, r.err);
   const after = await tree(dir);
   const changed = Object.keys({ ...before, ...after }).filter(p => before[p] !== after[p]).sort();
-  assert.deepEqual(changed, ['.github/workflows/keel-loop.yml', '.keel/keel.json', '.keel/lock.json', 'AGENTS.md', 'docs/loop/README.md', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  assert.deepEqual(changed, ['.github/workflows/plates-loop.yml', '.plates/plates.json', '.plates/lock.json', 'AGENTS.md', 'docs/loop/README.md', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
+  const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.deepEqual(cfg, { ...cfgBefore, practice: '0.0.1', loop: { run: 'npm run loop --' }, practices: [...cfgBefore.practices, 'loop'] }, 'only practices changed; the practice version is kept');
   const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
   assert.ok(agents.startsWith(agentsBefore));
-  // Appended after the project's last byte (under the keel heading adopt adds when it is missing).
-  assert.match(agents.slice(agentsBefore.length), /^\n(## The keel practice\n\n.*\n\n)?<!-- keel:begin loop -->\n\*\*Loop's insights are claims[^]*<!-- keel:end loop -->\n$/);
+  // Appended after the project's last byte (under the plates heading adopt adds when it is missing).
+  assert.match(agents.slice(agentsBefore.length), /^\n(## The plates practice\n\n.*\n\n)?<!-- plates:begin loop -->\n\*\*Loop's insights are claims[^]*<!-- plates:end loop -->\n$/);
   const lockAfter = JSON.parse(await readFile(lockPath, 'utf8'));
   assert.equal(lockAfter.practice, lockBefore.practice);
   for (const [k, v] of Object.entries(lockBefore.files)) assert.deepEqual(lockAfter.files[k], v, k);
-  assert.deepEqual(Object.keys(lockAfter.files).filter(k => !lockBefore.files[k]).sort(), ['.github/workflows/keel-loop.yml', 'AGENTS.md#loop', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
-  assert.equal(await readFile(join(dir, 'scripts', 'keel', 'drain.mjs'), 'utf8'), old, 'a behind file is update\'s, not adopt\'s');
+  assert.deepEqual(Object.keys(lockAfter.files).filter(k => !lockBefore.files[k]).sort(), ['.github/workflows/plates-loop.yml', 'AGENTS.md#loop', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
+  assert.equal(await readFile(join(dir, 'scripts', 'plates', 'drain.mjs'), 'utf8'), old, 'a behind file is update\'s, not adopt\'s');
 
   // Run again: loop is on, so nothing is added and the whole re-run is the old no-op path.
   const again = await tree(dir);
-  r = keel(['adopt', dir, '--with', 'loop', '--dry-run', '--json']);
+  r = plates(['adopt', dir, '--with', 'loop', '--dry-run', '--json']);
   assert.equal(r.code, 0, r.err);
   assert.equal(JSON.parse(r.out).added, undefined);
   assert.deepEqual(await tree(dir), again);
@@ -489,19 +489,19 @@ test('--with on an adopted project adds only that practice: its files, block and
 
 test('--with on an adopted project honours a block the config already skips', async t => {
   const dir = join(await scratch(t), 'acme-notes');
-  assert.equal(keel(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']).code, 0);
+  assert.equal(plates(['init', dir, '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node']).code, 0);
   await writeFile(join(dir, '.stitch.json'), '{ "workspace": "acme-0000-workspace" }\n');
-  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel', 'keel.json'), `${JSON.stringify({ ...cfg, blocksSkipped: ['loop'] }, null, 2)}\n`);
+  const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates', 'plates.json'), `${JSON.stringify({ ...cfg, blocksSkipped: ['loop'] }, null, 2)}\n`);
   const agentsBefore = await readFile(join(dir, 'AGENTS.md'), 'utf8');
-  const r = keel(['adopt', dir, '--with', 'loop', '--json']);
+  const r = plates(['adopt', dir, '--with', 'loop', '--json']);
   assert.equal(r.code, 0, r.err);
   const data = JSON.parse(r.out);
   assert.equal(data.files.find(f => f.block === 'loop').status, 'skip');
   assert.equal(await readFile(join(dir, 'AGENTS.md'), 'utf8'), agentsBefore);
-  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).blocksSkipped, ['loop']);
-  assert.ok(!Object.hasOwn(JSON.parse(await readFile(join(dir, '.keel', 'lock.json'), 'utf8')).files, 'AGENTS.md#loop'));
-  assert.equal(keel(['render', '--check'], dir).code, 0, 'render agrees there is nothing to write');
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8')).blocksSkipped, ['loop']);
+  assert.ok(!Object.hasOwn(JSON.parse(await readFile(join(dir, '.plates', 'lock.json'), 'utf8')).files, 'AGENTS.md#loop'));
+  assert.equal(plates(['render', '--check'], dir).code, 0, 'render agrees there is nothing to write');
 });
 
 test('a claude-code-action workflow on a schedule only answers nobody: claude stays off, not local, and says why', async t => {
@@ -539,34 +539,34 @@ test('adopt detects the stack, says it in the dry run, records it, and doctor ag
   const dir = await scratch(t);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'acme-site', scripts: { check: 'node -e 0' } }));
   await writeFile(join(dir, 'vercel.json'), '{}\n');
-  const dry = keel(['adopt', dir, '--dry-run']);
+  const dry = plates(['adopt', dir, '--dry-run']);
   assert.equal(dry.code, 0, dry.err);
-  // github-actions: keel's own check.yml, which the adoption writes.
+  // github-actions: plates's own check.yml, which the adoption writes.
   assert.match(dry.out, /^Stack: node, vercel, github-actions \(detected: node \(package\.json\), vercel \(vercel\.json\), github-actions \(\.github\/workflows\/\*\.yml\)/m);
   const { data } = await adopt({ dir }, { version: VERSION });
   assert.deepEqual(data.config.stack, ['node', 'vercel', 'github-actions']);
-  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')).stack, ['node', 'vercel', 'github-actions']);
-  assert.match(await readFile(join(dir, 'docs/keel-lessons.md'), 'utf8'), /`node`, `vercel`, `github-actions`/);
-  const doc = keel(['doctor', '--json'], dir);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8')).stack, ['node', 'vercel', 'github-actions']);
+  assert.match(await readFile(join(dir, 'docs/plates-lessons.md'), 'utf8'), /`node`, `vercel`, `github-actions`/);
+  const doc = plates(['doctor', '--json'], dir);
   assert.deepEqual(JSON.parse(doc.out).lint.filter(l => l.rule.startsWith('stack-')), [], doc.out);
 
   // A declared stack stands.
   const again = await adopt({ dir, dryRun: true }, { version: VERSION });
-  assert.equal(again.data.stack.from, '.keel/keel.json');
-  // A repo that shows nothing and gets none of keel's files records no stack.
+  assert.equal(again.data.stack.from, '.plates/plates.json');
+  // A repo that shows nothing and gets none of plates's files records no stack.
   const bare = await scratch(t);
   const none = await adopt({ dir: bare, dryRun: true }, { version: VERSION });
   assert.equal(none.data.config.stack, undefined);
-  assert.match(none.text, /^Stack: none \(detected: nothing; docs\/keel-lessons\.md carries keel's universal lessons\)$/m);
+  assert.match(none.text, /^Stack: none \(detected: nothing; docs\/plates-lessons\.md carries plates's universal lessons\)$/m);
 });
 
 // ---- the test runner (phase 59) ---------------------------------------------------
 
-const J = '.keel/test-runs/junit.xml';
+const J = '.plates/test-runs/junit.xml';
 const posixDir = p => p.slice(0, p.lastIndexOf('/'));
 /** The runner's step as adopt proposes it: the old file removed, the directory made (bun), the runner, its code kept, the ledger. */
 const stepOf = (runner, runCmd, { junit = J, mkdir = runner === 'bun' ? posixDir(junit) : null } = {}) =>
-  `keel_status=0; rm -f ${junit}; keel_start="$(node scripts/keel/test-ledger.mjs --sample)" || keel_start=; ${mkdir ? `mkdir -p ${mkdir} && ` : ''}${runCmd} || keel_status=$?; node scripts/keel/test-ledger.mjs --junit ${junit} --runner ${runner} --status $keel_status --start "$keel_start"`;
+  `plates_status=0; rm -f ${junit}; plates_start="$(node scripts/plates/test-ledger.mjs --sample)" || plates_start=; ${mkdir ? `mkdir -p ${mkdir} && ` : ''}${runCmd} || plates_status=$?; node scripts/plates/test-ledger.mjs --junit ${junit} --runner ${runner} --status $plates_status --start "$plates_start"`;
 const BUN_STEP = stepOf('bun', `bun test --reporter=junit --reporter-outfile=${J}`);
 
 test('adopt detects bun test or vitest in the gate, records the runner, and proposes the ledger\'s reporter flags without rewriting the gate', async t => {
@@ -574,25 +574,25 @@ test('adopt detects bun test or vitest in the gate, records the runner, and prop
   const pkg = `${JSON.stringify({ name: 'acme-bun', scripts: { check: 'npm run lint && npm test', lint: 'node -e 0', test: 'bun test' } }, null, 2)}\n`;
   await writeFile(join(dir, 'package.json'), pkg);
   const dry = await adopt({ dir, dryRun: true }, { version: VERSION });
-  assert.deepEqual(dry.data.tests, { runner: 'bun', from: 'package.json scripts.test', junit: '.keel/test-runs/junit.xml', proposal: { where: 'package.json scripts.test', now: 'bun test', to: BUN_STEP } });
-  assert.deepEqual(dry.data.config.tests, { runner: 'bun', junit: '.keel/test-runs/junit.xml' });
-  assert.match(dry.text, /^Tests: bun \(package\.json scripts\.test\); the test ledger reads its JUnit from \.keel\/test-runs\/junit\.xml$/m);
+  assert.deepEqual(dry.data.tests, { runner: 'bun', from: 'package.json scripts.test', junit: '.plates/test-runs/junit.xml', proposal: { where: 'package.json scripts.test', now: 'bun test', to: BUN_STEP } });
+  assert.deepEqual(dry.data.config.tests, { runner: 'bun', junit: '.plates/test-runs/junit.xml' });
+  assert.match(dry.text, /^Tests: bun \(package\.json scripts\.test\); the test ledger reads its JUnit from \.plates\/test-runs\/junit\.xml$/m);
   assert.ok(dry.text.includes(`\n  Proposal for package.json scripts.test (adopt never rewrites the gate): ${BUN_STEP}\n`), dry.text);
   // Written: the runner is recorded, the proposal is in the report, and the gate is the project's own bytes.
   const { data } = await adopt({ dir }, { version: VERSION });
   assert.equal(await readFile(join(dir, 'package.json'), 'utf8'), pkg, 'adopt never rewrites the gate');
-  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')).tests, { runner: 'bun', junit: '.keel/test-runs/junit.xml' });
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8')).tests, { runner: 'bun', junit: '.plates/test-runs/junit.xml' });
   const report = await readFile(join(dir, REPORT), 'utf8');
   assert.match(report, /^## The test ledger$/m);
   assert.ok(report.includes(`\`\`\`sh\nbun test\n\`\`\`\n\nto\n\n\`\`\`sh\n${BUN_STEP}\n\`\`\``), report);
-  assert.ok(data.written.includes('.keel/keel.json'));
+  assert.ok(data.written.includes('.plates/plates.json'));
   // doctor reads "tests": a known runner is fine, an unknown one is a lint.
-  let doc = JSON.parse(keel(['doctor', '--json'], dir).out);
+  let doc = JSON.parse(plates(['doctor', '--json'], dir).out);
   assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config'), []);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
-  doc = JSON.parse(keel(['doctor', '--json'], dir).out);
-  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a .xml file in .keel/test-runs/ (which ignores itself), of letters, digits, _ . and - only']);
+  const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ ...cfg, tests: { runner: 'jest', junit: '../out.xml' } }, null, 2));
+  doc = JSON.parse(plates(['doctor', '--json'], dir).out);
+  assert.deepEqual(doc.lint.filter(l => l.rule === 'tests-config').map(l => l.message.split(';')[0]), ['"tests".runner must be one of node, bun, vitest', '"tests".junit must be a .xml file in .plates/test-runs/ (which ignores itself), of letters, digits, _ . and - only']);
 
   // vitest as one step of the gate itself: the step goes in braces, so the steps around it run as they did.
   const v = await scratch(t);
@@ -611,12 +611,12 @@ test('adopt detects bun test or vitest in the gate, records the runner, and prop
   const w = await scratch(t);
   await writeFile(join(w, 'package.json'), JSON.stringify({ name: 'acme-wired', scripts: { check: 'npm test', test: BUN_STEP } }));
   assert.equal((await adopt({ dir: w, dryRun: true }, { version: VERSION })).data.tests.proposal, null);
-  await mkdir(join(w, '.keel'), { recursive: true });
-  await writeFile(join(w, '.keel', 'keel.json'), JSON.stringify({ check: 'npm test', tests: { runner: 'vitest', window: 30 } }));
+  await mkdir(join(w, '.plates'), { recursive: true });
+  await writeFile(join(w, '.plates', 'plates.json'), JSON.stringify({ check: 'npm test', tests: { runner: 'vitest', window: 30 } }));
   const own = (await adopt({ dir: w, dryRun: true }, { version: VERSION })).data;
-  assert.deepEqual([own.tests.runner, own.tests.from, own.tests.proposal], ['vitest', '.keel/keel.json', null]);
-  assert.deepEqual(own.config.tests, { runner: 'vitest', window: 30, junit: '.keel/test-runs/junit.xml' });
-  // No runner keel knows: nothing said, nothing recorded.
+  assert.deepEqual([own.tests.runner, own.tests.from, own.tests.proposal], ['vitest', '.plates/plates.json', null]);
+  assert.deepEqual(own.config.tests, { runner: 'vitest', window: 30, junit: '.plates/test-runs/junit.xml' });
+  // No runner plates knows: nothing said, nothing recorded.
   const none = await adopt({ dir: await scratch(t), dryRun: true }, { version: VERSION });
   assert.equal(none.data.tests, null);
   assert.doesNotMatch(none.text, /^Tests:/m);
@@ -624,9 +624,9 @@ test('adopt detects bun test or vitest in the gate, records the runner, and prop
 
 test('the proposed gate runs: the ledger records the bun run, and the gate fails exactly when bun did, or when no test ran', async t => {
   const outer = await scratch(t), dir = join(outer, 'acme-bun');
-  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
-  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
-  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
+  await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'test-ledger.mjs'), join(dir, 'scripts', 'plates', 'test-ledger.mjs'));
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
   const git = (...args) => run('git', ['-C', dir, ...args], { env: ENV });
   git('init', '-q', '-b', 'main');
   git('add', '-A');
@@ -635,7 +635,7 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   const bin = join(outer, 'bin');
   await mkdir(bin, { recursive: true });
   await writeFile(join(bin, 'bun'), '#!/bin/sh\nfor a in "$@"; do case "$a" in --reporter-outfile=*) out="${a#--reporter-outfile=}";; esac; done\n[ -n "$ACME_JUNIT" ] && { cat "$ACME_JUNIT"; echo "<!-- $$ -->"; } > "$out"\nexit "${ACME_EXIT:-0}"\n', { mode: 0o755 });
-  const fixtures = join(KEEL, 'tests', 'fixtures', 'junit');
+  const fixtures = join(PLATES, 'tests', 'fixtures', 'junit');
   await writeFile(join(bin, 'green.xml'), (await readFile(join(fixtures, 'bun.xml'), 'utf8')).replace(/<failure\b[^>]*\/>/g, ''));
   const gate = ledgerCommand('bun test && echo after', 'bun');
   const shell = (line, env, how = ['sh', '-c']) => run(how[0], [...how.slice(1), line], { cwd: dir, env: { ...ENV, PATH: `${bin}:${process.env.PATH}`, ...env } });
@@ -650,12 +650,12 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   const { runs } = await readRuns(dir);
   assert.equal(runs.length, 2);
   const coverage = busyCoverage(runs);
-  assert.ok(r.stdout.includes(`2 runs in .keel/test-runs; ${coverage.omitted} busy runs omitted; ${coverage.unknown} runs with unavailable load context (not known quiet)`));
+  assert.ok(r.stdout.includes(`2 runs in .plates/test-runs; ${coverage.omitted} busy runs omitted; ${coverage.unknown} runs with unavailable load context (not known quiet)`));
   if (coverage.omitted) {
-    assert.match(r.stdout, /^keel test ledger: no flaky or slower test /m);
+    assert.match(r.stdout, /^plates test ledger: no flaky or slower test /m);
     assert.doesNotMatch(r.stdout, /^ {2}(?:flaky|slower) /m);
   } else {
-    assert.match(r.stdout, /^keel test ledger: 2 hygiene items /m);
+    assert.match(r.stdout, /^plates test ledger: 2 hygiene items /m);
     assert.match(r.stdout, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
   }
   assert.match(r.stdout, /\nafter\n$/);
@@ -664,26 +664,26 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   const quiet = { load: [0, 0, 0], cores: 2 };
   const synthetic = runs.map(record => ({ ...record, busy: { start: quiet, end: quiet } }));
   const notes = hygiene(synthetic).join('\n');
-  assert.match(notes, /^keel test ledger: 2 hygiene items /m);
+  assert.match(notes, /^plates test ledger: 2 hygiene items /m);
   assert.match(notes, /^ {2}flaky {3}a\.test\.ts "fails on purpose": passed 1, failed 1 on one clean tree/m);
   assert.ok(notes.includes("bun test a.test.ts -t '^ ?fails on purpose$'"));
   const busy = { load: [3, 0, 0], cores: 2 };
   const omitted = hygiene(synthetic.map(record => ({ ...record, busy: { start: quiet, end: busy } }))).join('\n');
-  assert.match(omitted, /^keel test ledger: no flaky or slower test /m);
+  assert.match(omitted, /^plates test ledger: no flaky or slower test /m);
   assert.match(omitted, /2 busy runs omitted/);
   r = sh({ ACME_JUNIT: join(bin, 'green.xml'), ACME_EXIT: '1' });
   assert.equal(r.status, 1, 'a failure bun left out of its JUnit (a file that would not load) still fails the gate');
   r = sh({ ACME_JUNIT: '', ACME_EXIT: '0' });
   assert.equal(r.status, 1, 'bun ran nothing and wrote nothing new: no tests ran');
   assert.match(r.stdout, /no tests ran/);
-  const records = async () => (await readdir(join(dir, '.keel', 'test-runs'))).filter(n => n.endsWith('.json')).sort();
-  const newest = async () => JSON.parse(await readFile(join(dir, '.keel', 'test-runs', (await records()).at(-1)), 'utf8'));
+  const records = async () => (await readdir(join(dir, '.plates', 'test-runs'))).filter(n => n.endsWith('.json')).sort();
+  const newest = async () => JSON.parse(await readFile(join(dir, '.plates', 'test-runs', (await records()).at(-1)), 'utf8'));
   assert.equal((await records()).length, 3);
   assert.deepEqual([(await newest()).runner, (await newest()).dirty], ['bun', false]);
   // GitHub runs a gate as bash -e: a red bun run still reaches the ledger and is recorded (review on #56).
   r = shell(ledgerCommand('bun test', 'bun'), { ACME_JUNIT: join(fixtures, 'bun.xml'), ACME_EXIT: '1' }, ['bash', '-e', '-c']);
   assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.match(r.stdout, /^keel test ledger: /m, 'the ledger ran after the red run');
+  assert.match(r.stdout, /^plates test ledger: /m, 'the ledger ran after the red run');
   assert.equal((await records()).length, 4, 'and recorded it');
   // A step that changes directory first: the ledger is found from git's top level, and the run is recorded as that folder's (review on #56).
   await mkdir(join(dir, 'sub'), { recursive: true });
@@ -715,11 +715,11 @@ function assertProposals(make = ledgerCommand) {
   assert.equal(make("echo 'bun test' && bun test", 'bun'), `echo 'bun test' && { ${bun('')}; }`);
   // After a cd, the ledger and the JUnit file are found from git's top level (review on #56).
   const moved = make('cd web && npx vitest run', 'vitest');
-  assert.equal(moved, `cd web && { keel_root="$(git rev-parse --show-toplevel)" || exit 1; keel_status=0; rm -f "$keel_root/${J}"; keel_start="$(node "$keel_root/scripts/keel/test-ledger.mjs" --sample)" || keel_start=; npx vitest run --reporter=default --reporter=junit --outputFile.junit="$keel_root/${J}" || keel_status=$?; node "$keel_root/scripts/keel/test-ledger.mjs" --junit "$keel_root/${J}" --runner vitest --status $keel_status --start "$keel_start"; }`);
+  assert.equal(moved, `cd web && { plates_root="$(git rev-parse --show-toplevel)" || exit 1; plates_status=0; rm -f "$plates_root/${J}"; plates_start="$(node "$plates_root/scripts/plates/test-ledger.mjs" --sample)" || plates_start=; npx vitest run --reporter=default --reporter=junit --outputFile.junit="$plates_root/${J}" || plates_status=$?; node "$plates_root/scripts/plates/test-ledger.mjs" --junit "$plates_root/${J}" --runner vitest --status $plates_status --start "$plates_start"; }`);
   assert.equal(run('sh', ['-n', '-c', moved], { env: ENV }).status, 0);
-  assert.match(make('pushd web; bun test', 'bun'), /mkdir -p "\$keel_root\/\.keel\/test-runs" && bun test/);
-  assert.doesNotMatch(make("echo 'cd web' && bun test", 'bun'), /keel_root/, 'a quoted cd moves nothing');
-  // Outside the shape keel rewrites, no proposal (review on #56): a control clause or ! (the status means something else),
+  assert.match(make('pushd web; bun test', 'bun'), /mkdir -p "\$plates_root\/\.plates\/test-runs" && bun test/);
+  assert.doesNotMatch(make("echo 'cd web' && bun test", 'bun'), /plates_root/, 'a quoted cd moves nothing');
+  // Outside the shape plates rewrites, no proposal (review on #56): a control clause or ! (the status means something else),
   // ||, a pipe or & after the runner, an inline variable or `time` before it (the ledger would not see it), or a script
   // whose name holds the runner's (`npm run vitest:unit` is its own step; its body is read where it is defined).
   for (const [command, runner] of [['if bun test; then echo ok; fi', 'bun'], ['! bun test', 'bun'], ['while bun test; do :; done', 'bun'],
@@ -728,44 +728,44 @@ function assertProposals(make = ledgerCommand) {
     ['npm run vitest:unit', 'vitest'], ['npx vitest-preview', 'vitest']]) {
     assert.equal(make(command, runner), null, command);
   }
-  // What keel will not split by hand gets no proposal, never a broken one.
+  // What plates will not split by hand gets no proposal, never a broken one.
   for (const command of ["bun test 'unclosed", 'bun test $(cat list)', 'bun test `cat list`', '(cd web && bun test)', 'bun test > out.txt', 'echo "$(bun test)"']) {
     assert.equal(make(command, 'bun'), null, command);
   }
   // A JUnit path is written into the line as it is, so one a shell would read differently gets no proposal.
   // Nor one that names a directory, not a file (review on #56): `rm -f` and the reporter would both fail on it.
-  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml', '.', '.keel/test-runs', 'reports/', 'reports/junit']) {
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', "a'b.xml", '-x.xml', '../out.xml', '/tmp/out.xml', 'a;b.xml', '.', '.plates/test-runs', 'reports/', 'reports/junit']) {
     assert.equal(make('bun test', 'bun', junit), null, junit);
   }
-  assert.equal(make('bun test', 'bun', '.keel/test-runs/bun.xml'), stepOf('bun', 'bun test --reporter=junit --reporter-outfile=.keel/test-runs/bun.xml', { junit: '.keel/test-runs/bun.xml' }));
+  assert.equal(make('bun test', 'bun', '.plates/test-runs/bun.xml'), stepOf('bun', 'bun test --reporter=junit --reporter-outfile=.plates/test-runs/bun.xml', { junit: '.plates/test-runs/bun.xml' }));
   // A report anywhere else would stay behind, untracked, after every gate (review on #56).
   assert.equal(make('bun test', 'bun', 'reports/junit-1.xml'), null);
 }
 
-test('a proposal parses in sh: a quoted operator or runner is a word, and a command or JUnit path keel cannot write safely gets none', () => {
+test('a proposal parses in sh: a quoted operator or runner is a word, and a command or JUnit path plates cannot write safely gets none', () => {
   assertProposals();
   const plan = testsPlan({ tests: { junit: 'reports/test results.xml' } }, 'bun test', {});
   assert.equal(plan.proposal, null);
-  assert.match(plan.declined, /is not a .xml file in \.keel\/test-runs\//);
-  assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /^the gate is not the shape keel rewrites \(plain steps joined by && or ;, an optional cd, the runner as its step's own command/);
+  assert.match(plan.declined, /is not a .xml file in \.plates\/test-runs\//);
+  assert.match(testsPlan({}, 'bun test $(cat list)', {}).declined, /^the gate is not the shape plates rewrites \(plain steps joined by && or ;, an optional cd, the runner as its step's own command/);
   assert.match(testsPlan({}, 'ACME_MODE=fast bun test', {}).declined, /no inline variable/);
   // A script whose name holds "vitest" is followed to its body, which is what gets the flags (review on #56).
   const unit = testsPlan({}, 'npm run vitest:unit', { 'vitest:unit': 'vitest run' });
   assert.deepEqual([unit.runner, unit.from, unit.proposal?.where], ['vitest', 'package.json scripts.vitest:unit', 'package.json scripts.vitest:unit']);
   assert.equal(unit.proposal.to, stepOf('vitest', `vitest run --reporter=default --reporter=junit --outputFile.junit=${J}`));
-  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml', '.', '.keel/test-runs', 'reports/']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
-  // A step that already picks a reporter or its output file: keel's flags would fight it (the last one wins), so none (review on #56).
+  for (const junit of ['reports/test results.xml', 'out/$HOME.xml', '-x.xml', '.', '.plates/test-runs', 'reports/']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+  // A step that already picks a reporter or its output file: plates's flags would fight it (the last one wins), so none (review on #56).
   for (const [command, runner] of [['bun test --reporter=junit --reporter-outfile=reports/current.xml', 'bun'], ['bun test --reporter-outfile reports/current.xml', 'bun'],
     ['vitest run --outputFile.junit=reports/current.xml', 'vitest'], ['npx vitest run --reporter=verbose', 'vitest'], ['vitest run --reporter dot', 'vitest']]) {
     assert.equal(ledgerCommand(command, runner), null, command);
   }
   assert.match(testsPlan({}, 'bun test --reporter-outfile=reports/current.xml', {}).declined, /or reporter flags of its own/);
-  assert.ok(ledgerCommand('bun test --timeout=10000', 'bun').includes('--reporter-outfile=.keel/test-runs/junit.xml --timeout=10000'), 'any other option stays');
+  assert.ok(ledgerCommand('bun test --timeout=10000', 'bun').includes('--reporter-outfile=.plates/test-runs/junit.xml --timeout=10000'), 'any other option stays');
   assert.ok(testsConfigProblems({ tests: { junit: 'reports/junit-1.xml' } }).length);
   // More than one runner in the gate (`npm test` runs bun, then vitest runs): record none, propose none (review on #56).
   const two = testsPlan({}, 'npm test && npx vitest run', { test: 'bun test' });
   assert.deepEqual([two.runner, two.proposal], [null, null]);
-  assert.match(two.declined, /^the gate runs more than one test runner \(vitest, bun\); keel records none and proposes no line/);
+  assert.match(two.declined, /^the gate runs more than one test runner \(vitest, bun\); plates records none and proposes no line/);
   assert.deepEqual(testsLines(two), [`Tests: none recorded (the gate: vitest; package.json scripts.test: bun); ${two.declined}`]);
 });
 
@@ -775,25 +775,25 @@ test('no proposal where the night practice is not on and the ledger is not there
   const { data, text } = await adopt({ dir, dryRun: true }, { version: VERSION });
   assert.equal(states(data).night, 'local', 'its own night script keeps night local');
   assert.equal(data.tests.proposal, null);
-  assert.match(data.tests.declined, /^the night practice is local here, so keel does not install scripts\/keel\/test-ledger\.mjs, which the line would run/);
+  assert.match(data.tests.declined, /^the night practice is local here, so plates does not install scripts\/plates\/test-ledger\.mjs, which the line would run/);
   assert.match(text, /^ {2}No proposal: the night practice is local here/m);
   assert.deepEqual(data.config.tests, { runner: 'bun', junit: J }, 'the runner is still recorded');
   // The ledger already in place: the line runs, so it is proposed.
-  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
-  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs'), join(dir, 'scripts', 'keel', 'test-ledger.mjs'));
-  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
+  await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'test-ledger.mjs'), join(dir, 'scripts', 'plates', 'test-ledger.mjs'));
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
   assert.equal((await adopt({ dir, dryRun: true }, { version: VERSION })).data.tests.proposal.to, BUN_STEP);
 });
 
 test('adopted JUnit shell samples after lint immediately before the runner and tolerates sample failure', async t => {
   const dir = await scratch(t), bin = join(dir, 'bin');
   await mkdir(bin);
-  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
-  await cp(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'time-receipts.mjs'), join(dir, 'scripts', 'keel', 'time-receipts.mjs'));
-  const source = await readFile(join(KEEL, 'practices/night/files/scripts/keel/test-ledger.mjs'), 'utf8');
+  await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
+  const source = await readFile(join(PLATES, 'practices/night/files/scripts/plates/test-ledger.mjs'), 'utf8');
   // Instrument only the sample entrypoint to observe shell ordering, without
   // inventing load or depending on clocks or machine quietness.
-  await writeFile(join(dir, 'scripts/keel/test-ledger.mjs'), source.replace("} else if (process.argv[2] === '--sample' && process.argv.length === 3) {", `} else if (process.argv[2] === '--sample' && process.argv.length === 3) {
+  await writeFile(join(dir, 'scripts/plates/test-ledger.mjs'), source.replace("} else if (process.argv[2] === '--sample' && process.argv.length === 3) {", `} else if (process.argv[2] === '--sample' && process.argv.length === 3) {
     (await import('node:fs')).appendFileSync('order', 'sample\\n');
     if (process.env.ACME_SAMPLE_FAIL) process.exit(1);`));
   await writeFile(join(bin, 'bun'), '#!/bin/sh\nprintf "runner\\n" >> order\nfor a in "$@"; do case "$a" in --reporter-outfile=*) out="${a#--reporter-outfile=}";; esac; done\nprintf \'<testsuites name="bun test"><testsuite name="acme.test.ts"><testcase name="Acme" time="0.1"/></testsuite></testsuites><!-- %s -->\' "$$" > "$out"\nexit "${ACME_STATUS:-0}"\n', { mode: 0o755 });
@@ -802,7 +802,7 @@ test('adopted JUnit shell samples after lint immediately before the runner and t
   assert.ok(command, 'the supported lint-then-runner command has a proposal');
   for (const fail of [false, true]) {
     await writeFile(join(dir, 'order'), '');
-    const r = run('bash', ['-e', '-c', command], { cwd: dir, env: { ...ENV, PATH: `${bin}:${process.env.PATH}`, KEEL_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }), ACME_SAMPLE_FAIL: fail ? '1' : '', ACME_STATUS: fail ? '7' : '0' } });
+    const r = run('bash', ['-e', '-c', command], { cwd: dir, env: { ...ENV, PATH: `${bin}:${process.env.PATH}`, PLATES_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }), ACME_SAMPLE_FAIL: fail ? '1' : '', ACME_STATUS: fail ? '7' : '0' } });
     assert.equal(r.status, fail ? 7 : 0, r.stdout + r.stderr);
     assert.equal(await readFile(join(dir, 'order'), 'utf8'), 'lint\nsample\nrunner\n');
     const latest = (await readRuns(dir)).runs.at(-1);
@@ -816,28 +816,28 @@ test('adopted JUnit shell samples after lint immediately before the runner and t
   }
 });
 
-// Phase 61 uses the production reader through KEEL_GH, never a fabricated
+// Phase 61 uses the production reader through PLATES_GH, never a fabricated
 // estimate service. Both adoption entry paths must preview only new workflows.
 test('adoption and adding practices estimate only newly created workflows from paginated Actions history', async t => {
   const { ghStub } = await import('./helpers/improve.mjs');
-  const { readCiUsage } = await import('../practices/night/files/scripts/keel/ci.mjs');
+  const { readCiUsage } = await import('../practices/night/files/scripts/plates/ci.mjs');
   const now = Date.parse('2026-10-10T12:00:00Z'), repo = 'acme/practice';
   for (const adding of [false, true]) {
     let dir;
     if (adding) {
       dir = join(await scratch(t), 'acme');
-      const initialized = keel(['init', dir, '--description', 'Acme anvils']);
+      const initialized = plates(['init', dir, '--description', 'Acme anvils']);
       assert.equal(initialized.code, 0, initialized.err);
       await writeFile(join(dir, '.stitch.json'), '{"workspace":"acme-0000-workspace"}');
     } else dir = await stated(t, '# Acme\n');
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8').catch(() => '{}'));
-    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, ci: { historyRepo: repo } }));
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    const cfg = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8').catch(() => '{}'));
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...cfg, ci: { historyRepo: repo } }));
     const opts = { dir, dryRun: true, ...(adding ? { with: ['loop'] } : {}) };
     const preview = await adopt(opts, { version: VERSION, now });
     const flows = preview.data.ciCost.workflows;
     assert.ok(flows.length);
-    if (adding) assert.deepEqual(flows.map(f => f.path), ['.github/workflows/keel-loop.yml']);
+    if (adding) assert.deepEqual(flows.map(f => f.path), ['.github/workflows/plates-loop.yml']);
     assert.equal(preview.data.ciCost.monthlyWeightedMinutes, null, 'unknown history never invents cost');
     const api = { [`repos/${repo}`]: { private: false, default_branch: 'main', created_at: '2020-01-01T00:00:00Z' } };
     for (const [i, flow] of flows.entries()) {
@@ -847,12 +847,12 @@ test('adoption and adding practices estimate only newly created workflows from p
       api[`repos/${repo}/actions/workflows/${workflow}/runs`] = { total_count: 1, workflow_runs: [{ id: runId, run_attempt: 1, path: flow.path, event, status: 'completed', updated_at: '2026-10-10T11:59:00Z', head_sha: 'acmesha' }] };
       api[`repos/${repo}/actions/runs/${runId}/attempts/1/jobs`] = { total_count: 1, jobs: [{ id: 100 + i, run_id: runId, run_attempt: 1, head_sha: 'acmesha', status: 'completed', conclusion: 'success', labels: ['ubuntu-latest'], started_at: '2026-10-10T11:56:00Z', completed_at: '2026-10-10T11:57:01Z' }] };
     }
-    const ciEnv = { ...ENV, KEEL_CI_OFFLINE: '0', KEEL_GH: await ghStub(t, { api }) };
+    const ciEnv = { ...ENV, PLATES_CI_OFFLINE: '0', PLATES_GH: await ghStub(t, { api }) };
     const before = await tree(dir);
     const result = await adopt(opts, { version: VERSION, now, ciEnv });
     assert.deepEqual(await tree(dir), before, 'read-only preview installs no workflows or schedules');
     for (const flow of result.data.ciCost.workflows) {
-      // keel-morning (phase 77) is a daily cron plus workflow_run: priced like every daily workflow, never unknown.
+      // plates-morning (phase 77) is a daily cron plus workflow_run: priced like every daily workflow, never unknown.
       assert.equal(flow.monthlyWeightedMinutes, flow.triggers.includes('schedule') ? 60 : 2.14);
       assert.equal(flow.source.repo, repo);
       assert.equal(flow.source.window.days, 28);
@@ -863,13 +863,13 @@ test('adoption and adding practices estimate only newly created workflows from p
     assert.match(result.text, /not invoices/);
     const workflows = {};
     for (const flow of flows) workflows[flow.path] = await readCiUsage({ repo, workflow: flow.path.split('/').at(-1), env: ciEnv, now, days: 28 });
-    await writeFile(join(dir, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows }));
-    const offline = await adopt(opts, { version: VERSION, now, ciEnv: { ...ENV, KEEL_CI_OFFLINE: '1', KEEL_GH: '/nonexistent/gh' } });
+    await writeFile(join(dir, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows }));
+    const offline = await adopt(opts, { version: VERSION, now, ciEnv: { ...ENV, PLATES_CI_OFFLINE: '1', PLATES_GH: '/nonexistent/gh' } });
     assert.equal(offline.data.ciCost.monthlyWeightedMinutes, result.data.ciCost.monthlyWeightedMinutes);
     assert.ok(offline.data.ciCost.workflows.every(f => f.source.kind.startsWith('local')));
     // A bounded/incomplete cache remains unknown, even with observed jobs.
     for (const report of Object.values(workflows)) report.coverage.complete = false;
-    await writeFile(join(dir, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows }));
+    await writeFile(join(dir, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows }));
     const partial = await adopt(opts, { version: VERSION, now });
     assert.equal(partial.data.ciCost.monthlyWeightedMinutes, null);
   }
@@ -878,11 +878,11 @@ test('adoption and adding practices estimate only newly created workflows from p
 test('milestone adoption proposes read-only source, preserves local plans and discloses unavailable versus empty', async t => {
   const { survey } = await import('../lib/adopt.mjs');
   const { targets } = await import('../lib/practices.mjs');
-  const { projectMilestones } = await import('../practices/night/files/scripts/keel/milestones.mjs');
+  const { projectMilestones } = await import('../practices/night/files/scripts/plates/milestones.mjs');
   const { milestoneConfig, milestone, response } = await import('./helpers/milestones.mjs');
   const root = await scratch(t), practices = await load();
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/anvils' }));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/anvils' }));
   await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'acme', scripts: { test: 'node --test' } }));
   const opts = { version: VERSION, practices, milestoneRead: async () => projectMilestones(response([milestone()]), milestoneConfig) };
   const result = await survey(root, opts);

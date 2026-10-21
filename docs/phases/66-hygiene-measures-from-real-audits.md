@@ -20,7 +20,7 @@ The night measures stale worktrees (merged into main or untouched for a week, wi
 
 The design is [Adopting projects that already have a practice](../research/2026-10-09-adopting-projects-that-ship-to-main.md), change 9.
 
-- **`stale_worktrees`**: `git worktree list` on the conductor's machine (keel-side, n/a in CI): worktrees whose branch is merged into main or untouched for 7 days, with their size. The fix lists them, one `git worktree remove` each (never a bulk loop), and is the owner's to run: keel never deletes.
+- **`stale_worktrees`**: `git worktree list` on the conductor's machine (plates-side, n/a in CI): worktrees whose branch is merged into main or untouched for 7 days, with their size. The fix lists them, one `git worktree remove` each (never a bulk loop), and is the owner's to run: plates never deletes.
 - **`drafts_waiting`**: open draft PRs older than a bound (default 24 hours), from one bounded read through the cache and the quota floor. The fix: finish it (mark ready, merge), or close it with why.
 - **`long_files`**: source files (excluding generated, vendored and fixture files) over a bound in lines (default 1500), with their history of growth. The fix names the file and its largest internal sections as split points, and is filed for the robot (phase 54) when accepted.
 
@@ -61,7 +61,7 @@ Over time: one fix from each.
 - **Observation and authority — settled 2026-10-11:** Worktree size is logical bytes held, not guaranteed reclaimable physical disk space. Local main reachability establishes merged code only. Current, primary, locked, dirty or incompletely inspected worktrees are protected; bounded filesystem activity and size scans disclose gaps. Commands are one-at-a-time owner advice, never automatic cleanup.
 - **Draft age — settled 2026-10-11:** Count currently open drafts by age since creation, explicitly not continuous time in draft. Bounded cached GitHub reads preserve truncation, quota and access gaps as unavailable.
 - **Thresholds — settled 2026-10-11:** Configured hygiene filters are positive finite values (draft hours, worktree days and file lines); measure count bounds remain separate, default zero with no ratchet. Long-file history and split points are bounded heuristics tied to source revisions.
-- **Accepted split proposals — settled 2026-10-11:** Extend the existing health page and `keel walk decide` flow. An explicitly accepted, fresh file-split proposal can use the existing recoverable robot issue journal only under an approved project policy and budget. Missing approval, changed source or uncertain delivery remains explicit. Worktree and draft decisions record the owner's choice without executing the suggested action.
+- **Accepted split proposals — settled 2026-10-11:** Extend the existing health page and `plates walk decide` flow. An explicitly accepted, fresh file-split proposal can use the existing recoverable robot issue journal only under an approved project policy and budget. Missing approval, changed source or uncertain delivery remains explicit. Worktree and draft decisions record the owner's choice without executing the suggested action.
 
 - **Bounds**: 1500 lines and 24 hours are first guesses. Settled by how many proposals are declined as noise.
 

@@ -13,16 +13,16 @@ issue: 11
 
 ## Done when
 
-After `npm test` in keel and in one adopted project, the run ends with a hygiene block naming any test that was flaky or got slower over its last N runs, with the command to reproduce it; the night's health page counts both; and one real hygiene item has been found and fixed this way.
+After `npm test` in plates and in one adopted project, the run ends with a hygiene block naming any test that was flaky or got slower over its last N runs, with the command to reproduce it; the night's health page counts both; and one real hygiene item has been found and fixed this way.
 
 ## Scope
 
-The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md), lever 2.
+The design is [How rigorous is a plates spec](../research/2026-10-06-spec-rigor.md), lever 2.
 
-- **The ledger.** `scripts/keel/test-ledger.mjs`, a node test reporter
+- **The ledger.** `scripts/plates/test-ledger.mjs`, a node test reporter
   (a shipped practice file), run beside the usual reporter. Per test:
   file, name, outcome, milliseconds; per run: commit, tree hash, dirty or
-  clean, machine class, date. Appended to `.keel/test-runs/` (ignored in
+  clean, machine class, date. Appended to `.plates/test-runs/` (ignored in
   git); CI uploads it as an artifact.
 - **Flaky** is a fact: a test that both passed and failed on the same clean
   tree. No threshold.
@@ -34,7 +34,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
   prints one line, or nothing.
 - **The night**: `flaky_tests` and `slow_tests` measures (bound 0), from the
   CI artifacts of the last N runs on the default branch; the proposal names
-  the worst one. `keel loose-ends` lists them.
+  the worst one. `plates loose-ends` lists them.
 - **The AGENTS block**: a hygiene note is work. Fix it or file it; never
   rerun until green.
 - Vitest projects (isocan) are out of this phase: node's runner first; a
@@ -46,19 +46,19 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 - [x] Flaky: a synthetic history with one test passing and failing on the same clean tree is named flaky; the same mix across different trees, or on a dirty tree, is not. `tests/test-ledger.test.mjs`
 - [x] Slower: a test at 2.5x its median and +300 ms is named; one at 2.5x but +50 ms (under the floor) is not; mutation: dropping the floor fails the test. `tests/test-ledger.test.mjs`
 - [x] The night's measures read the CI artifacts and are n/a, never zero, when there are fewer than N runs. `tests/improve.test.mjs`
-- [x] ⚑ by hand: the conductor runs keel's suite ten times, reads the hygiene block, and fixes or files what it names.
+- [x] ⚑ by hand: the conductor runs plates's suite ten times, reads the hygiene block, and fixes or files what it names.
 - [x] ⚑ by hand: one adopted project's update PR carries migration 0004 (its `npm test` gains the reporter), its own check is green on the PR, and the owner merges it.
-- [x] On keel's pushed commit, `check.yml` uploads `keel-test-runs`, and the next night's improve reads it (`flaky_tests`/`slow_tests` in its health page, n/a until enough runs). `node scripts/keel/improve.mjs --report`
+- [x] On plates's pushed commit, `check.yml` uploads `plates-test-runs`, and the next night's improve reads it (`flaky_tests`/`slow_tests` in its health page, n/a until enough runs). `node scripts/plates/improve.mjs --report`
 
 ## Real surfaces
 
 - Workflow shell: the CI upload step in `check.yml` and the night's artifact read.
-- Adopted project: one adopted project's `npm test` gains the reporter through `keel update`.
+- Adopted project: one adopted project's `npm test` gains the reporter through `plates update`.
 
 ## Proof
 
 - Automated: `node --test tests/test-ledger.test.mjs tests/improve.test.mjs`, with the mutation above; `npm run check`.
-- By hand: ten runs of keel's suite, the hygiene block read, and the item it names fixed; the CI artifact downloaded and read by the night on keel.
+- By hand: ten runs of plates's suite, the hygiene block read, and the item it names fixed; the CI artifact downloaded and read by the night on plates.
 - ⚑ The update PR in the adopted project (the owner merges).
 
 ## Deliberately open

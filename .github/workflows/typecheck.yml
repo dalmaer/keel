@@ -1,4 +1,4 @@
-# Keel contributor tooling only. Not a managed workflow shipped to adopters.
+# Plates contributor tooling only. Not a managed workflow shipped to adopters.
 name: typecheck
 
 on:

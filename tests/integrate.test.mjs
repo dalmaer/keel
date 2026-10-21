@@ -1,4 +1,4 @@
-// keel ready and keel integrate (phase 83): clones of one bare Acme origin, on
+// plates ready and plates integrate (phase 83): clones of one bare Acme origin, on
 // this machine's disk. No network. The full gate is a tiny fake: in-process,
 // a function that reads the tree; through the CLI, a project `check` script
 // that logs each run. The origin's post-receive hook logs every push to main,
@@ -13,8 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { ready, integrate, fastChecks, parseReady, pushable, LOCK } from '../lib/integrate.mjs';
 import { run } from './helpers/run.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
 // The CLI's gate: logs a line per run to GATE_LOG, and fails when a tracked file says BREAK.
@@ -29,11 +29,11 @@ process.exit(broken ? 1 : 0);
  * the origin received. `env(machine)` is a session's environment.
  */
 async function acme(t, { check = 'node gate.mjs', fast } = {}) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-integrate-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-integrate-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const seed = join(dir, 'seed'), origin = join(dir, 'origin.git');
-  await mkdir(join(seed, '.keel'), { recursive: true });
-  await writeFile(join(seed, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', check, ...(fast ? { delivery: { fast } } : {}) }));
+  await mkdir(join(seed, '.plates'), { recursive: true });
+  await writeFile(join(seed, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', check, ...(fast ? { delivery: { fast } } : {}) }));
   await writeFile(join(seed, 'gate.mjs'), GATE);
   await writeFile(join(seed, 'fast.mjs'), 'process.exit(process.env.FAST_FAIL ? 1 : 0);\n');
   await writeFile(join(seed, 'anvil.txt'), 'one anvil\n');
@@ -49,7 +49,7 @@ async function acme(t, { check = 'node gate.mjs', fast } = {}) {
   const a = join(dir, 'a'), b = join(dir, 'b');
   for (const clone of [a, b]) execFileSync('git', ['clone', '-q', origin, clone]);
   const pushes = async () => (await readFile(log, 'utf8').catch(() => '')).split('\n').filter(Boolean);
-  const env = machine => ({ ...process.env, KEEL_PROVIDER: 'claude', KEEL_SESSION: `session-${machine}`, KEEL_MACHINE: machine, GATE_LOG: join(dir, 'gate.log') });
+  const env = machine => ({ ...process.env, PLATES_PROVIDER: 'claude', PLATES_SESSION: `session-${machine}`, PLATES_MACHINE: machine, GATE_LOG: join(dir, 'gate.log') });
   const gateRuns = async () => (await readFile(join(dir, 'gate.log'), 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
   return { dir, origin, a, b, pushes, env, gateRuns };
 }
@@ -82,7 +82,7 @@ function fakeGate() {
 const onMain = (origin, f) => { try { git(origin, 'cat-file', '-e', `main:${f}`); return true; } catch { return false; } };
 const remoteRefs = (origin, prefix) => git(origin, 'for-each-ref', '--format=%(refname:short)', `refs/heads/${prefix}`).split('\n').filter(Boolean);
 
-test('keel ready records a branch as ready without running the full gate', async t => {
+test('plates ready records a branch as ready without running the full gate', async t => {
   const { a, origin, env, gateRuns } = await acme(t, { fast: ['node fast.mjs'] });
   git(a, 'checkout', '-q', '-b', 'claude/anvil');
   await writeFile(join(a, 'anvil.txt'), 'two anvils\n');
@@ -95,7 +95,7 @@ test('keel ready records a branch as ready without running the full gate', async
   assert.deepEqual(out.checks, [{ command: 'node fast.mjs', status: 0 }, { command: 'node fast.mjs --again', status: 0 }]);
   // The full gate never ran.
   assert.equal(await gateRuns(), 0);
-  // The branch is pushed, and ready/<branch> is keel's commit on it: one parent, the head, the same tree, the record.
+  // The branch is pushed, and ready/<branch> is plates's commit on it: one parent, the head, the same tree, the record.
   assert.equal(git(origin, 'rev-parse', 'claude/anvil'), head);
   const sha = git(origin, 'rev-parse', 'ready/claude/anvil');
   assert.equal(git(origin, 'log', '-1', '--format=%P', sha), head);
@@ -109,7 +109,7 @@ test('keel ready records a branch as ready without running the full gate', async
   assert.deepEqual(rec.checks, out.checks);
 });
 
-test('keel ready refuses the full gate as a fast check, a failing fast check, the default branch and an uncommitted tree; nothing is pushed', async t => {
+test('plates ready refuses the full gate as a fast check, a failing fast check, the default branch and an uncommitted tree; nothing is pushed', async t => {
   const { a, origin, env, gateRuns } = await acme(t);
   git(a, 'checkout', '-q', '-b', 'claude/anvil');
   await writeFile(join(a, 'anvil.txt'), 'two anvils\n');
@@ -254,7 +254,7 @@ test('two individually passing changes whose combination fails: one lands, the o
 
 /** main's tree, checked out in a scratch dir. */
 async function treeDir(t, origin) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-integrate-main-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-integrate-main-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   execFileSync('git', ['clone', '-q', origin, dir]);
   return dir;
@@ -275,10 +275,10 @@ test('a change that does not merge on top of an earlier one is sent back as conf
 test('each candidate is gated by the check its own tree names, not the integrator checkout\'s', async t => {
   const { a, b, origin, env } = await acme(t);
   // A change that renames the project's gate to one that fails; the integrator's checkout (a, on main) still names node gate.mjs.
-  const config = JSON.parse(await readFile(join(a, '.keel', 'keel.json'), 'utf8'));
-  await change(b, 'codex/gate', { '.keel/keel.json': JSON.stringify({ ...config, check: 'node fail.mjs' }) }, env('m2'));
-  // Another gives its gate an env keel cannot pass: sent back with the reason, never gated.
-  await change(b, 'codex/nogate', { 'rocket.txt': 'one rocket\n', '.keel/keel.json': JSON.stringify({ ...config, env: { ACME: 1 } }) }, env('m2'));
+  const config = JSON.parse(await readFile(join(a, '.plates', 'plates.json'), 'utf8'));
+  await change(b, 'codex/gate', { '.plates/plates.json': JSON.stringify({ ...config, check: 'node fail.mjs' }) }, env('m2'));
+  // Another gives its gate an env plates cannot pass: sent back with the reason, never gated.
+  await change(b, 'codex/nogate', { 'rocket.txt': 'one rocket\n', '.plates/plates.json': JSON.stringify({ ...config, env: { ACME: 1 } }) }, env('m2'));
   git(a, 'checkout', '-q', 'main');
   const { gate } = fakeGate();
   const commands = [];
@@ -288,10 +288,10 @@ test('each candidate is gated by the check its own tree names, not the integrato
   assert.deepEqual(r.data.landed, []);
   assert.deepEqual(r.data.blocked.map(x => x.branch), ['codex/gate', 'codex/nogate']);
   assert.match(r.data.blocked[0].reason, /fails the gate on main/);
-  assert.match(r.data.blocked[1].reason, /names no gate keel can run: its \.keel\/keel\.json "env" must map names to strings/);
+  assert.match(r.data.blocked[1].reason, /names no gate plates can run: its \.plates\/plates\.json "env" must map names to strings/);
   assert.ok(commands.includes('node fail.mjs'), `the candidate's own check ran: ${commands}`);
   assert.ok(!onMain(origin, 'rocket.txt'));
-  assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).check, 'node gate.mjs');
+  assert.equal(JSON.parse(git(origin, 'show', 'main:.plates/plates.json')).check, 'node gate.mjs');
 });
 
 // PR #186 review: a gate that repairs a tracked file and exits 0 has passed its own tree, not the candidate.
@@ -348,7 +348,7 @@ test('the drain is bounded: after MAX_ROUNDS it lets go and says what is still r
   const r = await integrate({ root: a }, { env: env('m1'), gate: endless });
   assert.equal(r.data.rounds.length, MAX_ROUNDS);
   assert.deepEqual(r.data.more, [`codex/more-${MAX_ROUNDS}`]);
-  assert.match(r.text, /run keel integrate again/);
+  assert.match(r.text, /run plates integrate again/);
   assert.deepEqual(remoteRefs(origin, 'ready/'), [`ready/codex/more-${MAX_ROUNDS}`]);
   assert.deepEqual(remoteRefs(origin, LOCK), []);
 });
@@ -419,7 +419,7 @@ test('an install that links outside node_modules (a workspace) refuses integrate
 });
 
 // PR #186 review: a --write formatter repairs the tree and exits 0; the unrepaired head must not go out as checked.
-test('keel ready refuses when a fast check changed tracked files, in the tree or the index; nothing is pushed', async t => {
+test('plates ready refuses when a fast check changed tracked files, in the tree or the index; nothing is pushed', async t => {
   const { a, origin, env } = await acme(t);
   git(a, 'checkout', '-q', '-b', 'claude/format');
   await writeFile(join(a, 'fmt.mjs'), "import { writeFileSync } from 'node:fs';\nwriteFileSync('anvil.txt', 'one anvil, formatted\\n');\n");
@@ -475,7 +475,7 @@ test('main moving while the batch is gated: nothing is overwritten, nothing land
   assert.deepEqual(remoteRefs(origin, LOCK), [], 'the lock is released on the way out');
 });
 
-test('keel integrate through the CLI: the project\'s own check is the gate, in a worktree; the checkout is untouched and the lock released', async t => {
+test('plates integrate through the CLI: the project\'s own check is the gate, in a worktree; the checkout is untouched and the lock released', async t => {
   const { a, b, origin, env, pushes, gateRuns } = await acme(t);
   await change(a, 'claude/anvil', { 'anvil.txt': 'two anvils\n' }, env('m1'));
   await change(b, 'codex/broken', { 'broken.txt': 'BREAK\n' }, env('m2'));

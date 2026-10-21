@@ -51,7 +51,7 @@ unknown is not an unlimited allowance. Provider throttling pauses collection
 across instances. These are GitHub API limits, not model quotas; model capacity
 and routing remain separate planned work.
 
-Local phase files reuse Keel’s board classification. Projects-shaped plans keep
+Local phase files reuse Plates’s board classification. Projects-shaped plans keep
 their own parser and next-action rules. GitHub milestone plans remain explicitly
 unavailable until an Issues read permission and adapter are approved; archived
 local phases do not replace them. Live routine/check/review coverage, private

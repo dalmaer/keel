@@ -9,14 +9,14 @@ import { survey } from '../lib/adopt.mjs';
 import { withLedger } from '../migrations/0004-test-ledger.mjs';
 import { phaseZero } from '../lib/init.mjs';
 import { collect, run } from '../practices/phases/files/scripts/roadmap.mjs';
-import { generatedFiles } from '../practices/phases/files/scripts/keel/generated.mjs';
-import { projectMilestones } from '../practices/night/files/scripts/keel/milestones.mjs';
+import { generatedFiles } from '../practices/phases/files/scripts/plates/generated.mjs';
+import { projectMilestones } from '../practices/night/files/scripts/plates/milestones.mjs';
 import { milestoneConfig, milestone, response } from './helpers/milestones.mjs';
 
 async function scratch(t) {
   const root = await mkdtemp(join(tmpdir(), 'acme-milestone-surfaces-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
+  await mkdir(join(root, '.plates'));
   return root;
 }
 async function archive(root) {
@@ -27,7 +27,7 @@ async function archive(root) {
 test('normal seeded project full gate stays active after milestone switch and leaves archive and package untouched', async t => {
   const root = await scratch(t);
   const config = { name: 'Acme', tagline: 'Acme ships anvils.', repo: 'acme/anvils', practices: ['base', 'agents-md', 'phases', 'evidence', 'lessons', 'conduct', 'ci', 'night', 'renovate'] };
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   await render(root);
   // Match init's normal test-ledger wiring before capturing project-owned bytes.
   const pkgPath = join(root, 'package.json');
@@ -46,12 +46,12 @@ test('normal seeded project full gate stays active after milestone switch and le
   const local = gate();
   assert.equal(local.status, 0, local.stdout + local.stderr);
   config.phases = { source: 'milestones' };
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   const remote = gate();
   assert.equal(remote.status, 0, remote.stdout + remote.stderr);
   assert.match(remote.stdout, /Acme code runs/);
   assert.match(remote.stdout, /inactive.*milestones/i);
-  assert.match(remote.stdout, /keel test ledger: no flaky or slower test/);
+  assert.match(remote.stdout, /plates test ledger: no flaky or slower test/);
   assert.deepEqual(await archive(root), before);
   assert.deepEqual(await Promise.all(['package.json', 'package-lock.json'].map(p => readFile(join(root, p), 'utf8'))), packages);
   const broken = gate({ ACME_FAIL: 'yes' });
@@ -62,7 +62,7 @@ test('normal seeded project full gate stays active after milestone switch and le
 
 test('milestone check bypasses malformed archived inputs; local readers and writers still refuse', async t => {
   const root = await scratch(t);
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(milestoneConfig));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(milestoneConfig));
   await mkdir(join(root, 'docs/phases'), { recursive: true });
   await writeFile(join(root, 'docs/goals.json'), 'archived, not JSON');
   await writeFile(join(root, 'docs/phases/01-acme.md'), 'archived, not a phase');
@@ -92,7 +92,7 @@ test('empty milestone descriptions keep readable records but disclose missing ex
 
 test('adoption can select mixed described and empty milestones while preserving coverage gaps', async t => {
   const root = await scratch(t);
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/anvils' }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/anvils' }));
   const packageText = JSON.stringify({ name: 'acme', scripts: { test: 'node --test' } });
   await writeFile(join(root, 'package.json'), packageText);
   const result = await survey(root, {

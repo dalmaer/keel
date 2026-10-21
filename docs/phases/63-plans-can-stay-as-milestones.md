@@ -14,7 +14,7 @@ issue: 50
 
 ## Done when
 
-On a project with `"phases": { "source": "milestones" }`, `keel next`, the board and the night read its open GitHub milestones as phases (the milestone's description as Done when, its issues as acceptance boxes, its deadline as `due`, without postponing work, closed when the milestone closes); nothing is written into the project's plans; and one real project's plan shows on the board this way for a release.
+On a project with `"phases": { "source": "milestones" }`, `plates next`, the board and the night read its open GitHub milestones as phases (the milestone's description as Done when, its issues as acceptance boxes, its deadline as `due`, without postponing work, closed when the milestone closes); nothing is written into the project's plans; and one real project's plan shows on the board this way for a release.
 
 ## Scope
 
@@ -22,25 +22,25 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 - **The reader**: one GraphQL read per night or board refresh (milestones with their issues, bounded and priced as the board's reads are (lib/quota.mjs)), through the 10-minute cache and the quota floor.
 - **The mapping**: title → title; description's exit criteria (a bullet list, or a section headed "Exit criteria") → Done when; open issues → unchecked boxes and closed ones → checked; an issue labelled for the owner (configurable) → a walk; due date → `due` (a deadline, never a not-before date); state → status (open with closed issues → partial).
-- **Read-only**: keel never edits milestones or issues; converging to phase files remains a migration the owner may accept.
+- **Read-only**: plates never edits milestones or issues; converging to phase files remains a migration the owner may accept.
 - **Adopt**: detects milestones with descriptions and proposes `source: milestones` instead of turning phases off.
 
 ## Acceptance
 
 - [x] Milestones with descriptions and issues map to phases: Done when, boxes, walks, `due` and status, as above. `tests/milestones.test.mjs`
-- [x] `keel next`, the board and the night use them on a project with `source: milestones`, through the cache and the quota floor; nothing is written to GitHub. `tests/board.test.mjs`
+- [x] `plates next`, the board and the night use them on a project with `source: milestones`, through the cache and the quota floor; nothing is written to GitHub. `tests/board.test.mjs`
 - [x] Adopt proposes `source: milestones` for a project with described milestones. `tests/adopt.test.mjs`, `tests/milestone-integration.test.mjs`
 - [ ] ⚑ by hand: one project's release seen on the board as phases, read by its owner.
 
 ## Your part
 
-- **Ask:** Look at one project's milestones shown as keel phases on the board, and say whether they read as the plan you have.
-- **Why:** It decides whether keel can plan with a project as it is, without converting its plans.
+- **Ask:** Look at one project's milestones shown as plates phases on the board, and say whether they read as the plan you have.
+- **Why:** It decides whether plates can plan with a project as it is, without converting its plans.
 - **Look at:** The board, filtered to that project.
 - **Choices:** Reads right | Something is lost
 - **Takes:** 10 minutes.
 - **Then:** Reads right: the phase is built. Something lost: the mapping changes, and the loss goes into the evidence.
-- **Ready when:** a project that plans with milestones has adopted keel.
+- **Ready when:** a project that plans with milestones has adopted plates.
 
 ## Real surfaces
 
@@ -56,14 +56,14 @@ By hand: one release on the board.
 
 - **Other planning writers — settled 2026-10-11:** Loop collection remains available, but local phase-homing, its climb job and local rendered plan checks are inactive for milestone plans. Proof runs remain available without phase-evidence writeback. A future milestone-aware triage workflow must be designed explicitly; archived local plans are never a fallback.
 
-- **Deadline semantics — settled 2026-10-10:** A milestone due date is `due`, not `after`. Keel defines `after` as the earliest buildable date; the original mapping would hide active work until its deadline. Closing a milestone reports GitHub planning state, never production verification, owner acceptance or lived-in evidence.
+- **Deadline semantics — settled 2026-10-10:** A milestone due date is `due`, not `after`. Plates defines `after` as the earliest buildable date; the original mapping would hide active work until its deadline. Closing a milestone reports GitHub planning state, never production verification, owner acceptance or lived-in evidence.
 - **Incomplete reads — settled 2026-10-10:** Bounded queries reserve separate allowances for open milestones and closed history, and disclose truncated milestone, issue and label coverage. Unavailable or incomplete source data must not report that all work is done.
 
 - **Exit criteria in prose — settled 2026-10-10:** An Exit criteria section takes precedence, then a bullet list, then the whole description. The board discloses the whole-description fallback; mapping tests cover each form.
 
 ## Next action
 
-Owner: select a project with a GitHub milestone release, adopt the proposed read-only source and spend 10 minutes checking that its board reads as the plan. Keel, Ledger, isocan and duo currently have no milestones, so no pilot or acceptance is claimed.
+Owner: select a project with a GitHub milestone release, adopt the proposed read-only source and spend 10 minutes checking that its board reads as the plan. Plates, Ledger, isocan and duo currently have no milestones, so no pilot or acceptance is claimed.
 
 ## Trajectory
 

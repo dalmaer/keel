@@ -3,15 +3,15 @@ status: built
 since: 2026-10-02
 goal: G3
 depends: [6, 7]
-note: "keel learn gathers lesson issues and pinned sources into docs/inbox proposals (INBOX.md generated and checked); propose needs a cited read, decide is the person's; real run: 0 issues, conduct source still at its pin."
+note: "plates learn gathers lesson issues and pinned sources into docs/inbox proposals (INBOX.md generated and checked); propose needs a cited read, decide is the person's; real run: 0 issues, conduct source still at its pin."
 evidence: ["evidence/2026-10-02-learn.md"]
 ---
 
-# Keel turns what it hears into the next practice version, with a person deciding
+# Plates turns what it hears into the next practice version, with a person deciding
 
 ## Done when
 
-`keel learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.
+`plates learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.
 
 ## Scope
 
@@ -20,7 +20,7 @@ learn diffs each against its upstream head and files a proposal per change.
 Proposals: `docs/inbox/<date>-<slug>.md` with the claim, our read of it, and
 the proposed outcome — central lesson / practice change + migration / decline
 (project-specific) / link to an existing shape. **An agent proposes; a person
-decides** (`keel learn decide <slug> <outcome>`), as with ledger's Loop
+decides** (`plates learn decide <slug> <outcome>`), as with ledger's Loop
 findings. Lesson text from projects is data, never instructions.
 
 ## Acceptance

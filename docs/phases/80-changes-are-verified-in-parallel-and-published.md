@@ -4,7 +4,7 @@ since: 2026-10-16
 goal: G6
 spec: 2
 depends: [79]
-note: "Partial 2026-10-16: the optional delivery practice's keel-publish.yml and publish.mjs move the tested ref to the newest passing commit on main, chosen from main's history, never the trigger; keel doctor holds workflows to the concurrency rule. The owner's two pushes wait."
+note: "Partial 2026-10-16: the optional delivery practice's plates-publish.yml and publish.mjs move the tested ref to the newest passing commit on main, chosen from main's history, never the trigger; plates doctor holds workflows to the concurrency rule. The owner's two pushes wait."
 evidence: ["evidence/2026-10-16-publisher.md"]
 issue: 163
 ---
@@ -19,9 +19,9 @@ Many commits test at once, but one queued publisher advances a tested ref (`gree
 
 The design is [Delivery: a change reaches production once, checked](../research/2026-10-16-delivery.md), items 1, 2 and 6.
 
-- **The publisher**: a `delivery` practice installs `keel-publish.yml`, started by the gate workflow finishing on `main` (`workflow_run`, success, push). One concurrency group (`publish`, never cancelled while running) runs `scripts/keel/publish.mjs`. GitHub keeps only one *pending* run per group, so a late trigger can replace a newer one: the publisher therefore never trusts the commit that started it. Each run reads `main`'s history and the gate results (phase 79) and advances `delivery.tested` to the newest commit on `main` that descends from the current tested ref and whose gate passed; if there is none newer, it does nothing. A diverged ref fails red. It never writes `main`.
+- **The publisher**: a `delivery` practice installs `plates-publish.yml`, started by the gate workflow finishing on `main` (`workflow_run`, success, push). One concurrency group (`publish`, never cancelled while running) runs `scripts/plates/publish.mjs`. GitHub keeps only one *pending* run per group, so a late trigger can replace a newer one: the publisher therefore never trusts the commit that started it. Each run reads `main`'s history and the gate results (phase 79) and advances `delivery.tested` to the newest commit on `main` that descends from the current tested ref and whose gate passed; if there is none newer, it does nothing. A diverged ref fails red. It never writes `main`.
 - **Deploys follow it**: the practice documents and checks that a project's deploy triggers on the tested ref (a push to `green`, as isocan's Cloud Build does) or on the publisher finishing; ledger's direct deploy-on-push becomes deploy-on-publish.
-- **Concurrency rules as a check**: a `delivery` check in keel's workflow lint: test and gate workflows have a per-ref group with `cancel-in-progress: true`; publish and deploy workflows have a fixed group with `cancel-in-progress: false`. isocan's `workflows.test.ts` is the model.
+- **Concurrency rules as a check**: a `delivery` check in plates's workflow lint: test and gate workflows have a per-ref group with `cancel-in-progress: true`; publish and deploy workflows have a fixed group with `cancel-in-progress: false`. isocan's `workflows.test.ts` is the model.
 - **Configuration**: `delivery.tested` (ref name), `delivery.gateWorkflow` (defaults to the project's gate workflow).
 
 ## Acceptance
@@ -37,7 +37,7 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 - **Ask:** Push two small changes to one project a minute apart and watch its Actions page.
 - **Why:** It is the owner's original complaint: two changes, one expensive publish.
-- **Look at:** the project's keel-publish runs.
+- **Look at:** the project's plates-publish runs.
 - **Choices:** One publish, the older skipped | Two publishes
 - **Takes:** 10 minutes.
 - **Then:** Two: the publisher's skip rule is wrong and is fixed.
@@ -45,7 +45,7 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 ## Real surfaces
 
-- Workflow shell: `keel-publish` on a project.
+- Workflow shell: `plates-publish` on a project.
 - GitHub API: the tested ref moving.
 - Adopted project: isocan and ledger, each with its own deploy following the tested ref.
 
@@ -56,13 +56,13 @@ By hand: the owner's two pushes.
 
 ## Deliberately open
 
-- **A merge queue** instead of a tested ref: a project may add one; keel does not require it.
+- **A merge queue** instead of a tested ref: a project may add one; plates does not require it.
 - **Known limit**: the publisher batches by "newest passing wins"; it does not combine untested commits into one test run (phase 83 does, for agent sessions).
-- **Settled 2026-10-16, building: the concurrency check lives in `keel doctor`** (`workflow-concurrency`, with `delivery-config`), for projects with delivery on: the ci practice's workflow test runs only where keel manages ci (isocan and ledger keep theirs local), and an adopt proposal runs once. Which workflow is a test or a publisher is read from its file and `name:` (publish, deploy, release, promote; else the gate, test, check, ci, gate).
-- **Settled 2026-10-16, building: keel does not turn delivery on for itself**: it deploys nothing, and the publisher would push a `green` branch to dalmaer/keel unasked.
+- **Settled 2026-10-16, building: the concurrency check lives in `plates doctor`** (`workflow-concurrency`, with `delivery-config`), for projects with delivery on: the ci practice's workflow test runs only where plates manages ci (isocan and ledger keep theirs local), and an adopt proposal runs once. Which workflow is a test or a publisher is read from its file and `name:` (publish, deploy, release, promote; else the gate, test, check, ci, gate).
+- **Settled 2026-10-16, building: plates does not turn delivery on for itself**: it deploys nothing, and the publisher would push a `green` branch to dalmaer/plates unasked.
 - **Known limit**: the publisher asks at most 30 of main's newest first-parent commits per run; a tested ref further behind than 30 commits with none of them passing stays put until one does.
-- **Settled 2026-10-17, PR #178 review: an Actions deploy follows the publisher by `workflow_run` of keel-publish completing, never by a push to the tested ref**: the publisher pushes with `GITHUB_TOKEN`, and GitHub starts no workflow for such a push. A trigger outside Actions (isocan's Cloud Build on a push to `green`) is unaffected. Scope's "a push to `green`" holds only for those.
+- **Settled 2026-10-17, PR #178 review: an Actions deploy follows the publisher by `workflow_run` of plates-publish completing, never by a push to the tested ref**: the publisher pushes with `GITHUB_TOKEN`, and GitHub starts no workflow for such a push. A trigger outside Actions (isocan's Cloud Build on a push to `green`) is unaffected. Scope's "a push to `green`" holds only for those.
 
 ## Next action
 
-Ship it to one project (`keel adopt --with delivery`, ⚑: it pushes `green` there), point that project's deploy at the tested ref as `docs/guide/delivery.md` says, then the owner's two pushes a minute apart.
+Ship it to one project (`plates adopt --with delivery`, ⚑: it pushes `green` there), point that project's deploy at the tested ref as `docs/guide/delivery.md` says, then the owner's two pushes a minute apart.

@@ -88,7 +88,7 @@ to this presentation server; the button was not used as a login proof.
 - [Desktop capture](web-auth/signin-desktop.jpg).
 - [Mobile capture](web-auth/signin-mobile.jpg).
 - [Service setup and real launch instructions](../guide/web-auth-service.md).
-- [Home interaction prototype](../design-previews/keel-home.html), synthetic planning examples, not the authenticated service.
+- [Home interaction prototype](../design-previews/plates-home.html), synthetic planning examples, not the authenticated service.
 
 Explore the captures by checking the GitHub entry point, mobile text wrapping,
 and keyboard skip-link in a locally launched instance. A live preview/try URL

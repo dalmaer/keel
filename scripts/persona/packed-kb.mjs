@@ -1,4 +1,4 @@
-// The performance persona's bundle number: the size of keel's published
+// The performance persona's bundle number: the size of plates's published
 // package, as `npm pack` would build it, in whole kB. Prints one number, or fails.
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';

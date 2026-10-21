@@ -18,7 +18,7 @@ The deployed service authenticates its owner and denies every project, artifact 
 
 Implement the GitHub App authorization flow, external session store, per-request access policy, logout/revocation, CSRF/origin controls and deployment entry point. Reuse phase 93 manifest validation; use explicit hosted storage bindings rather than filesystem paths on Vercel. Keep all tokens server-side.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

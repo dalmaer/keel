@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { runBlocks, inlineNode } from '/Users/dionalmaer/code/keel/tests/helpers/workflows.mjs';
-const root = '/Users/dionalmaer/code/keel';
-const night = await readFile(`${root}/practices/night/files/.github/workflows/keel-night.yml`, 'utf8');
+import { runBlocks, inlineNode } from '/Users/dionalmaer/code/plates/tests/helpers/workflows.mjs';
+const root = '/Users/dionalmaer/code/plates';
+const night = await readFile(`${root}/practices/night/files/.github/workflows/plates-night.yml`, 'utf8');
 const typecheck = await readFile(`${root}/.github/workflows/typecheck.yml`, 'utf8');
 const count = text => { const blocks=runBlocks(text); return { bash:blocks.length, node:blocks.reduce((n,b)=>n+inlineNode(b.script).length,0) }; };
 const wrap = name => `jobs:\n  night:\n    steps:\n      - name: ${name}\n        run: |\n${runBlocks(night).find(b=>b.step===name).script.split('\n').map(l=>'          '+l).join('\n')}\n`;

@@ -7,7 +7,7 @@ note: "tests/docs.test.mjs checks the README's verb and practice tables against 
 evidence: ["evidence/2026-10-03-docs.md"]
 ---
 
-# What keel tells people can't fall behind what keel does
+# What plates tells people can't fall behind what plates does
 
 ## Done when
 
@@ -23,7 +23,7 @@ evidence: ["evidence/2026-10-03-docs.md"]
 - **The conduct skill's Record step** (`practices/conduct`, rendered) gains
   one line: does this change what a person or an agent is told? If so,
   update README and the agent guide in the same commit.
-- **The same guard for projects.** keel can't know a project's own feature
+- **The same guard for projects.** plates can't know a project's own feature
   list. So the `agents-md` practice's README states the rule, and doctor
   gets a lint that fires when the README is older than the newest built
   phase. That lint is informational and never fails the gate.
@@ -32,13 +32,13 @@ evidence: ["evidence/2026-10-03-docs.md"]
 
 - [x] Removing a verb row from the README, adding a fake one, or writing "planned" beside a built verb each fails `npm run check`.
 - [x] Removing a practice row, or adding a fake one, fails it too.
-- [x] Conduct's rendered Record step has the docs line, in keel and in a fresh `keel init` project.
-- [x] On a project whose README is older than its newest built phase, `keel doctor` reports `readme-behind` without changing the exit code.
+- [x] Conduct's rendered Record step has the docs line, in plates and in a fresh `plates init` project.
+- [x] On a project whose README is older than its newest built phase, `plates doctor` reports `readme-behind` without changing the exit code.
 
 ## Proof
 
 `node --test tests/docs.test.mjs` with its mutations, `npm run check`, and a
-`keel init` project's rendered SKILL.md.
+`plates init` project's rendered SKILL.md.
 
 ## Deliberately open
 

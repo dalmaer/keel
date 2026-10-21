@@ -1,6 +1,6 @@
 // 0004: every test run is remembered (phase 33). The night practice ships
-// scripts/keel/test-ledger.mjs, a node test reporter that records each run in
-// .keel/test-runs/ and ends it with a hygiene block (a flaky or slower test).
+// scripts/plates/test-ledger.mjs, a node test reporter that records each run in
+// .plates/test-runs/ and ends it with a hygiene block (a flaky or slower test).
 // This migration wires it in, in the project's update PR, where a person
 // reviews it:
 //
@@ -9,7 +9,7 @@
 //     (or `node --import <x> … --test`), names no reporter of its own, and
 //     does not have the ledger yet. Any other script (vitest, jest, a shell
 //     line, `npm run …`) is never touched. Its other bytes stay as they are.
-//   - AGENTS.md gains the night block's markers (empty; keel render fills
+//   - AGENTS.md gains the night block's markers (empty; plates render fills
 //     them: "a hygiene note is work"), unless the project skipped or
 //     ejected that block.
 //
@@ -17,13 +17,13 @@
 // idempotent: once both are there, it does not apply.
 export const id = '0004-test-ledger';
 export const to = '0.7.0';
-export const summary = 'node test scripts gain the test ledger reporter (scripts/keel/test-ledger.mjs: every run recorded in .keel/test-runs, a flaky or slower test named at the end of the run), and the selected guide the night block\'s markers; any other test script is left alone';
+export const summary = 'node test scripts gain the test ledger reporter (scripts/plates/test-ledger.mjs: every run recorded in .plates/test-runs, a flaky or slower test named at the end of the run), and the selected guide the night block\'s markers; any other test script is left alone';
 
-export const LEDGER = './scripts/keel/test-ledger.mjs';
+export const LEDGER = './scripts/plates/test-ledger.mjs';
 /** The two reporter pairs, with the ledger at `ledger` (relative to where the script runs). */
 export const reportersFor = (ledger = LEDGER) => `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${ledger} --test-reporter-destination=stdout`;
 export const REPORTERS = reportersFor();
-const BEGIN = '<!-- keel:begin night -->', END = '<!-- keel:end night -->';
+const BEGIN = '<!-- plates:begin night -->', END = '<!-- plates:end night -->';
 
 /** node's runner, maybe after --import/--require preloads: the match up to and including --test. */
 const NODE_TEST = /^node(?:\s+--(?:import|require)(?:=|\s+)\S+)*\s+--test(?=\s|$)/;

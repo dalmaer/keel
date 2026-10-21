@@ -20,7 +20,7 @@ The owner has an approved deployment recipe and verified private workspace repos
 
 Prepare a provider-specific deployment/setup recipe and permission matrix after the owner selects existing or new resources. Record provider IDs and secret names privately; public evidence includes only sanitized coverage. This is the resource connection walk before implementing provider-bound login.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

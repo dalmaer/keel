@@ -18,7 +18,7 @@ The owner can inspect daily work and shared lessons, migrate selected workspace 
 
 Implement morning/night read and draft views, learning catalogue, setup diagnostics and previewed workspace migration. Use the command inventory for staged capability delivery; CLI/link-out remains available for advanced operations. Shared private lessons retain provenance; publishing an anonymized reusable lesson is an explicit export.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

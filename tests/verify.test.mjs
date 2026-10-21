@@ -1,7 +1,7 @@
-// The verifier (phase 81): scripts/keel/verify.mjs, the delivery practice's.
+// The verifier (phase 81): scripts/plates/verify.mjs, the delivery practice's.
 // Production is a stub HTTP server on 127.0.0.1 (no external network); the
 // repository is a synthetic Acme clone of a bare origin, so ancestry is real
-// git. The verifier runs from a scratch scripts/keel/ holding the night's
+// git. The verifier runs from a scratch scripts/plates/ holding the night's
 // scripts beside it, as a project has them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,16 +12,16 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { scratch, ENV } from './helpers/improve.mjs';
 import { runAsync } from './helpers/run.mjs';
-import { deliveryOf, deliveryProblems } from '../practices/delivery/files/scripts/keel/delivery.mjs';
-import { verifyResults, verifyFailuresFor, VERIFY_BRANCH, VERIFY_FILE } from '../practices/night/files/scripts/keel/morning.mjs';
+import { deliveryOf, deliveryProblems } from '../practices/delivery/files/scripts/plates/delivery.mjs';
+import { verifyResults, verifyFailuresFor, VERIFY_BRANCH, VERIFY_FILE } from '../practices/night/files/scripts/plates/morning.mjs';
 
-const NIGHT = resolve('practices/night/files/scripts/keel');
-const DELIVERY = resolve('practices/delivery/files/scripts/keel');
+const NIGHT = resolve('practices/night/files/scripts/plates');
+const DELIVERY = resolve('practices/delivery/files/scripts/plates');
 const FAST = { within: 0, every: 0.01 };
 
-/** scripts/keel/ as a project has it: the night's scripts and the delivery practice's, side by side. */
+/** scripts/plates/ as a project has it: the night's scripts and the delivery practice's, side by side. */
 async function scripts(t) {
-  const dir = join(await scratch(t, 'keel-verify-scripts-'), 'scripts', 'keel');
+  const dir = join(await scratch(t, 'keel-verify-scripts-'), 'scripts', 'plates');
   await cp(NIGHT, dir, { recursive: true });
   await cp(DELIVERY, dir, { recursive: true });
   return { dir, v: await import(pathToFileURL(join(dir, 'verify.mjs')).href) };
@@ -62,8 +62,8 @@ async function acme(t, config) {
   git(dir, 'init', '-q', '--bare', '-b', 'main', origin);
   git(dir, 'init', '-q', '-b', 'main', root);
   git(root, 'remote', 'add', 'origin', origin);
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   const commit = async (name, body) => { await writeFile(join(root, `${name}.mjs`), body); git(root, 'add', '-A'); git(root, 'commit', '-qm', `Acme ${name}`); return git(root, 'rev-parse', 'HEAD'); };
   const A = await commit('anvil', 'export const a = 1;\n');
   const B = await commit('anvil-b', 'export const b = 2;\n');
@@ -150,7 +150,7 @@ test('verify never reports success it did not see: unreachable, an error status,
   const run = () => v.verify({ root: repo.root, config: cfg, sha: repo.A, ...FAST });
   const cases = [
     [{ status: 500, body: JSON.stringify({ commit: repo.A }) }, /answered HTTP 500/],
-    [{ status: 302, body: '', headers: { location: '/v2' } }, /answered HTTP 302 \(a redirect; keel does not follow one\)/],
+    [{ status: 302, body: '', headers: { location: '/v2' } }, /answered HTTP 302 \(a redirect; plates does not follow one\)/],
     [{ status: 200, body: '<html>Acme</html>', type: 'text/html' }, /is not a commit hash/],
     [{ status: 200, body: '{"commit": ' }, /not JSON/],
     [{ status: 200, body: JSON.stringify({ version: '1.2.3' }) }, /no "sha" or "commit" field/],
@@ -202,7 +202,7 @@ test('verify live says yes for the commit or a descendant and no otherwise; the 
   prod.serve(repo.C);
   let s = await script(dir, repo.root, ['live', repo.B]);
   assert.equal(s.code, 0, s.err + s.out);
-  assert.match(s.out, /^keel verify live: yes\./);
+  assert.match(s.out, /^plates verify live: yes\./);
   s = await script(dir, repo.root, ['live', repo.D, '--json']);
   assert.equal(s.code, 1, s.err + s.out);
   assert.equal(JSON.parse(s.out).live, false);
@@ -211,7 +211,7 @@ test('verify live says yes for the commit or a descendant and no otherwise; the 
   assert.equal(s.code, 0, s.err + s.out);
   s = await script(dir, repo.root, [repo.D, '--within', '0', '--every', '0.01']);
   assert.equal(s.code, 1);
-  assert.match(s.out, /^keel verify: FAILED for [0-9a-f]{7} at http:\/\/127\.0\.0\.1:\d+:\n {2}- production serves/);
+  assert.match(s.out, /^plates verify: FAILED for [0-9a-f]{7} at http:\/\/127\.0\.0\.1:\d+:\n {2}- production serves/);
 });
 
 // ---- configuration: each error names its key ---------------------------------------------
@@ -238,15 +238,15 @@ test('"delivery".site, version and smoke are validated, each error naming its ke
   assert.deepEqual(deliveryOf({ delivery: { site: 'https://anvils.acme.example/', version: '/v', smoke: ['/', { path: '/a', status: 307 }] } }), { tested: 'green', gateWorkflow: null, site: 'https://anvils.acme.example', version: '/v', smoke: [{ path: '/', status: [200] }, { path: '/a', status: [307] }], promote: null });
   // The script: a bad key, no version, a bad --site, a short sha; each exit 2, naming it.
   const { prod, repo, dir } = await setup(t);
-  await writeFile(join(repo.root, '.keel/keel.json'), JSON.stringify(config(prod.site, { smoke: ['nope'] })));
+  await writeFile(join(repo.root, '.plates/plates.json'), JSON.stringify(config(prod.site, { smoke: ['nope'] })));
   let s = await script(dir, repo.root, [repo.A]);
   assert.equal(s.code, 2);
   assert.match(s.err, /"delivery"\.smoke\[0\]/);
-  await writeFile(join(repo.root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['delivery'], delivery: { site: prod.site } }));
+  await writeFile(join(repo.root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['delivery'], delivery: { site: prod.site } }));
   s = await script(dir, repo.root, [repo.A]);
   assert.equal(s.code, 2);
   assert.match(s.err, /no "delivery"\.version/);
-  await writeFile(join(repo.root, '.keel/keel.json'), JSON.stringify(config(prod.site)));
+  await writeFile(join(repo.root, '.plates/plates.json'), JSON.stringify(config(prod.site)));
   s = await script(dir, repo.root, [repo.A, '--site', 'http://preview.acme.example']);
   assert.equal(s.code, 2);
   assert.match(s.err, /--site must be https/);
@@ -344,7 +344,7 @@ test('recording keeps every other file on keel-verify, and refuses a keel-verify
   // A keel-verify that is someone else's (no verify.json): refused, left exactly as it was.
   await branch({ 'README.md': '# Acme notes\n' });
   const theirs = remoteTip();
-  assert.throws(() => v.record({ root: repo.root, result, env: ENV }), e => e.exitCode === 1 && /holds no verify\.json: it is not keel's verify record, so it is left alone/.test(e.message));
+  assert.throws(() => v.record({ root: repo.root, result, env: ENV }), e => e.exitCode === 1 && /holds no verify\.json: it is not plates's verify record, so it is left alone/.test(e.message));
   assert.equal(remoteTip(), theirs);
   // A record beside other files: verify.json is updated, every other file kept.
   await branch({ [VERIFY_FILE]: JSON.stringify({ results: [] }), 'README.md': '# Acme notes\n', 'notes/anvils.md': 'Anvils.\n' });

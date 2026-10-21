@@ -1,4 +1,4 @@
-# Keel web UI: a home for the fleet
+# Plates web UI: a home for the fleet
 
 UX specification, revised 21 October 2026. The owner authorized phased
 implementation. Hosted access and public-code/private-data separation are
@@ -8,21 +8,21 @@ a design contract, not a claim of implemented functionality. Original CLI audit:
 
 ## The product
 
-Open Keel and know which projects need you, what changed while you were away,
+Open Plates and know which projects need you, what changed while you were away,
 what can move without you, and what is still unproven. Go from that overview to
 the evidence and the appropriate action without reconstructing a project's
 story from terminal output.
 
 The starting point is **Home**, organized around **decisions that need you**,
 **guided things to test**, and **recent additions you can see and try**, with
-rich project summaries underneath. Keel's organizing idea is responsibility:
+rich project summaries underneath. Plates's organizing idea is responsibility:
 whose turn is it, what do they need, and what will their action change?
 
 The owner emphasized these three experiences during design review on 20 October
 2026. They now lead the proposal and the next prototype iteration; this is a
 product preference, not acceptance of an implementation.
 
-The full goal is to operate every authorized Keel project from mobile and desktop,
+The full goal is to operate every authorized Plates project from mobile and desktop,
 with fleet and project lenses for routines, learning, updates, connections and
 model capacity. [Fleet operations](web-fleet-operations.md) specifies this
 expansion; Home remains the first shipping screen.
@@ -45,7 +45,7 @@ fleet report. No project was changed or production service contacted to design i
 | [`canvas`](isocan-project-canvas.md) | Provenance, history, gaps, bounded projection, recovery concepts | A daily working application; canvas remains an optional publication destination |
 | [`production`](production-errors.md), [delivery](../guide/delivery.md) | Separate serving-revision, smoke and error-window evidence | A coherent delivery view that exposes uncertainty without reading multiple reports |
 
-Extend the board incrementally. Retain `keel board`, its JSON interface, and its
+Extend the board incrementally. Retain `plates board`, its JSON interface, and its
 local operating model. Do not ship a second competing dashboard with separate
 classification rules. The fleet strip today is not a full fleet of project boards:
 aggregation and capability discovery are real backend work.
@@ -498,7 +498,7 @@ and observations; do not manufacture performance or usability results.
 ## Deliberately open
 
 - **Settled 21 October 2026 — hosting and ownership:** the owner requested
-  authenticated remote access with app code in public Keel, shared records in a
+  authenticated remote access with app code in public Plates, shared records in a
   private workspace and project facts in each project. The workspace spec
   replaces the earlier local-first delivery recommendation. Vercel and Supabase Free are now selected and provisioned; the approved
   read-only GitHub App is installed and live login/access checks pass. Expanded worker/provider

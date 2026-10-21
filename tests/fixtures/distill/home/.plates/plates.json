@@ -1,0 +1,7 @@
+{
+  "name": "Acme Plates",
+  "repo": "acme/plates",
+  "plates": "self",
+  "practice": "0.3.0",
+  "practices": ["conduct"]
+}

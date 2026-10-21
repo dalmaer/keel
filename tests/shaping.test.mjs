@@ -36,14 +36,14 @@ test('accepted source validation rejects unknown references and retains proposed
  assert.equal((await writeShape(root,'idea.json',p.digest)).digest,p.digest,'own output inventory and revision do not invalidate retries');
  await writeFile(join(root,'docs/decisions/storage.md'),decision('accepted','Acme changed owner'));
  await assert.rejects(writeShape(root,'idea.json',p.digest),/source changed/);
- const retained=JSON.parse(await readFile(join(root,`.keel/shaping/reviews/${p.digest}.json`),'utf8'));assert.equal(retained.context.decisions[0].decided_by,'Acme owner');
+ const retained=JSON.parse(await readFile(join(root,`.plates/shaping/reviews/${p.digest}.json`),'utf8'));assert.equal(retained.context.decisions[0].decided_by,'Acme owner');
 });
 test('approval binds exact source, answer and intended output, never --yes alone',async t=>{
  const {root,record}=await world(t);const p=await preview(root);
  await assert.rejects(shapeCommand({root,args:['plan','idea.json','--yes']}),/digest/);
  record.answers[0].text='Acme chooses prefix matches.';await save(root,record);
  await assert.rejects(writeShape(root,'idea.json',p.digest),/source changed/);
- const newer=await preview(root);assert.notEqual(newer.digest,p.digest);assert.equal(JSON.parse(await readFile(join(root,`.keel/shaping/reviews/${p.digest}.json`),'utf8')).record.answers[0].text,'Show exact matches first.');
+ const newer=await preview(root);assert.notEqual(newer.digest,p.digest);assert.equal(JSON.parse(await readFile(join(root,`.plates/shaping/reviews/${p.digest}.json`),'utf8')).record.answers[0].text,'Show exact matches first.');
  record.items[0].phase=5;await save(root,record);await assert.rejects(writeShape(root,'idea.json',newer.digest),/source changed/);
 });
 test('journal recovers interrupted multi-file writes, preserves mapping and refuses edited destinations',async t=>{
@@ -65,7 +65,7 @@ test('existing files, concurrent publication, symlinks and corrupt receipts cann
  await rm(join(root,p.outputs[0].path));await symlink(join(root,'idea.json'),join(root,p.outputs[0].path));await assert.rejects(writeShape(root,'idea.json',p.digest),/symlink/);await rm(join(root,p.outputs[0].path));
  await symlink('idea.json',join(root,'alias.json'));await assert.rejects(inspectShape(root,'alias.json'),/symlink/);
  record.sources=['../outside'];await save(root,record);await assert.rejects(preview(root),/unsafe/);
- const rp=join(root,`.keel/shaping/reviews/${p.digest}.json`);await writeFile(rp,'{}');await assert.rejects(writeShape(root,'idea.json',p.digest),/corrupt/);
+ const rp=join(root,`.plates/shaping/reviews/${p.digest}.json`);await writeFile(rp,'{}');await assert.rejects(writeShape(root,'idea.json',p.digest),/corrupt/);
 });
 test('readable escaped review links only bounded explicit local images and PDFs',async t=>{
  const {root,record}=await world(t);await mkdir(join(root,'assets'));await writeFile(join(root,'assets/acme.png'),Buffer.from('Acme synthetic image bytes'));
@@ -78,18 +78,18 @@ test('readable escaped review links only bounded explicit local images and PDFs'
  for(const bad of ['javascript:alert(1)','https://acme.test/image.png','assets/demo.html','../outside.png']) { record.questions[0].preview=bad;await save(root,record);await assert.rejects(preview(root)); }
 });
 test('milestones reject unavailable external dependencies and robots retain unanswered blockers',async t=>{
- const {root,record,config}=await world(t);config.phases={source:'milestones'};await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
+ const {root,record,config}=await world(t);config.phases={source:'milestones'};await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));
  await assert.rejects(preview(root),/external phase dependencies unavailable/);
  record.items[0].depends=[];record.answers=[];await save(root,record);await rm(join(root,'docs/phases'),{recursive:true});await rm(join(root,'docs/goals.json'));
  const p=await preview(root);assert.deepEqual(p.outputs,[]);assert.equal(p.previews[0].kind,'milestone');assert.deepEqual(p.previews[0].rubric.ownerBlockers,['match']);assert.equal((await writeShape(root,'idea.json',p.digest)).state,'preview-only');
  await assert.rejects(readdir(join(root,'docs/phases')),{code:'ENOENT'});
- delete config.phases;await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));record.items[0].kind='robot';await save(root,record);assert.equal((await preview(root)).previews[0].kind,'robot');
+ delete config.phases;await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));record.items[0].kind='robot';await save(root,record);assert.equal((await preview(root)).previews[0].kind,'robot');
 });
 test('minimal independent fixture is supported and oversized escaped drafts refuse before storage',async t=>{
  const {root,record}=await world(t);const minimal=JSON.parse(await readFile(new URL('./fixtures/shaping/minimal.json',import.meta.url),'utf8'));await save(root,minimal);
  assert.equal((await inspectShape(root,'idea.json')).outputs.length,1);
  record.items[0].doneWhen='&'.repeat(4000);record.items[0].proof=Array.from({length:16},(_,i)=>`node test-${i}.mjs`);await save(root,record);
- await assert.rejects(preview(root),/generated phase exceeds/);await assert.rejects(readdir(join(root,'.keel/shaping')),{code:'ENOENT'});
+ await assert.rejects(preview(root),/generated phase exceeds/);await assert.rejects(readdir(join(root,'.plates/shaping')),{code:'ENOENT'});
 });
 
 test('answered owner wording cannot create an unanswered prerequisite blocker',async t=>{

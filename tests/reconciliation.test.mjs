@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
-import { reconcile, checkImpact, verifyProposal } from '../practices/reconciliation/files/scripts/keel/reconcile.mjs';
-const engine = resolve('practices/reconciliation/files/scripts/keel/reconcile.mjs');
+import { reconcile, checkImpact, verifyProposal } from '../practices/reconciliation/files/scripts/plates/reconcile.mjs';
+const engine = resolve('practices/reconciliation/files/scripts/plates/reconcile.mjs');
 const phasePath = 'docs/phases/01-store.md';
 const key = 'acme/app#12';
 const sha = 'a'.repeat(40);
@@ -42,7 +42,7 @@ test('checked next, none with unresolved boxes, duplicate/missing IDs fail', asy
   assert.ok(rules(await reconcile({ root })).includes('acceptance-id'));
 });
 test('legacy inline action after trajectory and bare PR resolve through config; historical prose stays excluded', async t => {
-  const root = await fixture(t, { '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }), [phasePath]: '# Acme\n**Next action.** Review implementation in PR 12.\n\n## Trajectory\nOld draft PR 12.\n\n**Next action.** Review the draft PR.\n', 'docs/evidence/old.md': 'Draft PR 12 failed old budget.' });
+  const root = await fixture(t, { '.plates/plates.json': JSON.stringify({ repo: 'acme/app' }), [phasePath]: '# Acme\n**Next action.** Review implementation in PR 12.\n\n## Trajectory\nOld draft PR 12.\n\n**Next action.** Review the draft PR.\n', 'docs/evidence/old.md': 'Draft PR 12 failed old budget.' });
   const out = await reconcile({ root, github: true, prFacts: facts });
   const notes = out.notes.filter(n => n.rule === 'pr-state-contradiction');
   assert.equal(notes.length, 2);
@@ -217,10 +217,10 @@ test('GitHub boundary uses read-only execFile arguments and reports invalid or u
   const root = await fixture(t, { [phasePath]: phase(), 'gh': `#!/usr/bin/env node\nif (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['api', 'repos/acme/app/pulls/12'])) process.exit(9);\nconsole.log(JSON.stringify(${JSON.stringify(merged)}));\n` });
   const { chmod } = await import('node:fs/promises');
   await chmod(join(root, 'gh'), 0o755);
-  const out = await reconcile({ root, github: true, env: { ...process.env, KEEL_GH: join(root, 'gh') } });
+  const out = await reconcile({ root, github: true, env: { ...process.env, PLATES_GH: join(root, 'gh') } });
   assert.equal(out.unknown.length, 0);
   assert.deepEqual(rules(out), ['pr-state-contradiction']);
-  const fail = await reconcile({ root, github: true, env: { ...process.env, KEEL_GH: join(root, 'absent-gh') } });
+  const fail = await reconcile({ root, github: true, env: { ...process.env, PLATES_GH: join(root, 'absent-gh') } });
   assert.equal(fail.snapshot.remote, 'incomplete');
   assert.equal(fail.unknown[0].rule, 'github-unavailable');
 });
@@ -305,7 +305,7 @@ test('ordinary research deletion allows none with reason; whole decision deletio
 
 test('numbered lessons are not PRs and qualified external PRs are never requalified', async t => {
   const root = await fixture(t, {
-    '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }),
+    '.plates/plates.json': JSON.stringify({ repo: 'acme/app' }),
     [phasePath]: '# Acme\nLessons #16, #17, #18, #19, #23, #46 and #48 guide this work.\nReview draft acme/external#38.\nReview draft acme/PR#39.\nReview draft https://github.com/acme/external/pull/40.\nReview PR 12.\nReview PR#13.\nReview PR14.',
   });
   const prFacts = { ...facts };
@@ -324,7 +324,7 @@ test('numbered lessons are not PRs and qualified external PRs are never requalif
 test('linked PR identity owns its label without hiding standalone or unavailable PRs', async t => {
   const linked = '[Acme PR #105](https://github.com/acme/external/pull/105)';
   const root = await fixture(t, {
-    '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }),
+    '.plates/plates.json': JSON.stringify({ repo: 'acme/app' }),
     [phasePath]: `# Acme\n## Next action\nReview the draft PR ${linked}.\n\nReview the draft PR.\n\n~~~md\nReview [Acme PR #106](https://github.com/acme/example/pull/106).\n~~~\n## History\nReview [Acme PR #107](https://github.com/acme/archive/pull/107).`,
   });
   const external = 'acme/external#105';
@@ -364,7 +364,7 @@ test('generic open PR product specification is not unresolved work; explicit ope
 
 
 test('qualified PR links with optional Markdown titles never invent a local PR', async t => {
-  const root = await fixture(t, {'.keel/keel.json': JSON.stringify({repo:'acme/app'})});
+  const root = await fixture(t, {'.plates/plates.json': JSON.stringify({repo:'acme/app'})});
   for (const title of ['"Acme PR #999"', "'Acme title'", '(Acme title)']) {
     await put(root, phasePath, `# Acme\n## Next action\nReview draft PR [Acme PR #105](https://github.com/acme/external/pull/105 ${title}).\nReview PR #106.`);
     const out = await reconcile({root,github:true,prFacts:{'acme/app#106':merged}});

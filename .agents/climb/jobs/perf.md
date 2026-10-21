@@ -1,7 +1,7 @@
 # Job: perf
 
 **The number:** what the project's own benchmark prints on its last line
-(`.keel/keel.json` `"climb"` `"perf"` `"command"`), median of k runs, in
+(`.plates/plates.json` `"climb"` `"perf"` `"command"`), median of k runs, in
 its `"unit"`. `"better"` says which way is up: `lower` (a time, a size) or
 `higher` (a throughput). `climb.mjs measure perf` prints it; a command whose
 last line is not one number cannot be measured, and says so.

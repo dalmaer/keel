@@ -25,7 +25,7 @@ No stale merge cache, new dependency, output schema change or acceptance inferen
 
 - [x] Reconciliation overlaps independent reads, caps concurrency and preserves sorted results and partial failures: `tests/reconciliation-parallel.test.mjs`.
 - [x] Local timing stage measurements justify retained changes, with unchanged coverage and output semantics: `tests/time.test.mjs` and the research record.
-- [x] Real read-only GitHub and local before/after observations report context and limitations without calling child waits pure network time: `node /tmp/keel-phase68/github-bench.mjs` and `node /tmp/keel-phase68/time-cost/keel-time-bench.mjs`.
+- [x] Real read-only GitHub and local before/after observations report context and limitations without calling child waits pure network time: `node /tmp/plates-phase68/github-bench.mjs` and `node /tmp/plates-phase68/time-cost/plates-time-bench.mjs`.
 - [x] Integrated checks and selected type contracts pass: `npm run check` and `npm run typecheck`.
 
 ## Real surfaces

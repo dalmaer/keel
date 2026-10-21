@@ -18,7 +18,7 @@ An owner can test an exact result step by step, resume private observations and 
 
 Build the authored stepper, revision/environment display, pass/fail/blocked observations, durable drafts, source-bound final preview and feedback linkage. Reuse phase 92 immutable feedback and recovery; do not build another raw feedback store.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

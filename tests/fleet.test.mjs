@@ -1,4 +1,4 @@
-// keel fleet: one look at every project in fleet.json. gh is stubbed at the
+// plates fleet: one look at every project in plates.json. gh is stubbed at the
 // boundary the way real gh behaves (lesson 8): `api repos/<r>` prints the repo
 // object; `api repos/<r>/contents/<path>` prints {type: file, encoding: base64,
 // content} with GitHub's line breaks for a file and an array of entries for a
@@ -14,16 +14,16 @@ import { mkdtemp, mkdir, readFile, rm, writeFile, realpath, chmod } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fleet, fleetUpdate, healthOf, gateName, gateOf, runCommands, onPush, parseFleet, rehearse, pool, REHEARSE_AT_ONCE } from '../lib/fleet.mjs';
+import { fleet, fleetUpdate, healthOf, gateName, gateOf, runCommands, onPush, parseFleet, rehearse, rehearseOne, pool, REHEARSE_AT_ONCE } from '../lib/fleet.mjs';
 import { execFileSync } from 'node:child_process';
 import { cpSync } from 'node:fs';
 import { init } from '../lib/init.mjs';
 import { load as loadMigrations } from '../lib/migrations.mjs';
-import { practiceVersion } from '../lib/practices.mjs';
+import { practiceVersion, load as loadPractices } from '../lib/practices.mjs';
 import { lessonFingerprint, parseLessons } from '../lib/lessons.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const NOW = '2026-10-02T12:00:00.000Z';
 const PIN_FULL = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const HEAD = 'f00dfeed0123456789abcdef0123456789abcdef';
@@ -39,12 +39,12 @@ async function scratch(t, prefix) {
   return dir;
 }
 
-/** A synthetic keel home with a fleet.json and one practice pinned to acme/upstream. */
+/** A synthetic plates home with a plates.json and one practice pinned to acme/upstream. */
 async function home(t, fleetList) {
-  const dir = await scratch(t, 'keel-fleet-');
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme Keel', repo: 'acme/keel', keel: 'self', practice: '0.2.0', practices: [] }));
-  await writeFile(join(dir, 'fleet.json'), JSON.stringify(fleetList));
+  const dir = await scratch(t, 'plates-fleet-');
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme Plates', repo: 'acme/plates', plates: 'self', practice: '0.2.0', practices: [] }));
+  await writeFile(join(dir, 'plates.json'), JSON.stringify(fleetList));
   await mkdir(join(dir, 'practices/conduct'), { recursive: true });
   await writeFile(join(dir, 'practices/conduct/practice.json'), JSON.stringify({
     name: 'conduct', source: { repo: 'acme/upstream', path: 'skills/conduct/SKILL.md', commit: 'a1b2c3d4', license: 'Apache-2.0' }, files: [],
@@ -57,7 +57,7 @@ async function home(t, fleetList) {
  * runs: [...], prs: [...], fail?: "stderr line" }, commits["repo:path"] = [sha…].
  */
 async function stubGh(t, state) {
-  const dir = await scratch(t, 'keel-fleet-gh-');
+  const dir = await scratch(t, 'plates-fleet-gh-');
   const log = join(dir, 'gh.log'), file = join(dir, 'state.json'), gh = join(dir, 'gh');
   await writeFile(file, JSON.stringify(state));
   await writeFile(gh, `#!${process.execPath}
@@ -123,7 +123,7 @@ else if (a === 'api') {
 `);
   await chmod(gh, 0o755);
   return {
-    env: { ...cleanEnv(), KEEL_GH: gh },
+    env: { ...cleanEnv(), PLATES_GH: gh },
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
     prs: async () => (await readFile(`${log}.prs`, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
   };
@@ -147,7 +147,7 @@ function state() {
     repos: {
       'acme/behind': {
         default_branch: 'main',
-        files: { '.keel/keel.json': cfg(), 'docs/health/2026-09-25.md': '#', 'docs/health/2026-09-28.md': '#', 'docs/lessons.md': LESSONS, '.keel/sent.json': sentOne, 'acme-two.todo': 'x' },
+        files: { '.plates/plates.json': cfg(), 'docs/health/2026-09-25.md': '#', 'docs/health/2026-09-28.md': '#', 'docs/lessons.md': LESSONS, '.plates/sent.json': sentOne, 'acme-two.todo': 'x' },
         runs: [run('check', '', '2026-10-02T03:00:00Z', { status: 'in_progress' }), run('check', 'failure', '2026-10-01T03:00:00Z'),
           run('deploy', 'success', '2026-10-01T04:00:00Z'), run('check', 'success', '2026-10-01T05:00:00Z', { headBranch: 'feature' })],
         prs: [{ number: 1, headRefName: 'keel-night/2026-10-01' }, { number: 2, headRefName: 'keel-night/2026-10-02' }, { number: 3, headRefName: 'person/fix', isDraft: true },
@@ -155,10 +155,10 @@ function state() {
       },
       'acme/fresh': {
         default_branch: 'trunk',
-        files: { '.keel/keel.json': cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#' },
+        files: { '.plates/plates.json': cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#' },
         runs: [run('Tests', 'success', '2026-10-01T03:00:00Z', { headBranch: 'trunk' })],
       },
-      'acme/quiet': { default_branch: 'main', files: { '.keel/keel.json': cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }) }, runs: [] },
+      'acme/quiet': { default_branch: 'main', files: { '.plates/plates.json': cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }) }, runs: [] },
       'acme/plain': { default_branch: 'main', files: { 'README.md': '# plain' }, runs: [run('CI', 'success', '2026-10-01T00:00:00Z')] },
       'acme/limited': { fail: 'API rate limit exceeded for user ID 1. (HTTP 403)' },
     },
@@ -188,26 +188,26 @@ test('a project behind: how far, which migrations it has not recorded (fleet upd
   assert.equal(row.ci.state, 'red', 'the newest completed check on main failed; the running one and the feature branch do not count');
   assert.equal(row.machinePrs.total, 3);
   assert.deepEqual(row.machinePrs.drafts, [{ number: 4, head: 'keel/update-v0.2.0' }], 'a draft machine PR is named (the board lists a draft update as broken); a person\'s draft is not a machine PR');
-  assert.ok(needsOf(r, 'acme/behind').includes('behind: 0.1.0 → 0.2.0; 1 unrecorded (0002-acme-two); keel fleet update checks them (keel update)'));
+  assert.ok(needsOf(r, 'acme/behind').includes('behind: 0.1.0 → 0.2.0; 1 unrecorded (0002-acme-two); plates fleet update checks them (plates update)'));
   assert.ok(needsOf(r, 'acme/behind').some(w => w.startsWith('red: check failure')));
-  assert.ok(needsOf(r, 'acme/behind').includes('2 open keel-night/ PRs (keel drain keel-night/)'));
+  assert.ok(needsOf(r, 'acme/behind').includes('2 open keel-night/ PRs (plates drain keel-night/)'));
   assert.match(r.text, /acme\/behind\s+yes\s+0\.1\.0 → 0\.2\.0/);
 });
 
 test('under the quota floor the machine PRs are not read: the cell says it is saving the quota', async t => {
   const gh = await stubGh(t, { ...state(), rate: { remaining: 500, resetAt: '2026-10-08T22:00:00Z' } });
-  const env = { ...gh.env, KEEL_CACHE: await scratch(t, 'keel-fleet-cache-') };
-  delete env.KEEL_QUOTA_FLOOR;
+  const env = { ...gh.env, PLATES_CACHE: await scratch(t, 'plates-fleet-cache-') };
+  delete env.PLATES_QUOTA_FLOOR;
   const r = await fleet({ dir: await home(t, LIST) }, { env, now: NOW, cli: '0.2.0', migrations: MIGRATIONS });
   assert.match(rowOf(r, 'acme/behind').machinePrs.unreadable, /^saving your GitHub quota \(500 left until \d\d:\d\d\)$/);
   assert.equal((await gh.calls()).filter(c => c[0] === 'pr').length, 0, 'no PR read under the floor');
 });
 
-test('a gate workflow named in config (.keel/keel.json gateWorkflow) is the gate, read on its own past a busy repo\'s newest 50 runs', async t => {
+test('a gate workflow named in config (.plates/plates.json gateWorkflow) is the gate, read on its own past a busy repo\'s newest 50 runs', async t => {
   const st = state();
   const fresh = st.repos['acme/fresh'];
   // isocan's shape: a gate called release, which no rule guesses, behind sixty newer runs of a bot's workflow.
-  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], check: 'npm test && npm run typecheck', gateWorkflow: 'release' });
+  fresh.files['.plates/plates.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], check: 'npm test && npm run typecheck', gateWorkflow: 'release' });
   fresh.runs = [...Array.from({ length: 60 }, (_, i) => run('grade', 'success', `2026-10-01T${String(10 + Math.floor(i / 6)).padStart(2, '0')}:${String(i % 6 * 10).padStart(2, '0')}:00Z`, { headBranch: 'trunk' })),
     run('release', 'failure', '2026-10-01T05:00:00Z', { headBranch: 'feature' }), run('release', 'success', '2026-10-01T04:00:00Z', { headBranch: 'trunk' })];
   const gh = await stubGh(t, st);
@@ -217,18 +217,18 @@ test('a gate workflow named in config (.keel/keel.json gateWorkflow) is the gate
   assert.ok((await gh.calls()).some(c => c[0] === 'run' && c.includes('--workflow') && c[c.indexOf('--workflow') + 1] === 'release' && c[c.indexOf('--branch') + 1] === 'trunk'));
   assert.equal(rowOf(r, 'acme/behind').ci.rule, 'named check', 'no setting: the rules as before');
   // Without the setting, the same runs give no gate: nothing guesses release.
-  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', check: 'npm test && npm run typecheck' });
+  fresh.files['.plates/plates.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', check: 'npm test && npm run typecheck' });
   assert.equal(rowOf(await go(await home(t, LIST), await stubGh(t, st)), 'acme/fresh').ci.state, 'no gate run');
   // A setting that is not a name is said, never ignored.
-  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', gateWorkflow: '' });
+  fresh.files['.plates/plates.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', gateWorkflow: '' });
   assert.match(rowOf(await go(await home(t, LIST), await stubGh(t, st)), 'acme/fresh').ci.unreadable, /"gateWorkflow" must be/);
 });
 
-// keel#118: the board holds a fleet repo's PRs to that repo's own review-round limit, from this read.
+// plates#118: the board holds a fleet repo's PRs to that repo's own review-round limit, from this read.
 test('each adopted row carries its review-round limit, validated: its own "review".rounds, three when unset, the problem when the config is bad', async t => {
   const st = state();
-  st.repos['acme/fresh'].files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', review: { reviewers: ['acme-reviewer'], rounds: 5 } });
-  st.repos['acme/quiet'].files['.keel/keel.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', review: { rounds: 0 } });
+  st.repos['acme/fresh'].files['.plates/plates.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', review: { reviewers: ['acme-reviewer'], rounds: 5 } });
+  st.repos['acme/quiet'].files['.plates/plates.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', review: { rounds: 0 } });
   const r = await go(await home(t, LIST), await stubGh(t, st));
   assert.deepEqual(rowOf(r, 'acme/fresh').review, { rounds: 5 });
   assert.deepEqual(rowOf(r, 'acme/behind').review, { rounds: 3 });
@@ -236,20 +236,20 @@ test('each adopted row carries its review-round limit, validated: its own "revie
   assert.equal(rowOf(r, 'acme/plain').review, undefined, 'not adopted: no config to read');
 });
 
-test('health is read from the project\'s configured dir (.keel/keel.json `health`), not docs/health', async t => {
+test('health is read from the project\'s configured dir (.plates/plates.json `health`), not docs/health', async t => {
   const st = state();
   const fresh = st.repos['acme/fresh'];
-  // ledger's shape: an old page left in docs/health, the live ones in .keel/health.
-  fresh.files = { ...fresh.files, '.keel/keel.json': cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], health: '.keel/health' }),
-    'docs/health/2026-09-01.md': '#', '.keel/health/2026-10-01.md': '#' };
+  // ledger's shape: an old page left in docs/health, the live ones in .plates/health.
+  fresh.files = { ...fresh.files, '.plates/plates.json': cfg({ repo: 'acme/fresh', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], health: '.plates/health' }),
+    'docs/health/2026-09-01.md': '#', '.plates/health/2026-10-01.md': '#' };
   delete fresh.files['docs/health/2026-10-01.md'];
   const gh = await stubGh(t, st);
   const r = await go(await home(t, LIST), gh);
-  assert.deepEqual(rowOf(r, 'acme/fresh').health, { last: '2026-10-01', age: 1, state: 'fresh', dir: '.keel/health' });
-  assert.ok((await gh.calls()).some(c => c[0] === 'api' && c[1] === 'repos/acme/fresh/contents/.keel/health'), 'listed the configured dir');
+  assert.deepEqual(rowOf(r, 'acme/fresh').health, { last: '2026-10-01', age: 1, state: 'fresh', dir: '.plates/health' });
+  assert.ok((await gh.calls()).some(c => c[0] === 'api' && c[1] === 'repos/acme/fresh/contents/.plates/health'), 'listed the configured dir');
   assert.deepEqual(rowOf(r, 'acme/behind').health, { last: '2026-09-28', age: 4, state: 'silent' }, 'no setting: the default');
   // A health dir outside the repo is unreadable, never the default's reading.
-  fresh.files['.keel/keel.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', health: '../elsewhere' });
+  fresh.files['.plates/plates.json'] = cfg({ repo: 'acme/fresh', practice: '0.2.0', health: '../elsewhere' });
   const bad = await go(await home(t, LIST), await stubGh(t, st));
   assert.match(rowOf(bad, 'acme/fresh').health.unreadable, /"health" cannot leave the repo/);
 });
@@ -270,16 +270,16 @@ test('a health page older than two days is silent, not healthy; none says so', a
   assert.equal(healthOf(['2026-09-29.md', 'README.md'], NOW).state, 'silent');
 });
 
-test('unsent lessons: rows whose fingerprint is not in .keel/sent.json', async t => {
+test('unsent lessons: rows whose fingerprint is not in .plates/sent.json', async t => {
   const r = await go(await home(t, LIST), await stubGh(t, state()));
   assert.deepEqual(rowOf(r, 'acme/behind').lessons, { project: 'acme/behind', rows: 3, unsent: 2 });
-  assert.ok(needsOf(r, 'acme/behind').includes('2 unsent lessons (keel lessons, there)'));
+  assert.ok(needsOf(r, 'acme/behind').includes('2 unsent lessons (plates lessons, there)'));
   assert.equal(rowOf(r, 'acme/quiet').lessons.unsent, 0, 'no lessons.md is nothing to send');
 });
 
 test('a configured lessons path is where fleet counts unsent lessons (phase 16)', async t => {
   const s = state();
-  s.repos['acme/quiet'].files['.keel/keel.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], lessons: 'docs/reviews/lessons.md' });
+  s.repos['acme/quiet'].files['.plates/plates.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], lessons: 'docs/reviews/lessons.md' });
   s.repos['acme/quiet'].files['docs/reviews/lessons.md'] = LESSONS;
   const gh = await stubGh(t, s);
   const r = await go(await home(t, LIST), gh);
@@ -287,7 +287,7 @@ test('a configured lessons path is where fleet counts unsent lessons (phase 16)'
   assert.ok((await gh.calls()).some(c => c[1] === 'repos/acme/quiet/contents/docs/reviews/lessons.md'));
 });
 
-test('unadopted (404 on .keel/keel.json): shown as not adopted, its CI still read', async t => {
+test('unadopted (404 on .plates/plates.json): shown as not adopted, its CI still read', async t => {
   const r = await go(await home(t, LIST), await stubGh(t, state()));
   const row = rowOf(r, 'acme/plain');
   assert.equal(row.adopted, false);
@@ -317,7 +317,7 @@ test('a source repo: unmoved, then moved', async t => {
   s.commits['acme/upstream:skills/conduct/SKILL.md'] = [HEAD, PIN_FULL];
   r = await go(dir, await stubGh(t, s));
   assert.equal(rowOf(r, 'acme/upstream').pins[0].moved, true);
-  assert.deepEqual(needsOf(r, 'acme/upstream'), ['conduct: upstream skills/conduct/SKILL.md moved a1b2c3d4 → f00dfeed (keel learn)']);
+  assert.deepEqual(needsOf(r, 'acme/upstream'), ['conduct: upstream skills/conduct/SKILL.md moved a1b2c3d4 → f00dfeed (plates learn)']);
 });
 
 test('the reads are read-only gh calls, seven per managed repo and one per pin, then the default branch where a question needs it', async t => {
@@ -338,14 +338,14 @@ test('the gate workflow: one named check; else one with default-branch runs whos
   // Shaped like a project whose Tests run on pull requests only and whose Deploy runs the check on main.
   const TEST_YML = 'name: Tests\non:\n  pull_request:\njobs:\n  check:\n    steps:\n      - run: npm ci\n      - run: npm test\n';
   const DEPLOY_YML = 'name: Deploy\n# Every push to main is checked, then built.\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm ci\n      - name: The gate\n        run: |\n          npm run check\n      - run: npm run build\n';
-  const NIGHT_YML = 'name: keel-night\n# the gate (npm run check) runs inside improve.mjs\non:\n  schedule:\n    - cron: "23 7 * * *"\njobs:\n  night:\n    steps:\n      - run: node scripts/keel/improve.mjs --report\n';
+  const NIGHT_YML = 'name: plates-night\n# the gate (npm run check) runs inside improve.mjs\non:\n  schedule:\n    - cron: "23 7 * * *"\njobs:\n  night:\n    steps:\n      - run: node scripts/plates/improve.mjs --report\n';
   const st = {
     repos: {
       'acme/duet': {
         default_branch: 'main',
-        files: { '.keel/keel.json': cfg({ repo: 'acme/duet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#',
-          '.github/workflows/test.yml': TEST_YML, '.github/workflows/deploy.yml': DEPLOY_YML, '.github/workflows/keel-night.yml': NIGHT_YML },
-        runs: [run('Tests', 'failure', '2026-10-02T01:00:00Z', { headBranch: 'acme/feature' }), run('keel-night', 'success', '2026-10-02T07:23:00Z'),
+        files: { '.plates/plates.json': cfg({ repo: 'acme/duet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#',
+          '.github/workflows/test.yml': TEST_YML, '.github/workflows/deploy.yml': DEPLOY_YML, '.github/workflows/plates-night.yml': NIGHT_YML },
+        runs: [run('Tests', 'failure', '2026-10-02T01:00:00Z', { headBranch: 'acme/feature' }), run('plates-night', 'success', '2026-10-02T07:23:00Z'),
           run('Deploy', 'success', '2026-10-01T05:00:00Z'), run('Deploy', 'failure', '2026-09-30T05:00:00Z')],
       },
     },
@@ -359,7 +359,7 @@ test('the gate workflow: one named check; else one with default-branch runs whos
 
   // The rules, in order.
   assert.deepEqual(runCommands(DEPLOY_YML), ['npm ci', 'npm run check', 'npm run build']);
-  assert.deepEqual(runCommands(NIGHT_YML), ['node scripts/keel/improve.mjs --report'], 'a comment naming the check is not a step');
+  assert.deepEqual(runCommands(NIGHT_YML), ['node scripts/plates/improve.mjs --report'], 'a comment naming the check is not a step');
   assert.deepEqual([TEST_YML, DEPLOY_YML, NIGHT_YML, 'on: [push, pull_request]\n', 'on:\n  workflow_dispatch: {}\n# push\nenv:\n  push: 1\n'].map(onPush), [false, true, false, true, false]);
   const workflows = [{ name: 'Lint', push: true, commands: ['npm test'] }, { name: 'Deploy', push: true, commands: ['npm ci && npm run verify -- --ci'] },
     { name: 'loop', push: false, commands: ['npm run verify'] }];
@@ -378,7 +378,7 @@ test('CI is the newest verdict: cancelled, skipped and running gate runs are cou
     run('Tests', 'cancelled', '2026-10-02T21:50:00Z'), run('Tests', 'cancelled', '2026-10-02T21:40:00Z'), run('Tests', 'cancelled', '2026-10-02T21:30:00Z'),
     run('Tests', verdict, '2026-10-02T21:29:00Z'), ...extra];
   const repo = (name, runs) => ({ default_branch: 'main', runs,
-    files: { '.keel/keel.json': cfg({ repo: name, practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#' } });
+    files: { '.plates/plates.json': cfg({ repo: name, practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'] }), 'docs/health/2026-10-01.md': '#' } });
   const st = { repos: {
     'acme/green': repo('acme/green', busy('success', [run('Tests', 'failure', '2026-10-02T20:00:00Z')])),
     'acme/red': repo('acme/red', busy('failure', [run('Tests', 'skipped', '2026-10-02T21:00:00Z'), run('Tests', 'success', '2026-10-02T20:00:00Z')])),
@@ -397,7 +397,7 @@ test('CI is the newest verdict: cancelled, skipped and running gate runs are cou
   assert.match(r.text, /acme\/none .*no verdict \(Tests · name matches · no verdict; 1 newer cancelled, 1 newer neutral\)/);
 });
 
-test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', async t => {
+test('plates.json is checked; plates fleet runs at home only (exit 2 elsewhere)', async t => {
   assert.throws(() => parseFleet('[{"repo":"acme","role":"managed"}]'), /owner\/name/);
   assert.throws(() => parseFleet('[{"repo":"acme/a","role":"boss"}]'), /role/);
   assert.throws(() => parseFleet('[{"repo":"acme/a","role":"source"},{"repo":"acme/a","role":"source"}]'), /twice/);
@@ -406,9 +406,9 @@ test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', a
   assert.equal(gateName(['Deploy', 'Claude']), null);
 
   const dir = await home(t, LIST);
-  const away = await scratch(t, 'keel-fleet-away-');
-  await mkdir(join(away, '.keel'));
-  await writeFile(join(away, '.keel/keel.json'), cfg());
+  const away = await scratch(t, 'plates-fleet-away-');
+  await mkdir(join(away, '.plates'));
+  await writeFile(join(away, '.plates/plates.json'), cfg());
   const gh = await stubGh(t, state());
   const r = runCmd(process.execPath, [BIN, 'fleet', '--json'], { cwd: away, env: gh.env });
   assert.equal(r.status, 2);
@@ -425,24 +425,24 @@ test('fleet.json is checked; keel fleet runs at home only (exit 2 elsewhere)', a
 
 // ---- fleet update -------------------------------------------------------------
 
-const GIT_ENV = { GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test', GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test', GIT_CONFIG_NOSYSTEM: '1', KEEL_SELF_UPDATED: '' };
+const GIT_ENV = { GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test', GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test', GIT_CONFIG_NOSYSTEM: '1', PLATES_SELF_UPDATED: '' };
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: { ...cleanEnv(), ...GIT_ENV }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
 // The practice version these tests inject as the CLI's. Every fixture version
-// below derives from it, and the spawned CLI gets it through KEEL_FLEET_PRACTICE,
-// so keel's live package version never enters a count.
+// below derives from it, and the spawned CLI gets it through PLATES_FLEET_PRACTICE,
+// so plates's live package version never enters a count.
 const CLI = '0.3.0';
 const BEHIND = (([major, minor]) => `${major}.${minor - 1}.0`)(CLI.split('.').map(Number));
 const UPDATE_BRANCH = `keel/update-v${CLI}`;
 const re = s => new RegExp(s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
 
-/** A keel init project on practice BEHIND, its origin a local bare repo, and a checkout the stub's clone copies. */
+/** A plates init project on practice BEHIND, its origin a local bare repo, and a checkout the stub's clone copies. */
 async function remoteProject(t, name, version = BEHIND, over = null) {
-  const root = await scratch(t, `keel-fleet-${name}-`);
+  const root = await scratch(t, `plates-fleet-${name}-`);
   const src = join(root, name);
   await init({ dir: src, name: `Acme ${name}`, description: `Acme ${name} keeps its notes as plain files.`, kind: 'node' }, { version: { cli: version, commit: null, practice: version }, env: { ...cleanEnv(), ...GIT_ENV } });
-  if (over) { // fields over .keel/keel.json (setup, env), committed on main
-    const path = join(src, '.keel/keel.json');
+  if (over) { // fields over .plates/plates.json (setup, env), committed on main
+    const path = join(src, '.plates/plates.json');
     await writeFile(path, `${JSON.stringify({ ...JSON.parse(await readFile(path, 'utf8')), ...over }, null, 2)}\n`);
     git(src, 'commit', '-qam', 'Acme: its own install');
   }
@@ -450,7 +450,7 @@ async function remoteProject(t, name, version = BEHIND, over = null) {
   execFileSync('git', ['clone', '-q', '--bare', src, origin], { env: { ...cleanEnv(), ...GIT_ENV } });
   const prepared = join(root, 'prepared');
   execFileSync('git', ['clone', '-q', origin, prepared], { env: { ...cleanEnv(), ...GIT_ENV } });
-  return { origin, prepared, config: await readFile(join(src, '.keel/keel.json'), 'utf8') };
+  return { origin, prepared, config: await readFile(join(src, '.plates/plates.json'), 'utf8') };
 }
 
 async function fleetOfUpdates(t) {
@@ -459,11 +459,11 @@ async function fleetOfUpdates(t) {
   const current = JSON.stringify({ name: 'Acme Current', repo: 'acme/current', practice: CLI, practices: ['base'], migrations: all });
   const st = {
     repos: {
-      'acme/notes': { default_branch: 'main', files: { '.keel/keel.json': notes.config } },
-      'acme/ledger': { default_branch: 'main', files: { '.keel/keel.json': ledger.config } },
-      'acme/current': { default_branch: 'main', files: { '.keel/keel.json': current } },
-      'acme/waiting': { default_branch: 'main', files: { '.keel/keel.json': notes.config }, prs: [{ number: 9, headRefName: UPDATE_BRANCH }] },
-      'acme/gone': { default_branch: 'main', files: { '.keel/keel.json': notes.config } },
+      'acme/notes': { default_branch: 'main', files: { '.plates/plates.json': notes.config } },
+      'acme/ledger': { default_branch: 'main', files: { '.plates/plates.json': ledger.config } },
+      'acme/current': { default_branch: 'main', files: { '.plates/plates.json': current } },
+      'acme/waiting': { default_branch: 'main', files: { '.plates/plates.json': notes.config }, prs: [{ number: 9, headRefName: UPDATE_BRANCH }] },
+      'acme/gone': { default_branch: 'main', files: { '.plates/plates.json': notes.config } },
     },
     commits: {},
     prepared: { 'acme/notes': notes.prepared, 'acme/ledger': ledger.prepared },
@@ -474,7 +474,7 @@ async function fleetOfUpdates(t) {
   gh.env = { ...gh.env, ...GIT_ENV };
   return { dir, gh, notes, ledger };
 }
-const updateDeps = (gh, cli = CLI) => ({ env: gh.env, now: NOW, cli, cliRoot: KEEL, whatsnew: join(KEEL, 'WHATSNEW.md') });
+const updateDeps = (gh, cli = CLI) => ({ env: gh.env, now: NOW, cli, cliRoot: PLATES, whatsnew: join(PLATES, 'WHATSNEW.md') });
 
 test('fleet update without --yes: each project behind or with pending migrations, and the PR it would open; exit 3; nothing cloned', async t => {
   const { dir, gh } = await fleetOfUpdates(t);
@@ -486,13 +486,13 @@ test('fleet update without --yes: each project behind or with pending migrations
     ['acme/ledger', BEHIND, CLI, UPDATE_BRANCH, false],
     ['acme/waiting', BEHIND, CLI, UPDATE_BRANCH, true],
     ['acme/gone', BEHIND, CLI, UPDATE_BRANCH, false],
-  ], 'acme/current is current with every migration recorded; keel itself is never one');
-  assert.match(r.text, re(`acme/notes: "keel update: practice ${BEHIND} → ${CLI}" from ${UPDATE_BRANCH}`));
+  ], 'acme/current is current with every migration recorded; plates itself is never one');
+  assert.match(r.text, re(`acme/notes: "plates update: practice ${BEHIND} → ${CLI}" from ${UPDATE_BRANCH}`));
   assert.match(r.text, re(`acme/waiting: ${UPDATE_BRANCH} is already open; it waits for a person`));
   assert.match(r.text, /⚑ Opening pull requests on these repos needs a yes/);
   assert.ok((await gh.calls()).every(c => ['api', 'run', 'pr'].includes(c[0]) && !(c[0] === 'pr' && c[1] === 'create')), 'reads only');
   // The CLI: the same plan, exit 3; at home only.
-  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: CLI } });
+  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, PLATES_FLEET_PRACTICE: CLI } });
   assert.equal(cli.status, 3, cli.stderr);
   assert.equal(JSON.parse(cli.stdout).plans.length, 4);
 });
@@ -509,7 +509,7 @@ test('fleet update counts follow the injected version, far above and far below t
     ['acme/notes', BEHIND, above, false], ['acme/ledger', BEHIND, above, false], ['acme/current', CLI, above, false],
     ['acme/waiting', BEHIND, above, false], ['acme/gone', BEHIND, above, false],
   ]);
-  let cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: above } });
+  let cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, PLATES_FLEET_PRACTICE: above } });
   assert.equal(cli.status, 3, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout).plans.map(p => p.to), Array(5).fill(above));
   // Far below: no project is behind it, and no migration's release is at or below it, so nothing is planned: each says why.
@@ -517,17 +517,17 @@ test('fleet update counts follow the injected version, far above and far below t
   assert.equal(r.exitCode, 0, r.text);
   assert.deepEqual(r.data.plans, []);
   assert.deepEqual(r.data.resting.map(x => x.repo), ['acme/notes', 'acme/ledger', 'acme/current', 'acme/waiting', 'acme/gone']);
-  // Below every migration's release, none is this update's to take (keel update takes only those it carries).
+  // Below every migration's release, none is this update's to take (plates update takes only those it carries).
   assert.match(r.text, re(`acme/notes: ahead (${BEHIND}); no migration pending`));
   assert.match(r.text, re(`acme/current: ahead (${CLI}); no migration pending`));
   assert.doesNotMatch(r.text, /→/, 'nothing is behind a version below every project');
-  cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: below } });
+  cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, PLATES_FLEET_PRACTICE: below } });
   assert.equal(cli.status, 0, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout).plans, []);
   // A seam that is not a version is a usage error, never a silent fallback to the live one.
-  cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: 'banana' } });
+  cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--json'], { cwd: dir, env: { ...gh.env, PLATES_FLEET_PRACTICE: 'banana' } });
   assert.equal(cli.status, 2);
-  assert.match(JSON.parse(cli.stdout).error, /KEEL_FLEET_PRACTICE=banana is not a version/);
+  assert.match(JSON.parse(cli.stdout).error, /PLATES_FLEET_PRACTICE=banana is not a version/);
 });
 
 test('fleet update --yes, against the gh stub: one PR per project behind, pushed from a clone; a failure is said and the others go on', async t => {
@@ -547,9 +547,9 @@ test('fleet update --yes, against the gh stub: one PR per project behind, pushed
   assert.deepEqual(calls.filter(c => c[0] === 'repo').map(c => [c[2], c[4], c[5]]), [['acme/notes', '--', '--quiet'], ['acme/ledger', '--', '--quiet'], ['acme/gone', '--', '--quiet']]);
   for (const { origin } of [notes, ledger]) {
     assert.match(git(origin, 'branch', '--list', UPDATE_BRANCH), re(UPDATE_BRANCH), 'the update branch is pushed');
-    const config = JSON.parse(git(origin, 'show', `${UPDATE_BRANCH}:.keel/keel.json`));
+    const config = JSON.parse(git(origin, 'show', `${UPDATE_BRANCH}:.plates/plates.json`));
     assert.equal(config.practice, CLI);
-    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, BEHIND, 'main is untouched: a person merges');
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.plates/plates.json')).practice, BEHIND, 'main is untouched: a person merges');
   }
   assert.match(r.text, /acme\/gone: FAILED at clone/);
   assert.match(r.text, re(`acme/waiting: ${UPDATE_BRANCH} is already open`));
@@ -559,7 +559,7 @@ test('fleet update: a current project whose unrecorded migrations do not apply i
   const live = practiceVersion();
   const quiet = await remoteProject(t, 'quiet', live);
   assert.ok(!JSON.parse(quiet.config).migrations?.length, 'init records no migration');
-  const st = { repos: { 'acme/quiet': { default_branch: 'main', files: { '.keel/keel.json': quiet.config } } }, commits: {}, prepared: { 'acme/quiet': quiet.prepared } };
+  const st = { repos: { 'acme/quiet': { default_branch: 'main', files: { '.plates/plates.json': quiet.config } } }, commits: {}, prepared: { 'acme/quiet': quiet.prepared } };
   const dir = await home(t, [{ repo: 'acme/quiet', kind: 'node', role: 'managed' }]);
   const gh = await stubGh(t, st);
   gh.env = { ...gh.env, ...GIT_ENV };
@@ -580,14 +580,14 @@ test('fleet update plans only real work: applies() is asked over the default bra
     repos: {
       // A ritmo-shaped project: milestones.json, and a phase naming a milestone. 0001 applies.
       'acme/goals': { default_branch: 'main', files: {
-        '.keel/keel.json': config('acme/goals'),
+        '.plates/plates.json': config('acme/goals'),
         'docs/milestones.json': JSON.stringify([{ id: 'M1', title: 'Start', outcome: 'Acme starts.' }]),
         'docs/phases/1-start.md': '---\nstatus: planned\nmilestone: M1\n---\n# Start\n',
       } },
       // Records nothing, and nothing applies: not planned.
-      'acme/still': { default_branch: 'main', files: { '.keel/keel.json': config('acme/still'), 'README.md': '# still' } },
-      // .keel/lock.json cannot be read (not a 404): 0002 cannot be asked, so it is possibly pending, with why.
-      'acme/broken': { default_branch: 'main', files: { '.keel/keel.json': config('acme/broken') }, failPaths: { '.keel/lock.json': 'HTTP 502: Server Error (https://api.github.com/repos/acme/broken/contents/.keel/lock.json?ref=main)' } },
+      'acme/still': { default_branch: 'main', files: { '.plates/plates.json': config('acme/still'), 'README.md': '# still' } },
+      // .plates/lock.json cannot be read (not a 404): 0002 cannot be asked, so it is possibly pending, with why.
+      'acme/broken': { default_branch: 'main', files: { '.plates/plates.json': config('acme/broken') }, failPaths: { '.plates/lock.json': 'HTTP 502: Server Error (https://api.github.com/repos/acme/broken/contents/.plates/lock.json?ref=main)' } },
     },
     commits: {},
   };
@@ -599,9 +599,9 @@ test('fleet update plans only real work: applies() is asked over the default bra
     ['acme/goals', false, ['0001-milestone-to-goal'], []],
     ['acme/broken', false, [], ['0002-projects-run-on-their-own']],
   ]);
-  assert.match(r.data.plans[1].possiblyPending[0].why, /\.keel\/lock\.json: HTTP 502/);
-  assert.match(r.text, /acme\/goals: "keel update: practice [^"]+, pending migrations" from keel\/update-v[^ ]+ \(pending: 0001-milestone-to-goal\)/);
-  assert.match(r.text, /acme\/broken: .*\(possibly pending: 0002-projects-run-on-their-own \(\.keel\/lock\.json: HTTP 502/);
+  assert.match(r.data.plans[1].possiblyPending[0].why, /\.plates\/lock\.json: HTTP 502/);
+  assert.match(r.text, /acme\/goals: "plates update: practice [^"]+, pending migrations" from plates\/update-v[^ ]+ \(pending: 0001-milestone-to-goal\)/);
+  assert.match(r.text, /acme\/broken: .*\(possibly pending: 0002-projects-run-on-their-own \(\.plates\/lock\.json: HTTP 502/);
   assert.match(r.text, /Not planned:\n {2}acme\/still: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept, 0007-phase-guard-reach\)/);
   const reads = (await gh.calls()).filter(c => String(c[1]).includes('?ref=main'));
   assert.ok(reads.some(c => c[1] === 'repos/acme/goals/contents/docs/phases/1-start.md?ref=main'), 'the phase file is read at the default branch');
@@ -610,12 +610,12 @@ test('fleet update plans only real work: applies() is asked over the default bra
   const before = (await gh.calls()).length;
   const f = await fleet({ dir }, { env: gh.env, now: NOW, cli: live });
   const plain = (await gh.calls()).slice(before);
-  assert.deepEqual(plain.filter(c => /\?ref=|contents\/(docs\/milestones\.json|docs\/goals\.json|docs\/phases|\.keel\/lock\.json)/.test(String(c[1]))), []);
-  assert.ok(f.data.needs.some(n => n.repo === 'acme/goals' && n.why === '7 unrecorded (0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept, 0007-phase-guard-reach); keel fleet update checks them'));
+  assert.deepEqual(plain.filter(c => /\?ref=|contents\/(docs\/milestones\.json|docs\/goals\.json|docs\/phases|\.plates\/lock\.json)/.test(String(c[1]))), []);
+  assert.ok(f.data.needs.some(n => n.repo === 'acme/goals' && n.why === '7 unrecorded (0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept, 0007-phase-guard-reach); plates fleet update checks them'));
 });
 
 test('fleet update --yes installs the way the project says: its setup in the gate env; a failing setup is reported and opens nothing', async t => {
-  const marks = await scratch(t, 'keel-fleet-marks-');
+  const marks = await scratch(t, 'plates-fleet-marks-');
   const mark = join(marks, 'setup.txt');
   const setup = await remoteProject(t, 'setup', BEHIND, {
     setup: 'pwd > "$ACME_MARK"; echo "ctx=${NODE_TEST_CONTEXT:-none}" >> "$ACME_MARK"', env: { ACME_MARK: mark },
@@ -623,8 +623,8 @@ test('fleet update --yes installs the way the project says: its setup in the gat
   const failing = await remoteProject(t, 'failing', BEHIND, { setup: 'echo acme-setup-detail; echo acme-setup-err >&2; (exit 7); echo never' });
   const st = {
     repos: {
-      'acme/setup': { default_branch: 'main', files: { '.keel/keel.json': setup.config } },
-      'acme/failing': { default_branch: 'main', files: { '.keel/keel.json': failing.config } },
+      'acme/setup': { default_branch: 'main', files: { '.plates/plates.json': setup.config } },
+      'acme/failing': { default_branch: 'main', files: { '.plates/plates.json': failing.config } },
     },
     commits: {},
     prepared: { 'acme/setup': setup.prepared, 'acme/failing': failing.prepared },
@@ -641,7 +641,7 @@ test('fleet update --yes installs the way the project says: its setup in the gat
   assert.doesNotMatch(by('acme/failing').error.split(':\n')[1], /never/, 'bash -e: nothing after the failure ran');
   assert.equal(by('acme/setup').pr, `https://github.com/acme/pulls/${UPDATE_BRANCH}`, 'the failing one never stops the next');
   const [cwd, ctx] = (await readFile(mark, 'utf8')).trim().split('\n');
-  assert.match(cwd, /keel-fleet-update-[^/]+\/setup$/, 'setup ran in the clone');
+  assert.match(cwd, /plates-fleet-update-[^/]+\/setup$/, 'setup ran in the clone');
   assert.equal(ctx, 'ctx=none', 'the test runner\'s context is stripped');
   assert.equal((await gh.calls()).filter(c => c[0] === 'pr' && c[1] === 'create').length, 1);
   assert.equal(git(failing.origin, 'branch', '--list', UPDATE_BRANCH), '', 'nothing pushed for the failed setup');
@@ -652,26 +652,26 @@ test('fleet update --yes: a failed check keeps the update and opens its PR: ordi
   // Fails on main too: main was already red.
   const red = await remoteProject(t, 'red', BEHIND, { check: 'echo acme-red-main; exit 4' });
   // Fails only with the update's files present (its practice bumped to the CLI's): main passes.
-  const picky = await remoteProject(t, 'picky', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .keel/keel.json; then echo acme-picky-update; exit 5; fi` });
+  const picky = await remoteProject(t, 'picky', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .plates/plates.json; then echo acme-picky-update; exit 5; fi` });
   // Fails with the update; on main the check never finishes (killed): unknown, so a draft too.
-  const stuck = await remoteProject(t, 'stuck', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .keel/keel.json; then echo acme-stuck-update; exit 6; fi; kill -TERM $$` });
+  const stuck = await remoteProject(t, 'stuck', BEHIND, { check: `if grep -q '"practice": "${CLI}"' .plates/plates.json; then echo acme-stuck-update; exit 6; fi; kill -TERM $$` });
   // An install that fails: FAILED, nothing pushed.
   const broke = await remoteProject(t, 'broke', BEHIND);
   await writeFile(join(broke.prepared, 'package-lock.json'), '{}\n');
   git(broke.prepared, 'add', 'package-lock.json');
   git(broke.prepared, 'commit', '-qm', 'Acme: a lockfile');
-  const npm = join(await scratch(t, 'keel-fleet-npm-'), 'npm');
+  const npm = join(await scratch(t, 'plates-fleet-npm-'), 'npm');
   await writeFile(npm, '#!/bin/sh\necho "npm ERR! acme-install-broke" >&2\nexit 1\n');
   await chmod(npm, 0o755);
   const projects = { red, picky, stuck, broke };
   const st = {
-    repos: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, { default_branch: 'main', files: { '.keel/keel.json': p.config } }])),
+    repos: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, { default_branch: 'main', files: { '.plates/plates.json': p.config } }])),
     commits: {},
     prepared: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, p.prepared])),
   };
   const dir = await home(t, Object.keys(projects).map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
   const gh = await stubGh(t, st);
-  gh.env = { ...gh.env, ...GIT_ENV, KEEL_NPM: npm };
+  gh.env = { ...gh.env, ...GIT_ENV, PLATES_NPM: npm };
   const r = await fleetUpdate({ dir, yes: true }, updateDeps(gh));
   const by = repo => r.data.results.find(x => x.repo === repo);
   const url = `https://github.com/acme/pulls/${UPDATE_BRANCH}`;
@@ -681,8 +681,8 @@ test('fleet update --yes: a failed check keeps the update and opens its PR: ordi
     assert.deepEqual([by(repo).ok, by(repo).pr, by(repo).step], [true, url, undefined], `${repo}: ${r.text}`);
     assert.equal(by(repo).check.ok, false);
     const origin = projects[repo.split('/')[1]].origin;
-    assert.equal(JSON.parse(git(origin, 'show', `${UPDATE_BRANCH}:.keel/keel.json`)).practice, CLI, `${repo}: the update is pushed on its branch, not restored`);
-    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, BEHIND, `${repo}: main is untouched`);
+    assert.equal(JSON.parse(git(origin, 'show', `${UPDATE_BRANCH}:.plates/plates.json`)).practice, CLI, `${repo}: the update is pushed on its branch, not restored`);
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.plates/plates.json')).practice, BEHIND, `${repo}: main is untouched`);
   }
   assert.doesNotMatch(r.text, /FAILED at update/);
   assert.deepEqual([by('acme/red').draft, by('acme/picky').draft, by('acme/stuck').draft], [false, true, true]);
@@ -717,11 +717,11 @@ test('fleet update --yes: a failed check keeps the update and opens its PR: ordi
 
 // ---- the rehearsal (phase 53) ---------------------------------------------------
 
-/** A home whose practices/ and migrations/ (and the lib/ they import) are keel's own: the candidate the rehearsal renders. */
+/** A home whose practices/ and migrations/ (and the lib/ they import) are plates's own: the candidate the rehearsal renders. */
 async function rehearsalHome(t, list) {
   const dir = await home(t, list);
   await rm(join(dir, 'practices'), { recursive: true, force: true });
-  for (const d of ['practices', 'migrations', 'lib']) cpSync(join(KEEL, d), join(dir, d), { recursive: true });
+  for (const d of ['practices', 'migrations', 'lib']) cpSync(join(PLATES, d), join(dir, d), { recursive: true });
   return dir;
 }
 
@@ -733,13 +733,13 @@ test('fleet update --rehearse: each project updated and checked in a clone, main
   const broke = await remoteProject(t, 'broke', BEHIND, { setup: 'echo acme-install-broke >&2; exit 3' });
   const projects = { ok, picky, red, broke };
   const st = {
-    repos: Object.fromEntries([...Object.entries(projects), ['gone', ok]].map(([n, p]) => [`acme/${n}`, { default_branch: 'main', files: { '.keel/keel.json': p.config } }])),
+    repos: Object.fromEntries([...Object.entries(projects), ['gone', ok]].map(([n, p]) => [`acme/${n}`, { default_branch: 'main', files: { '.plates/plates.json': p.config } }])),
     commits: {},
     prepared: Object.fromEntries(Object.entries(projects).map(([n, p]) => [`acme/${n}`, p.prepared])),
   };
   const dir = await rehearsalHome(t, ['ok', 'picky', 'red', 'broke', 'gone'].map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
   // The candidate: the home's practices/ as they are now, not as any release shipped them.
-  await writeFile(join(dir, 'practices/agents-md/files/CLAUDE.md'), `${await readFile(join(KEEL, 'practices/agents-md/files/CLAUDE.md'), 'utf8')}Acme candidate line.\n`);
+  await writeFile(join(dir, 'practices/agents-md/files/CLAUDE.md'), `${await readFile(join(PLATES, 'practices/agents-md/files/CLAUDE.md'), 'utf8')}Acme candidate line.\n`);
   const gh = await stubGh(t, st);
   gh.env = { ...gh.env, ...GIT_ENV };
   const r = await rehearse({ dir }, { env: gh.env, now: NOW, cli: CLI });
@@ -763,25 +763,25 @@ test('fleet update --rehearse: each project updated and checked in a clone, main
   assert.deepEqual(await gh.prs(), []);
   assert.deepEqual(calls.filter(c => c[0] === 'repo').map(c => c[2]).sort(), ['acme/broke', 'acme/gone', 'acme/ok', 'acme/picky', 'acme/red']);
   for (const [name, { origin }] of Object.entries(projects)) {
-    assert.equal(git(origin, 'branch', '--list', 'keel/*'), '', `${name}: nothing pushed`);
-    assert.equal(JSON.parse(git(origin, 'show', 'main:.keel/keel.json')).practice, BEHIND, `${name}: main untouched`);
+    assert.equal(git(origin, 'branch', '--list', 'plates/*'), '', `${name}: nothing pushed`);
+    assert.equal(JSON.parse(git(origin, 'show', 'main:.plates/plates.json')).practice, BEHIND, `${name}: main untouched`);
   }
 
   // The CLI (on one project, to stay quick): --json; a clone that fails is said, never exit 1. --rehearse with --yes is refused.
-  await writeFile(join(dir, 'fleet.json'), JSON.stringify([{ repo: 'acme/gone', kind: 'node', role: 'managed' }]));
-  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--rehearse', '--json'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: CLI } });
+  await writeFile(join(dir, 'plates.json'), JSON.stringify([{ repo: 'acme/gone', kind: 'node', role: 'managed' }]));
+  const cli = runCmd(process.execPath, [BIN, 'fleet', 'update', '--rehearse', '--json'], { cwd: dir, env: { ...gh.env, PLATES_FLEET_PRACTICE: CLI } });
   assert.equal(cli.status, 0, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout).rows.map(x => [x.repo, x.status, x.step]), [['acme/gone', 'error', 'clone']]);
   assert.deepEqual(await gh.prs(), []);
-  const both = runCmd(process.execPath, [BIN, 'fleet', 'update', '--rehearse', '--yes'], { cwd: dir, env: { ...gh.env, KEEL_FLEET_PRACTICE: CLI } });
+  const both = runCmd(process.execPath, [BIN, 'fleet', 'update', '--rehearse', '--yes'], { cwd: dir, env: { ...gh.env, PLATES_FLEET_PRACTICE: CLI } });
   assert.equal(both.status, 2);
   assert.match(both.stderr, /--rehearse pushes nothing/);
 });
 
-test('the rehearsal runs at most 4 projects at once, and skips (saying so) when fleet.json has no managed project', async t => {
+test('the rehearsal runs at most 4 projects at once, and skips (saying so) when plates.json has no managed project', async t => {
   const names = ['a', 'b', 'c', 'd', 'e', 'f'];
   const config = JSON.stringify({ name: 'Acme', repo: 'acme/a', practice: BEHIND, practices: ['base'] });
-  const st = { repos: Object.fromEntries(names.map(n => [`acme/${n}`, { default_branch: 'main', files: { '.keel/keel.json': config } }])), commits: {} };
+  const st = { repos: Object.fromEntries(names.map(n => [`acme/${n}`, { default_branch: 'main', files: { '.plates/plates.json': config } }])), commits: {} };
   const dir = await rehearsalHome(t, names.map(n => ({ repo: `acme/${n}`, kind: 'node', role: 'managed' })));
   const gh = await stubGh(t, st);
   let now = 0, most = 0;
@@ -801,6 +801,30 @@ test('the rehearsal runs at most 4 projects at once, and skips (saying so) when 
   const empty = await rehearsalHome(t, [{ repo: 'acme/upstream', kind: 'other', role: 'source' }]);
   const s = await rehearse({ dir: empty }, { env: gh.env, now: NOW, cli: CLI, rehearseOne });
   assert.equal(s.exitCode, 0);
-  assert.equal(s.data.skipped, 'no managed project in fleet.json');
+  assert.equal(s.data.skipped, 'no managed project in plates.json');
   assert.match(s.text, /Rehearsal skipped: no managed project in fleet\.json\./);
+});
+
+test('rehearsal migrates only disposable legacy consumers and compares failure with their original main', async t => {
+ const fixtures = [];
+ for (const [name, check] of [['legacy-ok', 'test -f .keel/keel.json'], ['legacy-picky', 'test -f .keel/keel.json && if test -d .plates; then exit 7; fi']]) {
+  const prepared = join(await scratch(t,'plates-legacy-rehearsal-'),name);
+  await mkdir(join(prepared,'.keel'),{recursive:true});
+  const legacy = JSON.stringify({name:'Acme legacy',tagline:'Acme keeps legacy notes.',repo:`acme/${name}`,practice:BEHIND,practices:['base'],check});
+  await writeFile(join(prepared,'.keel/keel.json'),legacy);
+  await writeFile(join(prepared,'package.json'),JSON.stringify({name:'acme-legacy',private:true}));
+  git(prepared,'init','-q','-b','main');git(prepared,'add','-A');git(prepared,'commit','-qm','Acme legacy project');
+  fixtures.push({name,prepared,legacy,head:git(prepared,'rev-parse','HEAD')});
+ }
+ const gh=await stubGh(t,{prepared:Object.fromEntries(fixtures.map(f=>[`acme/${f.name}`,f.prepared]))});
+ const env={...gh.env,...GIT_ENV}, practices=await loadPractices();
+ const rows=[];
+ for(const f of fixtures) rows.push(await rehearseOne({repo:`acme/${f.name}`,from:BEHIND,to:CLI},{env,cli:CLI,cliRoot:PLATES,practices,migrations:[]}));
+ assert.equal(rows[0].status,'passed',JSON.stringify(rows));assert.equal(rows[0].renamed,true);
+ assert.equal(rows[1].status,'fails',JSON.stringify(rows));assert.equal(rows[1].mainCheck.exit,0,'baseline checks the actual old-config commit');assert.equal(rows[1].check.exit,7);
+ for(const f of fixtures){assert.equal(git(f.prepared,'rev-parse','HEAD'),f.head);assert.equal(git(f.prepared,'status','--porcelain'),'');assert.equal(await readFile(join(f.prepared,'.keel/keel.json'),'utf8'),f.legacy);await assert.rejects(readFile(join(f.prepared,'.plates/plates.json')),{code:'ENOENT'});}
+ assert.deepEqual(await gh.prs(),[]);assert.equal((await gh.calls()).filter(c=>c[0]==='pr'&&c[1]==='create').length,0);
+ const { update } = await import('../lib/update.mjs');
+ await assert.rejects(()=>update({dir:fixtures[0].prepared,selfUpdate:false},{version:CLI,cliRoot:PLATES,env}),/no \.plates\/plates\.json/);
+ assert.equal(git(fixtures[0].prepared,'status','--porcelain'),'','ordinary update does not silently migrate the checkout');
 });

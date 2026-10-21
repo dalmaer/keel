@@ -1,6 +1,6 @@
 ---
 name: performance
-description: Whether keel still feels fast - how long a CLI interaction takes, and what installing it downloads.
+description: Whether plates still feels fast - how long a CLI interaction takes, and what installing it downloads.
 goal:
   # Each command prints one number on stdout, or fails (then the goal reads broken).
   - name: CLI interaction
@@ -31,6 +31,6 @@ each command once on purpose and check that the run says broken.
 
 ## Deliver
 
-`keel persona run performance` (or `node scripts/keel/persona.mjs run
+`plates persona run performance` (or `node scripts/plates/persona.mjs run
 performance`) writes `docs/reviews/<date>-performance.md`. A missed goal goes to
 the next night's plan as a candidate; a broken one as something to review.

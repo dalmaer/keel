@@ -18,7 +18,7 @@ Recent additions show authorized real captures, precise availability and links t
 
 Implement versioned change packages, bounded media ingestion/private delivery, captions/alt text and before/after comparisons; preserve capture provenance and expired/missing media states.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

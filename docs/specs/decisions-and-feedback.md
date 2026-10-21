@@ -1,8 +1,8 @@
 # Decisions survive the work, and feedback reaches the next change
 
 Authorized for implementation, 2026-10-20. This document specifies intended
-behavior; phase evidence records what is implemented. Baseline: keel `3d7afc95ec8e482c217bac537151bc8a41fc9658`.
-This spec uses keel's public contracts and synthetic examples.
+behavior; phase evidence records what is implemented. Baseline: plates `3d7afc95ec8e482c217bac537151bc8a41fc9658`.
+This spec uses plates's public contracts and synthetic examples.
 
 ## Outcome
 
@@ -45,14 +45,14 @@ All references below were read at the baseline revision.
   records. Extend those patterns rather than introducing another work queue.
 
 The gap proposed here is a connected path through these mechanisms, not a
-claim that keel lacks decisions, plans, a board or feedback altogether.
+claim that plates lacks decisions, plans, a board or feedback altogether.
 
 ## 90. Resolve decisions into the work
 
 ### Read contract
 
-Add proposed `keel decision context --phase <id> --json` and
-`keel decision context --issue <owner/repo#n> --json`. These are read-only.
+Add proposed `plates decision context --phase <id> --json` and
+`plates decision context --issue <owner/repo#n> --json`. These are read-only.
 The phase form reads explicit reconciliation references. The issue form reads
 explicit decision references from the rubric/impact metadata, never inferred
 from arbitrary issue prose. No repository-wide semantic search or private
@@ -105,10 +105,10 @@ record ordinary implementation choices as recommendations with reasons.
 
 Proposed commands, all with `--json`:
 
-- `keel shape check <file>` validates without writing.
-- `keel shape render <file> --output <new-directory>` renders a local review.
-- `keel shape plan <file>` previews phase drafts and/or robot rubrics.
-- `keel shape plan <file> --yes` writes the exact reviewed drafts locally.
+- `plates shape check <file>` validates without writing.
+- `plates shape render <file> --output <new-directory>` renders a local review.
+- `plates shape plan <file>` previews phase drafts and/or robot rubrics.
+- `plates shape plan <file> --yes` writes the exact reviewed drafts locally.
 
 A version-1 record has an ID, revision, goal, bounded source references,
 questions, answers, proposed decisions and work items. Each question has a
@@ -146,10 +146,10 @@ board, or require a new visual editor.
 
 ## 92. Feedback is about a particular result
 
-Proposed `keel feedback capture <file>` previews a version-1 record;
-`--yes` stores it in `.keel/feedback/` with restricted local permissions.
-`keel feedback list --json` reports pending, linked, declined, superseded and
-unavailable items. `keel feedback propose <id>` prepares a reviewed follow-up
+Proposed `plates feedback capture <file>` previews a version-1 record;
+`--yes` stores it in `.plates/feedback/` with restricted local permissions.
+`plates feedback list --json` reports pending, linked, declined, superseded and
+unavailable items. `plates feedback propose <id>` prepares a reviewed follow-up
 through the existing robot rubric, with no issue creation or model launch.
 
 A record contains a stable ID, project identity, explicit author/source,

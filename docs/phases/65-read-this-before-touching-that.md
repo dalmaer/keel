@@ -5,7 +5,7 @@ since: 2026-10-09
 goal: G0
 spec: 2
 depends: []
-note: "Two guards an agent should meet before editing: some code has an as-built contract that must be read first (a project's own measured rule), and a test that calls a macOS-only tool passes on the Mac gate and fails on Linux CI. keel maps path patterns to the doc to read first, points agents to it, and lints tests that reach a platform-only tool without saying so. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
+note: "Two guards an agent should meet before editing: some code has an as-built contract that must be read first (a project's own measured rule), and a test that calls a macOS-only tool passes on the Mac gate and fails on Linux CI. plates maps path patterns to the doc to read first, points agents to it, and lints tests that reach a platform-only tool without saying so. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
 evidence: []
 issue: 52
 ---
@@ -14,7 +14,7 @@ issue: 52
 
 ## Done when
 
-`.keel/keel.json` `"contracts"` maps path patterns to the document to read first; keel's guide block lists them, doctor checks each doc exists, and a pre-edit hook (where the agent supports hooks) names the doc when a matching file is about to change; and a platform-guard lint fails a test that calls a macOS-only (or Windows-only) tool without a platform skip; both on keel and one adopted project.
+`.plates/plates.json` `"contracts"` maps path patterns to the document to read first; plates's guide block lists them, doctor checks each doc exists, and a pre-edit hook (where the agent supports hooks) names the doc when a matching file is about to change; and a platform-guard lint fails a test that calls a macOS-only (or Windows-only) tool without a platform skip; both on plates and one adopted project.
 
 ## Scope
 
@@ -22,7 +22,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 - **Contracts**: `"contracts": [{ "paths": ["src/index/**"], "read": "docs/engine/indexing.md", "why": "..." }]`. Rendered into the guide's block as a table. Doctor notes a missing doc or a pattern matching nothing.
 - **The hook**: for Claude Code, a `PreToolUse` hook on Edit and Write that prints the contract to read when the target matches (it never blocks). Other agents get the guide's table only.
-- **Platform guard**: a lint (in `keel doctor`, run by the night) that scans test files for a list of platform-only tools (`ditto`, `hdiutil`, `launchctl`, `codesign`, `osascript`, `mdls`, `stat -f`…), and fails a test that calls one without a skip for that platform. A project can add tools to the list.
+- **Platform guard**: a lint (in `plates doctor`, run by the night) that scans test files for a list of platform-only tools (`ditto`, `hdiutil`, `launchctl`, `codesign`, `osascript`, `mdls`, `stat -f`…), and fails a test that calls one without a skip for that platform. A project can add tools to the list.
 
 ## Acceptance
 
@@ -56,7 +56,7 @@ By hand: one agent edit pointed to its contract.
 
 ## Next action
 
-The ⚑ walk: set one adopted project's `contracts`, run `keel render`, and let an agent edit near one in Claude Code.
+The ⚑ walk: set one adopted project's `contracts`, run `plates render`, and let an agent edit near one in Claude Code.
 
 ## Trajectory
 

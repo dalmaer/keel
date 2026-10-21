@@ -3,18 +3,18 @@
 ## When you'd reach for this
 
 You have an idea and an empty directory (or one holding nothing but `.git`).
-You want the project to start the way keel's own projects run: a plan you
+You want the project to start the way plates's own projects run: a plan you
 can check, a gate that is the same on your laptop and in CI, and a night
 that tells you each morning whether the practice is holding.
 
 If the directory already has code in it, you want
-[Bring a project under keel](bring-a-project-under-keel.md) instead. If it
-is already a keel project, you want `keel update`
+[Bring a project under plates](bring-a-project-under-plates.md) instead. If it
+is already a plates project, you want `plates update`
 ([Keep the fleet current](keep-the-fleet-current.md)).
 
 ## What it does, and why it works that way
 
-`keel init` writes the whole practice in one commit, and it starts you with
+`plates init` writes the whole practice in one commit, and it starts you with
 three things rather than a blank page:
 
 - **A phase, not a to-do list.** It seeds goal G0 and
@@ -23,12 +23,12 @@ three things rather than a blank page:
   them with the first thing a person could check. Starting with a phase means
   the first conversation is "what will prove this works?", before any code.
   The alternative, a plan kept in a README and in someone's head, is the
-  shape keel's lesson 2 records: status written in two places drifts.
+  shape plates's lesson 2 records: status written in two places drifts.
 - **A gate.** `npm run check` is the one command that must pass, locally and
   in CI (the `base` and `ci` practices). On a node project the test script
   also carries the test ledger, so a run that executed no test fails rather
   than passing empty (lessons 14 and 38, "a check that cannot fail").
-- **A night.** `keel-night.yml` measures the project every night and opens
+- **A night.** `plates-night.yml` measures the project every night and opens
   at most one PR with a dated health page. It costs nothing: no model, no
   secret. It exists because a guard nobody sees is no guard (lesson 3).
 
@@ -38,8 +38,8 @@ as easily as a person, and the same flags give the same project.
 ## The commands
 
 ```bash
-keel init acme-notes --description "Acme Notes keeps meeting notes as plain files. It finds any of them by a word." --kind node
-cd acme-notes && keel next
+plates init acme-notes --description "Acme Notes keeps meeting notes as plain files. It finds any of them by a word." --kind node
+cd acme-notes && plates next
 ```
 
 Each flag, by why you'd pass it:
@@ -69,7 +69,7 @@ Each flag, by why you'd pass it:
 - `--github`. Plans a private GitHub repo for the project and prints the
   secrets each switched-on workflow needs. It creates nothing: it exits 3.
   Add `--yes` to init and then create the repo and push. Creating a repo is a
-  ⚑ step, the owner's, which is why it never happens without the yes. Keel
+  ⚑ step, the owner's, which is why it never happens without the yes. Plates
   never sets a secret.
 
 Then make phase 0 real. Its next action says how: replace the draft's Done
@@ -79,18 +79,18 @@ commit, and conduct it ([Conduct a phase](conduct-a-phase.md)).
 ## What you'll see
 
 A line naming the directory, the practice version and the commit, then the
-next command to run and the secrets needed (often none). If `keel` is not on
+next command to run and the secrets needed (often none). If `plates` is not on
 your `PATH`, it says how to run it through `npx`.
 
 - **0**: initialised and committed on `main`.
 - **2**: a usage error, or the wrong directory. A directory that is already a
-  keel project is refused (use `keel update`); one holding anything besides
-  `.git` is refused (use `keel adopt`). An unknown `--with` is refused here
+  plates project is refused (use `plates update`); one holding anything besides
+  `.git` is refused (use `plates adopt`). An unknown `--with` is refused here
   too.
 - **3**: `--github` without `--yes`. The plan is printed; nothing was
   written.
 
-`keel --agent-help init` is the exact reference, including the JSON shape.
+`plates --agent-help init` is the exact reference, including the JSON shape.
 
 ## What it never does
 

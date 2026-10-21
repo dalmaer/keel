@@ -4,9 +4,9 @@ import {mkdtemp,writeFile,mkdir,readFile,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {run} from './helpers/run.mjs';
-import {evaluateTimeEvidence,validateTimeTransition} from '../practices/night/files/scripts/keel/time-measures.mjs';
-import {digest,nodePlan,suiteCollector} from '../practices/night/files/scripts/keel/time-receipts.mjs';
-import {flagsIn,shellWords,timedCommand,readRuns,retainedRecords,RETENTION} from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import {evaluateTimeEvidence,validateTimeTransition} from '../practices/night/files/scripts/plates/time-measures.mjs';
+import {digest,nodePlan,suiteCollector} from '../practices/night/files/scripts/plates/time-receipts.mjs';
+import {flagsIn,shellWords,timedCommand,readRuns,retainedRecords,RETENTION} from '../practices/night/files/scripts/plates/test-ledger.mjs';
 const T=Date.parse('2026-10-10T12:00:00Z'),DAY=86400000,sha='a'.repeat(40);
 const quiet={start:{load:[0],cores:4},end:{load:[0],cores:4}};
 const inv=file=>({file,hierarchy:['Acme'],occurrence:1,type:'test',outcome:'pass'});
@@ -89,10 +89,10 @@ test('retention samples quiet weeks by stable IDs, reserves recency, and disclos
  const pressured=retainedRecords(rows,{now:T,limits:{...RETENTION,bytes:300}});assert.equal(pressured.names.length,3);assert.ok(pressured.coverage.pressureLosses>0);
 });
 test('actual outer launcher resolves expected files before Node executes and persists complete file summaries',async t=>{
- const root=await mkdtemp(join(tmpdir(),'acme-time-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'tests'));
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs');
+ const root=await mkdtemp(join(tmpdir(),'acme-time-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await mkdir(join(root,'tests'));
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs');
  const command=`node --test --test-reporter=${JSON.stringify(ledger)} tests/*.test.mjs`;
- await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:command}}));await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check:command}));
+ await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:command}}));await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check:command}));
  for(const file of ['a','b'])await writeFile(join(root,`tests/${file}.test.mjs`),`import {test} from 'node:test'; test('Acme',()=>{});`);
  const r=run(process.execPath,[ledger,'--gate'],{cwd:root});assert.equal(r.status,0,r.stdout+r.stderr);
  const {runs}=await readRuns(root,undefined,{gates:true});const testRun=runs.find(r=>r.kind!=='gate');assert.ok(testRun,JSON.stringify(runs));
@@ -111,9 +111,9 @@ test('literal Node plans omit dynamic discovery, outside files, narrowed and non
  for(const key of ['filtered','isolation']){const p=structuredClone(plan);p.executionSettings[key]=key==='filtered'?true:'none';assert.equal(finish(p,events).complete,false);}
 });
 test('concurrent parent identities use explicit lineage; duplicate names never use completion order',async t=>{
- const root=await mkdtemp(join(tmpdir(),'acme-lineage-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'tests'));
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs');const script=`node --test --test-reporter=${JSON.stringify(ledger)} tests/*.test.mjs`;
- await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:script}}));await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check:script}));
+ const root=await mkdtemp(join(tmpdir(),'acme-lineage-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await mkdir(join(root,'tests'));
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs');const script=`node --test --test-reporter=${JSON.stringify(ledger)} tests/*.test.mjs`;
+ await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:script}}));await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check:script}));
  await writeFile(join(root,'tests/acme.test.mjs'),`import {test} from 'node:test'; await Promise.all(['Acme left','Acme right'].map(n=>test(n,{concurrency:true},async t=>{await t.test('shared name',()=>{});})));`);
  assert.equal(run(process.execPath,[ledger,'--gate'],{cwd:root}).status,0);
  let r=(await readRuns(root)).runs.at(-1);assert.equal(r.suite.inventoryComplete,true,JSON.stringify(r.suite));assert.ok(r.suite.observedInventory.some(t=>sameArray(t.hierarchy,['Acme left','shared name'])));assert.ok(r.suite.observedInventory.some(t=>sameArray(t.hierarchy,['Acme right','shared name'])));
@@ -123,10 +123,10 @@ test('concurrent parent identities use explicit lineage; duplicate names never u
 const sameArray=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 
 test('nested explicit wrapper links to one actual configured outer gate; stale inherited labels confer none',async t=>{
- const root=await mkdtemp(join(tmpdir(),'acme-outer-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs');const inner=`node ${JSON.stringify(ledger)} --run "node -e 'process.exit(0)'"`;
- await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check:inner}));
- const r=run(process.execPath,[ledger,'--gate'],{cwd:root,env:{...process.env,KEEL_GATE_ACTIVE:root,KEEL_GATE_INVOCATION:'00000000-0000-0000-0000-000000000000'}});assert.equal(r.status,0,r.stderr);
+ const root=await mkdtemp(join(tmpdir(),'acme-outer-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs');const inner=`node ${JSON.stringify(ledger)} --run "node -e 'process.exit(0)'"`;
+ await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check:inner}));
+ const r=run(process.execPath,[ledger,'--gate'],{cwd:root,env:{...process.env,PLATES_GATE_ACTIVE:root,PLATES_GATE_INVOCATION:'00000000-0000-0000-0000-000000000000'}});assert.equal(r.status,0,r.stderr);
  let gates=(await readRuns(root,undefined,{gates:true})).runs;assert.equal(gates.length,1);assert.equal(gates[0].gateSource,'configured-check');assert.ok(gates[0].provenance.innerPayloadHash);
  assert.equal(run(process.execPath,[ledger,'--run',inner],{cwd:root}).status,0);gates=(await readRuns(root,undefined,{gates:true})).runs;assert.equal(gates.length,2);assert.equal(gates.at(-1).gateSource,'explicit-command');
 });
@@ -139,18 +139,18 @@ test('remeasurement requires explicit verified ancestry, postmerge dates and fro
 });
 
 test('new nested inventories and stalls targets redact configured secrets and refuse changed identities',async t=>{
- const root=await mkdtemp(join(tmpdir(),'acme-secret-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'tests'));
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs'),script=`node --test --test-reporter=${JSON.stringify(ledger)} tests/*.test.mjs`;
- await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:script}}));await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check:script,tests:{configEnv:['ACME_AUTH']}}));
+ const root=await mkdtemp(join(tmpdir(),'acme-secret-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await mkdir(join(root,'tests'));
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs'),script=`node --test --test-reporter=${JSON.stringify(ledger)} tests/*.test.mjs`;
+ await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:script}}));await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check:script,tests:{configEnv:['ACME_AUTH']}}));
  await writeFile(join(root,'tests/acme.test.mjs'),`import {test} from 'node:test'; test('Acme parent',async t=>{await t.test('Acme '+process.env.ACME_AUTH,()=>{});});`);
  const env={...process.env,ACME_AUTH:'acme-sensitive-nested-name'};
  assert.equal(run(process.execPath,[ledger,'--gate'],{cwd:root,env}).status,0);
  const {runs}=await readRuns(root,undefined,{gates:true});const found=runs.find(r=>r.kind!=='gate');
  assert.equal(JSON.stringify(runs).includes(env.ACME_AUTH),false);assert.equal(found.suite.complete,true);assert.equal(found.suite.inventoryComplete,false);assert.match(found.suite.inventoryProblems.join(' '),/redacted/);
- // Fresh keel test also persists safe targets, not its raw runner names.
+ // Fresh plates test also persists safe targets, not its raw runner names.
  await writeFile(join(root,'tests/acme.test.mjs'),`import {test} from 'node:test'; test('Acme '+process.env.ACME_AUTH,()=>{});`);
  for(const args of [['init','-q'],['add','.'],['commit','-qm','Acme']])assert.equal(run('git',args,{cwd:root}).status,0);
- const r=run(process.execPath,[resolve('bin/keel.mjs'),'test','tests/acme.test.mjs','--stalls','--seed','42','--json'],{cwd:root,env});assert.equal(r.status,0,r.stderr+r.stdout);
+ const r=run(process.execPath,[resolve('bin/plates.mjs'),'test','tests/acme.test.mjs','--stalls','--seed','42','--json'],{cwd:root,env});assert.equal(r.status,0,r.stderr+r.stdout);
  const all=(await readRuns(root,undefined,{gates:true,stalls:true})).runs;const stalled=all.find(r=>r.kind==='stalls');assert.ok(stalled,r.stdout+r.stderr);assert.equal(JSON.stringify(stalled).includes(env.ACME_AUTH),false);assert.ok(stalled.stallsReceipts.every(r=>r.complete===false));
 });
 
@@ -213,10 +213,10 @@ test('postmerge comparison and discovery both require an explicitly clean revisi
 });
 
 test('gate and Node collector bind clean revision to both start and completion',async t=>{
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs');
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs');
  for(const producer of ['gate','reporter'])for(const change of ['none','dirty','commit']){
-  const root=await mkdtemp(join(tmpdir(),'acme-clean-receipt-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));
-  await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check:'node probe.mjs'}));await writeFile(join(root,'tracked.txt'),'Acme baseline\n');
+  const root=await mkdtemp(join(tmpdir(),'acme-clean-receipt-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));
+  await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check:'node probe.mjs'}));await writeFile(join(root,'tracked.txt'),'Acme baseline\n');
   const mutate=`if(${JSON.stringify(change)}!=='none')writeFileSync('tracked.txt','Acme changed\\n');if(${JSON.stringify(change)}==='commit'){execFileSync('git',['add','tracked.txt']);execFileSync('git',['commit','-qm','Acme changed']);}`;
   await writeFile(join(root,'probe.mjs'),`import {writeFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';${producer==='gate'?mutate:`import reporter from ${JSON.stringify('file://'+ledger)};async function* events(){${mutate}yield {type:'test:pass',data:{name:'Acme',file:process.cwd()+'/acme.test.mjs',nesting:0,details:{type:'test',duration_ms:1}}};}for await(const line of reporter(events()))process.stdout.write(line);`}`);
   for(const args of [['init','-q'],['add','.'],['commit','-qm','Acme baseline']])assert.equal(run('git',args,{cwd:root}).status,0);
@@ -251,10 +251,10 @@ test('comparison topology transitions cannot waive noncritical or critical machi
 });
 
 test('pinned clean revision preserves unknown start after git status recovers',async t=>{
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs'),realGit=run('which',['git']).stdout.trim();assert.ok(realGit);
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs'),realGit=run('which',['git']).stdout.trim();assert.ok(realGit);
  for(const unknown of [false,true]){
-  const root=await mkdtemp(join(tmpdir(),'acme-pinned-identity-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'bin'));
-  await writeFile(join(root,'.keel/keel.json'),'{}');
+  const root=await mkdtemp(join(tmpdir(),'acme-pinned-identity-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await mkdir(join(root,'bin'));
+  await writeFile(join(root,'.plates/plates.json'),'{}');
   await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme',async()=>{await new Promise(r=>setTimeout(r,30));});\n");
   await writeFile(join(root,'bin/git'),`#!/bin/sh\nif [ "$ACME_STATUS_UNKNOWN" = 1 ]; then\n for arg in "$@"; do [ "$arg" != status ] || exit 1; done\nfi\nexec '${realGit.replaceAll("'","'\"'\"'")}' "$@"\n`,{mode:0o755});
   await writeFile(join(root,'probe.mjs'),`import {pinned,where,readStalls} from ${JSON.stringify('file://'+ledger)};
@@ -271,15 +271,15 @@ console.log(JSON.stringify({before,after:where(process.cwd()),diagnostics,receip
   // no-injection result must still be the specific inconclusive verdict, not
   // an arbitrary failed child or missing receipt.
   const receipt=data.receipts[0];assert.equal(receipt.complete,true);assert.equal(receipt.plain,'pass');assert.equal(receipt.stalled,'pass');assert.equal(receipt.seed,42);assert.equal(data.diagnostics.length,1);
-  if(receipt.pauses===0){assert.equal(receipt.verifiedInjected,false);assert.equal(result.status,1);assert.match(data.diagnostics[0],/^keel stalls: acme\.test\.mjs is inconclusive: no stall landed \(0 stalls,/);}
-  else{assert.ok(receipt.pauses>0);assert.equal(receipt.verifiedInjected,true);assert.equal(result.status,0);assert.match(data.diagnostics[0],/^keel stalls: acme\.test\.mjs passed with [1-9][0-9]* stalls?,/);}
+  if(receipt.pauses===0){assert.equal(receipt.verifiedInjected,false);assert.equal(result.status,1);assert.match(data.diagnostics[0],/^plates stalls: acme\.test\.mjs is inconclusive: no stall landed \(0 stalls,/);}
+  else{assert.ok(receipt.pauses>0);assert.equal(receipt.verifiedInjected,true);assert.equal(result.status,0);assert.match(data.diagnostics[0],/^plates stalls: acme\.test\.mjs passed with [1-9][0-9]* stalls?,/);}
  }
 });
 
 test('actual Node subset cannot borrow full command identity while failed full selection remains classified',async t=>{
- const root=await mkdtemp(join(tmpdir(),'acme-selection-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await mkdir(join(root,'tests'));
- const ledger=resolve('practices/night/files/scripts/keel/test-ledger.mjs'),prefix=`node --test --test-reporter=${JSON.stringify(ledger)}`,declared=`${prefix} tests/acme.test.mjs tests/other.test.mjs`;
- await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:declared}}));await writeFile(join(root,'.keel/keel.json'),'{}');
+ const root=await mkdtemp(join(tmpdir(),'acme-selection-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await mkdir(join(root,'tests'));
+ const ledger=resolve('practices/night/files/scripts/plates/test-ledger.mjs'),prefix=`node --test --test-reporter=${JSON.stringify(ledger)}`,declared=`${prefix} tests/acme.test.mjs tests/other.test.mjs`;
+ await writeFile(join(root,'package.json'),JSON.stringify({scripts:{test:declared}}));await writeFile(join(root,'.plates/plates.json'),'{}');
  await writeFile(join(root,'tests/acme.test.mjs'),"import {test} from 'node:test';test('Acme',()=>{});");
  await writeFile(join(root,'tests/other.test.mjs'),"import {test} from 'node:test';test('Acme other',()=>{if(process.env.ACME_FAIL)throw Error('Acme failure');});");
  for(const args of [['init','-q'],['add','.'],['commit','-qm','Acme selection']])assert.equal(run('git',args,{cwd:root}).status,0);

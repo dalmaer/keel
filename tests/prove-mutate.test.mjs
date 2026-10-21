@@ -1,4 +1,4 @@
-// keel prove --mutate (phase 84): a fix's test is shown to catch plausible wrong versions of the fix. Five
+// plates prove --mutate (phase 84): a fix's test is shown to catch plausible wrong versions of the fix. Five
 // mechanical mutators on the fix's changed lines only, each mutant alone in a scratch copy; a passing
 // baseline first; caught only when a selected test fails; invalid and inconclusive apart, never caught.
 import { test } from 'node:test';
@@ -12,15 +12,15 @@ import { ENV, git, treeState } from './helpers/prove.mjs';
 import * as mutateLib from '../lib/mutate.mjs';
 
 const { mutantsOf, applyMutant, chooseMutants, codeMask, KINDS, MAX_MUTANTS } = mutateLib;
-// Looked up when called, so this file still loads against a lib/mutate.mjs without it (keel prove's run without the fix).
+// Looked up when called, so this file still loads against a lib/mutate.mjs without it (plates prove's run without the fix).
 const notPlain = (...args) => mutateLib.notPlain(...args);
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 
 const TESTHEAD = ["import { test } from 'node:test';", "import assert from 'node:assert/strict';"];
 const FITS_BASE = ['export function fits(n, limit) {', '  return n <= limit;', '}', ''].join('\n');
-// Unchanged by the fix, and full of what keel would mutate: none of it may be.
+// Unchanged by the fix, and full of what plates would mutate: none of it may be.
 const NEAR = ['export function near(a, b) {', '  if (a > b && b > 0) return a - b < 2;', '  return b - a < 2;', '}', ''].join('\n');
 const FITS_FIX = ['export function fits(n, limit) {', '  if (n < 0 || n > limit - 1) return false;', '  return true;', '}', ''].join('\n');
 const FITS_TEST = [...TESTHEAD, "import { fits } from '../lib/fits.mjs';",
@@ -34,7 +34,7 @@ const WRONG_TEST = [...TESTHEAD, "import { fits } from '../lib/fits.mjs';", "tes
  * TMPDIR, so the test can see that every scratch copy is removed.
  */
 async function fixRepo(t, { base, fix, tests }) {
-  const top = await mkdtemp(join(tmpdir(), 'keel-mutate-test-'));
+  const top = await mkdtemp(join(tmpdir(), 'plates-mutate-test-'));
   t.after(() => rm(top, { recursive: true, force: true }));
   const dir = join(top, 'acme'), scratch = join(top, 'tmp');
   await mkdir(scratch);
@@ -47,11 +47,11 @@ async function fixRepo(t, { base, fix, tests }) {
   return { dir, scratch };
 }
 
-/** keel prove --mutate in the repo, the tree byte-identical after and no scratch copy left: the JSON (and with `withText`, a second run's text). */
+/** plates prove --mutate in the repo, the tree byte-identical after and no scratch copy left: the JSON (and with `withText`, a second run's text). */
 async function mutate(repo, args, code, { env = {}, withText = false } = {}) {
   const before = await treeState(repo.dir);
   const r = run(process.execPath, [BIN, 'prove', ...args, '--mutate', '--json'], { cwd: repo.dir, env: { ...ENV, TMPDIR: repo.scratch, ...env } });
-  assert.deepEqual(await treeState(repo.dir), before, 'the working tree is byte-identical after keel prove --mutate');
+  assert.deepEqual(await treeState(repo.dir), before, 'the working tree is byte-identical after plates prove --mutate');
   assert.deepEqual(await readdir(repo.scratch), [], 'every scratch copy is removed');
   assert.equal(r.status, code, r.stdout + r.stderr);
   assert.equal(r.stderr, '');
@@ -170,8 +170,8 @@ test('a failing baseline stops the run: no mutant is judged against a fix that d
 
 test('a runner read by exit code alone judges no mutant: it cannot tell a caught one from one that never loaded', async t => {
   const repo = await fits(t);
-  await mkdir(join(repo.dir, '.keel'));
-  await writeFile(join(repo.dir, '.keel', 'keel.json'), `${JSON.stringify({ prove: { command: 'node --test {file}' } })}\n`);
+  await mkdir(join(repo.dir, '.plates'));
+  await writeFile(join(repo.dir, '.plates', 'plates.json'), `${JSON.stringify({ prove: { command: 'node --test {file}' } })}\n`);
   const { j } = await mutate(repo, ['tests/fits.test.mjs', '--fix', 'lib/fits.mjs'], 1);
   assert.equal(j.mutate.status, 'not run');
   assert.match(j.mutate.reason, /read by exit code alone/);
@@ -192,7 +192,7 @@ test('a fix file that is a symlink to a file outside the repository is never mut
 });
 
 test('notPlain refuses a link anywhere on the path, and a file resolving outside', async t => {
-  const top = await mkdtemp(join(tmpdir(), 'keel-mutate-plain-'));
+  const top = await mkdtemp(join(tmpdir(), 'plates-mutate-plain-'));
   t.after(() => rm(top, { recursive: true, force: true }));
   await mkdir(join(top, 'repo', 'lib'), { recursive: true });
   await mkdir(join(top, 'elsewhere'));
@@ -219,8 +219,8 @@ test('a failure of a test that shares its name with another is inconclusive, nev
   assert.equal(m.baseline.tests, 2);
   const flip = m.mutants.find(x => x.kind === 'comparison');
   assert.equal(flip.mutation, '`<` → `<=`');
-  assert.equal(flip.result, 'inconclusive', 'only the second `same` fails: keel cannot say it is the one that passed');
-  assert.match(flip.reason, /^more than one test is named same: keel cannot tell which failed/);
+  assert.equal(flip.result, 'inconclusive', 'only the second `same` fails: plates cannot say it is the one that passed');
+  assert.match(flip.reason, /^more than one test is named same: plates cannot tell which failed/);
   assert.equal(m.caught, 0, JSON.stringify(m.mutants.filter(x => x.result === 'caught').map(where)));
   assert.ok(m.mutants.every(x => x.result === 'inconclusive' && /more than one test is named same/.test(x.reason)), JSON.stringify(m.mutants.map(x => [where(x), x.result, x.reason])));
 });
@@ -286,7 +286,7 @@ test('a mutant that does not finish is stopped at the time limit and reported in
   const tst = [...TESTHEAD, "import { count } from '../lib/count.mjs';", "test('counts', () => { assert.equal(count(3), 3); assert.equal(count(0), 0); });", ''].join('\n');
   const repo = await fixRepo(t, { base: { 'lib/count.mjs': base }, fix: { 'lib/count.mjs': fix }, tests: { 'tests/count.test.mjs': tst } });
   const started = Date.now();
-  const { j } = await mutate(repo, ['tests/count.test.mjs', '--fix', 'lib/count.mjs'], 0, { env: { KEEL_PROVE_MUTANT_MS: '1500' } });
+  const { j } = await mutate(repo, ['tests/count.test.mjs', '--fix', 'lib/count.mjs'], 0, { env: { PLATES_PROVE_MUTANT_MS: '1500' } });
   const m = j.mutate;
   assert.equal(m.limitMs, 1500);
   assert.deepEqual(m.inconclusive.map(x => `${where(x)}: ${x.reason}`), ['lib/count.mjs:3 condition drop `i < n` (always true): timed out after 1.5s']);
@@ -322,11 +322,11 @@ test(`a fix of many lines runs at most ${MAX_MUTANTS} mutants, spread over its l
 
 test('a run whose output passes the limit is killed, its whole group with it, and says it overflowed', async () => {
   const { runTestLimited, runnerOf } = await import('../lib/prove.mjs');
-  const dir = await mkdtemp(join(tmpdir(), 'keel-mutate-flood-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-mutate-flood-'));
   try {
     // A configured runner passes the file's output straight through, as node --test's own child does not.
-    await mkdir(join(dir, '.keel'));
-    await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ prove: { command: `${JSON.stringify(process.execPath)} {file}` } }));
+    await mkdir(join(dir, '.plates'));
+    await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ prove: { command: `${JSON.stringify(process.execPath)} {file}` } }));
     await writeFile(join(dir, 'flood.test.mjs'), "import { writeSync } from 'node:fs';\nfor (;;) writeSync(1, 'x'.repeat(4096) + '\\n');\n");
     const r = await runTestLimited(dir, runnerOf(dir), 'flood.test.mjs', null, 60_000, 256 * 1024);
     assert.equal(r.overflowed, true);

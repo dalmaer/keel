@@ -1,4 +1,4 @@
-// keel board and keel walk (phase 51): a synthetic Acme project and fleet,
+// plates board and plates walk (phase 51): a synthetic Acme project and fleet,
 // every source injected (no network: the reviews and the fleet are stubs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,13 +13,13 @@ import { board, boardText, reviewItems, walkDone, walkDecide, serve, pageHtml, b
 import vm from 'node:vm';
 import { timeSummary } from '../lib/time.mjs';
 import { formatProposal } from '../lib/learn.mjs';
-import { makeTimeProposal, formatTimeProposal, writeHealthReport, parseTimeProposal } from '../practices/night/files/scripts/keel/time-proposals.mjs';
-import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
-import { unansweredPrs, fromWindow } from '../practices/night/files/scripts/keel/lib.mjs';
+import { makeTimeProposal, formatTimeProposal, writeHealthReport, parseTimeProposal } from '../practices/night/files/scripts/plates/time-proposals.mjs';
+import { improve } from '../practices/night/files/scripts/plates/improve.mjs';
+import { unansweredPrs, fromWindow } from '../practices/night/files/scripts/plates/lib.mjs';
 import { run as roadmap } from '../practices/phases/files/scripts/roadmap.mjs';
 import { run } from './helpers/run.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TODAY = '2026-10-08';
 
 const phase = ({ status = 'planned', depends = '[]', evidence = '[]', acceptance, extra = '', title = 'An Acme phase', next = 'Build the anvil.' }) => `---
@@ -67,9 +67,9 @@ const walkBox = '- [ ] ⚑ by hand: the owner drops one on a coyote.';
 
 /** An Acme project: a walk owed (owner, time, external), a dated phase, a buildable one, a health proposal and a lesson. */
 async function acme({ git = false } = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-board-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-board-'));
   const w = async (p, text) => { await mkdir(dirname(join(root, p)), { recursive: true }); await writeFile(join(root, p), text); };
-  await w('.keel/keel.json', JSON.stringify({ name: 'Acme', repo: 'acme/app', keel: 'self', inbox: 'acme/inbox' }));
+  await w('.plates/plates.json', JSON.stringify({ name: 'Acme', repo: 'acme/app', plates: 'self', inbox: 'acme/inbox' }));
   await w('docs/goals.json', JSON.stringify([{ id: 'G0', title: 'Anvils', outcome: 'They land.' }]));
   await w('docs/evidence/acme-0.md', '# Evidence: phase 0\n');
   await w('docs/evidence/acme-1.md', '# Evidence: phase 1\n\n## Automated checks\n\n- ok\n');
@@ -86,7 +86,7 @@ async function acme({ git = false } = {}) {
   await w('docs/health/2026-10-06.md', '# Acme health\n\n## Proposal\n\n**`old_measure`** (outside) — an older one.\n');
   await w('docs/health/2026-10-07.md', '# Acme health\n\n## Measures\n\nfine\n\n## Proposal\n\n**`escapes`** (outside) — Make phase 4 the next hygiene target.\n\nA person decides whether this becomes a phase, or declines it.\n\n## Notes\n\nAcme.\n');
   await w('docs/inbox/2026-10-07-acme-lesson.md', formatProposal({ meta: { kind: 'lesson', from: 'acme/app', status: 'proposed', outcome: 'lesson', note: 'Acme anvils drop twice' }, title: 'Anvils drop twice', claim: 'They drop twice.', read: 'A real shape.' }));
-  await w('fleet.json', JSON.stringify([{ repo: 'acme/app', kind: 'node', role: 'managed' }, { repo: 'acme/site', kind: 'web', role: 'managed' }]));
+  await w('plates.json', JSON.stringify([{ repo: 'acme/app', kind: 'node', role: 'managed' }, { repo: 'acme/site', kind: 'web', role: 'managed' }]));
   await roadmap({ root, today: TODAY });
   if (git) {
     execFileSync('git', ['-C', root, 'init', '-q', '-b', 'main']);
@@ -98,7 +98,7 @@ async function acme({ git = false } = {}) {
 
 const looseData = root => ({ projects: [
   { repo: 'acme/app', dir: root, items: [
-    { kind: 'repo', title: 'acme/stray', move: 'add it to fleet.json, or delete it (⚑ yours)', commands: ['gh repo view acme/stray'] },
+    { kind: 'repo', title: 'acme/stray', move: 'add it to plates.json, or delete it (⚑ yours)', commands: ['gh repo view acme/stray'] },
     { kind: 'branch', title: 'acme-wip', move: 'open a PR for it', commands: ['git log'] },
     { kind: 'file', title: 'notes.md', move: 'commit it', commands: [] },
     { kind: 'file', title: 'anvil.mjs', move: 'commit it', commands: [] },
@@ -118,7 +118,7 @@ const deps = root => ({ today: TODAY, looseEnds: async () => looseData(root),
   reviews: list => reviewItems(list, { today: TODAY, read: async ({ repo }) => repo === 'acme/app' ? prs : [] }), fleet: async () => fleetData });
 const titles = (data, waits) => data.items.filter(i => i.waits === waits).map(i => i.title);
 
-test('keel board --json puts each kind of item in its column, from every source', async () => {
+test('plates board --json puts each kind of item in its column, from every source', async () => {
   const root = await acme();
   try {
     const data = await board({ root }, deps(root));
@@ -190,7 +190,7 @@ test('a PR past its review-round limit is the owner\'s item, with the round coun
     ['broken', 'acme/app#8: 1 review comment unanswered'],
   ], 'a PR at the limit is listed once, as the owner\'s; one under it is as before');
   const item = by['acme/app#7: review round 3 of 3, 3 open findings'];
-  assert.deepEqual([item.kind, item.source, item.read, item.link, item.rounds, item.limit, item.open], ['review', 'reviews', 'keel review acme/app#7', 'u7', 3, 3, 3]);
+  assert.deepEqual([item.kind, item.source, item.read, item.link, item.rounds, item.limit, item.open], ['review', 'reviews', 'plates review acme/app#7', 'u7', 3, 3, 3]);
   assert.match(item.why, /^Acme anvils\. The review reached its limit, so no more fixes are pushed\. Choose: merge with the rest tracked \(1 to fix first, 1 to track, 1 unsorted\), split it, or close it\.$/);
   assert.match(by['acme/app#10: review round 5 of 3, 0 open findings'].why, /^Someone else's PR \(pkinlan\)/);
   // The repo's own limit: "review": {"rounds": 2} brings #8 to the owner too; 5 leaves only #10 past it.
@@ -212,17 +212,17 @@ test('a PR past its review-round limit is the owner\'s item, with the round coun
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-// keel#118: a fleet repo's PRs are held to that repo's own limit, read by the fleet read the board already makes.
+// plates#118: a fleet repo's PRs are held to that repo's own limit, read by the fleet read the board already makes.
 test('a fleet repo\'s review-round limit is its own, from the fleet read; one that could not be read is a gap, never three', async () => {
   const { fleetRoundLimit } = boardModule;
   const row = over => ({ repo: 'acme/site', role: 'managed', adopted: true, review: { rounds: 3 }, ...over });
   assert.deepEqual(fleetRoundLimit(row({ review: { rounds: 5 } })), { rounds: 5 });
-  assert.deepEqual(fleetRoundLimit(row({ adopted: false, review: undefined })), { rounds: 3 }, 'no .keel/keel.json: the defaults, as keel review says');
+  assert.deepEqual(fleetRoundLimit(row({ adopted: false, review: undefined })), { rounds: 3 }, 'no .plates/plates.json: the defaults, as plates review says');
   for (const [bad, why] of [
     [undefined, /^the fleet could not be read$/],
     [row({ unreadable: 'HTTP 404' }), /^unreadable: HTTP 404$/],
-    [row({ adopted: { unreadable: 'HTTP 502' }, review: undefined }), /^its \.keel\/keel\.json is unreadable: HTTP 502$/],
-    [row({ review: { problem: '.keel/keel.json "review" "rounds" must be a whole number of review rounds, 1 or more' } }), /"rounds" must be a whole number/],
+    [row({ adopted: { unreadable: 'HTTP 502' }, review: undefined }), /^its \.plates\/plates\.json is unreadable: HTTP 502$/],
+    [row({ review: { problem: '.plates/plates.json "review" "rounds" must be a whole number of review rounds, 1 or more' } }), /"rounds" must be a whole number/],
     [row({ review: undefined }), /carries no review config/],
   ]) {
     const got = fleetRoundLimit(bad);
@@ -241,7 +241,7 @@ test('a fleet repo\'s review-round limit is its own, from the fleet read; one th
       return { data, site: seen.find(x => x.repo === 'acme/site'), reviews: data.sources.find(s => s.source === 'reviews') };
     };
     const rows = site => async () => ({ rows: [fleetData.rows[0], { ...fleetData.rows[1], ...site }] });
-    // acme/site allows five: four rounds are not the owner's yet, whatever keel's own limit is.
+    // acme/site allows five: four rounds are not the owner's yet, whatever plates's own limit is.
     const five = await run(rows({ review: { rounds: 5 } }));
     assert.equal(five.site.rounds, 5);
     assert.deepEqual(titles(five.data, 'owner').filter(t => t.startsWith('acme/site#')), []);
@@ -252,7 +252,7 @@ test('a fleet repo\'s review-round limit is its own, from the fleet read; one th
     assert.ok(titles(two.data, 'owner').includes('acme/site#4: review round 4 of 2, 2 open findings'));
     // Its config is invalid, or the fleet could not be read at all: a gap that is said, and no limit assumed.
     for (const [fleet, why] of [
-      [rows({ review: { problem: '.keel/keel.json "review" "rounds" must be a whole number of review rounds, 1 or more' } }), /review-round limit not read, so none is applied: acme\/site: .*"rounds" must be a whole number/],
+      [rows({ review: { problem: '.plates/plates.json "review" "rounds" must be a whole number of review rounds, 1 or more' } }), /review-round limit not read, so none is applied: acme\/site: .*"rounds" must be a whole number/],
       [async () => { throw new Error('gh: HTTP 401'); }, /review-round limit not read, so none is applied: acme\/site: the fleet could not be read: gh: HTTP 401/],
     ]) {
       const gap = await run(fleet);
@@ -295,12 +295,12 @@ test('a source that cannot be read is n/a with why, never missing', async () => 
     const data = await board({ root }, { ...deps(root),
       reviews: list => reviewItems(list, { today: TODAY, read: async () => { throw new Error('gh: could not resolve host'); } }),
       fleet: async () => { throw new Error('gh: HTTP 401'); },
-      looseEnds: async () => { throw new Error('fleet.json: Unexpected token'); } });
+      looseEnds: async () => { throw new Error('plates.json: Unexpected token'); } });
     const by = Object.fromEntries(data.sources.map(s => [s.source, s]));
     assert.equal(by.reviews.state, 'n/a');
     assert.match(by.reviews.why, /GitHub could not be read: acme\/app: gh: could not resolve host/);
     assert.deepEqual([by.fleet.state, by.fleet.why], ['n/a', 'gh: HTTP 401']);
-    assert.deepEqual([by['loose-ends'].state, by['loose-ends'].why], ['n/a', 'fleet.json: Unexpected token']);
+    assert.deepEqual([by['loose-ends'].state, by['loose-ends'].why], ['n/a', 'plates.json: Unexpected token']);
     assert.equal(by.roadmap.state, 'ok', 'the others are still read');
     assert.ok(titles(data, 'owner').includes('phase 1: The owner walks it'));
     // One repo of two failing is partial, and says which.
@@ -311,7 +311,7 @@ test('a source that cannot be read is n/a with why, never missing', async () => 
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('a draft keel update PR is broken, linking the PR; other drafts are not, and loose-ends does not list it twice (phase 52)', async () => {
+test('a draft plates update PR is broken, linking the PR; other drafts are not, and loose-ends does not list it twice (phase 52)', async () => {
   const root = await acme();
   try {
     const site = fleetData.rows[1];
@@ -323,18 +323,18 @@ test('a draft keel update PR is broken, linking the PR; other drafts are not, an
     const pr = 'https://github.com/acme/site/pull/12';
     const loose = root2 => {
       const data = looseData(root2);
-      data.projects.push({ repo: 'acme/site', dir: '/acme/site', items: [{ kind: 'pr', title: 'keel update: practice 0.8.20 → 0.8.21', url: pr, detail: 'keel/update-v0.8.21, draft', move: 'review it: merge, or close it', commands: [] }] });
+      data.projects.push({ repo: 'acme/site', dir: '/acme/site', items: [{ kind: 'pr', title: 'plates update: practice 0.8.20 → 0.8.21', url: pr, detail: 'keel/update-v0.8.21, draft', move: 'review it: merge, or close it', commands: [] }] });
       return data;
     };
     const data = await board({ root }, { ...deps(root), fleet: async () => ({ rows }), looseEnds: async () => loose(root) });
     const it = data.items.find(i => i.kind === 'update');
-    assert.deepEqual([it.waits, it.title, it.link, it.source], ['broken', "acme/site: keel update v0.8.21 fails site's check", pr, 'fleet']);
-    assert.match(it.why, /^a draft PR on keel\/update-v0\.8\.21: its description opens with what failed/);
-    assert.equal(data.items.filter(i => i.kind === 'update').length, 1, 'only the draft on a keel update branch, with a real PR number');
+    assert.deepEqual([it.waits, it.title, it.link, it.source], ['broken', "acme/site: plates update v0.8.21 fails site's check", pr, 'fleet']);
+    assert.match(it.why, /^a draft PR on plates\/update-v0\.8\.21: its description opens with what failed/);
+    assert.equal(data.items.filter(i => i.kind === 'update').length, 1, 'only the draft on a plates update branch, with a real PR number');
     assert.equal(data.items.filter(i => i.link === pr).length, 1, 'listed once: the fleet\'s broken item, not loose-ends\' PR as well');
-    assert.deepEqual(titles(data, 'broken').sort(), ['acme/app#7: 2 review comments unanswered', 'acme/site: CI red on main', "acme/site: keel update v0.8.21 fails site's check"]);
+    assert.deepEqual(titles(data, 'broken').sort(), ['acme/app#7: 2 review comments unanswered', 'acme/site: CI red on main', "acme/site: plates update v0.8.21 fails site's check"]);
     assert.equal(data.counts.broken, 3);
-    assert.match(boardText(data), /acme\/site: keel update v0\.8\.21 fails site's check\n {6}a draft PR[^\n]*\n {6}read: gh pr view 12 -R acme\/site/);
+    assert.match(boardText(data), /acme\/site: plates update v0\.8\.21 fails site's check\n {6}a draft PR[^\n]*\n {6}read: gh pr view 12 -R acme\/site/);
     // Machine PRs the fleet could not read: nothing is invented.
     const blind = await board({ root }, { ...deps(root), fleet: async () => ({ rows: [{ ...site, machinePrs: { unreadable: 'saving your GitHub quota' } }] }) });
     assert.equal(blind.items.filter(i => i.kind === 'update').length, 0);
@@ -343,7 +343,7 @@ test('a draft keel update PR is broken, linking the PR; other drafts are not, an
 
 const snapshot = async root =>Object.fromEntries(await Promise.all(['docs/phases/01-walk.md', 'docs/phases/07-mixed.md', 'docs/evidence/acme-1.md', 'docs/ROADMAP.md'].map(async p => [p, await readFile(join(root, p), 'utf8')])));
 
-test('keel walk done checks the walk, appends the owner\'s read, and moves a phase with nothing else open to built', async () => {
+test('plates walk done checks the walk, appends the owner\'s read, and moves a phase with nothing else open to built', async () => {
   const root = await acme({ git: true });
   try {
     const r = await walkDone({ root, phase: '1', note: 'Dropped one; it | landed.', today: TODAY });
@@ -408,18 +408,18 @@ test('a box that is not a walk is refused, writing nothing', async () => {
 // An accepted proposal's record is the person's decision and reason only: advice like
 // "make it a phase" goes to the output, never into the page (the 2026-10-08 escapes
 // proposal was accepted as handled, and the record must not contradict that).
-test('keel walk decide --accept writes only the decision and reason; the next step is printed, not recorded', async () => {
+test('plates walk decide --accept writes only the decision and reason; the next step is printed, not recorded', async () => {
   const root = await acme();
   try {
     const r = await walkDecide({ root, proposal: 'docs/health/2026-10-07.md', accept: 'Handled by a guard; no phase needed.', today: TODAY });
     const page = await readFile(join(root, 'docs/health/2026-10-07.md'), 'utf8');
     assert.match(page, /\*\*Decided 2026-10-08: accepted\*\* — Handled by a guard; no phase needed\.\n/);
-    assert.doesNotMatch(page, /keel phase new|Next:/);
-    assert.match(r.text, /keel phase new/);
+    assert.doesNotMatch(page, /plates phase new|Next:/);
+    assert.match(r.text, /plates phase new/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('keel walk decide records the decision in the proposal; the board stops listing it', async () => {
+test('plates walk decide records the decision in the proposal; the board stops listing it', async () => {
   const root = await acme();
   try {
     await assert.rejects(walkDecide({ root, proposal: 'docs/health/2026-10-07.md', decline: '', today: TODAY }), /--decline needs/);
@@ -580,15 +580,15 @@ test('the server binds 127.0.0.1 only, refuses a request without the launch toke
     const page = await http(s.port, { path: `/?token=${s.token}` });
     assert.equal(page.status, 200);
     for (const c of ['Yours', 'Broken', 'The agent&#39;s', 'Waiting']) assert.match(page.text, new RegExp(`<h2 id="h-[a-z]+">${c} `));
-    const post = (id, extra = {}, headers = { 'x-keel-token': s.token }) => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id, ...extra }) });
+    const post = (id, extra = {}, headers = { 'x-plates-token': s.token }) => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id, ...extra }) });
     assert.equal((await post('0.0', {}, {})).status, 403, 'no token: refused');
-    assert.equal((await post('0.0', {}, { 'x-keel-token': 'x'.repeat(48) })).status, 403, 'a wrong token: refused');
-    assert.equal((await post('0.0', {}, { 'x-keel-token': s.token, origin: 'http://evil.test' })).status, 403, 'another origin: refused');
+    assert.equal((await post('0.0', {}, { 'x-plates-token': 'x'.repeat(48) })).status, 403, 'a wrong token: refused');
+    assert.equal((await post('0.0', {}, { 'x-plates-token': s.token, origin: 'http://evil.test' })).status, 403, 'another origin: refused');
     assert.equal((await http(s.port, { path: `/?token=${s.token}`, headers: { host: `evil.test:${s.port}` } })).status, 403, 'another host (DNS rebinding): refused');
     assert.deepEqual(calls, [], 'nothing ran');
     const ok = await post('0.0');
     assert.equal(ok.status, 200);
-    assert.deepEqual(JSON.parse(ok.text), { code: 0, out: 'ok\n', err: '', argv: ['keel', 'walk', 'done', '1', '--note', 'Looks good.'], note: 'left as a diff: commit it when the gate passes' });
+    assert.deepEqual(JSON.parse(ok.text), { code: 0, out: 'ok\n', err: '', argv: ['plates', 'walk', 'done', '1', '--note', 'Looks good.'], note: 'left as a diff: commit it when the gate passes' });
     assert.equal((await post('0.1')).status, 400, 'a note required, none given');
     await post('0.1', { note: 'Saw it land.' });
     await post('1.0', { note: 'Not now.' });
@@ -625,12 +625,12 @@ test('the page refreshes from /board.json with the token as a header, and an act
   const s = await serve({ root: '/acme' }, { board: async () => structuredClone(synthetic), run: async argv => { calls.push(argv); return { code: 0, out: 'phase 1: box 2 checked.\n\ndiff --git a/x b/x\n', err: '' }; } });
   try {
     assert.equal((await http(s.port, { path: '/board.json' })).status, 403, 'no token');
-    assert.equal((await http(s.port, { path: '/board.json', headers: { 'x-keel-token': 'x'.repeat(48) } })).status, 403, 'a wrong token');
-    assert.equal((await http(s.port, { path: '/', headers: { 'x-keel-token': s.token } })).status, 403, 'the page itself needs the URL\'s token');
-    const fresh = await http(s.port, { path: '/board.json', headers: { 'x-keel-token': s.token } });
+    assert.equal((await http(s.port, { path: '/board.json', headers: { 'x-plates-token': 'x'.repeat(48) } })).status, 403, 'a wrong token');
+    assert.equal((await http(s.port, { path: '/', headers: { 'x-plates-token': s.token } })).status, 403, 'the page itself needs the URL\'s token');
+    const fresh = await http(s.port, { path: '/board.json', headers: { 'x-plates-token': s.token } });
     assert.equal(fresh.status, 200);
     assert.deepEqual(JSON.parse(fresh.text).counts, synthetic.counts);
-    const post = body => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', 'x-keel-token': s.token }, body: JSON.stringify(body) });
+    const post = body => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', 'x-plates-token': s.token }, body: JSON.stringify(body) });
     const moved = await post({ id: '0.0', expect: 'walk decide --proposal docs/health/x.md --decline' });
     assert.equal(moved.status, 409);
     assert.match(JSON.parse(moved.text).error, /board changed/);
@@ -646,18 +646,18 @@ test('the page refreshes from /board.json with the token as a header, and an act
   } finally { await s.close(); }
 });
 
-test('keel board --json and keel walk run from the CLI'
+test('plates board --json and plates walk run from the CLI'
 , async () => {
   const root = await acme();
   try {
     const gh = join(root, 'no-gh');
-    const env = { ...process.env, KEEL_GH: gh, KEEL_CLAUDE_DIR: join(root, 'no-claude'), KEEL_FLEET_PRACTICE: '0.8.21' };
-    const r = run(process.execPath, [join(KEEL, 'bin', 'keel.mjs'), 'board', '--json'], { cwd: root, env });
+    const env = { ...process.env, PLATES_GH: gh, PLATES_CLAUDE_DIR: join(root, 'no-claude'), PLATES_FLEET_PRACTICE: '0.8.21' };
+    const r = run(process.execPath, [join(PLATES, 'bin', 'plates.mjs'), 'board', '--json'], { cwd: root, env });
     assert.equal(r.status, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     assert.ok(titles(data, 'owner').includes('phase 1: The owner walks it'));
     assert.equal(data.sources.find(s => s.source === 'reviews').state, 'n/a', 'gh missing: n/a, with why');
-    const bad = run(process.execPath, [join(KEEL, 'bin', 'keel.mjs'), 'walk', 'done', '7', '--box', '2', '--note', 'x', '--json'], { cwd: root, env });
+    const bad = run(process.execPath, [join(PLATES, 'bin', 'plates.mjs'), 'walk', 'done', '7', '--box', '2', '--note', 'x', '--json'], { cwd: root, env });
     assert.equal(bad.status, 2);
     assert.match(JSON.parse(bad.stdout).error, /not a walk/);
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -722,7 +722,7 @@ test('a ready walk with a Your part leads with its Ask and offers one button per
     const plain = new RegExp(`<article class="card"[^>]*data-phase="1"[\\s\\S]*?</article>`).exec(html)?.[0] ?? '';
     assert.match(plain, /phase 1: The owner walks it<\/button> <span class="pill warn"[^>]*>needs plain words<\/span>/);
     assert.equal(data.items.find(i => i.phase === 1).yourPart, null);
-    assert.match(boardText(data), /Decide whether to keep the anvil rule\.\n {6}phase 10: The anvil rule — It settles[\s\S]*?\$ keel walk done 10 --choice "Keep it" \[--note "…"\]/);
+    assert.match(boardText(data), /Decide whether to keep the anvil rule\.\n {6}phase 10: The anvil rule — It settles[\s\S]*?\$ plates walk done 10 --choice "Keep it" \[--note "…"\]/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -741,7 +741,7 @@ test('a walk whose Your part says Ready when waits, with that reason, and is nev
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('keel walk done --choice records the choice and its note, and refuses a choice not in the list, writing nothing', async () => {
+test('plates walk done --choice records the choice and its note, and refuses a choice not in the list, writing nothing', async () => {
   const root = await acmeAsks({ git: true });
   try {
     const before = await readFile(join(root, 'docs/phases/10-rule.md'), 'utf8');
@@ -771,8 +771,8 @@ test('keel walk done --choice records the choice and its note, and refuses a cho
     assert.match(await readFile(join(root, 'docs/evidence/acme-1.md'), 'utf8'), /\| Chose: Drop it\. \|\n$/);
     assert.match(await roadmap({ root, mode: 'check', today: TODAY }), /Checked roadmap/);
     // From the CLI: an unknown choice exits 2.
-    const env = { ...process.env, KEEL_GH: join(root, 'no-gh') };
-    const bad = run(process.execPath, [join(KEEL, 'bin', 'keel.mjs'), 'walk', 'done', '11', '--choice', 'Melt it', '--json'], { cwd: root, env });
+    const env = { ...process.env, PLATES_GH: join(root, 'no-gh') };
+    const bad = run(process.execPath, [join(PLATES, 'bin', 'plates.mjs'), 'walk', 'done', '11', '--choice', 'Melt it', '--json'], { cwd: root, env });
     assert.equal(bad.status, 2);
     assert.match(JSON.parse(bad.stdout).error, /not one of phase 11's choices/);
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -787,7 +787,7 @@ test('the board runs a choice through walk done, with the note written beside it
     try {
       await http(s.port, { path: `/?token=${s.token}` });
       const a = data.items.find(i => i.phase === 10).actions[1];
-      const post = body => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', 'x-keel-token': s.token }, body: JSON.stringify(body) });
+      const post = body => http(s.port, { method: 'POST', path: '/action', headers: { 'content-type': 'application/json', 'x-plates-token': s.token }, body: JSON.stringify(body) });
       assert.equal((await post({ id: a.id, expect: 'walk done 10 --choice Keep it' })).status, 409, 'a button meant for another choice');
       assert.equal((await post({ id: a.id, expect: 'walk done 10 --choice Drop it' })).status, 200);
       assert.equal((await post({ id: a.id, expect: 'walk done 10 --choice Drop it', note: 'Too slow.' })).status, 200);
@@ -814,21 +814,21 @@ const argv = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(argv) + '\\n');
 const q = (argv.find(a => a.startsWith('query=')) ?? '').slice(6);
 const rate = ${JSON.stringify({ remaining, resetAt })};
-if (argv[0] === 'api' && argv[1] === 'graphql' && q.includes('KeelReviewWindow'))
+if (argv[0] === 'api' && argv[1] === 'graphql' && q.includes('PlatesReviewWindow'))
   console.log(JSON.stringify({ data: { rateLimit: { cost: 3, ...rate }, repository: { open: { pageInfo: { hasNextPage: false }, nodes: [${JSON.stringify(pr)}] }, merged: { pageInfo: { hasNextPage: false }, nodes: [] } } } }));
 else if (argv[0] === 'api' && argv[1] === 'graphql' && q.includes('rateLimit')) console.log(JSON.stringify({ data: { rateLimit: rate } }));
 else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
   await (await import('node:fs/promises')).chmod(path, 0o755);
   const calls = async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
-  return { path, reads: async () => (await calls()).filter(c => c.some(a => a.includes('KeelReviewWindow'))).length, probes: async () => (await calls()).filter(c => c.some(a => a.startsWith('query=query { rateLimit'))).length };
+  return { path, reads: async () => (await calls()).filter(c => c.some(a => a.includes('PlatesReviewWindow'))).length, probes: async () => (await calls()).filter(c => c.some(a => a.startsWith('query=query { rateLimit'))).length };
 }
 
 test('the board keeps its GitHub reads 10 minutes: the 60 s refresh asks GitHub nothing, the Refresh button and --fresh read again, and it says what the reads cost', async () => {
   const root = await acme();
   try {
     const gh = await quotaGh(root);
-    const env = { ...process.env, KEEL_GH: gh.path, KEEL_CACHE: join(root, '.cache') };
+    const env = { ...process.env, PLATES_GH: gh.path, PLATES_CACHE: join(root, '.cache') };
     const live = { env, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData };
     const first = await board({ root }, live);
     assert.equal(first.sources.find(s => s.source === 'reviews').state, 'ok');
@@ -852,12 +852,12 @@ test('the board keeps its GitHub reads 10 minutes: the 60 s refresh asks GitHub 
     // Through the page's server: /board.json (the auto refresh) keeps, ?fresh=1 (the button) reads.
     const s = await serve({ root }, live);
     try {
-      const auto = await http(s.port, { path: '/board.json', headers: { 'x-keel-token': s.token } });
+      const auto = await http(s.port, { path: '/board.json', headers: { 'x-plates-token': s.token } });
       assert.equal(auto.status, 200);
       assert.equal(await gh.reads(), reads * 2);
       const html = await http(s.port, { path: `/?token=${s.token}` });
       assert.match(html.text, /<p class="github-read">GitHub read (just now|\d+ min ago) · 0 points this refresh · 4000 left until \d\d:\d\d<\/p>/);
-      await http(s.port, { path: '/board.json?fresh=1', headers: { 'x-keel-token': s.token } });
+      await http(s.port, { path: '/board.json?fresh=1', headers: { 'x-plates-token': s.token } });
       assert.equal(await gh.reads(), reads * 3);
     } finally { await s.close(); }
     assert.match(pageHtml(first, 'tok', 'n'), /GitHub read just now · 6 points this refresh · 4000 left until/);
@@ -868,9 +868,9 @@ test('the board keeps its GitHub reads 10 minutes: the 60 s refresh asks GitHub 
 
 test('a kept read lasts 10 minutes, and a failed read is never kept', async () => {
   const { cachedRead } = await import('../lib/quota.mjs');
-  const dir = await mkdtemp(join(tmpdir(), 'keel-cache-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-cache-'));
   try {
-    const env = { KEEL_CACHE: dir };
+    const env = { PLATES_CACHE: dir };
     let n = 0;
     const read = () => cachedRead(env, 'acme', async () => ++n, { now: t0 + at });
     const t0 = Date.parse('2026-10-08T12:00:00Z');
@@ -889,8 +889,8 @@ test('under the quota floor the board\'s reviews are n/a, saving the quota, and 
   const root = await acme();
   try {
     const gh = await quotaGh(root, { remaining: 500 });
-    const env = { ...process.env, KEEL_GH: gh.path, KEEL_CACHE: join(root, '.cache') };
-    delete env.KEEL_QUOTA_FLOOR;
+    const env = { ...process.env, PLATES_GH: gh.path, PLATES_CACHE: join(root, '.cache') };
+    delete env.PLATES_QUOTA_FLOOR;
     const data = await board({ root }, { env, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
     const reviews = data.sources.find(s => s.source === 'reviews');
     assert.equal(reviews.state, 'n/a');
@@ -900,8 +900,8 @@ test('under the quota floor the board\'s reviews are n/a, saving the quota, and 
     // A second refresh: the remembered number settles it, with no probe.
     await board({ root }, { env, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
     assert.deepEqual([await gh.reads(), await gh.probes()], [0, 1]);
-    // KEEL_QUOTA_FLOOR lowers it: the read goes ahead.
-    const low = await board({ root }, { env: { ...env, KEEL_QUOTA_FLOOR: '100' }, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
+    // PLATES_QUOTA_FLOOR lowers it: the read goes ahead.
+    const low = await board({ root }, { env: { ...env, PLATES_QUOTA_FLOOR: '100' }, today: TODAY, looseEnds: async () => looseData(root), fleet: async () => fleetData });
     assert.equal(low.sources.find(s => s.source === 'reviews').state, 'ok');
     assert.equal(await gh.reads(), 2);
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -968,7 +968,7 @@ test('board exposes robot OFF exhausted invalid and unavailable usage without en
 
 test('board robot budget caches attempt reads and accounts REST refreshes separately', async t => {
   const root = await acme(); t.after(() => rm(root, { recursive: true, force: true }));
-  const path = join(root, '.keel/keel.json');
+  const path = join(root, '.plates/plates.json');
   const config = JSON.parse(await readFile(path, 'utf8'));
   config.robot = { on: true, budgetMinutes: 10 };
   await writeFile(path, JSON.stringify(config));
@@ -976,12 +976,12 @@ test('board robot budget caches attempt reads and accounts REST refreshes separa
   let calls = 0, remaining = 4000;
   const github = async ({ method, path }) => {
     assert.equal(method, 'GET'); calls++;
-    const data = path.endsWith('/keel-robot.yml') ? { id: 1, path: '.github/workflows/keel-robot.yml' }
+    const data = path.endsWith('/plates-robot.yml') ? { id: 1, path: '.github/workflows/plates-robot.yml' }
       : path.includes('/runs?') ? { total_count: 1, workflow_runs: [{ id: 2, workflow_id: 1, repository: { full_name: 'acme/app' }, head_sha: sha, run_attempt: 2, updated_at: now.toISOString(), status: 'completed' }] }
       : { total_count: 1, jobs: [{ id: 3, run_id: 2, run_attempt: path.includes('/attempts/1/') ? 1 : 2, head_sha: sha, status: 'completed', conclusion: 'skipped' }] };
     return { status: 200, data, headers: { 'x-ratelimit-remaining': String(remaining), 'x-ratelimit-reset': String(now.getTime() / 1000 + 3600) } };
   };
-  const live = { ...deps(root), now, github, env: { ...process.env, KEEL_CACHE: join(root, '.cache'), KEEL_QUOTA_FLOOR: '1000' } };
+  const live = { ...deps(root), now, github, env: { ...process.env, PLATES_CACHE: join(root, '.cache'), PLATES_QUOTA_FLOOR: '1000' } };
   const first = await board({ root }, live);
   assert.equal(first.robot.budget.state, 'available');
   assert.equal(calls, 4, 'workflow, runs, and both attempts');
@@ -1010,7 +1010,7 @@ test('board robot budget caches attempt reads and accounts REST refreshes separa
 test('board time proposal actions bind instance and explicit acceptance files an OFF issue without second yes',async()=>{
  const root=await acme();
  try{
-  const p=makeTimeProposal({measure:'gate_time',identity:{kind:'timing',scope:'.',runner:'node',configHash:'acme-config',flagsHash:'acme-flags',machineClass:'acme-machine',commandHash:'acme-command',target:'gate'},candidate:{title:'Acme gate work',rubric:{version:1,problem:'Acme gate takes too long',reproduction:'npm test',acceptance:'gate inside frozen bound',change:'remove redundant Acme check',prerequisites:[],ownerBlockers:[]},remeasureCommand:'keel improve --json'},baseline:{windowStart:'2026-09-01T00:00:00Z',windowEnd:'2026-09-29T00:00:00Z',value:1000,unit:'ms',runIds:['acme-run'],revisionShas:['a'.repeat(40)]},threshold:{contractVersion:1,rule:'gate_time',parameters:{maxMs:1250}},coverage:{retained:12,eligible:12,omitted:0,dates:['2026-09-01'],sampled:true,gaps:[]},at:'2026-10-08T00:00:00Z'});
+  const p=makeTimeProposal({measure:'gate_time',identity:{kind:'timing',scope:'.',runner:'node',configHash:'acme-config',flagsHash:'acme-flags',machineClass:'acme-machine',commandHash:'acme-command',target:'gate'},candidate:{title:'Acme gate work',rubric:{version:1,problem:'Acme gate takes too long',reproduction:'npm test',acceptance:'gate inside frozen bound',change:'remove redundant Acme check',prerequisites:[],ownerBlockers:[]},remeasureCommand:'plates improve --json'},baseline:{windowStart:'2026-09-01T00:00:00Z',windowEnd:'2026-09-29T00:00:00Z',value:1000,unit:'ms',runIds:['acme-run'],revisionShas:['a'.repeat(40)]},threshold:{contractVersion:1,rule:'gate_time',parameters:{maxMs:1250}},coverage:{retained:12,eligible:12,omitted:0,dates:['2026-09-01'],sampled:true,gaps:[]},at:'2026-10-08T00:00:00Z'});
   const proposal='docs/health/2026-10-08.md';await writeHealthReport({root,path:proposal,generated:'# Acme health\n\n## Proposal\n\n'+formatTimeProposal(p)});
   let issue,posts=0;
   const github=async r=>{
@@ -1024,12 +1024,12 @@ test('board time proposal actions bind instance and explicit acceptance files an
   assert.equal(parseTimeProposal(await readFile(join(root,proposal),'utf8')).proposal.lifecycle.state,'accepted');
   data=await board({root},deps(root));assert.equal(data.items.find(i=>i.instanceId===p.instanceId).waits,'external');
   for(const args of [ ['--instance'],['--map'],['--instance',p.instanceId,'--accept','--decline','reason'],['--instance',p.instanceId,'--instance',p.instanceId,'--accept'] ]){
-    const out=run(process.execPath,[join(KEEL,'bin/keel.mjs'),'walk','decide','--proposal',proposal,...args,'--json'],{cwd:root});assert.notEqual(out.status,0);
+    const out=run(process.execPath,[join(PLATES,'bin/plates.mjs'),'walk','decide','--proposal',proposal,...args,'--json'],{cwd:root});assert.notEqual(out.status,0);
   }
  }finally{await rm(root,{recursive:true,force:true});}
 });
 
-// Phase 70: a claim nobody has pushed to for seven days is the owner's to release or leave. keel releases nothing.
+// Phase 70: a claim nobody has pushed to for seven days is the owner's to release or leave. plates releases nothing.
 test('a claim idle for seven days is the owner\'s item; a fresher one, one with a recent push, and one whose phase is built are not', async t => {
   const { claim } = await import('../lib/claim.mjs');
   const root = await acme({ git: true });
@@ -1040,10 +1040,10 @@ test('a claim idle for seven days is the owner\'s item; a fresher one, one with 
   git('remote', 'add', 'origin', origin);
   git('fetch', '-q', 'origin');
   git('remote', 'set-head', 'origin', 'main');
-  // The claims are made through keel, which asks gh for the open PRs: a stub with none. The board itself asks gh nothing here.
+  // The claims are made through plates, which asks gh for the open PRs: a stub with none. The board itself asks gh nothing here.
   const gh = `${root}-gh`;
   await writeFile(gh, `#!${process.execPath}\nconsole.log('[]');\n`, { mode: 0o755 });
-  const env = { ...process.env, KEEL_GH: gh, KEEL_MACHINE: 'acme-laptop' };
+  const env = { ...process.env, PLATES_GH: gh, PLATES_MACHINE: 'acme-laptop' };
   const now = new Date('2026-10-20T12:00:00Z'), ago = days => new Date(+now - days * 86_400_000);
   const read = async (more = {}) => (await board({ root }, { ...deps(root), env, now, ...more }));
   const claimsOf = data => data.items.filter(i => i.source === 'claims');
@@ -1061,7 +1061,7 @@ test('a claim idle for seven days is the owner\'s item; a fresher one, one with 
   data = await read({ fresh: true });
   const mine = claimsOf(data);
   assert.deepEqual(mine.map(i => [i.waits, i.kind, i.phase, i.title]), [['owner', 'claim', 4, 'phase 4: claimed by claude on acme-laptop, idle 8 days']]);
-  assert.match(mine[0].why, /^claims\/phase-4 since 2026-10-12, no push since 2026-10-12\. Release it \(git push origin --delete claims\/phase-4\) or leave it: keel never releases another session's claim\.$/);
+  assert.match(mine[0].why, /^claims\/phase-4 since 2026-10-12, no push since 2026-10-12\. Release it \(git push origin --delete claims\/phase-4\) or leave it: plates never releases another session's claim\.$/);
   assert.deepEqual(mine[0].actions, [], 'the board offers no button: the owner releases it by hand, or leaves it');
   assert.ok(titles(data, 'owner').includes(mine[0].title));
   assert.match(boardText(data), /phase 4: claimed by claude on acme-laptop, idle 8 days/);
@@ -1086,18 +1086,18 @@ test('a claim idle for seven days is the owner\'s item; a fresher one, one with 
 });
 
 test('milestone board details are read-only links and escape remote markup, with incomplete coverage visible', async t => {
-  const { projectMilestones } = await import('../practices/night/files/scripts/keel/milestones.mjs');
+  const { projectMilestones } = await import('../practices/night/files/scripts/plates/milestones.mjs');
   const { milestoneConfig, milestone, issue, response } = await import('./helpers/milestones.mjs');
   const { boardView, roadmapItems } = await import('../lib/board.mjs');
   const root = await acme(); t.after(() => rm(root, { recursive: true, force: true }));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(milestoneConfig));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(milestoneConfig));
   const m = milestone(1, 'OPEN', [issue(1, 'OPEN', ['keel:owner'])]);
   m.title = '</script><img src=x onerror=alert(1)>';
   m.description = '<script>Acme</script>';
   const plan = projectMilestones(response([m, milestone(2, 'CLOSED')], { open: true }), milestoneConfig);
   const data = await roadmapItems(root, { read: async () => plan });
   let calls = 0;
-  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh' };
   const readOptions = { env, guard: async () => null, graphql: async () => { calls++; return response([m], { open: true }); } };
   const first = await roadmapItems(root, readOptions), second = await roadmapItems(root, readOptions);
   assert.equal(calls, 1); assert.equal(first.github.cached, false); assert.equal(second.github.cached, true);
@@ -1125,7 +1125,7 @@ test('a failed verify of production is the owner\'s item on the board; a passed 
   const verifyOf = data => data.items.filter(i => i.source === 'verify');
   // Without the delivery practice there is no verify source.
   assert.equal((await board({ root }, deps(root))).sources.some(s => s.source === 'verify'), false);
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', keel: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'] }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', plates: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'] }));
   // The latest failed: the owner's, with every failure and the run.
   let data = await board({ root }, { ...deps(root), verify: async () => ({ results: [failed] }) });
   const [item] = verifyOf(data);
@@ -1147,8 +1147,8 @@ test('a failed verify of production is the owner\'s item on the board; a passed 
   g(['remote', 'add', 'origin', origin]);
   const blob = g(['hash-object', '-w', '--stdin'], JSON.stringify({ results: [failed] }));
   const tree = g(['mktree'], `100644 blob ${blob}\tverify.json\n`);
-  g(['push', '-q', 'origin', `${g(['commit-tree', tree, '-m', 'keel verify: failed'])}:refs/heads/keel-verify`]);
-  data = await board({ root }, { ...deps(root), env: { ...process.env, KEEL_CACHE: join(root, '.cache-test') }, fresh: true });
+  g(['push', '-q', 'origin', `${g(['commit-tree', tree, '-m', 'plates verify: failed'])}:refs/heads/keel-verify`]);
+  data = await board({ root }, { ...deps(root), env: { ...process.env, PLATES_CACHE: join(root, '.cache-test') }, fresh: true });
   assert.deepEqual(verifyOf(data).map(i => i.title), ['production failed its verify for a1b2c3d']);
 });
 
@@ -1157,7 +1157,7 @@ test('a preview\'s pass never clears production\'s failed verify on the board; o
   const root = await acme({ git: true });
   t.after(() => rm(root, { recursive: true, force: true }));
   const prod = 'https://anvils.acme.example', preview = 'https://preview-7.anvils.acme.example';
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', keel: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'], delivery: { site: prod, version: '/api/version' } }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app', plates: 'self', inbox: 'acme/inbox', practices: ['night', 'delivery'], delivery: { site: prod, version: '/api/version' } }));
   const sha = 'a1b2c3d'.padEnd(40, '0');
   const r = (site, ok, at) => ({ sha, ok, at, site, serving: sha, failures: ok ? [] : ['GET /: expected 200, got 500'], run: null });
   const verifyOf = async results => (await board({ root }, { ...deps(root), verify: async () => ({ results }) })).items.filter(i => i.source === 'verify');

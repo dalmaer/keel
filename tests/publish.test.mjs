@@ -1,7 +1,7 @@
-// The publisher (phase 80): scripts/keel/publish.mjs, the delivery practice's.
+// The publisher (phase 80): scripts/plates/publish.mjs, the delivery practice's.
 // A bare Acme origin and a clone of it, and a gh stub that answers the
 // Actions API from fixtures; no network, nobody's git settings. The publisher
-// runs from a scratch scripts/keel/ holding the night's scripts beside it, as
+// runs from a scratch scripts/plates/ holding the night's scripts beside it, as
 // a project has them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,17 +12,17 @@ import { execFileSync } from 'node:child_process';
 import { run as spawnNode } from './helpers/run.mjs';
 import { pathToFileURL } from 'node:url';
 import { scratch, ENV } from './helpers/improve.mjs';
-import { deliveryOf, deliveryProblems } from '../practices/delivery/files/scripts/keel/delivery.mjs';
+import { deliveryOf, deliveryProblems } from '../practices/delivery/files/scripts/plates/delivery.mjs';
 
 const repo = 'acme/anvils';
 const CONFIG = { name: 'Acme', repo, practices: ['night', 'delivery'], ci: { gateWorkflow: 'check.yml' } };
-const NIGHT = resolve('practices/night/files/scripts/keel');
-const DELIVERY = resolve('practices/delivery/files/scripts/keel');
+const NIGHT = resolve('practices/night/files/scripts/plates');
+const DELIVERY = resolve('practices/delivery/files/scripts/plates');
 const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString();
 
-/** scripts/keel/ as a project has it: the night's scripts and the delivery practice's, side by side. */
+/** scripts/plates/ as a project has it: the night's scripts and the delivery practice's, side by side. */
 async function scripts(t) {
-  const dir = join(await scratch(t, 'keel-publish-scripts-'), 'scripts', 'keel');
+  const dir = join(await scratch(t, 'plates-publish-scripts-'), 'scripts', 'plates');
   await cp(NIGHT, dir, { recursive: true });
   await cp(DELIVERY, dir, { recursive: true });
   return { dir, module: await import(pathToFileURL(join(dir, 'publish.mjs')).href) };
@@ -44,7 +44,7 @@ function actions(runs) {
 
 /** A gh stub answering `gh api <path>` from a fixture file, which a test may rewrite; `down` makes every call fail. */
 async function ghStub(t, fixture) {
-  const dir = await scratch(t, 'keel-publish-gh-');
+  const dir = await scratch(t, 'plates-publish-gh-');
   const gh = join(dir, 'gh'), data = join(dir, 'fixture.json'), log = join(dir, 'log');
   await writeFile(data, JSON.stringify(fixture));
   await writeFile(gh, `#!${process.execPath}
@@ -59,22 +59,22 @@ console.log(JSON.stringify(routes[p]));
 `);
   await chmod(gh, 0o755);
   return {
-    env: { ...ENV, KEEL_GH: gh },
+    env: { ...ENV, PLATES_GH: gh },
     set: async next => writeFile(data, JSON.stringify(next)),
     asked: async () => (existsSync(log) ? await readFile(log, 'utf8') : '').split('\n').filter(Boolean),
   };
 }
 
-/** A bare origin (default branch main) and a clone with .keel/keel.json; `commit` adds one commit to main and pushes it. */
+/** A bare origin (default branch main) and a clone with .plates/plates.json; `commit` adds one commit to main and pushes it. */
 async function acme(t, { config = CONFIG, branch = 'main' } = {}) {
-  const dir = await scratch(t, 'keel-publish-');
+  const dir = await scratch(t, 'plates-publish-');
   const origin = join(dir, 'origin.git'), root = join(dir, 'acme');
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: ENV, encoding: 'utf8' }).trim();
   git(dir, 'init', '-q', '--bare', '-b', branch, origin);
   git(dir, 'init', '-q', '-b', branch, root);
   git(root, 'remote', 'add', 'origin', origin);
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   git(root, 'add', '-A'); git(root, 'commit', '-qm', 'Acme');
   git(root, 'push', '-q', 'origin', `HEAD:refs/heads/${branch}`);
   let n = 0;
@@ -104,7 +104,7 @@ test('the publisher moves the tested ref to the newest passing descendant, skips
   assert.equal(moved.to, B);
   assert.equal(a.remote('green'), B, 'green moved to B');
   assert.deepEqual(moved.skipped.map(s => s.sha), [C], 'C, newer but not passed, was skipped');
-  assert.match(p.publishLine(moved), /^keel publish: green moved [0-9a-f]{7} → [0-9a-f]{7}, [0-9a-f]{7} is the newest commit on main whose gate passed; skipped 1 newer/);
+  assert.match(p.publishLine(moved), /^plates publish: green moved [0-9a-f]{7} → [0-9a-f]{7}, [0-9a-f]{7} is the newest commit on main whose gate passed; skipped 1 newer/);
   // Skip: C passes; then a late run (B's) finds green already past B: C is published, B never again.
   await stub.set(actions([{ sha: A }, { sha: B }, { sha: C }]));
   assert.equal((await p.publish({ root: a.root, config: CONFIG, env: stub.env, trigger: C })).to, C);
@@ -229,7 +229,7 @@ if [ "$1" = push ] && [ ! -f "${wrap}.done" ]; then touch "${wrap}.done"; git pu
 exec git "$@"
 `);
   await chmod(wrap, 0o755);
-  assert.throws(() => p.advance({ root: a.root, config: CONFIG, env: { ...stub.env, KEEL_GIT: wrap }, from: A, to: B }), e => e.exitCode === 1 && /refused moving green/.test(e.message));
+  assert.throws(() => p.advance({ root: a.root, config: CONFIG, env: { ...stub.env, PLATES_GIT: wrap }, from: A, to: B }), e => e.exitCode === 1 && /refused moving green/.test(e.message));
   assert.equal(a.remote('green'), C, 'the lease held: what moved it first stands');
   // Advancing to a commit not on main, or sideways, is refused too.
   a.setTested(A);
@@ -303,7 +303,7 @@ test('the script: --plan writes action, from and to to $GITHUB_OUTPUT and moves 
   assert.equal(a.remote('green'), A, '--plan moves nothing');
   const adv = run(['--advance', '--from', A, '--to', B]);
   assert.equal(adv.status, 0, adv.stderr);
-  assert.match(adv.stdout, /^keel publish: green moved [0-9a-f]{7} → [0-9a-f]{7}/);
+  assert.match(adv.stdout, /^plates publish: green moved [0-9a-f]{7} → [0-9a-f]{7}/);
   assert.equal(a.remote('green'), B);
   // A dispatch has no trigger: an empty --trigger is none. Nothing newer: exit 0.
   const again = run(['--trigger', '', '--json']);

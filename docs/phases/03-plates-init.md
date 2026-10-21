@@ -1,0 +1,50 @@
+---
+status: built
+since: 2026-10-04
+goal: G1
+depends: [2]
+note: "init works locally and with --github (plates-walk), and a fresh agent conducted a new project's phase 0 from the project's own instructions alone; its 11 friction points are phase 23."
+evidence: ["evidence/2026-10-02-init.md"]
+---
+
+# A new project, from an empty directory, ready to conduct the same day
+
+## Done when
+
+`plates init <name>` in an empty directory produces a git repo with the practice installed, a goal and a phase 0 drafted from a one-paragraph description, and a passing `npm run check`; with `--github` it is also a private repo with CI green.
+
+## Scope
+
+Interview kept to what the project cannot be started without: name, one
+paragraph of what it is, kind (static site, node CLI, web app, other). Seeds
+`goals.json` with one goal and phase 0 ("the practice room": the thinnest
+thing that runs), `docs/lessons.md` with the inherited shapes that apply, the
+`.plates/plates.json`. `--github`: ⚑ `gh repo create --private`, push, labels,
+optional project board, optional Pages. Prints the secrets each installed
+workflow will need and whether they are set (`gh secret list`), never sets one.
+
+## Acceptance
+
+- [x] Local init in a temp dir passes `npm run check` with no network.
+- [x] Re-running init on an initialised directory refuses, and says to use `adopt` or `update`.
+- [x] `--github` asks before creating anything, and names what it will create.
+- [x] The first commit's message says which plates version made it.
+- [x] A conducted session can run phase 0 of the new project with no further setup.
+
+## Proof
+
+`node --test tests/init.test.mjs` (temp dir, no network). ⚑ One real `--github` init of a throwaway repo, CI watched to green, then deleted by the owner.
+
+## Deliberately open
+
+- Whether init writes app scaffolding (vite, etc.) or only the practice. **Settled 2026-10-02:** practice only, plus a one-line hint per kind in AGENTS.md; scaffolds age faster than practices.
+- Labels, project board, Pages on `--github`. Not built; add when a second project wants them.
+
+## Next action
+
+None; the friction a fresh agent found is phase 23.
+
+## Trajectory
+
+- **2026-10-02** — `--github` without `--yes` writes nothing locally either; exit 3 means "needs a yes". Otherwise the `--yes` rerun hits init's own already-a-project refusal. This is the pattern for every outward keel verb.
+- **2026-10-04** — A fresh agent could conduct phase 0 from the project alone, but it had to guess 11 times. The phase is built; making a new project need no guessing is phase 23.

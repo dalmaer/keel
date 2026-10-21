@@ -18,8 +18,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      # Read-only: the docs-only rule (scripts/keel/gate.mjs) reads which
-      # commit CI last tested fully, and that run's keel-test-runs artifact.
+      # Read-only: the docs-only rule (scripts/plates/gate.mjs) reads which
+      # commit CI last tested fully, and that run's plates-test-runs artifact.
       actions: read
     steps:
       - uses: actions/checkout@v7
@@ -35,23 +35,23 @@ jobs:
       # phases; a view that can go stale is how status came to be written in
       # two places that disagreed.
       # When night supplies the ledger, record the configured outer gate:
-      # scripts/keel/gate.mjs --ci runs it through the ledger's launcher, or
+      # scripts/plates/gate.mjs --ci runs it through the ledger's launcher, or
       # records "skipped: docs only" for a commit that changes only
-      # .keel/keel.json "delivery".docsOnly paths since the last fully tested
+      # .plates/plates.json "delivery".docsOnly paths since the last fully tested
       # commit (never reusing a result: this run is the one others reuse).
       # CI-only adopters still run their check without that optional module.
       - name: Run the configured gate
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -f scripts/keel/gate.mjs ]; then
-            node scripts/keel/gate.mjs --ci
-          elif [ -f scripts/keel/test-ledger.mjs ]; then
-            node scripts/keel/test-ledger.mjs --gate
+          if [ -f scripts/plates/gate.mjs ]; then
+            node scripts/plates/gate.mjs --ci
+          elif [ -f scripts/plates/test-ledger.mjs ]; then
+            node scripts/plates/test-ledger.mjs --gate
           else
             npm run check
           fi
-      # The test ledger's record of this run (scripts/keel/test-ledger.mjs, the
+      # The test ledger's record of this run (scripts/plates/test-ledger.mjs, the
       # night practice), kept as an artifact even when the check failed: the
       # night reads the newest ones on the default branch to say which test is
       # flaky or slower. A project without the reporter has nothing to keep.
@@ -59,8 +59,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: keel-test-runs
-          path: .keel/test-runs/
+          name: plates-test-runs
+          path: .plates/test-runs/
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
@@ -71,11 +71,11 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if node -e 'const c=JSON.parse(require("fs").readFileSync(".keel/keel.json","utf8"));process.exit(c.practices.includes("reconciliation")?0:1)'; then
-            node scripts/keel/reconcile.mjs --json
-            # The PR's keel-impact declaration is keel-impact.yml's, so an
+          if node -e 'const c=JSON.parse(require("fs").readFileSync(".plates/plates.json","utf8"));process.exit(c.practices.includes("reconciliation")?0:1)'; then
+            node scripts/plates/reconcile.mjs --json
+            # The PR's keel-impact declaration is plates-impact.yml's, so an
             # changed description is re-checked without re-running this gate.
             if [ "$EVENT" = push ] && [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
-              node scripts/keel/reconcile.mjs --github --json
+              node scripts/plates/reconcile.mjs --github --json
             fi
           fi

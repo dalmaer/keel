@@ -1,17 +1,17 @@
 # Job: lessons
 
-**The number:** the rows of the project's lessons table (`.keel/keel.json`
+**The number:** the rows of the project's lessons table (`.plates/plates.json`
 `"lessons"`, default `docs/lessons.md`) added since the last distill pass.
 `climb.mjs measure lessons` prints it. This job changes no code and no row:
 it writes proposals, and the owner decides each.
 
-**Start with the worksheet:** `node scripts/keel/climb.mjs distill` — every
+**Start with the worksheet:** `node scripts/plates/climb.mjs distill` — every
 row with its cells and provenance, the families the owner accepted, the
 proposals still open, and which rows are new since the last pass.
 
-**What to propose** (`node scripts/keel/climb.mjs distill propose …`, each
+**What to propose** (`node scripts/plates/climb.mjs distill propose …`, each
 with `--read` citing the table and the code you checked; the script commits
-each one alone under `.keel/climb/lessons/`):
+each one alone under `.plates/climb/lessons/`):
 
 - `--kind family --name "…" --rule "…" --guard "…" --rows 3,7` — two rows or
   more that are one shape, with the one rule and the one guard recipe that
@@ -26,4 +26,4 @@ Propose only what the rows and the code show; nothing is a fine night.
 
 **Not this job:** editing the table, a proposal file, or anything else (the
 guard refuses all of it); deciding; sending a lesson home (the owner does,
-with `keel lessons`).
+with `plates lessons`).

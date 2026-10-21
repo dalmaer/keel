@@ -1,10 +1,10 @@
 // 0006: a project that had lived-in keeps it (phase 44; Codex on cajones#53).
 //
 // Practice 0.8.15 made lived-in a project's choice, off unless
-// .keel/keel.json says "phases": { "livedIn": true }. An update must not
+// .plates/plates.json says "phases": { "livedIn": true }. An update must not
 // change a project's policy silently: a project whose docs require the
 // planned → … → built → lived-in progression would lose it in a version bump.
-// So a project updating from before 0.8.15, with keel's phases practice on
+// So a project updating from before 0.8.15, with plates's phases practice on
 // and no livedIn of its own, gets "livedIn": true written, and the update's
 // PR says so and how to drop it. A project started at 0.8.15 or later starts
 // with lived-in off. A project keeping its own phases (phases local, or the
@@ -15,7 +15,7 @@ import { compareVersions } from '../lib/migrations.mjs';
 
 export const id = '0006-lived-in-kept';
 export const to = '0.8.15';
-export const summary = 'a project updating from before 0.8.15 with keel\'s phases keeps lived-in on ("phases": {"livedIn": true}); delete it to count built only';
+export const summary = 'a project updating from before 0.8.15 with plates\'s phases keeps lived-in on ("phases": {"livedIn": true}); delete it to count built only';
 
 export async function applies(project) {
   const config = project.config ?? {};
@@ -27,12 +27,12 @@ export async function applies(project) {
 }
 
 export async function notes() {
-  return ['lived-in stays on for this project ("phases": {"livedIn": true} in .keel/keel.json), as it was. Since keel 0.8.15 it is a project\'s choice: delete that line to count built only, and to stop next actions asking for lived-in.'];
+  return ['lived-in stays on for this project ("phases": {"livedIn": true} in .plates/plates.json), as it was. Since plates 0.8.15 it is a project\'s choice: delete that line to count built only, and to stop next actions asking for lived-in.'];
 }
 
 export async function up(project) {
-  const raw = await project.read('.keel/keel.json');
+  const raw = await project.read('.plates/plates.json');
   const config = JSON.parse(raw);
   config.phases = { ...(config.phases ?? {}), livedIn: true };
-  return [{ path: '.keel/keel.json', content: `${JSON.stringify(config, null, 2)}\n` }];
+  return [{ path: '.plates/plates.json', content: `${JSON.stringify(config, null, 2)}\n` }];
 }

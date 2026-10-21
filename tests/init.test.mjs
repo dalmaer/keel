@@ -1,4 +1,4 @@
-// keel init: from an empty directory to a project that passes its own check
+// plates init: from an empty directory to a project that passes its own check
 // and can be conducted, with GitHub reached only through a modelled gh.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,8 +13,8 @@ import { optionalPractices } from './helpers/practices.mjs';
 import { firstSentence, goalTitle, init, npmName, phaseZero, readme, DRAFT, PHASE0_TITLE } from '../lib/init.mjs';
 import { parsePhase, specProblems } from '../practices/phases/files/scripts/roadmap.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const DESCRIPTION = 'Acme Notes keeps meeting notes as plain files. It files each note under the meeting it came from and finds them again by who was there.';
 const SECRETS = [
   ['CLAUDE_CODE_OAUTH_TOKEN', '.github/workflows/claude.yml', 'claude'],
@@ -29,13 +29,13 @@ const ENV = {
   GIT_CONFIG_NOSYSTEM: '1',
 };
 
-const keel = (args, cwd, env = ENV) => {
+const plates = (args, cwd, env = ENV) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
 async function scratch(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-init-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-init-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -65,18 +65,18 @@ else { console.error('unknown command ' + args.join(' ')); process.exit(1); }
 
 test('init into an empty directory passes the new project\'s own npm run check', async t => {
   const root = await scratch(t);
-  const r = keel(['init', 'acme-notes', '--description', DESCRIPTION, '--kind', 'node', '--json'], root);
+  const r = plates(['init', 'acme-notes', '--description', DESCRIPTION, '--kind', 'node', '--json'], root);
   assert.equal(r.code, 0, r.err || r.out);
   const result = JSON.parse(r.out);
   const dir = join(root, 'acme-notes');
   assert.equal(result.dir, dir);
 
-  const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.equal(config.name, 'acme-notes');
   assert.equal(config.tagline, 'Acme Notes keeps meeting notes as plain files.');
   assert.equal(config.kind, 'node');
   assert.equal(config.repo, undefined, 'no repo without --repo or --github');
-  // The optional practices are off unless named with --with; the rest are on, in keel's install order.
+  // The optional practices are off unless named with --with; the rest are on, in plates's install order.
   const optional = optionalPractices(), practices = await load();
   assert.deepEqual([...config.practices].sort(), [...practices.keys()].filter(n => !optional.includes(n)).sort());
   for (const [i, n] of config.practices.entries()) for (const r of practices.get(n).requires) {
@@ -113,9 +113,9 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.equal(agents.split('Acme Notes keeps meeting notes as plain files.').length - 1, 1, 'the description is printed once');
   assert.match(agents, /How to run it: see \[README\.md\]\(README\.md#how-to-run-it\)/);
   assert.match(agents, /Kind: Node CLI/);
-  assert.match(agents, /<!-- keel:begin phases -->\n\*\*Status lives/);
+  assert.match(agents, /<!-- plates:begin phases -->\n\*\*Status lives/);
   for (const f of ['CLAUDE.md', '.nvmrc', '.gitignore', 'docs/lessons.md', 'docs/ROADMAP.md',
-    '.github/workflows/check.yml', '.github/workflows/keel-night.yml', 'scripts/keel/improve.mjs', 'scripts/keel/drain.mjs',
+    '.github/workflows/check.yml', '.github/workflows/plates-night.yml', 'scripts/plates/improve.mjs', 'scripts/plates/drain.mjs',
     'renovate.json', '.agents/skills/conduct/SKILL.md', '.claude/skills/conduct/SKILL.md']) {
     await readFile(join(dir, f), 'utf8');
   }
@@ -128,8 +128,8 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.ok(testsRan(check.stdout + check.stderr) > 0, `the gate ran no tests:\n${check.stdout}${check.stderr}`);
   assert.match(check.stdout + check.stderr, /a well-formed phase parses/);
 
-  // keel's render agrees nothing has drifted.
-  const drift = keel(['render', '--check', '--json'], dir);
+  // plates's render agrees nothing has drifted.
+  const drift = plates(['render', '--check', '--json'], dir);
   assert.equal(drift.code, 0, drift.out);
 
   // One commit, clean tree, on main.
@@ -139,30 +139,30 @@ test('init into an empty directory passes the new project\'s own npm run check',
   assert.equal(git('status', '--porcelain'), '');
 });
 
-test('the first commit names the practice version and the keel that made it', async t => {
+test('the first commit names the practice version and the plates that made it', async t => {
   const dir = await scratch(t);
-  const r = keel(['init', '--name', 'Acme', '--description', DESCRIPTION], dir);
+  const r = plates(['init', '--name', 'Acme', '--description', DESCRIPTION], dir);
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /No keel on PATH\? Run it as npx -y github:dalmaer\/keel <verb>/, 'says how to run keel with nothing installed');
+  assert.match(r.out, /No plates on PATH\? Run it as npx -y github:dalmaer\/plates <verb>/, 'says how to run plates with nothing installed');
   assert.equal(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).name, undefined, 'only --kind node names package.json');
-  const version = JSON.parse(keel(['--version', '--json'], dir).out);
+  const version = JSON.parse(plates(['--version', '--json'], dir).out);
   const subject = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).trim();
-  assert.equal(subject, `keel init: Acme on practice ${version.practice} (keel ${version.commit ?? version.cli})`);
+  assert.equal(subject, `plates init: Acme on practice ${version.practice} (plates ${version.commit ?? version.cli})`);
 });
 
-test('run from a package (no commit known), the first commit names the keel version, never "no git"', async t => {
+test('run from a package (no commit known), the first commit names the plates version, never "no git"', async t => {
   const dir = await scratch(t);
   const r = await init({ dir, name: 'Acme', description: DESCRIPTION }, { version: { cli: '9.8.7', commit: null, practice: '1.2.3' }, env: ENV });
-  assert.equal(r.data.message, 'keel init: Acme on practice 1.2.3 (keel 9.8.7)');
+  assert.equal(r.data.message, 'plates init: Acme on practice 1.2.3 (plates 9.8.7)');
   const subject = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).trim();
-  assert.equal(subject, 'keel init: Acme on practice 1.2.3 (keel 9.8.7)');
+  assert.equal(subject, 'plates init: Acme on practice 1.2.3 (plates 9.8.7)');
   assert.doesNotMatch(r.text, /no git/);
 });
 
-test('keel next inside the new project names phase 0', async t => {
+test('plates next inside the new project names phase 0', async t => {
   const dir = await scratch(t);
-  assert.equal(keel(['init', '--description', DESCRIPTION], dir).code, 0);
-  const r = keel(['next', '--json'], join(dir));
+  assert.equal(plates(['init', '--description', DESCRIPTION], dir).code, 0);
+  const r = plates(['next', '--json'], join(dir));
   assert.equal(r.code, 0, r.err);
   const { next, free, claims } = JSON.parse(r.out);
   // A new project has no remote yet: nowhere to hold a claim, so what is ready is free.
@@ -174,43 +174,43 @@ test('keel next inside the new project names phase 0', async t => {
   assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs` \(documents only: run `npm run roadmap:check`, not the whole gate\); then \/conduct\./);
   // A subdirectory finds it too.
   await mkdir(join(dir, 'src'));
-  assert.equal(JSON.parse(keel(['next', '--json'], join(dir, 'src')).out).next.id, 0);
+  assert.equal(JSON.parse(plates(['next', '--json'], join(dir, 'src')).out).next.id, 0);
 });
 
-test('init refuses a directory that is already a keel project, and says update', async t => {
+test('init refuses a directory that is already a plates project, and says update', async t => {
   const dir = await scratch(t);
-  assert.equal(keel(['init', '--description', DESCRIPTION], dir).code, 0);
-  const r = keel(['init', '--description', DESCRIPTION], dir);
+  assert.equal(plates(['init', '--description', DESCRIPTION], dir).code, 0);
+  const r = plates(['init', '--description', DESCRIPTION], dir);
   assert.equal(r.code, 2);
-  assert.match(r.err, /already a keel project — use keel update/);
-  const j = keel(['init', '--description', DESCRIPTION, '--json'], dir);
+  assert.match(r.err, /already a plates project — use plates update/);
+  const j = plates(['init', '--description', DESCRIPTION, '--json'], dir);
   assert.equal(j.code, 2);
-  assert.match(JSON.parse(j.out).error, /keel update/);
+  assert.match(JSON.parse(j.out).error, /plates update/);
 });
 
 test('init refuses a non-empty directory, says adopt, and writes nothing', async t => {
   const dir = await scratch(t);
   await writeFile(join(dir, 'README.md'), '# Acme\n');
-  const r = keel(['init', '--description', DESCRIPTION], dir);
+  const r = plates(['init', '--description', DESCRIPTION], dir);
   assert.equal(r.code, 2);
-  assert.match(r.err, /not empty .* use keel adopt/);
+  assert.match(r.err, /not empty .* use plates adopt/);
   assert.deepEqual(await readdir(dir), ['README.md']);
 });
 
 test('init accepts a directory holding only .git, and keeps that repo', async t => {
   const dir = await scratch(t);
   execFileSync('git', ['init', '-q', '-b', 'trunk', dir]);
-  const r = keel(['init', '--description', DESCRIPTION], dir);
+  const r = plates(['init', '--description', DESCRIPTION], dir);
   assert.equal(r.code, 0, r.err);
   assert.equal(execFileSync('git', ['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim(), 'trunk');
 });
 
 test('init without --description is a usage error', async t => {
   const dir = await scratch(t);
-  const r = keel(['init'], dir);
+  const r = plates(['init'], dir);
   assert.equal(r.code, 2);
   assert.match(r.err, /--description/);
-  assert.equal(keel(['init', '--description', DESCRIPTION, '--kind', 'spaceship'], dir).code, 2);
+  assert.equal(plates(['init', '--description', DESCRIPTION, '--kind', 'spaceship'], dir).code, 2);
   assert.deepEqual(await readdir(dir), []);
 });
 
@@ -218,7 +218,7 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   const root = await scratch(t);
   const gh = await stubGh(root);
   const dir = join(root, 'Acme Notes');
-  const r = keel(['init', dir, '--description', DESCRIPTION, '--github', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
+  const r = plates(['init', dir, '--description', DESCRIPTION, '--github', '--json'], root, { ...ENV, PLATES_GH: gh.bin });
   assert.equal(r.code, 3, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.equal(out.needs, 'yes');
@@ -229,25 +229,25 @@ test('--github without --yes plans, creates nothing, and exits 3', async t => {
   const calls = await gh.calls();
   assert.ok(!calls.some(c => c[0] === 'repo' || c[0] === 'secret'), `gh saw: ${JSON.stringify(calls)}`);
   assert.deepEqual(await readdir(root).then(n => n.sort()), ['gh', 'gh.log'], 'not even the directory');
-  const plain = keel(['init', dir, '--description', DESCRIPTION, '--github'], root, { ...ENV, KEEL_GH: gh.bin });
+  const plain = plates(['init', dir, '--description', DESCRIPTION, '--github'], root, { ...ENV, PLATES_GH: gh.bin });
   assert.match(plain.out, /Secrets needed:\n {2}none/);
 
   // --with claude: claude's secrets, each named with its workflow; none is set.
-  const withClaude = JSON.parse(keel(['init', dir, '--description', DESCRIPTION, '--github', '--with', 'claude', '--json'], root, { ...ENV, KEEL_GH: gh.bin }).out);
+  const withClaude = JSON.parse(plates(['init', dir, '--description', DESCRIPTION, '--github', '--with', 'claude', '--json'], root, { ...ENV, PLATES_GH: gh.bin }).out);
   assert.deepEqual(withClaude.plan.secrets.map(s => [s.name, s.workflow, s.practice, s.set]), SECRETS.map(s => [...s, false]));
   assert.ok(withClaude.plan.secrets.every(s => s.why), 'each says why');
-  const text = keel(['init', dir, '--description', DESCRIPTION, '--github', '--with', 'claude'], root, { ...ENV, KEEL_GH: gh.bin });
+  const text = plates(['init', dir, '--description', DESCRIPTION, '--github', '--with', 'claude'], root, { ...ENV, PLATES_GH: gh.bin });
   assert.equal(text.code, 3);
   assert.match(text.out, /needs a yes/);
-  assert.match(text.out, /Secrets needed:\n {2}CLAUDE_CODE_OAUTH_TOKEN \(\.github\/workflows\/claude\.yml\): .* — not set; keel never sets one/);
-  assert.doesNotMatch(text.out, /KEEL_TOKEN/);
+  assert.match(text.out, /Secrets needed:\n {2}CLAUDE_CODE_OAUTH_TOKEN \(\.github\/workflows\/claude\.yml\): .* — not set; plates never sets one/);
+  assert.doesNotMatch(text.out, /PLATES_TOKEN/);
 });
 
 test('--github --yes inits, then creates the private repo from the directory and pushes', async t => {
   const root = await scratch(t);
   const gh = await stubGh(root);
   const dir = join(root, 'acme-notes');
-  const r = keel(['init', dir, '--description', DESCRIPTION, '--github', '--yes', '--with', 'claude', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
+  const r = plates(['init', dir, '--description', DESCRIPTION, '--github', '--yes', '--with', 'claude', '--json'], root, { ...ENV, PLATES_GH: gh.bin });
   assert.equal(r.code, 0, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.equal(out.github.repo, 'acme/acme-notes');
@@ -255,7 +255,7 @@ test('--github --yes inits, then creates the private repo from the directory and
   const calls = await gh.calls();
   assert.deepEqual(calls.find(c => c[0] === 'repo'), ['repo', 'create', 'acme/acme-notes', '--private', '--source', dir, '--push']);
   assert.ok(!calls.some(c => c[0] === 'secret' && c[1] === 'set'), 'never sets a secret');
-  const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.equal(config.repo, 'acme/acme-notes');
   assert.ok(config.practices.includes('claude'), '--with claude switches it on');
   await readFile(join(dir, '.github/workflows/claude.yml'), 'utf8');
@@ -266,7 +266,7 @@ test('--github --yes inits, then creates the private repo from the directory and
 test('--repo names the repo without asking gh who you are', async t => {
   const root = await scratch(t);
   const gh = await stubGh(root);
-  const r = keel(['init', 'x', '--description', DESCRIPTION, '--repo', 'acme/elsewhere', '--github', '--with', 'claude', '--json'], root, { ...ENV, KEEL_GH: gh.bin });
+  const r = plates(['init', 'x', '--description', DESCRIPTION, '--repo', 'acme/elsewhere', '--github', '--with', 'claude', '--json'], root, { ...ENV, PLATES_GH: gh.bin });
   assert.equal(r.code, 3);
   assert.equal(JSON.parse(r.out).plan.repo, 'acme/elsewhere');
   assert.ok(!(await gh.calls()).some(c => c[0] === 'api'), 'never asks gh who you are');
@@ -276,12 +276,12 @@ test('--repo names the repo without asking gh who you are', async t => {
 test('--with takes only optional practices, and switches each on', async t => {
   const root = await scratch(t);
   for (const name of ['ci', 'nope']) {
-    const r = keel(['init', 'x', '--description', DESCRIPTION, '--with', name], root);
+    const r = plates(['init', 'x', '--description', DESCRIPTION, '--with', name], root);
     assert.equal(r.code, 2, r.out);
     assert.ok(r.err.includes(`--with takes ${optionalPractices().join(', ')}`), r.err);
   }
   assert.deepEqual(await readdir(root), [], 'nothing written');
-  const r = keel(['init', 'y', '--description', DESCRIPTION, '--with', 'claude,loop', '--json'], root);
+  const r = plates(['init', 'y', '--description', DESCRIPTION, '--with', 'claude,loop', '--json'], root);
   assert.equal(r.code, 0, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.deepEqual(out.config.practices.slice(-3), ['claude', 'renovate', 'loop']);
@@ -294,7 +294,7 @@ test('a missing placeholder is an error only where a template uses it', () => {
 });
 
 test('phase 0 comes from the phase template and parses', async () => {
-  const template = await readFile(join(KEEL, 'practices/phases/files/docs/templates/phase.md'), 'utf8');
+  const template = await readFile(join(PLATES, 'practices/phases/files/docs/templates/phase.md'), 'utf8');
   const p = parsePhase('00-first-thing-that-runs.md', phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' }));
   assert.equal(p.title, PHASE0_TITLE);
   assert.equal(p.goal, 'G0');
@@ -309,7 +309,7 @@ test('phase 0 comes from the phase template and parses', async () => {
   assert.equal(p.next, 'Replace this draft\'s Done when, Acceptance and Proof with the first thing that runs, and move status to `designed`, in one commit of its own titled `phase 0: name what runs` (documents only: run `npm run roadmap:check`, not the whole gate); then /conduct.');
   const text = phaseZero(template, { name: 'Acme', kind: 'node', since: '2026-10-02' });
   assert.ok(text.includes(`# ${PHASE0_TITLE}\n\n${DRAFT}\n`), 'says it is a draft to replace wholesale');
-  assert.equal(DRAFT, 'Drafted by keel init. Replace this draft wholesale before building.', 'no line about open questions to contradict "Nothing yet."');
+  assert.equal(DRAFT, 'Drafted by plates init. Replace this draft wholesale before building.', 'no line about open questions to contradict "Nothing yet."');
   assert.match(text, /- \[ \] README\.md's "How to run it", followed from a clean checkout of the committed tree, runs Acme\./);
   assert.doesNotMatch(text, /only AGENTS\.md/);
   assert.match(text, /## Deliberately open\n\nNothing yet\.\n/);

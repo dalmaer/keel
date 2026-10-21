@@ -1,4 +1,4 @@
-// keel improve's grader, graded: the selftest must fail when any one measure
+// plates improve's grader, graded: the selftest must fail when any one measure
 // is made to say "fine" (lesson 6). Its own file, apart from
 // tests/improve.test.mjs: it runs the selftest once per measure per mutation,
 // and the suite runs test files side by side. The full real-measure baseline

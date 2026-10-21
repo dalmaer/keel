@@ -4,25 +4,25 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, cp, chmod, realpath } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run } from './helpers/run.mjs';
-import { measure, page, MEASURES } from '../practices/night/files/scripts/keel/improve.mjs';
-import { isData, plan } from '../practices/night/files/scripts/keel/drain.mjs';
+import { measure, page, MEASURES } from '../practices/night/files/scripts/plates/improve.mjs';
+import { isData, plan } from '../practices/night/files/scripts/plates/drain.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const bin = join(root, 'bin/keel.mjs');
-const engine = join(root, 'practices/reconciliation/files/scripts/keel/reconcile.mjs');
+const bin = join(root, 'bin/plates.mjs');
+const engine = join(root, 'practices/reconciliation/files/scripts/plates/reconcile.mjs');
 const measures = MEASURES.filter(m => m.id === 'record_contradictions');
 async function fixture(t, enabled = true) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'acme-reconciliation-integration-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  for (const d of ['.keel', 'docs/phases', 'scripts/keel']) await mkdir(join(dir, d), { recursive: true });
+  for (const d of ['.plates', 'docs/phases', 'scripts/plates']) await mkdir(join(dir, d), { recursive: true });
   const config = { name: 'Acme', check: 'node --test', practices: enabled ? ['reconciliation'] : ['base'], local: { phases: 'Acme inline records' }, repo: 'acme/app' };
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(config));
-  if (enabled) await cp(engine, join(dir, 'scripts/keel/reconcile.mjs'));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(config));
+  if (enabled) await cp(engine, join(dir, 'scripts/plates/reconcile.mjs'));
   await writeFile(join(dir, 'docs/phases/01-store.md'), '# Store\n\n**Status:** partial\n\n## Acceptance\n\n- [ ] Production proof. <!-- acceptance: production -->\n\n**Next action.** Review the implementation.\n\n## Reconciliation\n\n```keel-reconciliation\n' + JSON.stringify({ version: 1, prs: ['acme/app#12'], decisions: [], implementation: [], production: [], use: [], next: { kind: 'review-pr', ref: 'acme/app#12' } }) + '\n```\n');
   const gh = join(dir, 'gh');
   await writeFile(gh, `#!${process.execPath}\nprocess.exit(1);\n`);
   await chmod(gh, 0o755);
-  return { dir, config, env: { ...process.env, KEEL_GH: gh } };
+  return { dir, config, env: { ...process.env, PLATES_GH: gh } };
 }
 test('normal night has no reconciliation dependency; opt-in missing runtime is broken', async t => {
   const { dir, config, env } = await fixture(t, false);
@@ -59,9 +59,9 @@ test('record edits never qualify for drain, even custom data paths', () => {
   }
 });
 test('remote CLI test calls require a stub; offline calls remain allowed', () => {
-  const env = { ...process.env }; delete env.KEEL_GH;
-  assert.throws(() => run(process.execPath, [bin, 'doctor', '--github'], { env }), /KEEL_GH/);
-  assert.throws(() => run(process.execPath, [engine, '--github'], { env }), /KEEL_GH/);
+  const env = { ...process.env }; delete env.PLATES_GH;
+  assert.throws(() => run(process.execPath, [bin, 'doctor', '--github'], { env }), /PLATES_GH/);
+  assert.throws(() => run(process.execPath, [engine, '--github'], { env }), /PLATES_GH/);
 });
 test('optional practice adopts into local phase format and preserves existing PR template', async t => {
   const { dir, env } = await fixture(t, false);
@@ -70,10 +70,10 @@ test('optional practice adopts into local phase format and preserves existing PR
   const before = await readFile(join(dir, 'docs/phases/01-store.md'), 'utf8');
   const result = run(process.execPath, [bin, 'adopt', '--with', 'reconciliation', '--json'], { cwd: dir, env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.ok(JSON.parse(await readFile(join(dir, '.keel/keel.json'))).practices.includes('reconciliation'));
+  assert.ok(JSON.parse(await readFile(join(dir, '.plates/plates.json'))).practices.includes('reconciliation'));
   assert.equal(await readFile(join(dir, 'docs/phases/01-store.md'), 'utf8'), before);
   assert.equal(await readFile(join(dir, '.github/pull_request_template.md'), 'utf8'), 'Acme own template\n');
-  assert.equal(await readFile(join(dir, 'scripts/keel/reconcile.mjs'), 'utf8'), await readFile(engine, 'utf8'));
+  assert.equal(await readFile(join(dir, 'scripts/plates/reconcile.mjs'), 'utf8'), await readFile(engine, 'utf8'));
 });
 test('advisory-only health data survives zero findings and cannot close the JSON fence', async t => {
   const { dir, config, env } = await fixture(t);
@@ -109,7 +109,7 @@ test('PR workflow uses read-only head checkout and event CLI checks the actual d
   const declaration = { version: 1, phases: [], decisions: [], supersedes: [], evidence: [], reconciliation: 'none', reason: 'Claims no impact, but actually edited a phase.' };
   const check = async () => {
     await writeFile(event, JSON.stringify({ pull_request: { body: '```keel-impact\n' + JSON.stringify(declaration) + '\n```', base: { sha: base }, head: { sha: head } } }));
-    return run(process.execPath, [join(dir, 'scripts/keel/reconcile.mjs'), '--event', event, '--json'], { cwd: dir, env });
+    return run(process.execPath, [join(dir, 'scripts/plates/reconcile.mjs'), '--event', event, '--json'], { cwd: dir, env });
   };
   assert.equal((await check()).status, 1);
   declaration.phases = ['docs/phases/01-store.md']; declaration.reconciliation = 'updated';
@@ -122,7 +122,7 @@ test('init --with reconciliation installs a standalone runtime; annotations are 
   const created = join(dir, 'new-acme');
   const init = run(process.execPath, [bin, 'init', created, '--description', 'Acme stores records.', '--with', 'reconciliation', '--json'], { cwd: dir, env });
   assert.equal(init.status, 0, init.stdout + init.stderr);
-  const local = run(process.execPath, [join(created, 'scripts/keel/reconcile.mjs'), '--json'], { cwd: created, env });
+  const local = run(process.execPath, [join(created, 'scripts/plates/reconcile.mjs'), '--json'], { cwd: created, env });
   assert.equal(local.status, 0, local.stdout + local.stderr);
   assert.deepEqual(JSON.parse(local.stdout).findings, []);
   await writeFile(join(dir, 'docs/phases/01-store.md'), '# Store\n\n## Reconciliation\n\n```keel-reconciliation\n{"version":1,"next":{"kind":"acceptance","ref":"missing"}}\n```\n');
@@ -132,9 +132,9 @@ test('init --with reconciliation installs a standalone runtime; annotations are 
 });
 test('generated Loop and dependency bodies satisfy impact gate only for their declared data', async t => {
   const { dir, env } = await fixture(t);
-  const { checkImpact } = await import('../practices/reconciliation/files/scripts/keel/reconcile.mjs');
-  const yml = await readFile(join(root, 'practices/loop/files/.github/workflows/keel-loop.yml'), 'utf8');
-  const match = /cat > "\$RUNNER_TEMP\/loop-body\.md" <<'KEEL_BODY'\n([\s\S]*?)\n          KEEL_BODY/.exec(yml);
+  const { checkImpact } = await import('../practices/reconciliation/files/scripts/plates/reconcile.mjs');
+  const yml = await readFile(join(root, 'practices/loop/files/.github/workflows/plates-loop.yml'), 'utf8');
+  const match = /cat > "\$RUNNER_TEMP\/loop-body\.md" <<'PLATES_BODY'\n([\s\S]*?)\n          PLATES_BODY/.exec(yml);
   assert.ok(match, 'Loop body is generated by a quoted heredoc');
   const shell = match[0].replace(/^          /gm, '');
   const generated = run('bash', ['-e', '-c', shell], { cwd: dir, env: { ...env, RUNNER_TEMP: dir } });
@@ -155,7 +155,7 @@ test('optional CI routes remote facts only on default-branch pushes', async t =>
   const workflow = await readFile(join(root, 'practices/ci/files/.github/workflows/check.yml'), 'utf8');
   const step = workflow.split('- name: Reconcile records (optional)')[1].split('run: |\n')[1].replace(/^          /gm, '');
   const log = join(dir, 'calls.jsonl');
-  await writeFile(join(dir, 'scripts/keel/reconcile.mjs'), `import {appendFileSync} from 'node:fs'; appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2))+'\\n');`);
+  await writeFile(join(dir, 'scripts/plates/reconcile.mjs'), `import {appendFileSync} from 'node:fs'; appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2))+'\\n');`);
   const execute = async (event, branch) => {
     await writeFile(log, '');
     const result = run('bash', ['-e', '-c', step], { cwd: dir, env: { ...env, EVENT: event, BRANCH: branch, DEFAULT_BRANCH: 'trunk', GITHUB_EVENT_PATH: join(dir, 'event.json') } });
@@ -164,10 +164,10 @@ test('optional CI routes remote facts only on default-branch pushes', async t =>
   };
   assert.deepEqual(await execute('push', 'trunk'), [['--json'], ['--github', '--json']]);
   assert.deepEqual(await execute('push', 'feature'), [['--json']]);
-  // The PR description is keel-impact.yml's (re-checked on edit); check.yml runs only the local check on a PR.
+  // The PR description is plates-impact.yml's (re-checked on edit); check.yml runs only the local check on a PR.
   assert.deepEqual(await execute('pull_request', 'feature'), [['--json']]);
   config.practices = ['base'];
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(config));
-  await rm(join(dir, 'scripts/keel/reconcile.mjs'));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(config));
+  await rm(join(dir, 'scripts/plates/reconcile.mjs'));
   assert.deepEqual(await execute('push', 'trunk'), []);
 });

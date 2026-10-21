@@ -19,8 +19,8 @@ npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 Each rule below exists because of a specific failure, recorded in
 [`docs/lessons.md`](docs/lessons.md).
 
-<!-- keel:begin phases -->
-Acme edited this line inside keel's block.
+<!-- plates:begin phases -->
+Acme edited this line inside plates's block.
 **Status lives in the thing it describes.** Edit the phase's front matter,
 then run `npm run roadmap`. Never hand-edit the roadmap; CI fails when it is
 stale — status written in two places drifts.
@@ -30,33 +30,33 @@ is one sentence someone else could check. *Proof* is the exact commands.
 
 **Decisions postponed are recorded, not improvised.** *Deliberately open*
 names them. Settle one in place, dated, saying what settled it.
-<!-- keel:end phases -->
+<!-- plates:end phases -->
 
-<!-- keel:begin evidence -->
+<!-- plates:begin evidence -->
 **`built` is not the last word.** The statuses run `planned → designed →
 partial → built → lived-in`. Built and lived-in need an evidence file. Never
 invent evidence.
-<!-- keel:end evidence -->
+<!-- plates:end evidence -->
 
-<!-- keel:begin conduct -->
+<!-- plates:begin conduct -->
 **Conduct the walk.** `/conduct` (the skill in `.agents/skills/conduct`) briefs
 a builder, verifies the proof itself, writes the record and commits each phase
 to `main`. Builders test by file. The conductor runs `npm run check` once on
 the integrated tree — a green subset hides a red suite, and checking at every level costs more than it catches.
-<!-- keel:end conduct -->
+<!-- plates:end conduct -->
 
-<!-- keel:begin lessons -->
+<!-- plates:begin lessons -->
 **Lessons are shapes, not incidents.** Add a row when a bug turns out to have
 a shape, and say where it was paid for. Read the table before adding a guard.
-<!-- keel:end lessons -->
+<!-- plates:end lessons -->
 
-<!-- keel:begin agents-md -->
+<!-- plates:begin agents-md -->
 **⚑ steps are asked, with the price.** Creating repos, setting secrets,
 enabling Pages, filing issues on another repo, scheduling model spend: each
 one waits for the owner's yes.
-<!-- keel:end agents-md -->
+<!-- plates:end agents-md -->
 
 ## Rules for this project's code
 
-Write them here. Everything outside the `keel:begin`/`keel:end` regions is
-Acme's own; keel never rewrites it.
+Write them here. Everything outside the `plates:begin`/`plates:end` regions is
+Acme's own; plates never rewrites it.

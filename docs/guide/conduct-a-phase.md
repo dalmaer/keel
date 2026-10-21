@@ -17,7 +17,7 @@ exists because of a failure that was paid for:
 
 - **The conductor runs the proof itself.** A builder once reported "suite
   passed" from a run piped into `tail`, with six tests failing. The report is
-  a map; the Proof is the territory. Keel's lesson 4 is the shape: a green
+  a map; the Proof is the territory. Plates's lesson 4 is the shape: a green
   subset hides a red suite.
 - **Builders test by file; the conductor runs the whole gate once.** In one
   session builders ran the whole suite 53 times, a quarter of all the time
@@ -55,11 +55,11 @@ explicit CLI protocol, not an installed automatic provider hook.
 The whole path, with what stops each of the two failures it was built
 around: a phase built twice, and a review that never ends.
 
-1. **Find a free phase.** `keel next` fetches, then lists every phase whose
+1. **Find a free phase.** `plates next` fetches, then lists every phase whose
    dependencies are built: the free ones first, then the claimed ones with
    who holds each. If it can't read the claims (no network, `gh` failing) it
    exits 2 and lists nothing as free.
-2. **Claim it.** `keel phase claim <n>` pushes one shared branch,
+2. **Claim it.** `plates phase claim <n>` pushes one shared branch,
    `claims/phase-<n>`. The server accepts that push only when the branch
    does not exist, so of two sessions claiming at once exactly one gets it,
    and the other is told who holds it: take another phase, or stop. An open
@@ -71,30 +71,30 @@ around: a phase built twice, and a review that never ends.
    or not valid. See [Reviews and PRs](reviews-and-prs.md).
 5. **Stop at three rounds.** A round is a push a reviewer answered with at
    least one finding. At the limit (three, or `"review": {"rounds": N}` in
-   `.keel/keel.json`), `keel review <pr>` exits 3 and the session stops
-   pushing fixes. It sorts each open finding with `keel review <pr> --class
+   `.plates/plates.json`), `plates review <pr>` exits 3 and the session stops
+   pushing fixes. It sorts each open finding with `plates review <pr> --class
    security|overwrite|approval|other <ids>`, which leaves the finding
    unanswered, and reports. The choice is yours: merge with the rest
    tracked (after fixing what is a security hole, overwrites your files or
    skips an approval), split the PR, or close it.
-6. **Merge.** A person merges; keel never does. The claim ends when the
+6. **Merge.** A person merges; plates never does. The claim ends when the
    phase is built on the default branch.
 7. **Your walk.** A phase whose building is done and whose ⚑ box is your
    read shows on the board as yours.
 
 The claim is a record every session can see, not a lock: a session that
-never runs `keel next` or the conduct skill is not stopped. A claim belongs
+never runs `plates next` or the conduct skill is not stopped. A claim belongs
 to the session that made it, not to its working tree: a second session
 started in the same tree is refused like any other, unless it names the same
-provider and has the same session id, or shows the token keel printed when
-the claim was made (`keel phase claim <N> --token <token>`). The session id
-is `KEEL_SESSION`, else the one Claude Code sets; an agent that sets neither
-(Codex, as far as keel knows) is told apart by its provider only, so two of
+provider and has the same session id, or shows the token plates printed when
+the claim was made (`plates phase claim <N> --token <token>`). The session id
+is `PLATES_SESSION`, else the one Claude Code sets; an agent that sets neither
+(Codex, as far as plates knows) is told apart by its provider only, so two of
 its sessions sharing one tree are not told apart. A claim nobody has pushed
 to for seven days shows on the board as yours to release or leave.
 
 **A retro after real work.** When a phase's commit changed more than
-`docs/`, the conductor runs `keel retro` and answers its seven areas,
+`docs/`, the conductor runs `plates retro` and answers its seven areas,
 ending in at most five candidates (a check, an AGENTS or skill line, or a
 lesson). The owner picks; nothing is applied unpicked. See
 [Loose ends and the retro](loose-ends-and-retro.md).
@@ -112,17 +112,17 @@ In Claude Code, the skill is `/conduct`:
 - `/conduct one`: the next phase only, then stop. Use it when you want to
   read each phase's result before the next begins.
 
-The conductor's own commands are the project's, not keel's:
+The conductor's own commands are the project's, not plates's:
 
 ```bash
-keel next            # what to conduct, and its next action; what is free, what is claimed
-keel phase claim <N> # before building: the phase is yours, or someone holds it
+plates next            # what to conduct, and its next action; what is free, what is claimed
+plates phase claim <N> # before building: the phase is yours, or someone holds it
 npm run check        # the gate, once, on the final tree with the record in it
-keel retro --since <the commit before the phase>   # the retro worksheet, after the commit
+plates retro --since <the commit before the phase>   # the retro worksheet, after the commit
 ```
 
 **A fix is proven by its test failing without it.** Every `fix:` commit
-carries a `Proven-by:` trailer, and `keel prove` writes it. It runs the
+carries a `Proven-by:` trailer, and `plates prove` writes it. It runs the
 named test twice, each time in a fresh scratch copy of your repository:
 once with the fix's files put back as they were before the fix, once with
 the fix. Both sides see the same tree, and your working tree is never
@@ -130,7 +130,7 @@ touched, not even by what the test writes. List only the fixed code in
 `--fix`, not the test: a test changed by the fix would run in its old form.
 
 ```bash
-keel prove tests/anvil.test.mjs --fix lib/anvil.mjs --trailer
+plates prove tests/anvil.test.mjs --fix lib/anvil.mjs --trailer
 # VERIFIED: tests/anvil.test.mjs — red without the fix, green with it
 # Proven-by: tests/anvil.test.mjs — VERIFIED — "Expected values to be strictly equal: -1 !== 3 (drops one anvil)"
 ```
@@ -154,7 +154,7 @@ A mutant that does not load or runs out of time is reported apart and never
 counts as caught.
 
 ```bash
-keel prove tests/anvil.test.mjs --fix lib/anvil.mjs --mutate --trailer
+plates prove tests/anvil.test.mjs --fix lib/anvil.mjs --mutate --trailer
 #   mutants: 7/9 caught (2 survivors) on 2 changed lines; each run limited to 10s
 #     survivor     lib/anvil.mjs:4 — comparison `<` → `<=`
 # Proven-by: tests/anvil.test.mjs — VERIFIED — "..."
@@ -164,7 +164,7 @@ keel prove tests/anvil.test.mjs --fix lib/anvil.mjs --mutate --trailer
 The skill itself lives once, at `.agents/skills/conduct/SKILL.md`, and Claude
 Code reaches it through the `.claude/skills/conduct` symlink. It is a managed
 file: if your project needs it to say something different, change it in
-keel, or send your edit home ([Lessons and learning](lessons-and-learning.md)).
+plates, or send your edit home ([Lessons and learning](lessons-and-learning.md)).
 
 ## What you'll see
 

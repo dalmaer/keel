@@ -13,11 +13,11 @@ issue: 10
 
 ## Done when
 
-`roadmap --check` refuses a phase that still holds `keel phase new`'s template text or an empty Done when, Acceptance or Proof; every acceptance box in a new phase names its check (a test, a command, or ⚑ by hand); and the phase template asks for its Real surfaces, each needing one proof in that place.
+`roadmap --check` refuses a phase that still holds `plates phase new`'s template text or an empty Done when, Acceptance or Proof; every acceptance box in a new phase names its check (a test, a command, or ⚑ by hand); and the phase template asks for its Real surfaces, each needing one proof in that place.
 
 ## Scope
 
-The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md), lever 1.
+The design is [How rigorous is a plates spec](../research/2026-10-06-spec-rigor.md), lever 1.
 
 - **Template text is refused.** `scripts/roadmap.mjs` (the phases practice)
   knows the template's placeholder sentences and fails on any left in a
@@ -44,11 +44,11 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 ## Acceptance
 
 - [x] A phase holding template text, or with an empty Done when, Acceptance or Proof, fails `node scripts/roadmap.mjs --check` with the section named; mutation: an empty placeholder list lets it pass and fails the test. `tests/roadmap.test.mjs`
-- [x] A new phase's box naming no test, command or ⚑ fails the check; an old phase's is reported as `acceptance-unchecked` by `keel doctor` and changes no file. `tests/roadmap.test.mjs`, `tests/doctor.test.mjs`
+- [x] A new phase's box naming no test, command or ⚑ fails the check; an old phase's is reported as `acceptance-unchecked` by `plates doctor` and changes no file. `tests/roadmap.test.mjs`, `tests/doctor.test.mjs`
 - [x] A phase naming a Real surface with no proof line for it fails; `none` passes with no proof line. `tests/roadmap.test.mjs`
 - [x] `proofs_hold` flags a built phase whose cited test was deleted or failed in the last ledger run, or whose evidence names a missing path, and changes no phase file. Without a ledger (before phase 33) it checks the cited test files and evidence paths only, and says the ledger half is n/a, never zero. `tests/improve.test.mjs`
-- [x] keel's own phases (39) pass, with every lint listed in the evidence file rather than fixed by rewriting. `npm run check`
-- [x] ⚑ by hand: cajones taken through `keel fleet update` to the release carrying this phase, its own `npm run check:all` green on the update PR, and the owner merges it.
+- [x] plates's own phases (39) pass, with every lint listed in the evidence file rather than fixed by rewriting. `npm run check`
+- [x] ⚑ by hand: cajones taken through `plates fleet update` to the release carrying this phase, its own `npm run check:all` green on the update PR, and the owner merges it.
 
 ## Real surfaces
 
@@ -57,7 +57,7 @@ The design is [How rigorous is a keel spec](../research/2026-10-06-spec-rigor.md
 ## Proof
 
 - Automated: `node --test tests/roadmap.test.mjs tests/doctor.test.mjs`, with the mutations named above; `npm run check`.
-- By hand: cajones taken through `keel update` to the release; its own `npm run check:all` green.
+- By hand: cajones taken through `plates update` to the release; its own `npm run check:all` green.
 - ⚑ The update PR in cajones (the owner merges).
 
 ## Deliberately open

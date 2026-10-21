@@ -48,7 +48,7 @@ test('projects-shaped plans reuse their status vocabulary and never treat future
 
 test('milestones preserve external authority and unavailable issue permission without reading archived plans', async () => {
   const h = projectHarness();
-  h.source.files['.keel/keel.json'] = JSON.stringify({ name: 'Acme Studio', phases: { source: 'milestones' } });
+  h.source.files['.plates/plates.json'] = JSON.stringify({ name: 'Acme Studio', phases: { source: 'milestones' } });
   const result = await home(h)(h.access, token), plan = result.projects[0].planning;
   assert.equal(plan.source, 'milestones'); assert.equal(plan.built, null); assert.equal(plan.total, null);
   assert.deepEqual(result.decisions, []); assert.deepEqual(result.walks, []);
@@ -97,7 +97,7 @@ test('truncated trees, malformed phase records and oversized input preserve gaps
   const truncated = await home(h)(h.access, token); assert.equal(truncated.coverage.state, 'unavailable'); assert.match(truncated.coverage.gaps[0].reason, /bound/);
   const bad = projectHarness(); bad.source.files['docs/phases/01-first.md'] = 'malformed';
   const result = await home(bad)(bad.access, token); assert.equal(result.coverage.state, 'partial'); assert.equal(result.projects[0].sourceComplete, false); assert.deepEqual(result.decisions, []);
-  const huge = projectHarness(); huge.source.files['.keel/keel.json'] = 'x'.repeat(140000);
+  const huge = projectHarness(); huge.source.files['.plates/plates.json'] = 'x'.repeat(140000);
   const oversized = await home(huge)(huge.access, token); assert.equal(oversized.projects[0].state, 'unavailable'); assert.match(oversized.projects[0].gaps[0].reason, /bound/);
 });
 

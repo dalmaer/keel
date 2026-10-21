@@ -1,7 +1,7 @@
 # Operate the fleet from the web
 
 Design extension, 21 October 2026, following the owner's request to drive all
-Keel projects from mobile and desktop. This expands G7 beyond the first decision
+Plates projects from mobile and desktop. This expands G7 beyond the first decision
 workspace; it does not claim that hosted execution or provider integrations exist.
 The [workspace contract](web-workspace.md) owns privacy and authorization, the
 [UI spec](web-ui.md) owns Home, and the [command inventory](web-ui-command-map.md)
@@ -9,7 +9,7 @@ owns the dated CLI mapping. This document owns fleet operations and phases 102â€
 
 ## Outcome and scope
 
-The owner can choose a project, understand everything Keel has done and is doing,
+The owner can choose a project, understand everything Plates has done and is doing,
 make decisions, test changes, manage routines and updates, learn across the fleet,
 and manage execution capacity from the web. Desktop and mobile have the same
 capabilities. The first Home release remains focused on decisions, guided tests
@@ -67,7 +67,7 @@ A run detail answers **what ran, why, what changed, what it cost, and what next*
   routine version, project/ref, actual worker/provider/model and policy revision.
 - Requested, queued, running, waiting for a person, cancellation requested,
   cancelled, succeeded, failed, skipped or uncertain state, with source timestamp.
-  Provider state and Keel's interpreted outcome are both retained. Process success
+  Provider state and Plates's interpreted outcome are both retained. Process success
   does not mean accepted, merged, production-verified or useful.
 - Stage timeline, elapsed/queued time, sanitized logs, outputs, screenshots,
   test results, decisions, PRs and links to the authoritative external run.
@@ -115,7 +115,7 @@ local drift, ejected/customized files and inaccessible repos remain visible.
 unknown state must not look up to date. The app's deployed version is another fact.
 
 An update begins with a selected target and project set, a per-project migration
-preview and expected checks. Respect `keel update` and `keel fleet update` domain
+preview and expected checks. Respect `plates update` and `plates fleet update` domain
 semantics: preserve project-owned files and deliver reviewable PRs. Revalidate
 refs before dispatch, recover existing intents/PRs, use bounded rollout batches
 and pause remaining projects on configured failure conditions. Offer a canary

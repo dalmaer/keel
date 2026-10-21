@@ -1,4 +1,4 @@
-# @claude on an issue or a pull request (keel practice `claude`; managed: keel
+# @claude on an issue or a pull request (plates practice `claude`; managed: plates
 # render rewrites it).
 #
 # Mention @claude in an issue, a comment or a review, or label an issue
@@ -71,5 +71,5 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --append-system-prompt "Before working, read .keel/keel.json. If it names a guide, read and follow that file. Otherwise follow the repository's existing agent instructions."
+            --append-system-prompt "Before working, read .plates/plates.json. If it names a guide, read and follow that file. Otherwise follow the repository's existing agent instructions."
             --allowedTools "Bash(npm run *),Bash(npm test),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Edit,Write,Read,Glob,Grep"

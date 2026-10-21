@@ -33,6 +33,6 @@ each command once on purpose and check that the run says broken.
 
 ## Deliver
 
-`keel persona run performance` (or `node scripts/keel/persona.mjs run
+`plates persona run performance` (or `node scripts/plates/persona.mjs run
 performance`) writes `docs/reviews/<date>-performance.md`. A missed goal goes to
 the next night's plan as a candidate; a broken one as something to review.

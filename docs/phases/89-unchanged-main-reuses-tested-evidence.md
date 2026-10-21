@@ -4,7 +4,7 @@ since: 2026-10-17
 goal: G4
 spec: 1
 depends: [79]
-note: "Implemented with 20 focused and 1,860 integrated tests passing; Keel opts in. Fresh-data work continues."
+note: "Implemented with 20 focused and 1,860 integrated tests passing; Plates opts in. Fresh-data work continues."
 evidence: ["evidence/89-unchanged-main-reuses-tested-evidence.md"]
 ---
 
@@ -23,7 +23,7 @@ Extend the existing night gate reader described in [the night guide](../guide/th
 - [x] `ci.gateReuse: "until-change"` removes only the age limit; omitted or `"24-hours"` preserves existing behavior.
 - [x] Invalid policy values are rejected; artifacts, command, tree, latest attempt and source checks remain mandatory.
 - [x] Tests prove an old successful result skips execution and changed/missing/failed evidence does not.
-- [x] Keel opts in; guide and shipped scripts agree. No entire-night skip or new tracking store.
+- [x] Plates opts in; guide and shipped scripts agree. No entire-night skip or new tracking store.
 
 ## Proof
 

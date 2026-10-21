@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Read-only native V8 profile analysis. Writes only summary artifacts in scratch.
-// Usage: node /tmp/keel-test-audit/coverage-summary.mjs RAW_DIRECTORY [OUTPUT_DIRECTORY]
+// Usage: node /tmp/plates-test-audit/coverage-summary.mjs RAW_DIRECTORY [OUTPUT_DIRECTORY]
 // Does not run tests, import project code, modify profiles, or claim assertion/branch coverage.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync, lstatSync, realpathSync, mkdirSync } from 'node:fs';
@@ -8,9 +8,9 @@ import { resolve, relative, join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 
-const ROOT = '/Users/dionalmaer/code/keel';
-const PREFIX = 'file:///Users/dionalmaer/code/keel/';
-const SCRATCH = '/tmp/keel-test-audit';
+const ROOT = '/Users/dionalmaer/code/plates';
+const PREFIX = 'file:///Users/dionalmaer/code/plates/';
+const SCRATCH = '/tmp/plates-test-audit';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const inside = (parent, child) => child === parent || (!relative(parent, child).startsWith(`..${sep}`) && relative(parent, child) !== '..' && !relative(parent, child).startsWith(sep));
 const posix = value => value.split(sep).join('/');
@@ -31,7 +31,7 @@ function main() {
   mkdirSync(SCRATCH, { recursive: true });
   // Only scratch output; never write within the raw collection directory.
   const scratchReal = realpathSync(SCRATCH);
-  if (!inside(resolve(SCRATCH), output)) throw new Error('OUTPUT_DIRECTORY must be inside /tmp/keel-test-audit');
+  if (!inside(resolve(SCRATCH), output)) throw new Error('OUTPUT_DIRECTORY must be inside /tmp/plates-test-audit');
   let ancestor = output;
   while (true) {
     try { realpathSync(ancestor); break; } catch {
@@ -125,11 +125,11 @@ function main() {
         continue;
       }
       raw.nativeProfileFiles++;
-      if (data.keelAudit) raw.diagnosticRewrittenProfileFiles++;
+      if (data.platesAudit) raw.diagnosticRewrittenProfileFiles++;
       const pid = /^coverage-(\d+)-/.exec(ent.name)?.[1] ?? null;
       if (pid !== null) profilePids.add(pid);
       const profile = { file: name, sha256: sha(bytes), bytes: bytes.length, pidFromFilename: pid, timestamp: data.timestamp ?? null,
-        scriptRecords: data.result.length, matchedScriptRecords: 0, diagnosticRewritten: !!data.keelAudit };
+        scriptRecords: data.result.length, matchedScriptRecords: 0, diagnosticRewritten: !!data.platesAudit };
       for (const script of data.result) {
         raw.scriptRecords++;
         if (typeof script?.url !== 'string') { excluded.missingOrInvalidUrl++; continue; }
@@ -210,7 +210,7 @@ function main() {
     'V8 function records include anonymous/script-wrapper entries as emitted; no parser-derived source function denominator is claimed. Offsets are UTF-16 code units.',
     'Deduplication is by exact tracked source URL plus entry start/end offsets; names are retained as a set. Entry counts are not summed into an invocation estimate.',
     'All regular JSON files under the input directory are examined, including subprocess profiles. No PID or test-process filter is applied. Symlinks are skipped.',
-    'Only exact file:///Users/dionalmaer/code/keel/ URLs for currently tracked production .mjs paths match. Queries, fragments, fixture/mutant copies, worktrees and copied adopter sources are excluded, including code that executed only in those copies.',
+    'Only exact file:///Users/dionalmaer/code/plates/ URLs for currently tracked production .mjs paths match. Queries, fragments, fixture/mutant copies, worktrees and copied adopter sources are excluded, including code that executed only in those copies.',
     'Unobserved modules are listed separately; absence is not evidence that every function in them was never executed elsewhere. No absent-module functions enter the denominator.',
     'Block ranges are ignored and are not claimed as branches. Entry execution is not assertion coverage, behavior verification, mutation sensitivity or test usefulness.',
     'Per-source statistics keep canonical practice and rendered copies separate. Manifest-related identical-current-byte copies additionally have union-by-offset groups. No overall coverage percentage is emitted.',
@@ -218,7 +218,7 @@ function main() {
     'Stop collection before analysis: changing or partially written profiles may yield parse/read errors. JSON validity does not prove the complete process set flushed successfully.',
   ];
   if (adjacentRunLog?.counts?.fail > 0) warnings.push(`Adjacent collection log reports ${adjacentRunLog.counts.fail} failed tests; some scenarios stopped early. This is not a fully passing collection.`);
-  if (raw.diagnosticRewrittenProfileFiles) warnings.push('Some profiles carry keelAudit metadata from the old rewriting preload; this is not an untouched native baseline.');
+  if (raw.diagnosticRewrittenProfileFiles) warnings.push('Some profiles carry platesAudit metadata from the old rewriting preload; this is not an untouched native baseline.');
   if (errors.length) warnings.push('Errors/gaps exist; inspect the full artifact before interpreting observed counts.');
   if (sum('offsetMismatches')) warnings.push('Some observed offsets exceed current source length; collection/source comparability is uncertain.');
   const fullPath = join(outputReal,'coverage-file-stats.json'), summaryPath = join(outputReal,'coverage-summary.json');

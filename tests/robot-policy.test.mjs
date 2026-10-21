@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { robotPolicy, robotIssueLabels } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
+import { robotPolicy, robotIssueLabels } from '../practices/climb/files/scripts/plates/robot-policy.mjs';
 import { readRobotStatus } from '../lib/robot-status.mjs';
 
 test('robot policy defaults OFF, rejects malformed opt-ins and uses only the settled target keys', async () => {

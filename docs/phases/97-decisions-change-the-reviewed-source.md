@@ -18,7 +18,7 @@ An owner can review and record a decision against exact current source facts and
 
 Add decision detail, typed preview/apply operations, source digest checks, project lock and durable receipts. Reuse decision context/shaping and existing proposal delivery policies. Public outbound material has its own exact preview.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

@@ -1,4 +1,4 @@
-// A fake isocan home at the boundary (its CLI as keel's transport sees it),
+// A fake isocan home at the boundary (its CLI as plates's transport sees it),
 // shared by the canvas sync tests and the morning's plan card (phase 78).
 // isocan's conditional edit, as inspected at 7bb1f4e: the home decides.
 import assert from 'node:assert/strict';
@@ -10,13 +10,13 @@ import { canvasConnect, canvasSync, canvasLive, CanvasError } from '../../lib/ca
 export const digest = value => createHash('sha256').update(value).digest('hex');
 export const home = 'https://acme.test';
 export const read = path => readFile(path, 'utf8').then(JSON.parse);
-export const configPath = root => join(root, '.keel/keel.json');
-export const manifestPath = root => join(root, '.keel/canvas/manifest.json');
+export const configPath = root => join(root, '.plates/plates.json');
+export const manifestPath = root => join(root, '.plates/canvas/manifest.json');
 export const cards = () => [{ key: 'snapshot', title: 'Acme snapshot', source: '# Acme\n', region: 'evidence' }, { key: 'pulse', title: 'Acme pulse', source: '# Acme pulse\n', visual: '<!doctype html><p>Acme</p>' }];
 export async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-canvas-acme-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-canvas-acme-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
+  await mkdir(join(root, '.plates'));
   await mkdir(join(root, '.isocan'));
   await writeFile(configPath(root), JSON.stringify({ name: 'Acme', practices: [], custom: 'keep me' }));
   await writeFile(join(root, '.isocan/project.json'), '{"canvasId":"prj_human","home":"https://other.acme.test"}\n');

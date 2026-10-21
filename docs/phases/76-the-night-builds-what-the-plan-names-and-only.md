@@ -25,7 +25,7 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 - **Robot**: with a plan present, the robot admits only the plan's `robot:#<n>` items, in plan order, and nothing else: no scan of other `keel:agent` issues, no fallback when a planned issue fails its rubric (that item ticks `failed` with the reason). A plan with no robot item means the robot builds nothing that night. Without a plan it admits as before. Its weekly allowance and every guard stay as they are.
 - **Loop findings**: an accepted finding that names a number becomes a robot issue (`ensureRobotIssue`, as accepted time proposals do) when the owner adds it to the plan; never on its own.
 - **Will not touch**: the judge refuses a change that touches a path in `willNotTouch`, as the sandbox refuses `.github/`.
-- **Ticking**: each pass ticks its item `running`, then `done` with the PR link or `failed` with the reason, through `keel night tick`.
+- **Ticking**: each pass ticks its item `running`, then `done` with the PR link or `failed` with the reason, through `plates night tick`.
 - **Budgets**: the plan's per-item minutes may lower a pass's budget, never raise it.
 
 ## Acceptance
@@ -35,13 +35,13 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 - [x] A change that touches a `willNotTouch` path is refused by the judge. `tests/climb.test.mjs`, `tests/robot-runtime.test.mjs`
 - [x] Each pass ticks its item running, then done with the PR link or failed with the reason. `tests/night-plan.test.mjs`, `tests/workflows.test.mjs`
 - [x] A plan budget lowers a pass's minutes and never raises them. `tests/climb.test.mjs`, `tests/robot-runtime.test.mjs`
-- [ ] ⚑ by hand: one real night on keel builds the one item the owner put in the plan, and nothing else.
+- [ ] ⚑ by hand: one real night on plates builds the one item the owner put in the plan, and nothing else.
 
 ## Your part
 
 - **Ask:** Put one small fix in tonight's plan with `/goodnight`, and in the morning check that the night opened a pull request for it and nothing else.
 - **Why:** It shows the night does what you asked and only that.
-- **Look at:** the morning's open pull requests on keel.
+- **Look at:** the morning's open pull requests on plates.
 - **Choices:** It built what I asked, only that | It built something else, or nothing
 - **Takes:** 10 minutes.
 - **Then:** Something else: the night is held at measuring until it is fixed.
@@ -49,7 +49,7 @@ The design is [Nightwatch: a night with a plan you can shape](../research/2026-1
 
 ## Real surfaces
 
-- Workflow shell: `keel-climb` and `keel-robot` read the plan.
+- Workflow shell: `plates-climb` and `plates-robot` read the plan.
 - GitHub API: the PR each pass opens.
 
 ## Proof
@@ -61,7 +61,7 @@ By hand: one real night with one item.
 
 - **Order between passes** follows their schedules (night, then climb, then the robot); one shared night budget is later.
 - **Known limit**: the robot is still blocked on its sandbox prerequisite (phase 54). Not built as specified: while the robot is off its admission stops before any scan, so robot items are not ticked `skipped`; they stay `planned`, and the morning shows them unfinished. Who ticks them `skipped` with that reason (the robot's off run, or the morning) is open.
-- **Where ticks live** — settled 2026-10-14 by this phase's build: on the plan branch. Each pass's publish job (the only job of its that holds a write token) adds one commit on top of `keel-night-plan`'s tip with the updated plan, pushed with `--force-with-lease` on that tip and retried from a new tip (`night-plan.mjs record`), so an owner's `/goodnight` push or the other pass's ticks are never lost; a plan dated another night is never ticked. The night's own record (`docs/night/<date>.json`) is committed before climb and the robot run, so it cannot carry their outcomes; an artifact expires and is per run. The branch is never merged and never main. `running` and the final status land together, from the publish job: the agent and judge jobs read only. When the night ran keel's default plan (nothing on the branch), there is nothing to tick and both passes choose as they always did.
+- **Where ticks live** — settled 2026-10-14 by this phase's build: on the plan branch. Each pass's publish job (the only job of its that holds a write token) adds one commit on top of `keel-night-plan`'s tip with the updated plan, pushed with `--force-with-lease` on that tip and retried from a new tip (`night-plan.mjs record`), so an owner's `/goodnight` push or the other pass's ticks are never lost; a plan dated another night is never ticked. The night's own record (`docs/night/<date>.json`) is committed before climb and the robot run, so it cannot carry their outcomes; an artifact expires and is per run. The branch is never merged and never main. `running` and the final status land together, from the publish job: the agent and judge jobs read only. When the night ran plates's default plan (nothing on the branch), there is nothing to tick and both passes choose as they always did.
 - **The plan and a writer's own event** — settled 2026-10-14 by this phase's build: the plan narrows the robot's scans (its schedule, and a dispatch with no routed trigger). A writer's routed label or comment is that writer asking now, not the night, and is admitted as before. Revisit if the walk shows that surprises the owner.
 - **Loop findings into robot issues**: not built. Turning an accepted finding into a robot issue needs a rubric (problem, reproduction, acceptance, change) the finding does not carry, a durable intent journal like the time proposals', and an owner verb to put it in the plan; that is not small. Until then a Loop finding in the plan is triage, as the default plan makes it.
 
