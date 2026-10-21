@@ -2,8 +2,10 @@
 
 Setup guide, updated 21 October 2026. Phase 93 provides local manifest and state
 initialization. The first private repository and Vercel project exist; hosted
-sign-in and Home are not deployed. Database and GitHub App access are still
-proposals. See [the contract](../specs/web-workspace.md) and
+sign-in and Home are not deployed. Supabase is provisioned for production and
+the read-only GitHub App is approved but awaits identity verification. Phase 95
+now provides the authentication service implementation; its
+[service guide](web-auth-service.md) gives the exact configuration and migration. See [the contract](../specs/web-workspace.md) and
 [phase 94](../phases/94-private-instance-has-approved-connections.md) for the
 remaining connection work. This guide separates commands you can use now from
 setup for the future service.
@@ -88,7 +90,7 @@ access and changes no project files. For a project already using Keel, retain it
 existing project that needs adoption, follow [Start a project](start-a-project.md)
 or [Bring a project under Keel](bring-a-project-under-keel.md).
 
-The hosted service will authorize the intersection of workspace membership,
+The authentication service checks the intersection of workspace membership,
 GitHub App installation and the signed-in user's repository access. Phase 95
 implements that boundary; local manifest validation does not verify it.
 
@@ -147,7 +149,7 @@ it is not the storage implementation for hosted requests.
 | Layer | Binding or planned binding | Remaining decision/check |
 | --- | --- | --- |
 | Application | Public Keel source; framework-free Node functions and browser modules | Account/team and project verified; region and actual Node >=24.21.0 remain |
-| Shared records | Owner-selected private GitHub repository | Numeric identity retained privately; manifest and selected project list |
+| Shared records | Owner-selected private GitHub repository | Numeric identity, manifest, members file and selected project list retained privately |
 | Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free/iad1 connected to production | Runtime schema, access denial proof, restore policy |
 | Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
 | Identity | GitHub App authorization, selected repositories only | Approved owner, callback and read-only scope; identity verification, registration and installation remain |
@@ -230,10 +232,12 @@ limits; paid resources, overages and backups need a concrete owner decision.
    and Contents read, selected workspace/project repositories only. Add Issues
    and Pull requests read when adapters need them; approve writes separately when
    decision/walk operations ship. No Actions or administration access is needed.
-6. Configure the exact HTTPS callback and server-only App private key, client
-   secret, session secret and database credential. Webhook signing secret is
-   needed only when that route ships. Preview deployments use synthetic resources
-   and separate credentials; untrusted branches must not receive production data.
+6. Configure the exact HTTPS callback and server-only client secret, session
+   encryption key and database credential. The initial user authorization flow
+   does not use an App private key; do not generate one for this phase. Webhook signing secret is
+   needed only when that route ships. The phase 95 entry point refuses non-production Vercel environments. Future
+   preview authentication needs separate synthetic resources and credentials;
+   untrusted branches must not receive production data.
 7. Record provider IDs, permission matrix, secret names (never values), price,
    region, origin, serving revision and backup destination privately. Public
    evidence records only sanitized coverage. Phase 94 remains partial until real
