@@ -45,7 +45,7 @@ claims of existing checks or passing results.
 
 ## Deliberately open
 
-Not every CLI verb becomes a web mutation. Agent execution and schedule/spend expansion need their existing approval and worker design.
+This phase ships daily/learning views and migration. Full routine execution, fleet rollout and model routing follow in phases 102–108 under the expanded operating goal; their worker and permission contracts are not implied by a read-only view.
 
 ## Next action
 

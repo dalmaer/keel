@@ -22,6 +22,11 @@ The owner emphasized these three experiences during design review on 20 October
 2026. They now lead the proposal and the next prototype iteration; this is a
 product preference, not acceptance of an implementation.
 
+The full goal is to operate every authorized Keel project from mobile and desktop,
+with fleet and project lenses for routines, learning, updates, connections and
+model capacity. [Fleet operations](web-fleet-operations.md) specifies this
+expansion; Home remains the first shipping screen.
+
 The web UI projects the same records as the CLI. It does not introduce another
 phase status, acceptance database, task tracker, or agent scheduler.
 
@@ -47,10 +52,14 @@ aggregation and capability discovery are real backend work.
 
 ## Information architecture
 
-App navigation: **Home · Your actions · Projects · Activity**. Put **Fleet settings**
-and, on keel itself, **Practice & learning** in the secondary navigation.
+App navigation: **Home · Your actions · Projects · Routines · Activity · Learning ·
+Versions & updates · Connections & capacity**. Use a persistent Fleet/project lens.
+On mobile use **Home · Projects · Activity · More**; all destinations and actions
+remain available. See the fleet operations contract for the responsive structure.
 
-Within a project: **Overview · Plan · Work · Health · Learning · Settings**.
+Within a project: **Overview · Plan · Work · Routines · Activity · Health · Changes ·
+Learning · Settings**; versions, effective connections and capacity are available
+from Settings and contextual links.
 Keep tabs stable; an unavailable feature explains what is missing. Hide irrelevant
 advanced controls rather than invent empty scores. Global search finds projects,
 phases, walks, PRs, proposals and evidence; results include project and source.
@@ -458,13 +467,15 @@ diff transactions are new work for commands that do not currently support them.
 
 ## Delivery sequence and proof
 
-The numbered delivery plan is [workspace phases 93–101](web-workspace.md#phases-and-release-criteria),
+The first delivery plan is [workspace phases 93–101](web-workspace.md#phases-and-release-criteria),
 under goal G7. Phase 93 enforces private storage, 94 connects owner-approved
 resources, 95 authenticates, and 96 ships the first useful read-only Home.
 Decisions, guided walks and visual changes follow in 97–99; daily work and
 learning follow in 100, with live acceptance and restore in 101. Do not wait
-for a graphical version of every CLI flag. The command inventory distinguishes
-read/link-out surfaces from in-app execution.
+for a graphical version of every CLI flag. Link-outs are staged delivery, not the
+end state for core operations. [Fleet phases 102–108](web-fleet-operations.md)
+add run history, connections/capacity, workers, fleet rollouts, routing, operation
+coverage and the full mobile/desktop operating trial.
 
 Integration verification should cover data contracts, source gaps, routing,
 concurrent/stale actions, receipts, accessibility and responsive behavior.
@@ -484,8 +495,9 @@ and observations; do not manufacture performance or usability results.
 - **Settled 21 October 2026 — hosting and ownership:** the owner requested
   authenticated remote access with app code in public Keel, shared records in a
   private workspace and project facts in each project. The workspace spec
-  replaces the earlier local-first delivery recommendation. Host/accounts are
-  still a phase 94 owner choice, not a license to create resources.
+  replaces the earlier local-first delivery recommendation. Vercel and Supabase Free are now selected and provisioned; the approved
+  read-only GitHub App awaits identity verification. Expanded worker/provider
+  permissions remain explicit setup choices.
 - **Agent launch integration:** initial “View next work” can expose a prepared
   brief/command. Launching a particular host requires a supported host adapter,
   existing authorization and budget; a claim is not a launch API.

@@ -39,6 +39,19 @@ The phase 93 workspace entries are a build contract until that phase's evidence
 exists. Provider/hosting parameters are not invented CLI flags. The existing
 public verbs plus these additions retain JSON transport and documented help.
 
+## Expanded operating goal, 21 October 2026
+
+[Fleet operations](web-fleet-operations.md) expands the final target to mobile/desktop
+control of every authorized project. “Advanced” and initial CLI/link-outs below
+are delivery stages, not permanent exclusions for core operating journeys. Phase
+107 must re-audit the live registry and every argument against native workflows,
+supported workers/local bridges, presentation-only options or explicit limitations
+with follow-up. Local filesystem arguments become scoped worker inputs, not raw
+server paths. Secret setup is now a dedicated scoped connection workflow, never
+a generic environment editor. Routine history, worker dispatch, provider capacity
+and routing policies are new shared domain capabilities; do not invent CLI flags
+for them or mistake GitHub quota for model quota.
+
 ## Shared controls and arguments
 
 | Argument / convention | UX treatment |
@@ -210,7 +223,7 @@ product from overlooking them.
 | `node scripts/keel/climb.mjs` | `config`; `pick --date --force --plan`; `measure <job> --runs --baseline`; `compare --base --candidate --rounds --decide --final`; `prove-steady --test --runs --decide`; `guard --base --job`; `harmless --path --why`; `distill [propose …]`; `loop-pull`; `revert --why`; `settle`; `report --body --state --issue`; `agent-ran --agent --outcome --file --minutes --started`; `sandbox --plan` | Show measured attempts, margin, budget, kept/reverted result and PR. Leave low-level mutation, worktree, sandbox and report plumbing to the runner. Never turn compare/decide into a casual chart control. |
 | Tend via climb | `tend-pick`, `tend-input --record`, `tend-note --finding --propose\|--tried`, `guard --job tend`, `tend-report --body` | Night work detail with source findings, tried/proposed outcomes and PR. Show its restriction against silently accepting phases/evidence. |
 | Delivery scripts | `publish --plan` and workflow `--trigger` / `--advance --from --to`; `verify <sha> --within --every --record --json`, `verify live <sha>`, preview `--site`, exact revision checks | Visualize tested-ref selection and verification. Publishing remains the guarded workflow; previews never clear a production failure. |
-| Robot, ledger, roadmap and workflow plumbing | Existing configured jobs, rubric, allowances, test ledger, generated roadmap, production recovery | Read their evidence through existing readers. No duplicate scheduler, raw workflow editor, generated-roadmap editor, secret form or arbitrary command console. |
+| Robot, ledger, roadmap and workflow plumbing | Existing configured jobs, rubric, allowances, test ledger, generated roadmap, production recovery | Read their evidence through existing readers. No duplicate scheduler, raw workflow editor, generated-roadmap editor or arbitrary command console. Scoped write-only provider credential setup belongs to phase 103, not workflow plumbing. |
 
 ## Audit method and implementation follow-up
 

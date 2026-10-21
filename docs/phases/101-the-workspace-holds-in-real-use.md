@@ -16,6 +16,8 @@ The owner repeatedly uses the hosted workspace across real projects and a restor
 
 ## Scope
 
+This phase verifies the first decision/testing workspace. Phase 108 verifies the expanded fleet operating goal; this acceptance cannot stand in for routine execution or routing proof.
+
 Restore private Git records, transactional database records and private media separately, expiring restored sessions. Run the full human acceptance journey and backup/restore drill on the approved deployment; measure actual usefulness, verify revocation and preserve unresolved receipts. Record deployment, production verification and lived-in observations separately.
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
