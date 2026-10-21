@@ -100,3 +100,18 @@ The setup guides now link optional media migration 006 and scoped read-only
 history migration 007, with separate resource and permission activation. A fresh
 integration gate is required after this verified fixture correction; the first
 failed gate remains recorded above.
+
+## Corrected integration result
+
+On 2026-10-21, `node bin/keel.mjs ready --check 'npm run typecheck' --json`
+exited 0 on `7194754deaebeb3ff7cee064da8000994323f506`; typecheck exited 0.
+`node bin/keel.mjs integrate --json` exited 0: one corrected full gate,
+2,232/2,232 tests, all eight pinned timing suites and roadmap/render/inbox guards
+passed. The ledger found no flaky or slower tests and omitted its busy run from
+timing comparisons. It pushed `fda59e68a1d9d99f27f919c727076d1087b0758f`
+to main. The initial failed gate remains part of the evidence, not a passing retry.
+Logs: `/tmp/keel-phase102-corrected-integrate.{json,stderr}`.
+
+The phase102 claim was released after integration. CI typecheck run39693926499
+succeeded on that exact main revision; check run39693926523 was still running
+at this observation. No production deployment or owner acceptance is implied.

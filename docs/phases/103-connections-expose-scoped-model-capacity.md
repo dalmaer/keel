@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [95]
-note: "Expanded fleet operating goal; design and proof remain to be implemented."
+note: "Provider capability matrix and scoped encrypted-vault contract selected; implementation and live activation remain."
 evidence: []
 ---
 
@@ -18,7 +18,7 @@ The owner can configure scoped provider credentials and inspect supported accoun
 
 Design and verify provider/auth support before implementing write-only key setup, validation, rotation/revocation and connection health. Store only secret references in private Git. Keep subscription windows, API limits, spend budgets and runner capacity distinct.
 
-Contract: [Fleet operations](../specs/web-fleet-operations.md),
+Contract: [Connections and capacity](../specs/web-connections.md), [Fleet operations](../specs/web-fleet-operations.md),
 [workspace](../specs/web-workspace.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance
@@ -43,13 +43,22 @@ Test paths below are planned implementation targets, not existing passing checks
 
 ## Deliberately open
 
-Exact provider APIs, supported credential types and required permissions need dated documentation and live proof; no universal quota endpoint is assumed.
+Settled 2026-10-21 by documented capability discovery: initial fixed-endpoint
+OpenAI and Anthropic API-key metadata validation, private Git policy, separate
+encrypted runtime vault and deployment wrapping key. See the dated matrix.
+Live provider/key proof, optional vault activation and hosted permission changes
+remain open. Local subscription reporting requires a later authenticated worker;
+no universal quota endpoint is assumed.
 
 ## Next action
 
-Build the provider/auth capability matrix and select supported read adapters before enabling credential forms.
+Implement the scoped policy, vault, capacity normalization and desktop/mobile
+Connections routes against the agreed contract. Keep credential forms disabled
+until the selected adapter and secret-store binding have live proof.
 
 ## Trajectory
+
+- **2026-10-21** — Metadata access does not establish inference capacity. The selected APIs and local subscription readers expose different scopes; the web keeps unsupported coverage explicit and requires a separate authenticated local reporter before using subscription observations.
 
 - **2026-10-21** — Owner expanded G7 from the first private decision workspace to operating all authorized projects through the web on mobile and desktop.
 
