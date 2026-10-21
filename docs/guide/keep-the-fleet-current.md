@@ -160,7 +160,7 @@ And for drift:
 ```bash
 plates doctor                                          # what changed, with the diff; changes nothing
 plates doctor --fix CLAUDE.md eject --yes              # keep the project's version
-plates doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take plates's
+plates doctor --fix .agents/skills/spin/SKILL.md restore --yes   # take plates's
 ```
 
 ## What you'll see

@@ -4,7 +4,7 @@ export function homeDatabase(now) {
   const json = value => new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
   return { cache, quotas, cursors, handle(url, options) {
     const path = new URL(url).pathname;
-    if (!path.includes('/rpc/plates_home_')) return null;
+    if (!path.includes('/rpc/keel_home_')) return null;
     const p = JSON.parse(options.body), clock = now();
     if (path.endsWith('cache_rpc')) {
       let row = cache.get(p.p_key), acquired = false;

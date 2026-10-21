@@ -46,7 +46,7 @@ instruction that did nothing. The retro looks at exactly that, after real
 work, and turns it into at most five candidates for the owner.
 
 - **When**: after a phase whose commit changed more than `docs/`. It is the
-  last step of `/conduct`. On a docs-only range it says so in one line, and
+  last step of `/spin`. On a docs-only range it says so in one line, and
   there is no retro.
 - **What it reads**: the session's transcript and its subagents', counted:
   failed commands retried, tool errors, permission denials, files read three
@@ -125,7 +125,7 @@ id, commit or session.
 
 ## See also
 
-- [Conduct a phase](conduct-a-phase.md): where the retro sits in the walk.
+- [Spin a phase](spin-a-phase.md): where the retro sits in the walk.
 - [Lessons and learning](lessons-and-learning.md): where a lesson candidate
   goes.
 - `plates --agent-help loose-ends` and `plates --agent-help retro`: the exact

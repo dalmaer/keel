@@ -234,7 +234,7 @@ test('a project that already is plates-shaped switches everything on, and its fi
   assert.equal(data.config.local, undefined);
   const after = await tree(dir);
   for (const [path, hash] of Object.entries(before)) assert.equal(after[path], hash, `${path} changed`);
-  assert.deepEqual(Object.keys(after).filter(p => !(p in before)).sort(), ['.plates/plates.json', '.plates/lock.json', REPORT]);
+  assert.deepEqual(Object.keys(after).filter(p => !(p in before)).sort(), ['.plates/lock.json', '.plates/plates.json', REPORT]);
 });
 
 test('a bare project: phases off, so is what needs them; ci on and runs its gate', async t => {
@@ -322,7 +322,7 @@ test('the conduct block and skill name the project\'s gate, never a bare npm run
   assert.equal(plates(['adopt', dir]).code, 0);
   const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
   const block = /<!-- plates:begin conduct -->\n([\s\S]*?)<!-- plates:end conduct -->/.exec(agents)[1];
-  const skill = await readFile(join(dir, '.agents/skills/conduct/SKILL.md'), 'utf8');
+  const skill = await readFile(join(dir, '.agents/skills/spin/SKILL.md'), 'utf8');
   for (const [what, text] of [['conduct block', block], ['SKILL.md', skill]]) {
     assert.match(text, /`npm run check:all`/, what);
     assert.doesNotMatch(text, /npm run check(?!:all)/, `${what} names a bare npm run check`);
@@ -466,7 +466,7 @@ test('--with on an adopted project adds only that practice: its files, block and
   assert.equal(r.code, 0, r.err);
   const after = await tree(dir);
   const changed = Object.keys({ ...before, ...after }).filter(p => before[p] !== after[p]).sort();
-  assert.deepEqual(changed, ['.github/workflows/plates-loop.yml', '.plates/plates.json', '.plates/lock.json', 'AGENTS.md', 'docs/loop/README.md', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
+  assert.deepEqual(changed, ['.github/workflows/plates-loop.yml', '.plates/lock.json', '.plates/plates.json', 'AGENTS.md', 'docs/loop/README.md', 'scripts/loop.mjs', 'tests/loop.test.mjs']);
   const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.deepEqual(cfg, { ...cfgBefore, practice: '0.0.1', loop: { run: 'npm run loop --' }, practices: [...cfgBefore.practices, 'loop'] }, 'only practices changed; the practice version is kept');
   const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');

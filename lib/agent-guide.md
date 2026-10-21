@@ -427,7 +427,7 @@ plates adopt ../acme-app             # then on a branch, for a PR a person merge
 ```bash
 plates doctor --json                                   # read; changes nothing
 plates doctor --fix CLAUDE.md eject --yes               # keep the project's version
-plates doctor --fix .agents/skills/conduct/SKILL.md restore --yes   # take plates's
+plates doctor --fix .agents/skills/spin/SKILL.md restore --yes   # take plates's
 ```
 
 It exits 1 on findings (drift or a broken practice rule), 0 when clean.
@@ -1886,7 +1886,7 @@ inferred from merge. Commands in proposals are display data, not executed.
 <!-- topic: retro | the worksheet for a retro after a phase that did real work -->
 
 `plates retro [--worksheet] [--since <commit>] [--session <id>]` is the last
-step of `/conduct` for a phase whose commit changed more than `docs/`, and a
+step of `/spin` for a phase whose commit changed more than `docs/`, and a
 person can run it any time. It reads only, writes nothing, and exits 0: it is
 a worksheet, not a gate.
 

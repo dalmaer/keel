@@ -1,4 +1,4 @@
-# conduct
+# spin (practice ID: conduct)
 
 **The failure it prevents.** A builder's "the suite passed" taken on trust;
 verification repeated at every level until it costs more than it catches
@@ -7,8 +7,8 @@ apart (lesson 1).
 
 **The rule.** The conductor briefs a builder per phase, verifies the named
 proof itself, writes the record and commits the phase whole. The skill lives
-once, at `.agents/skills/conduct/SKILL.md`; Claude Code reaches it through the
-committed symlink `.claude/skills/conduct`.
+once, at `.agents/skills/spin/SKILL.md`; Claude Code reaches it through the
+committed symlink `.claude/skills/spin`.
 
 **Reviews (phase 41).** Every PR the conductor opens or merges has its
 reviews read (`plates review <repo>#<n>`): when a PR has reviews, validate each
@@ -19,7 +19,9 @@ reviewers with `review: wait` in its front matter (or its issue's
 `keel:wait-for-review` label): it lands through a PR that merges when
 `plates review <repo>#<n> --gate` exits 0. The default is a push to `main`.
 
-**Its files.** The skill (managed), the doorway symlink (managed), the
+**Compatibility.** `/conduct` is a small forwarding skill with the same arguments and authority; it reads `/spin` in full. The installed practice ID and guide block remain `conduct`, preserving configuration, ejection and lock ownership.
+
+**Its files.** The canonical skill and compatibility wrapper, their doorway symlinks, and the
 `conduct` block of the selected working guide.
 
 **Lineage.** Adapted from dglazkov/isocan `.claude/skills/conduct/SKILL.md`

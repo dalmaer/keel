@@ -144,7 +144,7 @@ async function stateOf(comments, repo, issueNumber, github) {
     try {
       const s = JSON.parse(m[1]);
       if (await identity.same(s.repo) && s.issueNumber === issueNumber && Number.isSafeInteger(s.cursor) && s.cursor >= 0 && s.cursor < c.id && /^[a-f0-9]{64}$/.test(s.issueHash) && /^[A-Za-z0-9_-]{1,128}$/.test(s.instanceId) && Number.isFinite(Date.parse(s.completedAt)) && (s.headSha === null || robotSha(s.headSha))) states.push({ ...s, commentId: c.id });
-    } catch { /* unrecognised text is not state */ }
+    } catch (error) { throw new Error(`recorded robot state unavailable: ${error.message}`); }
   }
   return states.sort((a,b) => b.commentId - a.commentId)[0] ?? null;
 }
@@ -548,7 +548,7 @@ export async function publishRobot({ root, repo, baseSha, plan, headSha, message
     const existing = pulls.length === 1 ? await robotRead(github, `/repos/${repo}/pulls/${pulls[0].number}`) : null;
     if (existing) await robotBase(repo, existing, github);
     const mark = robotAssociationOf(existing?.body);
-    if (!intent || intent.headSha !== headSha || JSON.stringify(intent.plan) !== JSON.stringify(publicationPlan(plan)) || !existing || existing.state !== 'open' || existing.merged_at || !isBot(existing.user) || existing.head?.ref !== plan.branch || existing.head?.sha !== headSha || existing.head?.repo?.full_name !== repo || existing.base?.repo?.full_name !== repo || existing.html_url !== `https://github.com/${repo}/pull/${existing.number}` || mark?.instanceId !== plan.instanceId || mark?.headSha !== headSha || mark?.repo !== repo || mark?.issueNumber !== plan.issueNumber || mark?.author !== plan.author) throw new Error('a pull request appeared since admission');
+    if (!intent || intent.headSha !== headSha || JSON.stringify(intent.plan) !== JSON.stringify(publicationPlan(plan)) || !existing || existing.state !== 'open' || existing.merged_at || !isBot(existing.user) || existing.head?.ref !== plan.branch || existing.head?.sha !== headSha || existing.head?.repo?.full_name !== repo || existing.base?.repo?.full_name !== repo || existing.html_url !== `https://github.com/${repo}/pull/${existing.number}` || mark?.instanceId !== plan.instanceId || mark?.headSha !== headSha || !await robotRepositoryIdentity(repo,github).same(mark?.repo) || mark?.issueNumber !== plan.issueNumber || mark?.author !== plan.author) throw new Error('a pull request appeared since admission');
     return {prNumber:existing.number,prUrl:existing.html_url,headSha};
   }
   const association = robotAssociation({ ...plan, headSha });
@@ -632,7 +632,7 @@ export async function publishRobotTriage({repo,plan,has,github=robotGithub,now=n
       if (question.previousHead) {
         if (pulls.length !== 1 || !robotId(pulls[0].number)) throw new Error('triage continuation unavailable');
         const pr = await readRobotPr(github, repo, pulls[0].number), mark=robotAssociationOf(pr.deliveryBody);
-        if (pr.number !== pulls[0].number || !isBot(pr.user) || pr.state !== 'open' || pr.merged_at || pr.head?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${question.issueNumber}` || pr.head?.sha !== question.previousHead || pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch || mark?.repo !== repo || mark?.issueNumber !== question.issueNumber || mark?.instanceId !== question.instanceId || mark?.headSha !== question.previousHead || mark?.author !== question.author) throw new Error('triage continuation changed; human changes preserved');
+        if (pr.number !== pulls[0].number || !isBot(pr.user) || pr.state !== 'open' || pr.merged_at || pr.head?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${question.issueNumber}` || pr.head?.sha !== question.previousHead || pr.base?.repo?.full_name !== repo || pr.base?.ref !== fresh.repository.default_branch || !await robotRepositoryIdentity(repo,github).same(mark?.repo) || mark?.issueNumber !== question.issueNumber || mark?.instanceId !== question.instanceId || mark?.headSha !== question.previousHead || mark?.author !== question.author) throw new Error('triage continuation changed; human changes preserved');
       } else if (pulls.length) throw new Error('triage pull request appeared since admission');
       const result = await robotComment({plan:question,result:{state:'question',reason:question.reason},github,now});
       results.push({issueNumber:question.issueNumber,...result});
@@ -754,7 +754,7 @@ export async function robotCli(args, env = process.env) {
     if (plan.state === 'review') {
       validateRobotPlan({...plan,state:'ready'},{repo,baseSha:trustedBase});
       const pr=await readRobotPr(robotGithub, repo, plan.prNumber),mark=robotAssociationOf(pr.deliveryBody);
-      if (pr.number !== plan.prNumber || !isBot(pr.user) || pr.state !== 'open' || pr.head?.sha !== plan.previousHead || pr.head?.ref !== plan.branch || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || mark?.headSha !== plan.previousHead || mark?.repo !== repo || mark?.issueNumber !== plan.issueNumber || mark?.instanceId !== plan.instanceId || mark?.author !== plan.author) throw new Error('review recovery PR/head changed');
+      if (pr.number !== plan.prNumber || !isBot(pr.user) || pr.state !== 'open' || pr.head?.sha !== plan.previousHead || pr.head?.ref !== plan.branch || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || mark?.headSha !== plan.previousHead || !await robotRepositoryIdentity(repo,robotGithub).same(mark?.repo) || mark?.issueNumber !== plan.issueNumber || mark?.instanceId !== plan.instanceId || mark?.author !== plan.author) throw new Error('review recovery PR/head changed');
       await revalidateAuthorization({repo,issueNumber:plan.issueNumber,authorization:plan.authorization,fresh,github:robotGithub});
       await robotBase(repo, pr, robotGithub);
       outputs({pr:pr.number,head:pr.head.sha});return finish({state:'review',prNumber:pr.number,headSha:pr.head.sha});
@@ -824,7 +824,7 @@ export async function robotCli(args, env = process.env) {
       if (recovered && (!robotSha(plan.recoveryHead) || plan.recoveryHead !== env.ROBOT_HEAD)) throw new Error('failed-review recovery head mismatch');
       const pr = await readRobotPr(robotGithub, repo, Number(env.ROBOT_PR));
       const mark=robotAssociationOf(pr.deliveryBody);
-      if (pr.number !== Number(env.ROBOT_PR) || pr.state !== 'open' || !isBot(pr.user) || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== plan.branch || pr.head?.sha !== env.ROBOT_HEAD || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || mark?.issueNumber !== plan.issueNumber || mark?.repo !== repo || mark?.instanceId !== plan.instanceId || mark?.headSha !== env.ROBOT_HEAD || mark?.author !== plan.author) throw new Error('failed-review PR identity mismatch');
+      if (pr.number !== Number(env.ROBOT_PR) || pr.state !== 'open' || !isBot(pr.user) || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== plan.branch || pr.head?.sha !== env.ROBOT_HEAD || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || mark?.issueNumber !== plan.issueNumber || !await robotRepositoryIdentity(repo,robotGithub).same(mark?.repo) || mark?.instanceId !== plan.instanceId || mark?.headSha !== env.ROBOT_HEAD || mark?.author !== plan.author) throw new Error('failed-review PR identity mismatch');
       await revalidateAuthorization({repo,issueNumber:plan.issueNumber,authorization:permissionOf(pr.deliveryBody),fresh,github:robotGithub});
       await robotBase(repo, pr, robotGithub);
       await robotComment({plan,result:{state:'blocked',reason:'Other-provider review failed or could not establish its remaining allowance. No review is claimed; owner action is needed.',prUrl:pr.html_url,headSha:pr.head.sha}});

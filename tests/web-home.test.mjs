@@ -10,7 +10,7 @@ function snapshot() {
 function freeze(value) { if (value && typeof value === 'object') { Object.freeze(value); Object.values(value).forEach(freeze); } return value; }
 test('Home prioritizes decisions, ready walks, changes, projects and waiting without mutating its snapshot', () => {
   const data=freeze(snapshot()), before=JSON.stringify(data), html=homeView(access,data);
-  const positions=['Decisions that need you','Ready to test','Recently added','Your projects','In progress / waiting'].map(title => html.indexOf(`>${title}</h2>`));
+  const positions=['Decisions that need you','Ready to test','Recently added','Your plates','In progress / waiting'].map(title => html.indexOf(`>${title}</h2>`));
   assert.ok(positions.every(p=>p>0)); assert.deepEqual([...positions].sort((a,b)=>a-b),positions);
   assert.match(html,/Does publishing work\?/); assert.match(html,/Open walk instructions ↗/);
   assert.match(html,/8 \/ 12 built · 3 lived-in/); assert.match(html,/Review publishing on a phone/);
@@ -51,11 +51,11 @@ test('changes disclose missing captures and acceptance instead of inventing prod
 test('waiting walks are never promoted to ready and project lens filters unrelated actions', () => {
   const data=snapshot(); data.walks.push({...action('not-ready','walk'),ready:false}); data.decisions.push(action('api-decision','decision','api'));
   const html=projectView({id:'studio',repo:'acme/studio'},access,data);
-  assert.match(html,/data-endpoint="\/api\/projects\/studio\/home"/); assert.match(html,/Project context/);
+  assert.match(html,/data-endpoint="\/api\/projects\/studio\/home"/); assert.match(html,/Plate context/);
   assert.doesNotMatch(html,/Acme walk not-ready|Acme decision api-decision/); assert.match(html,/Acme decision decision-one/);
 });
 test('empty/fallback pages, account controls, keyboard affordances and reduced-motion styles remain usable', () => {
-  assert.match(homeView(access),/Projects you can access/); assert.match(projectView(access.projects[0],access),/Project connected/);
+  assert.match(homeView(access),/Plates you can access/); assert.match(projectView(access.projects[0],access),/Project connected/);
   assert.match(signinView('fake-csrf-acme'),/Continue with GitHub/); assert.match(errorView(401,'acme'),/Please sign in/);
   const html=homeView(access,snapshot()); assert.match(html,/aria-live="polite"/); assert.match(html,/Skip to content/);
   assert.match(html,/<label>Search this view<input type="search"/); assert.match(html,/<summary data-focus=/);

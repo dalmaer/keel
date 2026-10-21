@@ -17,7 +17,7 @@ Plates runs under its new product, repository, executable and configuration name
 
 ## Scope
 
-Rename the existing product and owned operational integration, including managed project files and connected private workspace references. Keep plate/project and All plates vocabulary. Do not implement spin instrumentation or unrelated planned features. Preserve immutable provenance and recovery identities. Use reviewed migration, explicit compatibility and exact source observations.
+Rename the existing product and owned operational integration, including managed project files and connected private workspace references. Keep plate/project and All plates vocabulary. Rename the existing /conduct skill to /spin with unchanged behavior and a compatibility entry point. Do not implement spin instrumentation or unrelated planned features. Preserve immutable provenance and recovery identities. Use reviewed migration, explicit compatibility and exact source observations.
 
 ## Acceptance
 
@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-Implement the coherent rename and byte-preserving migration in an isolated checkout, then verify and roll it out through reviewed changes.
+Finish integrated checks, reviewed source and consumer changes, then perform repository/hosting/local rollout and verify exact production revision and live flows.
 
 ## Trajectory
 
@@ -53,8 +53,8 @@ Implement the coherent rename and byte-preserving migration in an isolated check
 
 ## Your part
 
-- **Ask:** Complete GitHub's existing-account verification so the App's name and callback can be updated, then confirm the deployed All plates view reflects the intended product terminology.
-- **Why:** Account verification requires the owner's authentication; local tests cannot establish the production sign-in experience.
+- **Ask:** GitHub verification is complete; the remaining production walkthrough follows the checked deployment.
+- **Why:** Local tests cannot establish the production sign-in experience.
 - **Look at:** The existing GitHub App settings page and the exact deployment URL recorded in the release evidence.
 - **Choices:** Verified | Needs changes | Cannot check yet
 - **Keeps it open:** Needs changes | Cannot check yet

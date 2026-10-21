@@ -21,7 +21,7 @@ Last pass: `18e44862160e`, through lesson 56.
 | --- | --- | --- | --- |
 | 4 | A green subset hides a red suite. | isocan house rules, conduct | — |
 | 6 | A grader that reports zeros when it breaks is believed. | isocan evals, lesson 8 there | — |
-| 14 | A check spawned from inside a test runner inherits the runner's context and passes while running nothing. | plates, phase 6 | — |
+| 14 | A check spawned from inside a test runner inherits the runner's context and passes while running nothing. | keel, phase 6 | — |
 | 29 | A run that finishes is reported as succeeding: the verdict comes from reaching the end, not from checking the result. | dalmaer/cajones | — |
 | 38 | A check that never evaluates its claim. | dglazkov/isocan | — |
 | 55 | A guard cell that names something nothing runs. | dglazkov/isocan | — |
@@ -36,10 +36,10 @@ Decided in [2026-10-06-distill-family-a-check-that-cannot-fail.md](inbox/2026-10
 
 | # | The shape of it | Provenance | Where |
 | --- | --- | --- | --- |
-| 1 | A copied practice ages, and can't hear that the original changed. | plates, observed 2026-10-02 | — |
+| 1 | A copied practice ages, and can't hear that the original changed. | keel, observed 2026-10-02 | — |
 | 2 | Status written in more than one place drifts, and both copies look authoritative. | ledger 6, duo 1, cajones | — |
 | 7 | A guard that stores a copy of a fact instead of deriving it. | ledger 12 | — |
-| 16 | A doc that restates what the code knows goes stale silently. | plates, observed 2026-10-03; ledger 6 and 12 are the same shape | — |
+| 16 | A doc that restates what the code knows goes stale silently. | keel, observed 2026-10-03; ledger 6 and 12 are the same shape | — |
 
 Decided in [2026-10-06-distill-family-a-copy-of-a-fact-drifts-from-its-source.md](inbox/2026-10-06-distill-family-a-copy-of-a-fact-drifts-from-its-source.md).
 
@@ -96,7 +96,7 @@ Decided in [2026-10-06-distill-family-a-rule-tested-alone.md](inbox/2026-10-06-d
 | --- | --- | --- | --- |
 | 25 | A test fixture pins a real date that the code compares with now. | dalmaer/ledger | — |
 | 39 | Work a test starts outlives the test. | dglazkov/isocan | — |
-| 56 | A test asserts what holds only for most random draws. | plates, 6 Oct | — |
+| 56 | A test asserts what holds only for most random draws. | keel, 6 Oct | — |
 
 Decided in [2026-10-06-distill-family-a-test-that-does-not-own-its-inputs.md](inbox/2026-10-06-distill-family-a-test-that-does-not-own-its-inputs.md).
 
@@ -125,9 +125,9 @@ Decided in [2026-10-06-distill-family-a-wait-not-sized-to-what-it-waits-on.md](i
 
 | # | The shape of it | Provenance | Where |
 | --- | --- | --- | --- |
-| 13 | A tool that restores its own copy erases the edit it should have reported. | plates, phase 5 | — |
+| 13 | A tool that restores its own copy erases the edit it should have reported. | keel, phase 5 | — |
 | 27 | An editor reads part of a record and writes what it read back as the whole. | dalmaer/ledger | — |
-| 31 | A machine edits another owner's copy. | plates, 5 Oct; duo | — |
+| 31 | A machine edits another owner's copy. | keel, 5 Oct; duo | — |
 | 32 | A write lands on a target nobody checked. | dalmaer/ledger | — |
 | 52 | A file declared generated whose generator does not rewrite it whole. | dglazkov/isocan | — |
 | 54 | A deliberate break made in the shared checkout. | dglazkov/isocan | — |
@@ -161,9 +161,9 @@ Decided in [2026-10-06-distill-family-lost-reads-as-empty.md](inbox/2026-10-06-d
 | --- | --- | --- | --- |
 | 8 | A fake that mirrors the implementation can only confirm it. | ledger 11 | — |
 | 11 | A check that dispatches events proves the handler, not that a person can reach it. | duo 4 | web |
-| 17 | A test whose injected value doesn't reach every path is green only while the real value happens to match. | plates, v0.3.1 | — |
+| 17 | A test whose injected value doesn't reach every path is green only while the real value happens to match. | keel, v0.3.1 | — |
 | 18 | A gate that passes on a tree it does not commit. | ledger, phase 14 | — |
-| 28 | What you test is not what people get. | plates, 4 Oct; ledger 2 is the deploy-side twin | — |
-| 30 | Code inside another language's string is checked by neither. | plates, 4 Oct | — |
+| 28 | What you test is not what people get. | keel, 4 Oct; ledger 2 is the deploy-side twin | — |
+| 30 | Code inside another language's string is checked by neither. | keel, 4 Oct | — |
 
 Decided in [2026-10-06-distill-family-what-you-test-is-not-what-runs.md](inbox/2026-10-06-distill-family-what-you-test-is-not-what-runs.md).

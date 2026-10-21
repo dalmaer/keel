@@ -145,7 +145,7 @@ test('machine_prs: renovate/ holds four, one per lane of plates\'s renovate.json
   const lanes = n => Array.from({ length: n }, (_, i) => `renovate/lane-${i}`);
   const two = await prsOn(t, lanes(2));
   assert.equal(two.state, 'ok', JSON.stringify(two));
-  assert.match(two.detail, /^plates\/ 0, keel-night\/ 0, keel-loop\/ 0, renovate\/ 2$/);
+  assert.match(two.detail, /^keel\/ 0, keel-night\/ 0, keel-loop\/ 0, renovate\/ 2$/);
   const four = await prsOn(t, lanes(4));
   assert.equal(four.state, 'ok', JSON.stringify(four));
   assert.equal(four.value, 4);

@@ -34,7 +34,7 @@ This machine's shell is zsh: quote globs and `==` in commands (an unmatched glob
 | `docs/research/` | Findings that took longer to reach than to read. |
 | `docs/templates/` | Phase and evidence templates. |
 | `scripts/roadmap.mjs` | Generates and checks the roadmap; shipped by the `phases` practice. |
-| `.agents/skills/conduct/` | The conductor. Reached from Claude Code via the `.claude/skills/conduct` symlink. |
+| `.agents/skills/spin/` | The conductor. Reached from Claude Code via the `.claude/skills/spin` symlink. |
 | `.plates/plates.json` | This project's plates config. Plates's says `"plates": "self"`. |
 
 ## How the work is run
@@ -72,7 +72,7 @@ previews explicit measurement records; `--yes` runs them under bounds and
 compares old and new values without rewriting historical evidence.
 
 <!-- plates:begin conduct -->
-**Conduct the walk.** `/conduct` (the skill in `.agents/skills/conduct`) briefs
+**Spin the next phase.** `/spin` (the skill in `.agents/skills/spin`) briefs
 a builder (a phase of a file or two it may build itself: the skill's *Small
 phases*), verifies the proof itself, writes the record and commits each phase
 to `main`, then runs a retro when the phase changed more than docs (the owner

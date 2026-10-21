@@ -455,7 +455,7 @@ test('late review: metadata case aliases cannot select existing config or git po
   const cfg = '{}\n', git = '[core]\n\trepositoryformatversion = 0\n';
   await writeFile(join(dir, '.git/config'), git);
   await writeFile(join(dir, '.plates/plates.json'), cfg);
-  for (const guide of ['.GIT/config', '.PLATES/plates.json', '.KeEl/lock.json']) {
+  for (const guide of ['.GIT/config', '.PLATES/plates.json', '.PlAtEs/lock.json', '.KeEl/lock.json']) {
     assert.throws(() => guideDestination(dir, guide), /reserved repository metadata/);
     await assert.rejects(adoptAt(dir, { guide }), /reserved repository metadata/);
     assert.equal(await read(dir, '.git/config'), git);
@@ -473,7 +473,7 @@ test('late review: absent metadata case aliases are reserved before init writes'
   const parent = await acme(t);
   const insensitive = await lstat(join(parent, 'PACKAGE.JSON')).then(() => true, () => false);
   if (!insensitive) return t.skip('requires a case-insensitive filesystem');
-  for (const existing of [true, false]) for (const guide of ['.GIT/config', '.PLATES/plates.json', '.KeEl/lock.json', 'docs/.GIT/config']) {
+  for (const existing of [true, false]) for (const guide of ['.GIT/config', '.PLATES/plates.json', '.PlAtEs/lock.json', '.KeEl/lock.json', 'docs/.GIT/config']) {
     const dir = join(parent, 'new-acme');
     if (existing) await mkdir(dir);
     await assert.rejects(init({ dir, guide, description: 'Acme makes anvils.' }, { version }), /reserved repository metadata/);

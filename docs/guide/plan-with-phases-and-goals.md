@@ -210,7 +210,7 @@ alone proves neither acceptance nor improvement.
 
 ## See also
 
-- [Conduct a phase](conduct-a-phase.md): what happens once a phase is
+- [Spin a phase](spin-a-phase.md): what happens once a phase is
   specified.
 - [`docs/phases/README.md`](../phases/README.md): the phase contract, as
   plates's own phases follow it.

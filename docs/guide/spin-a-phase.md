@@ -1,4 +1,4 @@
-# Conduct a phase
+# Spin a phase
 
 ## When you'd reach for this
 
@@ -10,7 +10,7 @@ you do something else, and to stop only when it needs you.
 ## What it does, and why it works that way
 
 The **conductor pattern** splits the work in two. The session that runs
-`/conduct` is the conductor: it does not build. It briefs a builder (a
+`/spin` is the conductor: it does not build. It briefs a builder (a
 subagent) on one phase, then verifies the phase's named proof itself, writes
 the record, runs the gate once, and commits the phase whole. Each part
 exists because of a failure that was paid for:
@@ -101,15 +101,15 @@ lesson). The owner picks; nothing is applied unpicked. See
 
 ## The commands
 
-In Claude Code, the skill is `/conduct`:
+In Claude Code, the canonical skill is `/spin`. `/conduct` remains a compatibility alias with the same arguments and behavior:
 
-- `/conduct`: orient, then conduct phase after phase until a step needs a
+- `/spin`: orient, then conduct phase after phase until a step needs a
   person or nothing is left. Use it when you want progress while you're away.
-- `/conduct status`: orient and report, change nothing. Use it to see where
+- `/spin status`: orient and report, change nothing. Use it to see where
   things stand in the conductor's terms.
-- `/conduct <N>`: one named phase (and any unbuilt phase it depends on,
+- `/spin <N>`: one named phase (and any unbuilt phase it depends on,
   first). Use it when the order matters to you more than the roadmap's.
-- `/conduct one`: the next phase only, then stop. Use it when you want to
+- `/spin one`: the next phase only, then stop. Use it when you want to
   read each phase's result before the next begins.
 
 The conductor's own commands are the project's, not plates's:
@@ -161,8 +161,10 @@ plates prove tests/anvil.test.mjs --fix lib/anvil.mjs --mutate --trailer
 # Mutants: 7/9
 ```
 
-The skill itself lives once, at `.agents/skills/conduct/SKILL.md`, and Claude
-Code reaches it through the `.claude/skills/conduct` symlink. It is a managed
+Projects that keep a local or ejected conductor retain their own behavior. Adapt that skill and its aliases in a separate reviewed change; enabling the new name does not authorize replacing their rules.
+
+The skill itself lives once, at `.agents/skills/spin/SKILL.md`, and Claude
+Code reaches it through the `.claude/skills/spin` symlink. It is a managed
 file: if your project needs it to say something different, change it in
 plates, or send your edit home ([Lessons and learning](lessons-and-learning.md)).
 
@@ -198,4 +200,4 @@ one, once the walk is walked.
   through a PR with a reviewer.
 - [`practices/conduct/README.md`](../../practices/conduct/README.md), and the
   skill itself at
-  [`.agents/skills/conduct/SKILL.md`](../../.agents/skills/conduct/SKILL.md).
+  [`.agents/skills/spin/SKILL.md`](../../.agents/skills/spin/SKILL.md).

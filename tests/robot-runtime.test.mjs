@@ -181,7 +181,7 @@ test('robot publisher pushes only the judged issue branch and refuses a moved co
       comments.push({id:100+comments.length,user:{type:'Bot',login:'github-actions[bot]'},body:request.body.body});
       return {status:201,data:comments.at(-1)};
     }
-    if (request.path.includes('/git/ref/heads/plates')) return {status:200,data:{ref:'refs/heads/keel/robot-1',object:{type:'commit',sha:git(remote,'rev-parse','refs/heads/keel/robot-1')}}};
+    if (request.path.includes('/git/ref/heads/keel')) return {status:200,data:{ref:'refs/heads/keel/robot-1',object:{type:'commit',sha:git(remote,'rev-parse','refs/heads/keel/robot-1')}}};
     if (request.path === `/repos/${repo}`) return {status:200,data:{full_name:repo,default_branch:'main'}};
     if (request.path === `/repos/${repo}/pulls` && request.method === 'POST') {
       if (failCreate) return {status:503,data:{}};
@@ -454,7 +454,7 @@ test('robot human retarget blocks admission publication recovery and both review
  await assert.rejects(publishRobot({root,repo,baseSha,plan:{...plan,prNumber:2,previousHead:headSha},headSha,github:b.github,push:false}),/base branch changed/);
  const intent={version:1,plan,headSha};
  comments.push({id:100,user:pr.user,body:`<!-- keel:robot-publication ${JSON.stringify(intent)} -->\nTrusted publication intent; recovery may publish only this judged head.`});
- const github=r=>r.path.includes('/git/ref/heads/plates')?{status:200,data:{ref:`refs/heads/${plan.branch}`,object:{type:'commit',sha:headSha}}}:b.github(r);
+ const github=r=>r.path.includes('/git/ref/heads/keel')?{status:200,data:{ref:`refs/heads/${plan.branch}`,object:{type:'commit',sha:headSha}}}:b.github(r);
  const recovered=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github});
  assert.equal(recovered.state,'blocked');assert.match(recovered.reason,/base branch changed/);
  await assert.rejects(publishRobot({root,repo,baseSha,plan,headSha,github,push:false}),/base branch changed/);

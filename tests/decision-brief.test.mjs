@@ -87,7 +87,7 @@ test('packed CLI and adopted runtime expose the guide contract; standalone recon
 test('conductor and robot separate choices from proposals and require digest in report',async t=>{
  const {root}=await world(t);const b=await decisionContext({root,phase:'0'});const text=decisionBrief(b);
  assert.match(text,/Accepted choices:/);assert.match(text,/Proposals \(not approval\):/);assert.match(text,/Unresolved choices:/);assert.ok(text.includes(b.digest));
- const guide=await readFile('practices/conduct/files/.agents/skills/conduct/SKILL.md','utf8');assert.match(guide,/before every resume/);assert.match(guide,/digest used/);
+ const guide=await readFile('practices/conduct/files/.agents/skills/spin/SKILL.md','utf8');assert.match(guide,/before every resume/);assert.match(guide,/digest used/);
  const protocol=await readFile('practices/climb/files/.agents/robot/PROTOCOL.md','utf8');assert.match(protocol,/decision digest used/);
  assert.throws(()=>decisionBrief({...b,state:'unavailable',gaps:[{code:'missing'}]}),/Required decision context/);
 });

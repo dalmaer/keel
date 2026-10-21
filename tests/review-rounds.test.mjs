@@ -73,10 +73,12 @@ if (argv[0] === 'api' && argv[1] === 'graphql') {
 } else if (argv[0] === 'api' && /\\/pulls\\/\\d+\\/reviews/.test(argv[1])) {
   const pg = Number((/[?&]page=(\\d+)/.exec(argv[1]) ?? [])[1] ?? 1);
   console.log(JSON.stringify(pg > 1 ? [] : s.reviews.map(r => ({ user: { login: r.user }, state: r.state ?? 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-10T10:00:00Z' }))));
-} else if (argv[0] === 'api' && argv[1].endsWith('/contents/.plates/plates.json')) {
-  if (s.contentsDown) { console.error('gh: Server Error (HTTP 502)'); process.exit(1); }
-  if (!s.contents) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }
-  console.log(JSON.stringify({ content: Buffer.from(JSON.stringify(s.contents)).toString('base64') }));
+} else if (argv[0] === 'api' && ['/contents/.plates/plates.json', '/contents/.keel/keel.json'].some(path => argv[1].endsWith(path))) {
+  const legacy = argv[1].endsWith('/contents/.keel/keel.json');
+  const contents = legacy ? s.legacyContents : s.contents;
+  if (legacy ? s.legacyContentsDown : s.contentsDown) { console.error('gh: Server Error (HTTP 502)'); process.exit(1); }
+  if (!contents) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }
+  console.log(JSON.stringify({ content: Buffer.from(JSON.stringify(contents)).toString('base64') }));
 } else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
   await chmod(path, 0o755);
@@ -316,6 +318,14 @@ test('with --reviewer the round limit and the wait are the PR\'s repository\'s o
   const plain = plates(here, none, ['acme/other#3', '--reviewer', 'acme-reviewer', '--json']);
   assert.equal(plain.code, 0);
   assert.deepEqual([plain.json().rounds.limit, plain.json().wait], [3, 10]);
+  assert.deepEqual((await none.calls()).filter(c => String(c[1]).includes('/contents/')).map(c => c[1]), ['repos/acme/other/contents/.plates/plates.json', 'repos/acme/other/contents/.keel/keel.json'], 'defaults require confirmed absence of both config names');
+  const legacy = await stubGh(t, { threads: threeRounds().slice(0, 2), reviews: [onHead], legacyContents: { repo: 'acme/other', review: { rounds: 2, wait: 7 } } });
+  const legacyRead = plates(here, legacy, ['acme/other#3', '--reviewer', 'acme-reviewer', '--json']);
+  assert.equal(legacyRead.code, 3);
+  assert.deepEqual([legacyRead.json().rounds.limit, legacyRead.json().wait], [2, 7], 'the original remote policy still applies during migration');
+  const legacyDown = plates(here, await stubGh(t, { legacyContentsDown: true }), ['acme/other#3', '--reviewer', 'acme-reviewer']);
+  assert.equal(legacyDown.code, 2, 'failed legacy lookup cannot silently reset review policy to defaults');
+  assert.match(legacyDown.err, /GitHub could not be read/);
   // An invalid or unreadable target config is refused as it is without --reviewer: exit 2, never this checkout's limit.
   for (const flags of [[], ['--reviewer', 'acme-reviewer']]) {
     const bad = plates(loose, await stubGh(t, { threads: threeRounds(), reviews: [onHead], contents: { review: { rounds: 0 } } }), ['acme/other#3', ...flags]);

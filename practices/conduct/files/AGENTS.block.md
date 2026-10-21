@@ -1,4 +1,4 @@
-**Conduct the walk.** `/conduct` (the skill in `.agents/skills/conduct`) briefs
+**Spin the next phase.** `/spin` (the skill in `.agents/skills/spin`) briefs
 a builder (a phase of a file or two it may build itself: the skill's *Small
 phases*), verifies the proof itself, writes the record and commits each phase
 to `main`, then runs a retro when the phase changed more than docs (the owner

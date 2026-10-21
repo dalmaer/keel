@@ -314,6 +314,19 @@ test('plates itself: practices/VERSION is the practice, and a release now would 
   }
 });
 
+test('release history reads legacy CLI-only headings without rewriting provenance or offering them as practice updates', () => {
+  const legacy = '# Acme release history\n\n## v0.2.1 — keel only; practice unchanged at 0.2.0 (2026-10-02)\n\nAcme CLI fix.\n\n## v0.2.0 — practice 0.2.0 (2026-10-01)\n\nAcme practice fix.\n';
+  const original = entries(legacy);
+  assert.deepEqual(original.map(e => [e.version, e.practice, e.platesOnly]), [['0.2.1', '0.2.0', true], ['0.2.0', '0.2.0', false]]);
+  assert.equal(original[0].heading, '## v0.2.1 — keel only; practice unchanged at 0.2.0 (2026-10-02)');
+  assert.deepEqual(between(legacy, '0.1.0', '0.2.1').map(e => e.body), ['Acme practice fix.']);
+  const next = prepend(legacy, '0.2.2', 'Acme next CLI fix.', '2026-10-03', { practice: '0.2.0', changed: false });
+  assert.equal(entries(next)[0].heading, '## v0.2.2 — plates only; practice unchanged at 0.2.0 (2026-10-03)');
+  assert.deepEqual(entries(next).slice(1), original, 'old headings and bodies retain their original bytes');
+  assert.ok(next.endsWith(legacy.slice(legacy.indexOf('## v'))), 'historical text remains untouched');
+  assert.deepEqual(between(next, '0.2.0', '0.2.2'), []);
+});
+
 test('prepend puts a new entry above the newest and keeps the header', () => {
   const one = prepend(null, '0.1.0', 'First.', '2026-10-02');
   assert.equal(one, `${WHATSNEW_HEADER}\n## v0.1.0 — 2026-10-02\n\nFirst.\n`);
@@ -551,9 +564,9 @@ test('the rehearsal passes a release when every project passes, or its main was 
   const s = await release({ root: bare, version: '0.1.0', notes: NOTES }, { env: ENV, rehearse: never });
   assert.equal(never.asked.length, 0);
   assert.equal(s.data.rehearsal.skipped, 'no managed project in plates.json');
-  assert.match(s.text, /Rehearsal skipped: no managed project in fleet\.json\./);
+  assert.match(s.text, /Rehearsal skipped: no managed project in plates\.json\./);
   const dry = await release({ root: bare, version: '0.1.1', notes: NOTES, dryRun: true }, { env: ENV });
-  assert.match(dry.text, /skip the fleet rehearsal: no managed project in fleet\.json/);
+  assert.match(dry.text, /skip the fleet rehearsal: no managed project in plates\.json/);
 });
 
 test('--despite <repo> "<why>" releases past a project the rehearsal fails, writing the reason into the commit and WHATSNEW; a repo not in the fleet is refused', async t => {
@@ -564,8 +577,8 @@ test('--despite <repo> "<why>" releases past a project the rehearsal fails, writ
   const why = 'Acme picky flakes on a clock test, tracked in acme/picky#3';
   // Not in the fleet (a source is not managed), a reason of one word, or given twice: refused before anything runs.
   for (const [despite, error] of [
-    [[{ repo: 'acme/stranger', why }], /--despite acme\/stranger: not a managed project in fleet\.json/],
-    [[{ repo: 'acme/upstream', why }], /--despite acme\/upstream: not a managed project in fleet\.json/],
+    [[{ repo: 'acme/stranger', why }], /--despite acme\/stranger: not a managed project in plates\.json/],
+    [[{ repo: 'acme/upstream', why }], /--despite acme\/upstream: not a managed project in plates\.json/],
     [[{ repo: 'acme/picky', why: 'flaky' }], /--despite acme\/picky needs the reason, in a few words/],
     [[{ repo: 'acme/picky', why }, { repo: 'acme/picky', why }], /--despite acme\/picky is given twice/],
   ]) {
@@ -598,6 +611,6 @@ test('--despite <repo> "<why>" releases past a project the rehearsal fails, writ
   assert.match(cli.stderr, /--despite needs the project and the reason: --despite <owner\/name> "<why>"/);
   cli = run(process.execPath, [BIN, 'release', '0.2.0', '--notes', notes, '--despite', 'acme/stranger', why, '--json'], { cwd: dir, env: ENV });
   assert.equal(cli.status, 2, cli.stdout);
-  assert.match(JSON.parse(cli.stdout).error, /--despite acme\/stranger: not a managed project in fleet\.json/);
+  assert.match(JSON.parse(cli.stdout).error, /--despite acme\/stranger: not a managed project in plates\.json/);
   assert.deepEqual(await snapshot(dir), after);
 });

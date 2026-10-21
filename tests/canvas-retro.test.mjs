@@ -156,7 +156,7 @@ test('schema, privacy and reference validation reject unsafe authored fields wit
 test('configured repository directory works and path or symlink escapes cannot write outside it', async t => {
   const w = await world(t);
   const config = path => writeFile(join(w.root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', retros: { dir: path } }));
-  for (const path of ['../outside', w.tmp, 'docs/../../outside', '.git/retros', 'docs\\retros', 'docs/../retros']) {
+  for (const path of ['../outside', w.tmp, 'docs/../../outside', '.git/retros', '.plates/retros', '.keel/retros', 'docs/.keel/retros', 'docs\\retros', 'docs/../retros']) {
     await config(path);
     assert.equal((await capture({ ...w, yes: true })).exitCode, 2, path);
   }

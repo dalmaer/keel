@@ -96,6 +96,35 @@ test('conduct pins its upstream source', async () => {
   assert.deepEqual(source, { repo: 'dglazkov/isocan', path: '.claude/skills/conduct/SKILL.md', commit: '7227f325', license: 'Apache-2.0' });
 });
 
+test('spin is the canonical conductor and conduct is a forwarding alias with no second policy', async () => {
+  const practice = (await load()).get('conduct');
+  const canonical = practice.files.find(file => file.path === '.agents/skills/spin/SKILL.md');
+  const alias = practice.files.find(file => file.path === '.agents/skills/conduct/SKILL.md');
+  assert.match(canonical.template, /^---\nname: spin\n/);
+  assert.match(alias.template, /^---\nname: conduct\n/);
+  assert.match(alias.template, /\(\.\.\/spin\/SKILL\.md\)/);
+  assert.match(alias.template, /Forward every argument unchanged/);
+  assert.match(alias.template, /adds no authority/);
+  assert.ok(alias.template.length < 1000, 'alias forwards instead of copying execution policy');
+  for (const name of ['spin', 'conduct']) {
+    assert.equal(practice.files.find(file => file.path === `.claude/skills/${name}`).link, `../../.agents/skills/${name}`);
+  }
+  for (const argument of ['/spin status', '/spin <N>', '/spin one']) assert.ok(canonical.template.includes(argument));
+  for (const rule of ['before every resume', 'digest used', 'claims', 'plates review', 'The default is unattended.']) assert.ok(canonical.template.includes(rule), rule);
+});
+
+test('ejected legacy conductor ownership prevents installing a different default spin policy', async () => {
+  const { targets } = await import('../lib/practices.mjs');
+  const all = await load();
+  const base = { name: 'Acme', repo: 'acme/app', practices: ['base','agents-md','phases','evidence','lessons','conduct'] };
+  assert.ok(targets(base, all).some(file => file.path === '.agents/skills/spin/SKILL.md'));
+  for (const path of ['.agents/skills/conduct/SKILL.md', '.claude/skills/conduct']) {
+    const files = targets({ ...base, ejected: [path] }, all);
+    assert.ok(!files.some(file => file.practice === 'conduct'), path);
+    assert.ok(files.some(file => file.practice === 'phases'), 'unrelated practice remains enabled');
+  }
+});
+
 test('templates name the project only through {{name}}', async () => {
   // Deliberate mentions: provenance and the plates tool itself, never the project.
   const allowed = [/Plates manages this file/, /Lineage: isocan → ledger .* → cajones/, /Adapted from ritmo's/, /Plates lessons?\b/, /Plates catalogue/];
@@ -172,14 +201,14 @@ test('a render into an empty directory, plus one phase, passes its own npm run c
     const run = node(PLATES, RENDER, '--into', dir);
     assert.equal(run.status, 0, run.stderr);
     assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isSymbolicLink());
-    const conduct = await readFile(join(dir, '.claude/skills/conduct/SKILL.md'), 'utf8');
-    assert.match(conduct, /^---\nname: conduct/);
+    const conduct = await readFile(join(dir, '.claude/skills/spin/SKILL.md'), 'utf8');
+    assert.match(conduct, /^---\nname: spin/);
     // Phase 87: the adopted project's skill carries the restatement, the report shape and the conductor's checks.
     for (const line of ['Restate the success criteria in your own words before writing code.', '0. Done means: your restatement', '**Read the report\'s shape first.**'])
       assert.ok(conduct.includes(line), line);
     const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
     assert.match(agents, /^# Working on Acme\n/);
-    assert.match(agents, /<!-- plates:begin conduct -->\n\*\*Conduct the walk\.\*\*/);
+    assert.match(agents, /<!-- plates:begin conduct -->\n\*\*Spin the next phase\.\*\*/);
     assert.doesNotMatch(agents, /\{\{/);
     assert.doesNotMatch(agents, /^# Working on Plates/m, 'provenance may name Plates; the project heading must name Acme');
     const lessons = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
@@ -273,7 +302,7 @@ test('each shipped structural guide and conduct rule carries its cause with Plat
   const practices = await load();
   let scanned = 0;
   for (const practice of practices.values()) for (const file of practice.files) {
-    if (!(file.kind === 'block' && file.path === 'AGENTS.md') && file.path !== '.agents/skills/conduct/SKILL.md') continue;
+    if (!(file.kind === 'block' && file.path === 'AGENTS.md') && file.path !== '.agents/skills/spin/SKILL.md') continue;
     const path = `practices/${practice.name}/files/${file.from}`;
     const raw = await readFile(join(PLATES, path), 'utf8');
     assert.deepEqual(ruleCauseNotes(raw, path), [], path);

@@ -171,7 +171,7 @@ test('plates next inside the new project names phase 0', async t => {
   assert.equal(next.title, PHASE0_TITLE);
   assert.equal(next.status, 'planned');
   assert.equal(next.title, 'The first thing that runs');
-  assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs` \(documents only: run `npm run roadmap:check`, not the whole gate\); then \/conduct\./);
+  assert.match(next.next, /Done when, Acceptance and Proof .* status to `designed`, in one commit of its own titled `phase 0: name what runs` \(documents only: run `npm run roadmap:check`, not the whole gate\); then \/spin\./);
   // A subdirectory finds it too.
   await mkdir(join(dir, 'src'));
   assert.equal(JSON.parse(plates(['next', '--json'], join(dir, 'src')).out).next.id, 0);
@@ -306,7 +306,7 @@ test('phase 0 comes from the phase template and parses', async () => {
   assert.doesNotMatch(p.done, /fresh clone/);
   assert.match(phaseZero(template, { name: 'Acme', kind: 'web', since: '2026-10-02' }), /walked from a clean checkout of the committed tree after the phase's commit; its result goes into the evidence in the next commit/);
   assert.doesNotMatch(p.done, /other than the author/, 'an agent can check Done when');
-  assert.equal(p.next, 'Replace this draft\'s Done when, Acceptance and Proof with the first thing that runs, and move status to `designed`, in one commit of its own titled `phase 0: name what runs` (documents only: run `npm run roadmap:check`, not the whole gate); then /conduct.');
+  assert.equal(p.next, 'Replace this draft\'s Done when, Acceptance and Proof with the first thing that runs, and move status to `designed`, in one commit of its own titled `phase 0: name what runs` (documents only: run `npm run roadmap:check`, not the whole gate); then /spin.');
   const text = phaseZero(template, { name: 'Acme', kind: 'node', since: '2026-10-02' });
   assert.ok(text.includes(`# ${PHASE0_TITLE}\n\n${DRAFT}\n`), 'says it is a draft to replace wholesale');
   assert.equal(DRAFT, 'Drafted by plates init. Replace this draft wholesale before building.', 'no line about open questions to contradict "Nothing yet."');

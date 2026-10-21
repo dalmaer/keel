@@ -116,8 +116,8 @@ test('plates carries its own copy (render --self)', async () => {
 });
 
 // The conduct skill (phase 23): what a fresh agent had to guess, said.
-test('the conduct skill covers no remote, missing docs, small phases, and records before the one gate run', async () => {
-  const text = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill covers no remote, missing docs, small phases, and records before the one gate run', async () => {
+  const text = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const section = n => text.slice(text.indexOf(`\n## ${n}.`), text.indexOf('\n## ', text.indexOf(`\n## ${n}.`) + 1));
   assert.match(text, /If `git remote` prints nothing, skip every pull, push and CI/);
   assert.match(text, /the walk ends at the local commit/);
@@ -144,8 +144,8 @@ test('the conduct skill covers no remote, missing docs, small phases, and record
 });
 
 // The retro after real work (phase 40): step 5, after the commit.
-test('the conduct skill ends real work with a retro: the worksheet, the seven areas, typed candidates, the owner picks', async () => {
-  const text = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill ends real work with a retro: the worksheet, the seven areas, typed candidates, the owner picks', async () => {
+  const text = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const at = text.indexOf('\n## 5. Retro');
   assert.ok(at > text.indexOf('\n## 4. Commit'), '§5 comes after §4');
   const five = text.slice(at, text.indexOf('\n## ', at + 1));
@@ -169,8 +169,8 @@ test('the conduct skill ends real work with a retro: the worksheet, the seven ar
 // Phase 41: every review comment is validated, then answered; never left unanswered.
 const spaced = text => text.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
 const REVIEW_RULE = new RegExp(`${spaced('when a PR has reviews, validate each comment against the code first, then answer it with one of the three replies')};?\\s*(?:\\(fixed,[\\s\\S]*?\\)\\s*)?;?\\s*${spaced('never leave one unanswered')}`);
-test('the conduct skill and the climb and tend briefs say: validate each review comment, then answer it with one of the three replies', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill and the climb and tend briefs say: validate each review comment, then answer it with one of the three replies', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
   for (const n of [4, 5]) assert.match(section(n), REVIEW_RULE, `§${n}`);
   for (const form of [/--fixed <commit>/, /--tracked <#issue\|vX\.Y\.Z>/, /--not-valid "<why>"/]) assert.match(section(4), form);
@@ -190,8 +190,8 @@ test('the conduct skill and the climb and tend briefs say: validate each review 
 });
 
 // Phase 48: in plates itself, a practice change lands as a claude/ PR reviewed by the other provider before a release.
-test('the conduct skill says: in plates, a practice change lands as a claude/ PR, waits for the other provider\'s review, answers it, then merges; records and CLI-only changes may go to main', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill says: in plates, a practice change lands as a claude/ PR, waits for the other provider\'s review, answers it, then merges; records and CLI-only changes may go to main', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const four = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## ', skill.indexOf('\n## 4.') + 1));
   const at = four.indexOf('**In plates itself, a practice change is reviewed before a release**');
   assert.ok(at > 0, 'the rule is in §4, Commit');
@@ -207,7 +207,7 @@ test('the conduct skill says: in plates, a practice change lands as a claude/ PR
   assert.match(rule, /`--unreviewed "<why>"`[\s\S]*never `--yes`/);
   assert.match(rule, /Records\s+\(`docs\/phases\/`, evidence, the roadmap\) and CLI-only changes may still go to\s+`main`/);
   // plates's own copy is rendered from it, and plates's own cross-review is on: Codex reviews the conductor's claude/ PRs.
-  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('**In plates itself, a practice change is reviewed before a release**'));
+  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8')).includes('**In plates itself, a practice change is reviewed before a release**'));
   const config = JSON.parse(await readFile(join(PLATES, '.plates', 'plates.json'), 'utf8'));
   assert.ok(config.practices.includes('cross-review'));
   assert.deepEqual(config.agents, { claude: {}, codex: {} });
@@ -218,8 +218,8 @@ test('the conduct skill says: in plates, a practice change lands as a claude/ PR
 });
 
 // Phase 71: at the round limit the conductor stops pushing fixes and reports; it never merges.
-test('the conduct skill says: at the review-round limit stop pushing fixes, sort the open findings, report the choice, never merge', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill says: at the review-round limit stop pushing fixes, sort the open findings, report the choice, never merge', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const four = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## ', skill.indexOf('\n## 4.') + 1));
   const at = four.indexOf('**A review that keeps going is the owner\'s.**');
   assert.ok(at > four.indexOf('Not a gate: an open thread never refuses a merge'), 'in §4, after the answering rule');
@@ -235,12 +235,12 @@ test('the conduct skill says: at the review-round limit stop pushing fixes, sort
   assert.match(rule, /report the choice it prints\s+to the owner: merge with the rest tracked, split, or close/);
   assert.match(rule, /Never merge it\s+yourself/);
   // plates's own copy is rendered from it.
-  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes(rule));
+  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8')).includes(rule));
 });
 
 // ledger #60, #73, #74: the conduct skill assumes nothing a project with its own roadmap lacks, and agrees with the AGENTS block.
-test('the conduct skill reads the project\'s roadmap command, says whose check guards a stale status, and the AGENTS block names the small-phase exception', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill reads the project\'s roadmap command, says whose check guards a stale status, and the AGENTS block names the small-phase exception', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
   // §0: plates's commands only when plates's phases practice is on; a local roadmap is read from the project's own scripts.
   assert.match(section(0), /The roadmap command is the project's, never assumed/);
@@ -258,16 +258,16 @@ test('the conduct skill reads the project\'s roadmap command, says whose check g
 });
 
 // Codex on cajones#53 and ledger#97: /conduct <N> honours a walk owed; a project with its own phases keeps its own rules.
-test('the conduct skill treats owes: walk as done for /conduct <N>, and leaves a local roadmap\'s rules alone', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
-  assert.match(skill, /`\/conduct <N>`[\s\S]*?a partial phase marked `owes: walk` counts as done here/);
+test('the spin skill treats owes: walk as done for /spin <N>, and leaves a local roadmap\'s rules alone', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
+  assert.match(skill, /`\/spin <N>`[\s\S]*?a partial phase marked `owes: walk` counts as done here/);
   assert.match(skill, /\*\*Its dependencies are built\.\*\*[^\n]*a partial one marked `owes: walk` counts as built here/, 'the §0 gate too (Codex on duo#81)');
   assert.match(skill, /keeps its own phases \(`"local"`\s+names `phases`\) follows its own roadmap's rules for both/);
 });
 
 // Phase 70: two sessions built phase 54 at once. The claim comes before the build.
-test('the conduct skill claims a phase before it builds: plates phase claim first, a refusal means another phase or stop, never release another\'s claim', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill claims a phase before it builds: plates phase claim first, a refusal means another phase or stop, never release another\'s claim', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const orient = skill.slice(skill.indexOf('\n## 0.'), skill.indexOf('\n## 1.'));
   assert.match(orient, /\*\*Claim the phase before you build it\.\*\* \(why: [^)\n]+\)/);
   assert.match(orient, /the first step for a phase is `plates phase claim <N>`, before the brief/);
@@ -278,12 +278,12 @@ test('the conduct skill claims a phase before it builds: plates phase claim firs
   assert.ok(skill.indexOf('**Claim the phase before you build it.**') < skill.indexOf('**Three gates before any code:**'));
   assert.ok(skill.indexOf('**Claim the phase before you build it.**') < skill.indexOf('\n## 1. Brief'));
   // plates's own copy says it too (render --self).
-  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('the first step for a phase is `plates phase claim <N>`'));
+  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8')).includes('the first step for a phase is `plates phase claim <N>`'));
 });
 
 // Phase 62: a fix is proven by its test failing without it, and the commit says so.
-test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-by: trailer from plates prove', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill and its AGENTS block say a fix: commit carries a Proven-by: trailer from plates prove', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const commit = skill.slice(skill.indexOf('\n## 4.'), skill.indexOf('\n## 5.'));
   assert.match(commit, /\*\*A fix is proven by its test failing without it\.\*\* (?:\(why: [^)\n]+\) )?A `fix:` commit\s+carries a `Proven-by:` trailer, from `plates prove <test> --fix <the fix's\s+files> --trailer`/);
   assert.match(commit, /Only\s+VERIFIED proves the fix\. NOT WORKING means the test does not catch the bug/);
@@ -292,13 +292,13 @@ test('the conduct skill and its AGENTS block say a fix: commit carries a Proven-
   const block = await readFile(join(PLATES, 'practices', 'conduct', 'files', 'AGENTS.block.md'), 'utf8');
   assert.match(block, /A `fix:` commit\s+carries a `Proven-by:` trailer from `plates prove <test> --fix <files>\s+--trailer`/);
   // plates's own copies say it too (render --self).
-  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('carries a `Proven-by:` trailer'));
+  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8')).includes('carries a `Proven-by:` trailer'));
   assert.match(await readFile(join(PLATES, 'AGENTS.md'), 'utf8'), /A `fix:` commit\s+carries a `Proven-by:` trailer/);
 });
 
 // Phase 87: the builder restates done first and reports in one shape; the conductor checks the shape before anything runs.
-test('the conduct skill\'s brief asks for the restatement and the report shape, and its verify step names the checks', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill\'s brief asks for the restatement and the report shape, and its verify step names the checks', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
   // The brief's template has its own `## ` headings, so §1 runs to §2.
   const brief = skill.slice(skill.indexOf('\n## 1.'), skill.indexOf('\n## 2.')), fence = brief.slice(brief.indexOf('```\n'), brief.indexOf('\n```', brief.indexOf('```\n') + 4));
@@ -331,14 +331,14 @@ test('the conduct skill\'s brief asks for the restatement and the report shape, 
   assert.ok(verify.indexOf(rule) < verify.indexOf('`git pull --ff-only`'), 'the shape is read before anything runs');
   assert.doesNotMatch(verify, /\*\*The whole check, once\*\*/);
   // plates's own copy says it too (render --self).
-  const mine = await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const mine = await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   assert.ok(mine.includes(rule));
   assert.ok(mine.includes('Restate the success criteria in your own words before writing code.'));
 });
 
 // Phase 74: /goodnight shapes tonight's plan, only when the owner asks, and writes only on "that's the plan".
-test('the conduct skill\'s /goodnight runs only when asked, shows the opening, shapes by the owner\'s words, and writes only on "that\'s the plan"', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill\'s /goodnight runs only when asked, shows the opening, shapes by the owner\'s words, and writes only on "that\'s the plan"', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   assert.match(parseSkill(skill).front.description, /"\/goodnight", when the owner asks to shape tonight's plan/, 'it triggers on /goodnight');
   const at = skill.indexOf('\n## /goodnight');
   assert.ok(at > 0, 'a /goodnight section');
@@ -355,13 +355,13 @@ test('the conduct skill\'s /goodnight runs only when asked, shows the opening, s
   assert.equal(skill.match(/plates goodnight --yes/g).length, 1);
   assert.ok(night.includes('plates goodnight --yes'));
   // plates's own copy says it too (render --self).
-  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8')).includes('**Write it only on "that\'s the plan".**'));
+  assert.ok((await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8')).includes('**Write it only on "that\'s the plan".**'));
 });
 
 // Phase 83: two changes asked for one after the other each ran the full gate. Builders and sessions finish with
 // plates ready; only plates integrate runs the full gate, and "never run a build beside another" is the lock.
-test('the conduct skill finishes with plates ready and leaves the full gate to plates integrate', async () => {
-  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+test('the spin skill finishes with plates ready and leaves the full gate to plates integrate', async () => {
+  const skill = await readFile(join(PLATES, 'practices', 'conduct', 'files', '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   const section = n => skill.slice(skill.indexOf(`\n## ${n}.`), skill.indexOf('\n## ', skill.indexOf(`\n## ${n}.`) + 1));
   const brief = skill.slice(skill.indexOf('\n## 1.'), skill.indexOf('\n## 2.'));
   // The brief: the whole check is the integrator's, and the old sentence is the lock now.
@@ -384,6 +384,6 @@ test('the conduct skill finishes with plates ready and leaves the full gate to p
   assert.match(four, /it reads the ready changes again before it lets go\)\. If its report does\s+not name yours, run `plates integrate` again once the lock is free/);
   assert.doesNotMatch(four, /\n4\. Push, and follow CI/, 'the conductor no longer pushes main itself');
   // plates's own copy says it too (render --self).
-  const own = await readFile(join(PLATES, '.agents', 'skills', 'conduct', 'SKILL.md'), 'utf8');
+  const own = await readFile(join(PLATES, '.agents', 'skills', 'spin', 'SKILL.md'), 'utf8');
   assert.ok(own.includes('**Finish with `plates ready`.**') && own.includes('**Then `plates integrate`.**'));
 });

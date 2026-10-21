@@ -132,7 +132,7 @@ treated as yours: the next update simply takes plates's file.
 2. **Work.** Phases are the plan. `plates next` lists the phases that are
    ready, and which of them another session already holds. A session takes
    one with `plates phase claim <n>` before it builds, so two sessions never
-   build the same phase. In Claude Code, `/conduct` walks them: one phase at
+   build the same phase. In Claude Code, `/spin` walks them: one phase at
    a time, claimed first, proof verified, one commit each. A session finishes
    with `plates ready` (its fast checks only), and `plates integrate`, one at a
    time under a lock, runs the full gate once for every ready change and
@@ -142,7 +142,7 @@ treated as yours: the next update simply takes plates's file.
    sure every comment is validated and answered. A review that is still
    drawing findings after three rounds stops there: `plates review` hands you
    the choice (merge with the rest tracked, split, or close) with the open
-   findings sorted. See [Conduct a phase](docs/guide/conduct-a-phase.md) for
+   findings sorted. See [Spin a phase](docs/guide/spin-a-phase.md) for
    the whole path.
 4. **Overnight.** The project's own nightly runs `scripts/plates/improve.mjs`.
    It writes a dated health page, opens one PR with it, and proposes one
@@ -306,7 +306,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Start a project](docs/guide/start-a-project.md) | you have an idea and an empty directory |
 | [Bring a project under plates](docs/guide/bring-a-project-under-plates.md) | a repo already exists, perhaps with its own copy of the practice |
 | [Plan with phases and goals](docs/guide/plan-with-phases-and-goals.md) | you are lining up the work and saying what done means |
-| [Conduct a phase](docs/guide/conduct-a-phase.md) | a phase is specified and you want it built without trusting the builder's word |
+| [Spin a phase](docs/guide/spin-a-phase.md) | a phase is specified and you want it built without trusting the builder's word |
 | [The night shift](docs/guide/the-night-shift.md) | you want to know each morning whether the practice is holding |
 | [Climb and tend](docs/guide/climb-and-tend.md) | you want an agent to improve a number, or keep the records true, while you sleep |
 | [Lessons and learning](docs/guide/lessons-and-learning.md) | a bug turned out to have a shape, or lessons are waiting at home |
@@ -343,6 +343,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `plates phase new\|list\|claim` | Scaffold the next free phase under a goal; claim a phase before building it |
 | `plates ready`, `plates integrate` | Hand a committed change off with only its fast checks; one integrator (lock `claims/integrate`) runs the full gate once for every ready change and pushes once, sending a failing change back blocked |
 | `plates init`, `plates adopt` | Start a project, or bring one under plates |
+| `plates migrate` | Preview the Keel-to-Plates checkout migration; apply the reviewed digest with `--yes --digest` |
 | `plates render` | Write the practices onto the project; `--check` only compares |
 | `plates doctor` | What the project changed of plates's files, and practice rules broken. Changes nothing without `--fix` |
 | `plates improve` | Measures against bounds, including worktree/draft/file hygiene; `--report` writes the health page and its proposal |
@@ -431,7 +432,7 @@ npm ci --ignore-scripts  # development-only type tooling
 npm run typecheck        # checked JSDoc, no emitted JavaScript
 ```
 
-In Claude Code, `/conduct` walks the phases.
+In Claude Code, `/spin` walks the phases.
 
 The CLI still runs directly from its `.mjs` source with zero runtime
 dependencies. Type checking covers selected production evidence contracts;

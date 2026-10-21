@@ -320,13 +320,14 @@ test('a source repo: unmoved, then moved', async t => {
   assert.deepEqual(needsOf(r, 'acme/upstream'), ['conduct: upstream skills/conduct/SKILL.md moved a1b2c3d4 → f00dfeed (plates learn)']);
 });
 
-test('the reads are read-only gh calls, seven per managed repo and one per pin, then the default branch where a question needs it', async t => {
+test('the reads are read-only gh calls, eight per managed repo, legacy config only after 404, and one per pin, then the default branch where a question needs it', async t => {
   const gh = await stubGh(t, state());
   await go(await home(t, LIST), gh);
   const calls = await gh.calls();
   // 8 per managed repo (the workflows listing among them), 1 per pinned source, and one quota probe
-  // (GraphQL's rateLimit) before the PR reads; nothing writes.
-  assert.equal(calls.length, 5 * 8 + 1 + 1);
+  // (GraphQL's rateLimit) before the PR reads; only plain needs the legacy config probe. Nothing writes.
+  assert.equal(calls.length, 5 * 8 + 1 + 1 + 1);
+  assert.deepEqual(calls.filter(c => String(c[1]).endsWith('/contents/.keel/keel.json')).map(c => c[1]), ['repos/acme/plain/contents/.keel/keel.json']);
   assert.equal(calls.filter(c => c[1] === 'graphql' && c.some(a => a.includes('rateLimit'))).length, 1, 'the floor asks once a run, not once a repo');
   assert.equal(calls.filter(c => /contents\/\.github\/workflows$/.test(c[1])).length, 5);
   // Plain fleet never asks a migration: no read at a ref, none of the migration's marker.
@@ -600,7 +601,7 @@ test('fleet update plans only real work: applies() is asked over the default bra
     ['acme/broken', false, [], ['0002-projects-run-on-their-own']],
   ]);
   assert.match(r.data.plans[1].possiblyPending[0].why, /\.plates\/lock\.json: HTTP 502/);
-  assert.match(r.text, /acme\/goals: "plates update: practice [^"]+, pending migrations" from plates\/update-v[^ ]+ \(pending: 0001-milestone-to-goal\)/);
+  assert.match(r.text, /acme\/goals: "plates update: practice [^"]+, pending migrations" from keel\/update-v[^ ]+ \(pending: 0001-milestone-to-goal\)/);
   assert.match(r.text, /acme\/broken: .*\(possibly pending: 0002-projects-run-on-their-own \(\.plates\/lock\.json: HTTP 502/);
   assert.match(r.text, /Not planned:\n {2}acme\/still: current; nothing applies \(asked 0001-milestone-to-goal, 0002-projects-run-on-their-own, 0003-phases-gain-goals, 0004-test-ledger, 0005-test-ledger-reach, 0006-lived-in-kept, 0007-phase-guard-reach\)/);
   const reads = (await gh.calls()).filter(c => String(c[1]).includes('?ref=main'));
@@ -802,7 +803,7 @@ test('the rehearsal runs at most 4 projects at once, and skips (saying so) when 
   const s = await rehearse({ dir: empty }, { env: gh.env, now: NOW, cli: CLI, rehearseOne });
   assert.equal(s.exitCode, 0);
   assert.equal(s.data.skipped, 'no managed project in plates.json');
-  assert.match(s.text, /Rehearsal skipped: no managed project in fleet\.json\./);
+  assert.match(s.text, /Rehearsal skipped: no managed project in plates\.json\./);
 });
 
 test('rehearsal migrates only disposable legacy consumers and compares failure with their original main', async t => {

@@ -74,7 +74,7 @@ Each flag, by why you'd pass it:
 
 Then make phase 0 real. Its next action says how: replace the draft's Done
 when, Acceptance and Proof with the first thing that runs, as its own
-commit, and conduct it ([Conduct a phase](conduct-a-phase.md)).
+commit, and conduct it ([Spin a phase](spin-a-phase.md)).
 
 ## What you'll see
 

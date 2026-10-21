@@ -329,7 +329,7 @@ test('a draft plates update PR is broken, linking the PR; other drafts are not, 
     const data = await board({ root }, { ...deps(root), fleet: async () => ({ rows }), looseEnds: async () => loose(root) });
     const it = data.items.find(i => i.kind === 'update');
     assert.deepEqual([it.waits, it.title, it.link, it.source], ['broken', "acme/site: plates update v0.8.21 fails site's check", pr, 'fleet']);
-    assert.match(it.why, /^a draft PR on plates\/update-v0\.8\.21: its description opens with what failed/);
+    assert.match(it.why, /^a draft PR on keel\/update-v0\.8\.21: its description opens with what failed/);
     assert.equal(data.items.filter(i => i.kind === 'update').length, 1, 'only the draft on a plates update branch, with a real PR number');
     assert.equal(data.items.filter(i => i.link === pr).length, 1, 'listed once: the fleet\'s broken item, not loose-ends\' PR as well');
     assert.deepEqual(titles(data, 'broken').sort(), ['acme/app#7: 2 review comments unanswered', 'acme/site: CI red on main', "acme/site: plates update v0.8.21 fails site's check"]);
@@ -974,8 +974,10 @@ test('board robot budget caches attempt reads and accounts REST refreshes separa
   await writeFile(path, JSON.stringify(config));
   const now = new Date('2026-10-08T12:00:00Z'), sha = 'a'.repeat(40);
   let calls = 0, remaining = 4000;
+  const paths = [];
   const github = async ({ method, path }) => {
-    assert.equal(method, 'GET'); calls++;
+    assert.equal(method, 'GET'); calls++; paths.push(path);
+    if (path.endsWith('/keel-robot.yml')) return { status: 404, data: { message: 'Not Found' } };
     const data = path.endsWith('/plates-robot.yml') ? { id: 1, path: '.github/workflows/plates-robot.yml' }
       : path.includes('/runs?') ? { total_count: 1, workflow_runs: [{ id: 2, workflow_id: 1, repository: { full_name: 'acme/app' }, head_sha: sha, run_attempt: 2, updated_at: now.toISOString(), status: 'completed' }] }
       : { total_count: 1, jobs: [{ id: 3, run_id: 2, run_attempt: path.includes('/attempts/1/') ? 1 : 2, head_sha: sha, status: 'completed', conclusion: 'skipped' }] };
@@ -984,26 +986,27 @@ test('board robot budget caches attempt reads and accounts REST refreshes separa
   const live = { ...deps(root), now, github, env: { ...process.env, PLATES_CACHE: join(root, '.cache'), PLATES_QUOTA_FLOOR: '1000' } };
   const first = await board({ root }, live);
   assert.equal(first.robot.budget.state, 'available');
-  assert.equal(calls, 4, 'workflow, runs, and both attempts');
-  assert.equal(first.github.rest.requests, 4); assert.equal(first.github.rest.remaining, 4000);
+  assert.equal(calls, 5, 'both workflow names, current runs, and both attempts');
+  assert.equal(paths.filter(path => path.endsWith('/keel-robot.yml')).length, 1, 'legacy history is checked before declaring available budget');
+  assert.equal(first.github.rest.requests, 5); assert.equal(first.github.rest.remaining, 4000);
   assert.equal(first.github.cost, 0, 'REST is not GraphQL points');
   assert.equal(first.github.readAt, now.toISOString());
-  assert.match(boardText(first), /REST: 4 requests/); assert.match(pageHtml(first, 'acme'), /REST: 4 requests/);
+  assert.match(boardText(first), /REST: 5 requests/); assert.match(pageHtml(first, 'acme'), /REST: 5 requests/);
   const again = await board({ root }, { ...live, now: new Date(+now + 60_000) });
-  assert.equal(calls, 4); assert.equal(again.github.rest.requests, 0);
+  assert.equal(calls, 5); assert.equal(again.github.rest.requests, 0);
   assert.equal(again.github.readAt, first.github.readAt);
-  await board({ root }, { ...live, fresh: true }); assert.equal(calls, 8);
-  await board({ root }, { ...live, now: new Date(+now + 11 * 60_000) }); assert.equal(calls, 12);
+  await board({ root }, { ...live, fresh: true }); assert.equal(calls, 10);
+  await board({ root }, { ...live, now: new Date(+now + 11 * 60_000) }); assert.equal(calls, 15);
   config.robot.budgetMinutes = 20; await writeFile(path, JSON.stringify(config));
-  const changed = await board({ root }, live); assert.equal(calls, 16); assert.equal(changed.robot.budget.remainingSeconds, 1200);
+  const changed = await board({ root }, live); assert.equal(calls, 20); assert.equal(changed.robot.budget.remainingSeconds, 1200);
   remaining = 500;
   const low = await board({ root }, { ...live, fresh: true });
-  assert.equal(calls, 17, 'stop after headers establish the REST floor');
+  assert.equal(calls, 21, 'stop after headers establish the REST floor');
   assert.equal(low.robot.budget.state, 'unknown'); assert.match(low.robot.budget.reasons.join(' '), /REST quota/);
   assert.equal(low.github.rest.requests, 1);
-  await board({ root }, live); assert.equal(calls, 17, 'automatic refresh retains unavailable coverage too');
+  await board({ root }, live); assert.equal(calls, 21, 'automatic refresh retains unavailable coverage too');
   config.robot.on = false; await writeFile(path, JSON.stringify(config));
-  const off = await board({ root }, { ...live, fresh: true }); assert.equal(off.robot.budget.state, 'off'); assert.equal(calls, 17);
+  const off = await board({ root }, { ...live, fresh: true }); assert.equal(off.robot.budget.state, 'off'); assert.equal(calls, 21);
 });
 
 

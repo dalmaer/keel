@@ -46,7 +46,7 @@ for (const [k, v] of Object.entries(identity)) process.env[k] ||= v;
 
 // maintenance.auto and gc.auto: a background `git maintenance` or auto-gc can remove
 // .git/objects/maintenance.lock while a test walks .git (the phase 47 test makes it
-// read-only), which failed plates's CI once with ENOENT (plates#58's check, 2026-10-10).
+// read-only), which failed Keel's CI once with ENOENT (now plates#58's check, 2026-10-10).
 const pin = { 'core.fsmonitor': 'false', 'init.defaultBranch': 'main', 'commit.gpgsign': 'false', 'maintenance.auto': 'false', 'gc.auto': '0' };
 const n = Number(process.env.GIT_CONFIG_COUNT) || 0;
 Object.entries(pin).forEach(([key, value], i) => {

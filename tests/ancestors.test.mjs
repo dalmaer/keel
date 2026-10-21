@@ -151,6 +151,7 @@ test('the projects shape: phases local and read-only, conduct local as its upstr
   assert.match(data.config.local.conduct, /upstream source/);
   assert.match(data.config.local.night, /scripts\/night\.mjs/);
   await assert.rejects(lstat(join(dir, '.agents/skills/conduct')), { code: 'ENOENT' }, 'never a second conductor beside its own');
+  await assert.rejects(lstat(join(dir, '.agents/skills/spin')), { code: 'ENOENT' }, 'local source-owned conductor is not replaced by spin');
   await assert.rejects(lstat(join(dir, 'docs/ROADMAP.md')), { code: 'ENOENT' }, 'no roadmap for this shape');
   assert.ok((await lstat(join(dir, '.claude/skills/conduct'))).isDirectory(), 'its own conductor stays a directory');
 });

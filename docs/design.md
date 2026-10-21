@@ -74,7 +74,7 @@ right is what makes `update` possible at all.
 
 | Kind | Example | On update | Local edit means |
 | --- | --- | --- | --- |
-| **managed** | `scripts/roadmap.mjs`, `.agents/skills/conduct/SKILL.md`, workflows | Overwritten. `.plates/lock.json` records that plates wrote it. | Drift. `doctor` flags it; `lessons` offers it upstream. |
+| **managed** | `scripts/roadmap.mjs`, `.agents/skills/spin/SKILL.md`, workflows | Overwritten. `.plates/lock.json` records that plates wrote it. | Drift. `doctor` flags it; `lessons` offers it upstream. |
 | **block** | the `<!-- plates:begin … -->` regions of `AGENTS.md` | The region is re-rendered; the rest of the file is the project's. | Same as managed, for the region only. |
 | **seeded** | phase files, `docs/lessons.md`, `docs/goals.json` | Never touched. Migrations may *transform* it, with a diff. | Nothing; the project owns it. |
 

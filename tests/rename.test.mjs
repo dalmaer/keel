@@ -173,7 +173,7 @@ test('writer locks, symlinked parents and conflicting runtime roots are refused'
 });
 
 test('operational identities, secrets and concurrency survive active source rebranding', () => {
-  const source = 'Keel .keel/keel.json fleet.json KEEL_GH keel:agent keel:robot-issue keel-impact keel-reconciliation keel-proof keel-decision keel/robot-1 keel/update-v1 keel-night-plan keel-climb/job keel-canvas-night __Host-keel-session keel_private keel_web_rpc secrets.KEEL_TOKEN keel.project keel.operation keel.hash keel.key keel.futureField keel-measurements keel-verify keelWindow keel%3Aagent keel%3areview-after keel-time-proposal .keel-time-proposals.lock\n  group: keel-night-${{ github.ref }}\n';
+  const source = 'Keel .keel/keel.json fleet.json KEEL_GH keel:agent keel:robot-issue keel-impact keel-reconciliation keel-proof keel-decision keel/robot-1 keel/update-v1 keel-night-plan keel-climb/job keel-canvas-night __Host-keel-session keel_private keel_web_rpc secrets.KEEL_TOKEN "keel.project" "keel.operation" "keel.hash" "keel.key" "keel.futureField" keel-measurements keel-verify keelWindow keel%3Aagent keel%3areview-after keel-time-proposal .keel-time-proposals.lock\n  group: keel-night-${{ github.ref }}\n';
   const result = renameActiveText(source);
   assert.match(result, /Plates \.plates\/plates\.json plates\.json PLATES_GH/);
   for (const literal of ['keel:agent', 'keel:robot-issue', 'keel-impact', 'keel-reconciliation', 'keel-proof', 'keel-decision', 'keel/robot-1', 'keel/update-v1', 'keel-night-plan', 'keel-climb/job', 'keel-canvas-night', '__Host-keel-session', 'keel_private', 'keel_web_rpc', 'secrets.KEEL_TOKEN', 'group: keel-night-', 'keel.project', 'keel.operation', 'keel.hash', 'keel.key', 'keel.futureField', 'keel-measurements', 'keel-verify', 'keelWindow', 'keel%3Aagent', 'keel%3areview-after', 'keel-time-proposal', '.keel-time-proposals.lock']) assert(result.includes(literal), literal);
@@ -256,4 +256,15 @@ test('queue and goodnight hash namespaces survive without freezing integration p
     "const skill = '.agents/skills/plates/SKILL.md';",
     "const config = '.plates/plates.json';",
   ].join('\n'));
+});
+
+
+test('metadata string identities remain durable while code variables rename consistently', () => {
+  const before = `const keel = { loop: { mode: 'on' }, name: 'Acme', lessons: 'docs/lessons.md', phases: { shape: 'projects' } };
+const own = keel.loop;
+return { mode: own.mode, name: keel.name, lessons: keel.lessons, shape: keel.phases.shape, metadata: { 'keel.project': 'stable', 'keel.futureKey': 'future' } };`;
+  const after = renameActiveText(before);
+  assert(after.includes('const plates ='));
+  assert(!after.includes('keel.loop'));
+  assert.deepEqual(new Function(after)(), new Function(before)());
 });

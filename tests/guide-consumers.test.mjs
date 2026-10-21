@@ -18,7 +18,7 @@ test('guide consumers: roadmap escapes every URL segment and preserves default b
 test('guide consumers: hidden managed briefs and skills render the selected guide', async () => {
   const all = await practices.load();
   for (const guide of ['CLAUDE.md', 'WORKING.md', 'team (Acme)/rules.md']) {
-    for (const [name, path] of [['conduct', '.agents/skills/conduct/SKILL.md'], ['cross-review', '.agents/cross-review/REVIEW.md'], ['climb', '.agents/climb/PROTOCOL.md'], ['climb', '.agents/climb/TEND.md'], ['claude', '.github/workflows/claude.yml']]) {
+    for (const [name, path] of [['conduct', '.agents/skills/spin/SKILL.md'], ['cross-review', '.agents/cross-review/REVIEW.md'], ['climb', '.agents/climb/PROTOCOL.md'], ['climb', '.agents/climb/TEND.md'], ['claude', '.github/workflows/claude.yml']]) {
       const f = all.get(name).files.find(f => f.path === path);
       const text = practices.fill(f.template, { name: 'Acme', repo: 'acme/acme', tagline: 'Acme', guide }, path);
       assert.ok(text.includes(guide), path);

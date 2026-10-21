@@ -17,7 +17,7 @@ test('robot workflow keeps build agent judge publisher boundaries and explicitly
  for(const name of ['agent','judge','review-agent']) {assert.doesNotMatch(section(name),/\b(?:contents|issues|pull-requests): write/);assert.match(section(name),/persist-credentials: false/);}
  for(const name of ['publish','review-post'])assert.doesNotMatch(section(name),/uses: (?:anthropics|openai)\//);
  assert.match(section('publish'),/ref: \$\{\{ github.sha \}\}/);assert.doesNotMatch(section('publish'),/git (?:switch|checkout)|npm ci/);
- assert.match(text,/group: plates-robot\n  cancel-in-progress: false/);
+ assert.match(text,/group: keel-robot\n  cancel-in-progress: false/);
  assert.match(section('review-agent'),/needs: publish/);assert.match(section('review-agent'),/ROBOT_HEAD: \$\{\{ needs.publish.outputs.head \}\}/);
  assert.match(section('review-agent'),/sandbox: read-only/);assert.match(section('agent'),/sandbox: workspace-write/);
  assert.doesNotMatch(text,/danger-full-access|safety-strategy: unsafe|gh pr merge/);
@@ -60,7 +60,7 @@ test('robot public events cannot enter serialized worker history before trusted 
  assert.match(triggers, /^      robot_trigger:/m);
  const text = await readFile(router, 'utf8');
  assert.deepEqual(await shellProblems('robot-router', text), []);
- assert.match(text,/^concurrency:\n  group: plates-robot-route-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}\n  cancel-in-progress: false$/m);
+ assert.match(text,/^concurrency:\n  group: keel-robot-route-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}\n  cancel-in-progress: false$/m);
  assert.match(text, /issue_comment:\n    types: \[created\]/);
  assert.doesNotMatch(text, /uses: (?:anthropics|openai|actions\/checkout)|secrets\.|contents: write/);
  assert.match(text, /actions: write/);

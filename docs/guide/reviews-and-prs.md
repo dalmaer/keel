@@ -306,7 +306,7 @@ that hides it.
 
 ## See also
 
-- [Conduct a phase](conduct-a-phase.md): the conductor is one of the agents
+- [Spin a phase](spin-a-phase.md): the conductor is one of the agents
   that answers reviews.
 - [Keep the fleet current](keep-the-fleet-current.md): the update PRs most
   reviewed across the fleet.

@@ -1,8 +1,8 @@
-# What's new in keel
+# What's new in Plates
 
-Each entry is for the person whose project `keel update` brings to that
+Each entry is for the person whose project `plates update` brings to that
 practice version: what changes in your repo, and anything you need to do.
-Newest first. `keel release` writes them; `keel update` puts the entries
+Newest first. `plates release` writes them; `plates update` puts the entries
 between your version and the new one into its pull request.
 
 ## v0.8.32 — practice 0.8.32 (2026-10-17)
