@@ -17,6 +17,8 @@ Keel makes it one versioned thing. It does three jobs:
    (`keel lessons`). Keel turns that into proposals (`keel learn`), a person
    decides, and the next release carries the change to everyone.
 
+For the private data repository and hosted UI setup, see [Private workspace and web UI](#private-workspace-and-web-ui).
+
 A project never depends on keel at runtime. Its workflows run from its own
 repo, with its own copies of the scripts they need.
 
@@ -150,6 +152,114 @@ treated as yours: the next update simply takes keel's file.
 `keel fleet` shows every project at once: practice version, health, CI,
 unsent lessons, and open machine PRs.
 
+## Private workspace and web UI
+
+Keel's hosted UI is being built around a Home screen that answers three things:
+**which decisions need you, what to test step by step, and what changed recently**.
+Guided walks will retain “works”, “does not work” and “cannot test yet” observations;
+recent additions will include screenshots, tested revisions and links to try them.
+Project cards will refresh independently, retain source freshness, and preserve
+an open decision or walk when new updates arrive.
+
+**Available today:** the CLI, the local `keel board`, and external workspace
+manifest validation/initialization. The first Vercel project has been created,
+but **hosted sign-in and Home are not deployed**. Database and GitHub App access
+are proposed, not connected. Phase status lives in [the roadmap](docs/ROADMAP.md):
+[93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md)
+is built; [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
+is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) and
+[96: Home](docs/phases/96-home-explains-every-project.md) follow. Decisions,
+walks, visual changes and real-use verification follow in phases 97–101.
+
+### Keep application code and private data separate
+
+| Location | What belongs there |
+| --- | --- |
+| Public Keel repo | Application/CLI code, schemas, reusable practices and synthetic examples |
+| Your private data repo, such as `acme/keel-data` | Workspace manifest, shared private lessons, approved cross-project decisions and setup records |
+| Each project repo | Its `.keel` configuration, planning records, decisions, evidence and project lessons |
+| External private runtime storage | Sessions, drafts, caches and operation receipts; private media storage holds screenshots |
+| Deployment secret store | GitHub App credentials, database credentials and session secrets |
+
+The private data repo is yours; it is not a fork of Keel. It does not become a
+second authority for project acceptance. Keep tokens, private keys, runtime state
+and raw screenshots out of Git, including private Git. Existing fleet and lesson
+inbox configuration continue to work; creating this repo does not migrate them
+or redirect `keel lessons` automatically.
+
+### Create your private data repo
+
+Install/authenticate GitHub CLI (`gh auth login`) as well as Keel. The following
+example creates a **new** private repo; replace `acme` with your account or
+organization. To reuse a repo, skip creation and verify its privacy. Keep its
+checkout outside the public Keel application directory.
+
+```sh
+mkdir -p "$HOME/code"
+gh repo create acme/keel-data --private --description "Private Keel workspace records" --add-readme
+gh repo view acme/keel-data --json nameWithOwner,isPrivate,id
+gh repo clone acme/keel-data "$HOME/code/keel-data"
+```
+
+Confirm the readback says `"isPrivate": true`. In that checkout, create
+`workspace.json` with your identity. Start with an empty project list:
+
+```json
+{
+  "version": 1,
+  "id": "acme",
+  "name": "Acme",
+  "repo": "acme/keel-data",
+  "projects": []
+}
+```
+
+Keep this manifest in the private repo. Add entries such as
+`{"id":"studio","repo":"acme/studio"}` when selecting projects; listing a repo
+does not grant GitHub access or adopt it into Keel. The [setup guide](docs/guide/web-workspace-setup.md)
+covers private commits, project records, validation and the lesson inbox.
+
+### Validate and initialize local workspace state
+
+Choose a runtime directory outside **every Git working tree**, the application,
+and the manifest directory. Its parent must already exist. For a normal home
+layout, these locations are separate:
+
+```sh
+mkdir -p "$HOME/.local/state"
+keel workspace inspect --manifest "$HOME/code/keel-data/workspace.json" --state "$HOME/.local/state/keel-workspace" --json
+keel workspace init --manifest "$HOME/code/keel-data/workspace.json" --state "$HOME/.local/state/keel-workspace" --json
+# Preview intentionally exits 3. After reviewing it, apply explicitly:
+keel workspace init --manifest "$HOME/code/keel-data/workspace.json" --state "$HOME/.local/state/keel-workspace" --yes --json
+```
+
+Initialization creates a private ownership marker and is idempotent for matching
+state. Unsafe or mismatched state is refused. `privacy.state` remains
+`"unverified"`: the local command never contacts GitHub or establishes login,
+even if you verified privacy separately with `gh`. Run
+`keel --agent-help workspace` for the complete schema and command contract.
+
+### Prepare a hosted instance on Vercel
+
+The selected hosting design uses Vercel Node functions, the private data repo,
+an external transactional database, and a GitHub App installed on selected
+repositories. Vercel's temporary filesystem cannot hold durable sessions or
+drafts. Supabase Free through Marketplace is the current database proposal;
+private screenshot storage is a later phase. Verify current plan limits, price
+and backup needs before provisioning.
+
+Follow [Set up a private Keel web workspace](docs/guide/web-workspace-setup.md)
+for Vercel login/team selection, project creation, the saved-login path workaround,
+GitHub App permissions, production-only secrets and the remaining acceptance
+checks. A Vercel project or domain alone is not a running Keel UI. The local
+workspace commands above do not provision the hosted stores or start a server.
+
+See the [UX design](docs/specs/web-ui.md),
+[interactive Home prototype](docs/design-previews/keel-home.html),
+[CLI-to-UI mapping](docs/specs/web-ui-command-map.md) and
+[workspace contract](docs/specs/web-workspace.md). The prototype contains synthetic
+examples; open the HTML locally to explore it.
+
 ## Guides
 
 Each guide starts from a situation, says why keel does what it does there,
@@ -173,6 +283,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |
 
 ## The verbs
@@ -249,6 +360,25 @@ Judgements are a person's too. An agent may *propose* a lesson, a rank or a
 fix, and `keel learn decide` and Loop's `decide` are a person's. Nothing
 marks a phase `lived-in` except someone who used the thing.
 
+## Evidence, timing and decisions
+
+`keel time --weeks 8 --json` shows retained gate/test timing, machine load
+coverage and local worked-around counts. [Timing and the night](docs/guide/the-night-shift.md).
+
+Adoption previews include monthly weighted-minute estimates for newly added
+workflows, with history and coverage. `keel improve` reports `ci_minutes`;
+`ci.gateWorkflow` can reuse completed CI on the exact clean default-branch SHA.
+These usage estimates are not invoices. [CI usage and reuse](docs/guide/the-night-shift.md#actions-usage-and-reusing-ci).
+
+Builders can read current scoped choices with
+`keel decision context --phase <id> --json` (or `--issue <owner/repo#n>`).
+See [decision context](docs/reconciliation.md#decision-context-for-a-builder)
+for read bounds, provenance, exit states and dispatch/resume checks.
+
+Use the optional [shaping practice](practices/shaping/README.md) to review supplied
+records locally. [The guide](practices/shaping/files/docs/shaping.md) includes
+a minimal fixture and the exact preview/approval/recovery commands.
+
 ## Working on keel itself
 
 Keel is built with its own practice. [AGENTS.md](AGENTS.md) is the working
@@ -276,41 +406,3 @@ ported to ledger, then to duo and cajones. Keel adapts isocan's conduct skill
 and its measurement ideas under Apache-2.0, and credits them in
 [NOTICE](NOTICE) and in each adapted file's header. Keel itself is
 Apache-2.0.
-
-`keel time --weeks 8 --json` shows retained gate/test timing, machine load
-coverage and local worked-around counts. [Timing and the night](docs/guide/the-night-shift.md).
-
-Adoption previews include monthly weighted-minute estimates for newly added
-workflows, with history and coverage. `keel improve` reports `ci_minutes`;
-`ci.gateWorkflow` can reuse completed CI on the exact clean default-branch SHA.
-These usage estimates are not invoices. [CI usage and reuse](docs/guide/the-night-shift.md#actions-usage-and-reusing-ci).
-
-Builders can read current scoped choices with
-`keel decision context --phase <id> --json` (or `--issue <owner/repo#n>`).
-See [decision context](docs/reconciliation.md#decision-context-for-a-builder)
-for read bounds, provenance, exit states and dispatch/resume checks.
-
-Use the optional [shaping practice](practices/shaping/README.md) to review supplied
-records locally. [The guide](practices/shaping/files/docs/shaping.md) includes
-a minimal fixture and the exact preview/approval/recovery commands.
-
-### Private web workspace foundation
-
-The web workspace is being built in phases. Public app code stays in Keel;
-workspace membership and shared private lessons belong in a separate private
-repository, and each project retains its own Keel records. Login and the hosted
-Home are not available yet. See [the workspace contract](docs/specs/web-workspace.md).
-
-The first slice validates explicit external configuration and runtime storage:
-
-```bash
-keel workspace inspect --manifest /absolute/private-workspace/workspace.json --state /absolute/private-runtime --json
-keel workspace init --manifest /absolute/private-workspace/workspace.json --state /absolute/private-runtime --json
-# After reviewing the preview, repeat init with --yes.
-```
-
-Create the manifest using the schema in `keel --agent-help workspace`. The runtime
-parent must exist; the state directory must be outside all Git working trees,
-the application and the manifest directory. Initialization creates a private
-ownership marker and preserves existing state. Remote privacy remains unverified
-until GitHub access is connected; this command creates no remote resources.

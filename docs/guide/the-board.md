@@ -8,6 +8,11 @@
 - You have ten minutes and want to clear what only you can clear: a walk
   owed, the night's proposal, a lesson waiting for a decision.
 
+This guide describes the existing local board. For the private data repository
+and the hosted Home UI being built, see [Private web workspace setup](web-workspace-setup.md).
+Hosted sign-in and Home are not deployed yet; starting the local board does not
+create a hosted workspace.
+
 ## What it does, and why it works that way
 
 The answer is already spread over six places keel knows: the phase files,
