@@ -55,7 +55,7 @@ write and the exact real owner decision remain explicit owner steps.
 
 ## Next action
 
-Complete required practice PR review. Obtain the fresh Vercel verification code,
+PR #214 is reviewed and merged. Obtain the fresh Vercel verification code,
 apply migration 004 and verify hosted roles/concurrency; deploy with submission
 disabled and walk the exact preview. Then obtain Contents-write approval and a
 particular owner choice before the real write/receipt walkthrough. Retain the

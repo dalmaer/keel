@@ -77,3 +77,13 @@ explicit choice, submit once, follow the receipt and inspect the GitHub commit.
 Verify only the intended record changed and reopen the same receipt on another
 screen. Record observed results and serving/source revisions in the phase
 evidence. Synthetic tests cannot replace this owner walk.
+
+### If recovery cannot establish the result
+
+The project remains reserved when the app cannot prove what happened to a
+dispatched write, including when matching history is no longer within its bounded
+search. There is currently no operator release command. Retain the operation URL
+and original receipt; do not edit the database to free it or submit a duplicate.
+An audited operator reconciliation flow is tracked in
+[issue #215](https://github.com/dalmaer/keel/issues/215). Unchanged branch HEAD is
+not proof that an in-flight request can no longer commit.

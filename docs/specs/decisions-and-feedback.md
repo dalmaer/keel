@@ -192,6 +192,103 @@ items; capacity exhaustion refuses new storage visibly. Keep at most 256 KiB
 per feedback record and 2 MiB per selected result. Deletion/export policy is
 explicit owner work, not a silent cleanup job.
 
+### Phase 92 implementation contract — 2026-10-21
+
+The local CLI is `feedback capture <file>`, `feedback list`,
+`feedback propose <id> --record <publication-file>` and
+`feedback resolve <id> --record <resolution-file>`. All accept `--json`.
+Capture and resolution preview without writes; `--yes --digest <preview-digest>`
+applies exactly the reviewed local change. Propose is read-only and never creates
+an issue, starts an agent or changes source acceptance. Pure validation, identity,
+revision and routing logic must remain usable with a different private store for
+phase 98; filesystem and provider adapters are separate.
+
+An authored schema-1 capture names its project repository (matching the local
+Keel config), stable source ID, manual author attribution, observed UTC time,
+words, revision and previous digest. Its result names a full source commit,
+artifact ID, immutable version, content hash, optional exact local file, optional
+phase/issue/PR reference and anchor. Explicit accepted-decision conflict references
+and an owner's explanation are optional; semantic conflicts are never inferred
+from text. Unsupported provider-only references can be retained as unavailable
+observations, with gaps. They cannot silently resolve to the latest version.
+A local result is verified from explicitly selected bounded bytes against its
+SHA-256 identity, then retained privately. Existing canvas binding/receipt identity
+can be recorded only using its actual schema; without exact version bytes the
+adapter remains unavailable. No comment scraping or new provider API is implied.
+
+Observation identity derives from project, source ID, artifact ID and immutable
+result version. Identical input is unchanged. Changed words require the next
+revision and exact previous digest, preserving earlier words and resolutions.
+One immutable version cannot acquire different bytes. A different result version
+creates another observation. Revisions are appended atomically under a local
+writer lock; concurrent or stale revisions refuse instead of overwriting.
+An interrupted writer may leave the lock behind. This slice fails closed with
+`writer_busy`; elapsed time is not evidence that a writer stopped. A lock alone
+does not block reads; incomplete records or temporary files remain explicit gaps.
+Recovery requires the owner to confirm all feedback writers stopped
+before removing only the empty `.keel/feedback/.lock` directory. Preserve every
+observation, snapshot and temporary file for inspection; no automatic cleanup or
+lock takeover is implied.
+A verified retained snapshot survives deletion/change of the original pathname.
+A missing or corrupted retained snapshot is a gap and prevents a proposal.
+
+The private store defaults to `.keel/feedback/`. Before persisting any raw bytes,
+verify that every actual destination (including snapshots, revisions and temporary
+files) is untracked and Git-ignored, adding only a local Git exclude when needed.
+A single ignored sentinel does not cover negated descendant rules. Seed a private
+store-local `.npmignore` containing `*` before raw writes and verify it on later
+access, so ordinary npm package exports exclude retained copies even when the
+project relies on local Git excludes. Refuse a conflicting exclusion file rather
+than overwriting it; do not edit the project-root package exclusions. Refuse unsafe
+or already tracked storage. Private directories use 0700,
+files 0600, and symlink/hardlink aliases are refused. Previews create neither
+storage nor exclusions. Store at most 1000 observations and 50 MiB total, with
+the existing 256 KiB record and 2 MiB selected-result limits. Count existing
+revisions/snapshots, refuse visibly at capacity, and never delete to make room.
+Diagnostics, capture/list output and board projections contain identifiers,
+states, gaps and resolution links, not raw words, snapshots or private paths.
+Only an explicit publication preview may show its selected outbound material.
+
+A publication record binds the current feedback digest, selected exact excerpt,
+explicit destination and an authored robot rubric/title. The first destination
+is the same configured repository; arbitrary cross-project routing is unsupported.
+Resolve current GitHub issue/PR state freshly when a work reference is present:
+open proposes follow-up, closed proposes a linked repair/change, unavailable state
+blocks routing. Local phase references are planning context, never GitHub closure
+or acceptance facts. Explicit conflicts must resolve to currently accepted
+canonical decisions and produce a reopening proposal for phase 91, never an
+accepted replacement. Broken required references block the proposal.
+
+For a reopening, the publication record supplies `shaping`: an explicitly
+authored version-1 phase-91 shaping record. Require it rather than inventing a
+goal, proof command, plan item or owner answer from feedback. Validate it with
+the existing shaping validator and require every conflicted canonical decision
+in its item decision references or proposed supersession references. Resolve all
+canonical references in that draft freshly as well. Preserve supplied manual
+answers as attribution, never authentication or acceptance. The read-only output
+returns the unchanged validated draft and `keel shape check` handoff; saving it,
+reviewing it and approving any shaping output remain separate actions. Missing
+drafts report `shaping_draft_required`. Prove the returned draft through the
+existing phase-91 inspection/preview path, not just a new output tag.
+
+For an issue proposal, reuse the exact normalized rubric, subject and instance
+identity derivation used by `issue new --agent`. Its output includes the exact
+outbound body, destination, source/result links, routing/context facts and one
+preview digest, plus the existing issue command's handoff inputs. Do not create
+a competing issue journal. Delivery remains a separately authorized `issue new`
+operation with fresh policy checks and its existing uncertain-write recovery;
+feedback preview is not delivery approval. Test that the handoff retains the same
+preview/intent identity and recovery behavior through the existing issue API.
+
+A resolution record binds the current feedback digest and explicitly names
+linked, declined or superseded, manual actor and UTC time. Linked requires a
+resulting proposal/issue reference; declined requires a reason; superseded names
+another existing observation for this project. Resolution history is retained.
+An edit after resolution returns the new revision to pending without rewriting
+the earlier outcome. Unavailable is a derived coverage state, not a fabricated
+owner resolution. The existing board adds only a bounded metadata summary under
+Feedback to review; raw private content remains outside canvas/night exports.
+
 ## Boundaries and rollout
 
 No new scheduler, agent budget, phone client, artifact hosting service or

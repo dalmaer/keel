@@ -173,6 +173,10 @@ coverage gaps. The first source read fills a loading view; later updates wait
 behind **Show changes** so the card you are reading stays stable. See
 [Using Home](docs/guide/web-home.md) for refresh behavior and limits.
 
+Local [result feedback](docs/guide/feedback.md) now retains exact reviewed bytes,
+private revision history and explicit resolutions. It prepares issue or shaping
+handoffs for separate review; web capture remains phase 98 work.
+
 Supabase Free holds encrypted sessions and source caches outside the public code
 repository. The selected-repository GitHub App has read-only access; credentials
 live only in production secrets. Login, logout, current membership and removed
@@ -314,6 +318,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Web decisions](docs/guide/web-decisions.md) | you want to review exact changes, understand write access and recover an original operation receipt |
 | [Web authentication service](docs/guide/web-auth-service.md) | you are configuring the server, private membership, session database and production secrets |
 | [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |
+| [Private result feedback](docs/guide/feedback.md) | you want to preserve the exact result reviewed and explicitly propose or resolve follow-up work |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |
 
 ## The verbs
@@ -369,6 +374,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel canvas` | Project lifecycle snapshots and isocan canvas publishing; preview changes before applying them |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 | `keel production status`, `collect`, `spec`, `verify` | Bounded production-error evidence, recurring repair candidates, and revision-scoped verification; missing coverage stays unknown |
+| `keel feedback` | Capture private feedback on an exact result, list metadata, propose a follow-up, or resolve it; local writes require the reviewed digest |
 | `keel issue new --agent` | Preview a rubric issue; `--yes` creates it, unlabelled while robot is OFF |
 | `keel review <repo>#<n>` | A PR's review comments and which are answered; `--wait` for its reviewers; `--close` answers one fixed, tracked or not valid, only once it was read; `--class` sorts a finding without answering it. At three review rounds on an open PR it exits 3 and gives you the choice. Not a gate |
 | `keel board` | Whose turn it is: every open item as yours, broken, the agent's or waiting on time, gathered from the roadmap, loose ends, reviews, the health page, the inbox and the fleet. A page on 127.0.0.1, or `--json` |
