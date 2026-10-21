@@ -92,7 +92,7 @@ an explicitly authored version-1 [shaping record](../../practices/shaping/files/
 It must reference each conflicted decision and pass the existing validator. Keel
 returns that draft with a `keel shape check` handoff; it invents no goal, proof
 command or owner answer. Without the draft, the preview reports
-`shaping_draft_required`. Save it privately and review it through shaping before
+`{"error":"shaping_draft_required"}`. Save it privately and review it through shaping before
 approving any resulting plan. Supplied answers remain manual attribution.
 
 Delivery is a separate, explicitly approved `keel issue new --agent` operation
@@ -123,7 +123,7 @@ revisions and results; each record is at most 256 KiB and each result 2 MiB.
 Capacity exhaustion refuses visibly and never deletes observations to make room.
 Retention and exports require explicit owner work; no automatic deletion is enabled.
 
-If an interrupted write leaves `writer_busy`, the lock alone does not block reads;
+If an interrupted write returns `{"error":"writer_busy"}`, the lock alone does not block reads;
 incomplete records or temporary files may still make coverage unavailable. Confirm
 that all feedback writers have stopped before using `rmdir .keel/feedback/.lock` from the
 project root. Remove only that empty lock directory; preserve observations,

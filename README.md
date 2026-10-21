@@ -173,6 +173,10 @@ coverage gaps. The first source read fills a loading view; later updates wait
 behind **Show changes** so the card you are reading stays stable. See
 [Using Home](docs/guide/web-home.md) for refresh behavior and limits.
 
+Local [result feedback](docs/guide/feedback.md) now retains exact reviewed bytes,
+private revision history and explicit resolutions. It prepares issue or shaping
+handoffs for separate review; web capture remains phase 98 work.
+
 Supabase Free holds encrypted sessions and source caches outside the public code
 repository. The selected-repository GitHub App has read-only access; credentials
 live only in production secrets. Login, logout, current membership and removed

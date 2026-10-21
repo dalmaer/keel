@@ -139,3 +139,22 @@ Crash locks fail closed; the guide documents owner-confirmed stopped-writer
 recovery while preserving records and incomplete data. There is no automatic
 cleanup, export or lock takeover. Actual usefulness and live adapter behavior
 remain separate owner evidence. Phase 98 still owns hosted guided walks.
+
+## Integration correction — 2026-10-21
+
+The first `keel integrate --json` exited 1 and left main unchanged. Its one gate
+ran 2034 tests: 2033 passed and one guide check failed. Bare snake-case error
+names in the new guide were interpreted as night measure names. The guide now
+shows explicit JSON error responses. The guard was not weakened.
+
+`node --import ./tests/helpers/hermetic.mjs --test tests/guides.test.mjs`
+exited 0, all 6 passed. The existing failing assertion was independently proven:
+
+```sh
+node bin/keel.mjs prove tests/guides.test.mjs --name 'every guide command is a registered verb' --fix docs/guide/feedback.md --base 0c580064f5cc3b705df02f0d7bac54cb2817aa2e --trailer
+```
+
+Exit 0, VERIFIED: red without the documentation correction, green with it.
+The first gate's hygiene block reported no flaky/slower test, with one busy run
+omitted and zero runs with unavailable load context. The corrected tree requires
+a new integration gate; the initial failure is retained rather than rerun away.
