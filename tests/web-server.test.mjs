@@ -32,7 +32,7 @@ test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inpu
 
 test('public signin/assets and signed-in scaffold are responsive, escaped and never expose tokens or config', async () => {
   const h = harness();
-  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs']) {
+  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css']) {
     const response = await h.service(h.request(path)), content = await response.text();
     assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|KEEL_WEB_CONFIG/);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -107,7 +107,7 @@ import { request } from 'node:http';
 const server = await serve(['--config', ${JSON.stringify(configPath)}, '--port', '0', '--json']);
 try {
   const responses = [];
-  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs']) responses.push(await new Promise((resolve, reject) => {
+  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css']) responses.push(await new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'keel.acme.test' } }, res => {
       let text = ''; res.on('data', value => { text += value; }); res.on('end', () => resolve({ status: res.statusCode, text, cookies: res.headers['set-cookie'] }));
     }); req.on('error', reject); req.end();
@@ -120,7 +120,9 @@ try {
     SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey, KEEL_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
   } });
   assert.equal(launched.status, 0, launched.stderr);
-  const [response, client, views] = JSON.parse(launched.stdout);
+  const responses=JSON.parse(launched.stdout);
+  assert.ok(responses.every(response=>response.status===200),'all packaged browser assets are served');
+  const [response, client, views] = responses;
   assert.equal(client.status, 200); assert.match(client.text, /export function startHomeClient/);
   assert.equal(views.status, 200); assert.match(views.text, /export function renderHomeSnapshot/);
   assert.equal(response.status, 200); assert.match(response.text, /Continue with GitHub/);
