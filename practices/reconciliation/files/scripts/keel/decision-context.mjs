@@ -10,17 +10,65 @@ const stable = x => JSON.stringify(x, (_, v) => v && typeof v === 'object' && !A
 const strings = x => Array.isArray(x) && x.every(s => typeof s === 'string' && s.trim());
 export const DECISION_LIMITS = Object.freeze({ records: 100, bytes: 2 * 1024 * 1024, hops: 20 });
 
-export async function decisionContext({ root, phase, issue, issueBody, generatedPhases = [] }) {
+/**
+ * An optional immutable reader supplies one complete, revision-pinned source:
+ * { revision, complete: true, stat(path), readdir(path), readFile(path) }.
+ * stat returns { type: 'file'|'directory', size? }; readdir returns immediate
+ * child names; readFile returns bytes. Missing paths throw ENOENT, while a
+ * partial/unavailable inventory throws another error. No filesystem or Git is
+ * consulted with this reader. The adapter must pin every read to its revision.
+ */
+export async function decisionContext({ root, reader, phase, issue, issueBody, generatedPhases = [] }) {
   const out = { schema: 1, target: { kind: phase !== undefined ? 'phase' : 'issue', ref: String(phase ?? issue ?? '') }, revision: null, sources: [], decisions: [], proposals: [], gaps: [] };
   const gap = (code, ref, message, unavailable = false) => out.gaps.push({ code, ref, message, unavailable });
   let bytes = 0, count = 0;
   const files = new Map(), records = new Map();
+  let revision;
+  const immutable = reader !== undefined;
+  const checkPath = path => {
+    if (typeof path !== 'string' || path.length > 1024 || /[\\\x00-\x1f%:#]/.test(path)
+      || path.split('/').some(part => !part || part === '.' || part === '..')) throw Error('unsafe source path');
+  };
+  async function remote(method, path) {
+    checkPath(path);
+    if (reader.complete !== true || reader.revision !== revision) throw Error('immutable source changed or is incomplete');
+    const value = await reader[method](path);
+    if (reader.complete !== true || reader.revision !== revision) throw Error('immutable source changed or is incomplete');
+    return value;
+  }
+  async function statAt(path) {
+    if (!immutable) {
+      const stat = await lstat(await safePath(root, path));
+      return { type: stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other', size: stat.size };
+    }
+    const stat = await remote('stat', path);
+    if (!stat || !['file', 'directory'].includes(stat.type)
+      || (stat.type === 'file' && (!Number.isSafeInteger(stat.size) || stat.size < 0))) throw Error('invalid immutable source entry');
+    return stat;
+  }
+  async function listAt(path) {
+    if (!immutable) return readdir(await safePath(root, path));
+    if ((await statAt(path)).type !== 'directory') throw Error('source is not a directory');
+    const names = await remote('readdir', path);
+    if (!Array.isArray(names) || names.length > 2000 || new Set(names).size !== names.length) throw Error('invalid or unbounded source inventory');
+    for (const name of names) {
+      if (typeof name !== 'string' || name.includes('/')) throw Error('invalid source inventory name');
+      checkPath(name);
+    }
+    return names;
+  }
+  async function bytesAt(path, stat) {
+    if (!immutable) return readFile(await safePath(root, path));
+    const data = await remote('readFile', path);
+    if (!(data instanceof Uint8Array) || data.byteLength !== stat.size) throw Error('immutable source size mismatch');
+    return Buffer.from(data);
+  }
   async function read(ref) {
     const { path, anchor } = refParts(ref);
     if (!files.has(path)) {
-      const target = await safePath(root, path), stat = await lstat(target);
-      if (!stat.isFile() || stat.size + bytes > DECISION_LIMITS.bytes) throw Error('read-bound: total bytes exceed 2 MiB or input is not a regular file');
-      const data = await readFile(target);
+      const stat = await statAt(path);
+      if (stat.type !== 'file' || stat.size + bytes > DECISION_LIMITS.bytes) throw Error('read-bound: total bytes exceed 2 MiB or input is not a regular file');
+      const data = await bytesAt(path, stat);
       bytes += data.length;
       if (bytes > DECISION_LIMITS.bytes) throw Error('read-bound: total bytes exceed 2 MiB');
       if (files.size >= 2000) throw Error('inventory-bound: more than 2000 files');
@@ -46,15 +94,18 @@ export async function decisionContext({ root, phase, issue, issueBody, generated
   };
   let refs = [];
   try {
-    root = await realpath(root);
+    if (immutable) {
+      if (root !== undefined || !reader || reader.complete !== true || !/^[a-f0-9]{40}$/.test(reader.revision ?? '')
+        || !['stat', 'readdir', 'readFile'].every(method => typeof reader[method] === 'function')) throw Error('complete immutable reader required without a local root');
+      revision = reader.revision;
+    } else root = await realpath(root);
     if (!Array.isArray(generatedPhases) || generatedPhases.length > 20 || generatedPhases.some(s => !/^docs\/phases\/\d+-[a-z0-9-]+\.md$/.test(s?.path ?? '') || !/^[a-f0-9]{64}$/.test(s?.hash ?? ''))) throw Error('invalid generated phase exclusions');
     if ((phase !== undefined) === (issue !== undefined)) throw Error('exactly one phase or issue required');
     if (phase !== undefined && !/^\d+$/.test(String(phase))) throw Error('phase must be a nonnegative integer');
     if (issue !== undefined && !/^[\w.-]+\/[\w.-]+#[1-9]\d*$/.test(issue)) throw Error('issue must be owner/repo#n');
-    out.revision = (await exec('git', ['-c', 'core.fsmonitor=false', 'rev-parse', 'HEAD'], { cwd: root, timeout: 5000, maxBuffer: 1024 })).stdout.trim();
+    out.revision = immutable ? revision : (await exec('git', ['-c', 'core.fsmonitor=false', 'rev-parse', 'HEAD'], { cwd: root, timeout: 5000, maxBuffer: 1024 })).stdout.trim();
     if (phase !== undefined) {
-      const directory = await safePath(root, 'docs/phases');
-      const entries = await readdir(directory);
+      const entries = await listAt('docs/phases');
       const matches = entries.filter(n => /^(\d+)-.*\.md$/.test(n) && Number(n.match(/^\d+/)[0]) === Number(phase));
       if (matches.length !== 1) throw Error('phase missing or ambiguous');
       const path = `docs/phases/${matches[0]}`, doc = await read(path);
@@ -74,10 +125,9 @@ export async function decisionContext({ root, phase, issue, issueBody, generated
         refs.push(...(rubric.decisions ?? []));
       } else if (issueBody.includes('<!-- keel:robot-data')) throw Error('malformed rubric metadata');
       if (refs.length) {
-        const configPath = await safePath(root, '.keel/keel.json');
-        const configStat = await lstat(configPath);
-        if (!configStat.isFile() || configStat.size > 65536) throw Error('project identity unavailable');
-        const config = JSON.parse(await readFile(configPath, 'utf8'));
+        const configStat = await statAt('.keel/keel.json');
+        if (configStat.type !== 'file' || configStat.size > 65536) throw Error('project identity unavailable');
+        const config = JSON.parse((await bytesAt('.keel/keel.json', configStat)).toString('utf8'));
         if (typeof config.repo !== 'string' || config.repo.toLowerCase() !== issue.split('#')[0].toLowerCase()) throw Error('issue repository differs from local project identity');
         out.target.repository = config.repo.toLowerCase();
       }
@@ -95,11 +145,10 @@ export async function decisionContext({ root, phase, issue, issueBody, generated
       let entries = 0;
       async function inventory(path, depth = 0) {
         if (depth > 12) throw Error('inventory depth exceeded');
-        let target;
-        try { target = await safePath(root, path); } catch (e) { if (e.code === 'ENOENT') return; throw e; }
-        const stat = await lstat(target);
-        if (stat.isDirectory()) {
-          for (const name of (await readdir(target)).sort()) {
+        let stat;
+        try { stat = await statAt(path); } catch (e) { if (e.code === 'ENOENT') return; throw e; }
+        if (stat.type === 'directory') {
+          for (const name of (await listAt(path)).sort()) {
             if (++entries > 2000) throw Error('inventory-bound: more than 2000 entries');
             await inventory(`${path}/${name}`, depth + 1);
           }
@@ -108,8 +157,8 @@ export async function decisionContext({ root, phase, issue, issueBody, generated
           // Recheck bytes and syntax here: no exclusion can hide a decision record.
           // Explicit decision references still pass through read/load below.
           const generated = generatedPhases.find(s => s.path === path);
-          if (generated && stat.isFile() && stat.size <= 262144) {
-            const bytes = await readFile(target);
+          if (generated && stat.type === 'file' && stat.size <= 262144) {
+            const bytes = await bytesAt(path, stat);
             if (bytes.length <= 262144 && hash(bytes) === generated.hash) {
               const doc = markdown(bytes.toString('utf8'));
               if (!doc.unclosed && !doc.fences.some(f => f.type === 'keel-decision')) return;
@@ -200,9 +249,9 @@ export async function decisionContext({ root, phase, issue, issueBody, generated
   return out;
 }
 export const decisionExitCode = bundle => ['complete', 'not-configured'].includes(bundle?.state) ? 0 : bundle?.state === 'contradictory' ? 1 : 2;
-export async function refreshDecisionContext({ root, bundle, issueBody }) {
+export async function refreshDecisionContext({ root, reader, bundle, issueBody }) {
   if (!bundle?.target || !['phase', 'issue'].includes(bundle.target.kind)) throw Error('decision target required');
-  const current = await decisionContext({ root, [bundle.target.kind]: bundle.target.ref, issueBody });
+  const current = await decisionContext({ root, reader, [bundle.target.kind]: bundle.target.ref, issueBody });
   return { bundle: current, changed: current.digest !== bundle.digest, allowed: decisionExitCode(current) === 0 };
 }
 export function decisionBrief(bundle) {

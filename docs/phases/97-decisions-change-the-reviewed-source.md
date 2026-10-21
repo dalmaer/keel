@@ -1,11 +1,12 @@
 ---
-status: designed
+status: partial
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [90, 91, 96]
-note: "Two typed writers and exact-HEAD delivery are designed; broader App access and a real owner choice remain unapproved."
-evidence: []
+note: "Typed previews and durable conditional operations verified locally; hosted migration, Contents-write approval and a real owner choice await the owner walk."
+owes: walk
+evidence: ["evidence/2026-10-21-web-decisions.md"]
 ---
 
 # Decisions change the reviewed source
@@ -23,9 +24,9 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Accepted choices and recommendations remain distinct and decision previews name exact consequences: `tests/web-decisions.test.mjs`.
-- [ ] Stale digest, concurrent mutation, lost access and replay cannot change a different record: `tests/web-operations.test.mjs`.
-- [ ] Uncertain remote writes recover their original operation without a duplicate commit; these two writers never create an issue/PR: `tests/web-operations.test.mjs`.
+- [x] Accepted choices and recommendations remain distinct and decision previews name exact consequences: `tests/web-decisions.test.mjs`.
+- [x] Stale digest, concurrent mutation, lost access and replay cannot change a different record: `tests/web-operations.test.mjs`.
+- [x] Uncertain remote writes recover their original operation without a duplicate commit; these two writers never create an issue/PR: `tests/web-operations.test.mjs`.
 - [ ] ⚑ By hand: record one real decision and locate the exact source change and receipt: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
@@ -54,11 +55,16 @@ write and the exact real owner decision remain explicit owner steps.
 
 ## Next action
 
-Build and verify detail/preview, two supported writers and durable conditional delivery with submission disabled; then obtain Contents-write approval and a real owner choice for the hosted write walk.
+Complete required practice PR review. Obtain the fresh Vercel verification code,
+apply migration 004 and verify hosted roles/concurrency; deploy with submission
+disabled and walk the exact preview. Then obtain Contents-write approval and a
+particular owner choice before the real write/receipt walkthrough. Retain the
+existing serving Home until the new deployment prerequisites pass.
 
 ## Trajectory
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
+- **2026-10-21** — Repository names can be reused after a rename, even with cloned history. Independent review reproduced false recovery; previews now pin repository/Ref identities, writes address the Ref ID, and recovery verifies the same repository by node ID. See phase evidence.
 
 ## Your part
 
