@@ -19,7 +19,7 @@ See [the contract](../specs/web-workspace.md) for the storage boundaries.
 
 ## Create or reuse a private data repository
 
-You need Node >=24.21.0, Git, the Plates CLI and GitHub CLI. Authenticate with
+You need Node >=24.22.1, Git, the Plates CLI and GitHub CLI. Authenticate with
 `gh auth login`. Choose your own account/organization and repo name: the examples
 use `acme/plates-data`. Never put your private workspace records in the public
 application repo. Repository creation is an owner-approved resource action;

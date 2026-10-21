@@ -44,7 +44,7 @@ repo, with its own copies of the scripts they need.
 
 ## Install
 
-Node 24.21.0 or later, and git. No registry, no build step.
+Node 24.22.1 or later, and git. No registry, no build step.
 
 ```bash
 git clone https://github.com/dalmaer/plates ~/code/plates

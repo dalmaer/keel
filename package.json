@@ -5,7 +5,7 @@
   "description": "Keep projects moving with shared practices, bounded automation, and evidence-backed care.",
   "type": "module",
   "engines": {
-    "node": ">=24.21.0"
+    "node": ">=24.22.1"
   },
   "bin": {
     "plates": "bin/plates.mjs",
@@ -38,7 +38,7 @@
     "keel": "node bin/plates.mjs"
   },
   "devDependencies": {
-    "@types/node": "24.10.1",
-    "typescript": "5.9.3"
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
   }
 }

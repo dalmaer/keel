@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { run } from './helpers/run.mjs';
+import { load, targets } from '../lib/practices.mjs';
 import { planRename, applyRename, migrateRename, renameActiveText } from '../lib/rename.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -442,4 +444,77 @@ test('decision and walk RPC identities stay exact in Acme code and SQL while act
     assert.equal(renameActiveText(sql), sql.replace('-- Keel storage', '-- Plates storage'));
   }
   assert.equal(renameActiveText('keel_future_rpc keel_decision_rpc_extra keel_walk_rpc_extra'), 'plates_future_rpc plates_decision_rpc_extra plates_walk_rpc_extra', 'the compatibility allowlist does not freeze arbitrary keel_ symbols');
+});
+
+test('supported local configuration commands execute after their paths move without rewriting remote identities', async t => {
+  const root = await fixture(t), command = 'node scripts/keel/acme.mjs';
+  await put(root, 'scripts/keel/acme.mjs', 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync(".keel/keel.json", "utf8")).name);\n');
+  await put(root, 'docs/keel-guide.md', '# Acme guide\n');
+  await put(root, 'docs/keel-output.md', 'Acme output\n');
+  await put(root, 'tests/keel-acme.test.mjs', '// Acme test\n');
+  const old = JSON.parse(await get(root, '.keel/keel.json'));
+  const identities = { repo: 'acme/keel-project', lessonProject: 'acme/keel-history', inbox: 'acme/keel-inbox', local: { phases: 'Keel adopted this local variant' }, env: { KEEL_ACME: 'scripts/keel/opaque' }, setupToken: 'read', canvas: { projectKey: 'keel-project', home: 'https://keel.example', operation: 'scripts/keel/identity' } };
+  const config = { ...old, ...identities, check: command, setup: command, health: '.keel/health', lessons: 'docs/keel-guide.md', guide: 'docs/keel-guide.md', gateWorkflow: 'keel-night.yml', ci: { gateWorkflow: 'keel-night.yml', gateReuse: 'until-change' },
+    climb: { jobs: ['test-time'], testCommand: command, build: command, buildOutput: '.keel/build', perf: { command, check: command, better: 'lower', unit: 'keel-units' } },
+    loop: { run: command, afterRender: command, afterRenderWrites: ['docs/keel-output.md'], source: 'acme:keel', name: 'Keel-shaped Acme', intro: 'Keel originally supplied this practice', contexts: [{ command, source: 'keel:context', description: 'Ran scripts/keel/acme.mjs before adoption', annotations: { original: 'scripts/keel/acme.mjs' } }] },
+    prove: { command: command + ' {file}', tap: true }, tests: { junit: '.keel/test-runs/acme.xml', stalls: ['tests/keel-acme.test.mjs'], configEnv: ['KEEL_ACME'] }, contracts: [{ paths: ['scripts/keel/**', 'tests/keel-acme.test.mjs'], read: 'docs/keel-guide.md', why: 'Keel originally required this contract' }], retros: { dir: '.keel/retros' }, paths: { retros: '.keel/retros', remote: 'keel:remote' } };
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  git(root, 'add', 'scripts/keel/acme.mjs', 'docs', 'tests'); git(root, 'commit', '-qm', 'Acme integration commands');
+  await applyRename(root, { digest: (await planRename(root)).digest });
+  const next = JSON.parse(await get(root, '.plates/plates.json'));
+  for (const cmd of [next.check, next.setup, next.climb.testCommand, next.climb.build, next.climb.perf.command, next.climb.perf.check, next.loop.run, next.loop.afterRender, next.loop.contexts[0].command, next.prove.command.replace('{file}', 'tests/plates-acme.test.mjs')]) {
+    const result = run('bash', ['-e', '-c', cmd], { cwd: root });
+    assert.equal(result.status, 0, `${cmd}: ${result.stderr}`);
+    assert.equal(result.stdout.trim(), 'Acme');
+  }
+  assert.deepEqual(Object.fromEntries(Object.keys(identities).map(key => [key, next[key]])), identities);
+  assert.deepEqual([next.health, next.lessons, next.guide, next.gateWorkflow, next.ci.gateWorkflow, next.climb.buildOutput, next.tests.junit, next.retros.dir, next.paths.retros], ['.plates/health', 'docs/plates-guide.md', 'docs/plates-guide.md', 'plates-night.yml', 'plates-night.yml', '.plates/build', '.plates/test-runs/acme.xml', '.plates/retros', '.plates/retros']);
+  assert.deepEqual(next.loop.afterRenderWrites, ['docs/plates-output.md']);
+  assert.deepEqual(next.tests.stalls, ['tests/plates-acme.test.mjs']);
+  assert.deepEqual(next.tests.configEnv, config.tests.configEnv);
+  assert.deepEqual(next.contracts, [{ ...config.contracts[0], paths: ['scripts/plates/**', 'tests/plates-acme.test.mjs'], read: 'docs/plates-guide.md' }]);
+  assert.deepEqual(next.loop.contexts[0], { ...config.loop.contexts[0], command: 'node scripts/plates/acme.mjs' });
+  for (const key of ['source', 'name', 'intro']) assert.equal(next.loop[key], config.loop[key]);
+  assert.equal(next.climb.perf.unit, 'keel-units');
+  assert.equal(next.paths.remote, 'keel:remote');
+});
+
+test('ejected file and block ownership follows canonical paths and still excludes renderer targets', async t => {
+  const root = await fixture(t), custom = '// Acme owns this implementation\nexport const custom = true;\n';
+  await put(root, 'scripts/keel/improve.mjs', custom);
+  await put(root, 'docs/keel-guide.md', '# Acme local block\n');
+  await put(root, '.agents/skills/conduct/SKILL.md', '# Acme conductor policy\n');
+  await put(root, 'scripts/keel/missing-tracked.mjs', '// Acme previously deleted this\n');
+  git(root, 'add', 'scripts', 'docs/keel-guide.md', '.agents/skills/conduct'); git(root, 'commit', '-qm', 'Acme owns its integration');
+  await rm(join(root, 'scripts/keel/missing-tracked.mjs'));
+  const config = JSON.parse(await get(root, '.keel/keel.json'));
+  config.practices = ['base', 'agents-md', 'night', 'phases', 'evidence', 'lessons', 'conduct'];
+  config.ejected = ['scripts/keel/improve.mjs', '.agents/skills/keel/SKILL.md', 'AGENTS.md#agents-md', 'docs/keel-guide.md#keel-local-rule', '.agents/skills/conduct/SKILL.md', 'scripts/keel/not-present.mjs', 'scripts/keel/missing-tracked.mjs'];
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  await applyRename(root, { digest: (await planRename(root)).digest });
+  const next = JSON.parse(await get(root, '.plates/plates.json'));
+  const all = await load(), selected = targets(next, all), unrestricted = targets({ ...next, ejected: [] }, all);
+  assert(unrestricted.some(file => file.path === 'scripts/plates/improve.mjs'));
+  assert(!selected.some(file => file.path === 'scripts/plates/improve.mjs'));
+  assert(!selected.some(file => file.path === '.agents/skills/plates/SKILL.md'));
+  assert(!selected.some(file => file.path === 'AGENTS.md' && file.block === 'agents-md'));
+  assert(!selected.some(file => file.practice === 'conduct'), 'local conduct ownership still protects both conduct and spin');
+  assert(selected.some(file => file.path === 'scripts/plates/night-plan.mjs'), 'unrelated managed targets remain enabled');
+  assert.deepEqual(next.ejected, ['scripts/plates/improve.mjs', '.agents/skills/plates/SKILL.md', 'AGENTS.md#agents-md', 'docs/plates-guide.md#keel-local-rule', '.agents/skills/conduct/SKILL.md', 'scripts/plates/not-present.mjs', 'scripts/plates/missing-tracked.mjs']);
+  assert.equal(await get(root, 'scripts/plates/improve.mjs'), custom);
+  assert.equal(await get(root, '.agents/skills/conduct/SKILL.md'), '# Acme conductor policy\n');
+});
+
+test('absent ejected managed targets remain excluded so rendering cannot recreate them', async t => {
+  const root = await fixture(t), config = JSON.parse(await get(root, '.keel/keel.json'));
+  config.practices = ['base', 'agents-md', 'night'];
+  config.ejected = ['scripts/keel/improve.mjs', 'AGENTS.md#agents-md', '.agents/skills/conduct/SKILL.md', 'docs/acme-owned.md#keel-local-rule'];
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  await absent(root, 'scripts/keel/improve.mjs');
+  await applyRename(root, { digest: (await planRename(root)).digest });
+  const next = JSON.parse(await get(root, '.plates/plates.json')), all = await load();
+  assert(targets({ ...next, ejected: [] }, all).some(file => file.path === 'scripts/plates/improve.mjs'));
+  assert(!targets(next, all).some(file => file.path === 'scripts/plates/improve.mjs'), 'the missing file is still owned by Acme, not the renderer');
+  assert.deepEqual(next.ejected, ['scripts/plates/improve.mjs', 'AGENTS.md#agents-md', '.agents/skills/conduct/SKILL.md', 'docs/acme-owned.md#keel-local-rule']);
+  await absent(root, 'scripts/plates/improve.mjs');
 });

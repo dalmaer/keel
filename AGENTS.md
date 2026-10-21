@@ -240,7 +240,7 @@ See [the guided-walk contract](docs/specs/web-guided-walks.md).
 
 ## Rules for plates's code
 
-- **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for
+- **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for
   tests. Installing from `main` must work.
 - **Check the contracts without compiling the runtime.** `npm ci --ignore-scripts`
   installs development-only type tooling. Run `npm run typecheck` alongside

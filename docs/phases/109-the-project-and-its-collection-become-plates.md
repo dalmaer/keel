@@ -41,7 +41,7 @@ Run the focused migration tests, full `npm run check`, `npm run typecheck`, per-
 
 ## Deliberately open
 
-Legacy names used as durable operation identities remain recognized until recovery can safely retire them. Hosted origin/display-name changes depend on verified existing provider capabilities and availability. Ledger rollout waits for its concurrent task-action release; already-landed work through main `0c3c261` is incorporated; unfinished parallel features are outside this release snapshot.
+Legacy names used as durable operation identities remain recognized until recovery can safely retire them. Hosted origin/display-name changes depend on verified existing provider capabilities and availability. Ledger rollout waits for its concurrent task-action release; feature scope is fixed through main `0c3c261`; already-reviewed Node/TypeScript dependency updates through `10a82c9` are preserved. Unfinished parallel features are outside this release snapshot.
 
 ## Next action
 
