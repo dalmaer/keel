@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync, spawn } from 'node:child_process';
+import { run, runAsync } from './helpers/run.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const bin = join(root, 'bin/keel.mjs');
-const invoke = (cli, args, cwd) => spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', env: process.env });
+const invoke = (cli, args, cwd) => run(process.execPath, [cli, ...args], { cwd });
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'keel-workspace-cli-')); t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, 'private')); await mkdir(join(dir, 'caller'));
@@ -55,12 +55,20 @@ test('competing fresh processes cannot replace workspace ownership', async t => 
   const f = await fixture(t);
   const alternate = join(f.dir, 'private', 'other.json');
   await writeFile(alternate, JSON.stringify({ version: 1, id: 'other', name: 'Acme', repo: 'acme/other', projects: [] }));
-  const run = manifest => new Promise((done, reject) => {
-    const child = spawn(process.execPath, [bin, 'workspace', 'init', '--manifest', manifest, '--state', f.state, '--yes', '--json'], { cwd: f.cwd, env: process.env });
-    let stdout = '', stderr = ''; child.stdout.on('data', d => stdout += d); child.stderr.on('data', d => stderr += d);
-    child.on('error', reject); child.on('close', status => done({ status, stdout, stderr }));
-  });
-  const results = await Promise.all([run(f.manifest), run(alternate)]);
+  // Exercise the shared initializer in two independent module processes; CLI
+  // lifecycle checks above use the synchronous helper and its CLI guards.
+  const worker = `
+    import { initializeWorkspace } from ${JSON.stringify(new URL('../lib/web/workspace.mjs', import.meta.url).href)};
+    try {
+      const data = await initializeWorkspace({ manifest: process.argv[1], state: process.argv[2], appRoot: process.argv[3] });
+      console.log(JSON.stringify(data));
+    } catch (error) {
+      console.log(JSON.stringify({ error: error.message }));
+      process.exitCode = error.exitCode ?? 1;
+    }
+  `;
+  const initialize = manifest => runAsync(process.execPath, ['--input-type=module', '-e', worker, manifest, f.state, root], { cwd: f.cwd });
+  const results = await Promise.all([initialize(f.manifest), initialize(alternate)]);
   assert.deepEqual(results.map(r => r.status).sort(), [0, 2]);
   const winner = JSON.parse(results.find(r => r.status === 0).stdout);
   assert.equal(JSON.parse(await readFile(join(f.state, 'workspace.json'))).id, winner.workspace.id);
@@ -68,9 +76,9 @@ test('competing fresh processes cannot replace workspace ownership', async t => 
 });
 test('packed CLI loads workspace runtime and completes lifecycle outside a source checkout', async t => {
   const dest = await mkdtemp(join(tmpdir(), 'keel-workspace-pack-')); t.after(() => rm(dest, { recursive: true, force: true }));
-  const packed = spawnSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', dest], { cwd: root, encoding: 'utf8', env: process.env });
+  const packed = run('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', dest], { cwd: root });
   assert.equal(packed.status, 0, packed.stderr);
   const entry = JSON.parse(packed.stdout)[0]; assert.ok(entry.files.some(f => f.path === 'lib/web/workspace.mjs'));
-  const unpacked = spawnSync('tar', ['-xzf', join(dest, entry.filename), '-C', dest], { encoding: 'utf8' }); assert.equal(unpacked.status, 0, unpacked.stderr);
+  const unpacked = run('tar', ['-xzf', join(dest, entry.filename), '-C', dest]); assert.equal(unpacked.status, 0, unpacked.stderr);
   await lifecycle(t, resolve(dest, 'package/bin/keel.mjs'));
 });

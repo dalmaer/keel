@@ -57,3 +57,5 @@ None. Hosted resource connection follows in phase 94.
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
 
 - **2026-10-21** — Review found that opening a named pipe before checking its type could block a bounded read. The reader now validates the leaf and descriptor and opens nonblocking; a real FIFO test proves refusal.
+
+- **2026-10-21** — The first integration gate refused the README table omission and direct test subprocesses. Both existing guards were proven red without and green with the corrections; no runtime behavior or shared guard changed.

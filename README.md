@@ -224,6 +224,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 
 | Verb | What it does |
 | --- | --- |
+| `keel workspace inspect\|init` | Inspect explicit external workspace configuration; preview private runtime initialization, then apply with `--yes`; remote privacy remains unverified |
 | `keel canvas` | Project lifecycle snapshots and isocan canvas publishing; preview changes before applying them |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 | `keel production status`, `collect`, `spec`, `verify` | Bounded production-error evidence, recurring repair candidates, and revision-scoped verification; missing coverage stays unknown |

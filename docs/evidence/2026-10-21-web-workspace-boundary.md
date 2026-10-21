@@ -76,3 +76,30 @@ against a malicious process with the same identity. Later writers must reuse
 and revalidate the boundary. Provider privacy, login, Home and owner acceptance
 remain in phases 94–101. The setup worksheet contains a researched candidate,
 not an approved hosting obligation.
+
+## Integration correction, 2026-10-21
+
+The first `node bin/keel.mjs integrate --json` exited 1 after one `npm run check`
+gate at candidate `331df4591a361ad973c35884c3a4fdaa061c69a8` on base
+`eeb0dbbcb1e06ac4298d8446504ba6d2b2d04475`. It pushed nothing. Of 1904 tests,
+1902 passed and two existing repository guards failed: README's Verb table
+omitted workspace, and new CLI tests spawned children without the shared test
+helper. These were deterministic findings, not flaky retries. The ledger named
+no flaky/slower test but omitted its one busy run; no quiet-history claim follows.
+
+Corrections add the README table row and use `tests/helpers/run.mjs` for child
+process isolation. The concurrency test still runs two real independent
+initializer processes; CLI lifecycle and package tests retain real CLI launches.
+No shared helper/guard was weakened and runtime code was unchanged.
+
+Conductor verification:
+
+- `node --import ./tests/helpers/hermetic.mjs --test tests/workspace.test.mjs tests/workspace-cli.test.mjs tests/docs.test.mjs tests/helpers.test.mjs tests/cli.test.mjs`
+  — exit 0, 36 tests passed, no failures/skips.
+- `node bin/keel.mjs prove tests/docs.test.mjs --name 'the README names every registered verb and practice, and nothing else' --fix README.md --base 331df45 --trailer`
+  — exit 0, VERIFIED: red without the table row, green with it.
+- `node bin/keel.mjs prove tests/helpers.test.mjs --name 'no test spawns node or npm except through the helper' --fix tests/workspace-cli.test.mjs --base 331df45 --trailer`
+  — exit 0, VERIFIED: red with direct child launches, green with helper isolation.
+
+The corrected final tree is resubmitted to the same integrated gate. Its outcome
+is a later receipt; this section does not predeclare it green.
