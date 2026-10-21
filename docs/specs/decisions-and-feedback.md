@@ -226,8 +226,14 @@ A verified retained snapshot survives deletion/change of the original pathname.
 A missing or corrupted retained snapshot is a gap and prevents a proposal.
 
 The private store defaults to `.keel/feedback/`. Before persisting any raw bytes,
-verify that it is untracked and Git-ignored, adding only a local Git exclude when
-needed. Refuse unsafe or already tracked storage. Private directories use 0700,
+verify that every actual destination (including snapshots, revisions and temporary
+files) is untracked and Git-ignored, adding only a local Git exclude when needed.
+A single ignored sentinel does not cover negated descendant rules. Seed a private
+store-local `.npmignore` containing `*` before raw writes and verify it on later
+access, so ordinary npm package exports exclude retained copies even when the
+project relies on local Git excludes. Refuse a conflicting exclusion file rather
+than overwriting it; do not edit the project-root package exclusions. Refuse unsafe
+or already tracked storage. Private directories use 0700,
 files 0600, and symlink/hardlink aliases are refused. Previews create neither
 storage nor exclusions. Store at most 1000 observations and 50 MiB total, with
 the existing 256 KiB record and 2 MiB selected-result limits. Count existing

@@ -58,6 +58,8 @@ Implement the dated phase-92 contract: pure validation/routing, bounded private 
 
 ## Trajectory
 
+- **2026-10-21** — An independent adopted-package probe included locally Git-excluded private files in npm packing, and a negated descendant bypassed a single ignore probe. Verify actual destinations and retain a store-local npm exclusion; project-root user files remain untouched.
+
 - **2026-10-21** — Guided web walks require the same immutable feedback model. Keep pure domain logic separate from local storage. Proposal-only capture does not claim remote delivery; handoff reuses the existing issue preview and journal identities. Explicit resolution and conflict attribution complete previously unnamed local transitions.
 
 - **2026-10-20** — Phase 50 has an outstanding deployed canvas walk. Explicit local capture does not depend on that walk; the existing canvas receipt format is an optional input and automatic collection remains deferred.
