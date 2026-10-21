@@ -87,6 +87,30 @@ which infers authorship from the branch prefix, selects the other provider for
 the actual Codex-authored change. This adapts the conductor skill's literal
 `claude/` example while retaining its required practice PR and independent review.
 
+## Cross-provider timeout correction
+
+Claude review of PR #214 at `e96cda834c98821342e4d6bdffa03e13c466915e`
+found that source reading and mutation/recovery shared one expiring deadline.
+Dispatch now starts its own bounded deadline, and receipt recovery starts one
+shared deadline for its two queries with an independent two-call allowance.
+The server's overall request deadline still applies. Uncertain operations remain
+reserved: unchanged HEAD or absence in a history scan cannot prove an in-flight
+write will never commit, so those observations do not permit a duplicate write.
+
+The conductor ran:
+
+```sh
+node bin/keel.mjs prove tests/web-operations.test.mjs --name 'fresh bounded deadlines|exhausted source call allowance' --fix lib/web/decision-github.mjs --base e96cda834c98821342e4d6bdffa03e13c466915e --trailer
+node --import ./tests/helpers/hermetic.mjs --test tests/web-decisions.test.mjs tests/web-operations.test.mjs tests/web-server.test.mjs
+npm run typecheck
+```
+
+All exited 0. The proof returned VERIFIED: both selected regressions fail without
+the runtime correction and pass with it. The focused run passed 30/30; typecheck
+passed. An initial proof invocation used an unmatched name filter and returned
+INCONCLUSIVE; correcting the filter produced the named proof above. The tests
+also enforce the shared recovery deadline and retained source/request bounds.
+
 ## Browser observations
 
 The conductor used the actual service routes, renderers and browser modules with

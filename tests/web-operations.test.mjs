@@ -4,10 +4,53 @@ import { decisionHarness,healthTarget,shapingTarget,token } from './helpers/web-
 import { createDecisions } from '../lib/web/decisions.mjs';
 import { createOperations } from '../lib/web/operations.mjs';
 import { createOperationStore } from '../lib/web/operation-store.mjs';
+import { createDecisionGitHub } from '../lib/web/decision-github.mjs';
 const options=h=>({fetcher:h.fetcher,now:()=>h.state.now});
 const preview=h=>createDecisions(h.config,options(h)).preview(h.access,token,h.project,{target:healthTarget,choice:'accept',reason:'Owner chooses this outcome.'});
 const apply=(h,p,reauthorize=async()=>h.access)=>createOperations(h.config,options(h)).apply(h.access,token,h.project,p.id,{reauthorize});
 const recover=(h,id)=>createOperations(h.config,options(h)).recover(h.access,token,h.project,id);
+const intentFromPreview=p=>({id:p.operationId,repoId:p.source.repoId,repositoryNodeId:p.source.repositoryNodeId,branchNodeId:p.source.branchNodeId,originalBlob:p.source.blob,head:p.source.head,path:p.source.path,content:p.content,commitMessage:p.commitMessage,marker:`Keel-Operation: ${p.operationId}`});
+test('dispatch and receipt recovery have fresh bounded deadlines after source time expires',async t=>{
+ const h=decisionHarness(),p=await preview(h),intent=intentFromPreview(p),deadlines=[],outer=new AbortController();
+ const timeout=AbortSignal.timeout;
+ t.mock.method(AbortSignal,'timeout',milliseconds=>{
+  if(milliseconds!==25000)return timeout(milliseconds);
+  const controller=new AbortController();deadlines.push(controller);return controller.signal;
+ });
+ let expireHistory=false;
+ const fetcher=async(url,options)=>{
+  AbortSignal.any([outer.signal,options.signal]).throwIfAborted();
+  const response=await h.fetcher(url,options);
+  if(expireHistory&&options.body?.includes('query DecisionHistory'))deadlines.at(-1).abort();
+  return response;
+ };
+ const provider=createDecisionGitHub(token,{fetcher}),snapshot=await provider.snapshot(h.project);
+ await snapshot.reader.readFile(healthTarget.path);await provider.recheck(h.project,snapshot.source);
+ deadlines[0].abort();
+ const commit=await provider.dispatch(intent);assert.equal(h.source.writes.length,1);
+ deadlines.at(-1).abort();
+ const found=await provider.recover(intent,commit);assert.equal(found.commit,commit);assert.equal(deadlines.length,3);
+ // The two recovery queries share one bound, rather than resetting it per query.
+ expireHistory=true;const count=h.source.graphRequests.length;
+ await assert.rejects(provider.recover(intent,commit),e=>e.code==='upstream_unavailable');
+ assert.equal(h.source.graphRequests.length,count+1);
+ expireHistory=false;
+ // Fresh stage deadlines do not override the request-wide deadline in the fetcher.
+ outer.abort();
+ await assert.rejects(provider.dispatch(intent),e=>e.code==='upstream_unavailable');
+ await assert.rejects(provider.recover(intent,commit),e=>e.code==='upstream_unavailable');
+ assert.equal(h.source.writes.length,1);
+});
+test('receipt recovery remains bounded independently of the exhausted source call allowance',async()=>{
+ const h=decisionHarness(),p=await preview(h),intent=intentFromPreview(p),provider=createDecisionGitHub(token,options(h));
+ const snapshot=await provider.snapshot(h.project); // Three source requests.
+ for(let i=0;i<247;i++)await provider.recheck(h.project,snapshot.source);
+ await assert.rejects(provider.recheck(h.project,snapshot.source),e=>e.code==='source_limit');
+ const commit=await provider.dispatch(intent),count=h.source.graphRequests.length;
+ assert.equal((await provider.recover(intent,commit)).commit,commit);
+ assert.equal(h.source.graphRequests.length,count+2);assert.equal(h.source.writes.length,1);
+ await assert.rejects(provider.recheck(h.project,snapshot.source),e=>e.code==='source_limit');
+});
 test('conditional commit advances exactly reviewed HEAD, records one file and replays original receipt',async()=>{
  const h=decisionHarness(),p=await preview(h),done=await apply(h,p);
  assert.equal(done.state,'committed');assert.equal(done.id,p.operationId);assert.equal(done.receipt.acceptance,'not-established');assert.equal(done.receipt.actorId,1);
