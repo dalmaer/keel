@@ -92,3 +92,38 @@ tests/guides.test.mjs` exited 1 before correction, then 0 after spelling the ful
 Vercel command. `keel prove tests/guides.test.mjs --fix
 docs/guide/web-workspace-setup.md --trailer` exited 0, VERIFIED: red without the
 change, green with it. No product code or checker was changed.
+
+## Follow-up: approved Supabase resource (21 October 2026)
+
+Owner explicitly approved Supabase and GitHub. Supabase Free, region iad1,
+production-only connection and Metadata/Contents read on the selected repositories
+are authorized; no paid upgrade or broader repository access was approved.
+
+- Initial `vercel integration add supabase --plan free --name <resource-name>
+  --metadata region=iad1 --no-connect --no-env-pull --json`: exit 1, Marketplace
+  terms acceptance required; no resource created. Authorized browser flow then
+  displayed Terms Accepted. Retried exact command: exit 0, ready resource and
+  Free plan returned; no environment values pulled.
+- `vercel integration resource connect <resource-id> <project> --environment
+  production --yes --json`: exit 0, connected with only production listed.
+- `vercel integration resource inspect <resource-name> --json`: exit 0, fresh
+  available resource, Free plan and production-only project binding. Inspecting
+  by store ID returned not found; name-based inspection resolved it.
+- `vercel api /v10/projects/<project-id>/env`: exit 0; output filtered in memory
+  to names, targets and types. Database credentials present, encrypted, all
+  production-only; no values printed or saved.
+- Browser resource settings confirmed primary region iad1 and Free plan.
+  Saved a resource-level production-only restriction and completed initial secret
+  rotation; provider reported success. Fresh environment metadata showed all 16
+  variables as sensitive and production-only. No app was deployed against the
+  initial credentials.
+- GitHub Apps page showed no existing Apps. Opening New GitHub App requires
+  the owner’s fresh identity verification; no App or App credentials created.
+
+All Vercel commands used the selected team and saved CLI config explicitly.
+Exact identifiers and approval receipt remain in the private setup repository.
+The provisioning CLI also added an optional upstream skill and lockfile to the
+checkout; these were preserved outside the repository, not adopted into Keel.
+No database schema, access-denial proof, backup destination or hosted login is
+claimed. Phase 94 remains partial. Built by the conductor (resource setup and
+documentation only); focused and integrated gate outcomes belong in the commit.

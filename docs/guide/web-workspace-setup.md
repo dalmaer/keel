@@ -133,20 +133,25 @@ The owner selected Vercel and a private workspace repository. The repository
 was created and its privacy read back through GitHub. The owner subsequently
 authenticated and selected an existing Pro team. The Vercel project is created;
 its assigned domain and Node 24.x setting were read back. No application is
-deployed, and no database, Blob store or GitHub App has been provisioned yet.
+deployed. Supabase Free is provisioned in `iad1` and connected only to production;
+its sensitive environment credentials are injected by Marketplace. The resource
+also restricts future connections to production; initial credential rotation
+completed before deployment. The owner approved the
+read-only GitHub App; registration awaits GitHub identity verification. No App
+or Blob store exists yet.
 Exact account, project and domain identifiers live in the private workspace repo.
 The earlier Render single-instance candidate was not approved or created and is
 superseded by this choice. The local filesystem adapter above remains supported;
 it is not the storage implementation for hosted requests.
 
-| Layer | Proposed binding | Remaining decision/check |
+| Layer | Binding or planned binding | Remaining decision/check |
 | --- | --- | --- |
 | Application | Public Keel source; framework-free Node functions and browser modules | Account/team and project verified; region and actual Node >=24.21.0 remain |
 | Shared records | Owner-selected private GitHub repository | Numeric identity retained privately; manifest and selected project list |
-| Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free trial proposed | Owner approval for Free/iad1, production-only connection, restore policy |
+| Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free/iad1 connected to production | Runtime schema, access denial proof, restore policy |
 | Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
-| Identity | GitHub App authorization, selected repositories only | App owner, exact callback origin, installation scope and permissions |
-| Secrets | Vercel server-side environment configuration | Approved names/resources, production-only scope, rotation and revocation |
+| Identity | GitHub App authorization, selected repositories only | Approved owner, callback and read-only scope; identity verification, registration and installation remain |
+| Secrets | Vercel server-side environment configuration | Database credentials injected in production; App secrets, rotation and revocation remain |
 
 Vercel functions cannot keep durable state on their local filesystem. Use
 bounded GitHub API reads and external storage, not a persistent checkout or disk.
@@ -208,7 +213,7 @@ limits; paid resources, overages and backups need a concrete owner decision.
    Re-read privacy through the GitHub API; local manifest validation is not proof.
 3. Choose database/API adapter and backup destination. Verify atomic single-use
    authorization, versioned drafts, unique intents and cross-instance leases.
-   The current proposal uses Supabase PostgREST HTTP and narrow SQL functions
+   The selected adapter design uses Supabase PostgREST HTTP and narrow SQL functions
    for atomic state transitions. Deny anonymous and client-authenticated access
    to all runtime tables/functions; only the authorized backend may use them.
    [HTTP API](https://supabase.com/docs/guides/api/sql-to-rest),

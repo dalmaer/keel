@@ -4,7 +4,7 @@ since: 2026-10-21
 goal: G7
 spec: 2
 depends: [93]
-note: "Private repository and owner-selected Vercel Pro project verified. Durable storage and GitHub App binding remain; no application deployed."
+note: "Private repository, Vercel project and Supabase Free production connection verified. Approved GitHub App waits on owner identity verification; no application deployed."
 evidence: ["evidence/2026-10-21-vercel-workspace-connections.md"]
 ---
 
@@ -23,7 +23,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] ⚑ By hand: owner approves exact repository, hosting target, price and GitHub App permission matrix: `docs/guide/web-workspace-setup.md`.
+- [x] ⚑ By hand: owner approves exact repository, hosting target, price and GitHub App permission matrix: `docs/guide/web-workspace-setup.md`.
 - [ ] ⚑ By hand: verify workspace repository privacy and selected installation repositories with fresh GitHub API facts: `docs/guide/web-workspace-setup.md`.
 - [ ] ⚑ By hand: verify Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host: `docs/guide/web-workspace-setup.md`.
 
@@ -43,11 +43,11 @@ claims of existing checks or passing results.
 
 ## Deliberately open
 
-**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. The owner also selected an existing Pro team; the project and assigned domain are verified. Storage, installation and their price/permission approvals remain open. No synthetic connection can satisfy the live resource checks.
+**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. The owner also selected an existing Pro team; the project and assigned domain are verified. The owner approved Supabase Free/iad1/production-only and the read-only selected-repository GitHub App. Database provisioning and connection are verified; App registration, backup and serving-runtime checks remain open. No synthetic connection can satisfy the live resource checks.
 
 ## Next action
 
-Approve the prepared Supabase Free production-only resource and read-only selected-repository GitHub App proposal, then verify storage and installation bindings. Vercel login/team/project and repository privacy are verified; application login is not.
+Complete GitHub’s Confirm access identity check, then register/install the already-approved read-only App and verify its selected repositories. Verify backup destination and serving-runtime checks before closing the connection walk. Vercel login/team/project and repository privacy are verified; application login is not.
 
 ## Trajectory
 
