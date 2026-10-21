@@ -40,7 +40,8 @@ range and every unvisited or unavailable source. A complete page is not a comple
 history or an immutable snapshot. Inserts between reads may shift provider pages.
 
 The default visible window is 30 days; explicit windows are 1–90 days. Active
-attempts remain visible regardless of their start date. Completed observations
+attempts and unresolved private operations remain visible regardless of their
+record age; an uncertain effect is not labeled as running execution. Completed observations
 use their latest valid provider activity or record timestamp, with its basis
 shown; a long-running attempt must not disappear solely because it started before
 the window. Unknown times remain visible as unknown. Fetch run
