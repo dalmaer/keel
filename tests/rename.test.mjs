@@ -393,3 +393,43 @@ test('changed exclude preview or conflicting canonical negation refuses before p
   assert.equal(await get(root, '.git/info/exclude'), rules);
   assert.equal(await get(root, '.keel/feedback/secret.json'), 'private feedback');
 });
+
+test('dated changelog and practice records retain release claims and measured commands while active indexes rename', async t => {
+  const root = await fixture(t);
+  const record = '# 5 January 2020 — Acme adopted keel\n\nAcme had adopted keel (`abc1234`); Keel released v0.7.0.\nRan `node scripts/keel/check.mjs`; measured `.keel/bounds.json` and `keel-night`.\n[Adoption](../keel-adoption.md)\n';
+  const sources = ['docs/changelog/2020-01-05.md', 'docs/changelog/2020-01-06-keel.md', 'docs/practice/2020-01-05.md'];
+  for (const path of sources) await put(root, path, record);
+  for (const path of ['docs/changelog/README.md', 'docs/practice/README.md', 'docs/changelog/current.md']) await put(root, path, '# Current instructions\nUse `keel doctor` and `.keel/keel.json`.\n');
+  git(root, 'add', 'docs'); git(root, 'commit', '-qm', 'Acme dated records');
+  await applyRename(root, { digest: (await planRename(root)).digest });
+  for (const path of sources) assert.equal(await get(root, path.replace('2020-01-06-keel', '2020-01-06-plates')), record.replace('](../keel-adoption.md)', '](../plates-adoption.md)'));
+  for (const path of ['docs/changelog/README.md', 'docs/practice/README.md', 'docs/changelog/current.md']) assert.equal(await get(root, path), '# Current instructions\nUse `plates doctor` and `.plates/plates.json`.\n');
+  await absent(root, 'docs/changelog/2020-01-06-keel.md');
+});
+
+test('actual adoption report preserves its author and practice version without freezing an adoption guide', async t => {
+  const root = await fixture(t);
+  const pinned = 'https://github.com/acme/source/blob/0123456789abcdef0123456789abcdef01234567/docs/keel-adoption.md';
+  const report = '# Acme under keel: what stayed its own\n\nWritten by `keel adopt` on practice 0.6.7. Keel switched on the practices Acme already satisfies.\nThe gate was `node scripts/keel/check.mjs`; local variants were recorded in `.keel/keel.json`.\n[Configuration](../.keel/keel.json)\n[Original](' + pinned + ')\n';
+  await put(root, 'docs/keel-adoption.md', report);
+  await applyRename(root, { digest: (await planRename(root)).digest });
+  assert.equal(await get(root, 'docs/plates-adoption.md'), report.replace('](../.keel/keel.json)', '](../.plates/plates.json)'));
+  await absent(root, 'docs/keel-adoption.md');
+  const active = await fixture(t);
+  await applyRename(active, { digest: (await planRename(active)).digest });
+  assert.equal(await get(active, 'docs/plates-adoption.md'), '# Adoption\nThe Plates configuration is .plates/plates.json.\n');
+});
+
+test('Loop dispositions and project phase or journey records preserve human decisions and quoted history', async t => {
+  const root = await fixture(t);
+  const record = '---\nstatus: dismissed\nnote: "Night was serialized by keel-night; no race."\n---\n# Keel observation\n\n**5 January 2020.** The owner asked for *"specs in keel format"*.\nVerified `scripts/keel/check.mjs`; the decision was no fix.\n[Working source](../../scripts/keel/check.mjs)\n';
+  const records = ['docs/loop/keel-bounds-race.md', 'docs/projects/acme/phases.md', 'docs/projects/acme/journey.md'];
+  for (const path of records) await put(root, path, record);
+  const active = ['docs/loop/README.md', 'docs/LOOP.md', 'docs/projects/README.md', 'docs/projects/acme/design.md'];
+  for (const path of active) await put(root, path, '# Current instructions\nRun `keel doctor`.\n');
+  git(root, 'add', 'docs'); git(root, 'commit', '-qm', 'Acme recorded decisions');
+  await applyRename(root, { digest: (await planRename(root)).digest });
+  for (const path of records) assert.equal(await get(root, path.replace('keel-bounds', 'plates-bounds')), record.replace('](../../scripts/keel/check.mjs)', '](../../scripts/plates/check.mjs)'));
+  for (const path of active) assert.equal(await get(root, path), '# Current instructions\nRun `plates doctor`.\n');
+  await absent(root, 'docs/loop/keel-bounds-race.md');
+});

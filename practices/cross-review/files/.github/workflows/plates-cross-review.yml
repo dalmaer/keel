@@ -127,6 +127,8 @@ jobs:
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
     steps:
+      # Full history also supplies exact same-repo PR objects when GitHub refuses a large diff.
+      # No PR code is run: helpers still come only from this trusted default-branch checkout.
       # After a push, main's whole history: where the last review ended, and who wrote each commit since.
       # After a push (plates#65) the event's own commit, the one the publisher
       # is checked at, never the default branch's tip when this job starts:
@@ -134,7 +136,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.sha || github.event.repository.default_branch }}
-          fetch-depth: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && '0' || '1' }}
+          fetch-depth: 0
           persist-credentials: false
       # The config, validated before the secret gate (a bad one, "agents"
       # with a typo too, is red, naming the key, never a quiet notice), and
@@ -224,7 +226,7 @@ jobs:
             node "$review_scripts/cross-review.mjs" which-push --event "$EVENT" --before "$BEFORE" --issues "$RUNNER_TEMP/after.json" --json > "$RUNNER_TEMP/which.json"
             cp "$RUNNER_TEMP/which.json" "$RUNNER_TEMP/push.json"
           else
-            gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
+            gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,baseRefOid,changedFiles,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
             node "$review_scripts/cross-review.mjs" which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
           fi
           node -e '
@@ -269,11 +271,70 @@ jobs:
             node "$review_scripts/cross-review.mjs" brief --push "$RUNNER_TEMP/push.json" --agent "$AGENT" --diff "$RUNNER_TEMP/plates-diff/push.diff" --out "$RUNNER_TEMP/prompt.md"
           else
             mkdir -p "$RUNNER_TEMP/plates-diff"
-            if ! gh pr diff "$PR" --repo "$REPO" > "$RUNNER_TEMP/pr.diff"; then
-              echo "::warning::The pull request's diff could not be read; its findings cannot be posted inline."
-              : > "$RUNNER_TEMP/pr.diff"
-            fi
-            node "$review_scripts/cross-review.mjs" brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
+            # Read only metadata and objects, with fixed argument arrays and bounds.
+            # A failed or incomplete diff stops the job before any reviewer runs.
+            node <<'PLATES_PR_DIFF'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const { join } = require('node:path');
+          const { PR, REPO, SHA, RUNNER_TEMP } = process.env;
+          const fail = message => { throw new Error(message); };
+          const call = (cmd, args, maxBuffer = 1024 * 1024) => execFileSync(cmd, args, {
+            encoding: 'utf8', timeout: 120000, maxBuffer, stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1', GIT_NO_LAZY_FETCH: '1' },
+          });
+          const git = args => call('git', ['--no-replace-objects', ...args], 64 * 1024 * 1024);
+          try {
+            if (!/^[1-9][0-9]*$/.test(PR) || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(REPO) || !/^[a-f0-9]{40}$/.test(SHA)) fail('Invalid selected PR identity.');
+            const validate = pr => {
+              if (pr.number !== Number(PR) || pr.isCrossRepository !== false || pr.isDraft !== false || pr.state !== 'OPEN' ||
+                  !/^[a-f0-9]{40}$/.test(pr.baseRefOid) || !/^[a-f0-9]{40}$/.test(pr.headRefOid) || pr.headRefOid !== SHA ||
+                  !Number.isSafeInteger(pr.changedFiles) || pr.changedFiles < 0) fail('PR metadata is incomplete or no longer matches the selected same-repo head.');
+              return [pr.number, pr.baseRefOid, pr.headRefOid, pr.changedFiles, pr.headRefName];
+            };
+            const selected = JSON.parse(fs.readFileSync(join(RUNNER_TEMP, 'pr.json'), 'utf8'));
+            const identity = JSON.stringify(validate(selected));
+            const refresh = () => {
+              const current = JSON.parse(call('gh', ['pr', 'view', PR, '--repo', REPO, '--json', 'number,headRefName,headRefOid,baseRefOid,changedFiles,isCrossRepository,isDraft,state']));
+              if (JSON.stringify(validate(current)) !== identity) fail('PR base, head or change count drifted during diff acquisition.');
+            };
+            refresh();
+            let diff, fromGit = false;
+            try { diff = call('gh', ['pr', 'diff', PR, '--repo', REPO], 64 * 1024 * 1024); }
+            catch {
+              console.log('::notice::GitHub diff unavailable; checking exact local PR history.');
+              fromGit = true;
+              if (git(['rev-parse', '--is-shallow-repository']).trim() !== 'false') fail('Complete PR history is unavailable: the trusted checkout is shallow.');
+              for (const sha of [selected.baseRefOid, SHA]) if (git(['cat-file', '-t', sha]).trim() !== 'commit') fail('Exact PR commit object is unavailable.');
+              const bases = git(['merge-base', '--all', selected.baseRefOid, SHA]).trim().split('\n');
+              if (bases.length !== 1 || !/^[a-f0-9]{40}$/.test(bases[0])) fail('A unique PR merge base is unavailable.');
+              // Merge-base..head is GitHub PR semantics, including merges from main.
+              // Never execute a diff driver or text conversion, and never fetch with credentials here.
+              diff = git(['diff', '--no-color', '--no-ext-diff', '--no-textconv', bases[0], SHA, '--']);
+            }
+            refresh();
+            if (selected.changedFiles > 0 ? !diff.startsWith('diff --git ') : diff.length !== 0) fail('PR diff is empty or inconsistent with its changed-file metadata.');
+            if (!fromGit && (diff.match(/^diff --git /gm) ?? []).length !== selected.changedFiles) fail('GitHub diff does not cover the PR changed-file count.');
+            fs.writeFileSync(join(RUNNER_TEMP, 'pr.diff'), diff);
+            fs.writeFileSync(join(RUNNER_TEMP, 'plates-diff/pr.diff'), diff);
+            fs.copyFileSync(join(RUNNER_TEMP, 'pr.json'), join(RUNNER_TEMP, 'plates-diff/pr.json'));
+          } catch (error) {
+            console.error('::error::Complete PR diff unavailable; review stopped. ' + (error.status !== undefined || error.code ? 'A bounded metadata/history read failed.' : error.message));
+            process.exit(1);
+          }
+          PLATES_PR_DIFF
+            node "$review_scripts/cross-review.mjs" brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/plates-diff/pr.diff" --out "$RUNNER_TEMP/prompt.md"
+            # Old and new trusted helpers differ in spelling, not trust. Both
+            # providers read this same verified snapshot, including Claude when
+            # gh pr diff cannot serve it; grant no additional directory or tool.
+            node <<'PLATES_PR_PROMPT'
+          const fs = require('node:fs');
+          const { join } = require('node:path');
+          const root = process.env.RUNNER_TEMP, file = join(root, 'prompt.md');
+          const prompt = fs.readFileSync(file, 'utf8');
+          if ((prompt.match(/^- Read it:.*$/gm) ?? []).length !== 1) throw new Error('Trusted brief has no unique diff instruction.');
+          fs.writeFileSync(file, prompt.replace(/^- Read it:.*$/m, () => `- Read it: the complete saved diff is ${join(root, 'plates-diff/pr.diff')}; the pull request metadata is ${join(root, 'plates-diff/pr.json')}. Read these local snapshots; they match the selected head ${process.env.SHA}. Do not substitute a fresh network diff.`));
+          PLATES_PR_PROMPT
           fi
           mkdir -p "$RUNNER_TEMP/plates/scripts/plates"
           cp "$review_scripts/cross-review.mjs" "$review_scripts/lib.mjs" "$RUNNER_TEMP/plates/scripts/plates/"

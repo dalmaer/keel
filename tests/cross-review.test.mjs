@@ -55,18 +55,24 @@ async function load(t, { climb = false } = {}) {
 }
 
 /** gh pr view's answer for an Acme PR. */
-const prJson = over => ({ number: 7, headRefName: 'codex/anvil-lid', headRefOid: SHA, isCrossRepository: false, isDraft: false, state: 'OPEN', ...over });
+const prJson = over => ({ number: 7, headRefName: 'codex/anvil-lid', headRefOid: SHA, baseRefOid: 'b'.repeat(40), changedFiles: 3, isCrossRepository: false, isDraft: false, state: 'OPEN', ...over });
 
 /** A stub gh on PATH: `pr view` prints `pr`; `api` logs its arguments and the --input file, then prints a review. */
-async function stubGh(t, pr, { diff = null, refuseInline = false } = {}) {
+async function stubGh(t, pr, { diff = null, refuseInline = false, views = null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'plates-cross-review-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const log = join(dir, 'gh.log');
+  await writeFile(join(dir, 'views'), '0');
   await writeFile(join(dir, 'gh'), `#!${process.execPath}
 const fs = require('fs');
 const a = process.argv.slice(2);
-if (a[0] === 'pr' && a[1] === 'view') { process.stdout.write(${JSON.stringify(JSON.stringify(pr))}); process.exit(0); }
-if (a[0] === 'pr' && a[1] === 'diff') { const d = ${JSON.stringify(diff)}; if (d === null) { process.stderr.write('acme gh: diff too large'); process.exit(1); } process.stdout.write(d); process.exit(0); }
+if (a[0] === 'pr' && a[1] === 'view') {
+  const views = ${JSON.stringify(views)}, file = ${JSON.stringify(join(dir, 'views'))};
+  const count = Number(fs.readFileSync(file, 'utf8').toString() || 0);
+  fs.writeFileSync(file, String(count + 1));
+  process.stdout.write(JSON.stringify(views ? views[Math.min(count, views.length - 1)] : ${JSON.stringify(pr)})); process.exit(0);
+}
+if (a[0] === 'pr' && a[1] === 'diff') { const d = ${JSON.stringify(diff)}; if (d === null) { process.stderr.write('gh: diff exceeds 300 files (HTTP 406)'); process.exit(1); } process.stdout.write(d); process.exit(0); }
 if (a[0] === 'api') {
   const i = a.indexOf('--input');
   const input = i >= 0 ? JSON.parse(fs.readFileSync(a[i + 1], 'utf8')) : null;
@@ -88,7 +94,7 @@ async function step(t, dir, name, env = {}) {
   const out = join(dir, '..', `${dir.split('/').pop()}-${name.replace(/\W/g, '')}-out`);
   t.after(() => rm(out, { force: true }));
   await writeFile(out, '');
-  const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out, ...env } });
+  const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, SHA, GITHUB_OUTPUT: out, ...env } });
   const outputs = Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(l => /^\w+=/.test(l)).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
   return { status: r.status, out: r.stdout + r.stderr, outputs };
 }
@@ -526,7 +532,7 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
   assert.equal(brief.status, 0, brief.out);
   assert.equal(await readFile(join(temp, 'pr.diff'), 'utf8'), DIFF);
   const prompt = await readFile(join(temp, 'prompt.md'), 'utf8');
-  assert.match(prompt, new RegExp(`- Read it: the diff is ${join(temp, 'pr.diff').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, and the pull request \\(its title and body\\) is .*pr\\.json; this sandbox has no network`));
+  assert.ok(prompt.includes(`- Read it: the complete saved diff is ${join(temp, 'plates-diff/pr.diff')}`));
   assert.doesNotMatch(prompt, /gh pr diff 7/);
   // Claude's brief still reads with gh.
   const claudeBrief = cli(dir, ['brief', '--pr', join(temp, 'pr.json'), '--out', join(temp, 'claude.md')]);
@@ -547,16 +553,12 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
   assert.equal(calls[1].input.event, 'COMMENT');
   assert.match(calls[1].input.body, /GitHub refused the inline comments; the findings \(1\)/);
 
-  // A diff gh cannot read: a warning, an empty diff, and the review still posts (its findings named, not inline).
+  // Failed API reads without verified local history stop before any agent or publisher.
   const blind = await stubGh(t, pr, { diff: null });
   const b = await step(t, dir, 'Brief', { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex' });
-  assert.equal(b.status, 0, b.out);
-  assert.match(b.out, /::warning::The pull request's diff could not be read/);
-  const bp = await post(t, dir, { ...env, PATH: `${blind.path}:${process.env.PATH}`, AGENT: 'codex', EXECUTION: '', MINUTES: '15' });
-  assert.equal(bp.status, 0, bp.out);
-  const [only] = (await blind.calls()).filter(c => c.args[0] === 'api');
-  assert.equal(only.input.comments, undefined);
-  assert.match(only.input.body, /the pull request's diff could not be read/);
+  assert.notEqual(b.status, 0, b.out);
+  assert.equal((await blind.calls()).length, 0);
+
 });
 
 test('the workflow with Claude: its findings JSON is posted inline by plates\'s step, as Codex\'s are', async t => {
@@ -687,7 +689,7 @@ test('phase 46: Claude, holding the review job\'s read-only token, reads the dif
   assert.deepEqual(posts.map(c => c.token), ['acme-read', 'acme-write'], 'the read token was refused; the publish job\'s posted');
   assert.deepEqual(posts[1].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P2** An unhinged lid returns undefined.' }]);
   assert.equal(posts[1].input.event, 'COMMENT');
-  assert.deepEqual(calls.filter(c => c.args[0] === 'pr').map(c => c.token), ['acme-read', 'acme-read', 'acme-read', 'acme-read'], 'every read held the review job\'s token');
+  assert.deepEqual(calls.filter(c => c.args[0] === 'pr').map(c => c.token), Array(6).fill('acme-read'), 'every read held the review job\'s token');
 });
 
 test('phase 46: the publish job posts exactly what summary builds from the artifact (findings, a dropped one named, the self-review line); nothing when the agent did not run', async t => {
@@ -1286,4 +1288,86 @@ for (const layout of ['keel', 'plates']) test(`rename compatibility: ${layout} t
     assert.equal(incomplete.status, 1);
     assert.match(incomplete.out, /no complete cross-review script pair/);
   }
+});
+
+// A full same-repository history, including a merge of main into the PR and a
+// later main-only change. Comparing base tip directly to head would be wrong.
+async function largeReviewHistory(t, layout) {
+  const dir = await trustedLayout(t, layout);
+  await writeFile(join(dir, '.gitattributes'), '*.js diff=acme\n');
+  gitIn(dir, ['init', '-q', '-b', 'main']);
+  gitIn(dir, ['add', '-A']);
+  gitIn(dir, ['commit', '-q', '-m', 'acme: trusted base']);
+  gitIn(dir, ['checkout', '-q', '-b', 'codex/anvil-lid']);
+  await mkdir(join(dir, 'src'));
+  for (let i = 0; i < 302; i++) await writeFile(join(dir, `src/part-${i}.js`), `export const part = ${i};\n`);
+  gitIn(dir, ['add', 'src']);
+  gitIn(dir, ['commit', '-q', '-m', 'acme: many parts']);
+  gitIn(dir, ['checkout', '-q', 'main']);
+  const merged = await commitOn(dir, 'shared.txt', 'acme shared main change\n');
+  gitIn(dir, ['checkout', '-q', 'codex/anvil-lid']);
+  gitIn(dir, ['merge', '-q', '--no-edit', 'main']);
+  const head = gitIn(dir, ['rev-parse', 'HEAD']);
+  gitIn(dir, ['checkout', '-q', 'main']);
+  const base = await commitOn(dir, 'main-only.txt', 'acme later main change\n');
+  const expected = run('git', ['diff', '--no-color', '--no-ext-diff', '--no-textconv', merged, head, '--'], { cwd: dir }).stdout;
+  const temp = join(dir, 'runner');
+  await mkdir(temp);
+  const pr = prJson({ headRefOid: head, baseRefOid: base, changedFiles: 302 });
+  await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
+  return { dir, temp, pr, expected, merged };
+}
+
+for (const layout of ['keel', 'plates']) test(`complete PR diff: HTTP 406 uses exact merged git history with the ${layout} trusted pair`, async t => {
+  const { dir, temp, pr, expected } = await largeReviewHistory(t, layout);
+  // External diff settings must never run even from the trusted checkout.
+  gitIn(dir, ['config', 'diff.external', 'false']);
+  gitIn(dir, ['config', 'diff.acme.textconv', 'false']);
+  const gh = await stubGh(t, pr);
+  for (const agent of ['claude', 'codex']) {
+    const r = await step(t, dir, 'Brief', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', SHA: pr.headRefOid, AGENT: agent });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(await readFile(join(temp, 'pr.diff'), 'utf8'), expected);
+    assert.equal(await readFile(join(temp, 'plates-diff/pr.diff'), 'utf8'), expected);
+    assert.equal((expected.match(/^diff --git /gm) ?? []).length, 302);
+    assert.doesNotMatch(expected, /main-only|shared.txt/);
+    const prompt = await readFile(join(temp, 'prompt.md'), 'utf8');
+    assert.ok(prompt.includes(join(temp, 'plates-diff/pr.diff')));
+    assert.doesNotMatch(prompt, /`gh pr diff 7`/);
+    for (const file of ['cross-review.mjs', 'lib.mjs']) assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'));
+  }
+});
+
+test('complete PR diff: invalid, missing, shallow, drifted or empty evidence refuses before review', async t => {
+  const { dir, temp, pr } = await largeReviewHistory(t, 'plates');
+  const cases = [
+    ['missing head', { headRefOid: 'c'.repeat(40) }],
+    ['missing base', { baseRefOid: 'd'.repeat(40) }],
+    ['invalid head', { headRefOid: '--output=owned' }],
+    ['invalid base', { baseRefOid: 'main' }],
+    ['fork', { isCrossRepository: true }],
+    ['unknown count', { changedFiles: null }],
+    ['wrong selected head', {}, { sha: 'c'.repeat(40) }],
+    ['empty fallback for nonempty PR', { headRefOid: pr.baseRefOid }],
+    ['successful empty API diff', {}, { diff: '' }],
+    ['truncated API diff', {}, { diff: DIFF }],
+    ['head drift before API', {}, { views: [{ ...pr, headRefOid: 'e'.repeat(40) }], diff: 'acme diff' }],
+    ['base drift after API', {}, { views: [pr, { ...pr, baseRefOid: 'e'.repeat(40) }], diff: 'acme diff' }],
+    ['head drift after fallback', {}, { views: [pr, { ...pr, headRefOid: 'e'.repeat(40) }] }],
+  ];
+  for (const [why, over, options = {}] of cases) {
+    const input = { ...pr, ...over };
+    await writeFile(join(temp, 'pr.json'), JSON.stringify(input));
+    await rm(join(temp, 'prompt.md'), { force: true });
+    await rm(join(temp, 'pr.diff'), { force: true });
+    const gh = await stubGh(t, input, options);
+    const r = await step(t, dir, 'Brief', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', SHA: options.sha ?? input.headRefOid, AGENT: 'claude' });
+    assert.notEqual(r.status, 0, why + ': ' + r.out);
+    assert.equal(await readFile(join(temp, 'prompt.md'), 'utf8').catch(() => null), null, why);
+  }
+  await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
+  await writeFile(join(dir, '.git/shallow'), `${pr.baseRefOid}\n`);
+  const gh = await stubGh(t, pr);
+  const r = await step(t, dir, 'Brief', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', SHA: pr.headRefOid, AGENT: 'codex' });
+  assert.notEqual(r.status, 0, 'shallow history cannot prove a complete merge base');
 });

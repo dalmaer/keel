@@ -2127,6 +2127,7 @@ export function crossReviewSandboxProblems(text) {
   // plates#65: after a push the review job runs the event's commit, the one the publisher is checked at, never
   // whatever the default branch's tip is when the job starts (a later push could change the scripts it runs).
   if (checkouts.length && !checkouts[0].includes("\n          ref: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.sha || github.event.repository.default_branch }}\n")) out.push('the review job checks out the default branch\'s tip after a push, not the event\'s commit the publisher is checked at (github.sha)');
+  if (checkouts.length && !checkouts[0].includes('\n          fetch-depth: 0\n')) out.push('the trusted review checkout lacks full history for an exact PR diff fallback');
   const claude = stepsIn(agent).find(st => /uses: anthropics\/claude-code-action@/.test(st)) ?? '';
   if (!/\n {10}github_token: \$\{\{ github\.token \}\}\n/.test(claude)) out.push('claude-code-action is not handed the job\'s token (github_token), so it trades OIDC for its app\'s token, which can write');
   const posts = j => code(j.text).some(({ line }) => /\bgh api\b[^\n]*--method POST|cross-review\.mjs"? (?:summary|push-review|push-post)\b/.test(line));
@@ -2257,6 +2258,7 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['the workflow grants the old set', t.replace('permissions: {}\n', 'permissions:\n  contents: read\n  pull-requests: write\n  issues: write\n  id-token: write\n')],
     ['a job-level token', t.replace('    env:\n      REPO: ${{ github.repository }}\n', '    env:\n      GH_TOKEN: ${{ github.token }}\n      REPO: ${{ github.repository }}\n')],
     ['the default branch\'s checkout keeps its credential', t.replace(/( {10}ref: [^\n]*github\.event\.repository\.default_branch \}\}\n {10}fetch-depth: [^\n]*\n) {10}persist-credentials: false\n/, '$1')],
+    ['the trusted review checkout has shallow history', t.replace('          fetch-depth: 0\n', '          fetch-depth: 1\n')],
     ['the review job checks out the tip after a push', t.replace("ref: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.sha || github.event.repository.default_branch }}", 'ref: ${{ github.event.repository.default_branch }}')],
     ['the publish job\'s checkout keeps its credential', t.replace(publish, publish.replace('          persist-credentials: false\n', ''))],
     ['the PR\'s checkout keeps its credential', t.replace('          ref: ${{ steps.which.outputs.sha }}\n          persist-credentials: false\n', '          ref: ${{ steps.which.outputs.sha }}\n')],
