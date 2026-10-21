@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-Finish integrated checks, reviewed source and consumer changes, then perform repository/hosting/local rollout and verify exact production revision and live flows.
+Resolve the automatic approval review scope mismatch blocking publication of claude/phase-109, then complete the reviewed source release, consumer changes, repository/hosting/local rollout and exact production/live verification. Local combined tests and typecheck passed; no push executed.
 
 ## Trajectory
 

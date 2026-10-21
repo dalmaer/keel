@@ -69,3 +69,9 @@ The record-rename correction passed all 32 focused reconciliation tests. Git-ver
 On 2026-10-21, the combined source at `e9c46c00491dcf491e800d97d0c8f842fb4c3f30` passed `npm run check` and `npm run typecheck`, exit 0: 2,079 tests passed, zero failed or skipped; all configured stall checks and roadmap/render/inbox guards passed. The test ledger reported no flaky or slower test.
 
 The actual PR-impact check then identified one short historical record whose broad branding replacement prevented Git from recognizing its rename. Phase 19 retains its original 2026-10-03 contents under the new filename, a byte-identical historical record rather than a rewritten acceptance claim. Its evidence reference remains valid. The corresponding roadmap and PR-impact guards are checked after this documentation-only correction; remote CI will validate the exact final PR head.
+
+## Publication blocked by approval review
+
+On 2026-10-21, the attempted `git push -u origin claude/phase-109` from reviewed local head `c9387f9615b5dc92ec15007dccf89b590f364fb6` was rejected before process execution by automatic approval review. The rejection cited the original spec-only no-push restriction, despite the later explicit owner authorization for implementation, repository renaming and deployment carried in the delegated conversation. No retry or alternate publication path was attempted. A read-only `git ls-remote origin refs/heads/claude/phase-109` returned no branch afterward.
+
+The exact remaining blocker is authorization review for publishing this branch to the existing `dalmaer/keel` repository. No source PR, repository rename, release, deployment or consumer rollout is claimed. A non-mutating v0.8.33 release preview was saved outside the repository; normal review and rehearsal gates remain required.
