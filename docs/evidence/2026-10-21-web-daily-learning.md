@@ -151,6 +151,11 @@ tests; the busy run was omitted from timing comparisons. Source commit
 `431ec5983ca7e837fa6734a3787c5a2bd59be118`. The phase claim was released.
 This is implementation integration, not hosted deployment or owner acceptance.
 
+GitHub CI on that exact main revision also completed successfully:
+[check](https://github.com/dalmaer/keel/actions/runs/39688301956) and
+[typecheck](https://github.com/dalmaer/keel/actions/runs/39688301954), observed with
+`gh run list --repo dalmaer/keel --commit 431ec5983ca7e837fa6734a3787c5a2bd59be118 --json databaseId,name,status,conclusion,url`.
+
 Supports partial implementation with a remaining real-use walk. Hosted operation
 storage activation, an approved source-writing permission and
 gate, owner-selected real lesson migration/recovery, deployment verification and

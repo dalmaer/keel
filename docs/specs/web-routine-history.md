@@ -39,12 +39,18 @@ recovered. The UI names the read time, requested window, page bounds, observed
 range and every unvisited or unavailable source. A complete page is not a complete
 history or an immutable snapshot. Inserts between reads may shift provider pages.
 
-The default visible window is 30 days; explicit windows are 1–90 days. Fetch run
+The default visible window is 30 days; explicit windows are 1–90 days. Active
+attempts remain visible regardless of their start date. Completed observations
+use their latest valid provider activity or record timestamp, with its basis
+shown; a long-running attempt must not disappear solely because it started before
+the window. Unknown times remain visible as unknown. Fetch run
 pages without a created-at lower filter: older logical runs may have new attempts.
 Read 20 logical runs per page and at most the newest 10 attempts per run; older
 unread attempts remain counted as gaps and reachable through explicit attempt
-detail. The shared request bound is 80 API calls, 8 MiB response bytes and 25
-seconds. Stop before a bound and report partial coverage. Detail reads paginate
+detail. The shared source-collection bound is 80 API calls, 8 MiB response bytes
+and 25 seconds. Fresh authentication retains its separately bounded existing
+transport; the route's existing 55-second deadline covers authentication and
+collection together. Stop before a bound and report partial coverage. Detail reads paginate
 jobs and artifacts, at most two pages of 100 each per request. Do not silently
 truncate stages, artifacts or attempts. A continuation validates its repository,
 source and filters; it never grants access or supplies an arbitrary URL.
