@@ -1,10 +1,10 @@
 ---
-status: partial
+status: built
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [94]
-note: "Service, local proof and hosted SQL role/concurrency checks complete; App installation/client secret, deployment and live login remain."
+note: "Deployed owner login, logout, denied and removed-project access, membership revocation and Node v24.21.0 verified; hosted SQL checks pass."
 evidence: ["evidence/2026-10-21-web-auth-service.md"]
 ---
 
@@ -27,7 +27,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 - [x] Denied membership, revoked access and unauthorized project/media/stream requests reveal no private records: `tests/web-access.test.mjs`.
 - [x] Independent function instances atomically consume authorization attempts, revoke sessions and preserve versioned writes; unavailable storage fails closed: `tests/web-store.test.mjs`.
 - [x] Mutation routes enforce origin and CSRF; public static/package output contains no secrets: `tests/web-server.test.mjs`.
-- [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin, with serving Node >=24.21.0 verified: `docs/guide/web-workspace-setup.md`.
+- [x] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin, with serving Node >=24.21.0 verified: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
 
@@ -51,9 +51,12 @@ Public signup, additional identity providers and multi-tenant hosting are outsid
 
 ## Next action
 
-Install the registered App on the prepared selected repositories, add its OAuth client secret to production, and verify the installation bindings. Deploy and walk owner login/logout/denied access with serving Node >=24.21.0. Hosted SQL concurrency and role checks are now established; keep phase 96 behind the remaining deployed-login acceptance boundary.
+Build phase 96's bounded read model and rich Home. Keep the phase 94 backup
+choice open; sign-in acceptance does not establish an independent restore path.
 
 ## Trajectory
+
+- **2026-10-21** — Actual browser form submission exposed a gap in header-only tests: `no-referrer` produced a null Origin and blocked login. `strict-origin` preserves the exact Origin without leaking OAuth paths/queries; the existing CSRF/origin boundary remains strict. The deployed browser walk now passes.
 
 - **2026-10-21** — Hosted SQL proof now exercises overlapping transactions on distinct PostgreSQL backend connections. The Vercel query editor accepts one prepared statement, so the unchanged migration body ran inside one atomic dollar-quoted DO block. Runtime deployment and owner login remain separate acceptance work.
 

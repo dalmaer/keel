@@ -155,7 +155,9 @@ membership/access afterward. Never publish OAuth codes, browser cookies, tokens
 or secret environment output as evidence.
 
 `GET /signin` is public. `POST /api/auth/start` requires the browser's pre-login
-CSRF token and exact Origin. GitHub redirects to the single-use, browser-bound
+CSRF token and exact Origin. Responses use `Referrer-Policy: strict-origin` so
+native browser forms retain that Origin; `no-referrer` makes it null and fails
+the deliberate origin check. Do not relax the check to accept null. GitHub redirects to the single-use, browser-bound
 callback with PKCE S256. All protected reads recheck GitHub identity, membership,
 private source and repository access; there is no cached authorization grant.
 The list is bounded to 1,000 repositories/installations and ten pages; incomplete,

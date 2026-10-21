@@ -1,15 +1,14 @@
 # Set up a private Keel web workspace
 
 Setup guide, updated 21 October 2026. Phase 93 provides local manifest and state
-initialization. The first private repository and Vercel project exist; hosted
-sign-in and Home are not deployed. Supabase is provisioned for production and
-the read-only GitHub App is registered, with installation and its OAuth client
-secret pending. The hosted authentication schema and SQL concurrency checks pass. Phase 95
-now provides the authentication service implementation; its
-[service guide](web-auth-service.md) gives the exact configuration and migration. See [the contract](../specs/web-workspace.md) and
-[phase 94](../phases/94-private-instance-has-approved-connections.md) for the
-remaining connection work. This guide separates commands you can use now from
-setup for the future service.
+initialization. The first private service is deployed: owner GitHub login,
+logout, current membership and project access checks pass on HTTPS, with serving
+Node v24.21.0. Supabase holds encrypted sessions; the read-only GitHub App is
+installed on the approved selected repositories. Production secrets are injected
+by Vercel. Phase 95's [service guide](web-auth-service.md) gives the exact
+configuration and migration. The rich Home board follows in phase 96; the
+backup destination remains open in [phase 94](../phases/94-private-instance-has-approved-connections.md).
+See [the contract](../specs/web-workspace.md) for the storage boundaries.
 
 ## Create or reuse a private data repository
 
@@ -135,16 +134,18 @@ GitHub. This does not create a repository, host a service or authenticate anyone
 The owner selected Vercel and a private workspace repository. The repository
 was created and its privacy read back through GitHub. The owner subsequently
 authenticated and selected an existing Pro team. The Vercel project is created;
-its assigned domain and Node 24.x setting were read back. No application is
-deployed. Supabase Free is provisioned in `iad1` and connected only to production;
-its sensitive environment credentials are injected by Marketplace. The resource
-also restricts future connections to production; initial credential rotation
-completed before deployment. The owner approved the
-read-only GitHub App, now registered after owner identity verification. The
-selected-repository installation and OAuth client secret remain pending. The
-owner also completed Vercel database verification: the authentication migration,
-actual role denials and overlapping-connection races passed. The session
-encryption key is stored only as a production secret. No Blob store exists yet.
+its assigned domain and Node 24.x setting were read back. The service is now
+deployed in `iad1`, with serving Node v24.21.0 verified through the authenticated
+session endpoint. Supabase Free is connected only to production; its sensitive
+environment credentials are injected by Marketplace. Future connections are
+restricted to production; initial credential rotation completed before deployment.
+The private GitHub App is installed with Contents read and Metadata read on the
+two approved repositories. Real owner login reads installation, repository
+privacy, manifest and membership through the GitHub App user token. The hosted
+authentication migration, actual role denials and overlapping-connection races
+passed. Database credentials, the session encryption key and OAuth client secret
+are stored only in production secrets. Live logout and membership/project removal
+denials pass. No Blob store exists yet; the backup destination is still open.
 Exact account, project and domain identifiers live in the private workspace repo.
 The earlier Render single-instance candidate was not approved or created and is
 superseded by this choice. The local filesystem adapter above remains supported;
@@ -152,12 +153,12 @@ it is not the storage implementation for hosted requests.
 
 | Layer | Binding or planned binding | Remaining decision/check |
 | --- | --- | --- |
-| Application | Public Keel source; framework-free Node functions and browser modules | Account/team and project verified; region and actual Node >=24.21.0 remain |
+| Application | Public Keel source; framework-free Node functions and browser modules | Production deployment in iad1; serving Node v24.21.0 verified |
 | Shared records | Owner-selected private GitHub repository | Numeric identity, manifest, members file and selected project list retained privately |
 | Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free/iad1 connected to production | Authentication schema, role denials and concurrent SQL verified; restore destination remains |
 | Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
-| Identity | GitHub App authorization, selected repositories only | Registered with approved owner, callback and read-only scope; installation and live access checks remain |
-| Secrets | Vercel server-side environment configuration | Database credentials and session encryption key stored in production; App client secret and live revocation walk remain |
+| Identity | GitHub App authorization, selected repositories only | Selected installation and live owner access verified; no public signup |
+| Secrets | Vercel server-side environment configuration | Database, encryption and App OAuth secrets in production; live membership revocation verified |
 
 Vercel functions cannot keep durable state on their local filesystem. Use
 bounded GitHub API reads and external storage, not a persistent checkout or disk.

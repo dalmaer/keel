@@ -173,3 +173,72 @@ owner login/logout/denied access and actual serving Node version. Its database
 concurrency acceptance box is now checked. Phase 94 still owes fresh installation
 API facts and the backup destination. A live service preview remains unavailable
 until those deployment prerequisites are completed.
+
+## Production follow-up — 21 October 2026, verified by 18:21 UTC
+
+This follow-up supersedes the pending App/deployment observations above. The
+owner approved installation on the exact two selected repositories and production
+storage of the OAuth client secret. Installation succeeded with Contents read
+and Metadata read. The secret was transferred directly to Vercel CLI stdin,
+without a local secret file or printed value. No App private key was generated.
+Exact resource IDs, origin, config and deployment receipts remain in the private
+workspace setup record; public fixtures remain synthetic.
+
+A clean `git archive` of `223a628` was deployed with Vercel CLI 65.0.0:
+
+```sh
+vercel deploy --prod --yes --regions iad1 --project <approved-project-id> \
+  --scope <approved-team> --global-config <existing-auth-config> \
+  --no-color --meta sourceCommit=<archived-revision> --json
+```
+
+Exit 0, READY, approved production alias assigned. The actual browser sign-in
+form then failed `invalid_origin`. An independent HTTP request with explicit
+correct Origin succeeded with 303 to GitHub, identifying a browser/header gap:
+`Referrer-Policy: no-referrer` makes native non-CORS form POST Origin null. The
+fix uses `strict-origin`, retaining exact Origin and CSRF validation while
+excluding paths and query strings from referrers. The header regression and
+foreign/null/missing Origin plus bad CSRF refusals are tested. A manually supplied
+Origin alone cannot establish browser compatibility.
+
+The conductor independently ran, exit 0 (10/10 tests):
+
+```sh
+node --import ./tests/helpers/hermetic.mjs --test tests/web-server.test.mjs tests/web-auth.test.mjs
+node bin/keel.mjs prove tests/web-server.test.mjs --name 'public signin/assets' --fix lib/web/server.mjs --base 223a628 --trailer
+npm run typecheck
+```
+
+`prove` returned VERIFIED: the policy assertion failed without the fix and passed
+with it. This is a header regression proof, not a simulated browser. Fix revision
+`0805f16c8dcbef8d3cef7ca65fa29fec38e8b466` was deployed from a new clean archive with
+the same command, exit 0, READY. No untracked local records were uploaded.
+
+The conductor walked the actual HTTPS deployment in the owner's authenticated
+browser, completing the previously approved GitHub login. Observed:
+
+| Action | Observed |
+| --- | --- |
+| Native Continue with GitHub form | GitHub authorization page, then authenticated connected-project list |
+| Authenticated `/api/session` | Current private source revision and selected project; serving Node `v24.21.0`; CSRF omitted from retained output |
+| Open an unconnected project path | Generic unavailable page, `access_denied`; no project records |
+| Sign out, then reopen Home | Sign-in required; old browser session unavailable |
+| Fresh login, temporarily remove owner from private membership | Existing session denied on next request |
+| Restore membership, retry old session | Still sign-in required; restoration does not resurrect revoked session |
+| Fresh login, temporarily remove project from private manifest | Previously authorized project denied; changed scope invalidates old session |
+| Restore approved manifest | Original project and member records restored and pushed |
+
+The reversible removal checks changed only the named membership/project records;
+restoration commits are retained privately. Provider grants were not widened.
+Successful protected requests exercise fresh GitHub App API reads for user,
+selected installation, repository access, workspace privacy and manifest/membership
+at one source commit. A personal CLI token's `/user/installations` request was
+rejected because it was not an App user token; no false API proof is inferred
+from it. The actual service flow provides that boundary proof.
+
+The live connected-list screenshot is retained privately, not copied into the
+public repository with the owner's workspace details. It is a connection
+scaffold; the attention board and write actions remain future phases. Phase 95
+is **built**, not lived-in. Phase 94 still owes an independent backup/restore
+destination. The final combined integration gate result follows in the next
+record, as required for checks whose result depends on the committed tree.
