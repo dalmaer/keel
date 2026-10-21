@@ -1,0 +1,242 @@
+# Private workspace, public Keel application
+
+Implementation contract, 21 October 2026. The owner authorized the web UI and
+phased build in this conversation. Public application code, private shared
+workspace data and project-owned Keel records are the accepted direction.
+Provider, accounts, domain and spending remain owner decisions. This document
+supersedes the local-first delivery recommendation in [the UX spec](web-ui.md),
+not the existing local board. No deployment or access has been established.
+
+## What the owner gets
+
+Sign in, open Home and understand each project's situation. Home leads with
+**decisions that need you**, **ready-to-test guided walks**, and **recent additions
+with real screenshots and try links**. Project summaries explain goals, current
+work, what changed, human responsibility, delivery and source freshness.
+
+The [UX spec](web-ui.md) defines interactions and the
+[CLI inventory](web-ui-command-map.md) assigns each command/argument to an
+appropriate read, form, explicit operation or advanced CLI escape hatch.
+The [prototype](../design-previews/keel-home.html) uses synthetic examples.
+It proves no live integration or acceptance.
+
+## Ownership and deployment
+
+```text
+Browser -- HTTPS + session --> Keel web service (public source, private instance)
+                                  |-- GitHub identity + selected repositories
+                                  |-- private workspace Git checkout
+                                  |-- private runtime volume / artifact adapter
+                                  `-- bounded source adapters per project
+```
+
+| Home | Owns | Never owns |
+| --- | --- | --- |
+| Public `keel` repository | App/CLI code, schemas, synthetic fixtures, docs and reusable practices | Personal fleet registry, tokens, private lessons, raw feedback or screenshots |
+| Private workspace repository | Workspace manifest, shared private lessons, approved cross-project decisions, policies | Another copy of project phase acceptance; credentials and sessions |
+| Each project repository | Its `.keel` configuration, selected planning records, decisions, evidence and lesson provenance | Workspace membership or another project's data |
+| External private runtime store | Sessions, caches, drafts, receipts, feedback and private artifacts | Authoritative phase status or architecture |
+| Deployment secret store | GitHub App private key, client secret, session/webhook secrets | Versioned files or frontend configuration |
+
+One workspace per deployed instance initially. No public signup, tenant picker,
+org billing or arbitrary code execution. The workspace manifest explicitly names
+selected projects; login grants access only to the intersection of workspace
+membership, GitHub App installation and the signed-in user's current repository
+access. Private workspace membership is also checked. Numeric provider identity
+is authoritative for users/repos; names are display/routing labels refreshed from
+GitHub. Removed membership or revoked credentials invalidate access. A workspace
+owner does not automatically gain access to every private project.
+
+The public app can be cloned/deployed without copying anyone's data. An explicit
+manifest and runtime directory are required; no fallback to code-root `.keel`,
+`fleet.json`, a developer's home directory or a public repository. Existing CLI
+fleet configuration remains supported. Migration is a separate, previewed phase;
+never delete it until the replacement has been read back successfully.
+
+## Phase 93: explicit external workspace boundary
+
+Add `keel workspace inspect|init --manifest <absolute-file> --state <absolute-dir>
+[--yes] [--json]`. `inspect` reads only; `init` previews (exit 3) until `--yes`.
+`--yes` is valid only for init. Both require explicit absolute paths and strict
+arguments. No GitHub calls, repository creation, credentials or server in this
+slice. `inspect` returns ready/uninitialized and privacy **unverified**; a local
+manifest cannot establish that a remote repository is private.
+
+Version 1 manifest, UTF-8 JSON, at most 1 MiB and 100 projects:
+
+```json
+{
+  "version": 1,
+  "id": "acme",
+  "name": "Acme",
+  "repo": "acme/keel-private",
+  "projects": [{ "id": "studio", "repo": "acme/studio" }]
+}
+```
+
+Reject unknown keys at each level, invalid/duplicate project IDs or repository
+identities (case-insensitive repository comparison), and missing/empty required
+values. Workspace/project IDs use lowercase ASCII letters, numbers and hyphens,
+start with a letter, and are at most 64 characters. Names are nonempty trimmed
+strings at most 120 characters without control characters. Repository identities
+are exactly two GitHub-compatible path components, no URL, traversal, query,
+credentials or `.git` suffix; project repo cannot equal workspace repo. Never
+include rejected values in diagnostics; malformed secret-shaped input must not
+appear in JSON/stderr. Empty project list is valid for initial setup.
+
+Canonicalize existing paths including macOS temp-directory aliases. Manifest must
+be a regular file outside the installed application tree (CLI_ROOT). Runtime
+state must be outside every Git working tree, outside the application and
+manifest directory, and cannot contain either of them. Resolve symlinks before
+checking overlap; reject symlink files/entries for the marker and state leaf.
+Reads reject nonregular files before opening and validate the descriptor after
+opening nonblocking; a FIFO must not suspend inspection. The state parent must
+already exist; no recursive creation of arbitrary parents.
+Reject filesystem root, existing non-directory or unowned nonempty state.
+
+`init --yes` creates a private directory (0700) and an exclusive 0600 JSON marker
+`workspace.json` containing only `{version:1,id,repo}`. An already matching marker
+is an idempotent success; malformed or differently owned state is refused without
+changes. Recheck identity at the mutation boundary; exclusive creation prevents
+a competing initializer from replacing ownership. Readers reject unsafe marker
+permissions on POSIX. Existing state directories must also be private; never
+silently chmod someone else's data. Return structured operation, canonical paths,
+workspace identity, project list, state and unverified remote privacy; no tokens.
+
+This is local configuration/initialization safety, not a sandbox against a
+malicious process with the same operating-system identity. Later writers must
+reuse this resolver; an initial marker alone cannot secure an arbitrary writer.
+The runtime schema will be versioned with explicit migrations; no broad generic
+JSON write endpoint is introduced.
+
+## Login and access
+
+Phase 94 connects the first private instance: select a host with Node >=24.21,
+HTTPS termination, private persistent storage, secret injection and backups;
+approve a private workspace repository and a GitHub App with selected repository
+access. These are explicit owner resource steps. A provider-specific deployment
+recipe and actual price must precede creation. Use existing resources when
+selected; do not assume a subscription, domain or account.
+
+Phase 95 implements login with a GitHub App user authorization flow and opaque
+server-side sessions. Validate state, single-use expiring authorization attempts,
+callback origin and return-path allowlist. Use PKCE where the provider supports
+it. Fetch provider identity after token exchange; never trust a login in a query.
+Session cookies are Secure, HttpOnly, SameSite=Lax, host-only with bounded idle
+and absolute expiry. Rotate on login and privilege changes; logout removes
+server state. Tokens stay server-side. Use CSRF tokens plus same-origin checks
+for state-changing routes. Authorization is checked per request, repository,
+operation and artifact, including background refresh and streamed updates.
+
+A user's GitHub App token only permits the intersection of app and user access;
+installation credentials are separately scoped and short-lived. Do not let a
+service token turn an inaccessible project into a visible card. Start with
+metadata/contents read, then add narrowly required write permissions when the
+operation ships. No Actions, administration or workflow-write permission for
+Home. The exact permission matrix is part of the setup receipt.
+
+References checked 21 October 2026: [GitHub user authorization](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)
+and [installation authentication](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
+
+## Dynamic Home and bounded readers
+
+Home is a source-derived attention view, not a freely editable Kanban board.
+Use adapters for local phases, projects-shaped plans and GitHub milestones.
+Derive one project summary and stable action/change IDs from repository identity,
+record path/key and revision. Keep implemented, merged, serving, verified and
+lived-in separate. Every section carries its own freshness/coverage state.
+Timeout, denied access, rate limit and partial pagination never become zero work.
+
+Refresh project summaries independently with bounded concurrency, backoff,
+conditional provider requests and cancellation. Coalesce webhook hints rather
+than treating event payloads as authoritative state. Validate webhook signatures
+on raw bytes before parsing, reject replayed delivery IDs, then refresh the
+relevant source. [GitHub webhook validation](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries).
+
+An authenticated event stream invalidates affected cards; reconnect resumes from
+an event cursor or requests a full bounded snapshot after a gap. Polling fallback
+is bounded. Freeze a card's interaction snapshot while a decision/walk is open;
+show “Source changed” and require a fresh preview before applying. Queue new
+arrivals behind “N new updates”, preserve focus and scroll, and respect reduced
+motion. Personal pins/snoozes/seen markers never alter project records.
+
+## Decisions, walks and changes
+
+Decision detail includes the actual question, evidence, alternatives,
+recommendation, consequence and authority. Reuse phase 90 decision context and
+phase 91 shaping. A recommendation is never a recorded owner choice. Preview
+exact source changes; apply against the reviewed digest under a project lock,
+retain an operation ID and receipt, and show GitHub commit/PR outcome separately
+from local persistence. Public-repo writes show the exact outbound material.
+
+Walks have stable authored step IDs, prerequisites, expected results, exact tested
+revision/environment and optional captures. Each step records pass/fail/blocked
+plus actual observations. Drafts persist privately across browser refresh.
+Failure or inability to test records feedback and leaves acceptance open.
+Reuse phase 92 immutable result feedback and issue recovery; do not invent a
+parallel feedback store or issue workflow. Only complete successful observations,
+current source, satisfied prerequisites and explicit final submission may invoke
+the existing acceptance operation. No optimistic “done” before the source receipt.
+Reordered steps or a changed build invalidate only what can be proven stale;
+preserve previous observations as historical evidence.
+
+Change packages bind title, capability, source records, implementation revision,
+serving observation, screenshots and try/walk links. Media records capture
+revision, environment, viewport, scenario, timestamp, checksum, caption and alt
+text. A screenshot does not prove acceptance. Browser captures use synthetic or
+approved data; no generated picture stands in for product evidence. Uploads
+have size/type limits, opaque IDs and authenticated delivery; no arbitrary URL
+fetch/HTML upload or executable inline SVG. Retention and deletion preserve
+receipts while making expired media explicit. Public export requires an exact
+preview and deliberate publish; private workspace visibility is never inherited
+from the public application's repository.
+
+## Implementation and operations
+
+Stay within zero runtime dependencies/no build: Node HTTP/server modules,
+standalone browser modules, CSS and existing domain readers. Shared board
+classification stays in domain functions; the hosted server has its own request
+identity boundary. It is not the loopback board exposed on a public interface.
+No repository-provided scripts execute in the web request process. Operations
+that require a real checkout/runner remain unavailable with a clear reason until
+an isolated runner and its approved budget exist. All command mappings can ship
+as read/link-out before in-app execution.
+
+Single instance/private volume initially; serialized mutation plus durable
+receipts. Any scale-out phase must replace these assumptions before adding
+replicas. Back up workspace Git and encrypted runtime artifacts separately;
+exclude caches and expire restored sessions. Reconcile unresolved operations
+before replay after restore. Audit records retain actor, project, operation,
+source digest and outcome, with no tokens/raw feedback. Log only bounded error
+codes. Validate secret-free packaging and source maps/static assets.
+
+## Phases and release criteria
+
+| Phase | Outcome |
+| --- | --- |
+| 93 | Explicit external workspace boundary and packed CLI setup |
+| 94 | Owner-approved private repository, host and GitHub identity binding |
+| 95 | Authenticated service, session lifecycle and per-project access |
+| 96 | Dynamic read-only Home with truthful project adapters |
+| 97 | Source-bound decisions with durable operation receipts |
+| 98 | Guided testing and exact-result feedback (also depends on 92) |
+| 99 | Visual change journal with private artifact delivery |
+| 100 | Daily work, learning and explicit migration/export |
+| 101 | Real-project access, human acceptance, restore and lived-in trial |
+
+Each [phase](../phases/) owns exact acceptance and proof. Test paths in planned
+phases are implementation targets, not existing passing checks. The owner can
+use the authenticated read-only Home as soon as phase 96 ships; acceptance
+buttons wait for their own verified phases. Existing local CLI and board remain
+usable throughout.
+
+## Deliberately open
+
+- Host, domain, private repo name and installation owner: decide in phase 94
+  from a concrete deployment recipe and current price; no resource created here.
+- Team membership/multi-tenant service, additional identity providers, generic
+  execution workers and new agent spend: outside this first private instance.
+- Workspace schema additions and retention periods: version them in the phase
+  that implements them; defaults cannot silently publish or discard observations.
+- Production verification and lived-in usefulness: phase 101, never inferred
+  from synthetic tests, a successful login callback or a merged PR.

@@ -35,6 +35,7 @@ Verbs (all take `--json`; parse JSON, never prose):
 - `keel walk done|decide` — settle a walk or proposal
 - `keel canvas` — snapshot, render, connect, sync, live, night
 - `keel retro` — worksheet; `capture` records; `sessions` trials
+- `keel workspace inspect|init` — explicit external storage
 - `keel shape check|render|plan` — local review and digest-approved drafts
 - `keel decision context` — scoped choices for `--phase` or `--issue`
 - `keel evidence rederive <phase>` — preview; `--yes` reruns
@@ -55,7 +56,7 @@ Rules:
 
 Exits: 0 ok; 1 failure; 2 usage; 3 needs owner's yes. JSON errors: `{"error": "..."}` on stdout.
 
-Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision` `shape`.
+Topics: `json` `goals` `render` `init` `adopt` `doctor` `update` `lessons` `learn` `improve` `persona` `time` `test` `drain` `night` `loop` `climb` `fleet` `loose-ends` `issue` `review` `board` `retro` `canvas` `install` `coming` `reconciliation` `prove` `evidence` `production` `decision` `shape` `workspace`.
 
 <!-- topic: json | the output contract every verb keeps -->
 
@@ -2445,3 +2446,27 @@ provenance, never authenticated. Unanswered questions and proposed decisions
 remain unresolved. Proof is named, never verified; the conductor judges it.
 Milestone-backed projects receive previews only. Existing choices stay in their
 source records; proposed replacements need manual reciprocal scoped links.
+
+<!-- topic: workspace | explicit external private workspace storage -->
+
+`keel workspace inspect|init --manifest <absolute-file> --state <absolute-dir>
+[--yes] [--json]` requires explicit external paths; it never finds a default.
+`inspect` is read-only. `init` previews with exit 3; `init --yes` creates a 0700
+directory and exclusive 0600 `workspace.json` identity marker, or returns the
+matching existing state. Existing unsafe permissions, symlink leaves, unowned
+nonempty state and mismatched markers are refused without replacement.
+
+The manifest must be outside installed application code. State must be outside
+Git working trees, application code and the manifest directory, and cannot
+contain those directories. Its parent must already exist. Canonical paths
+resolve ancestor aliases; marker and state leaf symlinks are refused.
+
+Version 1 JSON (at most 1 MiB, 100 projects):
+`{"version":1,"id":"acme","name":"Acme","repo":"acme/keel-private","projects":[{"id":"studio","repo":"acme/studio"}]}`.
+IDs are lowercase ASCII letters/digits/hyphens starting with a letter, at most
+64 characters. Repository identities are owner/name; project IDs and repository
+identities must be unique. Unknown fields are refused. Keep credentials out.
+
+JSON returns `{operation, mode, paths: {manifest, state}, workspace, projects,
+state: "ready"|"uninitialized", privacy: {state: "unverified"}}`. This local
+command does not contact GitHub, prove repository privacy, or establish login.

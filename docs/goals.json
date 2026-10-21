@@ -5,5 +5,6 @@
   { "id": "G3", "title": "Lessons come home", "outcome": "A lesson learned in any project, or a practice improved upstream, reaches keel, is decided by a person, and ships to the rest of the fleet." },
   { "id": "G4", "title": "The night shift keeps it working", "outcome": "Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person." },
   { "id": "G5", "title": "Keel knows whether it helps", "outcome": "Keel can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs." },
-  { "id": "G6", "title": "A change reaches production once, checked", "outcome": "Each change is verified in parallel and published one at a time; production moves only to a tested commit and is checked by the commit it serves; no change runs the expensive path twice." }
+  { "id": "G6", "title": "A change reaches production once, checked", "outcome": "Each change is verified in parallel and published one at a time; production moves only to a tested commit and is checked by the commit it serves; no change runs the expensive path twice." },
+  { "id": "G7", "title": "A private workspace makes project decisions and verification easy", "outcome": "An authenticated owner sees the right projects, makes source-backed decisions, tests exact revisions step by step, and discovers recent changes without publishing private workspace data." }
 ]

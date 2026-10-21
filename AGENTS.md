@@ -206,6 +206,16 @@ A merged fix is not production verification: require serving-revision evidence,
 a complete observation window, traffic or an approved probe, and no recurrence.
 See [the production guide](docs/guide/production-errors.md).
 
+## Private web workspace
+
+`keel workspace inspect|init --manifest <absolute-file> --state <absolute-dir>`
+uses explicit external storage; add `--json` for agents. Inspection and init
+previews write nothing; init exits 3 until `--yes`. Runtime state must be outside
+Git working trees, application code and the manifest directory. Preserve its
+private ownership marker; mismatches are refusals, never a reason to overwrite.
+Local initialization does not establish login or verify remote privacy. See
+`keel --agent-help workspace` and [the workspace contract](docs/specs/web-workspace.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for

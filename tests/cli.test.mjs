@@ -202,7 +202,7 @@ Measure the count.
       // phase claim, ready and integrate need a remote to push to, and this copy has none: exit 2, as JSON
       // (tests/claim.test.mjs and tests/integrate.test.mjs cover the verbs). promote needs the delivery practice,
       // which keel's copy has not taken: exit 2, as JSON (tests/promote.test.mjs covers the verb).
-      assert.equal(r.code, name === 'issue' ? 3 : ['phase claim', 'ready', 'integrate', 'promote', 'decision', 'shape'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
+      assert.equal(r.code, name === 'issue' ? 3 : ['phase claim', 'ready', 'integrate', 'promote', 'decision', 'shape', 'workspace'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
       if (name === 'evidence rederive') {

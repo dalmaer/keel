@@ -224,6 +224,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 
 | Verb | What it does |
 | --- | --- |
+| `keel workspace inspect\|init` | Inspect explicit external workspace configuration; preview private runtime initialization, then apply with `--yes`; remote privacy remains unverified |
 | `keel canvas` | Project lifecycle snapshots and isocan canvas publishing; preview changes before applying them |
 | `keel loose-ends` | What you started and didn't finish, across keel and each fleet checkout: chats, files, branches, PRs, owner steps; `mark` one resume, park or drop |
 | `keel production status`, `collect`, `spec`, `verify` | Bounded production-error evidence, recurring repair candidates, and revision-scoped verification; missing coverage stays unknown |
@@ -292,3 +293,24 @@ for read bounds, provenance, exit states and dispatch/resume checks.
 Use the optional [shaping practice](practices/shaping/README.md) to review supplied
 records locally. [The guide](practices/shaping/files/docs/shaping.md) includes
 a minimal fixture and the exact preview/approval/recovery commands.
+
+### Private web workspace foundation
+
+The web workspace is being built in phases. Public app code stays in Keel;
+workspace membership and shared private lessons belong in a separate private
+repository, and each project retains its own Keel records. Login and the hosted
+Home are not available yet. See [the workspace contract](docs/specs/web-workspace.md).
+
+The first slice validates explicit external configuration and runtime storage:
+
+```bash
+keel workspace inspect --manifest /absolute/private-workspace/workspace.json --state /absolute/private-runtime --json
+keel workspace init --manifest /absolute/private-workspace/workspace.json --state /absolute/private-runtime --json
+# After reviewing the preview, repeat init with --yes.
+```
+
+Create the manifest using the schema in `keel --agent-help workspace`. The runtime
+parent must exist; the state directory must be outside all Git working trees,
+the application and the manifest directory. Initialization creates a private
+ownership marker and preserves existing state. Remote privacy remains unverified
+until GitHub access is connected; this command creates no remote resources.

@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**45 of 93 phases built; 39 owe a walk.** Built means implemented and checked; planned is not available.
+**46 of 102 phases built; 39 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `keel canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `keel canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -264,6 +264,34 @@ Each change is verified in parallel and published one at a time; production move
 - **81 done when:** A deploy is skipped when production already serves the commit or a descendant; after a deploy, keel waits until production reports the deployed commit (or a descendant) at the project's version endpoint and passes its smoke checks; and a failure reaches the owner once, in the morning issue and on the board.
 - **82 done when:** `keel promote [<commit>]` moves a project's production ref only to a commit on its tested ref, previews first, verifies production serves it afterwards (phase 81), and `keel promote --back <commit>` rolls back the same way; it is always a person's command and nothing runs it automatically.
 - **83 done when:** A session that finishes a change runs only its fast checks and marks it ready instead of running the full gate and pushing; one integrator, holding a claim-based lock, takes every ready change as a batch, runs the full gate once on the combined tree and pushes it; and a failing batch is split until the change that broke it is found and sent back, while the rest land.
+
+## G7 — A private workspace makes project decisions and verification easy
+
+An authenticated owner sees the right projects, makes source-backed decisions, tests exact revisions step by step, and discovers recent changes without publishing private workspace data.
+
+1/9 built.
+
+| Phase | Status | Since | Depends on | Why it stands here |
+| --- | --- | --- | --- | --- |
+| [93. Workspace data stays outside public code](phases/93-workspace-data-stays-outside-public-code.md) | built | 2026-10-21 | — | External storage boundary verified in focused tests and the extracted package; login and remote privacy are later phases. |
+| [94. The private instance has approved connections](phases/94-private-instance-has-approved-connections.md) | partial | 2026-10-21 | [93](phases/93-workspace-data-stays-outside-public-code.md) | Setup worksheet and priced hosting candidate prepared; owner must select host/account, private repository and GitHub App owner before connection. |
+| [95. Sign-in scopes every project](phases/95-sign-in-scopes-every-project.md) | planned | 2026-10-21 | [94](phases/94-private-instance-has-approved-connections.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [96. Home explains every project](phases/96-home-explains-every-project.md) | planned | 2026-10-21 | [95](phases/95-sign-in-scopes-every-project.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [97. Decisions change the reviewed source](phases/97-decisions-change-the-reviewed-source.md) | planned | 2026-10-21 | [90](phases/90-builders-receive-current-decisions.md), [91](phases/91-ideas-become-plans-with-attributed-choices.md), [96](phases/96-home-explains-every-project.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [98. Guided walks preserve what was tested](phases/98-guided-walks-preserve-what-was-tested.md) | planned | 2026-10-21 | [92](phases/92-feedback-names-the-result-reviewed.md), [97](phases/97-decisions-change-the-reviewed-source.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [99. Recent changes are visible and testable](phases/99-recent-changes-are-visible-and-testable.md) | planned | 2026-10-21 | [96](phases/96-home-explains-every-project.md), [98](phases/98-guided-walks-preserve-what-was-tested.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [100. Daily work and learning stay private](phases/100-daily-work-and-learning-stay-private.md) | planned | 2026-10-21 | [97](phases/97-decisions-change-the-reviewed-source.md), [98](phases/98-guided-walks-preserve-what-was-tested.md), [99](phases/99-recent-changes-are-visible-and-testable.md) | Authorized web workspace sequence; acceptance remains unverified. |
+| [101. The workspace holds in real use](phases/101-the-workspace-holds-in-real-use.md) | planned | 2026-10-21 | [100](phases/100-daily-work-and-learning-stay-private.md) | Authorized web workspace sequence; acceptance remains unverified. |
+
+- **93 done when:** An explicitly configured external workspace can be inspected and initialized from the installed CLI without writing private data into application or project Git trees.
+- **94 done when:** The owner has an approved deployment recipe and verified private workspace repository, host and selected-repository GitHub App binding, with credentials stored only in the deployment secret store.
+- **95 done when:** The deployed service authenticates its owner and denies every project, artifact and operation outside the current user, workspace and installation intersection.
+- **96 done when:** Authenticated Home shows decisions, ready walks, recent additions and project summaries that remain truthful and usable through incremental refresh and incomplete source reads.
+- **97 done when:** An owner can review and record a decision against exact current source facts and recover its operation receipt without accepting recommendations or duplicating uncertain writes.
+- **98 done when:** An owner can test an exact result step by step, resume private observations and explicitly accept a successful walk while failed, blocked or stale tests leave acceptance open.
+- **99 done when:** Recent additions show authorized real captures, precise availability and links to the corresponding tested revision and guided walk without leaking private artifacts.
+- **100 done when:** The owner can inspect daily work and shared lessons, migrate selected workspace records and explicitly export approved material while retaining project authority and existing budgets.
+- **101 done when:** The owner repeatedly uses the hosted workspace across real projects and a restore exercise preserves private records and access boundaries without falsely completing work.
 
 ## Updating this roadmap
 
