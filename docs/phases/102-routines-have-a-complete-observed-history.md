@@ -1,11 +1,12 @@
 ---
-status: designed
+status: partial
+owes: walk
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [96]
-note: "Read adapters, bounded coverage, actor-scoped receipts and responsive history are specified; implementation and hosted walks remain."
-evidence: []
+note: "Read-only fleet/project routines and history implemented; real API and synthetic browser proof passed. Hosted activation and owner walk remain."
+evidence: ["evidence/2026-10-21-web-routine-history.md"]
 ---
 
 # Routines have a complete observed history
@@ -24,10 +25,10 @@ Contract: [Fleet operations](../specs/web-fleet-operations.md),
 
 ## Acceptance
 
-- [ ] Run identities retain retries and parentage, deduplicate dispatch/source records, and distinguish execution success from acceptance: `tests/web-runs.test.mjs`.
-- [ ] Expired artifacts, disconnected runners, missing history and unknown costs stay visible instead of becoming empty success: `tests/web-run-coverage.test.mjs`.
-- [ ] Private operation listings stay actor/project scoped, disclose missing storage and preserve original recovery: `tests/web-run-receipts.test.mjs`.
-- [ ] Fleet/project routes preserve filters and expose stages and coverage on mobile and desktop: `tests/web-runs-ui.test.mjs`.
+- [x] Run identities retain retries and parentage, deduplicate dispatch/source records, and distinguish execution success from acceptance: `tests/web-runs.test.mjs`.
+- [x] Expired artifacts, disconnected runners, missing history and unknown costs stay visible instead of becoming empty success: `tests/web-run-coverage.test.mjs`.
+- [x] Private operation listings stay actor/project scoped, disclose missing storage and preserve original recovery: `tests/web-run-receipts.test.mjs`.
+- [x] Fleet/project routes preserve filters and expose stages and coverage on mobile and desktop: `tests/web-runs-ui.test.mjs`.
 - [ ] ⚑ By hand: owner completes the real-surface exercise below: `docs/specs/web-fleet-operations.md`.
 
 ## Real surfaces
@@ -35,8 +36,6 @@ Contract: [Fleet operations](../specs/web-fleet-operations.md),
 - GitHub API: compare the feed with real selected workflow runs and attempts, including a failed or skipped run.
 
 ## Proof
-
-Test paths below are planned implementation targets, not existing passing checks.
 
 - `node --import ./tests/helpers/hermetic.mjs --test tests/web-runs.test.mjs tests/web-run-coverage.test.mjs`
 - `node --import ./tests/helpers/hermetic.mjs --test tests/web-run-receipts.test.mjs tests/web-runs-ui.test.mjs`
@@ -56,13 +55,18 @@ hosted read-RPC activation and the real owner walk remain open.
 
 ## Next action
 
-Build the specified read adapters, private receipt listing and fleet/project UI;
-verify actual GitHub sources and browser behavior before hosted activation.
+Obtain the Actions-read grant, apply the scoped read-only history RPC after its
+operation-store prerequisite, deploy the verified revision, then compare a real
+routine and retry from the owner’s phone and desktop. Preserve unavailable
+coverage and record the exact serving revision.
 
 ## Trajectory
 
 - **2026-10-21** — Owner expanded G7 from the first private decision workspace to operating all authorized projects through the web on mobile and desktop.
 - **2026-10-21** — Existing Actions usage code already accounts for reruns of old logical runs; the web reader must not introduce a created-at lower filter. Existing web operations have no observed start timestamp or list RPC, so history adds a scoped read projection and labels inferred times.
+
+- **2026-10-21** — Active attempts and unresolved private effects must survive the finished-record date window. Shared filtering now preserves both while keeping uncertain effects unknown, never running.
+- **2026-10-21** — Numeric repository Actions paths worked against the real API, but the official reference documents name-based paths. Treat this as observed compatibility, fail closed if unavailable, and never fall back to a recycled repository name.
 
 ## Your part
 
