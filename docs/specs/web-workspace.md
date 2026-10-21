@@ -3,8 +3,9 @@
 Implementation contract, 21 October 2026. The owner authorized the web UI and
 phased build in this conversation. Public application code, private shared
 workspace data and project-owned Keel records are the accepted direction.
-The owner selected Vercel on 21 October 2026. Account/team, storage resources,
-domain and spending remain to be bound in phase 94. This document
+The owner selected Vercel and an existing Pro team on 21 October 2026. The
+project and assigned domain are verified; storage, App access and spending
+remain to be bound in phase 94. This document
 supersedes the local-first delivery recommendation in [the UX spec](web-ui.md),
 not the existing local board. No deployment or access has been established.
 
@@ -264,8 +265,11 @@ usable throughout.
 
 - **Settled 2026-10-21:** owner selected Vercel and a private workspace repository;
   phase 94 records the sanitized provisioning result.
-- Vercel account/team, database/API adapter, private media adapter, domain,
-  installation owner and spending: bind in phase 94 from the setup recipe.
+- **Settled 2026-10-21:** owner selected the existing Pro team; project and
+  provider domain were created and read back. Exact identifiers stay private.
+- Database resource, private media adapter, installation owner and spending:
+  bind in phase 94 from the setup recipe. Supabase PostgREST is the current
+  dependency-free database proposal, awaiting resource approval.
   Database and media SDK support must fit the dependency contract before approval.
 - Team membership/multi-tenant service, additional identity providers, generic
   execution workers and new agent spend: outside this first private instance.

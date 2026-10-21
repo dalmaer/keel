@@ -4,7 +4,7 @@ since: 2026-10-21
 goal: G7
 spec: 2
 depends: [93]
-note: "Owner selected Vercel; private repository created and verified. Vercel login/team, durable storage and GitHub App binding remain."
+note: "Private repository and owner-selected Vercel Pro project verified. Durable storage and GitHub App binding remain; no application deployed."
 evidence: ["evidence/2026-10-21-vercel-workspace-connections.md"]
 ---
 
@@ -43,11 +43,11 @@ claims of existing checks or passing results.
 
 ## Deliberately open
 
-**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. Vercel account/team, storage adapter, domain, installation owner and price remain open. No synthetic connection can satisfy the live resource checks.
+**Settled 2026-10-21:** owner selected Vercel and the private repository; repository creation and privacy were verified. The owner also selected an existing Pro team; the project and assigned domain are verified. Storage, installation and their price/permission approvals remain open. No synthetic connection can satisfy the live resource checks.
 
 ## Next action
 
-Complete Vercel login and select the account/team, then approve concrete storage and GitHub App bindings using the updated setup recipe. Repository privacy is verified; login, storage and installation are not.
+Approve the prepared Supabase Free production-only resource and read-only selected-repository GitHub App proposal, then verify storage and installation bindings. Vercel login/team/project and repository privacy are verified; application login is not.
 
 ## Trajectory
 
