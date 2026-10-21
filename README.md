@@ -165,17 +165,18 @@ run, learn across the fleet, compare versions and launch update PRs, manage scop
 provider credentials, and route work using explicit capacity and budget policies.
 Fleet-wide views and each project use the same records and controls.
 
-**Available today:** the CLI, the local `keel board`, and external workspace
-manifest validation/initialization. The first Vercel project has been created,
-but **hosted sign-in and Home are not deployed**. Supabase Free is connected to
-production, with its authentication schema, role restrictions and concurrent
-SQL operations verified. The read-only GitHub App is registered; installation
-and its OAuth client secret remain pending. Phase status lives in [the roadmap](docs/ROADMAP.md):
+**Available today:** the CLI, the local `keel board`, external workspace
+manifest validation/initialization, and the first deployed private sign-in
+service. GitHub login opens the connected project list; logout, current
+membership, removed-project denial and the serving Node runtime are verified.
+Supabase Free holds encrypted sessions outside the public code repository.
+The selected-repository GitHub App has read-only access; credentials live only
+in production secrets. Phase status lives in [the roadmap](docs/ROADMAP.md):
 [93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md)
-is built; [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
-is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) now has
-a service implementation, local verification and hosted database proof, with
-deployed login acceptance still open.
+and [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) are built;
+[94: connections](docs/phases/94-private-instance-has-approved-connections.md)
+still owes the backup destination. The connected project list is the foundation
+for the rich attention board, not its completion.
 [96: Home](docs/phases/96-home-explains-every-project.md) follows. Decisions,
 walks, visual changes and initial real-use verification follow in phases 97–101.
 [Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
