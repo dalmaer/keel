@@ -43,8 +43,27 @@ PostgreSQL connections or Supabase deployment. The attempted local Docker
 runtime was unavailable; no concurrency result is inferred from it.
 
 An independent code review found no actionable defects. Review is supplementary,
-not acceptance evidence. `npm run check` is reserved for the integrator on the
-final recorded tree; its result is recorded after that gate, not predicted here.
+not acceptance evidence.
+
+The first `keel integrate --json` on `7a89f36` ran `npm run check` once and
+returned exit 1: 1,923 tests, 1,921 passed, 2 failed. Both failures were the same
+repository integration defect: `vercel.json` introduced Vercel stack evidence
+without declaring `vercel` in Keel's own stack configuration. The failing checks
+were the CLI JSON contract test and self-doctor test. Nothing landed. The ledger
+reported no flaky or slower test (the run was classified busy). This is a real
+metadata correction, not a retry of an unexplained failure. The corrected final
+tree receives a new integrated gate; its result is recorded after that gate.
+
+Correction `4a8edf4` declares the Vercel stack and regenerates the selected lesson
+view and its lock hash. No application code changed. The conductor independently
+ran the exact two failing checks after that correction:
+
+```sh
+node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='--json parses for every verb and flag|keel itself is clean under its own doctor' tests/cli.test.mjs tests/doctor.test.mjs
+```
+
+Exit 0: 2 tests, 2 passed. The renderer consistency check is included in the
+corrected branch's fast handoff checks.
 
 ## Visual review and exploration
 
