@@ -1853,6 +1853,16 @@ in the JSON. A choice not among the part's Choices (case aside): exit 2,
 nothing written. A choice records; it changes nothing else. A choice in the
 part's `keepsOpen` (`**Keeps it open:**`) writes the row and ticks nothing:
 status, owes and the box stay as they were (`keepsOpen: true`).
+Hosted guided walks author `docs/walks/<id>.json` definitions with stable steps,
+an exact acceptance-text hash and an immutable result revision/content hash.
+Private explicit saves retain actual environment, outcomes and historical notes;
+failed, blocked, stale or incomplete walks cannot accept. Review every exact
+phase/evidence/roadmap file and the final public observation before a digest-bound
+acknowledgment. The existing `decisionWrites` setting stays off by default.
+Only a verified original operation receipt establishes delivery; uncertain writes
+recover by GET, never a new POST. A repair preview creates no issue or work.
+See docs/guide/web-walks.md for migrations, source definitions and hosted proof limits.
+
 `keel walk decide --proposal <health page> --accept ["<why>"] | --decline
 "<why>"` → `{ok, proposal, measure, decision, why, record, diff, note}`: a
 `**Decided <date>: accepted|declined**` line ends the page's Proposal section;
@@ -2523,4 +2533,7 @@ another existing observation's ID in `supersededBy`. Preview then apply its exac
 digest. Editing after resolution returns the new revision to pending. Closure
 never establishes acceptance. Limits: 1,000 observations, 50 MiB total, 256 KiB
 per record, 2 MiB per result; refusal preserves existing work, with no cleanup.
-Local CLI support does not imply deployed web capture (phase 98).
+Local CLI support does not imply deployed web capture. Phase 98 adds guided
+private observations and new-change repair previews; its hosted migration and
+approved owner write require their own proof. Hosted walks do not author
+decision-conflict/shaping inputs. See docs/guide/web-walks.md.
