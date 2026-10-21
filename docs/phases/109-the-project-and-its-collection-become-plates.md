@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-Complete the local fixes for the third review, then obtain the owner decision required by PR216’s three-round review limit before another push. Finish exact-head review and CI, publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior. The earlier publication approval scope mismatch was resolved; this is a separate review-workflow decision.
+The owner approved one additional fix-and-review cycle on PR216. Preserve newly landed phase102, validate the integrated rename, then finish exact-head review and CI before merge. Publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior. The project-wide review limit is unchanged; a further finding-bearing cycle would need a new owner decision.
 
 ## Trajectory
 

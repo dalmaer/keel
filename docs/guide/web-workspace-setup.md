@@ -11,6 +11,14 @@ decision previews and receipts add migration 004 with writes disabled by default
 Guided walk drafts add migration 005 after 004, using the same disabled source
 write setting. See [Web decisions](web-decisions.md) and
 [Guided walks](web-walks.md) before enabling broader App access.
+Optional [private captures](web-changes.md#configure-the-optional-adapter) require
+migration 006 plus separate approval of the private bucket and retention policy.
+[Routine history](web-routine-history.md) adds read-only migration 007 after 004
+and an approved App Actions-read grant; it does not execute workflows or require
+media activation. These source features are not a claim that the production
+instance has been upgraded. Its serving Node version above is historical; a new
+deployment must verify the current minimum Node 24.22.1.
+
 Phase 96 adds the read-only
 [Home board](web-home.md), including decisions, ready walks, source changes and
 project summaries with explicit coverage gaps; the

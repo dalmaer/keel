@@ -214,9 +214,14 @@ real captured-addition walk remain separate owner-approved steps.
 night inspection, unsaved evening previews, selected private lesson-copy previews
 and exact approved-text downloads. Workspace writes have their own disabled-by-default
 gate; real owner migration and provider comparisons need separate evidence.
-[Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
-history/execution, fleet updates, provider capacity and model routing, then verify
-complete mobile/desktop operating journeys. These capabilities are planned.
+[Routine definitions and observed activity](docs/guide/web-routine-history.md) now
+have a source implementation for bounded fleet/project inspection, attempt stages,
+retained evidence and private receipt links. Hosted activation, Actions-read access
+and the real owner exercise remain separate proof; these views start no runners.
+[Phases 103–108](docs/specs/web-fleet-operations.md#delivery-and-proof) plan provider
+capacity, routine execution, fleet updates and model routing, then verify complete
+mobile/desktop operating journeys. The phase records distinguish implementation
+from hosted activation and owner acceptance.
 
 ### Keep application code and private data separate
 
@@ -334,6 +339,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Routine definitions and observed activity](docs/guide/web-routine-history.md) | you want to inspect workflow definitions, retries, stages, evidence, costs and bounded history coverage |
 | [Daily work and private learning](docs/guide/web-daily-learning.md) | you want to inspect nightly sources, draft within explicit limits, review private lesson copies or download exact approved text |
 | [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |
 | [Visual changes and private captures](docs/guide/web-changes.md) | you want to explore additions, review private screenshot uploads and recover or delete exact artifacts |

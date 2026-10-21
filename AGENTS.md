@@ -254,6 +254,14 @@ original receipt instead of dispatching again. Export only explicitly reviewed
 exact text after current source and digest approval. Declared import attribution
 is not a verified transfer receipt. See [the daily and learning guide](docs/guide/web-daily-learning.md).
 
+Hosted Routines and Activity project bounded observations across authorized
+projects. Keep attempts and retry parentage distinct, authored night/CLI outcomes
+separate from execution, and estimated weighted minutes separate from charges.
+Missing Actions permission, expired evidence, unknown usage and unread pages stay
+gaps. History reads minimal actor-scoped receipts without recovery or mutation;
+link to the original operation for a separate inspection. Preserve URL filters and
+source-bound pagination. See [the routine-history guide](docs/guide/web-routine-history.md).
+
 ## Rules for plates's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for

@@ -3,7 +3,7 @@
 
 Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**49 of 110 phases built; 44 owe a walk.** Built means implemented and checked; planned is not available.
+**49 of 110 phases built; 45 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Plates improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `plates canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `plates canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `plates canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -271,7 +271,7 @@ Each change is verified in parallel and published one at a time; production move
 
 From mobile and desktop, an authenticated owner operates every authorized Plates project: decisions, guided tests, visual changes, routine history and execution, fleet lessons and updates, scoped credentials and policy-bound model capacity, with source-backed evidence and private data.
 
-3/16 built; 5 owe a walk.
+3/16 built; 6 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -284,7 +284,7 @@ From mobile and desktop, an authenticated owner operates every authorized Plates
 | [99. Recent changes are visible and testable](phases/99-recent-changes-are-visible-and-testable.md) | partial, walk owed | 2026-10-21 | [96](phases/96-home-explains-every-project.md), [98](phases/98-guided-walks-preserve-what-was-tested.md) | Journal, private capture receipts and recovery implemented; hosted activation, provider proof and owner walk remain. |
 | [100. Daily work and learning stay private](phases/100-daily-work-and-learning-stay-private.md) | partial, walk owed | 2026-10-21 | [97](phases/97-decisions-change-the-reviewed-source.md), [98](phases/98-guided-walks-preserve-what-was-tested.md), [99](phases/99-recent-changes-are-visible-and-testable.md) | Daily/learning views and reviewed transfers implemented and locally verified; hosted activation and owner-selected real migration remain. |
 | [101. The workspace holds in real use](phases/101-the-workspace-holds-in-real-use.md) | planned | 2026-10-21 | [100](phases/100-daily-work-and-learning-stay-private.md) | Authorized web workspace sequence; acceptance remains unverified. |
-| [102. Routines have a complete observed history](phases/102-routines-have-a-complete-observed-history.md) | planned | 2026-10-21 | [96](phases/96-home-explains-every-project.md) | Expanded fleet operating goal; design and proof remain to be implemented. |
+| [102. Routines have a complete observed history](phases/102-routines-have-a-complete-observed-history.md) | partial, walk owed | 2026-10-21 | [96](phases/96-home-explains-every-project.md) | Read-only fleet/project routines and history implemented; real API and synthetic browser proof passed. Hosted activation and owner walk remain. |
 | [103. Connections expose scoped model capacity](phases/103-connections-expose-scoped-model-capacity.md) | planned | 2026-10-21 | [95](phases/95-sign-in-scopes-every-project.md) | Expanded fleet operating goal; design and proof remain to be implemented. |
 | [104. Web operations run through durable workers](phases/104-web-operations-run-through-durable-workers.md) | planned | 2026-10-21 | [97](phases/97-decisions-change-the-reviewed-source.md), [102](phases/102-routines-have-a-complete-observed-history.md), [103](phases/103-connections-expose-scoped-model-capacity.md) | Expanded fleet operating goal; design and proof remain to be implemented. |
 | [105. Fleet updates and lessons travel through the web](phases/105-fleet-updates-and-lessons-travel-through-the-web.md) | planned | 2026-10-21 | [100](phases/100-daily-work-and-learning-stay-private.md), [104](phases/104-web-operations-run-through-durable-workers.md) | Expanded fleet operating goal; design and proof remain to be implemented. |

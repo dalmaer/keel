@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { rederive, runMeasurement, LIMITS } from '../lib/evidence.mjs';
 
@@ -227,7 +228,7 @@ test('PR104: literal HTML comment markers in measurement JSON preserve exact arg
   });
 });
 
-test('strict numeric output and literal top-level JSON selection never turn unavailable into zero', posixExecution, async t => {
+test('strict numeric output and literal top-level JSON selection never turn unavailable into zero', { ...posixExecution, timeout: 15 * LIMITS.timeoutMs }, async t => {
   const cases = [
     ['console.log(0)', undefined, 0], ['console.log(" -1.25e2 ")', undefined, -125],
     ['console.log("")', undefined, null], ['console.log("12 characters")', undefined, null],
@@ -239,13 +240,19 @@ test('strict numeric output and literal top-level JSON selection never turn unav
     ['console.log(12); process.exit(7)', undefined, null],
   ];
   const root = await fixture(t, cases.map(([code, jsonField], i) => record({ id: `case-${i}`, argv: [process.execPath, '-e', code], ...(jsonField === undefined ? {} : { jsonField }) })));
-  const r = cli(root, ['--yes']);
-  assert.equal(r.code, 1);
+  // Parser coverage needs actual output, not a race between serial Node startup
+  // and the CLI helper's 15 s batch limit. Hold executor timers, as the output
+  // bound test does; the real deadline has its own test. The outer test remains
+  // bounded by 14 production command allowances plus one setup allowance.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await rederive({ root, phase: 64, yes: true });
+  assert.equal(r.exitCode, 1);
+  assert.equal(r.data.records.length, cases.length);
   r.data.records.forEach((receipt, i) => { assert.equal(receipt.new.value, cases[i][2]); assert.equal(receipt.new.error === null, cases[i][2] !== null); });
   assert.equal(r.data.records.at(-1).new.exitCode, 7);
   await writeFile(join(root, 'docs/evidence/acme.md'), fence([record({ argv: ['acme-nonexistent-program-76254'] })]));
-  const missing = cli(root, ['--yes']);
-  assert.equal(missing.code, 1);
+  const missing = await rederive({ root, phase: 64, yes: true });
+  assert.equal(missing.exitCode, 1);
   assert.equal(missing.data.records[0].new.value, null);
   assert.match(missing.data.records[0].new.error, /^spawn:/);
 });
@@ -307,20 +314,63 @@ async function gone(pid) {
       });
       if (zombie(status)) return true;
     }
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await delay(20);
   }
   return false;
 }
-test('parent exit and timeout clean ordinary descendants that inherit stdout; completion is bounded', { ...posixExecution, timeout: 10_000 }, async t => {
+test('parent exit and timeout clean ordinary descendants that inherit stdout; completion is bounded', { ...posixExecution, timeout: 30_000 }, async t => {
   const root = await fixture(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   for (const mode of ['exit', 'wait']) {
     const pidFile = join(root, `acme-${mode}.pid`);
+    const releaseFile = `${pidFile}.release`;
     const started = Date.now();
-    const result = await runMeasurement([process.execPath, CHILD, pidFile, mode], root, { env: cleanEnv(), timeoutMs: 1000 });
-    assert.ok(Date.now() - started < 4000);
-    const pid = Number(await readFile(pidFile, 'utf8'));
-    t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
-    assert.equal(await gone(pid), true, `descendant ${pid} was cleaned up`);
+    // Deliberately initialize later than the 1000 ms execution deadline. Only
+    // the executor clock is held; child startup and readiness use real time.
+    let settled = false;
+    const pending = runMeasurement([process.execPath, CHILD, pidFile, mode, releaseFile, '1200'], root, { env: cleanEnv(), timeoutMs: 1000 });
+    pending.then(() => { settled = true; });
+    let pids;
+    t.after(async () => {
+      // A readiness assertion may fail before the fixture publishes its PIDs.
+      // Still release the executor's held deadline so its group is drained.
+      t.mock.timers.tick(10_000);
+      await pending;
+      // Also recover identity if readiness failed between file creation/read.
+      pids ??= JSON.parse(await readFile(pidFile, 'utf8').catch(() => 'null'));
+      for (const pid of pids ? [-pids.parent, pids.child] : []) {
+        try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+      }
+    });
+    const readinessDeadline = Date.now() + 10_000;
+    while (!pids && Date.now() < readinessDeadline) {
+      const text = await readFile(pidFile, 'utf8').catch(error => {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (text) pids = JSON.parse(text);
+      else await delay(20);
+    }
+    assert.ok(pids, `${mode}: fixture did not become ready within 10 s`);
+    assert.ok(Date.now() - started >= 1200, 'delayed startup was actually exercised');
+    assert.equal(settled, false, 'fixture must exist before execution can finish');
+    assert.ok(Number.isSafeInteger(pids.parent) && pids.parent > 0);
+    assert.ok(Number.isSafeInteger(pids.child) && pids.child > 0);
+    process.kill(pids.child, 0); // The cleanup assertion must start with a live descendant.
+    if (mode === 'wait') {
+      t.mock.timers.tick(999);
+      await Promise.resolve();
+      assert.equal(settled, false, 'deadline must not fire early');
+      t.mock.timers.tick(1);
+      await Promise.resolve();
+      assert.equal(settled, true, 'deadline must settle at the configured limit');
+    } else await writeFile(releaseFile, 'exit');
+    const completion = new AbortController();
+    let result;
+    try {
+      result = await Promise.race([pending, delay(4000, null, { signal: completion.signal }).then(() => assert.fail(`${mode}: completion exceeded 4 s after release/deadline`))]);
+    } finally { completion.abort(); }
+    assert.equal(await gone(pids.child), true, `descendant ${pids.child} was cleaned up`);
     assert.equal(result.error, mode === 'wait' ? 'timeout' : null);
     if (mode === 'exit') { assert.equal(result.exitCode, 0); assert.equal(result.stdout.trim(), '12'); }
   }
