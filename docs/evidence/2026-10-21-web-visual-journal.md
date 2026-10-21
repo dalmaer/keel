@@ -95,3 +95,18 @@ Prepared intents with no dispatch retain their capacity reservation and require
 operator inspection. No cancellation mechanism or automatic retry is implied.
 Expired objects are not delivered, but receipts remain and expiry does not delete
 bytes. No new remote resource or paid allowance was activated by these checks.
+
+## First integration finding and correction
+
+The first integrated test run on `4cf7b36` reported 2,132/2,133 passing.
+`tests/web-events.test.mjs` failed because its minimal scheduling fixture had no
+`querySelectorAll` method when Home applied the new filter at initialization.
+The conductor independently reproduced the exact failure with
+`node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='client scheduling starts' tests/web-events.test.mjs`
+(exit 1, 0/1). This was not a flaky result or a production DOM failure.
+
+The fixture now supplies filterable synthetic Acme cards and search controls,
+asserting their initial visibility before a response. Immediate polling, normal
+interval and hidden-page no-read assertions remain. No runtime code changed.
+Conductor reran `node --import ./tests/helpers/hermetic.mjs --test tests/web-events.test.mjs`: exit 0, 12/12.
+The original integrated failure is preserved; a fresh full gate is still required.
