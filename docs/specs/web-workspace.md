@@ -251,6 +251,9 @@ requires the owner's approval of broader GitHub App Contents access, and the
 real-decision walk needs a particular choice supplied by the owner. Neither is
 implied by the earlier read-only App setup approval.
 
+The [phase-98 implementation contract](web-guided-walks.md) settles authored
+records, private CAS drafts and shared acceptance/recovery.
+
 Walks have stable authored step IDs, prerequisites, expected results, exact tested
 revision/environment and optional captures. Each step records pass/fail/blocked
 plus actual observations. Drafts persist privately across browser refresh.

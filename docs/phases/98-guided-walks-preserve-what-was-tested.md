@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [92, 97]
-note: "Authorized web workspace sequence; acceptance remains unverified."
+note: "Authored exact-result steps, private CAS drafts, shared acceptance writes and recovery contract settled; implementation and owner proof remain."
 evidence: []
 ---
 
@@ -17,6 +17,8 @@ An owner can test an exact result step by step, resume private observations and 
 ## Scope
 
 Build the authored stepper, revision/environment display, pass/fail/blocked observations, durable drafts, source-bound final preview and feedback linkage. Reuse phase 92 immutable feedback and recovery; do not build another raw feedback store.
+
+Implementation: [Hosted guided walks](../specs/web-guided-walks.md).
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
@@ -49,7 +51,7 @@ Do not generate expected results and pretend they were observed. Automated captu
 
 ## Next action
 
-Verify phase 92 feedback contract, then implement private draft and outcome handling before acceptance writes.
+Implement the dated guided-walk contract, starting with shared pure acceptance planning and the private phase-92 feedback adapter. Keep submission disabled until hosted migration and explicit Contents-write approval; retain the real owner walk as separate evidence.
 
 ## Trajectory
 

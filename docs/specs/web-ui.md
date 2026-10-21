@@ -202,10 +202,12 @@ an unmapped failure or “not enough evidence” must stay a draft until a suppo
 source-preserving record-only path exists. Add that path before exposing a
 generic “Failed” or “Not yet” button. Do not infer success from the label.
 
-After a write, say **Recorded locally · uncommitted**, list changed files, and
+For the local board, after a write say **Recorded locally · uncommitted**, list changed files, and
 retain the result under session activity even when the item leaves the queue.
 The owner can inspect the diff or continue to the next ready walk. Committing,
 pushing and acceptance beyond the command's actual effect are separate actions.
+The hosted [guided-walk contract](web-guided-walks.md) instead previews the exact
+conditional source commit and reports success only after its verified receipt.
 For read-only milestone/project plans, link to the owning source; never write an
 archived local phase to make the UI look complete.
 

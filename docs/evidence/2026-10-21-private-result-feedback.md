@@ -158,3 +158,14 @@ Exit 0, VERIFIED: red without the documentation correction, green with it.
 The first gate's hygiene block reported no flaky/slower test, with one busy run
 omitted and zero runs with unavailable load context. The corrected tree requires
 a new integration gate; the initial failure is retained rather than rerun away.
+
+## Corrected integration — 2026-10-21
+
+The corrected `keel ready --check 'npm run typecheck' --json` exited 0.
+`keel integrate --json` then exited 0, with one full gate: 2034/2034 tests passed
+(duration 304617.105875 ms), followed by roadmap, render and inbox guards. It
+pushed main `ceb56e4f7234ea3e795e36a23172e87ada2f1065`, integrating reviewed local
+head `65380ded8a9f42009a26e5a883864155de298cd3`. The hygiene block reported no
+flaky/slower test, one busy run omitted, zero unavailable-load runs. Phase 92's
+claim was released after landing. Main CI typecheck passed; check was still
+running when this addendum was written.
