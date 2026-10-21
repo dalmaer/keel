@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [90, 91, 96]
-note: "Authorized web workspace sequence; acceptance remains unverified."
+note: "Two typed writers and exact-HEAD delivery are designed; broader App access and a real owner choice remain unapproved."
 evidence: []
 ---
 
@@ -16,7 +16,7 @@ An owner can review and record a decision against exact current source facts and
 
 ## Scope
 
-Add decision detail, typed preview/apply operations, source digest checks, project lock and durable receipts. Reuse decision context/shaping and existing proposal delivery policies. Public outbound material has its own exact preview.
+Add decision detail, typed preview/apply operations, source digest checks, project lock and durable receipts. Reuse decision context/shaping and existing proposal delivery policies. Public outbound material has its own exact preview. Initial writers cover legacy health proposals and unanswered shaping questions; unsupported policy-bound decisions remain inspect-only. See the phase-97 delivery section in the workspace contract.
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
@@ -25,7 +25,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 - [ ] Accepted choices and recommendations remain distinct and decision previews name exact consequences: `tests/web-decisions.test.mjs`.
 - [ ] Stale digest, concurrent mutation, lost access and replay cannot change a different record: `tests/web-operations.test.mjs`.
-- [ ] Uncertain remote writes recover their original operation without a duplicate issue/PR: `tests/web-operations.test.mjs`.
+- [ ] Uncertain remote writes recover their original operation without a duplicate commit; these two writers never create an issue/PR: `tests/web-operations.test.mjs`.
 - [ ] ⚑ By hand: record one real decision and locate the exact source change and receipt: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
@@ -47,9 +47,14 @@ claims of existing checks or passing results.
 
 Merging, launching agents and changing budgets remain separate authorized operations.
 
+Settled 2026-10-21: reuse the legacy proposal transform and shaping schema, and
+use a canonical immutable-reader interface for decision context. GitHub GraphQL
+expectedHeadOid protects context across the whole reviewed revision. App Contents
+write and the exact real owner decision remain explicit owner steps.
+
 ## Next action
 
-Implement decision preview and bounded operation dispatch before enabling submission.
+Build and verify detail/preview, two supported writers and durable conditional delivery with submission disabled; then obtain Contents-write approval and a real owner choice for the hosted write walk.
 
 ## Trajectory
 
