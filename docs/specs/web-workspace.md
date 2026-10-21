@@ -5,10 +5,11 @@ phased build in this conversation. Public application code, private shared
 workspace data and project-owned Keel records are the accepted direction.
 The owner selected Vercel and an existing Pro team on 21 October 2026. The
 project and assigned domain are verified. Supabase Free/iad1 is approved and
-connected to production; the approved read-only GitHub App awaits identity
-verification and registration in phase 94. This document
+connected to production. The approved read-only GitHub App is installed; phase 95
+verifies deployed owner login, logout and access removal on Node v24.21.0. Phase 94
+still owes the independent backup destination. This document
 supersedes the local-first delivery recommendation in [the UX spec](web-ui.md),
-not the existing local board. No deployment or access has been established.
+not the existing local board. The rich Home and operating journeys remain phased work.
 
 The full operating goal additionally covers routine history/execution, fleet
 updates and lessons, scoped provider setup and capacity-aware routing on mobile
@@ -44,7 +45,7 @@ Browser -- HTTPS + session --> Keel web service (public source, private instance
 | Private workspace repository | Workspace manifest, shared private lessons, approved cross-project decisions, policies | Another copy of project phase acceptance; credentials and sessions |
 | Each project repository | Its `.keel` configuration, selected planning records, decisions, evidence and lesson provenance | Workspace membership or another project's data |
 | External private runtime store | Sessions, caches, drafts, receipts, feedback and private artifacts | Authoritative phase status or architecture |
-| Deployment secret store | GitHub App private key, client secret, session/webhook secrets | Versioned files or frontend configuration |
+| Deployment secret store | OAuth client secret, database/session secrets; provider keys only when required | Versioned files or frontend configuration |
 
 One workspace per deployed instance initially. No public signup, tenant picker,
 org billing or arbitrary code execution. The workspace manifest explicitly names

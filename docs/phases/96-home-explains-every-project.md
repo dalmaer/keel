@@ -1,11 +1,12 @@
 ---
-status: planned
+status: partial
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [95]
-note: "Authorized web workspace sequence; acceptance remains unverified."
-evidence: []
+owes: walk
+note: "Read-only Home and bounded storage pass focused checks; deployed browser walkthrough remains."
+evidence: ["evidence/2026-10-21-web-home.md"]
 ---
 
 # Home explains every project
@@ -23,9 +24,9 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Local phases, projects-shaped plans and milestones retain their authority and source gaps: `tests/web-projects.test.mjs`.
-- [ ] Home prioritizes decisions, ready walks and changes; refresh never mutates project records: `tests/web-home.test.mjs`.
-- [ ] Incremental updates preserve active cards and report cursor gaps, denied access and partial coverage: `tests/web-events.test.mjs`.
+- [x] Local phases, projects-shaped plans and milestones retain their authority and source gaps: `tests/web-projects.test.mjs`.
+- [x] Home prioritizes decisions, ready walks and changes; refresh never mutates project records: `tests/web-home.test.mjs`.
+- [x] Incremental updates preserve active cards and report cursor gaps, denied access and partial coverage: `tests/web-events.test.mjs`.
 - [ ] ⚑ By hand: desktop/mobile keyboard walkthrough identifies the next human action and an unavailable source on actual projects: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
@@ -49,7 +50,7 @@ A useful read-only Home can ship here; decision and walk buttons remain unavaila
 
 ## Next action
 
-Build the bounded read model before the Home renderer and incremental updates.
+Deploy the committed source and walk the actual authorized Home at desktop and 360px with keyboard navigation and reduced-motion inspection.
 
 ## Trajectory
 

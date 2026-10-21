@@ -1,5 +1,6 @@
 // Synthetic shared HTTP service. This is adapter/concurrency coverage, not PostgreSQL proof.
 import assert from 'node:assert/strict';
+import { homeDatabase } from './web-home-store.mjs';
 import { createHash } from 'node:crypto';
 import { webConfig } from '../../lib/web/config.mjs';
 import { createWebService } from '../../lib/web/server.mjs';
@@ -13,11 +14,14 @@ export function harness() {
   const secrets = { clientSecret: 'fake-client-secret-only-for-tests', storageUrl: 'https://acme.supabase.co',
     storageKey: 'fake-service-key-only-for-tests', encryptionKey: Buffer.alloc(32, 7).toString('base64') };
   const config = webConfig(input, secrets);
+  state.homeDatabase = homeDatabase(() => state.now);
   const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
   const fetcher = async (url, options) => {
     state.requests.push({ url, options });
     if (state.unavailable) throw new Error('fake-secret-must-not-leak');
     const parsed = new URL(url);
+    const home = state.homeDatabase.handle(url, options);
+    if (home) return home;
     if (parsed.hostname === 'acme.supabase.co') {
       assert.equal(options.headers.apikey, secrets.storageKey);
       const p = JSON.parse(options.body), key = `${p.p_kind}:${p.p_key}`;

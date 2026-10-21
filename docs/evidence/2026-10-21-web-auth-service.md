@@ -242,3 +242,9 @@ scaffold; the attention board and write actions remain future phases. Phase 95
 is **built**, not lived-in. Phase 94 still owes an independent backup/restore
 destination. The final combined integration gate result follows in the next
 record, as required for checks whose result depends on the committed tree.
+
+The final combined `keel integrate --json` exited 0: one `npm run check` gate,
+1,923/1,923 tests passed, roadmap/render/inbox checks passed, no blocked change.
+It integrated `ce8db55` and pushed main `35df78d482fe9852b5e01bd15ea69f1d1ae36523`.
+`npm run typecheck` on the fix tree also exited 0. Production continues to serve
+`0805f16`, whose application code matches this documentation-only integration.
