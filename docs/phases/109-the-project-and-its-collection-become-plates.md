@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-Resolve the automatic approval review scope mismatch blocking publication of claude/phase-109, then complete the reviewed source release, consumer changes, repository/hosting/local rollout and exact production/live verification. Local combined tests and typecheck passed; no push executed.
+Complete PR216 cross-provider review and final-head CI, then publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior. The approval scope mismatch was resolved; the published branch preserves the checked implementation.
 
 ## Trajectory
 

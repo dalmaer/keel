@@ -4,7 +4,7 @@
 // world or runs a model.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, mkdir, cp, readdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir, cp, readdir, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -156,7 +156,7 @@ test('off: with no crossReview key the workflow ends at its first step; with no 
   const off = await acme(t, { crossReview: null });
   const o = await step(t, off, 'Is cross-review on?');
   assert.equal(o.status, 0, o.out);
-  assert.match(o.out, /cross-review is off: \.plates\/plates\.json has no "crossReview", so this run does nothing\./);
+  assert.match(o.out, /cross-review is off: the trusted checkout config has no "crossReview", so this run does nothing\./);
   assert.equal(o.outputs.on, 'false');
   assert.deepEqual(json(cli(off, ['config', '--json'])), { on: false });
 
@@ -1222,4 +1222,68 @@ test('phase 60 publish: the findings, checked against the push\'s diff, go on th
   // plates#65: which path runs is the event's, never the review job's word (on a push it ran the pushed code).
   assert.ok(text.includes("- name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n"));
   assert.ok(text.includes("- name: Post after the push\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n"));
+});
+
+// Exercise real workflow shell with both on-disk contracts. The legacy fixture
+// changes only the configuration/environment spelling in the real script pair;
+// no stub substitutes for config validation, relative imports or summary review.
+async function trustedLayout(t, layout) {
+  const dir = await acme(t);
+  if (layout === 'keel') {
+    await rename(join(dir, 'scripts/plates'), join(dir, 'scripts/keel'));
+    await rename(join(dir, '.plates'), join(dir, '.keel'));
+    await rename(join(dir, '.keel/plates.json'), join(dir, '.keel/keel.json'));
+    for (const file of ['cross-review.mjs', 'lib.mjs']) {
+      const path = join(dir, 'scripts/keel', file);
+      const source = await readFile(path, 'utf8');
+      await writeFile(path, source.replaceAll('.plates/plates.json', '.keel/keel.json').replaceAll('PLATES_NOW', 'KEEL_NOW').replaceAll('PLATES_GH', 'KEEL_GH'));
+    }
+  }
+  return dir;
+}
+
+for (const layout of ['keel', 'plates']) test(`rename compatibility: ${layout} trusted base runs config, selection, brief, copied judge and independent PR publisher`, async t => {
+  const dir = await trustedLayout(t, layout), publisher = await trustedLayout(t, layout);
+  const temp = join(dir, 'runner');
+  await mkdir(temp);
+  const gh = await tokenGh(t, prJson(), DIFF);
+  const env = { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', GH_TOKEN: 'acme-read', EVENT: 'pull_request', ACTION: 'opened', HAS_CLAUDE: 'true', HAS_CODEX: 'false' };
+  const on = await step(t, dir, 'Is cross-review on?', env);
+  assert.equal(on.status, 0, on.out);
+  assert.equal(on.outputs.on, 'true');
+  const which = await step(t, dir, 'Which pull request or push?', env);
+  assert.equal(which.status, 0, which.out);
+  assert.equal(which.outputs.review, 'true');
+  const brief = await step(t, dir, 'Brief', { ...env, AGENT: 'claude' });
+  assert.equal(brief.status, 0, brief.out);
+  for (const file of ['cross-review.mjs', 'lib.mjs']) {
+    assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'), 'trusted pair is copied without rewriting its bytes');
+    // The PR checkout replaces the working tree after the brief. Its modules
+    // must never judge the agent or run in the writing job.
+    await writeFile(join(dir, `scripts/${layout}`, file), 'throw Error("untrusted PR module executed");\n');
+  }
+  await writeFile(join(temp, 'claude-execution-output.json'), execution({ is_error: false, num_turns: 3, duration_ms: 60_000, result: final('Checked the Acme lid.', [{ path: 'src/lid.js', line: 12, severity: 'P2', body: 'The hinge is unchecked.' }]) }));
+  const ran = await step(t, dir, 'Did the agent run?', { ...env, AGENT: 'claude', OUTCOME: 'success', EXECUTION: '', MINUTES: '15', STARTED: String(Math.floor(Date.now() / 1000) - 60) });
+  assert.equal(ran.status, 0, ran.out);
+  assert.equal(ran.outputs.ran, 'true');
+  const posted = await post(t, publisher, { ...env, GH_TOKEN: 'acme-write', AGENT: 'claude', AUTHOR: 'codex', REASON: '', MINUTES: '15', EXECUTION: '' });
+  assert.equal(posted.status, 0, posted.out);
+  const posts = (await gh.calls()).filter(call => call.args[0] === 'api');
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].token, 'acme-write');
+  assert.equal(posts[0].input.event, 'COMMENT');
+  assert.equal(posts[0].input.comments[0].path, 'src/lid.js');
+  assert.match(posts[0].input.comments[0].body, /The hinge is unchecked/);
+  // No fallback may mask a malformed trusted config or an incomplete canonical
+  // directory by executing another layout.
+  await writeFile(join(publisher, `.${layout}/${layout}.json`), '{broken');
+  const bad = await step(t, publisher, 'Is cross-review on?', env);
+  assert.equal(bad.status, 1);
+  assert.match(bad.out, /::error::/);
+  if (layout === 'keel') {
+    await mkdir(join(publisher, 'scripts/plates'));
+    const incomplete = await step(t, publisher, 'Is cross-review on?', env);
+    assert.equal(incomplete.status, 1);
+    assert.match(incomplete.out, /no complete cross-review script pair/);
+  }
 });

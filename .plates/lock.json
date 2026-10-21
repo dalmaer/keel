@@ -79,7 +79,7 @@
     },
     ".github/workflows/plates-cross-review.yml": {
       "practice": "cross-review",
-      "sha256": "98e5f4f49c8553578832161cddcb3c0b2c1c8a633f8b75a910f3594936bdf15e"
+      "sha256": "a9ed3913a86351d20ba89ec416ef40d2684678c4c8377a9170b5e96018a4dbf5"
     },
     ".github/workflows/plates-impact.yml": {
       "practice": "reconciliation",

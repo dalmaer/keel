@@ -1873,7 +1873,7 @@ export function crossReviewProblems(text) {
     ];
     if (/\bgh api\b/.test(line) && !/^\s*(?:if ! )?gh api --method POST "repos\/\$REPO\/pulls\/\$PR\/reviews" --input "\$RUNNER_TEMP\/review(?:-plain)?\.json" --jq '[^']*'(?:; then)?$/.test(line) && !PUSH_API.some(re => re.test(line))) out.push(`line ${n}: a gh api call other than the summary review: ${line.trim()}`);
   }
-  if (!/node scripts\/plates\/cross-review\.mjs summary [^\n]*--out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
+  if (!/node "\$review_scripts\/cross-review\.mjs" summary [^\n]*--out "\$RUNNER_TEMP\/review\.json"/.test(text)) out.push('the summary review is not the script\'s (cross-review.mjs summary): its event would be the workflow\'s to get wrong');
   const reviewStep = /\n {6}- name: Review\n[\s\S]*?(?=\n {6}(?:#|- )|$)/.exec(text)?.[0] ?? '';
   if (!/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}\n/.test(reviewStep) || !/\n\s+uses: anthropics\/claude-code-action@v\d+\n/.test(reviewStep)) out.push('the agent\'s step is not time-boxed by the budget (steps.which.outputs.minutes)');
   // Phase 45: one agent step per provider, each run only when the config names it; Codex's in its read-only sandbox.
@@ -1911,7 +1911,7 @@ test('plates-cross-review.yml runs only for a same-repo PR opened or made ready,
   const steps = jobsOf(t).find(j => j.id === 'review').text.split(/\n(?= {6}- )/).filter(s => /^ {6}- /.test(s));
   const which = steps.findIndex(s => s.includes('- name: Which pull request or push?'));
   assert.ok(which > 0);
-  assert.match(steps[which], /node scripts\/plates\/cross-review\.mjs which --pr "\$RUNNER_TEMP\/pr\.json" --event "\$EVENT"/);
+  assert.match(steps[which], /node "\$review_scripts\/cross-review\.mjs" which --pr "\$RUNNER_TEMP\/pr\.json" --event "\$EVENT"/);
   for (const s of steps.slice(which + 1)) assert.match(s, /\n {8}if: steps\.which\.outputs\.review == 'true'(?: && steps\.which\.outputs\.agent == '(?:claude|codex)')?\n/, s.split('\n')[0]);
   assert.deepEqual(crossReviewProblems(t), []);
   // The evaluator itself: each guard in the if: is load-bearing.
@@ -2046,7 +2046,7 @@ test('plates-cross-review.yml: the agent reads and comments inline, nothing else
     ['another review event', t.replace('--input "$RUNNER_TEMP/review.json"', '-f event=REQUEST_CHANGES -f body=x')],
     ['a merge', `${t}\n      - run: gh pr merge 7 --squash\n`],
     ['a push', `${t}\n      - run: git push origin HEAD:refs/heads/main\n`],
-    ['the summary not the script\'s', t.replace(/node scripts\/plates\/cross-review\.mjs summary [^\n]*\n/, 'echo \'{"event":"COMMENT","body":"x"}\' > "$RUNNER_TEMP/review.json"\n')],
+    ['the summary not the script\'s', t.replace(/node "\$review_scripts\/cross-review\.mjs" summary [^\n]*\n/, 'echo \'{"event":"COMMENT","body":"x"}\' > "$RUNNER_TEMP/review.json"\n')],
     ['on every push', t.replace('types: [opened, ready_for_review]', 'types: [opened, ready_for_review, synchronize]')],
     ['pull_request_target', t.replace('  pull_request:\n', '  pull_request_target:\n')],
     ['no time box', t.replace(/\n\s+timeout-minutes: \$\{\{ fromJSON\(steps\.which\.outputs\.minutes\) \}\}/, '')],
@@ -2196,7 +2196,22 @@ export function crossReviewSandboxProblems(text) {
     }
     if (start) for (const c of steps.filter(st => /uses: actions\/(?:checkout|download-artifact)@/.test(st))) if (!/\n {8}if: (?:needs\.[\w-]+\.outputs\.mode != 'start'|github\.event_name == 'pull_request' \|\| github\.event_name == 'issue_comment')\n/.test(c)) out.push(`the writing job ${w.id} checks out or downloads for a start, which has nothing to run`);
     if (!/\n {6}- uses: actions\/download-artifact@/.test(w.text)) out.push(`the writing job ${w.id} does not take the review job's artifact`);
-    if (code(w.text).some(({ line }) => (/cross-review\.mjs" (?:summary|push-review|push-post)|\$RUNNER_TEMP\/plates\//.test(line) && !/^\s*node "\$PUBLISHER\/cross-review\.mjs" push-(?:review|post) /.test(line)))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
+    if (code(w.text).some(({ line }) => (/cross-review\.mjs" (?:summary|push-review|push-post)|\$RUNNER_TEMP\/plates\//.test(line) && !/^\s*node "\$PUBLISHER\/cross-review\.mjs" push-(?:review|post) /.test(line) && !/^\s*node "\$review_scripts\/cross-review\.mjs" summary /.test(line)))) out.push(`the writing job ${w.id} runs a copy of cross-review.mjs, not its own checkout's`);
+  }
+  // The fixed selectors run only in the existing trusted checkout. No PR output,
+  // runner-temp script or environment override may supply the publishing code.
+  const selection = [
+    'review_scripts=scripts/plates',
+    'if [ ! -d "$review_scripts" ]; then review_scripts=scripts/keel; fi',
+    'if [ ! -f "$review_scripts/cross-review.mjs" ] || [ ! -f "$review_scripts/lib.mjs" ]; then',
+    '  echo "::error::The trusted checkout has no complete cross-review script pair."',
+    '  exit 1',
+    'fi',
+  ].join('\n');
+  for (const name of ['Is cross-review on?', 'Which pull request or push?', 'Brief', 'Post the summary']) {
+    const block = runBlocks(text).find(b => b.step === name);
+    const shell = block?.script.split('\n').filter(line => !/^\s*#/.test(line)).join('\n').trim();
+    if (!shell?.startsWith(selection + '\n') || /review_scripts=/.test(shell.slice(selection.length))) out.push(`${name}: scripts must use only the fixed trusted-checkout selector`);
   }
   return out;
 }
@@ -2282,7 +2297,9 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['the publish job for any mode', t.replace(publish, publish.replace("    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode == 'start'\n", "    if: needs.review.outputs.ran == 'true' || needs.review.outputs.mode != ''\n"))],
     ['the publish job not waiting', t.replace(publish, publish.replace('    needs: review\n', ''))],
     ['the publish job without the artifact', t.replace(publish, publish.replace(/\n {6}- uses: actions\/download-artifact@[\s\S]*?\/review\n/, '\n'))],
-    ['the publish job runs a copy', t.replace(publish, publish.replace('node scripts/plates/cross-review.mjs summary', 'node "$RUNNER_TEMP/plates/scripts/plates/cross-review.mjs" summary'))],
+    ['publisher script selection from the review job', t.replace(publish, publish.replace('review_scripts=scripts/plates', 'review_scripts=${{ needs.review.outputs.scripts }}'))],
+    ['publisher script selection from an environment override', t.replace(publish, publish.replace('review_scripts=scripts/plates', 'review_scripts=${REVIEW_SCRIPTS:-scripts/plates}'))],
+    ['the publish job runs a copy', t.replace(publish, publish.replace('node "$review_scripts/cross-review.mjs" summary', 'node "$RUNNER_TEMP/plates/scripts/plates/cross-review.mjs" summary'))],
     ['ran said before the check', t.replace('          echo "ran=true" >> "$GITHUB_OUTPUT"\n', '').replace('        run: |\n          if [ "$AGENT" = codex ]; then\n            node "$RUNNER_TEMP/plates/scripts/plates/cross-review.mjs" agent-ran', '        run: |\n          echo "ran=true" >> "$GITHUB_OUTPUT"\n          if [ "$AGENT" = codex ]; then\n            node "$RUNNER_TEMP/plates/scripts/plates/cross-review.mjs" agent-ran')],
     ['ran not handed on', t.replace('      ran: ${{ steps.ran.outputs.ran }}\n', '')],
     ['no artifact', t.replace(/\n {6}- name: Keep the review\n[\s\S]*?retention-days: 7\n/, '\n')],

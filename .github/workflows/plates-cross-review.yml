@@ -142,14 +142,22 @@ jobs:
       - name: Is cross-review on?
         id: on
         run: |
-          if ! config=$(node scripts/plates/cross-review.mjs config --json); then
+          # Only the already-trusted checkout supplies scripts and their relative imports.
+          # Keep the old layout usable while the rename PR is reviewed against main.
+          review_scripts=scripts/plates
+          if [ ! -d "$review_scripts" ]; then review_scripts=scripts/keel; fi
+          if [ ! -f "$review_scripts/cross-review.mjs" ] || [ ! -f "$review_scripts/lib.mjs" ]; then
+            echo "::error::The trusted checkout has no complete cross-review script pair."
+            exit 1
+          fi
+          if ! config=$(node "$review_scripts/cross-review.mjs" config --json); then
             node -e 'let e; try { e = JSON.parse(process.argv[1]).error; } catch {} console.log(`::error::${e ?? process.argv[1]}`);' "$config"
             exit 1
           fi
           node -e '
             const fs = require("fs");
             const c = JSON.parse(process.argv[1]);
-            if (!c.on) console.log("cross-review is off: .plates/plates.json has no \"crossReview\", so this run does nothing.");
+            if (!c.on) console.log("cross-review is off: the trusted checkout config has no \"crossReview\", so this run does nothing.");
             const agents = (c.agents ?? ["claude"]).join(",");
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${c.on}\n${c.on ? `agents=${agents}\n` : ""}`);
           ' "$config"
@@ -202,14 +210,22 @@ jobs:
           HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
           HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
         run: |
-          node scripts/plates/cross-review.mjs config
+          # Only the already-trusted checkout supplies scripts and their relative imports.
+          # Keep the old layout usable while the rename PR is reviewed against main.
+          review_scripts=scripts/plates
+          if [ ! -d "$review_scripts" ]; then review_scripts=scripts/keel; fi
+          if [ ! -f "$review_scripts/cross-review.mjs" ] || [ ! -f "$review_scripts/lib.mjs" ]; then
+            echo "::error::The trusted checkout has no complete cross-review script pair."
+            exit 1
+          fi
+          node "$review_scripts/cross-review.mjs" config
           if [ "$EVENT" = push ] || [ "$EVENT" = schedule ]; then
             gh issue list --repo "$REPO" --label keel:review-after --state all --limit 60 --json number,title,body,createdAt,author > "$RUNNER_TEMP/after.json"
-            node scripts/plates/cross-review.mjs which-push --event "$EVENT" --before "$BEFORE" --issues "$RUNNER_TEMP/after.json" --json > "$RUNNER_TEMP/which.json"
+            node "$review_scripts/cross-review.mjs" which-push --event "$EVENT" --before "$BEFORE" --issues "$RUNNER_TEMP/after.json" --json > "$RUNNER_TEMP/which.json"
             cp "$RUNNER_TEMP/which.json" "$RUNNER_TEMP/push.json"
           else
             gh pr view "$PR" --repo "$REPO" --json number,title,body,headRefName,headRefOid,isCrossRepository,isDraft,state > "$RUNNER_TEMP/pr.json"
-            node scripts/plates/cross-review.mjs which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
+            node "$review_scripts/cross-review.mjs" which --pr "$RUNNER_TEMP/pr.json" --event "$EVENT" --json > "$RUNNER_TEMP/which.json"
           fi
           node -e '
             const fs = require("fs");
@@ -235,6 +251,14 @@ jobs:
           BASE: ${{ steps.which.outputs.base }}
           SHA: ${{ steps.which.outputs.sha }}
         run: |
+          # Only the already-trusted checkout supplies scripts and their relative imports.
+          # Keep the old layout usable while the rename PR is reviewed against main.
+          review_scripts=scripts/plates
+          if [ ! -d "$review_scripts" ]; then review_scripts=scripts/keel; fi
+          if [ ! -f "$review_scripts/cross-review.mjs" ] || [ ! -f "$review_scripts/lib.mjs" ]; then
+            echo "::error::The trusted checkout has no complete cross-review script pair."
+            exit 1
+          fi
           if [ "$MODE" = push ]; then
             # The push's combined diff (pr.diff, as a PR's is named), and the head commit's own (where a commit comment may sit). No diff driver runs.
             git diff --no-color --no-ext-diff --no-textconv "$BASE" "$SHA" -- > "$RUNNER_TEMP/pr.diff"
@@ -242,17 +266,17 @@ jobs:
             # The diff the agent reads, alone in a folder of its own: Claude is granted that folder (--add-dir), nothing else of the runner's temp.
             mkdir -p "$RUNNER_TEMP/plates-diff"
             cp "$RUNNER_TEMP/pr.diff" "$RUNNER_TEMP/plates-diff/push.diff"
-            node scripts/plates/cross-review.mjs brief --push "$RUNNER_TEMP/push.json" --agent "$AGENT" --diff "$RUNNER_TEMP/plates-diff/push.diff" --out "$RUNNER_TEMP/prompt.md"
+            node "$review_scripts/cross-review.mjs" brief --push "$RUNNER_TEMP/push.json" --agent "$AGENT" --diff "$RUNNER_TEMP/plates-diff/push.diff" --out "$RUNNER_TEMP/prompt.md"
           else
             mkdir -p "$RUNNER_TEMP/plates-diff"
             if ! gh pr diff "$PR" --repo "$REPO" > "$RUNNER_TEMP/pr.diff"; then
               echo "::warning::The pull request's diff could not be read; its findings cannot be posted inline."
               : > "$RUNNER_TEMP/pr.diff"
             fi
-            node scripts/plates/cross-review.mjs brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
+            node "$review_scripts/cross-review.mjs" brief --pr "$RUNNER_TEMP/pr.json" --agent "$AGENT" --diff "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/prompt.md"
           fi
           mkdir -p "$RUNNER_TEMP/plates/scripts/plates"
-          cp scripts/plates/cross-review.mjs scripts/plates/lib.mjs "$RUNNER_TEMP/plates/scripts/plates/"
+          cp "$review_scripts/cross-review.mjs" "$review_scripts/lib.mjs" "$RUNNER_TEMP/plates/scripts/plates/"
           eof="PLATES_EOF_$(date +%s%N)"
           {
             echo "prompt<<$eof"
@@ -501,10 +525,18 @@ jobs:
           REASON: ${{ needs.review.outputs.reason }}
           MINUTES: ${{ needs.review.outputs.minutes }}
         run: |
+          # Only the already-trusted checkout supplies scripts and their relative imports.
+          # Keep the old layout usable while the rename PR is reviewed against main.
+          review_scripts=scripts/plates
+          if [ ! -d "$review_scripts" ]; then review_scripts=scripts/keel; fi
+          if [ ! -f "$review_scripts/cross-review.mjs" ] || [ ! -f "$review_scripts/lib.mjs" ]; then
+            echo "::error::The trusted checkout has no complete cross-review script pair."
+            exit 1
+          fi
           in="$RUNNER_TEMP/review"
           file="$in/claude-execution-output.json"
           if [ "$AGENT" = codex ]; then file="$in/codex-final-message.md"; fi
-          node scripts/plates/cross-review.mjs summary --agent "${AGENT:-claude}" --author "$AUTHOR" --reason "$REASON" --file "$file" --pr "$in/pr.json" --diff "$in/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
+          node "$review_scripts/cross-review.mjs" summary --agent "${AGENT:-claude}" --author "$AUTHOR" --reason "$REASON" --file "$file" --pr "$in/pr.json" --diff "$in/pr.diff" --minutes "$MINUTES" --out "$RUNNER_TEMP/review.json" --plain "$RUNNER_TEMP/review-plain.json"
           if ! gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review.json" --jq '"posted review \(.id) (\(.state))"'; then
             echo "::warning::GitHub refused the review with its inline comments; posting it with the findings in its summary."
             gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-plain.json" --jq '"posted review \(.id) (\(.state))"'
