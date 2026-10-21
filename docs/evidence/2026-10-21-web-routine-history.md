@@ -113,5 +113,7 @@ to main. The initial failed gate remains part of the evidence, not a passing ret
 Logs: `/tmp/keel-phase102-corrected-integrate.{json,stderr}`.
 
 The phase102 claim was released after integration. CI typecheck run39693926499
-succeeded on that exact main revision; check run39693926523 was still running
-at this observation. No production deployment or owner acceptance is implied.
+succeeded on that exact main revision; check run39693926523 subsequently
+succeeded on the same revision, verified with `gh run view 39693926523 --repo
+dalmaer/keel --json status,conclusion,headSha,jobs`. No production deployment or
+owner acceptance is implied.

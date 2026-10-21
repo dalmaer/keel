@@ -109,6 +109,12 @@ provenance, measured used/remaining/limit, window/reset, observedAt, expiresAt,
 source and confidence. Validate numeric ranges, timestamps and required fields.
 Invalid or incomplete observations cannot become eligible capacity.
 
+Capacity identity explicitly distinguishes `account`, `workspace` and `unknown`
+scope. A missing workspace identifier alone never proves an account-wide pool.
+Unknown scope stays separate and ineligible. A newer malformed observation must
+invalidate earlier usable evidence in its attributable scope; an unassignable
+malformed read makes its batch unavailable rather than restoring stale allowance.
+
 Deduplicate only an established provider/account/workspace/pool/kind/unit/window
 tuple; serialize tuples unambiguously. Unknown identities stay separate, not
 grouped by labels, emails or key hashes. Conflicting simultaneous observations

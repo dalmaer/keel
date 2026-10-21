@@ -201,3 +201,13 @@ authorized connection details. See [Home](web-home.md) for cache bounds and gaps
 boundary, then explicitly report that the feature is unavailable. They do not
 serve invented media or events. Future mutation handlers must use both the exact
 Origin check and the session CSRF token before touching a source record.
+
+## Optional scoped provider connections
+
+[Connections](web-connections.md) is a separate, disabled-by-default capability.
+Its private Git policies contain only opaque secret references and explicit project
+grants. The optional runtime vault requires its own service-role-only migration
+and separate production wrapping key; do not reuse the session encryption key.
+Credential forms remain disabled until the approved provider and store binding
+have dated live validation. Existing sign-in setup does not activate this vault,
+grant provider access or authorize inference spend.
