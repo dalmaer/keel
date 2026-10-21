@@ -27,7 +27,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 - [ ] Denied membership, revoked access and unauthorized project/media/stream requests reveal no private records: `tests/web-access.test.mjs`.
 - [ ] Independent function instances atomically consume authorization attempts, revoke sessions and preserve versioned writes; unavailable storage fails closed: `tests/web-store.test.mjs`.
 - [ ] Mutation routes enforce origin and CSRF; public static/package output contains no secrets: `tests/web-server.test.mjs`.
-- [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin: `docs/guide/web-workspace-setup.md`.
+- [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin, with serving Node >=24.21.0 verified: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
 
@@ -51,7 +51,7 @@ Public signup, additional identity providers and multi-tenant hosting are outsid
 
 ## Next action
 
-Implement the provider-bound login and request authorization after phase 94 connections are verified.
+Implement the provider-bound login and request authorization using the approved provider contracts while phase 94 owes its live connection walk; deployment acceptance still requires those connections.
 
 ## Trajectory
 

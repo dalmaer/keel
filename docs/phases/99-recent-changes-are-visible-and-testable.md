@@ -23,7 +23,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Packages require source, revision, capture metadata and valid bounded media references: `tests/web-changes.test.mjs`.
+- [ ] Every user-facing UI change package includes relevant desktop/mobile captures, a preview/try link and exploration steps, or an explicit unavailability reason, plus source/revision and bounded media references: `tests/web-changes.test.mjs`.
 - [ ] Media routes deny cross-project access, traversal, executable uploads and unsafe remote fetches: `tests/web-media.test.mjs`.
 - [ ] Stale, missing and expired captures remain distinct from current serving evidence: `tests/web-changes.test.mjs`.
 - [ ] ⚑ By hand: owner opens a real captured addition, tries its environment and reaches the matching walk using keyboard/mobile controls: `docs/guide/web-workspace-setup.md`.

@@ -280,6 +280,11 @@ does not complete the human walk. Link “Try it” to that revision's real surf
 and the corresponding guided walk. If access expired or the environment has
 moved, say so and request a fresh capture/walk instead of claiming equivalence.
 
+Every user-facing UI change must supply relevant desktop/mobile captures, a
+working preview or try link and a short “what to explore” guide, or explicitly
+record why a capture or preview is unavailable. Missing material is visible in
+the change package rather than silently omitted.
+
 ### Where screenshots come from
 
 The builder's handoff should include a small change package:

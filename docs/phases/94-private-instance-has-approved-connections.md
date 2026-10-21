@@ -1,5 +1,7 @@
 ---
 status: partial
+owes: walk
+waits: owner
 since: 2026-10-21
 goal: G7
 spec: 2
@@ -25,7 +27,7 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 - [x] ⚑ By hand: owner approves exact repository, hosting target, price and GitHub App permission matrix: `docs/guide/web-workspace-setup.md`.
 - [ ] ⚑ By hand: verify workspace repository privacy and selected installation repositories with fresh GitHub API facts: `docs/guide/web-workspace-setup.md`.
-- [ ] ⚑ By hand: verify Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host: `docs/guide/web-workspace-setup.md`.
+- [ ] ⚑ By hand: verify configured Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
 
@@ -47,9 +49,11 @@ claims of existing checks or passing results.
 
 ## Next action
 
-Complete GitHub’s Confirm access identity check, then register/install the already-approved read-only App and verify its selected repositories. Verify backup destination and serving-runtime checks before closing the connection walk. Vercel login/team/project and repository privacy are verified; application login is not.
+Complete GitHub’s Confirm access identity check, then register/install the already-approved read-only App and verify its selected repositories. Verify the backup destination before closing the connection walk. The actual serving Node patch is verified during phase 95 deployment. Vercel login/team/project and repository privacy are verified; application login is not.
 
 ## Trajectory
+
+- **2026-10-21** — Remaining resource work is an owner identity/connection walk, not application code. Marked walk owed so phase 95 implementation can proceed while App registration and backup selection remain unverified. Actual serving Node-patch proof moves to phase 95, where the service is first deployed; configured Node 24.x remains a phase 94 check.
 
 - **2026-10-21** — Owner selected Vercel, superseding the unprovisioned Render candidate. Stateless concurrent functions require external transactions and bounded polling; phase 93 remains the local filesystem adapter. Private repository creation succeeded; Vercel login is required.
 
@@ -95,7 +99,7 @@ Complete GitHub’s Confirm access identity check, then register/install the alr
 
 ### 3. Connection and approval
 
-- **Ask:** Verify Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host.
+- **Ask:** Verify configured Node version, HTTPS callback origin, external durable storage, secret injection and backup destination on the selected host.
 
 - **Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
 
