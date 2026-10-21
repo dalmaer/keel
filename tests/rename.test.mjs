@@ -635,3 +635,16 @@ test('workflow and shell callers retain package script aliases after migration a
   assert.equal(await get(root, 'scripts/acme-gate.sh'), 'npm run keel\n');
   const result = run('sh', ['scripts/acme-gate.sh'], { cwd: root });assert.equal(result.status, 0, result.stderr);assert.match(result.stdout, /scripts\/plates\/check.mjs/);
 });
+
+test('public migrate CLI requires the reviewed digest and rejects changed source before applying', async t => {
+  const root = await fixture(t), bin = new URL('../bin/plates.mjs', import.meta.url).pathname;
+  const cli = args => run(process.execPath, [bin, 'migrate', root, ...args, '--json'], { cwd: root });
+  const before = git(root, 'status', '--porcelain');
+  const refused = cli(['--yes']);assert.equal(refused.status, 2, refused.stdout + refused.stderr);
+  assert.match(JSON.parse(refused.stdout).error, /--yes and --digest/);assert.equal(git(root, 'status', '--porcelain'), before);await absent(root, '.git/plates-rename');
+  const preview = cli([]);assert.equal(preview.status, 3, preview.stdout);const original = JSON.parse(preview.stdout);
+  await put(root, 'README.md', (await get(root, 'README.md')) + '\nKeel integration changed after preview.\n');
+  const stale = cli(['--yes', '--digest', original.digest]);assert.equal(stale.status, 2);assert.match(JSON.parse(stale.stdout).error, /preview changed/);await absent(root, '.plates');
+  const fresh = cli([]);assert.equal(fresh.status, 3, fresh.stdout);const reviewed = JSON.parse(fresh.stdout);assert.notEqual(reviewed.digest, original.digest);
+  const applied = cli(['--yes', '--digest', reviewed.digest]);assert.equal(applied.status, 0, applied.stdout + applied.stderr);assert.equal(JSON.parse(applied.stdout).state, 'completed');await absent(root, '.keel');
+});

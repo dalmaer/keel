@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
-import { mkdtemp, readFile, rm, cp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, cp, mkdir, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -310,4 +310,33 @@ test('issue new agent CLI previews all rubric fields with OFF policy and require
   const data = JSON.parse(r.out); assert.equal(data.state, 'preview'); assert.deepEqual(data.preview.labels, []);
   for (const heading of ['Problem', 'Reproduction', 'Acceptance', 'One change', 'Prerequisites', 'Owner blockers']) assert.ok(data.preview.body.includes(`### ${heading}`));
   for (const bad of [args.filter(x => x !== '--agent'), [...args, '--title', 'Duplicate'], ['issue', 'new', '--agent', '--json']]) assert.equal(plates(bad, dir).code, 2);
+});
+
+test('legacy executable path and preexisting global symlink forward arguments and exit codes', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'plates-legacy-bin-'));t.after(() => rm(dir, { recursive: true, force: true }));
+  const legacy = join(PLATES, 'bin', 'keel.mjs'), link = join(dir, 'keel');
+  await symlink(legacy, link);
+  const expected = plates(['--version', '--json']);assert.equal(expected.code, 0, expected.err);
+  // This is the old updater's re-exec contract: node <checkout>/bin/keel.mjs.
+  const reexec = run(process.execPath, [legacy, '--version', '--json'], { cwd: dir, env: { ...process.env, KEEL_SELF_UPDATED: '1' } });
+  assert.equal(reexec.status, 0, reexec.stderr);assert.deepEqual(JSON.parse(reexec.stdout), JSON.parse(expected.out));
+  const linked = run(link, ['--version', '--json'], { cwd: dir });assert.equal(linked.status, 0, linked.stderr);assert.deepEqual(JSON.parse(linked.stdout), JSON.parse(expected.out));
+  const invalid = run(link, ['acme-unknown-command', '--json'], { cwd: dir });assert.equal(invalid.status, 2);assert.match(JSON.parse(invalid.stdout).error, /unknown verb/);
+});
+
+test('npm package includes the legacy executable compatibility entry', () => {
+  const packed = run('npm', ['pack', '--dry-run', '--json', '--ignore-scripts', '--offline'], { cwd: PLATES });
+  assert.equal(packed.status, 0, packed.stderr);
+  const files = JSON.parse(packed.stdout)[0].files;
+  assert.ok(files.some(file => file.path === 'bin/keel.mjs' && (file.mode & 0o111) !== 0));
+  assert.ok(files.some(file => file.path === 'bin/plates.mjs'));
+});
+
+test('migrate rejects unpaired malformed and duplicate approval flags before resolving its root', async () => {
+  const digest = 'a'.repeat(64);
+  for (const args of [['--yes'], ['--digest', digest], ['--yes', '--digest', 'abc'], ['--yes', '--digest', 'A'.repeat(64)], ['--yes', '--yes', '--digest', digest], ['--yes', '--digest', digest, '--digest', digest], ['--yes', '--digest']]) {
+    let touched = false;
+    await assert.rejects(verbs.get('migrate').run(args, { get cwd() { touched = true; throw new Error('migration context must not be accessed'); } }), error => error.exitCode === 2, args.join(' '));
+    assert.equal(touched, false, args.join(' '));
+  }
 });

@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-Complete PR216 cross-provider review and final-head CI, then publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior. The approval scope mismatch was resolved; the published branch preserves the checked implementation.
+Complete the local fixes for the third review, then obtain the owner decision required by PR216’s three-round review limit before another push. Finish exact-head review and CI, publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior. The earlier publication approval scope mismatch was resolved; this is a separate review-workflow decision.
 
 ## Trajectory
 
