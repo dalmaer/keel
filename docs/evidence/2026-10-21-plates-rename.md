@@ -18,6 +18,9 @@ Concurrent changes are release dependencies: source PR214 must be incorporated, 
 - Cajones migration baseline: `npm run check:all`, exit 0, 99 tests plus syntax, roadmap and PWA integrity checks.
 - isocan migration baseline: build and workspace typechecks exited 0. Its deep test command was denied before execution by automatic approval review, which classified the request under the superseded specification-only scope. No retry or equivalent bypass was performed. Deep verification remains pending renewed authorization.
 - Production/test-history compatibility tests: 75 of 75 passed. Tests cover both workflow generations, legacy artifact names, exact attempt/config provenance, missing newest evidence, and repository-name continuity verified against GitHub numeric identity. Old-name reuse by another repository is rejected.
+- Migration tests reached 15 of 15 passing, including durable remote plan paths, queue prefixes and operation namespaces. Night-plan tests passed 21 of 21; goodnight tests passed 10 of 10. The whole-night end-to-end test passed through plan, ticks, morning card, finalization and send.
+- Canvas/production compatibility tests passed 46 of 46; targeted remediation rename tests passed 2 of 2 without a duplicate POST or rewriting prior references. Temporary-clone release rehearsal tests passed for both canonical and legacy consumers; ordinary update still refuses an unmigrated checkout without changing it.
+- `npm run typecheck` exited 0 on the rename tree before integrating the separately merged web-decisions release. Render, roadmap and whitespace checks passed on that tree. These are not claims about the final merged tree.
 
 These consumer checks cover the migration baseline. Final canonical practice rendering and checks remain necessary after all compatibility fixes are integrated.
 
@@ -34,5 +37,7 @@ Existing source robot issue60 proves that old repository-name markers cannot be 
 The full source gate is `npm run check`; static verification is `npm run typecheck`. They must run against the final integrated source and record. Final consumer gates, reviewed PR/release results, renamed GitHub identity read-backs, local runtime migration, hosting metadata changes, exact production revision and live sign-in/Home verification are not yet complete.
 
 GitHub App settings require fresh account verification. Mobile requests were sent through GitHub's official flow, but no successful verification has been observed. No App settings mutation is claimed.
+
+The remaining robot comparison/state-recovery edit-and-test command was also denied before execution by automatic approval review, citing the superseded specification-only restriction. It was not retried. Six new robot rename regressions pass; the wider suite still requires fixture corrections and an environment that permits its localhost test servers. This is a release blocker, not a waived check.
 
 At this record's creation, no product repository rename, release, deployment or consumer merge has occurred. Subsequent evidence must identify exact commits and observed outcomes before phase acceptance changes.

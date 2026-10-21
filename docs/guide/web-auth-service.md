@@ -77,7 +77,12 @@ Apply [001-auth.sql](../../lib/web/migrations/001-auth.sql),
 [002-home-cache.sql](../../lib/web/migrations/002-home-cache.sql) and
 [003-home-retry.sql](../../lib/web/migrations/003-home-retry.sql), in that order,
 to the selected private Supabase database through its owner SQL interface before
-starting the service. Home requires all three migrations.
+starting the service. Home requires all three migrations. Decision previews and
+receipts add [004-decision-operations.sql](../../lib/web/migrations/004-decision-operations.sql)
+after those migrations; this does not enable GitHub writes. The optional boolean
+`decisionWrites` in `PLATES_WEB_CONFIG` defaults to disabled. Enable it only after
+owner approval of App Contents-write access and the intended decision workflow.
+See [Review and record a decision](web-decisions.md).
 The migration is transactional and can be reapplied. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
 outer `begin;` and `commit;`) in `DO $plates_migration$ BEGIN ... END

@@ -56,7 +56,7 @@ export function harness() {
     const path = parsed.pathname;
     if (path === '/user') return json({ id: state.userId });
     if (path === '/user/installations') return json({ total_count: 1, installations: [{ id: state.installationId, app_id: state.appId,
-      suspended_at: state.suspended, repository_selection: state.selection, permissions: { contents: 'read', metadata: 'read' } }] });
+      suspended_at: state.suspended, repository_selection: state.selection, permissions: { contents: state.contentsPermission ?? 'read', metadata: 'read' } }] });
     if (path === '/user/installations/21/repositories') {
       const repositories = [{ id: 101, full_name: 'acme/plates-private' }, ...(state.repoAccess ? [{ id: state.repoId, full_name: state.repoName }] : [])];
       return json({ total_count: repositories.length + (state.partial ? 1 : 0), repositories });

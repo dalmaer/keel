@@ -192,6 +192,65 @@ per-project lease with fencing,
 retain an operation ID and receipt, and show GitHub commit/PR outcome separately
 from local persistence. Public-repo writes show the exact outbound material.
 
+### Phase 97: explicit decision writers and conditional delivery
+
+Settled 21 October 2026 after reviewing the existing CLI writers. The initial
+web writers are (1) the legacy health-page proposal decision, using the same pure
+transformation as `walk decide`, and (2) one previously unanswered question in an
+explicitly selected, validated shaping record. A shaping answer increments its
+record revision and preserves recommendations, proposed decisions and previous
+answers. It does not accept architecture proposals or generate a plan. Structured
+time/hygiene proposals retain their existing policy-bound writers and remain
+inspect-only here, as do unsupported architecture and workflow decisions.
+
+Use the canonical phase-90 resolver with a bounded immutable-source reader,
+retaining its reference, supersession and coverage rules. Local filesystem/CLI
+behavior must remain unchanged; the hosted adapter reads one pinned GitHub tree
+without running repository code. Required context gaps disable submission.
+Shaping selection is an explicit repository-relative path, not an invented
+filename convention. Authenticated actor attribution and source-declared manual
+answers remain distinguishable.
+
+A persisted preview binds actor, project/repository identity, source path/question,
+branch HEAD, original blob, context digest, exact resulting bytes, consequence,
+visibility and expiry. Editing a choice or reason requires a new preview. Show
+the complete outbound file and commit message for a public target before applying;
+no preselected answer or implicit publish. Private database previews are encrypted.
+
+Use GitHub's `createCommitOnBranch` with `expectedHeadOid` for atomic conditional
+commit/branch advancement. A file-only SHA check would miss context changes in
+other files; a non-forced ref update alone is not an exact HEAD comparison.
+[GitHub commit mutation contract](https://docs.github.com/en/graphql/reference/commits).
+Bind the numeric repository identity and GitHub repository/branch node identities
+into the preview and intent. Dispatch through `CommittableBranch.id`, never a
+repository name which can be renamed and reused between validation and mutation.
+Recovery must query the same repository identity and verify its exact parent,
+message, changed target and output blob; a clone under a recycled name is not
+evidence for the original operation. Ref deletion or unavailable identity keeps
+the outcome unresolved. This was settled on 21 October 2026 after an independent
+review reproduced old-name recovery accepting cloned history.
+[GitHub branch identity contract](https://docs.github.com/en/graphql/reference/git#committablebranch).
+Only Contents write is requested for these writers; no Issues, Pull Requests,
+Actions, administration or workflow write. Verify actual App/user permission at
+dispatch. Protected-branch rejection is a refusal, never permission to silently
+create a PR or switch destinations.
+
+Durably reserve an actor/project/preview operation and a fenced project lease
+before dispatch. Persist the exact mutation inputs and unique operation marker.
+Recheck current authorization, visibility, source and context before the sole
+remote write. Dispatched or uncertain operations keep the project reserved after
+lease expiry; recovery inspects bounded commit history and verifies parent,
+marker and content. An unchanged branch alone is not proof that an in-flight
+request failed. Do not automatically resubmit uncertain writes. The receipt
+separates preview persistence, source commit and human acceptance; no issue or PR
+is created by either writer. The operation tests must prove those zero effects
+and recovery of the original source commit.
+
+Deploy detail/preview with submission disabled by default. Enabling submission
+requires the owner's approval of broader GitHub App Contents access, and the
+real-decision walk needs a particular choice supplied by the owner. Neither is
+implied by the earlier read-only App setup approval.
+
 Walks have stable authored step IDs, prerequisites, expected results, exact tested
 revision/environment and optional captures. Each step records pass/fail/blocked
 plus actual observations. Drafts persist privately across browser refresh.
