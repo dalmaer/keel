@@ -124,6 +124,14 @@ Mid-read access revocation denies private output. Quota throttling is a bounded
 pause with explicit coverage, not a successful empty source. A new Actions-read
 grant needs owner approval and an actual App read before claiming hosted access.
 
+Actions reads use the pinned numeric repository route
+`/repositories/{id}/actions/...`. On 21 October 2026, actual read-only requests
+verified workflow/run lists, named attempts, jobs and artifact lists through this
+route. GitHub's reference documents owner/name routes; numeric-route compatibility
+is an observed capability, not a documented permanence claim. A refusal produces
+an unavailable source without a fallback to a potentially recycled repository
+name. Returned run/repository/attempt identities still require validation.
+
 Provide Routines and Activity in fleet and project lenses, preserving applicable
 URL filters. Lists summarize outcome, project, source age and cost confidence;
 details expose stages, original status, attempts and evidence. On mobile, labeled
