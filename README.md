@@ -201,6 +201,10 @@ source delivery boundary; see [Guided walks](docs/guide/web-walks.md).
 [Visual changes and private captures](docs/guide/web-changes.md) add authored
 journal cards, reviewed uploads and private receipts. Bucket activation and the
 real captured-addition walk remain separate owner-approved steps.
+[Daily work and private learning](docs/guide/web-daily-learning.md) add source-backed
+night inspection, unsaved evening previews, selected private lesson-copy previews
+and exact approved-text downloads. Workspace writes have their own disabled-by-default
+gate; real owner migration and provider comparisons need separate evidence.
 [Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
 history/execution, fleet updates, provider capacity and model routing, then verify
 complete mobile/desktop operating journeys. These capabilities are planned.
@@ -321,6 +325,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Daily work and private learning](docs/guide/web-daily-learning.md) | you want to inspect nightly sources, draft within explicit limits, review private lesson copies or download exact approved text |
 | [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |
 | [Visual changes and private captures](docs/guide/web-changes.md) | you want to explore additions, review private screenshot uploads and recover or delete exact artifacts |
 | [Guided web walks](docs/guide/web-walks.md) | you want to author tests, save private observations, review exact acceptance files and prepare a repair |

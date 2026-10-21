@@ -1,11 +1,12 @@
 ---
-status: designed
+status: partial
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [97, 98, 99]
-note: "Daily source views, private lesson copies and exact exports specified; implementation and real transfer proof remain."
-evidence: []
+note: "Daily/learning views and reviewed transfers implemented and locally verified; hosted activation and owner-selected real migration remain."
+owes: walk
+evidence: ["evidence/2026-10-21-web-daily-learning.md"]
 ---
 
 # Daily work and learning stay private
@@ -25,9 +26,9 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Daily views preserve configured budgets, coverage, unavailable runners and existing receipts: `tests/web-daily.test.mjs`.
-- [ ] Migration previews destinations, reads replacements back and preserves originals on failure: `tests/web-migration.test.mjs`.
-- [ ] Private lessons and feedback never enter public export without exact approved selection: `tests/web-learning.test.mjs`.
+- [x] Daily views preserve configured budgets, coverage, unavailable runners and existing receipts: `tests/web-daily.test.mjs`.
+- [x] Migration previews destinations, reads replacements back and preserves originals on failure: `tests/web-migration.test.mjs`.
+- [x] Private lessons and feedback never enter public export without exact approved selection: `tests/web-learning.test.mjs`.
 - [ ] ⚑ By hand: compare a real morning to its sources and migrate selected workspace data with recovery verified: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
@@ -37,8 +38,8 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Proof
 
-Named test paths are implementation targets until this phase is built, not
-claims of existing checks or passing results.
+Named test paths are implemented; their observed results and remaining real-surface
+gaps are recorded in the dated evidence.
 
 - `node --import ./tests/helpers/hermetic.mjs --test tests/web-daily.test.mjs tests/web-migration.test.mjs tests/web-learning.test.mjs`
 - `npm run check`
@@ -53,11 +54,13 @@ This phase ships daily/learning views and migration. Full routine execution, fle
 
 ## Next action
 
-Build the source readers, private learning/transfer adapters and desktop/mobile views against the implementation contract; keep write gates off until approved and retain exact real-source proof.
+Activate approved operation storage and deploy a verified serving revision, then have the owner select real lessons and separately approve the GitHub App Contents-write permission and private workspace gate before the real migration/recovery walk. Compare the hosted morning to its immutable sources. Existing approval does not grant these broader source-write permissions.
 
 ## Trajectory
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
+- **2026-10-21** — Climb's template imports depend on practice assembly. The hosted view therefore reports explicit allowance declarations and leaves unresolved defaults unavailable; it does not execute project scripts to resolve them. Canonical night validation, merge and readiness remain shared. See the evidence's design finding.
+- **2026-10-21** — Independent review found source changes during final authorization could still copy old bytes. Authorization now precedes the reserved operation's source/destination inspection; the same probe refuses with zero writes. Cross-repository observations remain bounded, not atomic with the private commit.
 
 ## Your part
 

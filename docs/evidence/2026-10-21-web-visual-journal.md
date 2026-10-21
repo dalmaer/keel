@@ -113,6 +113,13 @@ The original integrated failure is preserved; a fresh full gate is still require
 
 ## Corrected integration
 
+Fresh GitHub API reads with `gh run view 39683941272 --json headSha,name,conclusion,url`
+and `gh run view 39683941394 --json headSha,name,conclusion,url` both exited 0.
+The [check run](https://github.com/dalmaer/keel/actions/runs/39683941272) and
+[typecheck run](https://github.com/dalmaer/keel/actions/runs/39683941394) reported
+`success` on exact main revision `8b28114613becd56513c45d38ec16d659828d37c`.
+These are CI observations, separate from the local integration gate and deployment.
+
 `keel ready --check 'npm run typecheck' --json` on `515d891`: exit 0.
 `keel integrate --json`: exit 0, one gate, merged to main
 `8b28114613becd56513c45d38ec16d659828d37c`. All 2,133 tests and the roadmap, render
