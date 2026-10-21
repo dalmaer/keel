@@ -65,6 +65,19 @@ node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='--json pa
 Exit 0: 2 tests, 2 passed. The renderer consistency check is included in the
 corrected branch's fast handoff checks.
 
+The second integrated gate on `d5b8001` returned exit 1: 1,923 tests, 1,922
+passed, 1 failed. The remaining failure was `tests/stacks.test.mjs:135`, which
+hard-coded Keel's own stack before Vercel was added. The self-doctor and CLI
+contract checks passed in this full run. No flaky or slower test was reported,
+and nothing landed. The explicit Keel-owned expectation is updated to include
+Vercel; synthetic Acme projects retain their own two-tag expectations and the
+lesson filtering/staleness assertions remain intact.
+
+Correction `2446891`: the conductor independently ran
+`node --import ./tests/helpers/hermetic.mjs --test tests/stacks.test.mjs`;
+exit 0, 8/8 passed. The corrected tree is handed off for its final integrated gate.
+
+
 ## Visual review and exploration
 
 The actual `signinView` and CSS were served on a temporary loopback presentation
