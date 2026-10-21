@@ -221,6 +221,15 @@ Use GitHub's `createCommitOnBranch` with `expectedHeadOid` for atomic conditiona
 commit/branch advancement. A file-only SHA check would miss context changes in
 other files; a non-forced ref update alone is not an exact HEAD comparison.
 [GitHub commit mutation contract](https://docs.github.com/en/graphql/reference/commits).
+Bind the numeric repository identity and GitHub repository/branch node identities
+into the preview and intent. Dispatch through `CommittableBranch.id`, never a
+repository name which can be renamed and reused between validation and mutation.
+Recovery must query the same repository identity and verify its exact parent,
+message, changed target and output blob; a clone under a recycled name is not
+evidence for the original operation. Ref deletion or unavailable identity keeps
+the outcome unresolved. This was settled on 21 October 2026 after an independent
+review reproduced old-name recovery accepting cloned history.
+[GitHub branch identity contract](https://docs.github.com/en/graphql/reference/git#committablebranch).
 Only Contents write is requested for these writers; no Issues, Pull Requests,
 Actions, administration or workflow write. Verify actual App/user permission at
 dispatch. Protected-branch rejection is a refusal, never permission to silently
