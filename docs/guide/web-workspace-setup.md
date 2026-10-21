@@ -8,7 +8,9 @@ installed on the approved selected repositories. Production secrets are injected
 by Vercel. The [service guide](web-auth-service.md) gives the exact
 configuration and ordered migrations. Home requires migrations 001–003;
 decision previews and receipts add migration 004 with writes disabled by default.
-See [Web decisions](web-decisions.md) before enabling broader App access.
+Guided walk drafts add migration 005 after 004, using the same disabled source
+write setting. See [Web decisions](web-decisions.md) and
+[Guided walks](web-walks.md) before enabling broader App access.
 Phase 96 adds the read-only
 [Home board](web-home.md), including decisions, ready walks, source changes and
 project summaries with explicit coverage gaps; the

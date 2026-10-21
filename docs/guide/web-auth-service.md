@@ -1,8 +1,9 @@
 # Run the private web sign-in service
 
 Phases 95–96 provide a framework-free service with responsive sign-in and a
-read-only [Home board](web-home.md) for authorized projects. Decision writes,
-guided walk observations and media follow in their own phases. This guide describes the
+read-only [Home board](web-home.md) for authorized projects. Phases 97–98 add
+[decision review](web-decisions.md) and [guided walks](web-walks.md), with source
+writes disabled by default. Media remains planned. This guide describes the
 service contract; it is not evidence that an instance has been deployed or that
 its owner has completed a real login.
 
@@ -82,7 +83,13 @@ receipts add [004-decision-operations.sql](../../lib/web/migrations/004-decision
 after those migrations; this does not enable GitHub writes. The optional boolean
 `decisionWrites` in `PLATES_WEB_CONFIG` defaults to disabled. Enable it only after
 owner approval of App Contents-write access and the intended decision workflow.
-See [Review and record a decision](web-decisions.md).
+See [Review and record a decision](web-decisions.md). Guided walks additionally
+require [005-walk-drafts.sql](../../lib/web/migrations/005-walk-drafts.sql), after
+004. It stores encrypted, versioned private observations and uses the same project
+reservation as source operations, so saves cannot race an acceptance commit.
+The shared `decisionWrites` opt-in also controls walk submission; migration alone
+does not enable it. Verify hosted SQL role and concurrency behavior separately
+from local adapter tests. See [Guided walks](web-walks.md).
 The migration is transactional and can be reapplied. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
 outer `begin;` and `commit;`) in `DO $plates_migration$ BEGIN ... END

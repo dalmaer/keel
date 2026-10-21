@@ -2,8 +2,9 @@
 
 `plates feedback` retains a private observation tied to an immutable result. It
 can prepare a follow-up for review; it never creates an issue, starts an agent,
-accepts a decision or marks a phase accepted. This is a local CLI feature. Web
-capture and guided browser feedback remain phase 98 work.
+accepts a decision or marks a phase accepted. This is the local CLI workflow.
+[Guided browser walks](web-walks.md) reuse its private observation model and issue
+handoffs; their hosted migration and real-owner source-write proof remain pending.
 
 ## Capture an observation
 

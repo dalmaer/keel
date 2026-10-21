@@ -165,7 +165,7 @@ unsent lessons, and open machine PRs.
 
 Plates's hosted UI is being built around a Home screen that answers three things:
 **which decisions need you, what to test step by step, and what changed recently**.
-Guided walks will retain “works”, “does not work” and “cannot test yet” observations;
+Guided walks retain “works”, “does not work” and “cannot test yet” observations;
 recent additions will include screenshots, tested revisions and links to try them.
 Project cards will refresh independently, retain source freshness, and preserve
 an open decision or walk when new updates arrive. The full goal is to operate
@@ -184,7 +184,9 @@ behind **Show changes** so the card you are reading stays stable. See
 
 Local [result feedback](docs/guide/feedback.md) now retains exact reviewed bytes,
 private revision history and explicit resolutions. It prepares issue or shaping
-handoffs for separate review; web capture remains phase 98 work.
+handoffs for separate review. [Guided web walks](docs/guide/web-walks.md) now have
+local private save/resume, observation history, repair previews and exact acceptance
+previews. Their hosted migration and approved real-owner write need separate proof.
 
 Supabase Free holds encrypted sessions and source caches outside the public code
 repository. The selected-repository GitHub App has read-only access; credentials
@@ -203,6 +205,8 @@ Phase 97 now contains locally verified decision detail/preview and conditional
 delivery code; its hosted database and real-owner write walk are still pending.
 See [Web decisions](docs/guide/web-decisions.md) for supported records, disabled-by-default
 write access, exact public previews and recovery of an uncertain operation.
+Phase 98 adds authored step-by-step walks using the same disabled-by-default
+source delivery boundary; see [Guided walks](docs/guide/web-walks.md).
 [Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
 history/execution, fleet updates, provider capacity and model routing, then verify
 complete mobile/desktop operating journeys. These capabilities are planned.
@@ -324,6 +328,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
 | [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |
+| [Guided web walks](docs/guide/web-walks.md) | you want to author tests, save private observations, review exact acceptance files and prepare a repair |
 | [Web decisions](docs/guide/web-decisions.md) | you want to review exact changes, understand write access and recover an original operation receipt |
 | [Web authentication service](docs/guide/web-auth-service.md) | you are configuring the server, private membership, session database and production secrets |
 | [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |

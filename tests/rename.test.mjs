@@ -433,3 +433,13 @@ test('Loop dispositions and project phase or journey records preserve human deci
   for (const path of active) assert.equal(await get(root, path), '# Current instructions\nRun `plates doctor`.\n');
   await absent(root, 'docs/loop/keel-bounds-race.md');
 });
+
+test('decision and walk RPC identities stay exact in Acme code and SQL while active branding changes', () => {
+  const code = '// Keel integration for Acme\nconst config = ".keel/keel.json";\nconst decision = "/rest/v1/rpc/keel_decision_rpc";\nconst walk = "/rest/v1/rpc/keel_walk_rpc";\nconst keel_local_setting = true;\n';
+  assert.equal(renameActiveText(code), '// Plates integration for Acme\nconst config = ".plates/plates.json";\nconst decision = "/rest/v1/rpc/keel_decision_rpc";\nconst walk = "/rest/v1/rpc/keel_walk_rpc";\nconst plates_local_setting = true;\n');
+  for (const rpc of ['keel_decision_rpc', 'keel_walk_rpc']) {
+    const sql = `-- Keel storage for Acme\ncreate or replace function public.${rpc}(p_id text) returns text language sql as $$ select p_id $$;\nrevoke all on function public.${rpc}(text) from public,anon,authenticated;\ngrant execute on function public.${rpc}(text) to service_role;\n`;
+    assert.equal(renameActiveText(sql), sql.replace('-- Keel storage', '-- Plates storage'));
+  }
+  assert.equal(renameActiveText('keel_future_rpc keel_decision_rpc_extra keel_walk_rpc_extra'), 'plates_future_rpc plates_decision_rpc_extra plates_walk_rpc_extra', 'the compatibility allowlist does not freeze arbitrary keel_ symbols');
+});

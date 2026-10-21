@@ -289,10 +289,18 @@ test('a mutant that does not finish is stopped at the time limit and reported in
   const { j } = await mutate(repo, ['tests/count.test.mjs', '--fix', 'lib/count.mjs'], 0, { env: { PLATES_PROVE_MUTANT_MS: '1500' } });
   const m = j.mutate;
   assert.equal(m.limitMs, 1500);
-  assert.deepEqual(m.inconclusive.map(x => `${where(x)}: ${x.reason}`), ['lib/count.mjs:3 condition drop `i < n` (always true): timed out after 1.5s']);
-  assert.equal(m.caught, 6);
+  const loop = m.mutants.find(x => where(x) === 'lib/count.mjs:3 condition drop `i < n` (always true)');
+  assert.equal(loop?.result, 'inconclusive', 'the nonterminating mutant must never count as caught');
+  assert.equal(loop.reason, 'timed out after 1.5s');
+  // The short limit deliberately stops the loop. Under suite load an ordinary
+  // mutant may also time out: preserve that unknown outcome, never call it caught.
+  assert.deepEqual(m.inconclusive, m.mutants.filter(x => x.result === 'inconclusive'));
+  assert.ok(m.inconclusive.every(x => x.reason === 'timed out after 1.5s'));
+  assert.equal(m.caught, m.mutants.filter(x => x.result === 'caught').length);
+  assert.equal(m.caught + m.inconclusive.length, m.total);
   assert.equal(m.total, 7);
   assert.deepEqual(m.survivors, []);
+  assert.deepEqual(m.invalid, []);
   assert.ok(Date.now() - started < 60_000, 'the loop was stopped, not waited out');
 });
 

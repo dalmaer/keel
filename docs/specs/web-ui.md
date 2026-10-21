@@ -202,10 +202,12 @@ an unmapped failure or “not enough evidence” must stay a draft until a suppo
 source-preserving record-only path exists. Add that path before exposing a
 generic “Failed” or “Not yet” button. Do not infer success from the label.
 
-After a write, say **Recorded locally · uncommitted**, list changed files, and
+For the local board, after a write say **Recorded locally · uncommitted**, list changed files, and
 retain the result under session activity even when the item leaves the queue.
 The owner can inspect the diff or continue to the next ready walk. Committing,
 pushing and acceptance beyond the command's actual effect are separate actions.
+The hosted [guided-walk contract](web-guided-walks.md) instead previews the exact
+conditional source commit and reports success only after its verified receipt.
 For read-only milestone/project plans, link to the owning source; never write an
 archived local phase to make the UI look complete.
 
@@ -475,8 +477,10 @@ diff transactions are new work for commands that do not currently support them.
 The first delivery plan is [workspace phases 93–101](web-workspace.md#phases-and-release-criteria),
 under goal G7. Phase 93 enforces private storage, 94 connects owner-approved
 resources, 95 authenticates, and 96 ships the first useful read-only Home.
-Decisions, guided walks and visual changes follow in 97–99; daily work and
-learning follow in 100, with live acceptance and restore in 101. Do not wait
+Decision and guided-walk implementations in 97–98 have local proof; their hosted
+migrations and real-owner writes remain separate acceptance. Visual changes
+follow in 99; daily work and learning follow in 100, with live acceptance and
+restore in 101. Do not wait
 for a graphical version of every CLI flag. Link-outs are staged delivery, not the
 end state for core operations. [Fleet phases 102–108](web-fleet-operations.md)
 add run history, connections/capacity, workers, fleet rollouts, routing, operation
