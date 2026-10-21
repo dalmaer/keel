@@ -6,6 +6,16 @@ import { configFromEnv, webConfig, requireRuntime } from '../lib/web/config.mjs'
 
 test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inputs', async () => {
   const h = harness(), signed = await h.login();
+  const signin = await h.service(h.request('/signin')), loginCookie = h.cookieHeader(signin);
+  const loginCsrf = loginCookie.split('=')[1];
+  for (const origin of ['https://evil.test', 'null', '']) {
+    const result = await h.service(h.request('/api/auth/start', { cookie: loginCookie, origin, body: { csrf: loginCsrf, returnTo: '/' } }));
+    assert.equal(result.status, 403, 'login still requires the exact trusted Origin');
+  }
+  for (const csrf of ['', 'x'.repeat(43)]) {
+    const result = await h.service(h.request('/api/auth/start', { cookie: loginCookie, body: { csrf, returnTo: '/' } }));
+    assert.equal(result.status, 400, 'login still requires the browser-bound CSRF token');
+  }
   for (const route of ['/api/auth/logout', '/api/auth/revoke']) {
     for (const origin of ['https://evil.test', 'null', '']) {
       const result = await h.service(h.request(route, { cookie: signed.cookie, origin, body: { csrf: signed.session.csrf } })); assert.equal(result.status, 403);
@@ -27,7 +37,9 @@ test('public signin/assets and signed-in scaffold are responsive, escaped and ne
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
     assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
     assert.match(response.headers.get('content-security-policy'), /form-action 'self' https:\/\/github\.com;/);
-    assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+    // Browser navigation POSTs need a non-null Origin; referrers must omit paths/queries.
+    // This asserts the response contract, not a simulation of browser header generation.
+    assert.equal(response.headers.get('referrer-policy'), 'strict-origin');
   }
   const signin = await (await h.service(h.request('/signin'))).text();
   assert.match(signin, /name="viewport"/); assert.match(signin, /<form method="post"/); assert.match(signin, /Skip to content/);
