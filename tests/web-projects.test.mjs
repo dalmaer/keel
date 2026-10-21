@@ -152,7 +152,7 @@ test('fleet refresh prioritizes never-attempted projects ahead of repeated failu
 
 test('a failed slow first project yields to healthy sources, and fleet cache reads are bounded parallel', async () => {
   const h = projectHarness(), projects = Array.from({ length: 6 }, (_, i) => ({ id: `app${i}`, repoId: 200 + i, repo: `acme/app${i}` }));
-  
+
   let active = 0, peak = 0, healthyDuringSlow = false, slow = false;
   const fetcher = async (url, options) => {
     const u = new URL(url);

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { matchesGlob } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { harness } from './helpers/web-http.mjs';
 import { configFromEnv, webConfig, requireRuntime } from '../lib/web/config.mjs';
@@ -31,7 +32,7 @@ test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inpu
 
 test('public signin/assets and signed-in scaffold are responsive, escaped and never expose tokens or config', async () => {
   const h = harness();
-  for (const path of ['/signin', '/assets/keel.css']) {
+  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs']) {
     const response = await h.service(h.request(path)), content = await response.text();
     assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|KEEL_WEB_CONFIG/);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -71,6 +72,9 @@ test('migration restricts public roles and deployment routes all requests throug
   assert.match(sql, /grant execute on function .* to service_role/);
   const deployment = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
   assert.deepEqual(deployment.rewrites, [{ source: '/(.*)', destination: '/api' }]);
+  const excluded = deployment.functions['api/index.mjs'].excludeFiles;
+  for (const path of ['tests/fixtures/improve/unhealthy/.agents/skills/conduct', 'docs/lessons.md', '.keel/keel.json']) assert.ok(matchesGlob(path, excluded), path);
+  for (const path of ['lib/web/home-client.mjs', 'lib/web/views.mjs', 'lib/board.mjs', 'practices/phases/files/scripts/roadmap.mjs']) assert.ok(!matchesGlob(path, excluded), path);
 });
 
 test('service enforces the supported runtime boundary', () => {
@@ -92,6 +96,8 @@ test('extracted npm package launches with external config and serves through the
   for (const path of ['lib/web/serve.mjs', 'lib/web/migrations/001-auth.sql', 'api/index.mjs', 'vercel.json']) assert.ok(paths.includes(path), path);
   assert.equal(paths.some(path => /(^|\/)(\.env|members\.json|instance\.json)$/.test(path)), false);
   assert.equal(run('tar', ['-xzf', join(temporary, metadata.filename), '-C', temporary]).status, 0);
+  // Model the function's excluded development/source-data trees before loading it.
+  for (const path of ['tests', 'docs', '.agents', '.claude', '.keel', '.github']) await rm(join(temporary, 'package', path), { recursive: true, force: true });
   const h = harness(), configPath = join(temporary, 'instance.json');
   await writeFile(configPath, JSON.stringify(h.input), { mode: 0o600 });
   const script = join(temporary, 'probe.mjs');
@@ -100,12 +106,13 @@ import { serve } from ${JSON.stringify(pathToFileURL(join(temporary, 'package/li
 import { request } from 'node:http';
 const server = await serve(['--config', ${JSON.stringify(configPath)}, '--port', '0', '--json']);
 try {
-  const response = await new Promise((resolve, reject) => {
-    const req = request({ host: '127.0.0.1', port: server.address().port, path: '/signin', headers: { host: 'keel.acme.test' } }, res => {
+  const responses = [];
+  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs']) responses.push(await new Promise((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'keel.acme.test' } }, res => {
       let text = ''; res.on('data', value => { text += value; }); res.on('end', () => resolve({ status: res.statusCode, text, cookies: res.headers['set-cookie'] }));
     }); req.on('error', reject); req.end();
-  });
-  process.stdout.write(JSON.stringify(response));
+  }));
+  process.stdout.write(JSON.stringify(responses));
 } finally { await new Promise(resolve => server.close(resolve)); }
 `);
   const launched = await runAsync(process.execPath, [script], { cwd: temporary, timeout: 30000, env: {
@@ -113,7 +120,9 @@ try {
     SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey, KEEL_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
   } });
   assert.equal(launched.status, 0, launched.stderr);
-  const response = JSON.parse(launched.stdout);
+  const [response, client, views] = JSON.parse(launched.stdout);
+  assert.equal(client.status, 200); assert.match(client.text, /export function startHomeClient/);
+  assert.equal(views.status, 200); assert.match(views.text, /export function renderHomeSnapshot/);
   assert.equal(response.status, 200); assert.match(response.text, /Continue with GitHub/);
   assert.match(response.cookies[0], /^__Host-keel-login=.*Secure; HttpOnly; SameSite=Lax/);
   assert.doesNotMatch(response.text, /fake-client-secret|fake-service-key|supabase\.co/);
