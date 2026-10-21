@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [96, 98]
-note: "Authorized web workspace sequence; acceptance remains unverified."
+note: "Private capture slots and source-owned change packages specified; implementation and owner resource approval remain."
 evidence: []
 ---
 
@@ -17,6 +17,8 @@ Recent additions show authorized real captures, precise availability and links t
 ## Scope
 
 Implement versioned change packages, bounded media ingestion/private delivery, captions/alt text and before/after comparisons; preserve capture provenance and expired/missing media states.
+
+Implementation: [Visual changes and private captures](../specs/web-visual-journal.md).
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
@@ -49,7 +51,7 @@ Retention duration is an owner setting with safe bounds. Public export remains s
 
 ## Next action
 
-Define change-package validation and private artifact delivery before enabling visual cards.
+Build the versioned journal and private artifact adapter against synthetic providers; verify the exact bucket/configuration and retention proposal before requesting activation approval.
 
 ## Trajectory
 
