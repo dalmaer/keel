@@ -141,6 +141,21 @@ deployment or real project migration.
 
 ## Gaps and decision
 
+### Integration observed 21 October 2026
+
+`node bin/keel.mjs integrate --json` exited 0 after one `npm run check` gate:
+2183/2183 tests passed, all pinned timing-stall checks passed, and roadmap,
+render and inbox guards passed. The test ledger reported no flaky or slower
+tests; the busy run was omitted from timing comparisons. Source commit
+`10d2b0b3d89ea343bbcaad51bab0f4bfc5a0cef9` landed on main at
+`431ec5983ca7e837fa6734a3787c5a2bd59be118`. The phase claim was released.
+This is implementation integration, not hosted deployment or owner acceptance.
+
+GitHub CI on that exact main revision also completed successfully:
+[check](https://github.com/dalmaer/keel/actions/runs/39688301956) and
+[typecheck](https://github.com/dalmaer/keel/actions/runs/39688301954), observed with
+`gh run list --repo dalmaer/keel --commit 431ec5983ca7e837fa6734a3787c5a2bd59be118 --json databaseId,name,status,conclusion,url`.
+
 Supports partial implementation with a remaining real-use walk. Hosted operation
 storage activation, an approved source-writing permission and
 gate, owner-selected real lesson migration/recovery, deployment verification and
