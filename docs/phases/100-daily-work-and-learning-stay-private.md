@@ -59,18 +59,18 @@ Ship read-only daily/learning surfaces, then implement migration and explicit ex
 
 ### 1. Real use
 
-**Ask:** Compare a real morning to its sources and migrate selected workspace data with recovery verified.
+- **Ask:** Compare a real morning to its sources and migrate selected workspace data with recovery verified.
 
-**Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
+- **Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
 
-**Look at:** [Setup worksheet](../guide/web-workspace-setup.md) and this phase's source evidence.
+- **Look at:** [Setup worksheet](../guide/web-workspace-setup.md) and this phase's source evidence.
 
-**Choices:** Verified | Needs changes | Cannot check yet
+- **Choices:** Verified | Needs changes | Cannot check yet
 
-**Keeps it open:** Needs changes | Cannot check yet
+- **Keeps it open:** Needs changes | Cannot check yet
 
-**Takes:** One setup or testing session; record the actual duration.
+- **Takes:** One setup or testing session; record the actual duration.
 
-**Then:** Record exactly what was observed; keep missing checks open and name the next action.
+- **Then:** Record exactly what was observed; keep missing checks open and name the next action.
 
-**Ready when:** Automated proof passes and the approved service exposes this phase's feature.
+- **Ready when:** Automated proof passes and the approved service exposes this phase's feature.

@@ -59,18 +59,18 @@ Build the bounded read model before the Home renderer and incremental updates.
 
 ### 1. Real use
 
-**Ask:** Desktop/mobile keyboard walkthrough identifies the next human action and an unavailable source on actual projects.
+- **Ask:** Desktop/mobile keyboard walkthrough identifies the next human action and an unavailable source on actual projects.
 
-**Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
+- **Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
 
-**Look at:** [Setup worksheet](../guide/web-workspace-setup.md) and this phase's source evidence.
+- **Look at:** [Setup worksheet](../guide/web-workspace-setup.md) and this phase's source evidence.
 
-**Choices:** Verified | Needs changes | Cannot check yet
+- **Choices:** Verified | Needs changes | Cannot check yet
 
-**Keeps it open:** Needs changes | Cannot check yet
+- **Keeps it open:** Needs changes | Cannot check yet
 
-**Takes:** One setup or testing session; record the actual duration.
+- **Takes:** One setup or testing session; record the actual duration.
 
-**Then:** Record exactly what was observed; keep missing checks open and name the next action.
+- **Then:** Record exactly what was observed; keep missing checks open and name the next action.
 
-**Ready when:** Automated proof passes and the approved service exposes this phase's feature.
+- **Ready when:** Automated proof passes and the approved service exposes this phase's feature.
