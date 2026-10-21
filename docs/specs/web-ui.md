@@ -501,7 +501,7 @@ and observations; do not manufacture performance or usability results.
   authenticated remote access with app code in public Keel, shared records in a
   private workspace and project facts in each project. The workspace spec
   replaces the earlier local-first delivery recommendation. Vercel and Supabase Free are now selected and provisioned; the approved
-  read-only GitHub App awaits identity verification. Expanded worker/provider
+  read-only GitHub App is installed and live login/access checks pass. Expanded worker/provider
   permissions remain explicit setup choices.
 - **Agent launch integration:** initial “View next work” can expose a prepared
   brief/command. Launching a particular host requires a supported host adapter,

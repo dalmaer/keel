@@ -1,8 +1,8 @@
 # Run the private web sign-in service
 
-Phase 95 adds a framework-free service with a responsive sign-in page, a list of
-currently authorized projects, and project connection details. The richer Home,
-decisions, walks and media follow in their own phases. This guide describes the
+Phases 95–96 provide a framework-free service with responsive sign-in and a
+read-only [Home board](web-home.md) for authorized projects. Decision writes,
+guided walk observations and media follow in their own phases. This guide describes the
 service contract; it is not evidence that an instance has been deployed or that
 its owner has completed a real login.
 
@@ -73,13 +73,16 @@ replace the service role credential. Environment bindings are explicit: the
 service does not read `.env` files or infer another database. Vercel preview
 and development environments fail closed; real credentials are production-only.
 
-Apply [001-auth.sql](../../lib/web/migrations/001-auth.sql) to the selected private
-Supabase database through its owner SQL interface before starting the service.
+Apply [001-auth.sql](../../lib/web/migrations/001-auth.sql),
+[002-home-cache.sql](../../lib/web/migrations/002-home-cache.sql) and
+[003-home-retry.sql](../../lib/web/migrations/003-home-retry.sql), in that order,
+to the selected private Supabase database through its owner SQL interface before
+starting the service. Home requires all three migrations.
 The migration is transactional and can be reapplied. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
 outer `begin;` and `commit;`) in `DO $keel_migration$ BEGIN ... END
 $keel_migration$;`. This keeps schema creation and permission changes atomic;
-do not run its statements individually. It creates a private,
+do not run its statements individually. Migration 001 creates a private,
 RLS-enabled table and a narrowly scoped `public.keel_web_rpc` function. The
 function has an empty search path and fully qualified table references. Public,
 anon and authenticated roles cannot execute it or read the table; service_role
@@ -165,7 +168,11 @@ duplicated or changing pagination denies access instead of reporting partial
 coverage as complete. Provider calls have eight-second limits and a shared
 25-second access-read deadline. Unavailable storage fails closed.
 
-`GET /`, `/projects/:id`, `/api/session` and `/api/projects/:id` are the scaffold.
+`GET /` and `/projects/:id` render Home through the fleet or project lens.
+`GET /api/home` and `/api/projects/:id/home` expose the bounded read model with
+ETags and cursors; `fresh=1` requests revision revalidation subject to the shared
+cooldown and provider quota. `/api/session` and `/api/projects/:id` expose current
+authorized connection details. See [Home](web-home.md) for cache bounds and gaps.
 `/api/projects/:id/media/:id` and `/api/projects/:id/stream` check the same access
 boundary, then explicitly report that the feature is unavailable. They do not
 serve invented media or events. Future mutation handlers must use both the exact

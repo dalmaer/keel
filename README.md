@@ -166,19 +166,26 @@ provider credentials, and route work using explicit capacity and budget policies
 Fleet-wide views and each project use the same records and controls.
 
 **Available today:** the CLI, the local `keel board`, external workspace
-manifest validation/initialization, and the first deployed private sign-in
-service. GitHub login opens the connected project list; logout, current
-membership, removed-project denial and the serving Node runtime are verified.
-Supabase Free holds encrypted sessions outside the public code repository.
-The selected-repository GitHub App has read-only access; credentials live only
-in production secrets. Phase status lives in [the roadmap](docs/ROADMAP.md):
-[93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md)
-and [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) are built;
+manifest validation/initialization, private GitHub sign-in and a read-only Home
+board. Home shows source-backed decisions, ready walks, recent phase additions
+and project summaries, with project lenses, search, source links and explicit
+coverage gaps. The first source read fills a loading view; later updates wait
+behind **Show changes** so the card you are reading stays stable. See
+[Using Home](docs/guide/web-home.md) for refresh behavior and limits.
+
+Supabase Free holds encrypted sessions and source caches outside the public code
+repository. The selected-repository GitHub App has read-only access; credentials
+live only in production secrets. Login, logout, current membership and removed
+project denial have been checked on the actual service. Phase status lives in
+[the roadmap](docs/ROADMAP.md):
+[93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md),
+[95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) and
+[96: Home](docs/phases/96-home-explains-every-project.md) have their own evidence;
 [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
-still owes the backup destination. The connected project list is the foundation
-for the rich attention board, not its completion.
-[96: Home](docs/phases/96-home-explains-every-project.md) follows. Decisions,
-walks, visual changes and initial real-use verification follow in phases 97–101.
+still owes the backup destination. Decision submission, guided test results,
+screenshots/preview galleries and initial real-use verification follow in phases
+97–101. Home currently inspects and links to source; it does not write decisions
+or mark acceptance complete.
 [Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
 history/execution, fleet updates, provider capacity and model routing, then verify
 complete mobile/desktop operating journeys. These capabilities are planned.
@@ -299,6 +306,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |
 | [Web authentication service](docs/guide/web-auth-service.md) | you are configuring the server, private membership, session database and production secrets |
 | [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |

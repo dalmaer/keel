@@ -5,8 +5,10 @@ initialization. The first private service is deployed: owner GitHub login,
 logout, current membership and project access checks pass on HTTPS, with serving
 Node v24.21.0. Supabase holds encrypted sessions; the read-only GitHub App is
 installed on the approved selected repositories. Production secrets are injected
-by Vercel. Phase 95's [service guide](web-auth-service.md) gives the exact
-configuration and migration. The rich Home board follows in phase 96; the
+by Vercel. The [service guide](web-auth-service.md) gives the exact
+configuration and all three ordered migrations. Phase 96 adds the read-only
+[Home board](web-home.md), including decisions, ready walks, source changes and
+project summaries with explicit coverage gaps; the
 backup destination remains open in [phase 94](../phases/94-private-instance-has-approved-connections.md).
 See [the contract](../specs/web-workspace.md) for the storage boundaries.
 
@@ -271,5 +273,7 @@ choice. Do not claim native-fetch uploads are already supported.
    unresolved operations are reconciled before replay, and private artifacts and
    source records retain coverage. Record the actual observation window.
 
-These are future checks. Retain expected and observed results separately. A
+Sign-in and read-only Home checks have dated phase evidence. The write, media
+and restore journeys remain future checks. Retain expected and observed results
+separately. A
 login callback, merged change or empty error window alone is not acceptance.
