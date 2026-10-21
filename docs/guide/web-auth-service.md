@@ -90,7 +90,19 @@ reservation as source operations, so saves cannot race an acceptance commit.
 The shared `decisionWrites` opt-in also controls walk submission; migration alone
 does not enable it. Verify hosted SQL role and concurrency behavior separately
 from local adapter tests. See [Guided walks](web-walks.md).
-The migration is transactional and can be reapplied. Vercel’s Marketplace query
+Optional private captures add
+[006-private-media.sql](../../lib/web/migrations/006-private-media.sql) and an
+explicitly approved private bucket and retention policy; follow
+[Visual changes and private captures](web-changes.md#configure-the-optional-adapter).
+Routine history adds [007-run-history.sql](../../lib/web/migrations/007-run-history.sql)
+after 004. It reads minimal actor/project-scoped operation summaries without
+recovering or changing their state. It does not require media activation.
+Actions history additionally needs the owner-approved App **Actions: read**
+grant on the selected repositories; missing permission remains a visible gap.
+See [Routines and observed activity](web-routine-history.md).
+
+Apply only the migrations for the approved features, preserving their named
+prerequisites. Each migration is transactional and can be reapplied. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
 outer `begin;` and `commit;`) in `DO $keel_migration$ BEGIN ... END
 $keel_migration$;`. This keeps schema creation and permission changes atomic;

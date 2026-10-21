@@ -53,3 +53,50 @@ Screenshots: [desktop attempt](images/2026-10-21-routine-attempt-desktop.png), [
 Phase remains **partial / owes walk**. The production deployment has not changed. Required activation: approved GitHub App Actions-read, migration 007 after 004, and a deployment of the verified source. Migration 007 SHA-256: `0a55a4cf0898403acbdb6781e12ab43d9e69b62f4448d89ec45bd32d5d0ba616`. It adds a service-role-only read projection; no persistent run mirror or new table. Existing hosted migrations and credential prompts remain separate setup work.
 
 The owner must compare one real routine and retry from phone and desktop, including failure/skip, stages, source evidence, unknown usage and unavailable coverage. No recent retry was found in the bounded real sample; synthetic retry proof does not replace this exercise. Local runner reporting, execution/retry/cancel controls and automatic model routing belong to later phases. No paid service, permission expansion or owner observation is inferred from these tests.
+
+## First integration attempt
+
+`node bin/keel.mjs ready --check 'npm run typecheck' --json` exited 0 on
+`7b9933e9a66ff60ecb3f63cc40e5686239e1f9d0`; typecheck exit 0.
+`node bin/keel.mjs integrate --json` then exited 1: one full gate,
+2,232 tests / 2,230 passed / 2 failed, nothing pushed to main. Both failures
+were existing evidence tests: the thirteen-command numeric-output fixture
+exceeded its outer 15-second subprocess bound; the descendant-cleanup fixture
+read a missing PID file after its one-second execution bound. Pinned stall
+checks subsequently passed, including evidence tests. The ledger reported no
+flaky/slower note and excluded its busy run from timing comparison. These facts
+do not erase the failures. Logs: `/tmp/keel-phase102-integrate.{json,stderr}`.
+
+The required isolated diagnosis command
+`node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='strict numeric output and literal top-level JSON selection|parent exit and timeout clean ordinary descendants' tests/evidence.test.mjs`
+exited 0, 2/2 tests. This establishes sensitivity to the full-run environment,
+not a corrected gate. A bounded fixture repair is being verified before any
+new integration attempt. No runtime evidence behavior is intentionally changed.
+
+## Fixture repair verification
+
+Only `tests/evidence.test.mjs` and its synthetic child helper changed. Parser
+coverage now runs the real `rederive` adapter with executor timers held; separate
+CLI and real-time deadline coverage remains. Cleanup waits for bounded real
+fixture readiness, deliberately delays startup beyond one second, then checks
+real descendant cleanup and the exact configured executor timeout. This removes
+startup races without changing production timeout or cleanup behavior.
+
+The conductor ran
+`node --import ./tests/helpers/hermetic.mjs --test tests/evidence.test.mjs tests/docs.test.mjs tests/guides.test.mjs`:
+exit 0, 35/35 tests. Log: `/tmp/keel-phase102-hygiene-conductor.log`.
+`python3 /tmp/keel-phase102-evidence-probes-node26.py` exited 0 using the gate's
+Node 26.12.0 executable in isolated copies. Broken numeric parsing, parent-only
+cleanup and a doubled executor deadline each failed a meaningful assertion.
+The original fixtures failed with delayed startup (`ENOENT`) and a deliberately
+slowed parser batch (`ETIMEDOUT`); the corrected slowed batch passed. Exact
+commands, isolated paths and results are in
+`/tmp/keel-phase102-conductor-node26-evidence-probes.json`.
+An earlier independent probe also passed on Node 24.21.0, selected by the default
+shell; that older runtime is not production-minimum verification. The gate-version
+probe was run explicitly to remove that ambiguity.
+
+The setup guides now link optional media migration 006 and scoped read-only
+history migration 007, with separate resource and permission activation. A fresh
+integration gate is required after this verified fixture correction; the first
+failed gate remains recorded above.
