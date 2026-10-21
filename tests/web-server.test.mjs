@@ -32,7 +32,7 @@ test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inpu
 
 test('public signin/assets and signed-in scaffold are responsive, escaped and never expose tokens or config', async () => {
   const h = harness();
-  for (const path of ['/signin', '/assets/plates.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css']) {
+  for (const path of ['/signin', '/assets/plates.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css', '/assets/daily-client.mjs', '/assets/daily-views.mjs', '/assets/learning-client.mjs', '/assets/learning-views.mjs', '/assets/daily.css']) {
     const response = await h.service(h.request(path)), content = await response.text();
     assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|PLATES_WEB_CONFIG/);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -107,7 +107,7 @@ import { request } from 'node:http';
 const server = await serve(['--config', ${JSON.stringify(configPath)}, '--port', '0', '--json']);
 try {
   const responses = [];
-  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css']) responses.push(await new Promise((resolve, reject) => {
+  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css', '/assets/daily-client.mjs', '/assets/daily-views.mjs', '/assets/learning-client.mjs', '/assets/learning-views.mjs', '/assets/daily.css']) responses.push(await new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'plates.acme.test' } }, res => {
       let text = ''; res.on('data', value => { text += value; }); res.on('end', () => resolve({ status: res.statusCode, text, cookies: res.headers['set-cookie'] }));
     }); req.on('error', reject); req.end();
