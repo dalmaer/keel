@@ -88,6 +88,7 @@ archived phase files remain unchanged.
 | `renovate` | Dependency updates in four lanes: small ones merge on green, majors wait for a person | A pile of dependency PRs nobody reads |
 | `personas` *(optional)* | Goals the project sets itself (a number, a bound, the command that prints it), measured into a dated review page; a missed goal becomes a candidate for the night's plan | Standards stated once and never measured again |
 | `delivery` *(optional)* | One queued publisher moves a tested ref (`green`) to the newest commit on `main` whose gate passed, skipping the superseded and refusing a diverged ref; deploys follow it; doctor holds workflows to cancel-superseded tests and never-cancelled deploys | Two changes in a row each running the whole path, or a deploy from `main` before its gate |
+| `shaping` *(optional)* | Local structured idea review, digest-bound draft writes and robot rubric previews | Recommendations mistaken for owner choices; stale approvals overwriting work |
 | `reconciliation` *(optional)* | Local and read-only GitHub record checks, PR impact declarations, manual health proposals | Merges mistaken for acceptance; obsolete next work and decisions |
 | `loop` *(optional)* | Stitch Loop findings triaged as files: the ranking is ours, an agent proposes, a person decides | Outside findings taken as verdicts |
 | `climb` *(optional)* | Climb nights: on a schedule, an agent improves one number (the suite's time, first) under a shared protocol; a script makes every measurement and keep-or-revert, and a person merges the one PR | A speed-up nobody measured against noise; a test quietly gone |
@@ -206,6 +207,7 @@ Every verb takes `--json`. Exit codes are the same everywhere:
 | `keel morning` | The night's brief: done, tried, failed and why, left alone, your next; `--send` opens the assigned "Good morning" issue, once a night; `--card` keeps the plan as a live canvas card |
 | `keel retro sessions` | Reserve and record bounded handoff trials; audit, promote and roll back within an explicit envelope (`keel improve --sessions` reads the same evidence) |
 | `keel retro` | After a phase that changed more than docs: a worksheet from the session's transcript (counts and pointers, never its text) and seven areas to answer; the owner picks what becomes a check |
+| `keel shape check\|render\|plan` | Validate and render local shaping records; write drafts with `--yes --digest <reviewed-digest>` |
 | `keel decision context` | Read scoped decisions for `--phase <id>` or `--issue <owner/repo#n>`; refresh before dispatch or resume |
 | `keel evidence rederive <phase>` | Preview structured measurements from a phase’s evidence; `--yes` reruns them and compares dated old/new values without rewriting history |
 | `keel prove <test> --fix <path>...` | A fix is proven by its test failing without it: runs the test with the fix reverted in a scratch copy of the repository, then with it, and prints VERIFIED, NOT WORKING or INCONCLUSIVE; `--trailer` gives the `Proven-by:` line a `fix:` commit carries. Never touches your tree |
@@ -286,3 +288,7 @@ Builders can read current scoped choices with
 `keel decision context --phase <id> --json` (or `--issue <owner/repo#n>`).
 See [decision context](docs/reconciliation.md#decision-context-for-a-builder)
 for read bounds, provenance, exit states and dispatch/resume checks.
+
+Use the optional [shaping practice](practices/shaping/README.md) to review supplied
+records locally. [The guide](practices/shaping/files/docs/shaping.md) includes
+a minimal fixture and the exact preview/approval/recovery commands.

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, symlink, readFile } from 'node:fs/promises';
@@ -84,4 +85,17 @@ test('multiple decisions in one file preserve anchors before and after headings'
   const b=await w.context();assert.equal(b.state,'complete',JSON.stringify(b.gaps));
   assert.deepEqual(b.decisions.map(d=>[d.ref,d.scope[0]]).sort(),[[next,'authored-data'],[old,'cache']]);
  }
+});
+
+test('shaping inventory exclusions require exact bytes and cannot hide decision metadata',async t=>{
+ const {root,put}=await world(t);await put('old');
+ const path='docs/phases/01-acme-draft.md';const hash=s=>createHash('sha256').update(s).digest('hex');
+ const read=generatedPhases=>decisionContext({root,phase:'0',generatedPhases});
+ const plain='# Acme generated draft\nNo source decisions.\n';await writeFile(join(root,path),plain);
+ const excluded=await read([{path,hash:hash(plain)}]);assert.equal(excluded.state,'complete');assert.ok(!excluded.sources.some(s=>s.path===path));
+ await writeFile(join(root,path),plain+'Acme edited it.');assert.ok((await read([{path,hash:hash(plain)}])).sources.some(s=>s.path===path));
+ const decision='<a id="new"></a>\n## New\n```keel-decision\n'+JSON.stringify({version:1,id:'new',status:'accepted',scope:['cache'],decided_by:'Acme owner',decided_at:'2026-10-20',supersedes:[ref('old')],superseded_by:[]})+'\n```\n';
+ await writeFile(join(root,path),decision);
+ const visible=await read([{path,hash:hash(decision)}]);assert.ok(visible.sources.some(s=>s.path===path));assert.ok(visible.gaps.some(g=>g.code==='missing-reciprocal'));
+ assert.equal((await read([{path:'../outside',hash:hash(plain)}])).state,'unavailable');
 });

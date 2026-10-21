@@ -4,7 +4,7 @@ since: 2026-10-20
 goal: G4
 spec: 2
 depends: [54, 91]
-note: "Authorized specification; implementation and real-use evidence remain."
+note: "Authorized and planned; waits for phase 91 to land after PR #208 review and CI. The additional repair round does not authorize a merge."
 evidence: []
 ---
 

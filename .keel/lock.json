@@ -167,7 +167,7 @@
     },
     "scripts/keel/decision-context.mjs": {
       "practice": "reconciliation",
-      "sha256": "150e3bf9a947358ccccc34e1b0dd3345a1daa9229a4182524bc4a5063bdefeb0"
+      "sha256": "7f2a5caa469c9e241fce5a649124ef7fc5ac64f7aa9fa3b9c1ce5ea9c438be0a"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",

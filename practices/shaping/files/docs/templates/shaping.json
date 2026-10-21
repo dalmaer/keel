@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "acme-search",
+  "revision": 1,
+  "date": "2026-10-20",
+  "goal": "G0",
+  "sources": [],
+  "questions": [{
+    "id": "match", "question": "Which matches should Acme show?",
+    "whyOwner": "This sets the desired user experience.",
+    "recommendation": {"text": "Show exact matches first.", "evidence": ["Acme example requirements"], "alternatives": ["Show prefix matches first."]}
+  }],
+  "answers": [{"question":"match","actor":"Acme owner","role":"owner","time":"2026-10-20T12:00:00Z","source":"Acme fixture instruction","text":"Show exact matches first."}],
+  "proposedDecisions": [],
+  "items": [{
+    "id":"search", "kind":"phase", "phase":1, "title":"Acme search returns exact matches first",
+    "problem":"Acme search order is unspecified.", "scope":"Define and test exact match ordering.",
+    "doneWhen":"Acme search returns an exact match before a prefix match.",
+    "proof":["node --test tests/search.test.mjs"], "depends":["phase:0"],
+    "decisions":[], "ownerPrerequisites":["match"],
+    "surfaces":[{"name":"owner's machine","proof":"Run the search check against the local Acme application."}]
+  }]
+}

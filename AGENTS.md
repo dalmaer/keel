@@ -151,6 +151,14 @@ closure is source planning state, never acceptance. Edit the plan in GitHub
 and preserve unavailable or incomplete reads as gaps. Loop phase-homing and
 `prove --evidence` cannot write archived local plans for this source.
 
+## Local shaping
+
+The optional `shaping` practice reviews supplied records with `keel shape
+check|render|plan`. See `practices/shaping/files/docs/shaping.md`. Approve the
+exact local draft preview with `--yes --digest <reviewed-digest>`; unchanged
+inputs recover the same mapping, while edited destinations refuse recovery.
+Owner answers are manual attribution; proof declarations are not verification.
+
 ## Project canvas
 
 `keel canvas` projects source records onto isocan. Collect and render locally

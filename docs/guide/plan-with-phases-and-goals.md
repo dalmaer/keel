@@ -216,3 +216,29 @@ alone proves neither acceptance nor improvement.
   keel's own phases follow it.
 - [`practices/phases/README.md`](../../practices/phases/README.md) and
   [`practices/evidence/README.md`](../../practices/evidence/README.md).
+
+## Shape an idea into reviewed drafts
+
+Opt into `shaping` with `keel adopt --with shaping`. Read the installed
+`docs/shaping.md` and named sources before asking unresolved owner questions.
+Recommendations, manual owner answers and unanswered questions stay separate.
+
+```sh
+keel shape check idea.json --json
+keel shape render idea.json --output review-acme --json
+keel shape plan idea.json --json
+keel shape plan idea.json --yes --digest <reviewed-digest> --json
+```
+
+The preview retains exact draft bytes and source hashes. Approval requires its
+digest; changed sources require fresh review. Retry the same digest after an
+interruption: unchanged drafts keep their paths, edited destinations refuse
+recovery. Generated phases are spec-2 planned work with unchecked acceptance
+and empty evidence. Named proof is not verified proof. Unanswered owner
+prerequisites block conducting; the conductor judges sufficiency.
+
+Milestone projects receive previews only and reject unverifiable external
+phase dependencies. Robot items produce rubric previews without creating
+issues or launching models. Accepted decisions remain in their source records.
+See the [shaping schema and lifecycle](../../practices/shaping/files/docs/shaping.md)
+and [minimal Acme fixture](../../tests/fixtures/shaping/minimal.json).
