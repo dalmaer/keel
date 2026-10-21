@@ -477,8 +477,10 @@ diff transactions are new work for commands that do not currently support them.
 The first delivery plan is [workspace phases 93–101](web-workspace.md#phases-and-release-criteria),
 under goal G7. Phase 93 enforces private storage, 94 connects owner-approved
 resources, 95 authenticates, and 96 ships the first useful read-only Home.
-Decisions, guided walks and visual changes follow in 97–99; daily work and
-learning follow in 100, with live acceptance and restore in 101. Do not wait
+Decision and guided-walk implementations in 97–98 have local proof; their hosted
+migrations and real-owner writes remain separate acceptance. Visual changes
+follow in 99; daily work and learning follow in 100, with live acceptance and
+restore in 101. Do not wait
 for a graphical version of every CLI flag. Link-outs are staged delivery, not the
 end state for core operations. [Fleet phases 102–108](web-fleet-operations.md)
 add run history, connections/capacity, workers, fleet rollouts, routing, operation

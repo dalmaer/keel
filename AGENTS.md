@@ -228,6 +228,14 @@ private ownership marker; mismatches are refusals, never a reason to overwrite.
 Local initialization does not establish login or verify remote privacy. See
 `keel --agent-help workspace` and [the workspace contract](docs/specs/web-workspace.md).
 
+Hosted guided walks read authored `docs/walks/<id>.json` steps and bind private
+observations to the exact result and actual environment. A failed, blocked or
+stale observation never accepts a phase. Review every file in the final preview;
+public publication requires acknowledgement of those exact bytes. Reuse the
+original operation URL after uncertainty, never submit another mutation. A
+verified source commit remains distinct from a real owner or production walk.
+See [the guided-walk contract](docs/specs/web-guided-walks.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.21.0, no build step.** `node --test` for

@@ -32,7 +32,7 @@ test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inpu
 
 test('public signin/assets and signed-in scaffold are responsive, escaped and never expose tokens or config', async () => {
   const h = harness();
-  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css']) {
+  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css']) {
     const response = await h.service(h.request(path)), content = await response.text();
     assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|KEEL_WEB_CONFIG/);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -107,7 +107,7 @@ import { request } from 'node:http';
 const server = await serve(['--config', ${JSON.stringify(configPath)}, '--port', '0', '--json']);
 try {
   const responses = [];
-  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css']) responses.push(await new Promise((resolve, reject) => {
+  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css']) responses.push(await new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'keel.acme.test' } }, res => {
       let text = ''; res.on('data', value => { text += value; }); res.on('end', () => resolve({ status: res.statusCode, text, cookies: res.headers['set-cookie'] }));
     }); req.on('error', reject); req.end();
@@ -128,4 +128,39 @@ try {
   assert.equal(response.status, 200); assert.match(response.text, /Continue with GitHub/);
   assert.match(response.cookies[0], /^__Host-keel-login=.*Secure; HttpOnly; SameSite=Lax/);
   assert.doesNotMatch(response.text, /fake-client-secret|fake-service-key|supabase\.co/);
+});
+
+test('guided walk routes retain auth, CSRF and CAS boundaries while saved failure survives reload', async () => {
+  const { walkHarness } = await import('./helpers/web-walks.mjs');
+  const h=walkHarness(), signed=await h.login(), base='/api/projects/studio/walks/acme-search';
+  const get=path=>h.service(h.request(path,{cookie:signed.cookie}));
+  const post=(path,body,{origin=h.config.origin,cookie=signed.cookie}={})=>h.service(new Request(h.config.origin+path,{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify(body)}));
+  assert.ok([401,404].includes((await h.service(h.request(base))).status));
+  assert.equal((await get('/api/projects/missing/walks')).status,404);
+  const index=await get('/api/projects/studio/walks');assert.equal(index.status,200);assert.equal((await index.json()).items[0].id,'acme-search');
+  const page=await get('/projects/studio/walks/acme-search');assert.equal(page.status,200);const html=await page.text();assert.match(html,/Search for the Acme anvil/);assert.doesNotMatch(html,/fake-user-access|fake-service-key|fake-client-secret/);
+  const detail=await (await get(base)).json();
+  const body={csrf:signed.session.csrf,expectedRevision:detail.draft.revision,sourceDigest:detail.sourceDigest,environment:'Acme desktop preview',resultConfirmed:true,step:{id:'find',outcome:'fail',note:'Acme actual failure: anvil is absent.'}};
+  assert.equal((await post(base+'/draft',body,{origin:'https://evil.test'})).status,403);
+  assert.equal((await post(base+'/draft',{...body,csrf:'wrong'})).status,403);
+  const save=await post(base+'/draft',body);assert.equal(save.status,200,await save.clone().text());const saved=await save.json();assert.equal(saved.draft.steps[0].outcome,'fail');
+  assert.equal((await post(base+'/draft',body)).status,409,'competing tab cannot overwrite the new revision');
+  const loaded=await (await get(base)).json();assert.equal(loaded.draft.steps[0].note,'Acme actual failure: anvil is absent.');
+  assert.equal((await post(base+'/preview',{csrf:signed.session.csrf,draftDigest:loaded.draft.digest})).status,409);
+  assert.equal(h.source.writes.length,0);
+  const definition=JSON.parse(h.source.files['docs/walks/acme-search.json']);definition.steps[0].expected='A revised Acme expectation.';h.source.files['docs/walks/acme-search.json']=JSON.stringify(definition);
+  const refreshed=await (await get(base)).json();assert.equal(refreshed.draft.steps[0].outcome,'unobserved');assert.equal(refreshed.draft.history[0].note,'Acme actual failure: anvil is absent.');assert.equal(refreshed.draft.history[0].step.expected,'Anvil appears in the results.');
+  h.state.members=[];const denied=await get(base);assert.ok([401,403,404].includes(denied.status));assert.doesNotMatch(await denied.text(),/Acme actual failure/);
+});
+
+test('guided successful route previews exact files but existing default write opt-in still blocks source delivery',async()=>{
+  const {walkHarness}=await import('./helpers/web-walks.mjs');const {createWebService}=await import('../lib/web/server.mjs');
+  const h=walkHarness(),signed=await h.login(),service=createWebService({...h.config,decisionWrites:false},{fetcher:h.fetcher,now:()=>h.state.now}),base='/api/projects/studio/walks/acme-search';
+  const get=()=>service(h.request(base,{cookie:signed.cookie}));
+  const post=(path,data)=>service(new Request(h.config.origin+path,{method:'POST',headers:{cookie:signed.cookie,origin:h.config.origin,'content-type':'application/json'},body:JSON.stringify({csrf:signed.session.csrf,...data})}));
+  let model=await (await get()).json();
+  for(const step of model.walk.steps){const response=await post(base+'/draft',{expectedRevision:model.draft.revision,sourceDigest:model.sourceDigest,environment:'Acme desktop preview',resultConfirmed:true,step:{id:step.id,outcome:'pass',note:'Acme owner saw the expected result.'}});assert.equal(response.status,200,await response.clone().text());model=await response.json();}
+  const final=await post(base+'/draft',{expectedRevision:model.draft.revision,sourceDigest:model.sourceDigest,finalObservation:'Acme search found and opened the expected anvil.'});assert.equal(final.status,200);model=await final.json();
+  const response=await post(base+'/preview',{draftDigest:model.draft.digest});assert.equal(response.status,200,await response.clone().text());const preview=await response.json();assert.equal(preview.kind,'walk');assert.equal(preview.canSubmit,false);assert.ok(preview.files.some(file=>file.path==='docs/ROADMAP.md'));assert.ok(preview.files.some(file=>file.content.includes('Acme search found and opened the expected anvil.')));
+  const apply=await post('/api/projects/studio/decisions/apply',{previewId:preview.id,publicAcknowledgement:preview.digest});assert.equal(apply.status,403);assert.deepEqual(await apply.json(),{error:'submission_disabled'});assert.equal(h.source.writes.length,0);
 });
