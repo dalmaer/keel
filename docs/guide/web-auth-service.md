@@ -139,7 +139,7 @@ sessions unreadable; explicitly delete attempts/sessions during key rotation.
 
 The repository includes `api/index.mjs` and `vercel.json`: native Node Web Handler,
 no build step or runtime dependencies. Use the selected Node 24.x runtime and
-verify the actual serving patch is at least 24.21.0. Route all requests through
+verify the actual serving patch is at least 24.22.1. Route all requests through
 the handler on the approved HTTPS origin. No static app asset contains secrets;
 there is no unauthenticated service status endpoint exposing configuration.
 The authenticated `GET /api/session` response includes `runtime` for verification.

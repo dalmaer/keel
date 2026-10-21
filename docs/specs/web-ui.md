@@ -309,9 +309,11 @@ Before/after media names both revisions and comparable scenarios. Missing media
 gets a useful text card with “No capture attached”, never an AI-generated stand-in.
 
 Use synthetic accounts or explicitly authorized data for captures. Review
-potential private content before publishing outside the local workspace; media
-inherits the source project's visibility. Keep remote media origins bounded and
-serve only authorized artifacts. Captions, alt text and keyboard-operable enlarged
+potential private content before publishing outside the local workspace. Project
+access constrains media access, but private captures stay private even when the
+project or application repository is public. Serve only authorized artifacts;
+there is no arbitrary remote media fetch. The [visual journal contract](web-visual-journal.md)
+binds authored capture slots to private receipts. Captions, alt text and keyboard-operable enlarged
 views make visual changes accessible. Attachment upload, redaction, artifact
 retention and publishing permissions need explicit implementation contracts.
 

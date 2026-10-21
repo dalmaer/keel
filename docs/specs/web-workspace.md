@@ -132,8 +132,10 @@ HTTPS origin, external durable storage, secret injection and backup destination;
 approve a private workspace repository and a GitHub App with selected repository
 access. The [setup recipe](../guide/web-workspace-setup.md) names prices and
 remaining resource decisions. No subscription, paid upgrade or domain is assumed.
-Phase 94 selects Node 24.x; phase 95 verifies deployed `process.version` >=24.21.0:
-Vercel selects a major version and rolls patch releases automatically.
+Phase 94 selects Node 24.x. Phase 95 originally verified deployed
+`process.version` >=24.21.0; current builds require >=24.22.1 following the
+repository runtime update. A historical deployment observation does not establish
+that newer minimum. Vercel selects a major version and rolls patch releases automatically.
 [Node versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
 
 Phase 95 implements login with a GitHub App user authorization flow and opaque
