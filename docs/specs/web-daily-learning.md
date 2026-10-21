@@ -47,6 +47,16 @@ Drafting does not publish or schedule anything. Unsupported publication/executio
 links to the existing explicit CLI workflow with a clear reason; phases 102–108
 own the runner and expanded operating controls.
 
+**2026-10-21 implementation decision:** The climb template imports companions
+that exist only after practice assembly. The hosted reader must not assemble or
+execute project scripts to derive an allowance. It therefore displays an explicit
+source `climb.budget.minutes` and listed jobs as declarations, with unresolved
+defaults or invalid values unavailable. Draft validation refuses climb work whose
+explicit allowance or job cannot be established; it does not claim full runner
+configuration validation. Canonical night-plan validation and morning merge and
+readiness functions remain reused directly. This preserves package portability
+without changing the practice merely to support a read-only projection.
+
 ## Private learning
 
 Read configured project lesson tables with the existing parser and bounded source
