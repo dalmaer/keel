@@ -1,11 +1,11 @@
 ---
-status: planned
+status: partial
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [94]
-note: "Authorized web workspace sequence; acceptance remains unverified."
-evidence: []
+note: "Service and local proof complete; owner identity checks, hosted SQL concurrency, deployment and live login remain."
+evidence: ["evidence/2026-10-21-web-auth-service.md"]
 ---
 
 # Sign-in scopes every project
@@ -23,11 +23,11 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Login rejects replay, bad state, expired attempts and unsafe return paths; sessions rotate and expire: `tests/web-auth.test.mjs`.
-- [ ] Denied membership, revoked access and unauthorized project/media/stream requests reveal no private records: `tests/web-access.test.mjs`.
+- [x] Login rejects replay, bad state, expired attempts and unsafe return paths; sessions rotate and expire: `tests/web-auth.test.mjs`.
+- [x] Denied membership, revoked access and unauthorized project/media/stream requests reveal no private records: `tests/web-access.test.mjs`.
 - [ ] Independent function instances atomically consume authorization attempts, revoke sessions and preserve versioned writes; unavailable storage fails closed: `tests/web-store.test.mjs`.
-- [ ] Mutation routes enforce origin and CSRF; public static/package output contains no secrets: `tests/web-server.test.mjs`.
-- [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin: `docs/guide/web-workspace-setup.md`.
+- [x] Mutation routes enforce origin and CSRF; public static/package output contains no secrets: `tests/web-server.test.mjs`.
+- [ ] ⚑ By hand: actual login, logout and denied-project access work on the approved HTTPS origin, with serving Node >=24.21.0 verified: `docs/guide/web-workspace-setup.md`.
 
 ## Real surfaces
 
@@ -51,9 +51,11 @@ Public signup, additional identity providers and multi-tenant hosting are outsid
 
 ## Next action
 
-Implement the provider-bound login and request authorization after phase 94 connections are verified.
+Complete GitHub Confirm access and Vercel database verification, then register/install the approved App, apply the migration and verify independent database connections. Configure production secrets, deploy, and walk owner login/logout/denied access with serving Node >=24.21.0. Keep phase 96 behind this acceptance boundary until the remaining database proof is established.
 
 ## Trajectory
+
+- **2026-10-21** — User-to-server GitHub App authorization needs no installation private key. Explicit numeric bindings and private membership read at one commit establish the access intersection. Local adapter concurrency and embedded SQL proof remain distinct from hosted multi-connection verification.
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
 

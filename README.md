@@ -172,8 +172,9 @@ production; the read-only GitHub App is approved and awaiting GitHub identity
 verification before registration. Phase status lives in [the roadmap](docs/ROADMAP.md):
 [93: local foundation](docs/phases/93-workspace-data-stays-outside-public-code.md)
 is built; [94: connections](docs/phases/94-private-instance-has-approved-connections.md)
-is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) and
-[96: Home](docs/phases/96-home-explains-every-project.md) follow. Decisions,
+is partial; [95: sign-in](docs/phases/95-sign-in-scopes-every-project.md) now has
+a service implementation and local verification, with live acceptance still open.
+[96: Home](docs/phases/96-home-explains-every-project.md) follows. Decisions,
 walks, visual changes and initial real-use verification follow in phases 97–101.
 [Phases 102–108](docs/specs/web-fleet-operations.md#delivery-and-proof) add routine
 history/execution, fleet updates, provider capacity and model routing, then verify
@@ -261,6 +262,10 @@ for Vercel login/team selection, project creation, the saved-login path workarou
 GitHub App permissions, production-only secrets and the remaining acceptance
 checks. A Vercel project or domain alone is not a running Keel UI. The local
 workspace commands above do not provision the hosted stores or start a server.
+The [authentication service guide](docs/guide/web-auth-service.md) covers the
+implemented Node entry point, SQL migration, private membership file, numeric
+repository bindings and production environment variables. Local tests and
+screen captures do not establish a working hosted login.
 
 See the [UX design](docs/specs/web-ui.md),
 [interactive Home prototype](docs/design-previews/keel-home.html),
@@ -291,6 +296,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Web authentication service](docs/guide/web-auth-service.md) | you are configuring the server, private membership, session database and production secrets |
 | [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |
 

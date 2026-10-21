@@ -132,7 +132,7 @@ test('the view: universal rows reach every project, a tagged row only its stack,
 
 test('keel\'s own docs/keel-lessons.md is the catalogue filtered for keel\'s stack, and a changed stack is stale', async t => {
   const config = JSON.parse(await read('.keel/keel.json'));
-  assert.deepEqual(config.stack, ['node', 'github-actions']);
+  assert.deepEqual(config.stack, ['node', 'github-actions', 'vercel']);
   const view = await read(VIEW);
   const { rows } = viewRows(await read('docs/lessons.md'), config.stack);
   assert.equal(parseLessons(view).rows.length, rows.length);

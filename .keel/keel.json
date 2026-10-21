@@ -6,7 +6,8 @@
   "keel": "self",
   "stack": [
     "node",
-    "github-actions"
+    "github-actions",
+    "vercel"
   ],
   "practice": "0.8.32",
   "practices": [
