@@ -1,11 +1,11 @@
 ---
-status: designed
+status: built
 since: 2026-10-21
 goal: G4
 spec: 2
 depends: [54, 91]
-note: "Local capture, private revision storage, explicit publication handoff and resolution contracts settled; implementation and proof remain."
-evidence: []
+note: "Private exact-result feedback, reviewed issue/shaping handoffs and metadata board proven locally and through a packed adopted project; hosted walks remain phase 98."
+evidence: ["evidence/2026-10-21-private-result-feedback.md"]
 ---
 
 # Feedback names the result the owner reviewed
@@ -21,12 +21,12 @@ Keep the existing authorities and authorization boundaries.
 
 ## Acceptance
 
-- [ ] Capture retains immutable result identity and reports missing versions without replacing them with latest: `tests/feedback.test.mjs`.
-- [ ] Source replay deduplicates, edits retain prior words, and feedback on a new result remains distinct: `tests/feedback.test.mjs`.
-- [ ] Open, closed and unknown work states produce the specified route or gap; a conflicting decision produces a reopening proposal: `tests/feedback-route.test.mjs`.
-- [ ] Publication handoff preserves the existing robot preview/intent identity and exact outbound payload; delivery and ambiguous-write recovery reuse the existing issue API: `tests/feedback-route.test.mjs`.
-- [ ] Raw text is absent from Git exports, ordinary canvas snapshots, night artifacts and logs; capacity errors preserve stored work: `tests/feedback.test.mjs`.
-- [ ] The board reports pending work and resolution links, and fresh-process capture/list/propose works with an unavailable adapter: `tests/feedback-cli.test.mjs`.
+- [x] Capture retains immutable result identity and reports missing versions without replacing them with latest: `tests/feedback.test.mjs`.
+- [x] Source replay deduplicates, edits retain prior words, and feedback on a new result remains distinct: `tests/feedback.test.mjs`.
+- [x] Open, closed and unknown work states produce the specified route or gap; a conflicting decision produces a reopening proposal: `tests/feedback-route.test.mjs`.
+- [x] Publication handoff preserves the existing robot preview/intent identity and exact outbound payload; delivery and ambiguous-write recovery reuse the existing issue API: `tests/feedback-route.test.mjs`.
+- [x] Raw text is absent from Git exports, ordinary canvas snapshots, night artifacts and logs; capacity errors preserve stored work: `tests/feedback.test.mjs`.
+- [x] The board reports pending work and resolution links, and fresh-process capture/list/propose works with an unavailable adapter: `tests/feedback-cli.test.mjs`.
 
 ## Real surfaces
 
@@ -36,8 +36,8 @@ Keep the existing authorities and authorization boundaries.
 
 ## Proof
 
-These are implementation targets, not tests already present or results of this
-specification task. Add the named tests before claiming acceptance.
+The evidence records the named tests, extracted-package lifecycle and local
+browser walk. The full gate is run by the integrator on the recorded tree.
 
 - `node --import ./tests/helpers/hermetic.mjs --test tests/feedback.test.mjs tests/feedback-route.test.mjs tests/feedback-cli.test.mjs`
 - `npm run check`
@@ -54,9 +54,11 @@ Automatic canvas comment collection is deferred until the installed public API s
 
 ## Next action
 
-Implement the dated phase-92 contract: pure validation/routing, bounded private store, digest-bound capture/resolution, explicit issue handoff and metadata-only board projection. Run the named proofs and packed/adopted lifecycle; automatic provider collection remains unavailable.
+None for this local slice. Lived-in evidence requires actual owner feedback and live adapter observations; hosted guided walks continue in phase 98.
 
 ## Trajectory
+
+- **2026-10-21** — A generic reopening tag could not enter phase 91. Require an explicitly authored, validated shaping draft and prove the returned draft through the existing inspection path; inventing goals, proof commands or owner answers would change authority.
 
 - **2026-10-21** — An independent adopted-package probe included locally Git-excluded private files in npm packing, and a negated descendant bypassed a single ignore probe. Verify actual destinations and retain a store-local npm exclusion; project-root user files remain untouched.
 

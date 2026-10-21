@@ -9,13 +9,14 @@
   owed, the night's proposal, a lesson waiting for a decision.
 
 This guide describes the existing local board. For the private data repository
-and the hosted Home UI being built, see [Private web workspace setup](web-workspace-setup.md).
-Hosted sign-in and Home are not deployed yet; starting the local board does not
-create a hosted workspace.
+and the deployed private sign-in/read-only Home, see
+[Private web workspace setup](web-workspace-setup.md). Starting this local board
+does not create a hosted workspace. Decision writes and guided web observations
+have their own phase acceptance and deployment checks.
 
 ## What it does, and why it works that way
 
-The answer is already spread over six places keel knows: the phase files,
+The answer is spread across sources keel knows: the phase files,
 loose ends, review comments on open PRs, the newest health page, the inbox
 and the fleet. `keel board` reads them all and sorts every open item by what
 it waits on, in the order you read them:
@@ -45,6 +46,12 @@ it waits on, in the order you read them:
   that `waits: time` (a week of green nights).
 
 Plus a fleet strip: each project's practice version, health and CI.
+
+The selected project's **Feedback to review** section shows bounded metadata
+from private [result feedback](feedback.md): observation IDs, states, revision,
+coverage gaps and resolution links. Raw words, snapshots and private file paths
+do not appear on the board. Missing or unreadable feedback coverage is explicit;
+resolving feedback does not accept a phase.
 
 It derives nothing its sources do not already say. Two facts used to live
 only in prose, so the phase files now say them:

@@ -164,3 +164,8 @@ load context. The phase claim was released after the merge.
 Hosted migration 004, App Contents-write approval and a real owner choice remain
 open. Integration does not establish deployment, real source delivery or lived-in
 acceptance. The existing read-only Home remains the serving revision.
+
+Post-merge CI on the exact integrated main revision
+`1b1ad767c2aa77fa7beacca767dba04ca1ddb426` also succeeded: GitHub check run
+`39665599688` and typecheck run `39665599652`, observed 2026-10-21. These
+are remote CI results, not another local gate or production verification.

@@ -147,7 +147,8 @@ test('keel board --json puts each kind of item in its column, from every source'
     assert.deepEqual(data.items.find(i => i.kind === 'proposal').actions.map(a => [a.verb, ...a.args].join(' ')), ['walk decide --proposal docs/health/2026-10-07.md --accept', 'walk decide --proposal docs/health/2026-10-07.md --decline']);
     assert.deepEqual(data.items.find(i => i.kind === 'lesson').actions.map(a => [a.verb, ...a.args].join(' ')), ['learn decide acme-lesson accepted', 'learn decide acme-lesson declined']);
     assert.deepEqual(data.fleet.map(r => [r.repo, r.ci]), [['acme/app', 'green'], ['acme/site', 'red']]);
-    assert.deepEqual(data.sources.map(s => [s.source, s.state]), [['roadmap', 'ok'], ['loose-ends', 'ok'], ['reviews', 'ok'], ['health', 'ok'], ['inbox', 'ok'], ['robot', 'ok'], ['fleet', 'ok']]);
+    assert.deepEqual(data.sources.map(s => [s.source, s.state]), [['feedback', 'n/a'], ['roadmap', 'ok'], ['loose-ends', 'ok'], ['reviews', 'ok'], ['health', 'ok'], ['inbox', 'ok'], ['robot', 'ok'], ['fleet', 'ok']]);
+    assert.match(data.sources.find(s => s.source === 'feedback').why, /Git identity is unavailable.*cannot be verified/);
     assert.deepEqual(data.counts, { owner: 8, broken: 2, agent: 4, time: 2, external: 1 });
     // A fleet row that could not be read: the strip says so, and the source is partial.
     const some = await board({ root }, { ...deps(root), fleet: async () => ({ rows: [...fleetData.rows, { repo: 'acme/lost', role: 'managed', unreadable: 'HTTP 404' }] }) });
