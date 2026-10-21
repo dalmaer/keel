@@ -115,3 +115,61 @@ production secrets, deploy and verify owner login/logout/denied access.
 Do not expose tokens, cookies, OAuth codes or production environment values in
 public evidence. Exact resource and identity bindings remain in the private
 workspace repo. Phase 94 also retains its unresolved backup and connection walk.
+
+
+## Hosted follow-up — 21 October 2026, 16:59–17:01 UTC
+
+This dated follow-up supersedes the pending identity/database observations above;
+those earlier observations are retained as history. Application source remained
+`9202f9e`. The final preceding integration on that revision passed: `npm run check`
+exit 0, 1,923/1,923 tests, and `npm run typecheck` exit 0.
+
+The owner completed GitHub and Vercel identity checks. GitHub App registration is
+verified, with the two selected repositories prepared for installation; the
+final access grant and OAuth client secret remain pending. No private key was
+created. Exact identities remain in the private workspace setup record.
+
+The conductor used Vercel’s authenticated database editor against the approved
+Supabase instance. Preflight found no auth table or function. The editor rejected
+the multi-statement migration with “cannot insert multiple commands into a
+prepared statement”; no migration success was inferred from that attempt. The
+same migration body, without its outer transaction statements, then succeeded in
+one `DO $keel_migration$ BEGIN ... END $keel_migration$;` statement. Its single
+statement transaction preserves atomicity. Migration source was
+`lib/web/migrations/001-auth.sql` at `9202f9e`.
+
+Live catalog checks found RLS enabled, SECURITY DEFINER enabled, an empty function
+search path, no schema/table/RPC access for anon or authenticated, and only RPC
+execution for service_role (no direct table access). The retained role assertion
+block actually attempted those reads/calls under each role: forbidden calls
+raised insufficient_privilege; service_role read the synthetic record via RPC.
+The block completed successfully.
+
+The [exact hosted SQL proof](2026-10-21-web-auth-hosted-proof.sql) uses only
+random-keyed synthetic Acme records with ten-minute TTLs. Each A query holds its
+transaction for eight seconds; B starts while A is still active. Observed UTC
+intervals and distinct `pg_backend_pid()` values establish real overlap:
+
+| Race | A backend / interval | B backend / interval | Observed |
+| --- | --- | --- | --- |
+| Consume one attempt | 16613 / 16:59:00.186–16:59:08.259 | 16681 / 16:59:00.596–16:59:08.388 | A returned version 1; B returned null |
+| CAS from version 1 | 16681 / 16:59:25.124–16:59:33.190 | 16613 / 16:59:25.454–16:59:33.331 | A wrote version 2; B returned null; A’s value persisted |
+| Renewal versus revocation | 16613 / 16:59:59.719–17:00:07.788 | 16681 / 17:00:00.057–17:00:07.914 | Renewal completed, revocation waited then deleted; a subsequent renewal returned null |
+
+All four final SQL assertions returned true: consumed attempt absent, winning
+CAS value preserved, revoked session absent, late renewal denied. Cleanup removed
+exactly the one remaining synthetic record; no owner records were touched. Both
+editors were restored to read-only. This establishes the actual hosted SQL
+boundary alongside the independent application-instance adapter tests above;
+it is not a deployed Vercel function or end-to-end OAuth claim.
+
+The production session encryption secret was generated directly into Vercel’s
+secret store via CLI stdin; exit 0, addition confirmed. No value was printed,
+saved locally, or committed. Temporary owner verification-code files were removed
+after use. Public evidence contains no codes, cookies, tokens or live secrets.
+
+Phase 95 remains **partial** for App installation/client secret, deployment,
+owner login/logout/denied access and actual serving Node version. Its database
+concurrency acceptance box is now checked. Phase 94 still owes fresh installation
+API facts and the backup destination. A live service preview remains unavailable
+until those deployment prerequisites are completed.

@@ -75,7 +75,11 @@ and development environments fail closed; real credentials are production-only.
 
 Apply [001-auth.sql](../../lib/web/migrations/001-auth.sql) to the selected private
 Supabase database through its owner SQL interface before starting the service.
-The migration is transactional and can be reapplied. It creates a private,
+The migration is transactional and can be reapplied. Vercel’s Marketplace query
+editor accepts one prepared statement: wrap the migration body (without its
+outer `begin;` and `commit;`) in `DO $keel_migration$ BEGIN ... END
+$keel_migration$;`. This keeps schema creation and permission changes atomic;
+do not run its statements individually. It creates a private,
 RLS-enabled table and a narrowly scoped `public.keel_web_rpc` function. The
 function has an empty search path and fully qualified table references. Public,
 anon and authenticated roles cannot execute it or read the table; service_role
