@@ -1,11 +1,12 @@
 ---
-status: designed
+status: partial
+owes: walk
 since: 2026-10-22
 goal: G7
 spec: 2
 depends: [100]
-note: "Serving identity and restore quarantine contract settled; implementation and owner backup/use trial remain."
-evidence: []
+note: "Serving identity, permanent auth epoch and restore quarantine locally proven; hosted owner use and actual backup drill remain."
+evidence: ["evidence/2026-10-22-web-restore.md"]
 ---
 
 # The workspace holds in real use
@@ -26,10 +27,10 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Acceptance
 
-- [ ] Deployment health names the serving revision and denies access after revocation: `tests/web-deployment.test.mjs`.
-- [ ] Restore expires sessions and reconciles uncertain operations without replaying them blindly: `tests/web-restore.test.mjs`.
-- [ ] ⚑ By hand: owner completes decisions, failed/successful walks and visual discovery across selected real projects: `docs/guide/web-workspace-setup.md`.
-- [ ] ⚑ By hand: restore actual private workspace backup and inspect source/receipt/artifact coverage over a named observation window: `docs/guide/web-workspace-setup.md`.
+- [x] Deployment health names the serving revision and denies access after revocation: `tests/web-deployment.test.mjs`.
+- [x] Restore expires sessions and reconciles uncertain operations without replaying them blindly: `tests/web-restore.test.mjs`.
+- [ ] ⚑ By hand: owner completes decisions, failed/successful walks and visual discovery across selected real projects: `docs/guide/web-recovery.md`.
+- [ ] ⚑ By hand: restore actual private workspace backup and inspect source/receipt/artifact coverage over a named observation window: `docs/guide/web-recovery.md`.
 
 ## Real surfaces
 
@@ -39,8 +40,8 @@ Contract: [Private workspace, public Keel application](../specs/web-workspace.md
 
 ## Proof
 
-Named test paths are implementation targets until this phase is built, not
-claims of existing checks or passing results.
+Named service tests and actual-SQL proof have local evidence. Hosted serving
+identity, backup completeness and physical-device use remain separate checks.
 
 - `node --import ./tests/helpers/hermetic.mjs --test tests/web-deployment.test.mjs tests/web-restore.test.mjs`
 - `npm run check`
@@ -53,11 +54,15 @@ A merge or green test suite does not establish production verification or lived-
 
 ## Next action
 
-Implement the restore epoch/quarantine and authenticated deployment observation,
-prove the named service/restore boundaries, and prepare the private owner trial
-worksheet. The owner still selects backup destination, participants and window.
+Owner selects a private backup destination, isolated restore target, projects,
+participants and observation window. Deploy the verified application, compare
+serving identity, then complete the decision/testing/visual and restore journeys
+in the [private trial worksheet](../guide/web-recovery.md). Keep execution
+features disabled until their separate current restore proofs hold.
 
 ## Trajectory
+
+- **2026-10-22** — A snapshot can predate external dispatch; even a receipt GET can mutate recovered state. A fresh deployment epoch fences restored authorization, and quarantine covers every business route until an explicit operator audit. [Local proof](../evidence/2026-10-22-web-restore.md).
 
 - **2026-10-21** — Created from the owner's request for a hosted UI with private workspace data, project-owned records, decisions, guided testing and visible recent additions.
 
@@ -69,7 +74,7 @@ worksheet. The owner still selects backup destination, participants and window.
 
 - **Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
 
-- **Look at:** [Setup worksheet](../guide/web-workspace-setup.md) and this phase's source evidence.
+- **Look at:** [Private trial worksheet](../guide/web-recovery.md) and this phase's source evidence.
 
 - **Choices:** Verified | Needs changes | Cannot check yet
 
@@ -87,7 +92,7 @@ worksheet. The owner still selects backup destination, participants and window.
 
 - **Why:** This needs actual owner access or observation; synthetic tests cannot establish it.
 
-- **Look at:** [Setup worksheet](../guide/web-workspace-setup.md) and this phase's source evidence.
+- **Look at:** [Private trial worksheet](../guide/web-recovery.md) and this phase's source evidence.
 
 - **Choices:** Verified | Needs changes | Cannot check yet
 

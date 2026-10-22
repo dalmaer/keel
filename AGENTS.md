@@ -287,6 +287,17 @@ are separate from previews and approvals; preserve CAS/save identities and requi
 fresh source validation after restore. Unsaved offline edits remain in memory.
 See [the operation experience](docs/specs/web-operation-experience.md).
 
+## Web restore boundary
+
+Before attaching restored state, stop old writers and configure a fresh recovery
+`epoch` outside that database. Keep the epoch after reconciliation and preserve
+the keys for durable ciphertext. Quarantine blocks all business routes, including
+GET receipt recovery and worker callbacks; fresh authentication and explicitly
+listed deployment/session observations remain available. An old snapshot cannot
+establish that external work never ran or that a budget is unused. Reconcile
+original intents privately before reopening; operator assertions are not backup
+or production proof. See [the recovery guide](docs/guide/web-recovery.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for

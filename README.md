@@ -174,6 +174,9 @@ behind **Show changes** so the card you are reading stays stable. See
 [Using Home](docs/guide/web-home.md) for refresh behavior and limits.
 The [visual tour](docs/guide/web-tour.md) collects desktop/mobile captures and
 links to the guides and proof for testing, changes, routines, updates and models.
+The local [deployment and recovery flow](docs/guide/web-recovery.md) identifies
+what serves a request and quarantines restored state until an operator audit.
+Its real backup drill and mobile/desktop owner trial remain separate acceptance.
 
 Local [result feedback](docs/guide/feedback.md) now retains exact reviewed bytes,
 private revision history and explicit resolutions. It prepares issue or shaping
@@ -374,6 +377,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Web authentication service](docs/guide/web-auth-service.md) | you are configuring the server, private membership, session database and production secrets |
 | [Night plan publication and retries](docs/guide/web-night-operations.md) | you want to review canonical plan changes or request a bounded, registered failed-night retry |
 | [Navigation, operation coverage and saved drafts](docs/guide/web-operation-experience.md) | you want to change project lens, understand supported operations or resume a confirmed private draft |
+| [Deployment, recovery and owner trial](docs/guide/web-recovery.md) | you want serving-revision checks, restore quarantine, original-operation reconciliation and a private trial worksheet |
 | [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |
 | [Private result feedback](docs/guide/feedback.md) | you want to preserve the exact result reviewed and explicitly propose or resolve follow-up work |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |

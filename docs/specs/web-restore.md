@@ -37,7 +37,9 @@ sessions and thereby strand operation/draft ciphertext.
 While `reconciledAt` is null, quarantine all business routes, including GET routes
 that may recover receipts, drafts, uploads, credentials, model work, jobs, retries
 and worker callbacks. Authenticate fresh access to the recovery page and health
-observation; permit only existing static assets and authentication/logout/revoke
+observation; permit authenticated `GET /api/session` with fresh access checks
+and no query as the existing login observation. It must not touch pending
+operations. Permit only existing static assets and authentication/logout/revoke
 routes alongside those explicit observations. Do not initialize new external
 work or alter pending operation state through a quarantined request. Unknown
 business routes default to refusal. The browser explains that verification is

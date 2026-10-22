@@ -163,3 +163,12 @@ Claim107 was released after landing. This does not deploy the application or
 activate any hosted feature. Implementation/review ran from 02:33:50 to 03:59:54
 UTC, followed by final integration completed before 04:13:10 UTC. CI on the exact
 main revision is recorded separately once completed; local integration is not CI.
+
+### CI follow-up — 22 October 2026
+
+The exact integrated revision `24728f21a76988a3be2acba75cb3b96a0c951e23`
+completed both [check run 39721058103](https://github.com/dalmaer/keel/actions/runs/39721058103)
+and [typecheck run 39721058114](https://github.com/dalmaer/keel/actions/runs/39721058114)
+with conclusion `success`. Observed with `gh run view <id> --json
+status,conclusion,url,headSha`; each read exited 0. This is CI evidence, not
+another local gate or a deployment/owner acceptance result.
