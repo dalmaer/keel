@@ -54,6 +54,28 @@ test('newly accepted argument in a temporary real parser invalidates the audit',
   assert.ok(result.findings.some(item => item.code === 'parser_source_changed' && item.path === 'lib/goodnight.mjs'));
 });
 
+test('release version bumps preserve coverage while executable package changes still invalidate it', async t => {
+  const directory = await copyBoundary(t);
+  const path = join(directory, 'package.json');
+  const original = JSON.parse(await readFile(path, 'utf8'));
+  for (const version of ['0.8.33', '1.0.0']) {
+    await writeFile(path, JSON.stringify({ ...original, version }));
+    assert.equal((await auditOperationCoverage({ root: directory, registeredKeys: keys })).ok, true);
+  }
+  for (const change of [
+    { bin: { plates: 'bin/acme.mjs' } },
+    { scripts: { ...original.scripts, test: 'node acme.mjs' } },
+    { engines: { node: '>=22' } },
+    { exports: './acme.mjs' },
+    { version: 'not-a-version' },
+  ]) {
+    await writeFile(path, JSON.stringify({ ...original, ...change }));
+    const result = await auditOperationCoverage({ root: directory, registeredKeys: keys });
+    assert.equal(result.ok, false);
+    assert.ok(result.findings.some(item => item.path === 'package.json'));
+  }
+});
+
 test('new dispatch entry, installed entrypoint and changed forwarded closure fail independently', async t => {
   const directory = await copyBoundary(t);
   const initial = await auditOperationCoverage({ root: directory, registeredKeys: keys });

@@ -5,6 +5,14 @@ practice version: what changes in your repo, and anything you need to do.
 Newest first. `plates release` writes them; `plates update` puts the entries
 between your version and the new one into its pull request.
 
+## v0.8.33 — practice 0.8.33 (2026-10-22)
+
+Keel is now Plates. Each project is a plate, the overview is All plates, and /spin runs the existing guided phase workflow. The plates executable, .plates configuration, managed scripts, workflows, skills and active documentation use the new name; legacy keel and /conduct entry points remain available for compatibility.
+
+The rename migration inventories exact paths and content before writing, requires the reviewed digest, retains recovery receipts, preserves private directory permissions and historical identities, and refuses unsupported transformations. Project-owned commands and configuration require explicit preparation instead of guessed substitutions. Existing data, receipts, scheduling identities and external interfaces remain intact.
+
+Local and CI use Node 24.22.1 or later. An owner-approved temporary exception permits exactly Node 24.21.0 only for an explicitly opted-in production Vercel web deployment while its managed patch rollout remains incomplete. Authentication, origin, preview isolation, recovery and feature gates remain in force. The exception must be removed once a fresh function verifies the patched baseline; WAF protection is not a substitute for the runtime patch.
+
 ## v0.8.32 — practice 0.8.32 (2026-10-17)
 
 Production error monitoring now joins the existing night, plan and morning flow.
