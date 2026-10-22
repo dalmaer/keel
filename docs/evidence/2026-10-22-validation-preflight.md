@@ -121,6 +121,41 @@ also passed after the correction. The final integrated command must run with
 the same supported runtime and authorized local execution capabilities. All old evidence
 remains intact; no suite is rerun merely to fill audit evidence gaps.
 
+## Exact-head CI and review corrections
+
+The first local complete checkpoint at implementation `7a2e94e` passed 2,840/2,840
+ordinary tests, all eight stall files and record guards: 343.83 seconds wall,
+1,855.92 seconds user CPU and 929.18 seconds system CPU. CPU includes concurrent
+children and is not elapsed time. The clean-head hosted run
+[39870670148](https://github.com/dalmaer/plates/actions/runs/39870670148)
+then failed one fixture with 2,835 passes and four existing platform skips;
+all eight stall files passed. Ordinary reporter wall was 424.080 seconds;
+configured-gate step timestamps span 432 seconds, which overlap that interval.
+Hosted CPU is unavailable. The fixture observed a PID file's existence before
+its contents were published. This is distinct from the independent review's
+history finding, and the failed attempt remains evidence, not a green checkpoint.
+
+The normal configured review at the same head inspected the complete 19-file,
+151,068-byte diff against reviewed phase 110. Its artifact digest and exact bytes
+were verified. Its valid finding showed unbounded completed history could fill
+the 1 MiB state limit and block both admission and confirmed lease release.
+Contract `fd215c5` requires preserving complete receipts before bounded active
+history replacement. The correction keeps at most 200 recent receipts, archives
+older complete values privately and immutably, and refuses unsafe/conflicting
+archives. Independent local inspection also required syncing a reused matching
+archive's verified file handle before pruning active history, covering an
+interrupted prior archive write. Neither correction deletes history or steals
+leases. Normal `plates prove` controls reproduced the old near-capacity refusal
+and the old completed-command exit 75, then passed with the fix.
+
+The next combined focused checkpoint includes both validation files and all nine
+mandatory convention files, then roadmap/render/inbox/HEAD-whitespace and scoped
+typecheck. Package metadata, reviewed bindings, generated managed skills and
+adoption files remain unchanged. Existing server files need no additional isolated
+rerun for this budget-only correction; they remain included in the unchanged
+required final integrated gate. Corrected exact-head CI and fresh review remain
+required. No unaffected hosted jobs are manually restarted.
+
 ## Measurements and limits
 
 Five synthetic admitted/unadmitted pairs use the identical Acme sum workload.

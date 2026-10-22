@@ -3,8 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import childProcesses from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
+import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs';
-import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink, chmod, link, unlink, rmdir } from 'node:fs/promises';
+import fileOperations from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink, chmod, link, unlink, rmdir, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +21,22 @@ async function until(check, timeout = 15000) {
   assert.fail('Acme condition did not complete within its bound');
 }
 const exists = async path => { try { await readFile(path); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } };
+const validPid = value => Number.isSafeInteger(value) && value > 1 && value < 2 ** 31;
+const decodePid = text => /^\d+\n$/.test(text) && validPid(Number(text)) ? Number(text) : undefined;
+const decodeOwner = text => { const value = JSON.parse(text); return value && validPid(value.child) && validPid(value.wrapper) ? value : undefined; };
+async function waitForMarker(path, decode, timeout = 15000) {
+  let value;
+  await until(async () => {
+    let text;
+    try { text = await readFile(path, 'utf8'); }
+    catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+    try { value = decode(text); }
+    catch (error) { if (error instanceof SyntaxError) return false; throw error; }
+    return value !== undefined;
+  }, timeout);
+  return value;
+}
+const waitForText = (path, expected) => waitForMarker(path, text => text === expected ? text : undefined);
 function git(root, args) { const r = run('git', ['-c', 'core.fsmonitor=false', '-C', root, ...args]); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); }
 async function fixture(t) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-acme-admission-')));
@@ -35,6 +53,25 @@ async function fixture(t) {
   const args = (mode, index = 0, extra = [], argv = [process.execPath, '-e', 'process.exit(0)']) => [CLI, mode, '--manifest', manifest, '--repo', repos[index], '--root', roots[index], '--state-dir', stateDir, '--capacity', '1', '--foreground-contract', '--json', ...extra, '--', ...argv];
   return { dir, manifest, roots, repos, stateDir, options, args };
 }
+
+test('marker handshakes wait through empty and partial publication before accepting complete values', async t => {
+  const f = await fixture(t);
+  for (const [name, decode, partial, complete, expected] of [
+    ['pid', decodePid, '123', '12345\n', 12345],
+    ['owner', decodeOwner, '{"wrapper":12345,', '{"wrapper":12345,"child":23456}', { wrapper: 12345, child: 23456 }],
+  ]) {
+    const path = join(f.dir, name); await writeFile(path, '');
+    let observed = Promise.withResolvers(), expectedRead = '', settled = false;
+    const pending = waitForMarker(path, text => { if (text === expectedRead) observed.resolve(text); return decode(text); });
+    pending.then(() => { settled = true; }, () => {});
+    assert.equal(await Promise.race([observed.promise, pending]), ''); assert.equal(settled, false);
+    observed = Promise.withResolvers(); expectedRead = partial; await writeFile(path, partial);
+    assert.equal(await Promise.race([observed.promise, pending]), partial); assert.equal(settled, false);
+    await writeFile(path, complete); assert.deepEqual(await pending, expected);
+  }
+  const invalid = join(f.dir, 'never-complete'); await writeFile(invalid, '');
+  await assert.rejects(waitForMarker(invalid, decodePid, 50), /within its bound/);
+});
 
 test('status and plans are read-only, retain command digest only, and require managed actual identity', async t => {
   const f = await fixture(t), secret = 'Acme-secret-not-for-receipts';
@@ -101,15 +138,17 @@ test('confirmed success and failure preserve argv, environment and exit status w
 test('shared state enforces contention across separate repositories and Git worktrees without altering defaults', async t => {
   const f = await fixture(t), ready = join(f.dir, 'ready'), release = join(f.dir, 'release');
   const held = [process.execPath, '-e', `const fs=require('fs');fs.writeFileSync(${JSON.stringify(ready)},'ready');const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)})){clearInterval(timer)}},10)`];
-  const first = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '10000'], held));
-  await until(() => exists(ready));
-  await until(async () => { const state = await inspectBudget({ stateDir: f.stateDir }); return !state.coordinationBusy && state.leases.some(row => row.state === 'running' && Number.isInteger(row.childPid) && row.childPid > 1); });
-  const denied = run(process.execPath, f.args('run', 1)); assert.equal(denied.status, 2); assert.match(denied.stderr, /capacity_busy/);
-  const worktree = join(f.dir, 'anvil-worktree'); git(f.roots[0], ['worktree', 'add', '-qb', 'acme-worktree', worktree]);
-  const args = f.args('run'); args[args.indexOf('--root') + 1] = worktree;
-  const alsoDenied = run(process.execPath, args); assert.equal(alsoDenied.status, 2); assert.match(alsoDenied.stderr, /capacity_busy/);
-  const during = await inspectBudget({ stateDir: f.stateDir, capacity: 1 }); assert.equal(during.used, 1); assert.equal(during.leases.length, 1); assert.equal(during.leases[0].root, f.roots[0]);
-  await writeFile(release, 'Acme released'); const done = await first; assert.equal(done.status, 0, done.stderr);
+  const first = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '30000'], held));
+  try {
+    await waitForText(ready, 'ready');
+    await until(async () => { const state = await inspectBudget({ stateDir: f.stateDir }); return !state.coordinationBusy && state.leases.some(row => row.state === 'running' && Number.isInteger(row.childPid) && row.childPid > 1); });
+    const denied = run(process.execPath, f.args('run', 1)); assert.equal(denied.status, 2); assert.match(denied.stderr, /capacity_busy/);
+    const worktree = join(f.dir, 'anvil-worktree'); git(f.roots[0], ['worktree', 'add', '-qb', 'acme-worktree', worktree]);
+    const args = f.args('run'); args[args.indexOf('--root') + 1] = worktree;
+    const alsoDenied = run(process.execPath, args); assert.equal(alsoDenied.status, 2); assert.match(alsoDenied.stderr, /capacity_busy/);
+    const during = await inspectBudget({ stateDir: f.stateDir, capacity: 1 }); assert.equal(during.used, 1); assert.equal(during.leases.length, 1); assert.equal(during.leases[0].root, f.roots[0]);
+  } finally { await writeFile(release, 'Acme released'); await first; }
+  const done = await first; assert.equal(done.status, 0, done.stderr);
   const next = run(process.execPath, f.args('run', 1)); assert.equal(next.status, 0, next.stderr);
   assert.equal((await inspectBudget({ stateDir: f.stateDir, capacity: 1 })).history.length, 2);
 });
@@ -126,7 +165,7 @@ test('two fresh competing writers admit at most capacity and never overwrite ano
     await until(async () => (await inspectBudget({ stateDir: f.stateDir })).initialized);
     const state = await inspectBudget({ stateDir: f.stateDir, capacity: 1 });
     assert.ok(state.used <= 1); assert.ok(state.leases.length <= 1);
-  } finally { await writeFile(release, 'go'); }
+  } finally { await writeFile(release, 'go'); await Promise.allSettled([a, b]); }
   const results = await Promise.all([a, b]);
   assert.deepEqual(results.map(result => result.status).sort(), [0, 2]);
   const runs = await exists(ready) ? (await readFile(ready, 'utf8')).trim().split('\n').length : 0;
@@ -142,12 +181,12 @@ test('weighted admission keeps spare capacity usable and refuses only excess wor
   const held = [process.execPath, '-e', `const fs=require('fs');fs.writeFileSync(${JSON.stringify(ready)},'ready');const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)}))clearInterval(timer)},10)`];
   const pending = runAsync(process.execPath, argsFor(0, 2, held));
   try {
-    await until(() => exists(ready));
+    await waitForText(ready, 'ready');
     await until(async () => { const state = await inspectBudget({ stateDir: f.stateDir }); return !state.coordinationBusy && state.leases.some(row => row.state === 'running' && Number.isInteger(row.childPid) && row.childPid > 1); });
     const excess = run(process.execPath, argsFor(1, 2)); assert.equal(excess.status, 2); assert.match(excess.stderr, /capacity_busy/);
     const spare = run(process.execPath, argsFor(1, 1)); assert.equal(spare.status, 0, spare.stderr);
     assert.equal((await inspectBudget({ stateDir: f.stateDir })).used, 2);
-  } finally { await writeFile(release, 'go'); }
+  } finally { await writeFile(release, 'go'); await pending; }
   assert.equal((await pending).status, 0); assert.equal((await inspectBudget({ stateDir: f.stateDir })).used, 0);
 });
 
@@ -155,16 +194,16 @@ test('owned completion waits for a healthy competing writer and never steals a s
   for (const stranded of [false, true]) {
     const f = await fixture(t), ready = join(f.dir, 'writer-ready'), release = join(f.dir, 'writer-release'), exited = join(f.dir, 'writer-exited');
     const target = await inspectBudgetTarget(f.options(0));
-    const argv = [process.execPath, '-e', `const fs=require('fs');fs.writeFileSync(${JSON.stringify(ready)},String(process.pid));const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)})){clearInterval(timer);fs.writeFileSync(${JSON.stringify(exited)},'exiting');process.exit(7)}},10)`];
+    const argv = [process.execPath, '-e', `const fs=require('fs');fs.writeFileSync(${JSON.stringify(ready)},String(process.pid)+'\\n');const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)})){clearInterval(timer);fs.writeFileSync(${JSON.stringify(exited)},'exiting');process.exit(7)}},10)`];
     const pending = runBudget({ stateDir: f.stateDir, capacity: 1, target, argv, foreground: true, json: true, timeoutMs: 30000 });
-    await until(() => exists(ready));
-    const childPid = Number(await readFile(ready, 'utf8')); assert.ok(Number.isInteger(childPid) && childPid > 1);
-    await until(async () => { const state = await inspectBudget({ stateDir: f.stateDir }); return !state.coordinationBusy && state.leases.some(row => row.state === 'running' && row.childPid === childPid); });
-    const guard = join(f.stateDir, 'coordination'); await mkdir(guard, { mode: 0o700 });
+    const guard = join(f.stateDir, 'coordination');
     const ownerPath = join(guard, 'owner.json'), ownerBytes = JSON.stringify({ id: 'Acme-other-writer' });
-    await writeFile(ownerPath, ownerBytes, { mode: 0o600 });
+    let childPid;
     try {
-      await writeFile(release, 'go'); await until(() => exists(exited));
+      childPid = await waitForMarker(ready, decodePid);
+      await until(async () => { const state = await inspectBudget({ stateDir: f.stateDir }); return !state.coordinationBusy && state.leases.some(row => row.state === 'running' && row.childPid === childPid); });
+      await mkdir(guard, { mode: 0o700 }); await writeFile(ownerPath, ownerBytes, { mode: 0o600 });
+      await writeFile(release, 'go'); await waitForText(exited, 'exiting');
       await until(() => { try { process.kill(childPid, 0); return false; } catch (error) { return error.code === 'ESRCH'; } });
       // Child exit is observed first; a bounded turn gives this same-process
       // runBudget its close callback while the synthetic writer owns the guard.
@@ -179,7 +218,8 @@ test('owned completion waits for a healthy competing writer and never steals a s
       await writeFile(release, 'go');
       // Only remove the exact fixture-owned guard; production never steals it.
       if (await exists(ownerPath) && await readFile(ownerPath, 'utf8') === ownerBytes) { await unlink(ownerPath); await rmdir(guard); }
-      if (Number.isInteger(childPid) && childPid > 1) { try { process.kill(-childPid, 'SIGKILL'); } catch {} }
+      if (validPid(childPid)) { try { process.kill(-childPid, 'SIGKILL'); } catch {} }
+      await pending;
     }
   }
 });
@@ -229,6 +269,115 @@ test('a missing executable fails once and releases its reservation with a spawn 
   const state = await inspectBudget({ stateDir: f.stateDir }); assert.equal(state.used, 0); assert.equal(state.history.length, 1);
 });
 
+async function fullHistory(f, { count = 3, nearLimit = true } = {}) {
+  assert.equal(run(process.execPath, f.args('run')).status, 0);
+  const path = join(f.stateDir, 'state.json'), state = JSON.parse(await readFile(path, 'utf8'));
+  state.history = Array.from({ length: count }, (_, i) => ({ ...state.history[0], id: `Acme-old-${i}`, retainedDetail: { sequence: i, values: [null, true, 'Acme detail'] }, padding: '' }));
+  if (nearLimit) state.history[0].padding = 'x'.repeat(1024 * 1024 - 64 - Buffer.byteLength(JSON.stringify(state, null, 2) + '\n'));
+  const bytes = JSON.stringify(state, null, 2) + '\n'; await writeFile(path, bytes);
+  return { path, state, bytes };
+}
+
+async function archivedHistory(f) {
+  const directory = join(f.stateDir, 'receipts'), names = await readdir(directory), receipts = [];
+  assert.equal((await stat(directory)).mode & 0o777, 0o700);
+  for (const name of names) {
+    assert.match(name, /^[a-f0-9]{64}\.json$/);
+    const path = join(directory, name), bytes = await readFile(path);
+    assert.equal(name, createHash('sha256').update(bytes).digest('hex') + '.json');
+    assert.equal((await stat(path)).mode & 0o777, 0o400);
+    receipts.push(JSON.parse(bytes));
+  }
+  return receipts;
+}
+
+test('near-capacity history admits and releases work while preserving complete older receipts across restart', async t => {
+  const f = await fixture(t), original = await fullHistory(f);
+  assert.equal(Buffer.byteLength(original.bytes), 1024 * 1024 - 64);
+  const result = run(process.execPath, f.args('run'));
+  assert.equal(result.status, 0, result.stderr); assert.equal(JSON.parse(result.stdout).released, true);
+  const status = run(process.execPath, [CLI, 'status', '--state-dir', f.stateDir, '--json']);
+  assert.equal(status.status, 0, status.stderr); const after = JSON.parse(status.stdout);
+  assert.equal(after.used, 0); assert.ok(Buffer.byteLength(await readFile(original.path)) <= 1024 * 1024);
+  const archived = await archivedHistory(f); assert.ok(archived.length > 0);
+  const retained = [...archived, ...after.history].filter(row => row.id.startsWith('Acme-old-')).sort((a, b) => a.retainedDetail.sequence - b.retainedDetail.sequence);
+  assert.deepEqual(retained, original.state.history);
+  const archiveBytes = await Promise.all((await readdir(join(f.stateDir, 'receipts'))).map(name => readFile(join(f.stateDir, 'receipts', name))));
+  assert.equal(run(process.execPath, f.args('run')).status, 0);
+  assert.deepEqual(await Promise.all((await readdir(join(f.stateDir, 'receipts'))).map(name => readFile(join(f.stateDir, 'receipts', name)))), archiveBytes);
+});
+
+test('history filled while a command runs cannot block its confirmed completion release', async t => {
+  const f = await fixture(t), ready = join(f.dir, 'history-ready'), release = join(f.dir, 'history-release');
+  assert.equal(run(process.execPath, f.args('run')).status, 0);
+  const argv = [process.execPath, '-e', `const fs=require('fs');fs.writeFileSync(${JSON.stringify(ready)},String(process.pid)+'\\n');const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)}))clearInterval(timer)},10)`];
+  const pending = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '30000'], argv));
+  let original;
+  try {
+    const childPid = await waitForMarker(ready, decodePid);
+    await until(async () => { const state = await inspectBudget({ stateDir: f.stateDir }); return !state.coordinationBusy && state.leases.some(row => row.state === 'running' && row.childPid === childPid); });
+    const path = join(f.stateDir, 'state.json'), state = JSON.parse(await readFile(path, 'utf8'));
+    state.history[0].padding = '';
+    state.history[0].padding = 'x'.repeat(1024 * 1024 - 1 - Buffer.byteLength(JSON.stringify(state, null, 2) + '\n'));
+    original = state.history[0]; await writeFile(path, JSON.stringify(state, null, 2) + '\n');
+  } finally { await writeFile(release, 'go'); await pending; }
+  const result = await pending; assert.equal(result.status, 0, result.stderr); assert.equal(JSON.parse(result.stdout).released, true);
+  assert.equal((await inspectBudget({ stateDir: f.stateDir })).used, 0);
+  assert.deepEqual(await archivedHistory(f), [original]);
+});
+
+test('recent history count is bounded and an identical immutable archive is reused without replacement', async t => {
+  const f = await fixture(t), original = await fullHistory(f, { count: 205, nearLimit: false });
+  const directory = join(f.stateDir, 'receipts'); await mkdir(directory, { mode: 0o700 });
+  const bytes = Buffer.from(JSON.stringify(original.state.history[0]) + '\n'), path = join(directory, createHash('sha256').update(bytes).digest('hex') + '.json');
+  await writeFile(path, bytes, { mode: 0o400 }); const before = await stat(path);
+  const result = run(process.execPath, f.args('run')); assert.equal(result.status, 0, result.stderr);
+  const state = await inspectBudget({ stateDir: f.stateDir }); assert.equal(state.used, 0); assert.equal(state.history.length, 200);
+  const after = await stat(path); assert.equal(after.ino, before.ino); assert.equal(after.mtimeMs, before.mtimeMs);
+  const retained = [...await archivedHistory(f), ...state.history].filter(row => row.id.startsWith('Acme-old-')).sort((a, b) => a.retainedDetail.sequence - b.retainedDetail.sequence);
+  assert.deepEqual(retained, original.state.history);
+});
+
+test('a reused archive must sync successfully before active history can be replaced', async t => {
+  const f = await fixture(t), original = await fullHistory(f), target = await inspectBudgetTarget(f.options(0));
+  const directory = join(f.stateDir, 'receipts'); await mkdir(directory, { mode: 0o700 });
+  const bytes = Buffer.from(JSON.stringify(original.state.history[0]) + '\n');
+  const path = join(directory, createHash('sha256').update(bytes).digest('hex') + '.json');
+  await writeFile(path, bytes, { mode: 0o400 });
+  const marker = join(f.dir, 'must-not-run'), originalOpen = fileOperations.open; let syncCalls = 0;
+  const observer = t.mock.method(fileOperations, 'open', async (...args) => {
+    const file = await Reflect.apply(originalOpen, fileOperations, args);
+    if (args[0] === path) t.mock.method(file, 'sync', async () => { syncCalls++; throw Object.assign(new Error('Acme sync failure'), { code: 'EIO' }); });
+    return file;
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(runBudget({ stateDir: f.stateDir, capacity: 1, target, argv: [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(marker)},'ran')`], foreground: true, json: true }), { code: 'EIO' });
+    assert.equal(syncCalls, 1); assert.equal(await exists(marker), false);
+    assert.equal(await readFile(original.path, 'utf8'), original.bytes); assert.deepEqual(await readFile(path), bytes);
+  } finally { observer.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test('unsafe or conflicting archives refuse admission without losing or rewriting active history', async t => {
+  for (const kind of ['directory-symlink', 'conflicting-file', 'writable-file', 'file-symlink']) {
+    const f = await fixture(t), original = await fullHistory(f), directory = join(f.stateDir, 'receipts');
+    const bytes = Buffer.from(JSON.stringify(original.state.history[0]) + '\n'), filename = createHash('sha256').update(bytes).digest('hex') + '.json';
+    const outside = join(f.dir, 'outside'); await mkdir(outside, { mode: 0o700 });
+    if (kind === 'directory-symlink') await symlink(outside, directory);
+    else {
+      await mkdir(directory, { mode: 0o700 });
+      if (kind === 'file-symlink') { await writeFile(join(outside, filename), bytes, { mode: 0o400 }); await symlink(join(outside, filename), join(directory, filename)); }
+      else await writeFile(join(directory, filename), kind === 'conflicting-file' ? '{}\n' : bytes, { mode: kind === 'writable-file' ? 0o600 : 0o400 });
+    }
+    const marker = join(f.dir, 'forbidden-workload');
+    const result = run(process.execPath, f.args('run', 0, [], [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(marker)},'ran')`])); assert.equal(result.status, 2, `${kind}: ${result.stderr}`);
+    assert.equal(await exists(marker), false);
+    assert.equal(await readFile(original.path, 'utf8'), original.bytes);
+    assert.equal((await inspectBudget({ stateDir: f.stateDir })).used, 0);
+    if (kind === 'conflicting-file') assert.equal(await readFile(join(directory, filename), 'utf8'), '{}\n');
+  }
+});
+
 test('capacity conflicts, missing prior state, foreign host and old leases fail closed', async t => {
   const f = await fixture(t);
   assert.equal(run(process.execPath, f.args('run')).status, 0);
@@ -259,7 +408,7 @@ test('timeout terminates its owned foreground group and preserves timeout outcom
   const f = await fixture(t), marker = join(f.dir, 'runs');
   const argv = ['/bin/sh', '-c', 'printf once > "$1"; trap "" TERM; exec sleep 60', 'acme', marker];
   const result = run(process.execPath, f.args('run', 0, ['--timeout-ms', '100'], argv), { timeout: 10000 });
-  assert.equal(result.status, 124, result.stderr); const report = JSON.parse(result.stdout); assert.equal(report.timedOut, true); assert.equal(report.released, true); if (await exists(marker)) assert.equal(await readFile(marker, 'utf8'), 'once');
+  assert.equal(result.status, 124, result.stderr); const report = JSON.parse(result.stdout); assert.equal(report.timedOut, true); assert.equal(report.released, true); if (await exists(marker)) assert.ok('once'.startsWith(await readFile(marker, 'utf8')));
   assert.equal((await inspectBudget({ stateDir: f.stateDir })).used, 0);
 });
 
@@ -275,12 +424,12 @@ test('a surviving foreground descendant retains capacity after its direct parent
 });
 
 test('a confirmed-start command receives forwarded termination and releases its proven exited group', async t => {
-  const f = await fixture(t), ready = join(f.dir, 'ready');
-  const argv = [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(ready)},JSON.stringify({wrapper:process.ppid,child:process.pid}));setInterval(()=>{},1000)`];
+  const f = await fixture(t), ready = join(f.dir, 'ready'), release = join(f.dir, 'stop');
+  const argv = [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(ready)},JSON.stringify({wrapper:process.ppid,child:process.pid}));const timer=setInterval(()=>{if(require('fs').existsSync(${JSON.stringify(release)}))clearInterval(timer)},10)`];
   const pending = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '30000'], argv));
   let owned;
   try {
-    await until(() => exists(ready)); owned = JSON.parse(await readFile(ready, 'utf8'));
+    owned = await waitForMarker(ready, decodeOwner);
     assert.ok(Number.isInteger(owned.child) && owned.child > 1); assert.ok(Number.isInteger(owned.wrapper) && owned.wrapper > 1);
     await until(async () => (await inspectBudget({ stateDir: f.stateDir })).leases.some(row => row.pid === owned.wrapper && row.childPid === owned.child));
     process.kill(owned.wrapper, 'SIGTERM');
@@ -288,17 +437,19 @@ test('a confirmed-start command receives forwarded termination and releases its 
     assert.equal(JSON.parse(result.stdout).released, true);
     assert.equal((await inspectBudget({ stateDir: f.stateDir })).used, 0);
   } finally {
+    await writeFile(release, 'stop');
     if (Number.isInteger(owned?.child) && owned.child > 1) { try { process.kill(-owned.child, 'SIGKILL'); } catch {} }
+    await pending;
   }
 });
 
 test('a killed wrapper leaves its lease reserved even after its owned child is stopped', async t => {
-  const f = await fixture(t), ready = join(f.dir, 'ready');
-  const argv = [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(ready)},JSON.stringify({wrapper:process.ppid,child:process.pid}));setInterval(()=>{},1000)`];
+  const f = await fixture(t), ready = join(f.dir, 'ready'), release = join(f.dir, 'stop');
+  const argv = [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(ready)},JSON.stringify({wrapper:process.ppid,child:process.pid}));const timer=setInterval(()=>{if(require('fs').existsSync(${JSON.stringify(release)}))clearInterval(timer)},10)`];
   const pending = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '30000'], argv));
   let owned;
   try {
-    await until(() => exists(ready)); owned = JSON.parse(await readFile(ready, 'utf8'));
+    owned = await waitForMarker(ready, decodeOwner);
     assert.ok(Number.isInteger(owned.child) && owned.child > 1); assert.ok(Number.isInteger(owned.wrapper) && owned.wrapper > 1);
     await until(async () => (await inspectBudget({ stateDir: f.stateDir })).leases.some(row => row.pid === owned.wrapper && row.childPid === owned.child));
     process.kill(owned.wrapper, 'SIGKILL');
@@ -307,7 +458,9 @@ test('a killed wrapper leaves its lease reserved even after its owned child is s
     const after = await inspectBudget({ stateDir: f.stateDir }); assert.equal(after.used, 1); assert.equal(after.leases[0].pid, owned.wrapper);
     const next = run(process.execPath, f.args('run', 1)); assert.equal(next.status, 2); assert.match(next.stderr, /capacity_busy/);
   } finally {
+    await writeFile(release, 'stop');
     if (Number.isInteger(owned?.child) && owned.child > 1) { try { process.kill(-owned.child, 'SIGKILL'); } catch {} }
+    await pending;
   }
 });
 

@@ -100,6 +100,11 @@ prior attempt or silently retries its command.
 `--timeout-ms N` bounds execution. `--json` keeps command output on stderr and
 structured results on stdout. Retained receipts contain a command digest and
 metadata, not arbitrary arguments, environment values or command output.
+Active `history` holds at most 200 recent receipts, further bounded by the 1 MiB
+state limit. Older complete receipts are preserved in private immutable
+`receipts/<sha256>.json` files before removal from active state. Existing matching
+archives are verified and durably synced before reuse; conflicting or unsafe
+archives refuse without deleting history. There is no automatic archive cleanup.
 Confirmed completion preserves the child's exit status; 75 reports retained
 or uncertain process-group state, 124 timeout, 128 plus the signal number and 2 refusal. Read
 `--help --json` for the exact contract before integrating another caller.
