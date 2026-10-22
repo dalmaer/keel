@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Correction f1c2ecc passed2,471 tests, was published and resolved both sixth-review findings. Validate the minimal integration of landed dependency PR219 at frozen main8480bbd, then obtain complete exact-head review and hosted checks. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Preserve disabled hosted features and existing security boundaries; signed-in browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. The standalone helper and CLI share approval parsing, and the public migration API validates before target access; regression proof is VERIFIED. Required landed phase105 is integrated against frozen b26ed63, preserving its data contracts and disabled activation gates. Complete focused validation and the full combined check/typecheck, then publish and obtain exact-head hosted checks and review. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Signed-in browser verification awaits manual Mac unlock.
 
 ## Trajectory
 

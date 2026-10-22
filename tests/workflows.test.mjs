@@ -33,6 +33,7 @@ export const PREFIX = {
   'plates-cross-review.yml': null,
   'check.yml': null,
   'typecheck.yml': null,
+  'web-update.yml': null,
   'plates-impact.yml': null,
   'plates-publish.yml': null,
 };
@@ -41,6 +42,7 @@ export const PREFIX = {
 // Register each by name so adding another cannot silently escape the guards.
 const LOCAL_WORKFLOWS = Object.freeze({
   'typecheck.yml': { declared: [] },
+  'web-update.yml': { declared: [] },
 });
 
 const code = text => text.split('\n').map((line, i) => ({ line, n: i + 1 })).filter(({ line }) => !/^\s*#/.test(line));

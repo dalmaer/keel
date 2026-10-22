@@ -1,0 +1,45 @@
+# Contributor-only example; install only after exact worker/source policy review.
+name: plates web update preparation
+run-name: ${{ format('keel-web-{0}', inputs.keel_operation) }}
+on:
+  workflow_dispatch:
+    inputs:
+      keel_operation:
+        description: Reviewed Plates preparation operation identity
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ${{ format('keel-web-update-{0}', inputs.keel_operation) }}
+  cancel-in-progress: false
+jobs:
+  web-worker:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: project-source
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: dalmaer/keel
+          ref: e011dc0be3d94abf5eb21d836a2f3509aa6c2f74
+          path: trusted-keel
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: trusted-keel/.nvmrc
+      - name: Prepare bounded update
+        env:
+          KEEL_WEB_ORIGIN: ${{ vars.KEEL_WEB_ORIGIN }}
+          KEEL_WEB_OPERATION: ${{ inputs.keel_operation }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: node trusted-keel/scripts/web-update-worker.mjs

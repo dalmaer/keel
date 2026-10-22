@@ -169,3 +169,24 @@ npm run roadmap
 The corrected doctor read reports no lint and no edited/both managed-file drift.
 The failed integrated result remains part of this record; the next integration
 attempt must check the corrected tree in full.
+
+
+## Corrected integration, 2026-10-21 local
+
+`node bin/keel.mjs ready --check "npm run typecheck" --json` exited 0 for
+`bdc71c5f9a945fdee4f889a811d554f6b4513433`; type checking exited 0.
+`node bin/keel.mjs integrate --json` then exited 0, one full gate, and pushed
+main `7c3161db38cdd5c67a1afa6b6781c1974b6b76c4`.
+The corrected suite passed 2,363/2,363 tests. All eight configured stall checks
+passed; the ledger reported no flaky or slower tests, with the busy run excluded
+from timing comparisons. Roadmap, render (89 targets: 9 kept, 80 same), inbox
+and pattern guards passed. Claim104 was released after integration.
+
+This is integrated local proof. Exact-main GitHub check
+[39702075753](https://github.com/dalmaer/keel/actions/runs/39702075753) and
+typecheck [39702075767](https://github.com/dalmaer/keel/actions/runs/39702075767)
+both completed successfully. The typecheck workflow correctly skipped its
+web-worker job on this ordinary push; no web job was dispatched. Production still serves phase96; hosted SQL009,
+Actions-write, the runtime allowance, worker activation and real owner exercise
+remain unverified. A separate three-run bounded trial was proposed, not assumed
+approved. No schedule writes or provider/model calls were included in that ask.

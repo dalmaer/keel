@@ -69,6 +69,21 @@ test('preview is read-only, names changes, and needs explicit approval', async t
   assert(!JSON.stringify(result.data).includes('opaque'));
 });
 
+test('public migration API enforces approval before accessing root and applies only a reviewed digest', async t => {
+  const root = await fixture(t), before = git(root, 'status', '--porcelain');
+  for (const options of [{ yes: true }, { digest: 'a'.repeat(64) }, { yes: true, digest: 'A'.repeat(64) }, { yes: 'true', digest: 'a'.repeat(64) }]) {
+    await assert.rejects(migrateRename({ root, ...options }), /--yes and --digest|lowercase SHA-256|boolean/);
+    assert.equal(git(root, 'status', '--porcelain'), before);
+    await absent(root, '.plates');await absent(root, '.git/plates-rename');
+    let touched = false;
+    await assert.rejects(migrateRename({ ...options, get root() { touched = true;throw Error('root accessed'); } }), /--yes and --digest|lowercase SHA-256|boolean/);
+    assert.equal(touched, false);
+  }
+  const preview = await migrateRename({ root });
+  const applied = await migrateRename({ root, yes: true, digest: preview.data.digest });
+  assert.equal(applied.data.state, 'completed');await absent(root, '.keel');
+});
+
 test('migration preserves journals and user work, moves workflows and symlinks, and rehashes managed files', async t => {
   const root = await fixture(t), journal = await get(root, '.keel/robot-issues/acme.json'), run = await get(root, '.keel/test-runs/acme.json');
   const preview = await planRename(root);
@@ -653,6 +668,84 @@ test('public migrate CLI requires the reviewed digest and rejects changed source
   const applied = cli(['--yes', '--digest', reviewed.digest]);assert.equal(applied.status, 0, applied.stdout + applied.stderr);assert.equal(JSON.parse(applied.stdout).state, 'completed');await absent(root, '.keel');
 });
 
+test('standalone migration helper requires paired approval before reading or mutating the project', async t => {
+  const helper = new URL('../scripts/migrate-plates.mjs', import.meta.url).pathname;
+  const root = await fixture(t), before = git(root, 'status', '--porcelain');
+  for (const target of [root, join(root, 'does-not-exist')]) {
+    for (const args of [['--yes'], ['--digest', 'a'.repeat(64)]]) {
+      const result = run(process.execPath, [helper, target, '--json', ...args], { cwd: root });
+      assert.equal(result.status, 2, result.stdout + result.stderr);
+      assert.match(JSON.parse(result.stdout).error, /--yes and --digest must be supplied together/);
+      assert.equal(git(root, 'status', '--porcelain'), before);
+      await absent(root, '.plates');await absent(root, '.git/plates-rename');
+      assert.equal(JSON.parse(await get(root, '.keel/keel.json')).name, 'Acme');
+    }
+  }
+});
+
+test('standalone migration helper refuses duplicate and malformed flags before any migration', async t => {
+  const helper = new URL('../scripts/migrate-plates.mjs', import.meta.url).pathname;
+  const root = await fixture(t), before = git(root, 'status', '--porcelain');
+  const digest = (await planRename(root)).digest;
+  for (const args of [
+    ['--yes', '--yes', '--digest', digest],
+    ['--yes', '--digest', digest, '--digest', digest],
+    ['--yes', '--digest', digest, '--json'],
+    ['--yes', '--digest'], ['--yes', '--digest', 'A'.repeat(64)],
+    ['--yes', '--digest', 'a'.repeat(63)], ['--yes', '--digest', 'g'.repeat(64)],
+    ['--yes', '--digest', digest, '--unknown'], ['--yes', '--digest', digest, 'second-root'],
+  ]) {
+    const result = run(process.execPath, [helper, root, '--json', ...args], { cwd: root });
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.match(JSON.parse(result.stdout).error, /must appear once|SHA-256 preview digest|usage:/);
+    assert.equal(git(root, 'status', '--porcelain'), before);
+    await absent(root, '.plates');await absent(root, '.git/plates-rename');
+  }
+});
+
+test('standalone migration helper applies only the current reviewed preview digest', async t => {
+  const helper = new URL('../scripts/migrate-plates.mjs', import.meta.url).pathname;
+  const root = await fixture(t);
+  const cli = args => run(process.execPath, [helper, root, '--json', ...args], { cwd: root });
+  const preview = cli([]);assert.equal(preview.status, 3, preview.stdout + preview.stderr);
+  const original = JSON.parse(preview.stdout);assert.match(original.digest, /^[a-f0-9]{64}$/);
+  await put(root, 'README.md', (await get(root, 'README.md')) + '\nKeel owner change\n');
+  const before = git(root, 'status', '--porcelain');
+  const stale = cli(['--yes', '--digest', original.digest]);assert.equal(stale.status, 2, stale.stdout + stale.stderr);
+  assert.match(JSON.parse(stale.stdout).error, /preview changed/);
+  assert.equal(git(root, 'status', '--porcelain'), before);await absent(root, '.plates');await absent(root, '.git/plates-rename/receipt.json');
+  const fresh = cli([]);assert.equal(fresh.status, 3, fresh.stdout + fresh.stderr);
+  const reviewed = JSON.parse(fresh.stdout);assert.notEqual(reviewed.digest, original.digest);
+  const applied = cli(['--yes', '--digest', reviewed.digest]);assert.equal(applied.status, 0, applied.stdout + applied.stderr);
+  assert.equal(JSON.parse(applied.stdout).state, 'completed');await absent(root, '.keel');
+  assert.match(await get(root, 'README.md'), /owner change/);
+});
+
+test('migration executable entry points share approval validation including the legacy executable', async t => {
+  const root = await fixture(t), before = git(root, 'status', '--porcelain');
+  const entries = [['../bin/plates.mjs', 'migrate'], ['../bin/keel.mjs', 'migrate'], ['../scripts/migrate-plates.mjs']];
+  for (const args of [
+    ['--yes'], ['--digest', 'a'.repeat(64)], ['--yes', '--digest', 'A'.repeat(64)],
+    ['--yes', '--yes', '--digest', 'a'.repeat(64)], ['--yes', '--digest'],
+    ['--yes', '--digest', 'a'.repeat(64), '--json'],
+  ]) {
+    const errors = entries.map(([path, ...prefix]) => {
+      const result = run(process.execPath, [new URL(path, import.meta.url).pathname, ...prefix, join(root, 'missing'), '--json', ...args], { cwd: root });
+      assert.equal(result.status, 2, result.stdout + result.stderr);
+      return JSON.parse(result.stdout).error;
+    });
+    assert.equal(errors[0], errors[1]);assert.equal(errors[0], errors[2]);
+    assert.match(errors[0], /--yes and --digest|SHA-256 preview digest|must appear once/);
+  }
+  assert.equal(git(root, 'status', '--porcelain'), before);await absent(root, '.git/plates-rename');
+  const legacy = new URL('../bin/keel.mjs', import.meta.url).pathname;
+  const preview = run(process.execPath, [legacy, 'migrate', root, '--json'], { cwd: root });
+  assert.equal(preview.status, 3, preview.stdout + preview.stderr);
+  const applied = run(process.execPath, [legacy, 'migrate', root, '--yes', '--digest', JSON.parse(preview.stdout).digest, '--json'], { cwd: root });
+  assert.equal(applied.status, 0, applied.stdout + applied.stderr);
+  assert.equal(JSON.parse(applied.stdout).state, 'completed');await absent(root, '.keel');
+});
+
 
 test('legacy product Git pins under aliases and nested dependency forms require an explicit compatible upgrade', async t => {
   const refs = ['a'.repeat(40), 'v0.8.0', 'main', 'semver:^0.8', 'v0.8.0'];
@@ -981,6 +1074,11 @@ test('migration preserves worker RPC, dispatch identity and existing provider ru
   assert.equal(runtime.title(id), existing.display_title);
   assert.equal(runtime.lane(id), existing.lane);
   assert.equal(renameActiveText('create function public.keel_job_rpc()'), 'create function public.keel_job_rpc()');
+});
+
+test('migration preserves fleet update RPC and durable publication reconciliation identities', () => {
+  const source = "const rpc = 'keel_fleet_rpc'; const branch = `keel/web-update-${id}`; const marker = `Keel-Update-Operation: ${id}`;";
+  assert.equal(renameActiveText(source), source);
 });
 
 
