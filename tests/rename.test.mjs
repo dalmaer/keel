@@ -1349,7 +1349,7 @@ test('package paths: migrated exports, main, bin and pack contents remain execut
   const pkg = { name: 'acme-keel-public', version: '1.0.0', type: 'module',
     exports: { '.': { import: ['./src/keel-entry.mjs'], default: './src/keel-entry.mjs' }, './keel-api': './src/keel-entry.mjs' },
     imports: { '#keel-internal': './src/keel-entry.mjs' },
-    bin: { 'keel-command': './bin/keel-command.cjs' }, files: ['src/keel-entry.mjs', 'bin/keel-command.cjs', 'keel-assets'] };
+    bin: { 'keel-command': './bin/keel-command.cjs' }, files: ['src/keel-entry.mjs', 'bin/keel-command.cjs', './keel-assets/'] };
   await put(root, 'package.json', JSON.stringify(pkg));
   await put(root, 'src/keel-entry.mjs', 'export default 43;\n');
   await put(root, 'bin/keel-command.cjs', '#!/usr/bin/env node\nconsole.log(47);\n');
@@ -1368,6 +1368,7 @@ test('package paths: migrated exports, main, bin and pack contents remain execut
   const next = JSON.parse(await get(root, 'package.json'));
   assert.equal(next.name, pkg.name);
   assert.deepEqual(Object.keys(next.bin), ['keel-command']);
+  assert.deepEqual(next.files, ['src/plates-entry.mjs', 'bin/plates-command.cjs', './plates-assets/']);
   const cli = run(process.execPath, [next.bin['keel-command']], { cwd: root });
   assert.equal(cli.status, 0, cli.stderr); assert.equal(cli.stdout.trim(), '47');
   const nested = run(process.execPath, ['-e', "console.log(require('./packages/plates-addon'))"], { cwd: root });
@@ -1404,7 +1405,7 @@ test('package paths: related filesystem fields move while public keys and extern
 });
 
 test('package paths: affected ambiguous patterns or partly moved directories refuse before writes', async t => {
-  for (const field of [{ exports: { './*': './src/keel-*.mjs' } }, { files: ['src/k*'] }, { files: ['keel-assets'] }]) {
+  for (const field of [{ exports: { './*': './src/keel-*.mjs' } }, { files: ['src/k*'] }, { files: ['keel-assets'] }, { files: ['./keel-assets/'] }]) {
     const root = await fixture(t);
     await put(root, 'package.json', JSON.stringify({ name: 'acme', ...field }));
     await put(root, 'src/keel-part.mjs', 'export {};\n');
