@@ -328,3 +328,15 @@ Ledger preparation is at b14930907f27b7e201f7f0b27252432d19559c10 against landed
 
 
 The frozen phase107-integrated test stage ran2,713 cases in397.367 seconds:2,711 passed and two old navigation-markup expectations failed. All eight stall suites passed. Both assertions now check the actual shared navigation's All plates destination and preserved routine filters; authentication, secret-leak, CSRF, project-access and no-write checks remain intact. Exact reruns passed2/2, both affected files passed27/27, and the conductor independently passed the two exact cases. Production code did not change after that run. The corrected frozen tree receives the required complete gate before publication.
+
+
+## Landed restore integration after the green candidate
+
+Corrected treeafb4c15b444900be1ec9e3cd57253031517e89b6 passed2,713 tests with zero failures/skips in219.547 seconds, all eight stall suites, roadmap/render/inbox guards and typecheck. It was committed locally as4edab5c03fc49310ffe4b4d241e456bc596d862f. Before publication, remote main advanced to7bb17de0bd5d28d77f6cb9b140a23eebbc5dc52c (three landed commits,22 files). A read-only merge simulation confirmed five conflicts, including configuration/server code; the checked candidate was retained before integration. No hosted run was started for a knowingly conflicting head.
+
+The minimum integration retains landed restore epochs, quarantine, serving identity and all existing activation boundaries. Recovery implementation and five evidence files remain byte-identical; authentication differs only by the existing cookie-compatibility comment, with incoming runtime logic unchanged. No live epoch, backup, schema, credential or recovery setting is changed. An automatic approval rejection cited the superseded exploration-only scope and did not execute; the owner's explicit rollout confirmation authorized one successful retry. Focused restore/authentication/deployment tests pass16/16; remaining affected checks and the final combined gate precede publication.
+
+Ledger's actual main4c7e923f has one stale robot-route lock hash after the Node security update. A separate minimal prerequisite repair uses the already-published8480bbd doctor renderer and changes only that hash, with workflow bytes unchanged. Its first test stage encountered sandbox-only loopback/Unixsocket refusals; exact socket-capable reruns and the remaining not-yet-run gate phases are retained separately rather than repeating passed tests. No weakened drift check or stale-template downgrade is used.
+
+
+Minimum restore integration completed:16 focused restore/authentication/deployment cases and55 affected server/navigation/worker/capability cases passed. The conductor independently passed four restore/quarantine/configuration/recovery-HTML proofs. Direct Git comparison confirmed recovery bytes and authentication bytes apart from the pre-existing comment match landed7bb17de0. Capability inventory parity remains valid without refreshing hashes. The frozen combined tree receives the required full check and typecheck after the other owned local gate finishes.

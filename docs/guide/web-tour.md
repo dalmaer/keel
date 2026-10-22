@@ -66,3 +66,16 @@ remain unverified in this capture session.
 - [Desktop night retry review](../evidence/2026-10-22-web-operations/night-retry-desktop.png)
 - [Desktop Daily planning](../evidence/2026-10-22-web-operations/daily-desktop.png)
 - [Narrow mobile Daily planning](../evidence/2026-10-22-web-operations/daily-mobile.png)
+
+## Restore status — 22 October 2026
+
+These are actual browser renders of the synthetic Acme recovery service. The
+preview injects a synthetic test session; it does not prove a real browser login,
+physical device input, a live backup or the owner's reconciliation. Both widths
+had no horizontal overflow. The [recovery guide](web-recovery.md) describes the
+operator procedure and private trial worksheet.
+
+[Desktop recovery](../evidence/2026-10-22-web-restore/recovery-desktop.png) ·
+[Mobile recovery](../evidence/2026-10-22-web-restore/recovery-mobile.png)
+
+![Recovery status on mobile](../evidence/2026-10-22-web-restore/recovery-mobile.png)
