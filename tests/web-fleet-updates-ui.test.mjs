@@ -30,9 +30,10 @@ test('publication verification requires PR and commit, and rollout stop never cl
 function clientFixture(fetch,model,{checked=true,publicChecked=true}={}) {
   const output={innerHTML:''},host={innerHTML:'old receipt'},status={textContent:''},controls={disabled:false},listeners={};
   const root={innerHTML:'',querySelector(s){return {'[data-fleet-model]':{value:JSON.stringify(model)},'[data-fleet-csrf]':{value:'fake-csrf'},'[data-fleet-output]':output,'[data-fleet-current]':host,'[data-fleet-status]':status,'[data-approve-fleet]':{checked},'[data-public-fleet]':{checked:publicChecked},'[data-submit-fleet]':controls,'[data-canary]':{value:'studio'}}[s]||null;},querySelectorAll(s){return s==='[data-project-select]:checked'?[{value:'studio'}]:[controls];},addEventListener(k,f){listeners[k]=f;},removeEventListener(){}};
-  const history={path:null,replaceState(a,b,path){this.path=path;}};
-  const document={visibilityState:'visible',querySelector:()=>root};
-  return {root,host,output,status,history,document,client:startFleetClient({document,window:{history,crypto:webcrypto},fetch})};
+  const location={pathname:model.id?`/updates/${model.kind==='rollout'?'rollouts/':''}${model.id}`:'/versions',search:''};
+  const history={path:null,replaceState(a,b,path){this.path=path;location.pathname=path;}};
+  const document={visibilityState:'visible',querySelector:selector=>selector==='[data-fleet-root]'?root:null};
+  return {root,host,output,status,history,document,client:startFleetClient({document,window:{history,location,crypto:webcrypto},fetch})};
 }
 test('lost rollout creation keeps preissued durable URL and never sends a replacement selection',async()=>{
   let f;const calls=[];f=clientFixture(async(url,o)=>{calls.push(JSON.parse(o.body));assert.match(f.history.path,/^\/updates\/rollouts\/[a-f0-9]{64}$/);throw Error('Acme lost response');},{kind:'comparison'});
@@ -110,5 +111,5 @@ test('buffered reads suppress private models after Pull Requests permission disa
 });
 test('fresh authorization denial halts foreground publication after one request and clears its private model',async()=>{
   let count=0;const f=clientFixture(async()=>{count++;return Response.json({error:'access_denied'},{status:404});},{id,kind:'publication',state:'publishing',capabilities:{continue:true}});
-  await f.client.continueKnown();assert.equal(count,1);assert.match(f.root.innerHTML,/private view has been cleared/);assert.doesNotMatch(f.root.innerHTML,/Acme|data-continue/);
+  await f.client.continueKnown();assert.equal(count,1);assert.match(f.root.innerHTML,/Sign in and return/);assert.ok(f.root.innerHTML.includes('/signin?returnTo='+encodeURIComponent(`/updates/${id}`)));assert.doesNotMatch(f.root.innerHTML,/Acme|data-continue/);
 });

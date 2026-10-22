@@ -89,8 +89,8 @@ test('draft parsing preserves absent bounds as missing rather than inventing zer
 });
 
 test('new login return routes stay exact internal paths',()=>{
-  for(const path of ['/','/daily','/learning','/setup','/projects/studio/daily','/projects/studio/learning',`/learning/operations/${'a'.repeat(64)}`])assert.equal(returnPath(path),true,path);
-  for(const path of ['https://acme.test/learning','//acme.test/learning','/learning?next=https://acme.test','/projects/studio/daily?date=2026-10-21','/learning/../setup','/learning/operations/nope','/learning/'])assert.equal(returnPath(path),false,path);
+  for(const path of ['/','/daily','/learning','/setup','/projects/studio/daily','/projects/studio/daily?date=2026-10-21','/projects/studio/learning',`/learning/operations/${'a'.repeat(64)}`])assert.equal(returnPath(path),true,path);
+  for(const path of ['https://acme.test/learning','//acme.test/learning','/learning?next=https://acme.test','/projects/studio/daily?private=Acme','/learning/../setup','/learning/operations/nope','/learning/'])assert.equal(returnPath(path),false,path);
 });
 
 test('authored import metadata stays declared attribution, never verified transfer identity',()=>{
@@ -132,7 +132,7 @@ test('daily edits during validation preserve current input and discard obsolete 
 });
 
 test('OAuth round trips retain each new exact internal return destination',async()=>{
-  for(const returnTo of ['/daily','/setup','/projects/studio/daily','/projects/studio/learning',`/learning/operations/${'a'.repeat(64)}`]){
+  for(const returnTo of ['/daily','/setup','/projects/studio/daily','/projects/studio/daily?date=2026-10-21','/projects/studio/learning',`/learning/operations/${'a'.repeat(64)}`]){
     const h=learningHarness();
     const first=await h.service(h.request('/signin')),cookie=h.cookieHeader(first);
     const start=await h.service(h.request('/api/auth/start',{cookie,body:{csrf:cookie.split('=')[1],returnTo}}));

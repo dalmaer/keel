@@ -32,9 +32,10 @@ test('capacity shows actual pool identity, provenance and separate units without
 function clientFixture(fetch) {
   const output={innerHTML:''},status={textContent:''},key={value:'fake-acme-provider-key-for-ui',disabled:false},controls=[key],events={};
   const root={innerHTML:'',querySelector(selector){return {'[data-connections-model]':{value:JSON.stringify(model)},'[data-connections-csrf]':{value:'fake-csrf'},'[data-connections-output]':output,'[data-connections-status]':status,'[data-key]':key}[selector]||null;},querySelectorAll(){return controls;},addEventListener(name,callback){events[name]=callback;},removeEventListener(){}};
-  const history={value:null,replaceState(_state,_title,value){this.value=value;}};
+  const location={pathname:'/connections/acme-api',search:''};
+  const history={value:null,replaceState(_state,_title,value){this.value=value;location.pathname=value;}};
   const crypto={getRandomValues(bytes){bytes.fill(7);return bytes;}};
-  const client=startConnectionsClient({document:{querySelector:()=>root},window:{crypto,history},fetch});
+  const client=startConnectionsClient({document:{querySelector:()=>root},window:{crypto,history,location},fetch});
   return {client,root,output,status,key,history,events};
 }
 test('credential input clears and original identity is bookmarkable before dispatch; uncertain recovery never resends key',async()=>{
@@ -53,7 +54,7 @@ test('credential input clears and original identity is bookmarkable before dispa
   await fixture.client.reconcileCredential();assert.equal(requests.length,2);assert.ok(requests[1].url.endsWith('/reconcile'));assert.equal(requests[1].body.key,undefined);assert.equal(requests[1].body.requestId,requests[0].body.requestId);assert.equal(requests[1].body.expectedVersion,0);assert.match(fixture.output.innerHTML,/operation confirmed/);
 });
 test('credential denial clears private rendered state after the key has already been cleared',async()=>{
-  const f=clientFixture(async()=>Response.json({error:'access_denied'},{status:403}));await f.client.mutateCredential('set');assert.equal(f.key.value,'');assert.match(f.root.innerHTML,/private connection view has been cleared/);
+  const f=clientFixture(async()=>Response.json({error:'access_denied'},{status:403}));await f.client.mutateCredential('set');assert.equal(f.key.value,'');assert.match(f.root.innerHTML,/Sign in and return/);assert.ok(f.root.innerHTML.includes('/signin?returnTo='+encodeURIComponent(f.history.value)));assert.doesNotMatch(f.root.innerHTML,/fake-acme-provider-key/);
 });
 test('recovery return paths admit exact nonsecret intent identities and reject query, external and unsafe versions',()=>{
   const intent={requestId:'c'.repeat(64),expectedVersion:0,policyDigest:digest,action:'set'},path=credentialRecoveryPath(connection.id,intent);

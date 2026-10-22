@@ -278,6 +278,15 @@ confirmed, and worker loss cannot release potentially running work. Source sched
 edits require their separate approved budget/overlap and write gate. See the
 [worker guide](docs/guide/web-workers.md).
 
+Shared web capability coverage describes supported variants, not permission to
+execute. Keep implementation, activation, current grants and source verification
+separate; a generic destination link cannot satisfy a core operating journey.
+Validated return routes retain original receipts, never transplant them across
+projects or replay mutations after login/reconnect. Typed private editor drafts
+are separate from previews and approvals; preserve CAS/save identities and require
+fresh source validation after restore. Unsaved offline edits remain in memory.
+See [the operation experience](docs/specs/web-operation-experience.md).
+
 ## Rules for keel's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for

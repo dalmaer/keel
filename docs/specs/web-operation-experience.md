@@ -107,13 +107,15 @@ walks/captures, changes, routine inspection and the bounded worker, versions and
 canary preparation with separate publication, private learning, connections and
 bounded API planning. Each still needs its own configured grants and activation.
 
-Night publication/arbitrary failed-night retry, general local runner operations,
-robot build/review execution and subscription model execution remain unsupported
-until a purpose-specific adapter is implemented and verified. An external link,
-CLI copy action or registry entry does not complete those journeys. The original
-fleet trial explicitly includes failed-night retry: retain that gap in phase107
-and G7 rather than silently substituting the typecheck worker. No generic remote
-shell is introduced to fill it. Follow-ups name the missing adapter and proof.
+The bounded night adapters below implement canonical plan publication and retry
+of an explicitly registered canonical night. Arbitrary failed-night retry, general
+local runner operations, robot build/review execution and subscription model
+execution remain unsupported until purpose-specific adapters are implemented and
+verified. An external link, CLI copy action or registry entry does not complete
+those journeys. The original fleet trial explicitly includes failed-night retry:
+prove that adapter on its actual provider and owner devices; the typecheck worker
+is not a substitute. No generic remote shell is introduced. Follow-ups name the
+missing adapter and proof.
 
 ## Night controls: bounded first adapters
 
@@ -122,6 +124,9 @@ use a native provider rerun, with its actual semantics, rather than claiming an
 immutable replay. A retry targets the latest failed attempt of an explicitly
 registered canonical night run. GitHub retains the original SHA/ref and original
 actor privileges, but the workflow reads the current UTC date and current plan.
+[GitHub rerun behavior](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+and the [failed-job rerun API](https://docs.github.com/en/rest/actions/workflow-runs#re-run-failed-jobs-from-a-workflow-run)
+provide no reviewed-plan input or idempotency key.
 The preview names all declared writes and commands. A successful request does not
 establish a successful night, acceptance, or attribution of a later attempt.
 
