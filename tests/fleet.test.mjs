@@ -277,6 +277,26 @@ test('unsent lessons: rows whose fingerprint is not in .plates/sent.json', async
   assert.equal(rowOf(r, 'acme/quiet').lessons.unsent, 0, 'no lessons.md is nothing to send');
 });
 
+test('receipt paths follow the selected legacy or canonical config without mixing layouts', async t => {
+  for (const legacy of [true, false]) {
+    const s = state(), files = s.repos['acme/behind'].files;
+    files['.keel/keel.json'] = files['.plates/plates.json'];
+    files['.keel/sent.json'] = legacy ? files['.plates/sent.json'] : '{}';
+    if (legacy) { delete files['.plates/plates.json']; files['.plates/sent.json'] = '{}'; }
+    const gh = await stubGh(t, s), r = await go(await home(t, LIST), gh);
+    assert.deepEqual(rowOf(r, 'acme/behind').lessons, { project: 'acme/behind', rows: 3, unsent: 2 });
+    const receipts = (await gh.calls()).filter(c => /repos\/acme\/behind\/contents\/\.(keel|plates)\/sent.json$/.test(c[1]));
+    assert.deepEqual(receipts.map(c => c[1]), [`repos/acme/behind/contents/${legacy ? '.keel' : '.plates'}/sent.json`]);
+  }
+  const s = state(), repo = s.repos['acme/behind'];
+  repo.files['.keel/keel.json'] = repo.files['.plates/plates.json'];
+  delete repo.files['.plates/plates.json'];
+  repo.failPaths = { '.keel/sent.json': 'upstream unavailable (HTTP 503)' };
+  const r = await go(await home(t, LIST), await stubGh(t, s));
+  assert.match(rowOf(r, 'acme/behind').lessons.unreadable, /upstream unavailable/);
+  assert.equal(rowOf(r, 'acme/behind').lessons.unsent, undefined);
+});
+
 test('a configured lessons path is where fleet counts unsent lessons (phase 16)', async t => {
   const s = state();
   s.repos['acme/quiet'].files['.plates/plates.json'] = cfg({ repo: 'acme/quiet', practice: '0.2.0', migrations: ['0001-acme-one', '0002-acme-two'], lessons: 'docs/reviews/lessons.md' });
@@ -325,8 +345,9 @@ test('the reads are read-only gh calls, eight per managed repo, legacy config on
   await go(await home(t, LIST), gh);
   const calls = await gh.calls();
   // 8 per managed repo (the workflows listing among them), 1 per pinned source, and one quota probe
-  // (GraphQL's rateLimit) before the PR reads; only plain needs the legacy config probe. Nothing writes.
-  assert.equal(calls.length, 5 * 8 + 1 + 1 + 1);
+  // (GraphQL's rateLimit) before the PR reads; only plain needs the legacy config probe.
+  // A failed configuration read skips its dependent receipt read. Nothing writes.
+  assert.equal(calls.length, 5 * 8 + 1 + 1 + 1 - 1);
   assert.deepEqual(calls.filter(c => String(c[1]).endsWith('/contents/.keel/keel.json')).map(c => c[1]), ['repos/acme/plain/contents/.keel/keel.json']);
   assert.equal(calls.filter(c => c[1] === 'graphql' && c.some(a => a.includes('rateLimit'))).length, 1, 'the floor asks once a run, not once a repo');
   assert.equal(calls.filter(c => /contents\/\.github\/workflows$/.test(c[1])).length, 5);
