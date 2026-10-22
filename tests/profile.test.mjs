@@ -48,7 +48,11 @@ test('overlapping subprocesses and direct fetch have union accounting and no sec
   assert.ok(r.profile.timingMs.subprocessNetworkOverlap > 0);
   assert.equal(r.profile.incomplete.subprocess, 0);
   assert.equal(r.profile.incomplete.directNetwork, 0);
-  assert.doesNotMatch(JSON.stringify(r), /Acme|127\.0|authorization|secret/);
+  // A millisecond value such as 127.045917 is not the fixture's IP address.
+  const privateFixtureData = /Acme|127\.0\.0\.1|authorization|secret/;
+  assert.doesNotMatch(JSON.stringify({ environment: 127.045917 }), privateFixtureData);
+  for (const value of ['Acme-secret-arg', '127.0.0.1', 'authorization', 'secret']) assert.match(value, privateFixtureData);
+  assert.doesNotMatch(JSON.stringify(r), privateFixtureData);
   partition(r.profile);
 });
 

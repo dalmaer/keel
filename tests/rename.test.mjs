@@ -1313,3 +1313,140 @@ test('module references: escaped literals preserve external spelling and map ide
   const external = String.raw`export { default } from '@acme/\u006beel-tools';`;
   assert.equal(renameActiveText(external), external);
 });
+
+test('package paths: migrated exports, main, bin and pack contents remain executable', async t => {
+  const root = await fixture(t);
+  const pkg = { name: 'acme-keel-public', version: '1.0.0', type: 'module',
+    exports: { '.': { import: ['./src/keel-entry.mjs'], default: './src/keel-entry.mjs' }, './keel-api': './src/keel-entry.mjs' },
+    imports: { '#keel-internal': './src/keel-entry.mjs' },
+    bin: { 'keel-command': './bin/keel-command.cjs' }, files: ['src/keel-entry.mjs', 'bin/keel-command.cjs', 'keel-assets'] };
+  await put(root, 'package.json', JSON.stringify(pkg));
+  await put(root, 'src/keel-entry.mjs', 'export default 43;\n');
+  await put(root, 'bin/keel-command.cjs', '#!/usr/bin/env node\nconsole.log(47);\n');
+  await put(root, 'keel-assets/message.txt', 'asset bytes\n');
+  await put(root, 'packages/keel-addon/package.json', JSON.stringify({ name: 'acme-keel-addon', main: 'lib/keel-main.cjs', bin: 'lib/keel-main.cjs', scripts: { 'keel-check': 'node ./lib/keel-main.cjs' } }));
+  await put(root, 'packages/keel-addon/lib/keel-main.cjs', 'module.exports = 53;\n');
+  git(root, 'add', 'package.json', 'src', 'bin', 'keel-assets', 'packages');
+  const entry = "import a from 'acme-keel-public'; import b from 'acme-keel-public/keel-api'; import c from '#keel-internal'; console.log(a,b,c);";
+  const before = run(process.execPath, ['--input-type=module', '-e', entry], { cwd: root });
+  assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['--input-type=module', '-e', entry], { cwd: root });
+  assert.equal(after.status, 0, after.stderr);
+  assert.equal(after.stdout, before.stdout);
+  const next = JSON.parse(await get(root, 'package.json'));
+  assert.equal(next.name, pkg.name);
+  assert.deepEqual(Object.keys(next.bin), ['keel-command']);
+  const cli = run(process.execPath, [next.bin['keel-command']], { cwd: root });
+  assert.equal(cli.status, 0, cli.stderr); assert.equal(cli.stdout.trim(), '47');
+  const nested = run(process.execPath, ['-e', "console.log(require('./packages/plates-addon'))"], { cwd: root });
+  assert.equal(nested.status, 0, nested.stderr); assert.equal(nested.stdout.trim(), '53');
+  const nestedPkg = JSON.parse(await get(root, 'packages/plates-addon/package.json'));
+  assert.equal(nestedPkg.scripts['keel-check'], 'node ./lib/plates-main.cjs');
+  const nestedGate = run('npm', ['run', 'keel-check', '--offline'], { cwd: join(root, 'packages/plates-addon') });
+  assert.equal(nestedGate.status, 0, nestedGate.stderr);
+  const packed = run('npm', ['pack', '--offline', '--ignore-scripts', '--json'], { cwd: root });
+  assert.equal(packed.status, 0, packed.stderr);
+  const paths = JSON.parse(packed.stdout)[0].files.map(file => file.path);
+  for (const path of ['src/plates-entry.mjs', 'bin/plates-command.cjs', 'plates-assets/message.txt']) assert(paths.includes(path), `${path} absent from package`);
+});
+
+test('package paths: related filesystem fields move while public keys and external targets survive', async t => {
+  const root = await fixture(t);
+  const pkg = { name: '@acme/keel-public', module: './src/keel.mjs', types: './types/keel.d.ts', typings: 'types/keel.d.ts',
+    exports: { './keel-api': { types: './types/keel.d.ts', import: ['./src/keel.mjs', null] }, './blocked': null },
+    imports: { '#keel-external': '@acme/keel-tools', '#keel-internal': { node: './src/keel.mjs', default: './src/keel-browser.mjs' } },
+    browser: { './src/keel.mjs': './src/keel-browser.mjs', '@acme/keel-tools': false, 'other-package': '@acme/keel-tools' },
+    files: ['src/**', 'types'], repository: 'acme/keel-public', custom: { entry: './src/keel.mjs' } };
+  await put(root, 'package.json', JSON.stringify(pkg));
+  for (const path of ['src/keel.mjs', 'src/keel-browser.mjs', 'types/keel.d.ts']) await put(root, path, 'export {};\n');
+  git(root, 'add', 'package.json', 'src', 'types');
+  await applyRename(root);
+  const next = JSON.parse(await get(root, 'package.json'));
+  assert.equal(next.module, './src/plates.mjs'); assert.equal(next.types, './types/plates.d.ts'); assert.equal(next.typings, 'types/plates.d.ts');
+  assert.deepEqual(next.exports['./keel-api'], { types: './types/plates.d.ts', import: ['./src/plates.mjs', null] });
+  assert.equal(next.imports['#keel-external'], '@acme/keel-tools');
+  assert.deepEqual(next.imports['#keel-internal'], { node: './src/plates.mjs', default: './src/plates-browser.mjs' });
+  assert.deepEqual(next.browser, { './src/plates.mjs': './src/plates-browser.mjs', '@acme/keel-tools': false, 'other-package': '@acme/keel-tools' });
+  assert.deepEqual(next.files, pkg.files); assert.deepEqual(next.custom, pkg.custom); assert.equal(next.name, pkg.name); assert.equal(next.repository, pkg.repository);
+});
+
+test('package paths: affected ambiguous patterns or partly moved directories refuse before writes', async t => {
+  for (const field of [{ exports: { './*': './src/keel-*.mjs' } }, { files: ['src/k*'] }, { files: ['keel-assets'] }]) {
+    const root = await fixture(t);
+    await put(root, 'package.json', JSON.stringify({ name: 'acme', ...field }));
+    await put(root, 'src/keel-part.mjs', 'export {};\n');
+    await put(root, 'keel-assets/tracked.txt', 'tracked\n');
+    git(root, 'add', 'package.json', 'src/keel-part.mjs', 'keel-assets/tracked.txt');
+    await put(root, 'keel-assets/untracked.txt', 'private\n');
+    const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /package\.json:.*(?:pattern|directory)/);
+    assert.equal(git(root, 'diff', 'HEAD'), before); await absent(root, '.plates');
+  }
+});
+
+
+test('package paths: man and directory metadata map while workspace and local links fail closed', async t => {
+  const root = await fixture(t);
+  await put(root, 'package.json', JSON.stringify({ name: 'acme', man: ['docs/keel.1'], directories: { bin: 'keel-bin', man: 'keel-man' }, workspaces: ['packages/*'] }));
+  for (const path of ['docs/keel.1', 'keel-bin/keel-run.cjs', 'keel-bin/keel-sub/tool.txt', 'keel-man/keel.1', 'packages/acme/keel-source.mjs']) await put(root, path, 'fixture\n');
+  await put(root, 'packages/acme/package.json', JSON.stringify({ name: 'acme-child' }));
+  git(root, 'add', 'package.json', 'docs/keel.1', 'keel-bin', 'keel-man', 'packages');
+  await applyRename(root);
+  const pkg = JSON.parse(await get(root, 'package.json'));
+  assert.deepEqual(pkg.man, ['docs/plates.1']);
+  assert.deepEqual(pkg.directories, { bin: 'plates-bin', man: 'plates-man' });
+  assert.deepEqual(pkg.workspaces, ['packages/*']);
+  for (const shape of [{ workspaces: ['packages/*'] }, { dependencies: { 'public-name': 'file:packages/keel-child' } }, { dependencies: { 'public-name': 'link:packages/keel-child' } }]) {
+    const target = await fixture(t);
+    await put(target, 'package.json', JSON.stringify({ name: 'acme', ...shape }));
+    await put(target, 'packages/keel-child/package.json', JSON.stringify({ name: 'acme-child' }));
+    git(target, 'add', 'package.json', 'packages');
+    const before = git(target, 'diff', 'HEAD');
+    await assert.rejects(applyRename(target), /package.json: affected (?:package workspace|local dependency).*lock migration/);
+    assert.equal(git(target, 'diff', 'HEAD'), before); await absent(target, '.plates');
+  }
+});
+
+
+test('package paths: extensionless main resolves its inventoried target and unrelated entries stay put', async t => {
+  const root = await fixture(t);
+  await put(root, 'packages/acme/package.json', JSON.stringify({ name: 'acme-child', main: './keel-main' }));
+  await put(root, 'packages/acme/keel-main.js', 'module.exports = 59;\n');
+  await put(root, 'packages/stable/package.json', JSON.stringify({ name: 'stable', main: 'keel-private.cjs' }));
+  git(root, 'add', 'packages/acme', 'packages/stable/package.json');
+  await put(root, 'packages/stable/keel-private.cjs', 'module.exports = 61;\n');
+  await applyRename(root);
+  const result = run(process.execPath, ['-e', "console.log(require('./packages/acme'), require('./packages/stable'))"], { cwd: root });
+  assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), '59 61');
+  assert.equal(JSON.parse(await get(root, 'packages/acme/package.json')).main, './plates-main');
+  assert.equal(JSON.parse(await get(root, 'packages/stable/package.json')).main, 'keel-private.cjs');
+});
+
+
+test('package paths: matching root lock bin metadata follows manifest without changing dependency bins', async t => {
+  const root = await fixture(t);
+  const pkg = { name: 'acme', version: '1.0.0', bin: { 'keel-command': 'bin/keel.cjs' } };
+  const other = { version: '1.0.0', bin: { 'keel-command': 'bin/keel.cjs' }, integrity: 'sha512-opaque-keel' };
+  const lock = { name: 'acme', lockfileVersion: 3, packages: { '': pkg, 'node_modules/acme-tool': other }, custom: 'historical keel metadata' };
+  await put(root, 'package.json', JSON.stringify(pkg));
+  await put(root, 'package-lock.json', JSON.stringify(lock));
+  await put(root, 'bin/keel.cjs', 'console.log(67);\n');
+  git(root, 'add', 'package.json', 'package-lock.json', 'bin');
+  await applyRename(root);
+  const nextPkg = JSON.parse(await get(root, 'package.json')), nextLock = JSON.parse(await get(root, 'package-lock.json'));
+  assert.deepEqual(nextPkg.bin, { 'keel-command': 'bin/plates.cjs' });
+  assert.deepEqual(nextLock.packages[''].bin, nextPkg.bin);
+  assert.deepEqual(nextLock.packages['node_modules/acme-tool'], other);
+  assert.equal(nextLock.custom, lock.custom);
+  for (const bin of [{ 'keel-command': 'other.cjs' }, 'bin/keel.cjs']) {
+    const target = await fixture(t);
+    await put(target, 'package.json', JSON.stringify(pkg));
+    await put(target, 'package-lock.json', JSON.stringify({ ...lock, packages: { '': { ...pkg, bin } } }));
+    await put(target, 'bin/keel.cjs', 'console.log(67);\n');
+    git(target, 'add', 'package.json', 'package-lock.json', 'bin');
+    const before = git(target, 'diff', 'HEAD');
+    await assert.rejects(applyRename(target), /root bin metadata and manifest disagree/);
+    assert.equal(git(target, 'diff', 'HEAD'), before); await absent(target, '.plates');
+  }
+});

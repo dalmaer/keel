@@ -55,3 +55,5 @@ These exceptions preserve continuity; they do not retain a second product, sched
 ## Release verification
 
 The rename is ready only when canonical source and templates agree, managed-file rendering is clean, the full repository gate passes, and the consumer migration previews and gates succeed. Verify remote commits after repository renames, the exact deployed revision, sign-in/session continuity, All plates navigation, project reads, and applicable bounded actions. Record any remaining old-name exception with its owner and reason. A green local build alone is not deployment evidence.
+
+Package entry paths follow the verified file and directory mapping, including nested manifests. Public export/import keys, command names and consumer package identities remain stable. Matching root lockfile command metadata follows the same move; mismatches and unsupported affected workspace/local-link graphs refuse before writes. Ambiguous packaging patterns also require an explicit migration. These path fields are described in the [npm package manifest reference](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/).
