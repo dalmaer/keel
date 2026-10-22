@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { realpath, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertFocusedRuntime, probeLoopback } from '../lib/validation-capabilities.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const REQUIRED_CONVENTIONS = Object.freeze([
@@ -17,10 +18,11 @@ export const REQUIRED_CONVENTIONS = Object.freeze([
   'tests/check-focused.test.mjs',
 ]);
 const PATH = /^tests\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\.test\.mjs$/;
-const usage = 'Usage: node scripts/check-focused.mjs [--plan] [--json] [tests/name.test.mjs ...]\nRuns required source conventions plus explicit focused tests, then roadmap, render, inbox and whitespace checks.\nThis is early feedback only; the mandatory integrated gate remains unchanged.\nNew untracked files need explicit git add -N before verification; this command never stages files.';
+const usage = 'Usage: node scripts/check-focused.mjs [--plan] [--json] [tests/name.test.mjs ...]\nRuns required source conventions plus explicit focused tests, then roadmap, render, inbox and whitespace checks.\nUnsupported or mismatched process/PATH Node is refused before tests (requires >=24.22.1). Execution also requires an ephemeral 127.0.0.1 bind-and-close probe; --plan does not bind. This is early feedback only; the mandatory integrated gate remains unchanged.\nNew untracked files need explicit git add -N before verification; this command never stages files.';
 
 /** Explicit argv only: no glob expansion, shell, inferred dependency map or gate eligibility. */
 export async function focusedPlan(paths, root = ROOT) {
+  const runtime = assertFocusedRuntime(root);
   if (!Array.isArray(paths) || paths.length > 64 || paths.some(p => typeof p !== 'string' || p.length > 240 || !PATH.test(p))) throw new Error('pass at most 64 explicit tests/*.test.mjs paths; flags, globs and traversal are not tests');
   const cwd = await realpath(root);
   const tests = [...new Set([...REQUIRED_CONVENTIONS, ...paths])];
@@ -32,7 +34,7 @@ export async function focusedPlan(paths, root = ROOT) {
     if (actual !== absolute || !(await stat(actual)).isFile()) throw new Error(`test path must be a regular file without symlinks: ${path}`);
   }
   return {
-    schema: 1, authority: 'feedback-only', cwd, tests,
+    schema: 1, authority: 'feedback-only', cwd, tests, runtime,
     stages: [
       { id: 'focused-and-conventions', command: process.execPath, args: ['--import', './tests/helpers/hermetic.mjs', '--test', '--test-concurrency=2', ...tests], timeout: 900000 },
       { id: 'roadmap', command: 'npm', args: ['run', 'roadmap:check'], timeout: 120000 },
@@ -44,18 +46,22 @@ export async function focusedPlan(paths, root = ROOT) {
 }
 
 /** Run in order and stop on failure. Tests can inject an executor to inspect argv. */
-export function runFocusedPlan(plan, { execute = spawnSync, json = false } = {}) {
+export function runFocusedPlan(plan, { execute = spawnSync, capabilityExecute = spawnSync, json = false } = {}) {
+  const runtime = assertFocusedRuntime(plan.cwd);
+  const loopback = probeLoopback(plan.cwd, runtime.tools.node, { execute: capabilityExecute });
+  if (loopback.status !== 'observed') throw new Error(`source loopback capability unavailable (${loopback.code}); cannot bind and close 127.0.0.1 before focused execution`);
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('NODE_TEST_')));
   const results = [];
   for (const stage of plan.stages) {
+    assertFocusedRuntime(plan.cwd);
     if (!json) console.log(`Focused preflight: ${stage.id}`);
     const start = performance.now();
     const result = execute(stage.command, stage.args, { cwd: plan.cwd, env, shell: false, timeout: stage.timeout, stdio: json ? 'pipe' : 'inherit', encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     const status = !result.error && Number.isInteger(result.status) && result.status >= 0 ? result.status : 1;
     results.push({ id: stage.id, status, signal: result.signal ?? null, executionError: result.error?.code ?? null, wallMs: performance.now() - start, ...(json ? { stdout: result.stdout ?? '', stderr: result.stderr ?? '' } : {}) });
-    if (status !== 0) return { schema: 1, authority: 'feedback-only', status, stages: results };
+    if (status !== 0) return { schema: 1, authority: 'feedback-only', status, capabilities: { loopback }, stages: results };
   }
-  return { schema: 1, authority: 'feedback-only', status: 0, stages: results };
+  return { schema: 1, authority: 'feedback-only', status: 0, capabilities: { loopback }, stages: results };
 }
 
 async function main(args) {

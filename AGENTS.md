@@ -137,7 +137,12 @@ This source preflight always includes helper, README, guide, CLI, adoption and
 managed-skill and package capability conventions
 and roadmap/render/inbox/whitespace guards; do not omit conventions when adding
 tests, scripts or documentation. Inventory additional changed-file conventions
-from the audit and repository instructions. It is early feedback, never a
+from the audit and repository instructions. The source-only
+[validation planner](docs/development/validation-preflight.md) records actual
+runtime/tool and source loopback-bind availability and conservative changed-path coverage before execution;
+recheck after reconnecting or changing environments. Opt-in host admission
+coordinates only explicitly participating foreground commands; it never changes
+the configured gate or establishes completed validation. It is early feedback, never a
 replacement for the unchanged required integrated checkpoint. The phased implementation contract
 is [validation efficiency](docs/specs/validation-efficiency.md).
 

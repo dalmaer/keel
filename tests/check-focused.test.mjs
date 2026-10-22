@@ -142,3 +142,31 @@ test('whitespace preflight covers staged, intent-to-add and unstaged changes wit
   const help = run(process.execPath, [join(ROOT, 'scripts/check-focused.mjs'), '--help']);
   assert.equal(help.status, 0); assert.match(help.stdout, /git add -N/); assert.match(help.stdout, /never stages files/);
 });
+
+test('runtime preflight rejects unsupported process or PATH Node before any focused stage', async t => {
+  const { assertFocusedRuntime } = await import('../lib/validation-capabilities.mjs');
+  const root = await acme(t), runtime = { version: 'v24.13.0', executable: process.execPath, architecture: process.arch, platform: process.platform };
+  let probes = 0;
+  assert.throws(() => assertFocusedRuntime(root, { runtime, execute() { probes++; throw new Error('must not probe'); } }), /unsupported Node/);
+  assert.equal(probes, 0);
+  assert.throws(() => assertFocusedRuntime(root, { execute() { return { status: 0, stdout: JSON.stringify({ ...runtime }) }; } }), /PATH Node is unsupported/);
+  const help = run(process.execPath, [join(ROOT, 'scripts/check-focused.mjs'), '--help']);
+  assert.match(help.stdout, /process\/PATH Node/);
+});
+
+test('unavailable source loopback capability refuses execution before the first stage', async t => {
+  const root = await acme(t), plan = await focusedPlan([], root);
+  let stages = 0, probes = 0;
+  assert.throws(() => runFocusedPlan(plan, { json: true,
+    execute() { stages++; throw new Error('Acme stages must not run'); },
+    capabilityExecute(command, args, options) {
+      probes++;
+      assert.equal(command, process.execPath); assert.deepEqual(args.slice(0, 2), ['--input-type=module', '-e']);
+      assert.match(args[2], /host: '127\.0\.0\.1', port: 0/); assert.match(args[2], /server\.close/);
+      assert.equal(options.shell, false); assert.equal(options.timeout, 5000);
+      assert.equal(Object.keys(options.env).some(key => key.startsWith('NODE_TEST_')), false);
+      return { status: 1, stdout: JSON.stringify({ status: 'unavailable', address: '127.0.0.1', closed: false, code: 'EPERM' }) };
+    },
+  }), /loopback capability unavailable \(EPERM\)/);
+  assert.equal(probes, 1); assert.equal(stages, 0);
+});

@@ -364,6 +364,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Spin a phase](docs/guide/spin-a-phase.md) | a phase is specified and you want it built without trusting the builder's word |
 | [The night shift](docs/guide/the-night-shift.md) | you want to know each morning whether the practice is holding |
 | [Validation evidence audit](docs/development/validation-audit.md) | you want read-only findings from retained validation evidence without running suites |
+| [Validation planning and admission](docs/development/validation-preflight.md) | you want source-only capability checks, conservative focused suggestions and opt-in shared host admission |
 | [Climb and tend](docs/guide/climb-and-tend.md) | you want an agent to improve a number, or keep the records true, while you sleep |
 | [Lessons and learning](docs/guide/lessons-and-learning.md) | a bug turned out to have a shape, or lessons are waiting at home |
 | [Keep the fleet current](docs/guide/keep-the-fleet-current.md) | the practice changed and every project should have it |
