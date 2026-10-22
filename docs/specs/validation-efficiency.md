@@ -205,6 +205,11 @@ not consumer adoption, default concurrency changes or a new gate policy.
   contract, recorded in the receipt. An existing or unknown process group retains
   capacity after the direct child ends. Unsupported platforms refuse execution;
   no claim is made that this wrapper contains malicious or detached processes.
+  Completed history must not exhaust active-state capacity or prevent lease
+  release. Before removing an older entry from the bounded active history,
+  preserve its complete receipt in a private immutable archive. Never delete
+  receipts to make room, overwrite conflicting archive data, or steal leases;
+  unsafe or unavailable persistence remains an explicit refusal.
 - Focused negative controls cover mappings/invalidation, runtime mismatch,
   unavailable tools and bindings, concurrency across different roots, capacity
   conflicts, crash/uncertain ownership, failed children, process cleanup and
