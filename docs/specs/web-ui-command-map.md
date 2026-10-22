@@ -21,6 +21,26 @@ the CLI initially. A command's availability never implies it is safe to execute
 while rendering a page. Some nominal reads fetch refs, update caches or write
 reports. Only explicitly selected operations may write project records.
 
+## Current source audit, 22 October 2026
+
+Phase107 reaudits the dispatcher and forwarded/installed parsers at source base
+`09eec5ef1ec54dc5a6d6a6340558906e993aac49`: 46 registered entries, 88 forms/modes,
+359 explicit argument rows and 22 direct entrypoints among 46 shipped scripts.
+These are dated census counts, not proof of executed web operations. The
+[operation experience](web-operation-experience.md) owns the new shared registry,
+reviewed source-boundary drift check, scoped capability catalogue and honest
+activation states. Its implementation is tracked in
+[phase107](../phases/107-mobile-and-desktop-cover-plates-operations.md).
+
+The earlier tables below retain their historical proposal status. They are not
+current availability labels. The live catalogue separates native subsets,
+supported workers, presentation-only arguments and limitations with follow-up;
+source grants, configured enablement and fresh domain verification remain separate.
+A parser-source change demands review even when help text is unchanged. Canonical
+package coverage cannot establish the grammar of an adopter-modified script or a
+project-configured command. Required failed-night retry remains an implementation
+gap; neither CLI copy text nor the typecheck worker closes that journey.
+
 ## Inventory update, 21 October 2026
 
 The original audit below remains dated to its source revision. Rechecked the

@@ -17,6 +17,7 @@
     "api/",
     "vercel.json",
     "practices/",
+    "scripts/plates/*.mjs",
     "docs/lessons.md",
     "migrations/",
     "tests/fixtures/improve/",

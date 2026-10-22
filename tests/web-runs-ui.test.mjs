@@ -119,8 +119,11 @@ test('definition-to-activity and attempt-back links retain the current applicabl
 test('Routines uses canonical Plates branding and All plates scope without changing route identities', () => {
   const html = runsView({ routines: [], projects: [], filters: { days: 30 } }, access, 'routines');
   assert.match(html, /· Plates<\/title>/);
-  assert.match(html, /All plates · authorized projects/);
-  assert.match(html, /aria-label="All plates or one plate"/);
+  assert.match(html, /<summary class="nav-project">All plates<\/summary>/);
+  assert.match(html, /aria-label="Choose project"/);
+  assert.match(html, /data-project-lens="" href="\/routines\?days=30" aria-current="true"><span>All plates<small\b/);
+  assert.match(html, /data-project-lens="studio" href="\/projects\/studio\/routines\?days=30"/);
+  assert.match(html, /data-nav-destination="routines" href="\/routines" aria-current="page"/);
   assert.match(html, /href="\/assets\/plates.css"/);
   assert.match(html, /action="\/routines"/);
   assert.doesNotMatch(html, />Fleet|· Keel|assets\/keel/);

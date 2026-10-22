@@ -101,8 +101,25 @@ Actions history additionally needs the owner-approved App **Actions: read**
 grant on the selected repositories; missing permission remains a visible gap.
 See [Routines and observed activity](web-routine-history.md).
 
+Typed Daily/model editor drafts add
+[012-editor-drafts.sql](../../lib/web/migrations/012-editor-drafts.sql), with a
+separate disabled-by-default configuration. They expire after 30 days; they never
+store approvals or credentials and never replay an operation after login.
+See [navigation and private drafts](web-operation-experience.md).
+
+[Bounded night controls](web-night-operations.md) have independent activation:
+plan publication uses typed SQL004 intents, while native night retry adds
+[013-night-retries.sql](../../lib/web/migrations/013-night-retries.sql) after
+009/010. SQL013 shares job accounting and project admission. Its reapplication
+preserves the original private job delegate and existing receipts. Once SQL013
+is installed, reapplying 009 or 010 refuses atomically; reapply 013 directly
+instead. Do not bypass that refusal or restore an older public job function.
+Verify the shared allowance and project lock in both directions before enabling
+retry. No migration grants GitHub permissions or authorizes a run.
+
 Apply only the migrations for the approved features, preserving their named
-prerequisites. Each migration is transactional and can be reapplied. Vercel’s Marketplace query
+prerequisites. Migrations are transactional; the 009/010 refusal after 013 is an
+intentional protection against replacing shared admission. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
 outer `begin;` and `commit;`) in `DO $plates_migration$ BEGIN ... END
 $plates_migration$;`. This keeps schema creation and permission changes atomic;

@@ -1450,3 +1450,67 @@ test('package paths: matching root lock bin metadata follows manifest without ch
     assert.equal(git(target, 'diff', 'HEAD'), before); await absent(target, '.plates');
   }
 });
+
+test('external bindings: unchanged named API refuses migration before any writes', async t => {
+  const root = await fixture(t);
+  const dependency = 'data:text/javascript;base64,' + Buffer.from('export const keel = 71;').toString('base64');
+  await put(root, 'src/binding.mjs', `import { keel } from '${dependency}'; console.log(keel);\n`);
+  git(root, 'add', 'src/binding.mjs');
+  const before = run(process.execPath, ['src/binding.mjs'], { cwd: root });
+  assert.equal(before.status, 0, before.stderr); assert.equal(before.stdout.trim(), '71');
+  const state = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /src\/binding.mjs:.*external module.*binding/);
+  assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  const after = run(process.execPath, ['src/binding.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+});
+
+test('external bindings: named aliases, reexports and direct CommonJS or namespace APIs refuse atomically', async t => {
+  for (const [extension, source] of [
+    ['mjs', "import { keel as value } from '@acme/sdk'; console.log(value);"],
+    ['mjs', "export { keel as publicValue } from '@acme/sdk';"],
+    ['mjs', "export { default as keel } from '@acme/sdk';"],
+    ['mjs', "import * as sdk from '@acme/sdk'; console.log(sdk.keel);"],
+    ['mjs', "import sdk from '@acme/sdk'; console.log(sdk['keel']);"],
+    ['mjs', "const sdk = await import('@acme/sdk'); console.log(sdk.keel);"],
+    ['cjs', "const { keel: value } = require('@acme/cjs'); console.log(value);"],
+    ['cjs', "const { 'keel': value } = require('@acme/cjs'); console.log(value);"],
+    ['cjs', "const sdk = require('@acme/cjs'); console.log(sdk.keel);"],
+    ['cjs', "console.log(require('@acme/cjs').keel);"],
+  ]) {
+    const root = await fixture(t);
+    await put(root, 'node_modules/@acme/sdk/package.json', JSON.stringify({ type: 'module', main: 'index.mjs' }));
+    await put(root, 'node_modules/@acme/sdk/index.mjs', 'export const keel = 73; export default { keel };\n');
+    await put(root, 'node_modules/@acme/cjs/package.json', JSON.stringify({ main: 'index.cjs' }));
+    await put(root, 'node_modules/@acme/cjs/index.cjs', 'module.exports = { keel: 73 };\n');
+    const path = `src/binding.${extension}`;
+    await put(root, path, source); git(root, 'add', path);
+    const before = run(process.execPath, [path], { cwd: root });
+    assert.equal(before.status, 0, before.stderr);
+    const state = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /external module API binding/, source);
+    assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  }
+});
+
+test('external bindings: unaffected APIs, owned relative bindings and example strings still migrate', async t => {
+  const root = await fixture(t);
+  await put(root, 'src/keel-api.mjs', 'export const keel = 79;\n');
+  await put(root, 'src/control.mjs', [
+    "import { keel } from './keel-api.mjs';",
+    "import { basename } from 'node:path';",
+    '// import { keel } from an external module is only a comment.',
+    'const example = "import { keel } from \'@acme/sdk\';";',
+    "console.log(keel, basename('stable'));",
+  ].join('\n'));
+  git(root, 'add', 'src');
+  await applyRename(root);
+  const result = run(process.execPath, ['src/control.mjs'], { cwd: root });
+  assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), '79 stable');
+  assert.match(await get(root, 'src/control.mjs'), /import \{ plates \} from '\.\/plates-api.mjs'/);
+});
+
+test('durable phase107 identities: editor and night retry RPCs and migration lock retain exact names', () => {
+  const source = "const rpc = 'keel_editor_draft_rpc'; const retry = 'keel_night_retry_rpc'; const lock = 'keel-job-migrations'; // Keel care\n";
+  assert.equal(renameActiveText(source), source.replace('Keel care', 'Plates care'));
+});

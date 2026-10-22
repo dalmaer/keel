@@ -44,7 +44,7 @@ test('all authored text is escaped and neither a preview nor a committed label w
 
 // A real controller/transport model. Native layout and focus are separately walked in a browser.
 function controller(initial,{responses=[]}={}) {
-  const handlers={},requests=[],history=[],modelValue=structuredClone(initial),controls=new Map();let rendered='';
+  const handlers={},windowHandlers={},requests=[],history=[],modelValue=structuredClone(initial),controls=new Map();let rendered='';
   const element=(extra={})=>({disabled:false,checked:false,value:'',dataset:{},focus(){},reportValidity(){return true;},...extra});
   const env=element({name:'environment',value:modelValue.draft.environment}),confirmed=element({name:'resultConfirmed',checked:modelValue.draft.resultConfirmed}),final=element({value:modelValue.draft.finalObservation});
   const outcomes=Object.fromEntries(modelValue.draft.steps.map(s=>[s.id,element({value:s.outcome})])),notes=Object.fromEntries(modelValue.draft.steps.map(s=>[s.id,element({value:s.note})]));
@@ -59,10 +59,10 @@ function controller(initial,{responses=[]}={}) {
     return null;
   },querySelectorAll(selector){if(selector==='[data-save-walk]')return [save];if(selector==='input[type="radio"]')return [...Object.values(outcomes),choice];return [];},addEventListener(type,fn){handlers[type]=fn;},removeEventListener(){}};
   const document={querySelector:selector=>selector==='[data-walk-root]'?root:null};
-  const window={location:{pathname:'/projects/studio/walks/search',search:''},history:{replaceState(_a,_b,path){history.push(path);}},setTimeout(){return 1;},clearTimeout(){},addEventListener(){},removeEventListener(){}};
+  const window={location:{pathname:'/projects/studio/walks/search',search:''},history:{replaceState(_a,_b,path){history.push(path);}},setTimeout(){return 1;},clearTimeout(){},addEventListener(name,fn){windowHandlers[name]=fn;},removeEventListener(name){delete windowHandlers[name];}};
   const fetch=async(url,options)=>{requests.push({url,method:options.method,body:options.body?JSON.parse(options.body):null});const next=responses.shift();if(next instanceof Error)throw next;return {status:next?.status??200,json:async()=>next?.data??modelValue};};
   const client=startWalkClient({document,window,fetch,renderWalkDetail:()=>'<Acme rendered walk>',renderWalkPreview:()=>'<Acme exact preview>',renderWalkOperation:operation=>JSON.stringify(operation)});
-  return {client,requests,history,root,notes,env,final,status,save,review,apply,ack,previewZone,rendered:()=>rendered,edit(step='open'){handlers.input({target:{name:`note-${step}`,closest:selector=>selector==='[data-walk-form]'?form:null}});},acknowledge(){ack.checked=true;handlers.change({target:{checked:true,matches:()=>true}});}};
+  return {client,requests,history,root,windowHandlers,notes,env,final,status,save,review,apply,ack,previewZone,rendered:()=>rendered,edit(step='open'){handlers.input({target:{name:`note-${step}`,closest:selector=>selector==='[data-walk-form]'?form:null}});},acknowledge(){ack.checked=true;handlers.change({target:{checked:true,matches:()=>true}});}};
 }
 test('CAS conflict retains unsaved actual notes and disables overwrite until explicit saved-draft reload',async()=>{
   const m=complete(),fresh=complete();fresh.draft.revision=3;fresh.draft.digest=H('9');
@@ -82,7 +82,7 @@ test('preview edits invalidate approval; public dispatch carries exact acknowled
 });
 test('access loss clears private rendered draft and disabled publication never dispatches',async()=>{
   const m=complete(),denied=controller(m,{responses:[{status:403,data:{error:'submission_disabled'}}]});try{await denied.client.review();assert.match(denied.status.textContent,/disabled/);await denied.client.apply();assert.equal(denied.requests.length,1);}finally{denied.client.stop();}
-  const h=controller(m,{responses:[{status:401,data:{error:'access_denied'}}]});try{await h.client.reload();assert.match(h.root.innerHTML,/private walk view has been cleared/);assert.equal(h.client.getState().locked,true);}finally{h.client.stop();}
+  const h=controller(m,{responses:[{status:401,data:{error:'access_denied'}}]});try{await h.client.reload();assert.match(h.root.innerHTML,/Sign in and return/);assert.ok(h.root.innerHTML.includes('/signin?returnTo='+encodeURIComponent('/projects/studio/walks/search')));assert.doesNotMatch(h.root.innerHTML,/data-walk-form|data-final-observation/);assert.equal(h.client.getState().locked,true);}finally{h.client.stop();}
 });
 
 test('repair preview leads with exact readable destination and body while machine handoff stays optional',()=>{
@@ -103,4 +103,15 @@ test('saving unchanged controls does not recapture step or final evidence, and e
 test('source change refusal preserves typed notes and identifies the source rather than inventing another tab',async()=>{
   const h=controller(complete(),{responses:[{status:409,data:{error:'walk_source_changed'}}]});
   try{h.notes.open.value='Acme retained note';h.edit();await h.client.save();assert.equal(h.notes.open.value,'Acme retained note');assert.match(h.status.textContent,/captured source changed/);assert.doesNotMatch(h.status.textContent,/Another tab/);assert.equal(h.client.getState().conflict,true);}finally{h.client.stop();}
+});
+
+test('walk access loss drops its dirty unload guard after private content is cleared',async()=>{
+  const h=controller(complete(),{responses:[{status:401,data:{error:'access_denied'}}]});
+  try {
+    h.notes.open.value='Acme unsaved observation';h.edit();
+    let warnings=0;h.windowHandlers.beforeunload({preventDefault(){warnings++;}});assert.equal(warnings,1);
+    await h.client.reload();assert.equal(h.client.getState().locked,true);
+    warnings=0;h.windowHandlers.beforeunload?.({preventDefault(){warnings++;}});assert.equal(warnings,0);
+    assert.equal(h.client.getState().dirty,false);assert.match(h.root.innerHTML,/Unsaved text was not saved/);
+  } finally {h.client.stop();}
 });

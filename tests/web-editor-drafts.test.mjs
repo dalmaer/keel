@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {editorHarness} from './helpers/web-editor-drafts.mjs';
+import {token,routingPolicy} from './helpers/web-model-tasks.mjs';
+import {createEditorDrafts,validateEditorPayload} from '../lib/web/editor-drafts.mjs';
+import {createEditorDraftStore} from '../lib/web/editor-draft-store.mjs';
+import {createWebService} from '../lib/web/server.mjs';
+const payload={phase:'1',paths:['docs/phases/1-acme.md'],instructions:'Acme private authored words'};
+const service=h=>createEditorDrafts(h.config,{fetcher:h.fetcher,now:()=>h.state.now});
+const read=(h,s=service(h))=>s.read(h.access,token,h.project,'model-source','main');
+const save=(h,row,extra={},s=service(h))=>s.save(h.access,token,h.project,'model-source','main',{expectedRevision:row.revision,saveId:'b'.repeat(64),baseDigest:row.currentDigest,payload,...extra});
+test('typed private drafts recover across service instances with encrypted scope, fresh source comparison and no provider request',async()=>{
+ const h=await editorHarness(),empty=await read(h);const saved=await save(h,empty);assert.equal(saved.state,'saved');assert.equal(saved.stale,false);assert.deepEqual(saved.payload,payload);
+ assert.equal(h.model.calls.length,0);assert.doesNotMatch(JSON.stringify([...h.editorDb.rows.values()]),/private authored words/);
+ const other=service(h);assert.deepEqual((await read(h,other)).payload,payload);
+ h.source.head='e'.repeat(40);const stale=await read(h);assert.equal(stale.stale,true);assert.deepEqual(stale.payload,payload);
+ const captured=[...h.editorDb.rows.values()].find(r=>r.state==='saved');const {requestDigest,...wrong}=captured;
+ const wrongStore=createEditorDraftStore(h.config,async()=>Response.json(wrong));
+ await assert.rejects(wrongStore.read(2,h.project,'model-source','main'));
+ await assert.rejects(wrongStore.read(h.access.userId,{...h.project,repoId:999},'model-source','main'));
+ await assert.rejects(wrongStore.read(h.access.userId,h.project,'model-policy','main'));
+});
+test('CAS conflict, lost-save readback, conditional delete and thirty-day expiry never replay content',async()=>{
+ const h=await editorHarness(),empty=await read(h);h.editorDb.lost=true;await assert.rejects(save(h,empty));
+ const recovered=await read(h);assert.equal(recovered.saveId,'b'.repeat(64));assert.deepEqual(recovered.payload,payload);
+ await assert.rejects(save(h,empty,{saveId:'c'.repeat(64)}),{code:'editor_draft_conflict'});
+ await assert.rejects(service(h).remove(h.access,token,h.project,'model-source','main',{expectedRevision:empty.revision,saveId:'d'.repeat(64)}),{code:'editor_draft_conflict'});
+ h.state.now+=30*86400000+1;const expired=await read(h);assert.equal(expired.state,'expired');assert.equal(expired.payload,null);assert.ok(expired.revision>recovered.revision);
+ await assert.rejects(save(h,recovered,{saveId:'d'.repeat(64)}),{code:'editor_draft_conflict'});
+});
+test('typed fields exclude credentials, approvals, source packets and daily results while retaining authored content',()=>{
+ assert.deepEqual(validateEditorPayload('model-source','main',payload,{id:'studio',repoId:102}),payload);
+ for(const field of ['csrf','key','approval','quote','sourceFiles'])assert.throws(()=>validateEditorPayload('model-source','main',{...payload,[field]:'Acme'},{}));
+ assert.throws(()=>validateEditorPayload('model-source','main',{...payload,paths:['../secret']},{}));
+ const day={date:'2026-10-22',readyBy:null,willNotTouch:['Acme'],settledToday:[],leftOpen:[],items:[{id:'one',title:'Acme work',kind:'triage',lane:'climb:acme',budget:null,number:null}]};
+ assert.deepEqual(validateEditorPayload('daily',day.date,day,{}),day);
+ assert.throws(()=>validateEditorPayload('daily',day.date,{...day,items:[{...day.items[0],result:{note:'private provider output'}}]},{}));
+ assert.throws(()=>validateEditorPayload('daily','2026-10-23',day,{}));
+ assert.deepEqual(validateEditorPayload('model-policy','main',routingPolicy()),routingPolicy());
+ assert.throws(()=>validateEditorPayload('model-policy','main',{...routingPolicy(),projectId:'other',repoId:103},{id:'studio',repoId:102}));
+});
+test('real authenticated draft routes enforce origin CSRF access disabled state and survive a second authenticated session',async()=>{
+ const h=await editorHarness(),login=await h.login(),path='/api/editor-drafts/model-source/main?project=studio';
+ const request=(url,body,cookie=login.cookie)=>body?new Request(h.config.origin+url,{method:'POST',headers:{cookie,origin:h.config.origin,'content-type':'application/json'},body:JSON.stringify(body)}):h.request(url,{cookie});
+ let r=await h.editorService(request(path));assert.equal(r.status,200);const row=await r.json();
+ const input={csrf:login.session.csrf,expectedRevision:row.revision,saveId:'a'.repeat(64),baseDigest:row.currentDigest,payload};
+ r=await h.editorService(request('/api/editor-drafts/model-source/main/save?project=studio',input));assert.equal(r.status,200,await r.clone().text());
+ assert.equal((await h.editorService(request('/api/editor-drafts/model-source/main/save?project=studio',{...input,csrf:'invalid'}))).status,403);
+ assert.equal((await h.editorService(request('/api/editor-drafts/model-source/main?project=other'))).status,404);
+ const login2=await h.login();r=await h.editorService(request(path,null,login2.cookie));assert.deepEqual((await r.json()).payload,payload);
+ const disabled=createWebService({...h.config,drafts:{enabled:false,verifiedAt:null}},{fetcher:h.fetcher,now:()=>h.state.now});
+ assert.equal((await (await disabled(request(path,null,login2.cookie))).json()).enabled,false);
+ h.state.members=[];assert.ok([401,404].includes((await h.editorService(request(path,null,login2.cookie))).status));
+ assert.equal(h.model.calls.length,0);
+});
+test('workspace and project policy drafts use current policy digest without publishing or widening inherited policy',async()=>{
+ const h=await editorHarness(),s=service(h),original=h.workspace.files['routing/workspace.json'];
+ const workspace=await s.read(h.access,token,null,'model-policy','main'),policy=routingPolicy();policy.limits.maxOutputTokens=500;
+ const saved=await s.save(h.access,token,null,'model-policy','main',{expectedRevision:workspace.revision,saveId:'e'.repeat(64),baseDigest:workspace.currentDigest,payload:policy});
+ assert.equal(saved.stale,false);assert.deepEqual((await s.read(h.access,token,null,'model-policy','main')).payload,policy);
+ assert.equal(h.workspace.files['routing/workspace.json'],original);assert.equal(h.workspace.writes.length,0);
+ const project=await s.read(h.access,token,h.project,'model-policy','main');assert.equal(project.payload,null);
+ await assert.rejects(s.save(h.access,token,h.project,'model-policy','main',{expectedRevision:project.revision,saveId:'f'.repeat(64),baseDigest:project.currentDigest,payload:policy}),{code:'invalid_model_policy'});
+});

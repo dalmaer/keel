@@ -1,5 +1,18 @@
 -- Shared admission retains its existing scope, lanes and conservative charges.
 begin;
+-- A later migration owns the public admission wrapper. Replaying this body
+-- would silently remove its lane and budget checks; refuse before any DDL.
+do $$
+begin
+ perform pg_advisory_xact_lock(hashtextextended('keel-job-migrations',107));
+ if to_regprocedure('keel_private.job_rpc_before_night(text,text,text,jsonb)') is not null
+    or to_regclass('keel_private.night_previews') is not null
+    or to_regclass('keel_private.night_retries') is not null
+    or to_regprocedure('public.keel_night_retry_rpc(text,text,text,jsonb)') is not null then
+  raise exception 'migration013 owns job admission; reapply013 instead of009/010';
+ end if;
+end;
+$$;
 create or replace function public.keel_job_rpc(p_operation text,p_scope text,p_id text,p_data jsonb default '{}'::jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare

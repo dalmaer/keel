@@ -1,6 +1,6 @@
 # Set up a private Plates web workspace
 
-Setup guide, updated 21 October 2026. Phase 93 provides local manifest and state
+Setup guide, updated 22 October 2026 UTC. Phase 93 provides local manifest and state
 initialization. The first private service is deployed: owner GitHub login,
 logout, current membership and project access checks pass on HTTPS, with serving
 Node v24.21.0. Supabase holds encrypted sessions; the read-only GitHub App is
@@ -160,7 +160,7 @@ privacy, manifest and membership through the GitHub App user token. The hosted
 authentication migration, actual role denials and overlapping-connection races
 passed. Database credentials, the session encryption key and OAuth client secret
 are stored only in production secrets. Live logout and membership/project removal
-denials pass. No Blob store exists yet; the backup destination is still open.
+denials pass. The optional private capture bucket has not been activated; the backup destination is still open.
 Exact account, project and domain identifiers live in the private workspace repo.
 The earlier Render single-instance candidate was not approved or created and is
 superseded by this choice. The local filesystem adapter above remains supported;
@@ -168,10 +168,10 @@ it is not the storage implementation for hosted requests.
 
 | Layer | Binding or planned binding | Remaining decision/check |
 | --- | --- | --- |
-| Application | Public Plates source; framework-free Node functions and browser modules | Production deployment in iad1; serving Node v24.21.0 verified |
+| Application | Public Plates source; framework-free Node functions and browser modules | Historical deployment in iad1 served Node v24.21.0; next deployment requires at least v24.22.1 and fresh runtime proof |
 | Shared records | Owner-selected private GitHub repository | Numeric identity, manifest, members file and selected project list retained privately |
 | Sessions/drafts/receipts | Supabase Postgres via Marketplace, Free/iad1 connected to production | Authentication schema, role denials and concurrent SQL verified; restore destination remains |
-| Screenshots | Private object store; Vercel private Blob is a candidate for phase 99 | Private mode, supported upload adapter, retention, pricing and backup |
+| Screenshots | Implemented optional Supabase private Storage adapter with encrypted objects | Bucket activation, retention, capacity and hosted role/concurrency proof remain separate; see the capture guide |
 | Identity | GitHub App authorization, selected repositories only | Selected installation and live owner access verified; no public signup |
 | Secrets | Vercel server-side environment configuration | Database, encryption and App OAuth secrets in production; live membership revocation verified |
 
@@ -195,10 +195,11 @@ retired Vercel Postgres product.
   database and pauses after one week of inactivity; use it for the initial trial.
   Paid upgrades and an independent backup destination remain owner decisions.
   [Supabase pricing](https://supabase.com/pricing).
-- Private Blob incurs storage/operations/transfer usage against plan allowances;
-  function delivery can incur additional transfer charges. Quote the selected
-  account's allowances and overage settings before creation.
-  [Blob pricing](https://vercel.com/docs/vercel-blob/usage-and-pricing).
+- The implemented capture adapter uses Supabase Storage. The public Free plan
+  lists 1 GB file storage and 5 GB egress (rechecked 22 October 2026 UTC); these
+  account allowances are separate from Plates's maximum 256 MiB ciphertext cap.
+  Check current account usage before activation; this guide authorizes no upgrade.
+  [Supabase pricing](https://supabase.com/pricing).
 
 No total operating price is approved yet. Prefer existing resources and explicit
 limits; paid resources, overages and backups need a concrete owner decision.
@@ -241,9 +242,10 @@ limits; paid resources, overages and backups need a concrete owner decision.
    [HTTP API](https://supabase.com/docs/guides/api/sql-to-rest),
    [database functions](https://supabase.com/docs/guides/database/functions).
    Native fetch needs a documented provider API; do not reverse-engineer an SDK
-   endpoint to preserve zero dependencies. An SDK-only choice requires an explicit
-   repository dependency exception before implementation. Defer media provisioning
-   until its adapter and price are selected; phase 95 does not need screenshots.
+   endpoint to preserve zero dependencies. The optional capture adapter is now
+   implemented against Supabase Storage; follow its separate bucket, retention
+   and capacity approval in [Private captures](web-changes.md). Authentication
+   does not require media activation.
 4. Create the approved Vercel project from public application source with Node
    24.x, no framework/build requirement and an assigned HTTPS origin. Check the
    actual runtime patch before treating it as compatible. Entry points and the
@@ -251,7 +253,10 @@ limits; paid resources, overages and backups need a concrete owner decision.
 5. Register/install the approved GitHub App. Initial permissions: Metadata read
    and Contents read, selected workspace/project repositories only. Add Issues
    and Pull requests read when adapters need them; approve writes separately when
-   decision/walk operations ship. No Actions or administration access is needed.
+   decision/walk operations are enabled. Initial Home needs no Actions or
+   administration access. Routine history needs Actions read; approved worker
+   dispatch and night retry need Actions write plus their independent budget and
+   source-profile gates. A permission grant alone never enables those actions.
 6. Configure the exact HTTPS callback and server-only client secret, session
    encryption key and database credential. The initial user authorization flow
    does not use an App private key; do not generate one for this phase. Webhook signing secret is
@@ -263,12 +268,12 @@ limits; paid resources, overages and backups need a concrete owner decision.
    evidence records only sanitized coverage. Phase 94 remains partial until real
    bindings are checked; phase 95 proves actual login and access denial.
 
-Private Blob reads require authentication and can use a server-side bearer
-request, then an authorized app route. The browser never receives a storage
-token; responses must use private caching. The documented upload path uses the
-SDK or CLI, so the zero-dependency upload adapter is still a phase 99 design
-choice. Do not claim native-fetch uploads are already supported.
-[Private Blob](https://vercel.com/docs/vercel-blob/private-storage).
+Capture delivery uses the implemented Supabase private-bucket adapter through an
+authenticated Plates route. The browser receives neither the service credential nor
+a reusable public object URL. Plates encrypts stored objects, checks current project
+access and keeps lost-upload/deletion receipts. A private bucket and SQL006 are
+still separate activation steps; see [Private captures](web-changes.md).
+[Supabase private buckets](https://supabase.com/docs/guides/storage/buckets/fundamentals).
 
 ## Acceptance worksheet for later phases
 
@@ -300,3 +305,17 @@ store. This extends the initial storage division only after explicit activation;
 existing workspace or session setup does not enable credential forms. Require
 dated live provider validation and secret-store role/concurrency proof before
 enabling them. Keep actual quota reads distinct from model-metadata access.
+
+## Operation coverage and editor drafts
+
+Phase107's [operation experience](web-operation-experience.md) adds a shared
+project lens and a catalogue of supported and limited command variants. It does
+not expand GitHub permissions, enable a worker or turn local-only commands into
+remote execution. Inspect each destination's current capability and source checks.
+
+Typed daily/model editor drafts require the separate SQL012 private store and
+verified enablement; guided walks continue to use SQL005. Keep migrations ordered
+and verify actor/project isolation, version conflicts, lost-save recovery and
+expiry before enabling a deployed store. Approval for earlier schemas does not
+establish this migration's execution or proof. No private draft is stored in Git
+or browser persistence. A saved draft is not permission to publish or run it.
