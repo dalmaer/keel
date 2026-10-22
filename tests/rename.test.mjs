@@ -1514,3 +1514,40 @@ test('durable phase107 identities: editor and night retry RPCs and migration loc
   const source = "const rpc = 'keel_editor_draft_rpc'; const retry = 'keel_night_retry_rpc'; const lock = 'keel-job-migrations'; // Keel care\n";
   assert.equal(renameActiveText(source), source.replace('Keel care', 'Plates care'));
 });
+
+test('unsupported module forms: moved CommonJS directory references refuse before writes', async t => {
+  for (const [entry, reference] of [['index.js', "require('./keel')"], ['index.js', "require('./keel/')"], ['main.cjs', "require('./keel')"], ['index.js', "require.resolve('./keel')"]]) {
+    const root = await fixture(t);
+    await put(root, `src/keel/${entry}`, 'module.exports = 83;\n');
+    if (entry !== 'index.js') await put(root, 'src/keel/package.json', JSON.stringify({ main: entry }));
+    await put(root, 'src/main.cjs', `console.log(${reference});\n`);
+    git(root, 'add', 'src');
+    const before = run(process.execPath, ['src/main.cjs'], { cwd: root });
+    assert.equal(before.status, 0, before.stderr);
+    const state = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /src\/main.cjs:.*directory module reference/);
+    assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+    const after = run(process.execPath, ['src/main.cjs'], { cwd: root });
+    assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+  }
+});
+
+test('unsupported module forms: external import options and trailing commas refuse affected APIs', async t => {
+  const dependency = 'data:text/javascript;base64,' + Buffer.from('export const keel = 89;').toString('base64');
+  for (const source of [
+    `const { keel } = await import('${dependency}', {}); console.log(keel);`,
+    `const { keel: value } = await import('${dependency}',); console.log(value);`,
+    `const sdk = await import('${dependency}', /* options */ {}); console.log(sdk.keel);`,
+    `console.log((await import('${dependency}', {})).keel);`,
+  ]) {
+    const root = await fixture(t);
+    await put(root, 'src/options.mjs', source); git(root, 'add', 'src/options.mjs');
+    const before = run(process.execPath, ['src/options.mjs'], { cwd: root });
+    assert.equal(before.status, 0, before.stderr); assert.equal(before.stdout.trim(), '89');
+    const state = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /src\/options.mjs:.*external module API binding/);
+    assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+    const after = run(process.execPath, ['src/options.mjs'], { cwd: root });
+    assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+  }
+});
