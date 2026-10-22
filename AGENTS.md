@@ -318,3 +318,14 @@ identity must survive checks before publication. Lesson trace manifests are
 private reference relationships, never decision authority or implicit public
 exports. PR creation, merge, observed installation and acceptance remain distinct.
 See the [fleet update guide](docs/guide/web-fleet-updates.md).
+
+## Model planning
+
+The hosted planning adapter reviews explicit phase/evidence/decision text only.
+Check cost is a separate approved provider data transfer; Run pins an exact quote,
+source, policy and connection generation. Preserve original model receipts after
+uncertainty; never resend a generation request or refund unknown usage. A saved
+summary continuation retains the task ceiling and completed work. Metadata access
+is not inference capacity, and model advice is not owner acceptance. See the
+[model planning guide](docs/guide/web-model-routing.md). Activation and live spend
+remain separately approved; no subscription credentials are copied.

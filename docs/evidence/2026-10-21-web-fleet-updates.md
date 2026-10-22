@@ -135,3 +135,25 @@ The private lesson-trace manifest supplies references, not canonical decisions.
 Raw copied guard bytes are distinguished from rendered/custom/ejected targets;
 unsupported rendered-target proof, execution and acceptance remain unavailable.
 No private lesson is implicitly published or copied into a public PR.
+
+## Post-commit integration
+
+Observed 2026-10-21 America/Denver (2026-10-22 UTC): implementation
+`1f1bf71833b2d3e767139af07a97b2ab5580c8b0` landed through one
+`node bin/keel.mjs integrate --json` gate at
+`b26ed63b13ccdd29102c8711a9436ba6944f02ba`. `npm run check` exited 0:
+2,420 tests passed, none failed; all eight pinned stall suites and roadmap,
+render, inbox and patterns guards passed. The ledger reported no flaky or slower
+findings; the busy run was excluded from timing comparisons. The preceding
+`node bin/keel.mjs ready --check "npm run typecheck" --json` exited 0.
+This is local integration evidence, not production deployment or owner acceptance.
+
+The implementation commit's approximate five-hour duration was incorrect.
+The retained claim timestamp is 2026-10-22T00:51:11Z and the ready receipt is
+01:37:31Z: approximately 46 minutes through ready. The integrated gate finished
+around 01:47Z. These are elapsed times, not summed agent time or financial cost.
+
+CI on the exact integrated revision also succeeded:
+[check 39707711930](https://github.com/dalmaer/keel/actions/runs/39707711930)
+and [typecheck 39707712062](https://github.com/dalmaer/keel/actions/runs/39707712062).
+No production deployment followed these checks.
