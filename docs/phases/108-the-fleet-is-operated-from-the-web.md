@@ -1,10 +1,10 @@
 ---
-status: planned
-since: 2026-10-21
+status: designed
+since: 2026-10-22
 goal: G7
 spec: 2
 depends: [101, 107]
-note: "Expanded fleet operating goal; design and proof remain to be implemented."
+note: "Restore/reconnect matrix and fresh feature assertions designed; implementation and real fleet trial remain."
 evidence: []
 ---
 
@@ -19,7 +19,8 @@ Repeated real use demonstrates that the owner operates the selected fleet from m
 Extend the initial workspace trial to the full operating goal. Observe source completeness, terminal detours, actual costs, revocation, partial rollouts, worker recovery and restore with unresolved jobs. Keep implemented, deployed, verified and lived-in claims distinct.
 
 Contract: [Fleet operations](../specs/web-fleet-operations.md),
-[workspace](../specs/web-workspace.md) and [CLI mapping](../specs/web-ui-command-map.md).
+[workspace](../specs/web-workspace.md), [CLI mapping](../specs/web-ui-command-map.md)
+and [fleet recovery](../specs/web-fleet-recovery.md).
 
 ## Acceptance
 
@@ -46,7 +47,9 @@ The owner selects participants and observation duration; automated tests or one 
 
 ## Next action
 
-Prepare the full operating acceptance worksheet after phase 107; agree the real-use window before recording observations.
+Implement and prove the serialized fleet recovery matrix and fresh per-feature
+restore assertions; prepare the private operating worksheet. Owner selects the
+fleet, private backup destination and real-use window before observations.
 
 ## Trajectory
 
