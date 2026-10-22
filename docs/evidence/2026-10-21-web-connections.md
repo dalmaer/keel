@@ -84,6 +84,6 @@ Owner exercise after approved activation:
 and inbox guards passed. The ledger reported no flaky or slower test; one busy
 run was omitted from timing history. Existing undated-observation advice was
 non-blocking. Main is `e8d3f2fff9ebb8c0e2d2cb17cb690cd897ad2948`; phase claim released.
-Exact-main GitHub typecheck run 39697083371 succeeded; check run 39697083133
-was still running when this follow-up was written. CI is separate evidence.
+Exact-main GitHub typecheck run 39697083371 and check run 39697083133 both
+succeeded, confirmed after integration. CI is separate evidence.
 No deployment or provider activation followed this integration.

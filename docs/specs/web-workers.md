@@ -162,8 +162,14 @@ source and access again. Do not call an unrestricted native rerun that bypasses
 the worker's original request/fence. A newer source must be visible in review.
 
 The schedule editor is deliberately narrow: an existing single literal UTC cron
-on an approved workflow, with explicitly supported source structure and existing
-budget policy. Preserve every other byte. Show current/proposed cron, UTC,
+on a project-owned simple typecheck workflow, with a known literal job timeout,
+constant noncancelling concurrency and explicit schedule budget policy. Match the
+reviewed canonical fixed-command source shape, normalizing only the cron value.
+Reject a path owned by `.keel/lock.json`: editing a managed night workflow would
+create drift that render overwrites. A separate schedule-only registration may
+expose this editor without claiming OIDC dispatch support; it has no start button.
+The private policy bounds allowed cadence and scheduled minutes separately from
+web jobs. Source edits outside the cron invalidate this capability. Preserve every other byte. Show current/proposed cron, UTC,
 existing concurrency/overlap behavior, workflow/project identity, exact file,
 source revision and budget before approval. Refuse expressions, aliases, ambiguous
 YAML, multiple schedules, unknown overlap, or a proposed schedule exceeding the
@@ -214,6 +220,16 @@ edit preserving unrelated bytes. The first typecheck adapter cannot establish
 that schedule surface because it has no cron. Record serving/worker revisions,
 provider run/attempt IDs, actual observations, budget and gaps. Do not start that
 exercise without the explicit permission and runtime allowance.
+
+## Implementation decisions
+
+- **2026-10-21** — Managed night files are not a direct schedule-edit surface.
+  Source inspection showed render owns them. The initial schedule adapter is
+  restricted to project-owned simple typecheck sources with an existing cron;
+  this repository’s no-cron typecheck cannot establish the real schedule walk.
+- **2026-10-21** — The initial web worker reserves a fixed fifteen-minute job
+  ceiling, including setup. The provider-observed job start anchors its deadline;
+  the claim cannot start a fresh allowance.
 
 ## Dated provider references
 
