@@ -81,6 +81,12 @@ Killing the Docker client is not proof that its container stopped. Cleanup
 uncertainty remains in the receipt, and no host-execution fallback is allowed.
 Provider terminal evidence still governs the shared job lane.
 
+Capture the working snapshot while bounded temporary storage still exists.
+Freeze and verify the container's processes before copying it, then independently
+confirm termination and removal before the trusted planner consumes the copy.
+Stopping a container first destroys tmpfs contents; copying while project
+processes can still write does not establish a stable snapshot.
+
 Retain the immutable prepared patch before project checks. Check all original
 tracked paths after execution, not only changed paths. A command that mutates
 those bytes cannot supply a passing result for the reviewed tree. Generated build
@@ -119,6 +125,12 @@ Persist each external dispatch before its POST. An uncertain response recovers
 that exact effect by immutable object/ref/PR readback; no blind repeat or newest-
 matching-PR shortcut. Preserve a stage's outcome across browser disconnects and
 server restarts. Bound scans and report incomplete recovery explicitly.
+
+Publication advances at most one new external effect per request, within the
+handler's deadline. An explicit **Continue publication** action advances only
+undispatched stages of the same immutable approval. Recovery inspects uncertain
+stages without issuing another POST. A lost response retains the operation link;
+it never starts a replacement publication.
 
 The branch is deterministic for the operation and is never force-pushed. Preserve
 existing CLI update branches and PRs as verified existing work or visible conflicts.
@@ -202,6 +214,8 @@ Read 2026-10-22 UTC (2026-10-21 local):
 - [GitHub references](https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28)
 - [Docker container execution](https://docs.docker.com/engine/containers/run/)
 - [Docker container termination](https://docs.docker.com/reference/cli/docker/container/kill/)
+- [Docker temporary storage](https://docs.docker.com/engine/storage/tmpfs/)
+- [Docker process freezing](https://docs.docker.com/reference/cli/docker/container/pause/)
 
 The additional fencing, isolation policy, publication recovery and source-evidence
 requirements are Keel's design, not guarantees supplied by these APIs.
