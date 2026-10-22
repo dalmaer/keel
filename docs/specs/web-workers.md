@@ -230,6 +230,9 @@ exercise without the explicit permission and runtime allowance.
 - **2026-10-21** — The initial web worker reserves a fixed fifteen-minute job
   ceiling, including setup. The provider-observed job start anchors its deadline;
   the claim cannot start a fresh allowance.
+- **2026-10-21** — The initial receipt reports conservative reserved minutes;
+  measured duration and financial cost remain unavailable. Its provider-attempt
+  link preserves the route to original evidence without estimating usage.
 
 ## Dated provider references
 
