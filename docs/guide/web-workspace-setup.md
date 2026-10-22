@@ -319,3 +319,12 @@ and verify actor/project isolation, version conflicts, lost-save recovery and
 expiry before enabling a deployed store. Approval for earlier schemas does not
 establish this migration's execution or proof. No private draft is stored in Git
 or browser persistence. A saved draft is not permission to publish or run it.
+
+## Deployment checks and restore trial
+
+Follow the [deployment and recovery guide](web-recovery.md) for authenticated
+serving identity, a fresh restore epoch outside the database, old-session denial
+and quarantine of business actions. Its private worksheet covers real owner
+use and separate Git/database/media recovery. Keep execution features disabled
+until their own current restore proofs hold. No backup destination or live
+restoration is created by the local implementation.

@@ -248,3 +248,19 @@ Pull Requests permission checks. They require migration 010 and an explicitly
 approved adopted project, trusted target and container policy. The
 [fleet update guide](web-fleet-updates.md) describes both approvals, shared budgets
 and original-receipt recovery; existing login does not enable these effects.
+
+## Deployment identity and restore quarantine
+
+Authenticated `/api/deployment` reports the validated `VERCEL_GIT_COMMIT_SHA`
+binding when available, actual runtime/CLI versions and operator recovery state.
+Compare that binding with Vercel's actual serving deployment before claiming
+production verification. Missing or malformed bindings remain unavailable.
+
+The optional `recovery` object in `KEEL_WEB_CONFIG` carries a fresh 32-character
+lowercase hexadecimal epoch, canonical past `startedAt`, and null `reconciledAt`
+until the operator's audit is complete. Keep the epoch permanently after
+reopening. This invalidates restored sessions/attempts without rotating keys
+that decrypt durable records. During quarantine only static/auth routes and
+explicit authenticated recovery, deployment and session observations are allowed;
+all business routes, including receipt GETs and worker callbacks, refuse.
+Follow the [recovery guide](web-recovery.md) before connecting restored state.

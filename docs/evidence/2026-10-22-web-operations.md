@@ -148,3 +148,27 @@ execution, missing plan-branch bootstrap and subscription-model execution remain
 explicit limitations. A catalogue entry does not satisfy execution acceptance.
 The later repeated-use phase must retain those gaps and needs the owner's fleet,
 observation window, resource choices and real observations.
+
+## Integrated result
+
+The corrected phase landed on main at
+`24728f21a76988a3be2acba75cb3b96a0c951e23` (implementation `f7ce43f`, packaging
+repair `04fe751`). The second integration ran one full gate and exited 0:
+**2,568/2,568 tests**, all eight pinned stall checks, roadmap, 89 render targets and
+inbox guards passed. The ledger reported no flaky or slower test, with the one
+busy run omitted from timing comparisons. `npm run typecheck` exited 0 through
+ready. The first failed gate and its packaging correction remain recorded above.
+
+Claim107 was released after landing. This does not deploy the application or
+activate any hosted feature. Implementation/review ran from 02:33:50 to 03:59:54
+UTC, followed by final integration completed before 04:13:10 UTC. CI on the exact
+main revision is recorded separately once completed; local integration is not CI.
+
+### CI follow-up — 22 October 2026
+
+The exact integrated revision `24728f21a76988a3be2acba75cb3b96a0c951e23`
+completed both [check run 39721058103](https://github.com/dalmaer/keel/actions/runs/39721058103)
+and [typecheck run 39721058114](https://github.com/dalmaer/keel/actions/runs/39721058114)
+with conclusion `success`. Observed with `gh run view <id> --json
+status,conclusion,url,headSha`; each read exited 0. This is CI evidence, not
+another local gate or a deployment/owner acceptance result.
