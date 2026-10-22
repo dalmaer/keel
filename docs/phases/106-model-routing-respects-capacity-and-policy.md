@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [103, 104]
-note: "Expanded fleet operating goal; design and proof remain to be implemented."
+note: "Bounded planning adapter, explicit capacity policy and checkpoint contract specified; implementation and real provider walk remain."
 evidence: []
 ---
 
@@ -18,7 +18,8 @@ Each run selects an eligible model under an explicit capacity and budget policy,
 
 Add opt-in task-class preferences, approved fallbacks, capability/privacy filters, freshness rules, reserve thresholds, shared reservations and cooldown. Pin a model per attempt; checkpoint handoff must retain ownership, side effects and actual cost.
 
-Contract: [Fleet operations](../specs/web-fleet-operations.md),
+Contract: [Model choice and checkpoints](../specs/web-model-routing.md),
+[Fleet operations](../specs/web-fleet-operations.md),
 [workspace](../specs/web-workspace.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance
@@ -43,15 +44,17 @@ Test paths below are planned implementation targets, not existing passing checks
 
 ## Deliberately open
 
-Thresholds, reservation estimates, unknown-usage settlement and safe checkpoint support depend on verified adapters; no paid fallback is enabled by default.
+Settled 2026-10-21 by existing-adapter and official API review: begin with a tool-free two-stage evidence planning adapter. Unknown capacity defaults to wait; explicitly budgeted API use is a separate opt-in. No model, price, quota pool or paid fallback is assumed. Supported task classes and local subscription execution remain explicit capability limitations; see the model-routing contract.
 
 ## Next action
 
-Specify deterministic selection and reservation rules with denial cases before integrating provider dispatch.
+Implement and prove the committed model-routing contract, then obtain explicit provider/data/budget activation and the real bounded run/checkpoint walk. No model call is currently authorized.
 
 ## Trajectory
 
 - **2026-10-21** — Owner expanded G7 from the first private decision workspace to operating all authorized projects through the web on mobile and desktop.
+
+- **2026-10-21** — Existing connection probes have no usable inference capacity and existing workers cannot run models. A bounded planning adapter supplies a real operation; unsupported builds/review and subscription reporting remain visible limitations rather than fabricated eligibility. See the model-routing contract.
 
 ## Your part
 
