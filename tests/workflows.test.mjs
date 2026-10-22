@@ -3119,3 +3119,33 @@ test('morning restoration failure still attempts the brief and fails the final v
     for (const [value,status] of [['',1],['0',0],['7',1]]) assert.equal(run('bash',['-e','-c',verdict],{cwd:dir,env:{...process.env,RESTORE_CODE:value}}).status,status);
   } finally { await rm(dir,{recursive:true,force:true}); }
 });
+
+
+test('canvas shell preflights honor legacy provisioning with canonical precedence and empty-value refusal', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'plates-canvas-env-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const bin = join(dir, 'bin'), home = join(dir, 'admitted-home');
+  await mkdir(bin); await mkdir(home);
+  for (const tool of ['plates', 'isocan']) await writeFile(join(bin, tool), '#!/bin/sh\nprintf "%s\\n" acme-pinned\n', { mode: 0o755 });
+  const base = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(?:PLATES|KEEL)_CANVAS_/.test(key)));
+  const legacy = { KEEL_CANVAS_KEEL_VERSION: 'acme-pinned', KEEL_CANVAS_ISOCAN_VERSION: 'acme-pinned', KEEL_CANVAS_ISOCAN_HOME: home };
+  const canonical = { PLATES_CANVAS_PLATES_VERSION: 'acme-pinned', PLATES_CANVAS_ISOCAN_VERSION: 'acme-pinned', PLATES_CANVAS_ISOCAN_HOME: home };
+  for (const prefix of ['practices/night/files/', '']) for (const kind of ['night', 'morning']) {
+    const source = await readFile(join(PLATES, prefix + '.github/workflows/plates-' + kind + '.yml'), 'utf8');
+    const step = runBlocks(source).find(block => block.step === (kind === 'night' ? 'Project the night onto its canvas' : 'Publish the plan card')).script;
+    const end = kind === 'night' ? step.indexOf('# Restore the latest canvas-enabled attempt') : step.indexOf('case "$DAY"');
+    const shell = step.slice(step.indexOf('preflight_fail()'), end) + '\nexport ISOCAN_HOME="$PLATES_CANVAS_ISOCAN_HOME"\nnode -e \'console.log(JSON.stringify([process.env.PLATES_CANVAS_PLATES_VERSION,process.env.PLATES_CANVAS_ISOCAN_VERSION,process.env.ISOCAN_HOME]))\'';
+    const execute = env => run('bash', ['-e', '-c', shell], { cwd: dir, env: { ...base, PATH: bin + ':' + base.PATH, RUNNER_TEMP: dir, ...env } });
+    const old = execute(legacy);
+    assert.equal(old.status, 0, prefix + kind + ': ' + old.stderr + old.stdout);
+    assert.deepEqual(JSON.parse(old.stdout.trim()), ['acme-pinned', 'acme-pinned', home]);
+    const preferred = execute({ ...Object.fromEntries(Object.keys(legacy).map(key => [key, 'wrong-legacy'])), ...canonical });
+    assert.equal(preferred.status, 0, preferred.stdout + preferred.stderr);
+    for (const key of Object.keys(canonical)) {
+      const empty = execute({ ...legacy, ...canonical, [key]: '' });
+      assert.notEqual(empty.status, 0, prefix + kind + ': explicit empty ' + key + ' must refuse');
+    }
+    assert.notEqual(execute({ ...legacy, KEEL_CANVAS_KEEL_VERSION: 'wrong-pin' }).status, 0);
+    assert.notEqual(execute({ ...legacy, KEEL_CANVAS_ISOCAN_HOME: join(dir, 'absent') }).status, 0);
+  }
+});

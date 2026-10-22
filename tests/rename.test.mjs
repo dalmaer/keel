@@ -1,7 +1,7 @@
 import './helpers/hermetic.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readlink, symlink, link, rm, stat, readdir, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readlink, symlink, link, rm, stat, readdir, chmod, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -18,8 +18,8 @@ const put = async (root, path, value) => { await mkdir(join(root, path, '..'), {
 const get = (root, path) => readFile(join(root, path), 'utf8');
 const absent = async (root, path) => assert.rejects(stat(join(root, path)), { code: 'ENOENT' });
 
-async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'plates-rename-acme-'));
+async function fixture(t, prefix = 'plates-rename-acme-') {
+  const root = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   t.after(() => rm(root, { recursive: true, force: true }));
   git(root, 'init', '-q');
   const script = '// Keel health\nconst root = ".keel"; const receipt = "keel:robot-issue";\n';
@@ -981,4 +981,65 @@ test('migration preserves worker RPC, dispatch identity and existing provider ru
   assert.equal(runtime.title(id), existing.display_title);
   assert.equal(runtime.lane(id), existing.lane);
   assert.equal(renameActiveText('create function public.keel_job_rpc()'), 'create function public.keel_job_rpc()');
+});
+
+
+test('symlink migration preserves the absolute checkout root while moving its inventoried target', async t => {
+  const root = await fixture(t, 'keel-rename-acme-');
+  await symlink(join(root, 'scripts/keel/check.mjs'), join(root, 'keel-absolute-link'));
+  git(root, 'add', 'keel-absolute-link');
+  const plan = await planRename(root);
+  await applyRename(root, { digest: plan.digest });
+  assert.equal(await readlink(join(root, 'plates-absolute-link')), join(root, 'scripts/plates/check.mjs'));
+  assert.equal(await get(root, 'plates-absolute-link'), await get(root, 'scripts/plates/check.mjs'));
+});
+
+test('symlink migration follows opaque runtime files and directories without renaming record identities', async t => {
+  const root = await fixture(t);
+  await put(root, '.keel/test-runs/keel-result.json', '{"receipt":"keel-identity"}\n');
+  await symlink('.keel/test-runs/keel-result.json', join(root, 'latest-run'));
+  await symlink('.keel/test-runs', join(root, 'run-directory'));
+  await symlink('.keel', join(root, 'runtime-root'));
+  await symlink('../../scripts/keel/check.mjs', join(root, '.keel/test-runs/check-link'));
+  git(root, 'add', 'latest-run', 'run-directory', 'runtime-root');
+  const plan = await planRename(root);
+  await applyRename(root, { digest: plan.digest });
+  assert.equal(await readlink(join(root, 'latest-run')), '.plates/test-runs/keel-result.json');
+  assert.equal(await get(root, 'latest-run'), '{"receipt":"keel-identity"}\n');
+  assert.equal(await readlink(join(root, 'run-directory')), '.plates/test-runs');
+  assert.equal(await get(root, 'run-directory/keel-result.json'), await get(root, 'latest-run'));
+  assert.equal(await readlink(join(root, 'runtime-root')), '.plates');
+  assert.equal(await get(root, 'runtime-root/plates.json'), await get(root, '.plates/plates.json'));
+  assert.equal(await readlink(join(root, '.plates/test-runs/check-link')), '../../scripts/plates/check.mjs');
+  assert.equal(await get(root, '.plates/test-runs/check-link'), await get(root, 'scripts/plates/check.mjs'));
+});
+
+test('symlink migration refuses partially moved directory targets before writing', async t => {
+  const root = await fixture(t);
+  await put(root, 'scripts/keel/private.txt', 'untracked owner data\n');
+  await symlink('scripts/keel', join(root, 'script-directory'));
+  git(root, 'add', 'script-directory');
+  const before = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /ambiguous migration directory link target: scripts\/keel/);
+  assert.equal(git(root, 'diff', 'HEAD'), before);
+  assert.equal(await get(root, 'scripts/keel/private.txt'), 'untracked owner data\n');
+  await absent(root, '.plates');
+});
+
+test('symlink migration keeps stable unowned targets and relative semantics when the link moves', async t => {
+  const root = await fixture(t);
+  await put(root, 'user-keel-assets/note.txt', 'private untracked target\n');
+  await mkdir(join(root, 'keel-links'));
+  await symlink('../user-keel-assets/note.txt', join(root, 'keel-links/personal'));
+  await symlink('../scripts/keel/check.mjs', join(root, 'keel-links/relative'));
+  await symlink('missing-keel-target', join(root, 'dangling'));
+  git(root, 'add', 'keel-links', 'dangling');
+  const plan = await planRename(root);
+  await applyRename(root, { digest: plan.digest });
+  assert.equal(await readlink(join(root, 'plates-links/personal')), '../user-keel-assets/note.txt');
+  assert.equal(await get(root, 'plates-links/personal'), 'private untracked target\n');
+  assert.equal(await readlink(join(root, 'plates-links/relative')), '../scripts/plates/check.mjs');
+  assert.equal(await get(root, 'plates-links/relative'), await get(root, 'scripts/plates/check.mjs'));
+  assert.equal(await readlink(join(root, 'dangling')), 'missing-keel-target');
+  assert.equal(await get(root, 'user-keel-assets/note.txt'), 'private untracked target\n');
 });

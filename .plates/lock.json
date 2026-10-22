@@ -87,11 +87,11 @@
     },
     ".github/workflows/plates-morning.yml": {
       "practice": "night",
-      "sha256": "1e5831fe9aebfd6e6a6063ef5859ca260e4feaf9e0cdb14592cd57695ab3b306"
+      "sha256": "a07e00a16c53b6831b113b431621a2d5acaa68da13381315b546f30c2e9fe768"
     },
     ".github/workflows/plates-night.yml": {
       "practice": "night",
-      "sha256": "f048a3eb414f7afd1996c88c0f3911563124b8f70b62773d2d0134db891494d1"
+      "sha256": "382ebb1b5c16312467dcc2143d29a51111a6d27124c0f34106b2cd13ed13d8d8"
     },
     ".github/workflows/plates-robot-route.yml": {
       "practice": "climb",
