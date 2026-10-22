@@ -22,13 +22,24 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 
 ## Acceptance
 
-- [ ] Focused negative controls prove the phase contract.
-- [ ] Required integrated checks and exact-head review are recorded.
+- [ ] Focused negative controls prove the phase contract: `node --test scripts/install-watchdog.test.mjs` in isocan.
+- [ ] Required integrated checks pass: `npm run check`; `npm run typecheck`.
+- [ ] Exact-head review is recorded: `node bin/plates.mjs review dglazkov/isocan#<PR> --gate --json` plus inspection of pinned complete review inputs.
 - [ ] ⚑ by hand: parent reviews evidence before broader rollout.
+
+## Your part
+
+- **Ask:** Review this stage’s evidence before changes are adopted more broadly.
+- **Why:** Workflow and gate changes must preserve coverage and observed reliability.
+- **Look at:** [The staged contract](../specs/validation-efficiency.md) and this phase’s evidence.
+- **Choices:** Proceed with the next stage | Revise the stage
+- **Takes:** About five minutes once review and checks finish.
+- **Then:** A separate implementation PR advances the next stage; no production rollout is automatic.
+- **Ready when:** Exact-head checks and normal review have completed.
 
 ## Real surfaces
 
-The named source/consumer checkout and its required reviewed CI workflow.
+- workflow shell: run the focused commands in Proof and inspect the required CI workflow at the exact reviewed head.
 
 ## Proof
 

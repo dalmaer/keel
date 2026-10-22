@@ -2545,3 +2545,10 @@ Local CLI support does not imply deployed web capture. Phase 98 adds guided
 private observations and new-change repair previews; its hosted migration and
 approved owner write require their own proof. Hosted walks do not author
 decision-conflict/shaping inputs. See docs/guide/web-walks.md.
+
+## Source-only validation evidence audit
+
+In a Plates source checkout, `node scripts/validation-audit.mjs --help` describes
+the bounded read-only analyzer. See `docs/development/validation-audit.md`. It reports
+retained evidence and gaps; it does not execute checks, authorize gate reuse or
+create a schedule. This development entrypoint is not an installed CLI verb.

@@ -125,6 +125,19 @@ notifications. Baseline insufficiency is explicit; p95 is not claimed from a
 single observation. Source absolute paths may be retained privately as input
 provenance but are not published into repository fixtures.
 
+### Immediate convention recurrence guard (110)
+
+The first implementation repeated the audit’s known helper-convention omission.
+At the parent’s explicit direction, phase 110 therefore also adds a conservative
+source-local `check:focused` entrypoint and a required /spin preflight step. The
+entrypoint always includes helper, documentation, guide, CLI, adoption and
+managed-skill and package capability convention tests
+in addition to explicit focused files, then roadmap, managed render, inbox and
+whitespace checks. Regression tests bind that mandatory set and failure handling.
+This is not change-aware selection, complete impact coverage or a gate exemption;
+unknown/shared/config inputs still require broad validation. The general mapping,
+capability checks and resource admission remain phase 111.
+
 ## Preflight and focused-first protocol (111)
 
 Before building, read target AGENTS, applicable contracts, package scripts and

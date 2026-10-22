@@ -36,7 +36,8 @@
     "inbox:check": "node bin/plates.mjs learn render --check",
     "check": "node scripts/plates/test-ledger.mjs --run \"npm test && npm run roadmap:check && npm run render:check && npm run inbox:check\"",
     "typecheck": "tsc --project tsconfig.json",
-    "keel": "node bin/plates.mjs"
+    "keel": "node bin/plates.mjs",
+    "check:focused": "node scripts/check-focused.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
