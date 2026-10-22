@@ -45,8 +45,13 @@ Browser -- HTTPS + session --> Plates web service (public source, private instan
 | Public `plates` repository | App/CLI code, schemas, synthetic fixtures, docs and reusable practices | Personal fleet registry, tokens, private lessons, raw feedback or screenshots |
 | Private workspace repository | Workspace manifest, shared private lessons, approved cross-project decisions, policies | Another copy of project phase acceptance; credentials and sessions |
 | Each project repository | Its `.plates` configuration, selected planning records, decisions, evidence and lesson provenance | Workspace membership or another project's data |
-| External private runtime store | Sessions, caches, drafts, receipts, feedback and private artifacts | Authoritative phase status or architecture |
-| Deployment secret store | OAuth client secret, database/session secrets; provider keys only when required | Versioned files or frontend configuration |
+| External private runtime store | Sessions, caches, drafts, receipts, feedback, private artifacts and optional encrypted provider vault | Authoritative phase status, architecture or plaintext provider keys |
+| Deployment secret store | OAuth client secret, database/session secrets and a separate provider-vault wrapping key | Versioned files or frontend configuration |
+
+Phase103's [connection contract](web-connections.md) selects the optional provider
+vault: private Git owns nonsecret references/policy, the runtime stores only
+authenticated ciphertext, and Vercel injects the separate wrapping key. Activation
+requires live proof and explicit approval; this table is not an activated binding.
 
 One workspace per deployed instance initially. No public signup, tenant picker,
 org billing or arbitrary code execution. The workspace manifest explicitly names

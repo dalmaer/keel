@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved one additional fix-and-review cycle on PR216. Preserve newly landed phase102, validate the integrated rename, then finish exact-head review and CI before merge. Publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior. The project-wide review limit is unchanged; a further finding-bearing cycle would need a new owner decision.
+The owner approved one further fix-and-review cycle after review5607617432 on cd5592f. Finish the bounded compatibility audit and local validation, then push the correction and obtain exact-head hosted checks and review. The project-wide review limit is unchanged. Merge only after the findings are resolved and normal gates pass, then publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior.
 
 ## Trajectory
 

@@ -290,3 +290,13 @@ Sign-in and read-only Home checks have dated phase evidence. The write, media
 and restore journeys remain future checks. Retain expected and observed results
 separately. A
 login callback, merged change or empty error window alone is not acceptance.
+
+## Optional provider policy and credential storage
+
+The [Connections flow](web-connections.md) keeps nonsecret scoped descriptors in
+the pinned private workspace. Provider keys belong only in the optional encrypted
+runtime vault, with a separate wrapping key injected by the production secret
+store. This extends the initial storage division only after explicit activation;
+existing workspace or session setup does not enable credential forms. Require
+dated live provider validation and secret-store role/concurrency proof before
+enabling them. Keep actual quota reads distinct from model-metadata access.

@@ -218,8 +218,14 @@ gate; real owner migration and provider comparisons need separate evidence.
 have a source implementation for bounded fleet/project inspection, attempt stages,
 retained evidence and private receipt links. Hosted activation, Actions-read access
 and the real owner exercise remain separate proof; these views start no runners.
-[Phases 103–108](docs/specs/web-fleet-operations.md#delivery-and-proof) plan provider
-capacity, routine execution, fleet updates and model routing, then verify complete
+[Scoped connections and capacity](docs/guide/web-connections.md) now have a source
+implementation for private project policies, encrypted credential setup/rotation/
+removal and recoverable receipts. Initial provider checks validate model metadata;
+inference allowance and subscription quota stay unavailable without a supported
+source. The optional vault and provider bindings need live verification before
+credential forms are enabled.
+[Phases 104–108](docs/specs/web-fleet-operations.md#delivery-and-proof) plan routine
+execution, fleet updates and model routing, then verify complete
 mobile/desktop operating journeys. The phase records distinguish implementation
 from hosted activation and owner acceptance.
 
@@ -228,10 +234,10 @@ from hosted activation and owner acceptance.
 | Location | What belongs there |
 | --- | --- |
 | Public Plates repo | Application/CLI code, schemas, reusable practices and synthetic examples |
-| Your private data repo, such as `acme/plates-data` | Workspace manifest, shared private lessons, approved cross-project decisions and setup records |
+| Your private data repo, such as `acme/plates-data` | Workspace manifest, shared private lessons, approved cross-project decisions, nonsecret connection policies and setup records |
 | Each project repo | Its `.plates` configuration, planning records, decisions, evidence and project lessons |
-| External private runtime storage | Sessions, drafts, caches and operation receipts; private media storage holds screenshots |
-| Deployment secret store | GitHub App credentials, database credentials and session secrets |
+| External private runtime storage | Sessions, drafts, caches, operation receipts and optional encrypted provider credentials; private media storage holds screenshots |
+| Deployment secret store | GitHub App/database credentials, session secrets and the separate optional credential-vault wrapping key |
 
 The private data repo is yours; it is not a fork of Plates. It does not become a
 second authority for project acceptance. Keep tokens, private keys, runtime state
@@ -339,6 +345,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Scoped connections and capacity](docs/guide/web-connections.md) | you want to review private project grants, manage a verified credential binding or inspect supported capacity and gaps |
 | [Routine definitions and observed activity](docs/guide/web-routine-history.md) | you want to inspect workflow definitions, retries, stages, evidence, costs and bounded history coverage |
 | [Daily work and private learning](docs/guide/web-daily-learning.md) | you want to inspect nightly sources, draft within explicit limits, review private lesson copies or download exact approved text |
 | [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |

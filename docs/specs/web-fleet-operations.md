@@ -133,6 +133,9 @@ introducing a second authority for lesson decisions.
 
 ## Connections, keys and capacity
 
+The dated [connection contract](web-connections.md) selects the initial adapters,
+private policy, optional vault and activation proof for phase103.
+
 Connect provider accounts once, grant selected projects access, and show effective
 access in each project. The setup UI supports approved authentication mechanisms:
 provider authorization where available, or write-only API key entry into the

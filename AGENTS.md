@@ -262,6 +262,15 @@ gaps. History reads minimal actor-scoped receipts without recovery or mutation;
 link to the original operation for a separate inspection. Preserve URL filters and
 source-bound pagination. See [the routine-history guide](docs/guide/web-routine-history.md).
 
+Connections separate private Git policy from the encrypted runtime credential
+vault. Review exact scope and source before conditional policy delivery; retain
+original receipts and intended vault generations after uncertainty. Credential
+forms require recorded live provider and store activation, current project access,
+policy digest and version checks. Never echo or persist a key in browser storage,
+Git, logs or exports. Metadata validation is not inference entitlement; unknown,
+expired and conflicting capacity stays unavailable. Removing Plates's copy does not
+revoke the provider key. See [the connections guide](docs/guide/web-connections.md).
+
 ## Rules for plates's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for
