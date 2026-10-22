@@ -271,6 +271,15 @@ Git, logs or exports. Metadata validation is not inference entitlement; unknown,
 expired and conflicting capacity stays unavailable. Removing Plates's copy does not
 revoke the provider key. See [the connections guide](docs/guide/web-connections.md).
 
+Durable routine operations retain the original request before dispatch, reserve
+project and workspace minutes atomically, and reconcile uncertain delivery without
+redispatch. Worker routes require verified GitHub OIDC; browser cookies never grant
+worker authority. Resolve the initiating session from the encrypted server store
+without renewing its idle lifetime. Cancellation requested is not cancellation
+confirmed, and worker loss cannot release potentially running work. Source schedule
+edits require their separate approved budget/overlap and write gate. See the
+[worker guide](docs/guide/web-workers.md).
+
 ## Rules for plates's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for

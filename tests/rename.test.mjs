@@ -969,3 +969,16 @@ test('historical command evidence and inactive shell comments do not become exec
   assert.equal(await get(root, 'docs/evidence/2020-plates-check.md'), history);
   assert.match(await get(root, 'scripts/check.sh'), /node scripts\/plates\/check.mjs/);
 });
+
+
+test('migration preserves worker RPC, dispatch identity and existing provider run recognition', () => {
+  const source = "export const rpc = 'keel_job_rpc'; export const inputs = id => ({ keel_operation: id }); export const title = id => `keel-web-${id}`; export const lane = id => `keel-web-typecheck-${id}`;";
+  const migrated = renameActiveText(source).replaceAll('export const ', 'const ');
+  const runtime = new Function(migrated + ';return {rpc, inputs, title, lane};')();
+  const id = 'a'.repeat(64), existing = { display_title: `keel-web-${id}`, inputs: { keel_operation: id }, lane: `keel-web-typecheck-${id}` };
+  assert.equal(runtime.rpc, 'keel_job_rpc');
+  assert.deepEqual(runtime.inputs(id), existing.inputs);
+  assert.equal(runtime.title(id), existing.display_title);
+  assert.equal(runtime.lane(id), existing.lane);
+  assert.equal(renameActiveText('create function public.keel_job_rpc()'), 'create function public.keel_job_rpc()');
+});

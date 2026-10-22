@@ -74,3 +74,16 @@ Owner exercise after approved activation:
 3. Review an exact private project policy, then set/rotate/remove a credential and inspect the same request after a disconnect on the owner's actual desktop/mobile device.
 4. Compare verified source identity and freshness with the provider's authoritative view. Record at least one unavailable scope; do not turn metadata access into inference or subscription capacity.
 5. Record observations and actual cost/duration. Keep acceptance open if permissions, capacity coverage or operating usefulness cannot be established.
+
+## Committed integration follow-up
+
+`keel ready --check "npm run typecheck" --json` exited 0 for
+`8577802ddbf6330747e702862865b05304a85a07`; typecheck exited 0.
+`keel integrate --json` exited 0 with one full `npm run check` gate,
+2,293/2,293 tests and all eight pinned timing suites passing. Roadmap, render
+and inbox guards passed. The ledger reported no flaky or slower test; one busy
+run was omitted from timing history. Existing undated-observation advice was
+non-blocking. Main is `e8d3f2fff9ebb8c0e2d2cb17cb690cd897ad2948`; phase claim released.
+Exact-main GitHub typecheck run 39697083371 and check run 39697083133 both
+succeeded, confirmed after integration. CI is separate evidence.
+No deployment or provider activation followed this integration.

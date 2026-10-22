@@ -211,3 +211,17 @@ and separate production wrapping key; do not reuse the session encryption key.
 Credential forms remain disabled until the approved provider and store binding
 have dated live validation. Existing sign-in setup does not activate this vault,
 grant provider access or authorize inference spend.
+
+## Optional durable routine execution
+
+[Supported worker operations](web-workers.md) have separate disabled-by-default
+activation, private registrations and bounded budgets. Worker callbacks authenticate
+through GitHub OIDC for this service origin and never fall back to a browser
+session. The server rechecks the initiating owner's still-live session without
+renewing its idle lifetime. A later authorized owner can inspect or request
+cancellation of an old operation without reviving its expired initiator.
+
+Migration 009, selected Actions-write access, trusted worker source and approved
+runtime allowance require their own verification before dispatch. Schedule edits
+add a separate source-write gate and require known existing schedule budget and
+overlap behavior. Installing application code does not activate either effect.

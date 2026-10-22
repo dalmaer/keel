@@ -1,21 +1,29 @@
 # Plates contributor tooling only. Not a managed workflow shipped to adopters.
 name: typecheck
+run-name: ${{ inputs.keel_operation != '' && format('keel-web-{0}', inputs.keel_operation) || github.event.head_commit.message || github.event.pull_request.title || 'typecheck' }}
 
 on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      keel_operation:
+        description: Plates durable operation identity (leave blank for ordinary CI)
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: typecheck-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.keel_operation != '' && format('keel-web-typecheck-{0}', inputs.keel_operation) || format('typecheck-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || inputs.keel_operation == '' }}
 
 jobs:
   typecheck:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.keel_operation == '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,3 +35,24 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
+  web-worker:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.keel_operation != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Claim and run bounded typecheck
+        env:
+          PLATES_WEB_ORIGIN: ${{ vars.PLATES_WEB_ORIGIN || vars.KEEL_WEB_ORIGIN }}
+          PLATES_WEB_OPERATION: ${{ inputs.keel_operation }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: node scripts/web-worker.mjs

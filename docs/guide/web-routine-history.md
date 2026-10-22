@@ -90,5 +90,6 @@ proof does not replace that exercise.
 
 See the [routine-history contract](../specs/web-routine-history.md),
 [phase status](../phases/102-routines-have-a-complete-observed-history.md) and
-[collection operating plan](../specs/web-fleet-operations.md). Execution controls belong
-to a later phase and are not implied by these inspection pages.
+[collection operating plan](../specs/web-fleet-operations.md). The separate [durable worker controls](web-workers.md) require approved
+registration, live activation and budget; these inspection pages do not grant
+execution authority.

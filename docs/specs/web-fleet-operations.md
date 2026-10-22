@@ -85,6 +85,9 @@ reporting; do not scan arbitrary local machines or upload transcripts wholesale.
 
 ## Execute work through supported workers
 
+Phase104’s [worker contract](web-workers.md) selects the first existing workflow,
+its identity, budget, recovery and activation boundaries.
+
 The Vercel app is the authenticated control surface. Long jobs run on an explicit
 adapter such as existing GitHub workflows or an authorized local runner; worker
 selection is a phase 104 decision, not permission to create another paid service.
@@ -210,8 +213,9 @@ not proof the task failed or permission for an unlimited retry loop.
 | 108 | Real fleet operation, failure recovery and capacity-policy trial | 101, 107 |
 
 Phase 101 remains acceptance of the first workspace, not the expanded goal.
-Each new phase has named tests and real-surface checks; those are planned tests,
-not existing proof. Read-first surfaces can ship before worker controls. Phase 107
+Each phase names its tests and real-surface checks; its current phase and evidence
+records distinguish implemented proof from planned checks and pending owner walks.
+Read-first surfaces can ship before worker controls. Phase 107
 must map every current public command/subcommand/argument and installed routine
 to a native workflow, supported worker/local bridge, presentation-only option,
 or an explicit limitation with owner-visible reason and follow-up. A permanent
@@ -231,9 +235,11 @@ claim full fleet control while a required operation still needs a terminal.
 
 - Provider/account support matrix, official quota sources and auth-specific gaps:
   settle in phase 103 with dated documentation and live reads; no assumed API.
-- Worker adapters, required GitHub App permission additions, dispatch/recovery
-  contracts and local-runner availability: settle in phase 104 before execution.
-  The initial read-only App grant is not enough for writes or dispatch.
+- The first worker adapter and dispatch/recovery contract are implemented in
+  phase 104: a fixed typecheck worker, Actions-write, explicit runtime bounds and
+  a separately gated existing schedule editor. Hosted activation remains open;
+  local runners and provider-key injection remain unsupported. The initial
+  read-only App grant is not enough for writes or dispatch.
 - Retention/backfill windows and artifact/log size limits: phase 102; cost/backup
   consequences must be explicit before enabling capture.
 - Routing thresholds, capacity reservation estimates and settlement for unknown

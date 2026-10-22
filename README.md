@@ -224,8 +224,12 @@ removal and recoverable receipts. Initial provider checks validate model metadat
 inference allowance and subscription quota stay unavailable without a supported
 source. The optional vault and provider bindings need live verification before
 credential forms are enabled.
-[Phases 104–108](docs/specs/web-fleet-operations.md#delivery-and-proof) plan routine
-execution, fleet updates and model routing, then verify complete
+[Durable routine operations](docs/guide/web-workers.md) add reviewed worker
+starts, original recovery receipts, cancellation requests and linked retries.
+Execution and schedule changes remain disabled until their distinct source,
+permission, store and budget bindings are approved and verified.
+[Phases 105–108](docs/specs/web-fleet-operations.md#delivery-and-proof) plan fleet
+updates and model routing, then verify complete
 mobile/desktop operating journeys. The phase records distinguish implementation
 from hosted activation and owner acceptance.
 
@@ -346,6 +350,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
 | [Scoped connections and capacity](docs/guide/web-connections.md) | you want to review private project grants, manage a verified credential binding or inspect supported capacity and gaps |
+| [Run supported routines](docs/guide/web-workers.md) | you want to review an approved worker, reserve bounded runtime, recover an original request or inspect a cancellation and linked retry |
 | [Routine definitions and observed activity](docs/guide/web-routine-history.md) | you want to inspect workflow definitions, retries, stages, evidence, costs and bounded history coverage |
 | [Daily work and private learning](docs/guide/web-daily-learning.md) | you want to inspect nightly sources, draft within explicit limits, review private lesson copies or download exact approved text |
 | [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |

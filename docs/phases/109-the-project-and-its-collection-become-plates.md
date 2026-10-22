@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The further approved cycle completed on1a98eeb after2,385 passing tests and the required phase103 integration. Review5607806502 identified two new migration issues: restrictive runtime-directory modes are not preserved, and executable legacy pins in workflow/shell sources escape refusal. Fix and validate locally; another publication/review cycle requires an owner decision under the unchanged review limit. Do not merge or deploy a candidate with the private-directory issue. After approval and normal gates, publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Directory/command-pin correction e171f27 passed2,393 tests and was published; both findings were resolved. Validate the required integration of landed phase104 at frozen main7c3161d, then obtain complete exact-head review and hosted checks. Once clean, complete the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Preserve disabled hosted features and existing security boundaries; signed-in browser verification awaits manual Mac unlock.
 
 ## Trajectory
 
