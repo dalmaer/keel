@@ -168,6 +168,33 @@ test('every workflow plates ships keeps the night shift\'s rules, as a template 
   }
 });
 
+test('source check installs compiler tooling only for self and propagates installation failure', async t => {
+  const template = await readFile(join(PLATES, 'practices/ci/files/.github/workflows/check.yml'), 'utf8');
+  const installed = await readFile(join(PLATES, '.github/workflows/check.yml'), 'utf8');
+  const script = runBlocks(template).find(block => block.script.includes('npm ci --ignore-scripts'))?.script;
+  assert.ok(script, 'the source gate needs its pinned compiler fixture dependency');
+  assert.equal(runBlocks(installed).find(block => block.script.includes('npm ci --ignore-scripts'))?.script, script);
+  assert.ok(template.indexOf('npm ci --ignore-scripts') < template.indexOf('- name: Run the configured gate'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-source-tooling-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, '.plates'));
+  await mkdir(join(dir, 'bin'));
+  await writeFile(join(dir, 'bin/npm'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$NPM_LOG"\nexit "$NPM_EXIT"\n', { mode: 0o755 });
+  const log = join(dir, 'npm.log');
+  const execute = (code = '0') => run('bash', ['-e', '-c', script], { cwd: dir, env: { ...process.env, PATH: join(dir, 'bin') + ':' + process.env.PATH, NPM_LOG: log, NPM_EXIT: code } });
+  for (const config of [{ plates: 'github:dalmaer/plates' }, {}, { plates: true }]) {
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(config));
+    assert.equal(execute().status, 0);
+    await assert.rejects(readFile(log), { code: 'ENOENT' });
+  }
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ plates: 'self' }));
+  assert.equal(execute().status, 0);
+  assert.equal(await readFile(log, 'utf8'), 'ci --ignore-scripts\n');
+  assert.equal(execute('17').status, 17, 'a failed install must fail the step');
+  await writeFile(join(dir, '.plates/plates.json'), '{invalid');
+  assert.notEqual(execute().status, 0, 'invalid source config must not silently skip installation');
+});
+
 test('local typecheck workflow installs contributor dependencies and obeys the same workflow guards', async () => {
   const name = 'typecheck.yml';
   assert.ok(Object.hasOwn(LOCAL_WORKFLOWS, name));

@@ -231,7 +231,11 @@ test('migration keeps remote plan blob identity and adapts shipped plan writer s
   await put(root, 'scripts/keel/night-plan.mjs', oldSource);
   await put(root, 'scripts/keel/morning.mjs', "import { PLAN, PLAN_BRANCH, NIGHT_AT } from './night-plan.mjs';\nawait at(`${PLAN_BRANCH}:${PLAN}`, () => remoteFile(root, PLAN_BRANCH, PLAN), PLAN_BRANCH);\n");
   await put(root, '.github/workflows/keel-plan-reader.yml', 'name: keel-impact\nrun: git show "refs/remotes/origin/keel-night-plan:.keel/night/plan.json"\napi: repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan\n');
-  git(root, 'add', 'scripts/keel/night-plan.mjs', 'scripts/keel/morning.mjs', '.github/workflows/keel-plan-reader.yml');
+  const lock = JSON.parse(await get(root, '.keel/lock.json'));
+  for (const path of ['scripts/keel/night-plan.mjs', 'scripts/keel/morning.mjs'])
+    lock.files[path] = { practice: 'night', sha256: sha(await get(root, path)) };
+  await put(root, '.keel/lock.json', JSON.stringify(lock));
+  git(root, 'add', 'scripts/keel/night-plan.mjs', 'scripts/keel/morning.mjs', '.github/workflows/keel-plan-reader.yml', '.keel/lock.json');
   await applyRename(root);
   const source = await get(root, 'scripts/plates/night-plan.mjs');
   assert(source.includes("export const PLAN_DIR = '.plates/night'"));
@@ -1263,7 +1267,7 @@ test('module references: computed package expressions and constants retain execu
   assert.equal(after.stdout, before.stdout);
   const source = await get(root, 'src/computed.mjs');
   assert.match(source, /const name = '@acme\/keel-tools'/);
-  assert.match(source, /Plates keeps projects moving/);
+  assert.match(source, /Keel keeps projects moving/); // Consumer runtime strings are not product-owned copy.
 });
 
 test('module references: managed lazy and URL loaders follow exact inventoried files', async t => {
@@ -1507,7 +1511,7 @@ test('external bindings: unaffected APIs, owned relative bindings and example st
   await applyRename(root);
   const result = run(process.execPath, ['src/control.mjs'], { cwd: root });
   assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), '79 stable');
-  assert.match(await get(root, 'src/control.mjs'), /import \{ plates \} from '\.\/plates-api.mjs'/);
+  assert.match(await get(root, 'src/control.mjs'), /import \{ keel \} from '\.\/plates-api.mjs'/);
 });
 
 test('durable phase107 identities: editor and night retry RPCs and migration lock retain exact names', () => {
@@ -1666,4 +1670,95 @@ test('machine configuration policy: affected executable config refuses without r
   const root = await fixture(t), stable = "export default { plugins: ['stable'] };\n";
   await put(root, 'vite.config.mjs', stable); git(root, 'add', 'vite.config.mjs');
   await applyRename(root); assert.equal(await get(root, 'vite.config.mjs'), stable);
+});
+
+test('consumer runtime contracts: external option keys and arguments retain executable behavior', async t => {
+  const root = await fixture(t);
+  await put(root, 'node_modules/@acme/sdk/package.json', JSON.stringify({ type: 'module', main: 'index.mjs' }));
+  await put(root, 'node_modules/@acme/sdk/index.mjs', 'export default value => value.keel;\n');
+  const source = "import configure from '@acme/sdk'; const key = 'keel'; console.log(configure({ keel: 'enabled' }), configure({ [key]: 'keel-value' }), configure({ keel: '.keel' }));\n";
+  await put(root, 'src/options.mjs', source); git(root, 'add', 'src/options.mjs');
+  const before = run(process.execPath, ['src/options.mjs'], { cwd: root });
+  assert.equal(before.status, 0, before.stderr); assert.equal(before.stdout.trim(), 'enabled keel-value .keel');
+  await applyRename(root);
+  const after = run(process.execPath, ['src/options.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+  assert.equal(await get(root, 'src/options.mjs'), source);
+});
+
+test('consumer runtime contracts: configured environment dot bracket destructure and aliases retain behavior', async t => {
+  const root = await fixture(t);
+  const config = JSON.parse(await get(root, '.keel/keel.json'));
+  config.env = { KEEL_ACME: 'enabled', keelAcme: 'lowercase' }; config.tests = { configEnv: ['KEEL_ACME', 'keelAcme'] };
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  const source = [
+    "const env = process.env; const key = 'KEEL_ACME';",
+    'const { KEEL_ACME, keelAcme: lower } = process.env;',
+    "console.log(process.env.KEEL_ACME, process.env['KEEL_ACME'], KEEL_ACME, env[key], lower, process.env.keelAcme);",
+  ].join('\n');
+  await put(root, 'src/env.mjs', source); git(root, 'add', '.keel/keel.json', 'src/env.mjs');
+  const execute = () => run(process.execPath, ['src/env.mjs'], { cwd: root, env: { ...process.env, ...config.env } });
+  const before = execute(); assert.equal(before.status, 0, before.stderr);
+  assert.equal(before.stdout.trim(), 'enabled enabled enabled enabled lowercase lowercase');
+  await applyRename(root);
+  const after = execute(); assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+  assert.equal(await get(root, 'src/env.mjs'), source);
+  const migrated = JSON.parse(await get(root, '.plates/plates.json'));
+  assert.deepEqual(migrated.env, config.env); assert.deepEqual(migrated.tests.configEnv, config.tests.configEnv);
+});
+
+test('consumer runtime contracts: managed branding preserves configured environment keys and requires a full hash', async t => {
+  for (const ownership of ['full', 'partial']) {
+    const root = await fixture(t);
+    const config = JSON.parse(await get(root, '.keel/keel.json'));
+    config.env = { KEEL_ACME: 'enabled' }; config.tests = { configEnv: ['KEEL_ACME'] };
+    await put(root, '.keel/keel.json', JSON.stringify(config));
+    const source = "// Keel care\nconst { KEEL_ACME } = process.env; console.log(process.env.KEEL_ACME, KEEL_ACME);\n";
+    await put(root, 'src/env.mjs', source);
+    const lock = JSON.parse(await get(root, '.keel/lock.json'));
+    lock.files['src/env.mjs' + (ownership === 'partial' ? '#example' : '')] = { practice: 'night', sha256: sha(source) };
+    await put(root, '.keel/lock.json', JSON.stringify(lock)); git(root, 'add', '.keel', 'src/env.mjs');
+    const execute = () => run(process.execPath, ['src/env.mjs'], { cwd: root, env: { ...process.env, ...config.env } });
+    const before = execute(); assert.equal(before.status, 0, before.stderr);
+    await applyRename(root);
+    const after = execute(); assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+    assert.equal(await get(root, 'src/env.mjs'), ownership === 'full' ? source.replace('Keel care', 'Plates care') : source);
+  }
+});
+
+test('consumer runtime contracts: exact metadata paths move while owner keys and arguments stay unchanged', async t => {
+  const root = await fixture(t);
+  await put(root, '.keel/bounds.json', '{}\n');
+  const source = "import { existsSync } from 'node:fs'; const keel = { keel: 'keel-value' }; console.log(existsSync('.keel/lock.json'), existsSync('.keel/bounds.json'), keel.keel);\n";
+  await put(root, 'src/metadata.mjs', source); git(root, 'add', '.keel/bounds.json', 'src/metadata.mjs');
+  const before = run(process.execPath, ['src/metadata.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['src/metadata.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
+  assert.equal(await get(root, 'src/metadata.mjs'), source.replaceAll('.keel/', '.plates/'));
+});
+
+test('consumer runtime contracts: ambiguous external path arguments refuse before writes', async t => {
+  const root = await fixture(t);
+  await put(root, 'node_modules/@acme/sdk/package.json', JSON.stringify({ type: 'module', main: 'index.mjs' }));
+  await put(root, 'node_modules/@acme/sdk/index.mjs', 'export default value => value.key;\n');
+  const source = "import configure from '@acme/sdk'; console.log(configure({ key: 'scripts/keel/check.mjs' }));\n";
+  await put(root, 'src/path-argument.mjs', source); git(root, 'add', 'src/path-argument.mjs');
+  const before = run(process.execPath, ['src/path-argument.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
+  const state = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /src\/path-argument.mjs:.*runtime path.*external module/);
+  assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  const after = run(process.execPath, ['src/path-argument.mjs'], { cwd: root }); assert.equal(after.stdout, before.stdout);
+});
+
+test('consumer runtime contracts: unchanged directory URL spelling is not a proposed runtime edit', async t => {
+  const root = await fixture(t);
+  await put(root, 'node_modules/@acme/sdk/package.json', JSON.stringify({ main: 'index.cjs' }));
+  await put(root, 'node_modules/@acme/sdk/index.cjs', 'module.exports = 1;\n');
+  const source = "import sdk from '@acme/sdk'; console.log(new URL('../src/', import.meta.url).pathname.endsWith('/src/'), sdk);\n";
+  await put(root, 'src/url.mjs', source); git(root, 'add', 'src/url.mjs');
+  const before = run(process.execPath, ['src/url.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['src/url.mjs'], { cwd: root }); assert.equal(after.stdout, before.stdout);
+  assert.equal(await get(root, 'src/url.mjs'), source);
 });

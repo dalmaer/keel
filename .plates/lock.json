@@ -67,7 +67,7 @@
     },
     ".github/workflows/check.yml": {
       "practice": "ci",
-      "sha256": "f6a2faf3e6db1941e12e48ed4c65eba44a1b4f79caa24343a05a5224bcf0f98e"
+      "sha256": "9a690b578332df6f0b768a09249a84e3a5396f2e1a35cb0f4facfbde91581280"
     },
     ".github/workflows/claude.yml": {
       "practice": "claude",

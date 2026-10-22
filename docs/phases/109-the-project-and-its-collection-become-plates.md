@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining default limits and required gates. Publishedaed87d9 passed2,743 tests and exact-head hosted CI on stable base2093f8f. Review5609619466 found TypeScript configuration and declaration-target migration gaps. Finish the bounded configuration-category refusals and focused proofs, run the frozen gate once, then publish for exact-head review. Once review is clean, complete source release/deployment, all four consumers, Ledger card wording and final directory move. Browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining default limits and required gates. Published5cd3e3e passed2,750 local tests; hosted check39729339251 exposed missing source-only compiler tooling, now reproduced and corrected with a real clean installation and three passing compiler fixtures. Review5609745966 runtime-contract corrections pass101 focused tests with independent red-before/green-after proof. Run one frozen combined gate, then publish for exact-head checks and review. Ledger needs explicit metadata-path preparation before its consumer migration. Historical review-status markers await specific owner approval. Once gates pass, complete source release/deployment, all four consumers, authoritative Ledger card sync and final directory move. Browser verification awaits manual Mac unlock.
 
 ## Trajectory
 
