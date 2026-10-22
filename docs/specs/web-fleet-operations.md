@@ -111,6 +111,9 @@ Do not create a second job merely because the browser timed out.
 
 ## Fleet versions, updates and learning
 
+Phase105’s [update and propagation contract](web-fleet-updates.md) selects its
+preparation worker, publication recovery and evidence boundaries.
+
 Show installed CLI/runtime version, adopted practice version and lock/source
 revision separately, alongside intended target and compatibility. Freshness,
 local drift, ejected/customized files and inaccessible repos remain visible.

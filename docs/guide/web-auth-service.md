@@ -225,3 +225,9 @@ Migration 009, selected Actions-write access, trusted worker source and approved
 runtime allowance require their own verification before dispatch. Schedule edits
 add a separate source-write gate and require known existing schedule budget and
 overlap behavior. Installing application code does not activate either effect.
+
+Fleet update preparation and publication add separate disabled gates and current
+Pull Requests permission checks. They require migration 010 and an explicitly
+approved adopted project, trusted target and container policy. The
+[fleet update guide](web-fleet-updates.md) describes both approvals, shared budgets
+and original-receipt recovery; existing login does not enable these effects.

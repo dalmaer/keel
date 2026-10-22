@@ -225,7 +225,7 @@ function database(now) {
         )
           return conflict("identity");
       } else {
-        if (d.deadline <= now() || d.deadline > now() + 900000)
+        if (d.deadline <= now() || d.deadline > now() + row.minutes * 60000)
           return conflict("state");
         Object.assign(row, {
           run_id: d.runId,
