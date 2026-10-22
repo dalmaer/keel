@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining default limits and required gates. Published7a582ac passed2,741 tests and the complete local gate on stable base2093f8f. Review5609541411 found directory-module and dynamic-import-options migration gaps. Finish their bounded refusal corrections and focused before/after proof, run the frozen gate once, then publish for exact-head review. Ledger's byte-preserving prerequisite repair is merged as a8c222bf. Once review is clean, complete source release/deployment, all four consumers, Ledger card wording and final directory move. Browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining default limits and required gates. Publishedaed87d9 passed2,743 tests and exact-head hosted CI on stable base2093f8f. Review5609619466 found TypeScript configuration and declaration-target migration gaps. Finish the bounded configuration-category refusals and focused proofs, run the frozen gate once, then publish for exact-head review. Once review is clean, complete source release/deployment, all four consumers, Ledger card wording and final directory move. Browser verification awaits manual Mac unlock.
 
 ## Trajectory
 

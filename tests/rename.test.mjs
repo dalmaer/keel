@@ -1551,3 +1551,119 @@ test('unsupported module forms: external import options and trailing commas refu
     assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
   }
 });
+
+const typecheckFixture = root => run(process.execPath, [new URL('../node_modules/typescript/lib/tsc.js', import.meta.url).pathname, '--project', join(root, 'tsconfig.json'), '--noEmit'], { cwd: root });
+
+test('unsupported TypeScript schemas: external extends and public aliases refuse before writes', async t => {
+  for (const mode of ['extends', 'paths']) {
+    const root = await fixture(t);
+    await put(root, 'node_modules/@acme/keel-config/tsconfig.json', JSON.stringify({ compilerOptions: { strict: true } }));
+    const config = { compilerOptions: { module: 'Node16', moduleResolution: 'Node16' }, files: ['src/check.ts'] };
+    if (mode === 'extends') config.extends = '@acme/keel-config/tsconfig.json';
+    else config.compilerOptions.paths = { '@acme/keel-api': ['./src/api.ts'] };
+    await put(root, 'tsconfig.json', JSON.stringify(config));
+    await put(root, 'src/api.ts', 'export const value: number = 97;\n');
+    await put(root, 'src/check.ts', mode === 'paths' ? "import { value } from '@acme/keel-api'; export const result: number = value;\n" : 'export const result: number = 97;\n');
+    git(root, 'add', 'tsconfig.json', 'src');
+    const before = typecheckFixture(root); assert.equal(before.status, 0, before.stdout + before.stderr);
+    const state = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /tsconfig.json:.*unsupported TypeScript configuration/);
+    assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+    const after = typecheckFixture(root); assert.equal(after.status, 0, after.stdout + after.stderr);
+  }
+});
+
+test('unsupported TypeScript schemas: declaration target mappings refuse before files move', async t => {
+  const root = await fixture(t);
+  await put(root, 'package.json', JSON.stringify({ name: 'acme-types', types: 'types/keel.d.ts', typesVersions: { '*': { '*': ['types/keel.d.ts'] } } }));
+  await put(root, 'types/keel.d.ts', 'export type Label = string;\n');
+  await put(root, 'src/check.ts', "import type { Label } from 'acme-types'; export const result: Label = 'stable';\n");
+  await put(root, 'tsconfig.json', JSON.stringify({ compilerOptions: { module: 'Node16', moduleResolution: 'Node16' }, files: ['src/check.ts'] }));
+  await mkdir(join(root, 'node_modules'), { recursive: true }); await symlink('..', join(root, 'node_modules/acme-types'));
+  git(root, 'add', 'package.json', 'types', 'src', 'tsconfig.json');
+  const before = typecheckFixture(root); assert.equal(before.status, 0, before.stdout + before.stderr);
+  const state = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /package.json:.*typesVersions.*explicit migration/);
+  assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  const after = typecheckFixture(root); assert.equal(after.status, 0, after.stdout + after.stderr);
+});
+
+test('unsupported TypeScript schemas: exact source files move and unchanged metadata stays byte-identical', async t => {
+  const root = await fixture(t);
+  await put(root, 'src/keel-check.ts', 'export const result: number = 101;\n');
+  await put(root, 'tsconfig.json', JSON.stringify({ compilerOptions: { strict: true }, files: ['./src/keel-check.ts'], include: ['src/keel-check.ts', 'extra/**/*.ts'], exclude: ['node_modules'] }));
+  const base = '// Acme config comment\n{ "compilerOptions": { "strict": true } }\n';
+  await put(root, 'tsconfig.base.json', base);
+  const pkg = { name: 'acme', types: 'types/index.d.ts', typesVersions: { '*': { '*': ['types/index.d.ts'] } } };
+  await put(root, 'package.json', JSON.stringify(pkg));
+  await put(root, 'types/index.d.ts', 'export type Label = string;\n');
+  git(root, 'add', 'src', 'tsconfig.json', 'tsconfig.base.json', 'package.json', 'types');
+  const before = typecheckFixture(root); assert.equal(before.status, 0, before.stdout + before.stderr);
+  await applyRename(root);
+  assert.deepEqual(JSON.parse(await get(root, 'tsconfig.json')).files, ['./src/plates-check.ts']);
+  assert.deepEqual(JSON.parse(await get(root, 'tsconfig.json')).include, ['src/plates-check.ts', 'extra/**/*.ts']);
+  assert.equal(await get(root, 'tsconfig.base.json'), base);
+  assert.deepEqual(JSON.parse(await get(root, 'package.json')), pkg);
+  const after = typecheckFixture(root); assert.equal(after.status, 0, after.stdout + after.stderr);
+});
+
+test('unsupported TypeScript schemas: affected JSONC configuration refuses without parsing guesses', async t => {
+  const root = await fixture(t);
+  await put(root, 'jsconfig.json', '// External provider\n{ "extends": "@acme/keel-config/jsconfig.json", }\n');
+  git(root, 'add', 'jsconfig.json');
+  const before = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /jsconfig.json:.*unsupported TypeScript configuration/);
+  assert.equal(git(root, 'diff', 'HEAD'), before); await absent(root, '.plates');
+});
+
+test('machine configuration policy: unknown plugin keys and config values refuse before writes', async t => {
+  for (const [path, source] of [
+    ['.eslintrc.json', '{"extends":"@acme/keel-config","rules":{"keel/no-drift":"error"}}'],
+    ['settings.yaml', 'plugins:\n  keel-engine: true\n'],
+    ['.babelrc', '{"plugins":["@acme/keel-transform"]}'],
+    ['tool.toml', '[plugins]\nkeel = "enabled"\n'],
+    ['practices/custom/practice.json', '{"plugin":"@acme/keel-engine"}'],
+  ]) {
+    const root = await fixture(t); await put(root, path, source); git(root, 'add', path);
+    const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /unsupported machine configuration/);
+    assert.equal(git(root, 'diff', 'HEAD'), before); await absent(root, '.plates');
+  }
+});
+
+test('machine configuration policy: managed copy changes preserve operational settings and verified source contracts', async t => {
+  const root = await fixture(t);
+  const config = JSON.parse(await get(root, '.keel/keel.json')); config.keel = 'self'; config.repo = 'dalmaer/keel';
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  await put(root, 'package.json', '{"name":"keel"}');
+  const renovate = { description: 'Managed by keel (practice renovate): bounded lanes.', extends: ['config:recommended'], packageRules: [{ matchPackageNames: ['stable'], enabled: true }] };
+  await put(root, 'renovate.json', JSON.stringify(renovate));
+  await put(root, 'docs/walks/acme.json', '{"title":"Keel introduction"}');
+  await put(root, 'practices/acme/practice.json', '{"description":"Keel practice"}');
+  git(root, 'add', '.keel/keel.json', 'package.json', 'renovate.json', 'docs/walks', 'practices');
+  await applyRename(root);
+  assert.deepEqual(JSON.parse(await get(root, 'renovate.json')), { ...renovate, description: renovate.description.replace('keel', 'plates') });
+  assert.match(await get(root, 'docs/walks/acme.json'), /Plates introduction/);
+  const target = await fixture(t);
+  await put(target, 'renovate.json', JSON.stringify({ ...renovate, extends: ['@acme/keel-config'] }));
+  git(target, 'add', 'renovate.json');
+  await assert.rejects(applyRename(target), /renovate.json:.*unsupported machine configuration/);
+  await absent(target, '.plates');
+});
+
+test('machine configuration policy: affected executable config refuses without rewriting plugin keys', async t => {
+  for (const [path, source] of [
+    ['eslint.config.mjs', "export default [{ rules: { 'keel/no-drift': 'error' } }];\n"],
+    ['.babelrc.cjs', "module.exports = { plugins: ['@acme/keel-transform'] };\n"],
+    ['tool.keel.config.mjs', "export default { plugins: ['stable'] };\n"],
+  ]) {
+    const root = await fixture(t); await put(root, path, source); git(root, 'add', path);
+    const valid = run(process.execPath, [path], { cwd: root }); assert.equal(valid.status, 0, valid.stderr);
+    const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /unsupported machine configuration/);
+    assert.equal(git(root, 'diff', 'HEAD'), before); await absent(root, '.plates');
+  }
+  const root = await fixture(t), stable = "export default { plugins: ['stable'] };\n";
+  await put(root, 'vite.config.mjs', stable); git(root, 'add', 'vite.config.mjs');
+  await applyRename(root); assert.equal(await get(root, 'vite.config.mjs'), stable);
+});
