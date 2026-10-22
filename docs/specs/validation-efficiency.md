@@ -180,7 +180,12 @@ not consumer adoption, default concurrency changes or a new gate policy.
 - Capability preflight records actual Node executable/version/architecture,
   PATH child runtime and required Git/npm availability, validates supported
   engine constraints, and reports unavailable evidence. The focused runner
-  refuses unsupported Node before spawning tests. Source package binding uses
+  refuses unsupported Node before spawning tests. Source execution preflight
+  also checks an ephemeral loopback bind-and-close capability before suites;
+  the required local server tests cannot run in a sandbox that refuses it.
+  This fixed local probe sends no request, imports no target code and changes
+  no permissions or settings. Missing capability blocks execution rather than
+  skipping server assertions. Source package binding uses
   the existing reviewed boundary; it is never refreshed automatically. Review
   input availability is distinct from completed independent exact-head review;
   missing input cannot establish approval. Build/runtime observations do not
