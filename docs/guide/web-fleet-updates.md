@@ -263,3 +263,13 @@ observed canonical values. Keep this file only in the private workspace.
   ]
 }
 ```
+
+## Restore and reconnect trial
+
+After a configured workspace restore, preparation and publication/continuation
+require a current jobs restore assertion at or after `recovery.startedAt` and
+completed global reconciliation. Original publication readback remains separate
+from permission to send a remaining stage. A recovered PR is not an installation
+or project acceptance.
+See the [fleet trial worksheet](web-fleet-trial.md) for real device and recovery
+observations, including terminal detours and unavailable costs.

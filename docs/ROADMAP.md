@@ -3,7 +3,7 @@
 
 The mothership: start projects the isocan/ledger way, keep them current, and carry their lessons home. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**49 of 109 phases built; 51 owe a walk.** Built means implemented and checked; planned is not available.
+**49 of 109 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Keel improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `keel canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `keel canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -269,7 +269,7 @@ Each change is verified in parallel and published one at a time; production move
 
 From mobile and desktop, an authenticated owner operates every authorized Keel project: decisions, guided tests, visual changes, routine history and execution, fleet lessons and updates, scoped credentials and policy-bound model capacity, with source-backed evidence and private data.
 
-3/16 built; 12 owe a walk.
+3/16 built; 13 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -288,7 +288,7 @@ From mobile and desktop, an authenticated owner operates every authorized Keel p
 | [105. Fleet updates and lessons travel through the web](phases/105-fleet-updates-and-lessons-travel-through-the-web.md) | partial, walk owed | 2026-10-21 | [100](phases/100-daily-work-and-learning-stay-private.md), [104](phases/104-web-operations-run-through-durable-workers.md) | Local code, SQL and desktop/mobile journeys are verified; real container/workflow, hosted concurrency and approved adopted-project rollout remain. |
 | [106. Model routing respects capacity and policy](phases/106-model-routing-respects-capacity-and-policy.md) | partial, walk owed | 2026-10-21 | [103](phases/103-connections-expose-scoped-model-capacity.md), [104](phases/104-web-operations-run-through-durable-workers.md) | Local routing, accounting, checkpoint and desktop/mobile proofs pass; hosted admission and approved provider/owner walk remain. |
 | [107. Mobile and desktop cover Keel operations](phases/107-mobile-and-desktop-cover-keel-operations.md) | partial, walk owed | 2026-10-22 | [98](phases/98-guided-walks-preserve-what-was-tested.md), [99](phases/99-recent-changes-are-visible-and-testable.md), [105](phases/105-fleet-updates-and-lessons-travel-through-the-web.md), [106](phases/106-model-routing-respects-capacity-and-policy.md) | Coverage, scoped navigation, private drafts and bounded night adapters pass local proof; hosted activation, browser interactions and owner devices remain unverified. |
-| [108. The fleet is operated from the web](phases/108-the-fleet-is-operated-from-the-web.md) | designed | 2026-10-22 | [101](phases/101-the-workspace-holds-in-real-use.md), [107](phases/107-mobile-and-desktop-cover-keel-operations.md) | Restore/reconnect matrix and fresh feature assertions designed; implementation and real fleet trial remain. |
+| [108. The fleet is operated from the web](phases/108-the-fleet-is-operated-from-the-web.md) | partial, walk owed | 2026-10-22 | [101](phases/101-the-workspace-holds-in-real-use.md), [107](phases/107-mobile-and-desktop-cover-keel-operations.md) | Fleet restore/reconnect matrix and fresh feature assertions locally proven; real fleet operation and owner-selected window remain. |
 
 - **93 done when:** An explicitly configured external workspace can be inspected and initialized from the installed CLI without writing private data into application or project Git trees.
 - **94 done when:** The owner has an approved deployment recipe and verified private workspace repository, host and selected-repository GitHub App binding, with credentials stored only in the deployment secret store.

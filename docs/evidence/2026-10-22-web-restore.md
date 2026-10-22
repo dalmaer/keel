@@ -118,3 +118,12 @@ The implementation commit's wall-time estimate was too high: claim was recorded
 at 04:13:10 UTC and ready/typecheck at 04:27:58 UTC (about 15 minutes); main landing
 and claim release followed at about 04:38 UTC. CI and production are separate
 from this local gate. No real owner acceptance was checked by this landing.
+
+### CI follow-up — 22 October 2026
+
+Exact integrated revision `7bb17de0bd5d28d77f6cb9b140a23eebbc5dc52c` completed
+[check run 39723490539](https://github.com/dalmaer/keel/actions/runs/39723490539)
+and [typecheck run 39723490534](https://github.com/dalmaer/keel/actions/runs/39723490534)
+with `success`, observed through `gh run view <id> --json
+status,conclusion,url,headSha` (exit 0). This is CI evidence; it does not deploy
+this revision or close the owner acceptance.

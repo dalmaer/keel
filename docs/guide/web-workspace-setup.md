@@ -328,3 +328,8 @@ and quarantine of business actions. Its private worksheet covers real owner
 use and separate Git/database/media recovery. Keep execution features disabled
 until their own current restore proofs hold. No backup destination or live
 restoration is created by the local implementation.
+
+The [fleet operating trial](web-fleet-trial.md) extends that worksheet to routines,
+partial update rollouts, learning, capacity/fallback, reconnect and unresolved
+jobs. Reopening requires current per-feature restore assertions before execution
+can be enabled; a pre-restore date is insufficient.

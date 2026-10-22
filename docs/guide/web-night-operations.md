@@ -118,3 +118,13 @@ or SQL010 refuses atomically, preserving the shared allowance and project lock.
 Do not restore the older public job function: it cannot account for night retry
 reservations. Verify both directions of admission and existing receipt retention
 after database maintenance.
+
+## Restore and reconnect trial
+
+After a configured workspace restore, plan publication needs a current night
+restore assertion; native retry needs both night and jobs assertions. Each must
+be a canonical past instant at or after `recovery.startedAt`, with global
+reconciliation complete. Other enablement, current access and allowance checks
+still apply; unresolved retry charges and lanes remain held.
+See the [fleet trial worksheet](web-fleet-trial.md) for real device and recovery
+observations, including terminal detours and unavailable costs.
